@@ -46,12 +46,39 @@ pub fn run() {
         .setup(|app| {
             let handle = sampling::spawn(app.handle().clone());
             app.manage(handle);
+
+            // Safety net for a window that is created hidden.
+            //
+            // The frontend calls `show_main_window` after first paint. If it
+            // never gets that far — a JavaScript error, a failed asset, a
+            // webview that will not start — nothing else would ever show the
+            // window, and the app would run invisibly with no way to reach
+            // it. A blank window the user can close beats a process they can
+            // only find in Task Manager.
+            let reveal = app.handle().clone();
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_secs(5));
+
+                if let Some(window) = reveal.get_webview_window("main") {
+                    // Already shown by the frontend: nothing to do.
+                    if window.is_visible().unwrap_or(false) {
+                        return;
+                    }
+
+                    tracing::warn!(
+                        "frontend did not signal readiness within 5s; showing the window anyway"
+                    );
+                    let _ = window.show();
+                }
+            });
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             commands::get_host_info,
             commands::get_capabilities,
             commands::set_sample_rate,
+            commands::show_main_window,
             #[cfg(windows)]
             commands::plan_terminate_process,
             #[cfg(windows)]

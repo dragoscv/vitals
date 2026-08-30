@@ -22,7 +22,7 @@ The design deliberately keeps that surface small:
 
 **Please do not open a public issue.**
 
-Use GitHub's [private vulnerability reporting](https://github.com/vitals-app/vitals/security/advisories/new),
+Use GitHub's [private vulnerability reporting](https://github.com/dragoscv/vitals/security/advisories/new),
 which is enabled on this repository.
 
 Please include:

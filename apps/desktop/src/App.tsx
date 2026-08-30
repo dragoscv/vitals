@@ -1,5 +1,7 @@
+import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { signalReady } from './lib/ready';
 import { ThemeProvider } from './theme/ThemeProvider';
 
 /**
@@ -20,6 +22,14 @@ export function App() {
 
 function Shell() {
   const { t } = useTranslation();
+
+  // The window is created hidden to avoid a white flash while the webview
+  // boots. Nothing else reveals it, so if this effect never runs the app has
+  // no visible window at all — Rust falls back after five seconds, but that
+  // fallback shows a blank window rather than a painted one.
+  useEffect(() => {
+    signalReady();
+  }, []);
 
   return (
     <div className="flex h-full flex-col">

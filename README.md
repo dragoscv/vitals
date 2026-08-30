@@ -49,6 +49,33 @@ and sensors · benchmarks.
 a command palette · alerts and rules · a flight recorder that captures a
 minute of everything for sharing in a bug report · a scriptable CLI.
 
+## Installing
+
+> Vitals is pre-release. Nightly builds are published from `main` and are
+> exactly as stable as that sounds.
+
+Download the installer from
+[Releases](https://github.com/dragoscv/vitals/releases). It installs without
+asking anything — no wizard, no licence page, no "Next" — and takes about
+five seconds. Add `/S` to script it.
+
+**Windows will show a SmartScreen warning on first run.** That is expected:
+the builds are not signed with a commercial certificate, which costs
+€400–600/year. Rather than ask you to trust us, every release carries a
+cryptographic attestation linking the binary to the exact source commit and
+workflow that built it:
+
+```powershell
+gh attestation verify .\Vitals_x64-setup.exe --repo dragoscv/vitals
+```
+
+Checksums are in `SHA256SUMS.txt` alongside each release. See
+[docs/distribution.md](docs/distribution.md) for the full reasoning.
+
+Updates are a separate matter and are verified regardless: the updater checks
+a minisign signature before applying anything, so a compromised mirror cannot
+push a malicious update.
+
 ## Building
 
 Requires [Rust](https://rustup.rs) (stable), [Node](https://nodejs.org) 22+ and
@@ -111,7 +138,7 @@ Two principles hold the design together:
 **Please do.** This project only gets good with other people in it.
 
 The most useful thing you can do right now is
-[open an issue](https://github.com/vitals-app/vitals/issues) — a bug, a metric
+[open an issue](https://github.com/dragoscv/vitals/issues) — a bug, a metric
 your hardware reports that we miss, a feature you have wanted from Task Manager
 for years, or a motherboard whose sensors read wrong. Every report makes it
 better.

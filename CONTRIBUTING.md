@@ -23,7 +23,7 @@ Requires [Rust](https://rustup.rs) stable, [Node](https://nodejs.org) 22+,
 [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/).
 
 ```bash
-git clone https://github.com/vitals-app/vitals
+git clone https://github.com/dragoscv/vitals
 cd vitals
 pnpm install
 pnpm --filter @vitals/desktop dev

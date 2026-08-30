@@ -1,0 +1,231 @@
+name: Release
+
+# Tagged releases and nightly builds.
+#
+# Nightlies exist because the alternative — holding everything back until a
+# silent v1.0 — leaves the most differentiated features unvalidated for
+# months, and gives contributors nothing to run.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  schedule:
+    # 03:00 UTC. Only publishes when something actually changed.
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+    inputs:
+      nightly:
+        description: 'Build a nightly rather than a release'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  # Fail fast on a warning rather than shipping one.
+  RUSTFLAGS: '-D warnings'
+
+jobs:
+  # Skip the nightly entirely when nothing has landed. A stream of identical
+  # nightlies is noise that trains people to ignore releases.
+  changes:
+    name: Anything to build?
+    runs-on: ubuntu-latest
+    outputs:
+      should_build: ${{ steps.check.outputs.should_build }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - id: check
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" != "schedule" ]; then
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ -z "$(git log --since='24 hours ago' --oneline)" ]; then
+            echo "No commits in the last 24 hours; skipping nightly."
+            echo "should_build=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    name: Build (${{ matrix.platform.name }})
+    needs: changes
+    if: needs.changes.outputs.should_build == 'true'
+    permissions:
+      contents: read
+      # Required for build-provenance attestation.
+      id-token: write
+      attestations: write
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - name: windows-x64
+            runner: windows-latest
+            target: x86_64-pc-windows-msvc
+          - name: windows-arm64
+            runner: windows-11-arm
+            target: aarch64-pc-windows-msvc
+
+    runs-on: ${{ matrix.platform.runner }}
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.platform.target }}
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # A release that fails its own quality gates should never be published.
+      - name: Verify
+        run: |
+          cargo fmt --all -- --check
+          cargo clippy --workspace --all-targets -- -D warnings
+          cargo test --workspace
+
+      - name: Performance budget
+        run: cargo test -p vitals-win --release --test overhead -- --nocapture
+
+      - name: Determine version
+        id: version
+        shell: bash
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            echo "version=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+            echo "channel=stable" >> "$GITHUB_OUTPUT"
+          else
+            # Nightlies are dated and carry the short SHA, so a bug report
+            # names exactly one build.
+            echo "version=0.0.0-nightly.$(date -u +%Y%m%d).${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+            echo "channel=nightly" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build
+        run: pnpm --filter @vitals/desktop build
+        env:
+          # Present once signing is funded; absent builds are unsigned and
+          # that is expected. See docs/distribution.md.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+      - name: Collect artefacts
+        id: collect
+        shell: pwsh
+        run: |
+          $out = "dist/${{ matrix.platform.name }}"
+          New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+          $bundles = "target/${{ matrix.platform.target }}/release/bundle"
+          Get-ChildItem -Path $bundles -Recurse -Include *.exe, *.msi, *.sig `
+            -ErrorAction SilentlyContinue |
+            Copy-Item -Destination $out
+
+          $files = Get-ChildItem $out -File
+          if ($files.Count -eq 0) {
+            throw "no artefacts produced; the bundle step silently failed"
+          }
+          $files | ForEach-Object { "  $($_.Name)  $([math]::Round($_.Length/1MB,1)) MB" }
+
+      # Free, and stronger than a certificate in one respect: it links the
+      # binary to the exact source and workflow that produced it. Windows does
+      # not check it, but a security-conscious user can.
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v3
+        with:
+          subject-path: 'dist/${{ matrix.platform.name }}/*'
+
+      - name: Checksums
+        shell: pwsh
+        run: |
+          $out = "dist/${{ matrix.platform.name }}"
+          Get-ChildItem $out -File | ForEach-Object {
+            $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower()
+            "$hash  $($_.Name)"
+          } | Set-Content "$out/SHA256SUMS.txt" -Encoding ascii
+          Get-Content "$out/SHA256SUMS.txt"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vitals-${{ matrix.platform.name }}
+          path: dist/${{ matrix.platform.name }}/*
+          if-no-files-found: error
+
+  publish:
+    name: Publish
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/download-artifact@v5
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Release notes
+        id: notes
+        shell: bash
+        run: |
+          {
+            echo 'notes<<RELEASE_NOTES_EOF'
+            if [[ "${{ github.ref }}" != refs/tags/v* ]]; then
+              cat <<'HEADER'
+          **Nightly build.** Unreleased, and it may be broken.
+
+          HEADER
+            fi
+            cat <<'BODY'
+          ### Verifying this download
+
+          Windows shows a SmartScreen warning on first run because these
+          builds are not signed with a commercial certificate. That is
+          expected — see [docs/distribution.md](docs/distribution.md).
+
+          You do not have to take our word for what is in the binary:
+
+          ```
+          gh attestation verify <file> --repo dragoscv/vitals
+          ```
+
+          This proves the file was built by this repository's workflow from
+          the commit below, and nowhere else. Checksums are in
+          `SHA256SUMS.txt`.
+          BODY
+            echo 'RELEASE_NOTES_EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/**/*
+          body: ${{ steps.notes.outputs.notes }}
+          prerelease: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'nightly' }}
+          name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'Nightly' }}
+          # A moving `nightly` tag keeps one download URL that always points
+          # at the newest build.
+          make_latest: ${{ startsWith(github.ref, 'refs/tags/v') }}
+          generate_release_notes: true

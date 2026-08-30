@@ -74,6 +74,35 @@ pub fn set_sample_rate(state: State<'_, AppState>, rate: SampleRate) {
     state.set_sample_rate(rate);
 }
 
+/// Reveals the main window once the UI has painted.
+///
+/// The window is created hidden (`"visible": false`) so the user never sees
+/// an empty white rectangle while the webview boots — a flash that makes a
+/// native app feel like a web page. The cost of that choice is that
+/// something must actually show it, and if nothing does the app runs with no
+/// visible window at all.
+///
+/// Called from the frontend after first paint rather than from `setup`,
+/// because at `setup` time the webview has not rendered anything yet.
+#[tauri::command]
+// Tauri injects the window by value; it cannot hand us a borrow.
+#[allow(clippy::needless_pass_by_value)]
+pub fn show_main_window(window: tauri::Window) -> CommandResult<()> {
+    // Tauri injects the window the call came from, so no lookup is needed —
+    // and using the caller's window is more correct than looking up "main"
+    // by label, which would break the moment a second window exists.
+    window.show().map_err(|e| vitals_core::Error::Os {
+        context: format!("show window: {e}"),
+        code: 0,
+    })?;
+    window.set_focus().map_err(|e| vitals_core::Error::Os {
+        context: format!("focus window: {e}"),
+        code: 0,
+    })?;
+
+    Ok(())
+}
+
 /// How dangerous an action is, as the frontend sees it.
 ///
 /// Mirrors [`vitals_win::Risk`] rather than re-exporting it so the wire
