@@ -91,6 +91,29 @@ describe('SettingsDialog', () => {
     expect(within(dialog).getAllByRole('tabpanel')).toHaveLength(1);
   });
 
+  it('shows no machine facts, and no spinner, when there is no host to ask', async () => {
+    // Tests run without a Tauri host, so this is the path a browser preview
+    // takes. The important part is that it *settles*: an About panel stuck on
+    // a skeleton forever would look like a hang rather than an absence.
+    setSettingsBackend(memoryBackend().backend);
+    render(<Harness />);
+    const dialog = await screen.findByRole('dialog');
+
+    selectTab(dialog, 'About');
+
+    await waitFor(() => {
+      expect(within(dialog).getByText('Version 1.2.3')).toBeTruthy();
+    });
+
+    // The version and the issue links still render; only the facts block is
+    // absent, and nothing is left loading.
+    await waitFor(() => {
+      expect(within(dialog).queryByText('Copy system details')).toBeNull();
+      expect(within(dialog).queryByRole('status')).toBeNull();
+    });
+    expect(within(dialog).getByRole('button', { name: 'Open an issue' })).toBeTruthy();
+  });
+
   it('applies an appearance change to the document immediately', async () => {
     setSettingsBackend(memoryBackend().backend);
     render(<Harness />);

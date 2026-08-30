@@ -147,7 +147,22 @@
       "contributeBody": "Ai găsit o problemă sau vrei o funcție nouă? Deschide un issue pe GitHub — fiecare raport îl face mai bun.",
       "openIssues": "Deschide un issue",
       "viewSource": "Vezi codul sursă",
-      "checkUpdates": "Caută actualizări"
+      "checkUpdates": "Caută actualizări",
+      "machine": "Calculator",
+      "os": "Windows",
+      "build": "versiunea {{build}}",
+      "processor": "Procesor",
+      "cores": "Nuclee",
+      "coresUniform_one": "{{count}} nucleu",
+      "coresUniform_few": "{{count}} nuclee",
+      "coresUniform_other": "{{count}} de nuclee",
+      "coresSplit": "{{physical}} fizice, {{logical}} logice",
+      "coreTypes": "Tipuri de nuclee",
+      "hybrid": "{{performance}} de performanță, {{efficiency}} de eficiență",
+      "memory": "Memorie",
+      "motherboard": "Placă de bază",
+      "bios": "BIOS",
+      "copyFacts": "Copiază detaliile sistemului"
     }
   },
   "a11y": {

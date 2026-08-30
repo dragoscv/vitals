@@ -146,7 +146,21 @@
       "contributeBody": "Found a bug or want a feature? Open an issue on GitHub — every report makes it better.",
       "openIssues": "Open an issue",
       "viewSource": "View source",
-      "checkUpdates": "Check for updates"
+      "checkUpdates": "Check for updates",
+      "machine": "Machine",
+      "os": "Windows",
+      "build": "build {{build}}",
+      "processor": "Processor",
+      "cores": "Cores",
+      "coresUniform_one": "{{count}} core",
+      "coresUniform_other": "{{count}} cores",
+      "coresSplit": "{{physical}} physical, {{logical}} logical",
+      "coreTypes": "Core types",
+      "hybrid": "{{performance}} performance, {{efficiency}} efficiency",
+      "memory": "Memory",
+      "motherboard": "Motherboard",
+      "bios": "BIOS",
+      "copyFacts": "Copy system details"
     }
   },
   "a11y": {

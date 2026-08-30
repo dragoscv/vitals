@@ -1,7 +1,18 @@
+import { Fragment, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { locales, type Locale } from '@vitals/i18n';
-import { Button, SegmentedControl, Select, Switch, cn, focusRing } from '@vitals/ui';
+import type { HostInfo } from '@vitals/protocol';
+import {
+  Button,
+  SegmentedControl,
+  Select,
+  Skeleton,
+  Switch,
+  cn,
+  focusRing,
+  formatBytes,
+} from '@vitals/ui';
 
 import { SHELL_NS } from '../shell/strings';
 import { hasTauriHost } from '../shell/host';
@@ -10,6 +21,7 @@ import { accents, densities, surfaces, themeModes, type Accent } from '../theme/
 import { SettingsRow, SettingsSection } from './SettingsRow';
 import { retentionDayOptions, samplingRates } from './schema';
 import { useSettings } from './store';
+import { useHostInfo } from './useHostInfo';
 
 /**
  * Locale names are written in their own language, not translated.
@@ -459,11 +471,23 @@ export function AdvancedPanel() {
 
 export function AboutPanel({ version }: { readonly version: string }) {
   const { t } = useTranslation();
+  const { info, pending } = useHostInfo();
 
   return (
     <SettingsSection title={t('settings.about.title')}>
       <div className="space-y-2 py-2">
         <p className="text-sm font-medium">{t('settings.about.version', { version })}</p>
+
+        {/* Machine facts live here because this is where someone goes to
+            file a bug, and "what is this computer" is the first thing any
+            report needs. Copying them is one button rather than a hunt
+            through five Windows dialogs. */}
+        {pending ? (
+          <Skeleton className="h-24 w-full" />
+        ) : (
+          info !== null && <HostFacts info={info} />
+        )}
+
         <p className="text-sm">{t('settings.about.contribute')}</p>
         <p className="text-2xs text-[var(--color-fg-muted)]">
           {t('settings.about.contributeBody')}
@@ -481,6 +505,83 @@ export function AboutPanel({ version }: { readonly version: string }) {
         </div>
       </div>
     </SettingsSection>
+  );
+}
+
+/**
+ * The machine facts, plus a button that copies them.
+ *
+ * Formatted as plain `label: value` lines rather than a table, because the
+ * copy button produces exactly what is on screen and that text has to paste
+ * legibly into a GitHub issue.
+ */
+function HostFacts({ info }: { readonly info: HostInfo }) {
+  const { t } = useTranslation();
+  const { i18n } = useTranslation();
+
+  const rows = useMemo(() => {
+    const cores =
+      info.physicalCores === info.logicalCores
+        ? t('settings.about.coresUniform', { count: info.logicalCores })
+        : t('settings.about.coresSplit', {
+            physical: info.physicalCores,
+            logical: info.logicalCores,
+          });
+
+    // Only meaningful on a hybrid part. On a uniform machine the backend
+    // sends null rather than a list of identical entries, so there is
+    // nothing to summarise and the row is omitted entirely.
+    const hybrid =
+      info.coreTopology === null
+        ? null
+        : t('settings.about.hybrid', {
+            performance: info.coreTopology.filter((core) => core === 'performance').length,
+            efficiency: info.coreTopology.filter((core) => core !== 'performance').length,
+          });
+
+    return [
+      { label: t('settings.about.machine'), value: info.hostname },
+      {
+        label: t('settings.about.os'),
+        value: `${info.osName} ${info.osVersion} (${t('settings.about.build', { build: info.kernelVersion })})`,
+      },
+      { label: t('settings.about.processor'), value: info.cpuModel },
+      { label: t('settings.about.cores'), value: cores },
+      ...(hybrid === null ? [] : [{ label: t('settings.about.coreTypes'), value: hybrid }]),
+      { label: t('settings.about.memory'), value: formatBytes(info.totalMemory, i18n.language) },
+      ...(info.motherboard === null
+        ? []
+        : [{ label: t('settings.about.motherboard'), value: info.motherboard }]),
+      ...(info.biosVersion === null
+        ? []
+        : [{ label: t('settings.about.bios'), value: info.biosVersion }]),
+    ];
+  }, [info, t, i18n.language]);
+
+  return (
+    <div className="rounded-md border border-[var(--color-border-subtle)] p-2.5">
+      <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+        {rows.map((row) => (
+          <Fragment key={row.label}>
+            <dt className="text-2xs text-[var(--color-fg-muted)]">{row.label}</dt>
+            <dd className="text-2xs truncate font-mono">{row.value}</dd>
+          </Fragment>
+        ))}
+      </dl>
+
+      <Button
+        variant="ghost"
+        size="sm"
+        className="mt-2"
+        onClick={() => {
+          void globalThis.navigator?.clipboard?.writeText(
+            rows.map((row) => `${row.label}: ${row.value}`).join('\n'),
+          );
+        }}
+      >
+        {t('settings.about.copyFacts')}
+      </Button>
+    </div>
   );
 }
 
