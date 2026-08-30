@@ -23,7 +23,9 @@
 //! Reporting per-engine makes that legible.
 
 pub mod adapters;
+pub mod counters;
 pub mod engines;
 
 pub use adapters::{GpuAdapter, enumerate_adapters};
+pub use counters::{EngineSample, total_by_kind, total_by_process};
 pub use engines::{EngineKind, EngineUsage};
