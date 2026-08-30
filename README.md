@@ -5,9 +5,12 @@
 A fast, native system monitor and task manager for Windows — with macOS and
 Linux to follow. Free and open source, forever.
 
-> **Status: early development.** Not yet usable. The foundation — domain model,
-> sampling architecture, chart renderer, theming — is in place; the platform
-> backends are being built. There is no release yet.
+> **Status: early development.** Six screens work against live data on Windows
+> — Dashboard, Performance, Processes, Network connections, Startup and
+> Services, Installed apps. The Windows sampler is verified against Windows'
+> own counters and costs a median 13 ms per sample. The remaining sections are
+> placeholders, macOS and Linux backends do not exist yet, and nothing has been
+> through a public beta. There is no stable release.
 
 ---
 
@@ -34,16 +37,29 @@ Vitals is an attempt at all of it in one place, fast, and readable.
   windows that flash and disappear, are recorded rather than missed between
   samples.
 
-## Planned features
+## What works today
 
-**Core** — a configurable widget dashboard · deep Performance pages for CPU,
-memory, GPU, drives, network and thermals · a full Processes surface with
-suspend, efficiency mode, affinity presets and a handle/DLL finder · startup
-items and services with _measured_ impact scores · app history · users.
+- **Dashboard** — configurable widgets, and an attention panel that names the
+  cause of a slowdown rather than restating the numbers above it.
+- **Performance** — CPU (with a cell per logical processor), memory, GPU,
+  every disk and adapter, and a Thermals tab that also lists what it cannot
+  measure and why.
+- **Processes** — grouped, searchable, with end/suspend/resume behind a risk
+  model that states the actual consequence, and row ordering that holds still
+  under the pointer.
+- **Network connections** — every socket, grouped by the program that owns it.
+- **Startup and Services** — everything that runs at sign-in, with the
+  unreadable count stated rather than hidden.
+- **Installed apps** — with an uninstall that launches the vendor's own
+  uninstaller and deletes nothing itself.
 
-**Beyond the task manager** — per-app network connection monitoring and
-blocking · interactive disk-usage views and cleanup · installed apps · devices
-and sensors · benchmarks.
+## Planned
+
+**Core** — efficiency mode, affinity presets and a handle/DLL finder on
+Processes · _measured_ startup impact scores · app history · users.
+
+**Beyond the task manager** — per-app connection blocking · interactive
+disk-usage views and cleanup · devices and sensors · benchmarks.
 
 **Around the edges** — tray with live graphs · a floating always-on-top HUD ·
 a command palette · alerts and rules · a flight recorder that captures a
