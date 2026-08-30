@@ -88,9 +88,15 @@ export function ProcessDetails({ row, locale }: ProcessDetailsProps): React.JSX.
           label={t('process.column.disk', fallback('process.column.disk'))}
           value={formatThroughput(p.diskRead + p.diskWrite, locale)}
         />
+        {/* Same as GPU below: unmeasured, not zero. Per-process network needs
+            an ETW session the unelevated app cannot start. */}
         <Field
           label={t('process.column.network', fallback('process.column.network'))}
-          value={formatThroughput(p.netRx + p.netTx, locale)}
+          value={
+            p.netRx === null || p.netTx === null
+              ? UNKNOWN
+              : formatThroughput(p.netRx + p.netTx, locale)
+          }
         />
         {/* Absent GPU telemetry renders as an em-dash. Showing 0% would be a
             measurement we did not take. */}

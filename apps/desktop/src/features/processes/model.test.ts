@@ -98,6 +98,37 @@ describe('tree building', () => {
     expect(result.rows[0]?.rolledGpu).toBeNull();
   });
 
+  it('leaves rolled network null when the ETW session is not running', () => {
+    // This one used to be a zero, which rendered "0 B/s" against every
+    // process on the machine — a measurement claim nothing had made. Windows
+    // has no per-process network counters without a kernel trace session.
+    const parent = makeProcess({ pid: 1, netRx: null, netTx: null });
+    const child = makeProcess({ pid: 2, parent: 1, netRx: null, netTx: null });
+    const result = build({
+      processes: makeMap([parent, child]),
+      query: '',
+      kind: 'all',
+      grouped: true,
+      expanded: new Set(),
+    });
+
+    expect(result.rows[0]?.rolledNetwork).toBeNull();
+  });
+
+  it('still rolls network up when it is measured', () => {
+    const parent = makeProcess({ pid: 1, netRx: 100, netTx: 50 });
+    const child = makeProcess({ pid: 2, parent: 1, netRx: 10, netTx: 5 });
+    const result = build({
+      processes: makeMap([parent, child]),
+      query: '',
+      kind: 'all',
+      grouped: true,
+      expanded: new Set(),
+    });
+
+    expect(result.rows[0]?.rolledNetwork).toBe(165);
+  });
+
   it('survives a parent cycle produced by PID recycling', () => {
     const a = makeProcess({ pid: 1, parent: 2 });
     const b = makeProcess({ pid: 2, parent: 1 });

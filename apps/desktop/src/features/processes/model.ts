@@ -47,7 +47,14 @@ export interface ProcessRow {
   readonly rolledCpu: number;
   readonly rolledMemory: number;
   readonly rolledDisk: number;
-  readonly rolledNetwork: number;
+  /**
+   * `null` when per-process network is not being measured.
+   *
+   * Windows exposes no per-process network counters, so this needs an ETW
+   * kernel trace session and the elevated helper. It used to arrive as a
+   * zero, which rendered "0 B/s" against every row on the machine.
+   */
+  readonly rolledNetwork: number | null;
   /** Null when no descendant reports GPU usage, so it renders as unknown. */
   readonly rolledGpu: number | null;
   readonly descendantCount: number;
@@ -70,7 +77,7 @@ export function sortValue(row: ProcessRow, column: SortColumn): number {
     case 'disk':
       return row.rolledDisk;
     case 'network':
-      return row.rolledNetwork;
+      return row.rolledNetwork ?? Number.NaN;
     case 'gpu':
       return row.rolledGpu ?? Number.NaN;
     case 'pid':
@@ -259,7 +266,7 @@ export function buildRows(options: BuildOptions): BuildResult {
     cpu: number;
     memory: number;
     disk: number;
-    network: number;
+    network: number | null;
     gpu: number | null;
     count: number;
   }
@@ -267,7 +274,7 @@ export function buildRows(options: BuildOptions): BuildResult {
   const emit = (id: string, depth: number): Totals => {
     const node = nodes.get(id);
     if (node === undefined) {
-      return { cpu: 0, memory: 0, disk: 0, network: 0, gpu: null, count: 0 };
+      return { cpu: 0, memory: 0, disk: 0, network: null, gpu: null, count: 0 };
     }
     const p = node.process;
     const visibleChildren = node.children.filter((child) => keep.has(child));
@@ -282,7 +289,9 @@ export function buildRows(options: BuildOptions): BuildResult {
       cpu: p.cpu,
       memory: p.memoryPrivate,
       disk: p.diskRead + p.diskWrite,
-      network: p.netRx + p.netTx,
+      // Both halves come from the same ETW session, so either both are
+      // measured or neither is.
+      network: p.netRx === null || p.netTx === null ? null : p.netRx + p.netTx,
       gpu: p.gpu,
       count: 0,
     };
@@ -294,7 +303,7 @@ export function buildRows(options: BuildOptions): BuildResult {
       totals.cpu += sub.cpu;
       totals.memory += sub.memory;
       totals.disk += sub.disk;
-      totals.network += sub.network;
+      if (sub.network !== null) totals.network = (totals.network ?? 0) + sub.network;
       if (sub.gpu !== null) totals.gpu = (totals.gpu ?? 0) + sub.gpu;
       totals.count += sub.count + 1;
       if (!childrenVisible) {
@@ -337,7 +346,8 @@ function leafRow(id: string, process: Process, depth: number): ProcessRow {
     rolledCpu: process.cpu,
     rolledMemory: process.memoryPrivate,
     rolledDisk: process.diskRead + process.diskWrite,
-    rolledNetwork: process.netRx + process.netTx,
+    rolledNetwork:
+      process.netRx === null || process.netTx === null ? null : process.netRx + process.netTx,
     rolledGpu: process.gpu,
     descendantCount: 0,
   };

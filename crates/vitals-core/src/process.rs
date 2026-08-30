@@ -161,8 +161,16 @@ pub struct Process {
 
     pub disk_read: BytesPerSec,
     pub disk_write: BytesPerSec,
-    pub net_rx: BytesPerSec,
-    pub net_tx: BytesPerSec,
+    /// Per-process network throughput, when an ETW session is running.
+    ///
+    /// `Option`, not a zero, for the same reason [`Self::gpu`] is: Windows
+    /// exposes no per-process network counters, so this needs a kernel trace
+    /// session the unelevated app cannot start. A zero here renders as
+    /// "0 B/s" against every process on the machine — a measurement claim we
+    /// cannot support, and the exact failure the rest of this model is
+    /// written to avoid.
+    pub net_rx: Option<BytesPerSec>,
+    pub net_tx: Option<BytesPerSec>,
     pub gpu: Option<Percent>,
     pub gpu_memory: Option<Bytes>,
 
@@ -195,14 +203,22 @@ impl Process {
     }
 
     /// Total IO throughput, for a single sortable "is this thing busy" column.
+    ///
+    /// Unmeasured network counts as zero here, deliberately: the column sorts
+    /// disk-versus-network busyness, and dropping a whole row out of the sort
+    /// because one of its inputs is unavailable would be worse than
+    /// understating it. The distinction is preserved in the fields
+    /// themselves, which is where the UI reads it.
     #[must_use]
     pub fn total_io(&self) -> BytesPerSec {
+        let net = |value: Option<BytesPerSec>| value.map_or(0, BytesPerSec::get);
+
         BytesPerSec(
             self.disk_read
                 .get()
                 .saturating_add(self.disk_write.get())
-                .saturating_add(self.net_rx.get())
-                .saturating_add(self.net_tx.get()),
+                .saturating_add(net(self.net_rx))
+                .saturating_add(net(self.net_tx)),
         )
     }
 }
@@ -251,8 +267,8 @@ mod tests {
             memory_working_set: Bytes::ZERO,
             disk_read: BytesPerSec::ZERO,
             disk_write: BytesPerSec::ZERO,
-            net_rx: BytesPerSec::ZERO,
-            net_tx: BytesPerSec::ZERO,
+            net_rx: None,
+            net_tx: None,
             gpu: None,
             gpu_memory: None,
             thread_count: 1,
@@ -314,9 +330,24 @@ mod tests {
         );
         p.disk_read = BytesPerSec(1);
         p.disk_write = BytesPerSec(2);
-        p.net_rx = BytesPerSec(4);
-        p.net_tx = BytesPerSec(8);
+        p.net_rx = Some(BytesPerSec(4));
+        p.net_tx = Some(BytesPerSec(8));
         assert_eq!(p.total_io().get(), 15);
+    }
+
+    #[test]
+    fn unmeasured_network_does_not_drop_a_row_out_of_the_io_sort() {
+        // Disk is measured, network is not. The row must still sort by the
+        // disk activity it does have rather than vanishing to zero.
+        let mut p = sample(
+            ProcessFlags::empty(),
+            ProtectionLevel::None,
+            ProcessKind::App,
+        );
+        p.disk_read = BytesPerSec(1);
+        p.disk_write = BytesPerSec(2);
+
+        assert_eq!(p.total_io().get(), 3);
     }
 
     #[test]

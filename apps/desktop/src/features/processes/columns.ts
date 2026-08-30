@@ -114,7 +114,11 @@ export const COLUMNS: readonly ColumnDef[] = [
     align: 'end',
     numeric: true,
     required: false,
-    render: (row, locale) => formatThroughput(row.rolledNetwork, locale),
+    // Same reasoning as the GPU column below: Windows exposes no per-process
+    // network counters without an ETW session, and "0 B/s" against every row
+    // is a measurement claim we cannot support.
+    render: (row, locale) =>
+      row.rolledNetwork === null ? UNKNOWN : formatThroughput(row.rolledNetwork, locale),
   },
   {
     id: 'gpu',

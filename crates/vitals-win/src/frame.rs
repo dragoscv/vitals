@@ -16,7 +16,7 @@ use vitals_core::ids::{Pid, ProcessKey};
 use vitals_core::metrics::SystemMetrics;
 use vitals_core::process::{Process, ProcessFlags, ProcessKind, ProcessState, ProtectionLevel};
 use vitals_core::sample::{Frame, FramePayload, FrameSeq};
-use vitals_core::units::{Bytes, BytesPerSec};
+use vitals_core::units::Bytes;
 
 use crate::sampler::{Sample, SampledProcess};
 
@@ -224,11 +224,12 @@ fn convert(sampled: SampledProcess) -> Process {
         memory_working_set: Bytes(raw.working_set),
         disk_read: sampled.disk_read,
         disk_write: sampled.disk_write,
-        // Per-process network attribution needs an ETW session, which is a
-        // separate subsystem. Zero here would be a lie for any process
-        // actually using the network.
-        net_rx: BytesPerSec::ZERO,
-        net_tx: BytesPerSec::ZERO,
+        // Per-process network attribution needs an ETW kernel trace session,
+        // which is a separate subsystem and needs the elevated helper. `None`
+        // rather than zero: a zero renders as "0 B/s" against every process
+        // on the machine, which is a claim we cannot support.
+        net_rx: None,
+        net_tx: None,
         gpu: sampled.gpu,
         // Per-process VRAM needs a vendor SDK; the WDDM counter set reports
         // utilisation only.
@@ -285,7 +286,7 @@ fn now_ms() -> u64 {
 mod tests {
     use super::*;
     use crate::sampler::SystemSampler;
-    use vitals_core::units::Percent;
+    use vitals_core::units::{BytesPerSec, Percent};
 
     fn sample() -> Sample {
         let mut sampler = SystemSampler::new();
@@ -552,8 +553,8 @@ mod tests {
             memory_working_set: Bytes(120 * 1024 * 1024),
             disk_read: BytesPerSec::ZERO,
             disk_write: BytesPerSec::ZERO,
-            net_rx: BytesPerSec::ZERO,
-            net_tx: BytesPerSec::ZERO,
+            net_rx: None,
+            net_tx: None,
             gpu: None,
             gpu_memory: None,
             thread_count: 4,
