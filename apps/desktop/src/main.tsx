@@ -7,6 +7,7 @@ import { App } from './App';
 import { registerConnectionStrings } from './features/connections';
 import { registerDashboardStrings } from './features/dashboard';
 import { registerPerformanceStrings } from './features/performance';
+import { registerStartupStrings } from './features/startup';
 import { registerShellStrings } from './shell/strings';
 import './styles.css';
 
@@ -30,6 +31,7 @@ async function bootstrap(): Promise<void> {
   registerDashboardStrings();
   registerPerformanceStrings();
   registerConnectionStrings();
+  registerStartupStrings();
 
   createRoot(container).render(
     <StrictMode>

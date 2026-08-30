@@ -186,8 +186,9 @@ pub struct StartupEntryDto {
     pub command: Option<String>,
     pub image_path: Option<String>,
     pub publisher: Option<String>,
-    pub source: String,
-    pub state: String,
+    /// Translation keys, not display text. See `startup_source`.
+    pub source: &'static str,
+    pub state: &'static str,
     pub pid: Option<u32>,
 }
 
@@ -196,8 +197,8 @@ pub struct StartupEntryDto {
 pub struct ServiceDto {
     pub name: String,
     pub display_name: Option<String>,
-    pub state: String,
-    pub start_type: String,
+    pub state: &'static str,
+    pub start_type: &'static str,
     pub pid: Option<u32>,
     pub binary_path: Option<String>,
     /// The svchost group this service shares, when it shares one.
@@ -248,8 +249,8 @@ pub fn get_startup(with_service_config: bool) -> CommandResult<StartupSnapshot> 
                     .as_ref()
                     .map(|path| path.display().to_string()),
                 publisher: entry.publisher.clone(),
-                source: format!("{:?}", entry.source),
-                state: format!("{:?}", entry.state),
+                source: startup_source(entry.source),
+                state: startup_state(entry.state),
                 pid: entry.pid,
             })
             .collect(),
@@ -259,8 +260,8 @@ pub fn get_startup(with_service_config: bool) -> CommandResult<StartupSnapshot> 
             .map(|service| ServiceDto {
                 name: service.name.clone(),
                 display_name: service.display_name.clone(),
-                state: format!("{:?}", service.state),
-                start_type: format!("{:?}", service.start_type),
+                state: service_state(service.state),
+                start_type: start_type(service.start_type),
                 pid: service.pid,
                 binary_path: service.binary_path.clone(),
                 svchost_group: service.svchost_group.clone(),
@@ -268,6 +269,81 @@ pub fn get_startup(with_service_config: bool) -> CommandResult<StartupSnapshot> 
             .collect(),
         unreadable_tasks: inventory.unreadable_tasks,
     })
+}
+
+/// A stable key the UI can translate.
+///
+/// `ServiceState::Unknown` carries the raw SCM value, so `format!("{:?}")`
+/// would emit `Unknown(42)` — a different string for every unrecognised code,
+/// which no translation table can key on and which would surface the raw
+/// debug formatting to the user. The numeric value is deliberately dropped
+/// here: it is diagnostic detail with no UI meaning, and preserving it would
+/// trade a translatable label for an untranslatable one.
+#[cfg(windows)]
+const fn service_state(state: vitals_win::startup::ServiceState) -> &'static str {
+    use vitals_win::startup::ServiceState as S;
+    match state {
+        S::Stopped => "stopped",
+        S::StartPending => "startPending",
+        S::StopPending => "stopPending",
+        S::Running => "running",
+        S::ContinuePending => "continuePending",
+        S::PausePending => "pausePending",
+        S::Paused => "paused",
+        S::Unknown(_) => "unknown",
+    }
+}
+
+/// Stable keys, not `format!("{:?}")`.
+///
+/// Debug output happens to be `PascalCase` today, and the UI indexes a
+/// translation table with whatever arrives. Using it would couple every
+/// string in the Startup screen to Rust variant names: renaming `MachineRun`
+/// would silently turn a label into a raw key path in front of the user, with
+/// nothing failing to compile. An explicit mapping makes that a compile error.
+#[cfg(windows)]
+const fn startup_source(source: vitals_win::startup::StartupSource) -> &'static str {
+    use vitals_win::startup::StartupSource as S;
+    match source {
+        S::MachineRun => "machineRun",
+        S::MachineRun32 => "machineRun32",
+        S::MachineRunOnce => "machineRunOnce",
+        S::MachineRunOnce32 => "machineRunOnce32",
+        S::UserRun => "userRun",
+        S::UserRunOnce => "userRunOnce",
+        S::CommonStartupFolder => "commonStartupFolder",
+        S::UserStartupFolder => "userStartupFolder",
+        S::ScheduledTask => "scheduledTask",
+        S::Service => "service",
+    }
+}
+
+#[cfg(windows)]
+const fn startup_state(state: vitals_win::startup::StartupState) -> &'static str {
+    use vitals_win::startup::StartupState as S;
+    match state {
+        S::Enabled => "enabled",
+        S::Disabled => "disabled",
+        // Never collapsed into "enabled". A permission failure reading
+        // `StartupApproved` rendered as "this will run" is a fabricated fact,
+        // and it is the one the user would act on.
+        S::Unknown => "unknown",
+    }
+}
+
+#[cfg(windows)]
+const fn start_type(start: vitals_win::startup::StartType) -> &'static str {
+    use vitals_win::startup::StartType as S;
+    match start {
+        S::Boot => "boot",
+        S::System => "system",
+        S::Automatic => "automatic",
+        S::Manual => "manual",
+        S::Disabled => "disabled",
+        // Never reported as Manual, which would understate how much runs at
+        // boot on an unelevated machine.
+        S::Unknown => "unknown",
+    }
 }
 
 // ---------------------------------------------------------------------------

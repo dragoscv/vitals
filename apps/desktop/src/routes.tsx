@@ -7,6 +7,7 @@ import { DashboardScreen } from './features/dashboard';
 import { ConnectionsScreen } from './features/connections';
 import { PerformanceScreen } from './features/performance';
 import { ProcessesScreen } from './features/processes';
+import { StartupScreen } from './features/startup';
 import { navItems, type RouteId } from './shell/navigation';
 import { SHELL_NS } from './shell/strings';
 
@@ -77,7 +78,11 @@ export function RouteView({
     case 'network':
       return <ConnectionsScreen />;
     case 'startup':
+      return <StartupScreen mode="startup" />;
     case 'services':
+      // Same component, different mode: the two share one backend call, and
+      // `services` is what asks for start types — an SCM round trip each.
+      return <StartupScreen mode="services" />;
     case 'appHistory':
     case 'users':
     case 'storage':
