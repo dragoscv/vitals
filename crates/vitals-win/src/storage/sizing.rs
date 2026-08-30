@@ -1,0 +1,415 @@
+//! Pure size arithmetic: clusters, allocation and hard-link accounting.
+//!
+//! Everything here is deliberately free of Win32 so it can be tested without
+//! a filesystem. The rules it encodes are the ones that decide whether a scan
+//! agrees with the volume's own free-space figure or quietly disagrees with
+//! it by tens of gigabytes.
+
+use std::collections::HashSet;
+
+/// A file's two sizes, which are not the same number and must never be
+/// conflated.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct FileSize {
+    /// The length the file reports — what `dir` prints and what
+    /// `Get-ChildItem | Measure-Object -Sum Length` adds up.
+    pub logical: u64,
+    /// What the file actually occupies on the volume.
+    pub allocated: u64,
+}
+
+impl FileSize {
+    /// A file that occupies nothing.
+    pub const ZERO: Self = Self {
+        logical: 0,
+        allocated: 0,
+    };
+}
+
+/// Attributes that change how allocated size must be derived.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct AllocationHints {
+    /// NTFS sparse file: unwritten ranges consume no clusters at all, so the
+    /// logical length says nothing about occupancy.
+    pub sparse: bool,
+    /// NTFS transparent compression: occupancy is smaller than the logical
+    /// length by an amount only the filesystem knows.
+    pub compressed: bool,
+    /// A reparse point whose data may not be present locally — a `OneDrive`
+    /// placeholder is the common case. Its logical length is the size it
+    /// *would* be once hydrated, which is not disk usage.
+    pub reparse: bool,
+}
+
+impl AllocationHints {
+    /// Whether the allocated size has to be asked of the filesystem rather
+    /// than derived by rounding.
+    ///
+    /// Worth branching on: the query costs a syscall per file, and the
+    /// overwhelming majority of files on a volume are plain and need none.
+    #[must_use]
+    pub const fn needs_filesystem_query(self) -> bool {
+        self.sparse || self.compressed || self.reparse
+    }
+}
+
+/// Rounds a logical length up to a whole number of clusters.
+///
+/// Allocated size is rounded up to the cluster, not the logical length: a
+/// directory of 10,000 one-byte files occupies 40 MB on a 4 KB-cluster
+/// volume, and reporting 10 KB makes the scan disagree with the volume's own
+/// free space by a factor of four thousand.
+///
+/// A `cluster_bytes` of zero — which is what a failed
+/// `GetDiskFreeSpaceW` leaves behind — returns the logical length unchanged
+/// rather than dividing by zero. That is an under-report, but an honest one:
+/// inventing a 4 KB cluster for a volume we could not measure would be a
+/// guess dressed as a measurement.
+#[must_use]
+pub const fn round_up_to_cluster(logical: u64, cluster_bytes: u64) -> u64 {
+    if cluster_bytes == 0 {
+        return logical;
+    }
+    // Cannot overflow for any real file: `logical` is bounded by the volume
+    // size and `cluster_bytes` by 2 MB, so the sum stays far below u64::MAX.
+    // saturating_add keeps it total regardless.
+    let bumped = logical.saturating_add(cluster_bytes - 1);
+    (bumped / cluster_bytes) * cluster_bytes
+}
+
+/// Derives the on-disk size of a plain file.
+///
+/// Only correct when [`AllocationHints::needs_filesystem_query`] is false;
+/// sparse, compressed and reparse-backed files must use the value the
+/// filesystem reports instead.
+#[must_use]
+pub const fn plain_allocated(logical: u64, cluster_bytes: u64) -> u64 {
+    round_up_to_cluster(logical, cluster_bytes)
+}
+
+/// Reconciles a filesystem-reported compressed size with the cluster grid.
+///
+/// `GetCompressedFileSizeW` already returns a cluster-aligned figure on NTFS,
+/// but `ReFS` and network redirectors do not all honour that, and a value that
+/// is not a whole number of clusters would make subtree totals drift away
+/// from the volume figure. Rounding here keeps every leaf on the same grid.
+///
+/// A reported size of zero is kept as zero: that is a genuinely
+/// unmaterialised file — a fully sparse file or a dehydrated cloud
+/// placeholder — and rounding it up to one cluster would invent a cluster
+/// that is not allocated.
+#[must_use]
+pub const fn reconcile_reported(reported: u64, cluster_bytes: u64) -> u64 {
+    if reported == 0 {
+        return 0;
+    }
+    round_up_to_cluster(reported, cluster_bytes)
+}
+
+/// A file's identity on a volume, as NTFS understands it.
+///
+/// Two directory entries with the same identity are the *same file* reached
+/// by two names. `C:\Windows\WinSxS` is built almost entirely from hard links
+/// into `System32`, so a scanner that adds both copies reports a Windows
+/// directory roughly twice its true size.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct FileIdentity {
+    pub volume_serial: u32,
+    pub file_index: u64,
+}
+
+/// Remembers which multiply-linked files have already been counted.
+///
+/// Only files with a link count above one are tracked. That matters for
+/// memory: a volume with two million files but three thousand hard links
+/// holds three thousand entries, not two million.
+#[derive(Debug, Default)]
+pub struct LinkTracker {
+    seen: HashSet<FileIdentity>,
+    duplicates: u64,
+    duplicate_bytes: u64,
+}
+
+impl LinkTracker {
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Records a file and says whether its size should be counted.
+    ///
+    /// `link_count` of one — the normal case — is always counted and never
+    /// stored. Repeat sightings of a multiply-linked file return `false`;
+    /// the first sighting still counts, so the bytes appear exactly once and
+    /// under whichever name was reached first.
+    pub fn should_count(
+        &mut self,
+        identity: FileIdentity,
+        link_count: u32,
+        allocated: u64,
+    ) -> bool {
+        if link_count <= 1 {
+            return true;
+        }
+        if self.seen.insert(identity) {
+            true
+        } else {
+            self.duplicates += 1;
+            self.duplicate_bytes = self.duplicate_bytes.saturating_add(allocated);
+            false
+        }
+    }
+
+    /// How many directory entries were suppressed as repeat hard links.
+    #[must_use]
+    pub const fn duplicates(&self) -> u64 {
+        self.duplicates
+    }
+
+    /// How many bytes were *not* double-counted because of that suppression.
+    ///
+    /// Surfaced rather than hidden: it is the single largest reason a Vitals
+    /// total will be smaller than one produced by `Get-ChildItem`, and a user
+    /// comparing the two deserves the explanation.
+    #[must_use]
+    pub const fn duplicate_bytes(&self) -> u64 {
+        self.duplicate_bytes
+    }
+
+    /// Distinct multiply-linked files tracked so far.
+    #[must_use]
+    pub fn tracked(&self) -> usize {
+        self.seen.len()
+    }
+}
+
+/// Why a directory contributed nothing to the totals.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SkipReason {
+    /// The caller does not have permission to list it.
+    AccessDenied,
+    /// A junction, symlink or mount point. Following it would either count
+    /// another volume's bytes against this one or, if it points at an
+    /// ancestor, never terminate.
+    ReparsePoint,
+    /// The configured depth limit was reached.
+    DepthLimit,
+    /// Already visited through a different path during this scan.
+    Cycle,
+    /// It disappeared between being listed and being opened.
+    Vanished,
+    /// The OS refused for some other reason; the raw code is kept so the
+    /// cause is diagnosable rather than merely "failed".
+    OsError(i32),
+}
+
+impl SkipReason {
+    /// A short phrase for the UI.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::AccessDenied => "access denied",
+            Self::ReparsePoint => "reparse point not followed",
+            Self::DepthLimit => "depth limit reached",
+            Self::Cycle => "already visited",
+            Self::Vanished => "removed during scan",
+            Self::OsError(_) => "OS error",
+        }
+    }
+
+    /// Whether running elevated would plausibly let this directory be read.
+    #[must_use]
+    pub const fn is_elevation_fixable(self) -> bool {
+        matches!(self, Self::AccessDenied)
+    }
+}
+
+/// A directory that was not measured, and why.
+///
+/// Kept as data rather than silently swallowed. A total that omits an
+/// unreadable folder without saying so is a wrong number presented as a right
+/// one, and the user has no way to tell.
+#[derive(Debug, Clone)]
+pub struct SkippedPath {
+    pub path: String,
+    pub reason: SkipReason,
+}
+
+/// Returns the `n` largest items, in descending order.
+///
+/// A full sort is avoided: a treemap wants the top twenty of what can be a
+/// million directories, and `select_nth_unstable` turns an O(n log n) sort
+/// into an O(n) partition.
+pub fn top_n_by<T, K, F>(items: &mut Vec<T>, n: usize, key: F) -> Vec<T>
+where
+    F: Fn(&T) -> K,
+    K: Ord,
+{
+    if n == 0 || items.is_empty() {
+        return Vec::new();
+    }
+    if n < items.len() {
+        items.select_nth_unstable_by(n - 1, |a, b| key(b).cmp(&key(a)));
+        items.truncate(n);
+    }
+    items.sort_unstable_by_key(|item| std::cmp::Reverse(key(item)));
+    std::mem::take(items)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn one_byte_file_occupies_a_whole_cluster() {
+        assert_eq!(round_up_to_cluster(1, 4096), 4096);
+    }
+
+    #[test]
+    fn exact_multiples_are_not_bumped_to_the_next_cluster() {
+        assert_eq!(round_up_to_cluster(4096, 4096), 4096);
+        assert_eq!(round_up_to_cluster(8192, 4096), 8192);
+    }
+
+    #[test]
+    fn empty_file_occupies_nothing() {
+        assert_eq!(round_up_to_cluster(0, 4096), 0);
+    }
+
+    #[test]
+    fn ten_thousand_tiny_files_cost_forty_megabytes() {
+        // The headline case: 10 KB of data, 40 MB of disk. A scan that
+        // reports the former disagrees with the volume by 4000x.
+        let logical: u64 = 10_000;
+        let allocated: u64 = (0..10_000).map(|_| round_up_to_cluster(1, 4096)).sum();
+        assert_eq!(logical, 10_000);
+        assert_eq!(allocated, 40_960_000);
+    }
+
+    #[test]
+    fn unknown_cluster_size_reports_logical_rather_than_guessing() {
+        assert_eq!(round_up_to_cluster(1, 0), 1);
+        assert_eq!(round_up_to_cluster(123_456, 0), 123_456);
+    }
+
+    #[test]
+    fn large_cluster_volumes_round_correctly() {
+        // 64 KB clusters are normal on large exFAT and ReFS volumes.
+        assert_eq!(round_up_to_cluster(1, 65_536), 65_536);
+        assert_eq!(round_up_to_cluster(65_537, 65_536), 131_072);
+    }
+
+    #[test]
+    fn rounding_saturates_instead_of_overflowing() {
+        assert_eq!(round_up_to_cluster(u64::MAX, 4096), u64::MAX / 4096 * 4096);
+    }
+
+    #[test]
+    fn plain_files_do_not_need_a_filesystem_query() {
+        assert!(!AllocationHints::default().needs_filesystem_query());
+    }
+
+    #[test]
+    fn sparse_compressed_and_reparse_files_do() {
+        for hints in [
+            AllocationHints {
+                sparse: true,
+                ..Default::default()
+            },
+            AllocationHints {
+                compressed: true,
+                ..Default::default()
+            },
+            AllocationHints {
+                reparse: true,
+                ..Default::default()
+            },
+        ] {
+            assert!(hints.needs_filesystem_query(), "{hints:?}");
+        }
+    }
+
+    #[test]
+    fn a_dehydrated_cloud_file_stays_at_zero() {
+        // A OneDrive placeholder reports a multi-gigabyte logical length and
+        // occupies nothing. Rounding it up to a cluster would invent one.
+        assert_eq!(reconcile_reported(0, 4096), 0);
+    }
+
+    #[test]
+    fn reported_compressed_size_is_placed_on_the_cluster_grid() {
+        assert_eq!(reconcile_reported(5000, 4096), 8192);
+        assert_eq!(reconcile_reported(4096, 4096), 4096);
+    }
+
+    #[test]
+    fn single_linked_files_always_count() {
+        let mut tracker = LinkTracker::new();
+        let id = FileIdentity {
+            volume_serial: 1,
+            file_index: 42,
+        };
+        assert!(tracker.should_count(id, 1, 4096));
+        assert!(tracker.should_count(id, 1, 4096));
+        assert_eq!(tracker.tracked(), 0, "unlinked files must not be stored");
+    }
+
+    #[test]
+    fn a_hard_linked_file_counts_once_and_only_once() {
+        let mut tracker = LinkTracker::new();
+        let id = FileIdentity {
+            volume_serial: 7,
+            file_index: 900,
+        };
+        assert!(tracker.should_count(id, 3, 8192), "first sighting counts");
+        assert!(!tracker.should_count(id, 3, 8192), "second must not");
+        assert!(!tracker.should_count(id, 3, 8192), "third must not");
+        assert_eq!(tracker.duplicates(), 2);
+        assert_eq!(tracker.duplicate_bytes(), 16_384);
+    }
+
+    #[test]
+    fn identical_indices_on_different_volumes_are_different_files() {
+        let mut tracker = LinkTracker::new();
+        let c = FileIdentity {
+            volume_serial: 1,
+            file_index: 5,
+        };
+        let d = FileIdentity {
+            volume_serial: 2,
+            file_index: 5,
+        };
+        assert!(tracker.should_count(c, 2, 100));
+        assert!(
+            tracker.should_count(d, 2, 100),
+            "a file index is only unique within a volume"
+        );
+        assert_eq!(tracker.duplicates(), 0);
+    }
+
+    #[test]
+    fn skip_reasons_distinguish_the_fixable_from_the_permanent() {
+        assert!(SkipReason::AccessDenied.is_elevation_fixable());
+        assert!(!SkipReason::ReparsePoint.is_elevation_fixable());
+        assert!(!SkipReason::Cycle.is_elevation_fixable());
+    }
+
+    #[test]
+    fn top_n_returns_the_largest_in_descending_order() {
+        let mut items = vec![5_u64, 1, 9, 3, 7, 2];
+        let top = top_n_by(&mut items, 3, |v| *v);
+        assert_eq!(top, vec![9, 7, 5]);
+    }
+
+    #[test]
+    fn top_n_handles_fewer_items_than_requested() {
+        let mut items = vec![2_u64, 8];
+        assert_eq!(top_n_by(&mut items, 10, |v| *v), vec![8, 2]);
+    }
+
+    #[test]
+    fn top_zero_is_empty() {
+        let mut items = vec![1_u64, 2];
+        assert!(top_n_by(&mut items, 0, |v| *v).is_empty());
+    }
+}

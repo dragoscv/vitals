@@ -1,0 +1,223 @@
+//! Scans a directory and reports where the space went.
+//!
+//! Deliberately bounded by default: scanning all of `C:` in a routine test
+//! run costs minutes and tells nobody anything they did not know.
+//!
+//! Run with:
+//! `cargo run -p vitals-win --example storage_probe`
+//! `cargo run -p vitals-win --example storage_probe -- "C:\Program Files"`
+//!
+//! Cross-check the logical total against PowerShell — note `Length`, which is
+//! the *logical* size, so it is the LOGICAL column that should match, never
+//! the allocated one:
+//! `Get-ChildItem -Recurse -File -Force "C:\Windows\System32" -EA SilentlyContinue |
+//!  Measure-Object -Sum Length`
+
+use std::path::{Path, PathBuf};
+use std::sync::atomic::AtomicBool;
+
+use vitals_win::storage::{
+    ScanControl, ScanOptions, ScanProgress, ScanResult, ScanStrategy, find_cleanup_candidates,
+    largest_directories, scan_directory, strategy_for,
+};
+
+fn human(bytes: u64) -> String {
+    const UNITS: [&str; 5] = ["B", "KB", "MB", "GB", "TB"];
+    let mut value = bytes as f64;
+    let mut unit = 0;
+    while value >= 1024.0 && unit < UNITS.len() - 1 {
+        value /= 1024.0;
+        unit += 1;
+    }
+    if unit == 0 {
+        format!("{bytes} B")
+    } else {
+        format!("{value:.2} {}", UNITS[unit])
+    }
+}
+
+fn print_strategy() {
+    match strategy_for('C') {
+        ScanStrategy::MftAssisted => {
+            println!("strategy: MFT enumeration available (elevated) for volume discovery");
+        }
+        ScanStrategy::DirectoryWalk => {
+            println!(
+                "strategy: directory walk only — MFT enumeration needs elevation, \
+                 so whole-volume discovery is unavailable in this process"
+            );
+        }
+    }
+}
+
+fn run_scan(root: &Path, cancel: &AtomicBool) -> ScanResult {
+    let mut on_progress = |p: ScanProgress| {
+        if let Some(rate) = p.files_per_second() {
+            print!(
+                "\r  scanning… {} files, {} dirs, {} — {rate:.0} files/s   ",
+                p.files_seen,
+                p.directories_seen,
+                human(p.bytes_seen)
+            );
+        }
+    };
+
+    let mut control = ScanControl {
+        cancel: Some(cancel),
+        progress: Some(&mut on_progress),
+    };
+
+    scan_directory(root, ScanOptions::default(), &mut control)
+}
+
+fn print_totals(result: &ScanResult) {
+    println!("== totals ==");
+    println!(
+        "  allocated (on disk)   {:>14}  ({} bytes)",
+        human(result.allocated().get()),
+        result.allocated().get()
+    );
+    println!(
+        "  logical (file length) {:>14}  ({} bytes)",
+        human(result.logical().get()),
+        result.logical().get()
+    );
+    println!(
+        "  cluster size          {:>14}",
+        result
+            .cluster_bytes
+            .map_or_else(|| "unknown".to_owned(), human)
+    );
+    // Printed in whichever direction it actually falls. A saturating
+    // subtraction would show "0 B" whenever compression wins, hiding the more
+    // interesting of the two cases behind a number that looks like agreement.
+    let allocated = result.allocated().get();
+    let logical = result.logical().get();
+    if allocated >= logical {
+        println!(
+            "  cluster slack         {:>14}  — allocated exceeds logical: \
+             every file is rounded up to a whole cluster",
+            human(allocated - logical)
+        );
+    } else {
+        println!(
+            "  compression saving    {:>14}  — allocated is BELOW logical: \
+             NTFS-compressed files occupy less than their length",
+            human(logical - allocated)
+        );
+    }
+    println!();
+}
+
+fn print_scan_stats(result: &ScanResult) {
+    println!("== scan ==");
+    println!("  files                 {:>14}", result.files_scanned);
+    println!("  directories           {:>14}", result.directories_scanned);
+    println!("  elapsed               {:>11} ms", result.elapsed_ms);
+    match result.files_per_second() {
+        Some(rate) => println!("  rate                  {rate:>11.0} files/s"),
+        None => println!("  rate                       too fast to measure"),
+    }
+    println!(
+        "  tree memory           {:>14}  ({} nodes, {} distinct names)",
+        human(result.tree.memory_bytes() as u64),
+        result.tree.len(),
+        result.tree.distinct_names()
+    );
+    println!(
+        "  hard links suppressed {:>14}  saving {}",
+        result.hard_link_duplicates,
+        human(result.hard_link_bytes_saved)
+    );
+    println!(
+        "  complete              {:>14}",
+        if result.is_complete() { "yes" } else { "NO" }
+    );
+    println!();
+}
+
+fn print_largest(result: &ScanResult) {
+    println!("== top 20 directories by allocated size ==");
+    for (i, entry) in largest_directories(result, 20).iter().enumerate() {
+        println!(
+            "  {:>2}. {:>10}  {:>7} files  {}{}",
+            i + 1,
+            human(entry.allocated.get()),
+            entry.files,
+            entry.path,
+            entry
+                .incomplete
+                .map_or_else(String::new, |r| format!("  [{}]", r.as_str()))
+        );
+    }
+    println!();
+}
+
+fn print_skipped(result: &ScanResult) {
+    let skipped = result.tree.skipped();
+    println!(
+        "== skipped ({} directories, excluded from totals) ==",
+        skipped.len()
+    );
+    for item in skipped.iter().take(15) {
+        println!("  {:<28}  {}", item.reason.as_str(), item.path);
+    }
+    if skipped.len() > 15 {
+        println!("  … and {} more", skipped.len() - 15);
+    }
+    println!();
+}
+
+fn print_cleanup(cancel: &AtomicBool) {
+    println!("== cleanup candidates (report only — nothing is deleted) ==");
+    let candidates = find_cleanup_candidates(Some(cancel));
+    if candidates.is_empty() {
+        println!("  none found");
+    }
+    for candidate in &candidates {
+        let size = candidate
+            .size
+            .map_or_else(|| "unknown".to_owned(), |b| human(b.get()));
+        println!(
+            "  {:>10}  {:<7}  {}{}",
+            size,
+            candidate.safety.as_str(),
+            candidate.path.display(),
+            if candidate.needs_elevation {
+                "  [needs elevation]"
+            } else {
+                ""
+            }
+        );
+        println!("              {}", candidate.kind.reason());
+    }
+    println!();
+}
+
+fn main() {
+    let root = std::env::args()
+        .nth(1)
+        .map_or_else(|| PathBuf::from("C:\\Windows\\System32"), PathBuf::from);
+
+    println!("Vitals storage probe");
+    println!("root: {}", root.display());
+    print_strategy();
+    println!();
+
+    let cancel = AtomicBool::new(false);
+    let result = run_scan(&root, &cancel);
+    println!("\r{:70}\r", "");
+
+    print_totals(&result);
+    print_scan_stats(&result);
+    print_largest(&result);
+    print_skipped(&result);
+    print_cleanup(&cancel);
+
+    println!("Cross-check the LOGICAL total (not the allocated one) with:");
+    println!(
+        "  Get-ChildItem -Recurse -File -Force \"{}\" -EA SilentlyContinue | \
+         Measure-Object -Sum Length",
+        root.display()
+    );
+}

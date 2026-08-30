@@ -36,7 +36,9 @@ pub mod memory;
 pub mod network;
 pub mod process;
 pub mod sampler;
+pub mod sensors;
 pub mod startup;
+pub mod storage;
 
 pub use actions::{Priority, Risk};
 pub use cpu::{CpuTimes, CpuUsage};
