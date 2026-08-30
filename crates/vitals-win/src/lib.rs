@@ -31,6 +31,7 @@ pub mod cpu;
 pub mod disk;
 pub mod frame;
 pub mod gpu;
+pub mod history;
 pub mod host;
 pub mod memory;
 pub mod network;
@@ -39,6 +40,7 @@ pub mod sampler;
 pub mod sensors;
 pub mod startup;
 pub mod storage;
+pub mod users;
 
 pub use actions::{Priority, Risk};
 pub use cpu::{CpuTimes, CpuUsage};

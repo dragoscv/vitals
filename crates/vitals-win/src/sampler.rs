@@ -81,6 +81,17 @@ pub struct SystemSampler {
     /// Cached volume list, refreshed on [`VOLUME_REFRESH_INTERVAL`].
     volumes: Vec<DiskMetrics>,
     volumes_read_at: Option<Instant>,
+
+    /// Accumulated per-application usage.
+    ///
+    /// Lives here rather than beside the UI because it must see every tick,
+    /// including the ones nobody is watching — history that only accrued
+    /// while its own screen was open would be worthless.
+    ///
+    /// Shared rather than owned: the UI thread reads it when the App history
+    /// screen asks, and this thread writes it every second. One `Arc` keeps
+    /// there being exactly one history rather than two that disagree.
+    history: crate::history::SharedHistory,
 }
 
 impl Default for SystemSampler {
@@ -103,7 +114,14 @@ impl SystemSampler {
             last_tick: None,
             volumes: Vec::new(),
             volumes_read_at: None,
+            history: crate::history::SharedHistory::default(),
         }
+    }
+
+    /// A handle to the accumulated app history.
+    #[must_use]
+    pub fn history(&self) -> crate::history::SharedHistory {
+        self.history.clone()
     }
 
     /// Discards every baseline.
@@ -148,6 +166,13 @@ impl SystemSampler {
         // CPU metrics need the aggregate thread and handle counts, so they
         // are computed before the process list is consumed below.
         let cpu = build_cpu_metrics(&cpu_usage, &raw_processes);
+
+        // App history folds in from the same enumeration rather than running
+        // its own, which would double the most expensive part of the tick for
+        // data already in hand. It borrows the list before `resolve_process_
+        // rates` consumes it, so nothing is cloned.
+        self.history.record(&raw_processes);
+
         let processes = self.resolve_process_rates(raw_processes, elapsed);
         let disks = self.volumes(now);
         let networks = self.build_network_metrics(elapsed);

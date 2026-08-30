@@ -68,6 +68,14 @@ pub fn spawn(app: AppHandle) -> SamplerHandle {
 fn run(app: &AppHandle, stop: &AtomicBool) {
     let mut backend = Backend::new();
 
+    // The store lives in the sampler; the commands need a handle to the same
+    // one. Attaching here rather than at construction is what loads the saved
+    // history exactly once, on the thread that will be writing it.
+    #[cfg(windows)]
+    if let Some(state) = app.try_state::<AppState>() {
+        state.attach_history(backend.history());
+    }
+
     // Backoff so a persistent failure does not spam the UI with a toast per
     // tick. Resets on the first success.
     let mut consecutive_failures = 0_u32;
@@ -117,6 +125,15 @@ fn run(app: &AppHandle, stop: &AtomicBool) {
         } else {
             sleep_interruptibly(remaining, stop);
         }
+    }
+
+    // The loop ends when the window closes or the app quits. Writing here is
+    // the only place the session's accumulated history is persisted — doing
+    // it every tick would mean a disk write per second for data nobody has
+    // asked to see.
+    #[cfg(windows)]
+    if let Some(state) = app.try_state::<AppState>() {
+        state.save_history();
     }
 }
 
@@ -173,6 +190,10 @@ impl Backend {
             sampler: vitals_win::SystemSampler::new(),
             frames: vitals_win::FrameBuilder::new(),
         }
+    }
+
+    fn history(&self) -> vitals_win::history::SharedHistory {
+        self.sampler.history()
     }
 
     fn next_frame(&mut self) -> vitals_core::error::Result<vitals_core::sample::Frame> {

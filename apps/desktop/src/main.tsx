@@ -9,9 +9,11 @@ import { registerBenchmarksStrings } from './features/benchmarks';
 import { registerConnectionStrings } from './features/connections';
 import { registerDashboardStrings } from './features/dashboard';
 import { registerDevicesStrings } from './features/devices';
+import { registerHistoryStrings } from './features/history';
 import { registerPerformanceStrings } from './features/performance';
 import { registerStartupStrings } from './features/startup';
 import { registerStorageStrings } from './features/storage';
+import { registerUsersStrings } from './features/users';
 import { registerShellStrings } from './shell/strings';
 import './styles.css';
 
@@ -40,6 +42,8 @@ async function bootstrap(): Promise<void> {
   registerStorageStrings();
   registerDevicesStrings();
   registerBenchmarksStrings();
+  registerHistoryStrings();
+  registerUsersStrings();
 
   createRoot(container).render(
     <StrictMode>

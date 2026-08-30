@@ -69,16 +69,17 @@ describe('AppShell', () => {
     renderShell();
     const main = screen.getByRole('main');
 
-    // Dashboard is a real screen now, so it is asserted by its own heading
-    // rather than the placeholder. Users is still unbuilt and is now the case
-    // that proves an unimplemented route renders its explanation instead of a
-    // blank panel — Storage, then Benchmarks, each played that role and have
-    // since been built, which is exactly the drift this comment prevents.
+    // This assertion used to point at whichever route was still unbuilt, and
+    // it had to be re-pointed every time one of them shipped — Storage, then
+    // Benchmarks, then Users. Every route renders a real screen now, so there
+    // is no placeholder left to aim at and the test asserts the thing it was
+    // always actually about: choosing a destination replaces what `main`
+    // shows, and the store agrees with the screen.
     expect(within(main).getByRole('heading', { name: 'Dashboard' })).toBeTruthy();
 
     fireEvent.click(screen.getByRole('button', { name: 'Users' }));
 
-    expect(within(main).getByText(/Users is not ready yet/)).toBeTruthy();
+    expect(within(main).queryByRole('heading', { name: 'Dashboard' })).toBeNull();
     expect(useSettings.getState().route).toBe('users');
   });
 

@@ -7,9 +7,11 @@
 
 pub mod benchmarks;
 pub mod commands;
+pub mod history;
 pub mod inventory;
 pub mod sampling;
 pub mod state;
+pub mod users;
 
 use tauri::Manager;
 
@@ -123,6 +125,13 @@ pub fn run() {
             benchmarks::list_benchmarks,
             #[cfg(windows)]
             benchmarks::run_benchmarks,
+            // App history and logon sessions. Both have non-Windows
+            // fallbacks, so unlike the inventories above they need no `cfg`
+            // here — the fallback answers on every other platform rather
+            // than the command simply not existing.
+            history::get_app_history,
+            history::clear_app_history,
+            users::get_users,
         ])
         .run(tauri::generate_context!())
         .expect("failed to start the Vitals application");

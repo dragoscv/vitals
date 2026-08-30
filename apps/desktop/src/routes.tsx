@@ -1,41 +1,17 @@
-import { Construction } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
-
-import { EmptyState, Skeleton } from '@vitals/ui';
+import { Skeleton } from '@vitals/ui';
 
 import { DashboardScreen } from './features/dashboard';
 import { ConnectionsScreen } from './features/connections';
 import { AppsScreen } from './features/apps';
 import { BenchmarksScreen } from './features/benchmarks';
 import { DevicesScreen } from './features/devices';
+import { AppHistoryScreen } from './features/history';
 import { PerformanceScreen } from './features/performance';
 import { ProcessesScreen } from './features/processes';
 import { StartupScreen } from './features/startup';
 import { StorageScreen } from './features/storage';
-import { navItems, type RouteId } from './shell/navigation';
-import { SHELL_NS } from './shell/strings';
-
-/**
- * Placeholder for a section whose feature module does not exist yet.
- *
- * It says what is missing and why, rather than rendering nothing. A blank
- * panel in a system monitor is indistinguishable from "your computer reports
- * nothing here", which is a far more alarming message than "not built yet".
- */
-function NotBuiltYet({ route }: { readonly route: RouteId }) {
-  const { t } = useTranslation();
-  const { t: ts } = useTranslation(SHELL_NS);
-  const item = navItems.find((candidate) => candidate.id === route);
-  const section = item ? t(item.labelKey) : '';
-
-  return (
-    <EmptyState
-      icon={<Construction />}
-      title={ts('placeholder.title', { section })}
-      description={ts('placeholder.body')}
-    />
-  );
-}
+import { UsersScreen } from './features/users';
+import { type RouteId } from './shell/navigation';
 
 /**
  * Shown while a section's data is still arriving.
@@ -96,8 +72,9 @@ export function RouteView({
     case 'benchmarks':
       return <BenchmarksScreen />;
     case 'appHistory':
+      return <AppHistoryScreen />;
     case 'users':
-      return <NotBuiltYet route={route} />;
+      return <UsersScreen />;
     default: {
       const exhaustive: never = route;
       return exhaustive;

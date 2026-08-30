@@ -12,6 +12,14 @@ use vitals_core::sample::SampleRate;
 pub struct AppState {
     rate: RwLock<SampleRate>,
     capabilities: RwLock<Capabilities>,
+    /// Accumulated per-application usage.
+    ///
+    /// A handle to the store the sampler thread writes on every tick, not a
+    /// second copy. Installed by the sampler once it starts, so before that
+    /// it is `None` and the history screen reports empty rather than
+    /// inventing records.
+    #[cfg(windows)]
+    history: RwLock<Option<vitals_win::history::SharedHistory>>,
 }
 
 impl AppState {
@@ -20,6 +28,8 @@ impl AppState {
         Self {
             rate: RwLock::new(SampleRate::Normal),
             capabilities: RwLock::new(platform_capabilities()),
+            #[cfg(windows)]
+            history: RwLock::new(None),
         }
     }
 
@@ -40,6 +50,65 @@ impl AppState {
     pub fn refresh_capabilities(&self) {
         *self.capabilities.write() = platform_capabilities();
     }
+
+    /// Adopts the sampler's history store and loads any saved history into it.
+    #[cfg(windows)]
+    pub fn attach_history(&self, history: vitals_win::history::SharedHistory) {
+        history.load_from(&history_path());
+        *self.history.write() = Some(history);
+    }
+
+    /// Reads the accumulated history.
+    ///
+    /// Empty before the sampler has started, which is the truthful answer:
+    /// nothing has been observed yet.
+    #[cfg(windows)]
+    pub fn history_snapshot(&self) -> Vec<vitals_win::history::AppHistoryRecord> {
+        self.history
+            .read()
+            .as_ref()
+            .map(vitals_win::history::SharedHistory::snapshot)
+            .unwrap_or_default()
+    }
+
+    /// Discards the accumulated history and the file backing it.
+    ///
+    /// Written through immediately: the user asked for the history to be gone,
+    /// and leaving the old file to be reloaded at next start would quietly
+    /// undo that.
+    #[cfg(windows)]
+    pub fn clear_history(&self) {
+        if let Some(history) = self.history.read().as_ref() {
+            history.clear_and_save(&history_path());
+        }
+    }
+
+    /// Persists the history, best effort.
+    ///
+    /// Called on shutdown. A failure here loses at most the current session's
+    /// tally, which is not worth blocking exit over.
+    #[cfg(windows)]
+    pub fn save_history(&self) {
+        if let Some(history) = self.history.read().as_ref() {
+            let _ = history.save(&history_path());
+        }
+    }
+}
+
+/// Where the accumulated history is kept.
+///
+/// Local app data rather than roaming: the history describes what ran on this
+/// machine, so following the user to another one would be actively wrong.
+#[cfg(windows)]
+fn history_path() -> std::path::PathBuf {
+    std::env::var_os("LOCALAPPDATA").map_or_else(
+        || std::path::PathBuf::from("vitals-history.json"),
+        |base| {
+            std::path::Path::new(&base)
+                .join("Vitals")
+                .join("app-history.json")
+        },
+    )
 }
 
 impl Default for AppState {
