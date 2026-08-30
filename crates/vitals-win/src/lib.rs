@@ -25,6 +25,8 @@
 #![cfg(windows)]
 
 pub mod actions;
+pub mod apps;
+pub mod connections;
 pub mod cpu;
 pub mod disk;
 pub mod frame;
@@ -34,6 +36,7 @@ pub mod memory;
 pub mod network;
 pub mod process;
 pub mod sampler;
+pub mod startup;
 
 pub use actions::{Priority, Risk};
 pub use cpu::{CpuTimes, CpuUsage};
