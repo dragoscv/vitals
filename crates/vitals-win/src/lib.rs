@@ -26,6 +26,7 @@
 
 pub mod cpu;
 pub mod disk;
+pub mod frame;
 pub mod host;
 pub mod memory;
 pub mod network;
@@ -34,6 +35,7 @@ pub mod sampler;
 
 pub use cpu::{CpuTimes, CpuUsage};
 pub use disk::{DiskCounters, DiskRates, VolumeInfo, enumerate_volumes};
+pub use frame::FrameBuilder;
 pub use host::WindowsHost;
 pub use memory::{MemoryPressure, MemorySampler};
 pub use network::{AdapterInfo, NetworkCounters, NetworkRates, enumerate_adapters};

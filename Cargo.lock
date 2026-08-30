@@ -5039,6 +5039,7 @@ dependencies = [
 name = "vitals-win"
 version = "0.1.0"
 dependencies = [
+ "serde_json",
  "vitals-core",
  "windows 0.62.2",
  "windows-sys 0.61.2",

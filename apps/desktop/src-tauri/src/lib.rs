@@ -6,6 +6,7 @@
 //! aggregating numbers will misreport the machine it is measuring.
 
 pub mod commands;
+pub mod sampling;
 pub mod state;
 
 use tauri::Manager;
@@ -39,6 +40,14 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .manage(state::AppState::new())
+        // The sampler starts with the app and stops when the handle drops at
+        // shutdown. Managed so it stays alive for the process lifetime —
+        // dropping the handle would silently stop all sampling.
+        .setup(|app| {
+            let handle = sampling::spawn(app.handle().clone());
+            app.manage(handle);
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             commands::get_host_info,
             commands::get_capabilities,

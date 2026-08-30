@@ -38,3 +38,7 @@ windows-sys = { version = "0.61.2", features = [
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+# Used to prove the delta encoding actually reduces payload size.
+serde_json = { workspace = true }
