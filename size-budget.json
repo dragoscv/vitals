@@ -1,0 +1,6 @@
+{
+  "comment": "Budgets in bytes. Raise deliberately, never to make CI pass.",
+  "initialGzipBytes": 162692.0,
+  "shippedGzipBytes": 279632.0,
+  "installerBytes": 3148917.0
+}

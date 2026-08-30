@@ -96,6 +96,13 @@ if (-not $SkipBuild) {
         pnpm build:vite
         Pop-Location
     } | Out-Null
+
+    # Only meaningful after a build, and the installer half is skipped here:
+    # a full `tauri build` is minutes, whereas the asset budgets catch the
+    # regression that actually happens day to day — an eager import.
+    Invoke-Gate 'build: size budget' {
+        pwsh -NoProfile -File scripts/check-size.ps1 -SkipInstaller
+    } | Out-Null
 }
 
 Write-Host ''

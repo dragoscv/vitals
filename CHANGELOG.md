@@ -7,9 +7,9 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-Six screens work against live data. There is still no release to install —
-the installer builds and runs, but several sections remain placeholders and
-nothing has been through a public beta.
+Every section now works against live data — there are no placeholder screens
+left. There is still no release to install: the installer builds and runs,
+but nothing has been through a public beta.
 
 ### Added
 
@@ -100,6 +100,32 @@ nothing has been through a public beta.
 - **Installed apps**, with an uninstall that launches the vendor's own
   uninstaller and deletes nothing itself. Sizes are labelled as declared by
   the installer, because Windows never recomputes them.
+- **Disk storage** — largest directories, per-volume usage and cleanup
+  candidates. A location whose size could not be measured is reported as
+  unmeasured rather than contributing zero, so the "you can reclaim this
+  much" figure is never quietly short. Cancelling a scan reports unknown
+  instead of presenting a truncated total as a measurement.
+- **Devices & sensors** — temperatures, battery and power state, with the
+  gaps enumerated. Most consumer sensors need a ring-0 driver Vitals does not
+  install, and `MSAcpi_ThermalZoneTemperature` returns access-denied without
+  elevation; both are reported as unavailable, never as zero. Sampled on its
+  own 5-second cadence because a cold WMI query costs ~50 ms and has no
+  business on the 1 Hz tick.
+- **Benchmarks** with reproducible workloads and stated run conditions. A
+  seeded PRNG makes two runs on the same machine comparable, results report
+  the median and spread rather than a best case, and each result carries what
+  the machine was doing at the time — a score without its conditions is a
+  number without a meaning.
+- **App history** — accumulated per-application CPU, disk and peak memory.
+  This is Vitals' own tally, not Windows' SRUM database, and the UI says so:
+  history starts empty at first run. A process seen for the first time
+  credits nothing, because its existing counters describe time this history
+  did not observe.
+- **Users** — logon sessions with per-session process and resource rollups.
+  Logon time is reported as unavailable rather than guessed: the buffer
+  `WTSQuerySessionInformationW` returns does not match the documented
+  `WTSINFOW` layout, and parsing it anyway would produce a plausible wrong
+  answer.
 
 #### Actions
 
@@ -147,6 +173,47 @@ nothing has been through a public beta.
 - **Placeholder strings would have shadowed the real translations.**
   `addResourceBundle(..., deep: false, overwrite: false)` shallow-merges, so
   the incoming bundle wins and `overwrite: false` protects nothing.
+- **App history read and wrote nothing.** Each command held its own
+  function-local `static` store and neither was ever populated, so the screen
+  would have shown an empty list forever and "clear history" would have
+  cleared nothing. The store now lives in the sampler — the only thing that
+  sees every tick — and the commands hold a handle to that same one.
+- **An out-of-bounds read in session enumeration.** The wide-string scan
+  bounded its length with `take` applied _after_ an unbounded `take_while`,
+  so it dereferenced past the end of the allocation before the limit was ever
+  consulted. The range is bounded up front now.
+- **CI could never upload the installer.** The artifact path pointed inside
+  `src-tauri`, but a Cargo workspace shares one target directory at the repo
+  root. With `if-no-files-found: error`, that step could only fail.
+
+### Performance
+
+- **The test suite spent 29.6 seconds waiting on an orphan.** Process-action
+  tests used `cmd /c ping -n 30` as their victim, which spawns a grandchild:
+  killing `cmd` left `ping` alive holding the inherited stdout pipe, and the
+  harness blocked until it finished on its own — for tests whose assertions
+  take 0.07 s.
+- **Prettier walked the entire tree**, `target/` and its 2281 JSON files
+  included, spending 28 seconds to find 3 formattable files. Scoping the
+  globs to the source roots is the fix; a `.prettierignore` alone is not,
+  because the glob is expanded before ignores are consulted.
+- **Benchmark tests ran the real workload in a debug build** — 12 million
+  iterations and a 512 MB working set — to assert that a score is finite.
+  The two assertions that genuinely need DRAM are now `#[ignore]`d and run in
+  release by CI.
+- Full gate run: 95 s to 27 s.
+- **Source maps were shipping inside the installer.** `frontendDist` is the
+  whole `dist` directory, so 3 MB of maps went into the download and would
+  have gone into every differential update. Vite's `hidden` is not enough —
+  it drops the comment but still writes the files.
+- **Every screen loaded eagerly** although only one is ever visible, and
+  `@vitals/ui` declared no `sideEffects`, so no unused Radix primitive could
+  be dropped. Routes are lazy now, each registering its translations inside
+  its own chunk. Initial parse fell from 236 KB to 151 KB gzipped, the
+  packaged `dist` from 3866 KB to 815 KB, and the installer from 3.41 MB to
+  2.86 MB.
+- **`.pnpm-cache/` was committed** — 399 files, 214 MB. `.gitignore` named
+  `.pnpm-store/`, which is not the directory pnpm uses here.
 
 ### Notes on dependencies
 

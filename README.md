@@ -5,12 +5,11 @@
 A fast, native system monitor and task manager for Windows — with macOS and
 Linux to follow. Free and open source, forever.
 
-> **Status: early development.** Six screens work against live data on Windows
-> — Dashboard, Performance, Processes, Network connections, Startup and
-> Services, Installed apps. The Windows sampler is verified against Windows'
-> own counters and costs a median 13 ms per sample. The remaining sections are
-> placeholders, macOS and Linux backends do not exist yet, and nothing has been
-> through a public beta. There is no stable release.
+> **Status: early development.** Every section works against live data on
+> Windows — there are no placeholder screens left. The Windows sampler is
+> verified against Windows' own counters and costs a median 13 ms per sample.
+> macOS and Linux backends do not exist yet, and nothing has been through a
+> public beta. There is no stable release.
 
 ---
 
@@ -52,14 +51,25 @@ Vitals is an attempt at all of it in one place, fast, and readable.
   unreadable count stated rather than hidden.
 - **Installed apps** — with an uninstall that launches the vendor's own
   uninstaller and deletes nothing itself.
+- **Disk storage** — largest directories, per-volume usage and cleanup
+  candidates, with anything unmeasurable reported as such rather than counted
+  as zero.
+- **Devices & sensors** — temperatures, battery and power state, each gap
+  named along with the reason it cannot be read.
+- **Benchmarks** — CPU and memory workloads that are reproducible run to run,
+  reported with the conditions the machine was under at the time.
+- **App history** — accumulated per-application CPU, disk and peak memory.
+  Vitals' own tally, starting at first run; not Windows' SRUM data.
+- **Users** — logon sessions with per-session process and resource rollups.
 
 ## Planned
 
 **Core** — efficiency mode, affinity presets and a handle/DLL finder on
-Processes · _measured_ startup impact scores · app history · users.
+Processes · _measured_ startup impact scores.
 
-**Beyond the task manager** — per-app connection blocking · interactive
-disk-usage views and cleanup · devices and sensors · benchmarks.
+**Beyond the task manager** — per-app connection blocking · GPU engine
+utilisation, which needs a `D3DKMTQueryStatistics` layout we do not yet have
+a known-good reference for.
 
 **Around the edges** — tray with live graphs · a floating always-on-top HUD ·
 a command palette · alerts and rules · a flight recorder that captures a
@@ -114,6 +124,25 @@ cargo clippy --workspace --all-targets -- -D warnings
 pnpm protocol:generate # regenerate TypeScript types from the Rust model
 ```
 
+Every gate CI runs, in one command:
+
+```bash
+pwsh -NoProfile -File scripts/verify.ps1
+```
+
+Two checks are deliberately not part of `cargo test`, because they are slow
+enough that people would stop running the suite:
+
+```bash
+# Assertions that need a real 512 MB working set to mean anything — that a
+# dependent load actually reaches DRAM rather than being served from cache.
+cargo test --workspace --release -- --ignored
+
+# Bundle and installer size, against the budgets in size-budget.json. Pass
+# -Update to accept a deliberate increase.
+pwsh -NoProfile -File scripts/check-size.ps1
+```
+
 ### A note on TypeScript
 
 The repo pins two compilers on purpose. `tsc` is TypeScript 7 (the Go port) and
@@ -133,6 +162,8 @@ apps/
 crates/
   vitals-core  OS-agnostic domain model and provider traits
   vitals-win   Windows backend (NT native API, PDH, WMI, ETW, IPHLPAPI)
+  vitals-macos empty backend stub — the trait boundary, no implementation
+  vitals-linux empty backend stub — the trait boundary, no implementation
   vitals-ipc   frame ring buffer and the helper command protocol
   vitals-store local time-series storage
   vitals-bench benchmark harness
