@@ -28,6 +28,7 @@ pub mod actions;
 pub mod cpu;
 pub mod disk;
 pub mod frame;
+pub mod gpu;
 pub mod host;
 pub mod memory;
 pub mod network;
