@@ -129,6 +129,7 @@ pub enum FramePayload {
     feature = "ts",
     ts(export, export_to = "core/", rename_all = "camelCase")
 )]
+#[serde(rename_all = "camelCase")]
 pub struct Frame {
     pub seq: FrameSeq,
     /// Milliseconds since the Unix epoch, for display and correlation only.

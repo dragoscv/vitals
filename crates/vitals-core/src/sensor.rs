@@ -96,6 +96,7 @@ pub enum SensorSource {
     feature = "ts",
     ts(export, export_to = "core/", rename_all = "camelCase")
 )]
+#[serde(rename_all = "camelCase")]
 pub struct Sensor {
     pub id: SensorId,
     /// Display name, e.g. "CPU Package".

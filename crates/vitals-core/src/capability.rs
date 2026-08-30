@@ -142,6 +142,7 @@ impl Unavailable {
     feature = "ts",
     ts(export, export_to = "core/", rename_all = "camelCase")
 )]
+#[serde(rename_all = "camelCase")]
 pub struct Capabilities {
     /// Capabilities currently usable.
     pub available: Vec<Capability>,

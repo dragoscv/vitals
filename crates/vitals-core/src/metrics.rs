@@ -10,6 +10,7 @@ use crate::units::{Bytes, BytesPerSec, Celsius, Hertz, Percent, Watts};
     feature = "ts",
     ts(export, export_to = "core/", rename_all = "camelCase")
 )]
+#[serde(rename_all = "camelCase")]
 pub struct SystemMetrics {
     pub cpu: CpuMetrics,
     pub memory: MemoryMetrics,
@@ -27,6 +28,7 @@ pub struct SystemMetrics {
     feature = "ts",
     ts(export, export_to = "core/", rename_all = "camelCase")
 )]
+#[serde(rename_all = "camelCase")]
 pub struct CpuMetrics {
     pub total: Percent,
     /// Per logical processor.
@@ -88,6 +90,7 @@ pub enum ThrottleReason {
     feature = "ts",
     ts(export, export_to = "core/", rename_all = "camelCase")
 )]
+#[serde(rename_all = "camelCase")]
 pub struct MemoryMetrics {
     pub total: Bytes,
     /// In use by processes and the kernel — the number users care about.
@@ -147,6 +150,7 @@ impl MemoryMetrics {
     feature = "ts",
     ts(export, export_to = "core/", rename_all = "camelCase")
 )]
+#[serde(rename_all = "camelCase")]
 pub struct DiskMetrics {
     pub id: DiskId,
     pub name: String,
@@ -192,6 +196,7 @@ pub enum DiskKind {
     feature = "ts",
     ts(export, export_to = "core/", rename_all = "camelCase")
 )]
+#[serde(rename_all = "camelCase")]
 pub struct DiskHealth {
     /// Remaining endurance, 100 = new.
     pub life_remaining: Option<Percent>,
@@ -211,6 +216,7 @@ pub struct DiskHealth {
     feature = "ts",
     ts(export, export_to = "core/", rename_all = "camelCase")
 )]
+#[serde(rename_all = "camelCase")]
 pub struct NetworkMetrics {
     pub id: NicId,
     pub name: String,
@@ -259,6 +265,7 @@ pub enum NetworkKind {
     feature = "ts",
     ts(export, export_to = "core/", rename_all = "camelCase")
 )]
+#[serde(rename_all = "camelCase")]
 pub struct GpuMetrics {
     pub id: GpuId,
     pub name: String,
@@ -292,6 +299,7 @@ pub struct GpuMetrics {
     feature = "ts",
     ts(export, export_to = "core/", rename_all = "camelCase")
 )]
+#[serde(rename_all = "camelCase")]
 pub struct GpuEngine {
     pub name: String,
     pub utilization: Percent,
@@ -319,6 +327,7 @@ pub enum GpuVendor {
     feature = "ts",
     ts(export, export_to = "core/", rename_all = "camelCase")
 )]
+#[serde(rename_all = "camelCase")]
 pub struct BatteryMetrics {
     pub charge: Percent,
     pub charging: bool,

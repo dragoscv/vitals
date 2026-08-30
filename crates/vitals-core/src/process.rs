@@ -135,6 +135,7 @@ bitflags_impls! {
     feature = "ts",
     ts(export, export_to = "core/", rename_all = "camelCase")
 )]
+#[serde(rename_all = "camelCase")]
 pub struct Process {
     /// Race-free identity. Prefer this over `key.pid` for any action.
     pub key: ProcessKey,
@@ -230,6 +231,7 @@ impl Process {
     feature = "ts",
     ts(export, export_to = "core/", rename_all = "camelCase")
 )]
+#[serde(rename_all = "camelCase")]
 pub struct ProcessDetail {
     pub executable_path: Option<String>,
     pub command_line: Option<String>,

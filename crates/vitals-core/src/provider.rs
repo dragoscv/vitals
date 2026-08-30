@@ -31,6 +31,7 @@ pub trait HostProvider: Send + Sync {
     feature = "ts",
     ts(export, export_to = "core/", rename_all = "camelCase")
 )]
+#[serde(rename_all = "camelCase")]
 pub struct HostInfo {
     pub hostname: String,
     pub os_name: String,
@@ -189,6 +190,7 @@ pub enum ScanControl {
     feature = "ts",
     ts(export, export_to = "core/", rename_all = "camelCase")
 )]
+#[serde(rename_all = "camelCase")]
 pub struct ScanProgress {
     #[cfg_attr(feature = "ts", ts(type = "number"))]
     pub files_seen: u64,
@@ -202,6 +204,7 @@ pub struct ScanProgress {
     feature = "ts",
     ts(export, export_to = "core/", rename_all = "camelCase")
 )]
+#[serde(rename_all = "camelCase")]
 pub struct DirectoryNode {
     pub name: String,
     pub size: Bytes,
@@ -220,6 +223,7 @@ pub struct DirectoryNode {
     feature = "ts",
     ts(export, export_to = "core/", rename_all = "camelCase")
 )]
+#[serde(rename_all = "camelCase")]
 pub struct CleanupCategory {
     pub id: String,
     pub name: String,
@@ -248,6 +252,7 @@ pub trait PowerProvider: Send + Sync {
     feature = "ts",
     ts(export, export_to = "core/", rename_all = "camelCase")
 )]
+#[serde(rename_all = "camelCase")]
 pub struct PowerPlan {
     pub id: String,
     pub name: String,
@@ -276,6 +281,7 @@ pub trait NetworkProvider: Send + Sync {
     feature = "ts",
     ts(export, export_to = "core/", rename_all = "camelCase")
 )]
+#[serde(rename_all = "camelCase")]
 pub struct Connection {
     pub protocol: Protocol,
     pub local_address: String,
