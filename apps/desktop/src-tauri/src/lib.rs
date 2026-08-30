@@ -6,6 +6,7 @@
 //! aggregating numbers will misreport the machine it is measuring.
 
 pub mod commands;
+pub mod inventory;
 pub mod sampling;
 pub mod state;
 
@@ -89,6 +90,15 @@ pub fn run() {
             commands::suspend_process,
             #[cfg(windows)]
             commands::resume_process,
+            // On-demand inventories. Request/response rather than pushed:
+            // slow to gather, rarely changing, and only wanted while their
+            // own screen is open. See `inventory` for the full argument.
+            #[cfg(windows)]
+            inventory::get_connections,
+            #[cfg(windows)]
+            inventory::get_startup,
+            #[cfg(windows)]
+            inventory::get_installed_apps,
         ])
         .run(tauri::generate_context!())
         .expect("failed to start the Vitals application");
