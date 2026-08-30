@@ -21,3 +21,29 @@
   flex-direction: column;
   height: 100%;
 }
+
+/*
+ * Maximum width of a content column.
+ *
+ * The window can be dragged across a 5120px ultrawide. Without a cap, a card
+ * grid stretches every tile to a metre wide and paragraph text runs far past
+ * the ~75-character line at which reading accuracy collapses. 1600px is
+ * deliberately generous — this app is dense and tables want room — but finite,
+ * and the surplus becomes margin rather than stretch.
+ */
+:root {
+  --content-max: 1600px;
+}
+
+/*
+ * Sidebar width animates; at the 720px minimum that animation runs alongside
+ * a content reflow, which is exactly the combination that triggers motion
+ * sickness. theme.css already collapses transition durations globally under
+ * reduced motion, but the width transition is declared inline via a style
+ * attribute, so it is pinned here too rather than relying on specificity.
+ */
+@media (prefers-reduced-motion: reduce) {
+  nav[aria-label] {
+    transition: none !important;
+  }
+}
