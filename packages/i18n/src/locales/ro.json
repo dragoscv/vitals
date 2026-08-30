@@ -63,7 +63,11 @@
       "endTitle": "Închizi {{name}}?",
       "endBody": "Lucrările nesalvate din această aplicație se vor pierde.",
       "endCriticalTitle": "{{name}} este un proces critic de sistem",
-      "endCriticalBody": "Închiderea lui va destabiliza Windows și poate cauza o repornire sau pierderea datelor."
+      "endCriticalBody": "Închiderea lui va destabiliza Windows și poate cauza o repornire sau pierderea datelor.",
+      "safe": "Lucrările nesalvate din această aplicație se vor pierde.",
+      "disruptive": "Aceasta va închide desktopul și ferestrele deschise. De obicei repornește singur.",
+      "critical": "Sistemul depinde de acest proces. Închiderea lui va bloca Windows imediat și vei pierde lucrările nesalvate din toate aplicațiile.",
+      "forbidden": "Windows protejează acest proces. Nu poate fi închis, nici măcar ca administrator."
     }
   },
   "capability": {

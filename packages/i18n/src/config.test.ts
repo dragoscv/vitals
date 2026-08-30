@@ -33,6 +33,27 @@ describe('locale resources', () => {
     expect(missing, `missing Romanian translations: ${missing.join(', ')}`).toEqual([]);
   });
 
+  it('defines every consequence key the Rust backend emits', () => {
+    // `crates/vitals-win/src/actions/safety.rs::consequence_key` returns
+    // these literals. If one is renamed on either side without the other,
+    // the UI shows a raw key like "process.confirm.critical" in a dialog
+    // warning about crashing the machine — the worst possible place for it.
+    const emittedByBackend = [
+      'process.confirm.safe',
+      'process.confirm.disruptive',
+      'process.confirm.critical',
+      'process.confirm.forbidden',
+    ];
+
+    const enKeys = new Set(keyPaths(en));
+    const missing = emittedByBackend.filter((k) => !enKeys.has(k));
+
+    expect(
+      missing,
+      `the backend emits these keys but no translation exists: ${missing.join(', ')}`,
+    ).toEqual([]);
+  });
+
   it('has no orphaned Romanian key with no English counterpart', () => {
     // An orphan means a key was renamed in English and the old one left
     // behind — dead weight that looks like coverage.

@@ -52,6 +52,16 @@ pub fn run() {
             commands::get_host_info,
             commands::get_capabilities,
             commands::set_sample_rate,
+            #[cfg(windows)]
+            commands::plan_terminate_process,
+            #[cfg(windows)]
+            commands::plan_suspend_process,
+            #[cfg(windows)]
+            commands::terminate_process,
+            #[cfg(windows)]
+            commands::suspend_process,
+            #[cfg(windows)]
+            commands::resume_process,
         ])
         .run(tauri::generate_context!())
         .expect("failed to start the Vitals application");

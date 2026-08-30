@@ -62,7 +62,11 @@
       "endTitle": "End {{name}}?",
       "endBody": "Unsaved work in this app will be lost.",
       "endCriticalTitle": "{{name}} is a critical system process",
-      "endCriticalBody": "Ending it will make Windows unstable and may cause a restart or data loss."
+      "endCriticalBody": "Ending it will make Windows unstable and may cause a restart or data loss.",
+      "safe": "Unsaved work in this app will be lost.",
+      "disruptive": "This will close your desktop and any open windows. It usually restarts on its own.",
+      "critical": "The system depends on this. Ending it will crash Windows immediately and you will lose unsaved work in every app.",
+      "forbidden": "Windows protects this process. It cannot be ended, even as an administrator."
     }
   },
   "capability": {

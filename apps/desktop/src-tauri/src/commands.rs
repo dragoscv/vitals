@@ -9,6 +9,7 @@
 use tauri::State;
 
 use vitals_core::capability::Capabilities;
+use vitals_core::ids::ProcessKey;
 use vitals_core::provider::HostInfo;
 use vitals_core::sample::SampleRate;
 
@@ -71,6 +72,118 @@ pub fn get_capabilities(state: State<'_, AppState>) -> Capabilities {
 #[allow(clippy::needless_pass_by_value)]
 pub fn set_sample_rate(state: State<'_, AppState>, rate: SampleRate) {
     state.set_sample_rate(rate);
+}
+
+/// How dangerous an action is, as the frontend sees it.
+///
+/// Mirrors [`vitals_win::Risk`] rather than re-exporting it so the wire
+/// contract does not change shape when a platform backend does.
+#[derive(Debug, Clone, Copy, serde::Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ActionRisk {
+    Safe,
+    Disruptive,
+    Critical,
+    Forbidden,
+}
+
+/// What will happen if an action proceeds.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ActionPlan {
+    pub risk: ActionRisk,
+    /// Translation key for the consequence, so the UI stays localised.
+    pub consequence: String,
+    pub needs_confirmation: bool,
+    /// Whether "retry as administrator" is worth offering.
+    ///
+    /// False for protected processes, where elevation cannot help and the
+    /// prompt is a dead end.
+    pub elevation_might_help: bool,
+}
+
+/// Assesses terminating a process, without doing it.
+///
+/// Separate from [`terminate_process`] so the UI can state a specific
+/// consequence before committing. A single generic "are you sure?" is what
+/// trains people to click through warnings.
+#[tauri::command]
+#[cfg(windows)]
+// Tauri deserialises command arguments into owned values; it cannot hand us a
+// borrow.
+#[allow(clippy::needless_pass_by_value)]
+pub fn plan_terminate_process(pid: u32, name: Option<String>, protected: bool) -> ActionPlan {
+    use vitals_core::ids::Pid;
+
+    let plan = vitals_win::actions::plan_terminate(Pid(pid), name.as_deref(), protected);
+
+    ActionPlan {
+        risk: map_risk(plan.risk),
+        consequence: plan.consequence.to_owned(),
+        needs_confirmation: plan.risk.needs_confirmation(),
+        elevation_might_help: plan.risk.elevation_might_help(),
+    }
+}
+
+#[cfg(windows)]
+const fn map_risk(risk: vitals_win::Risk) -> ActionRisk {
+    match risk {
+        vitals_win::Risk::Safe => ActionRisk::Safe,
+        vitals_win::Risk::Disruptive => ActionRisk::Disruptive,
+        vitals_win::Risk::Critical => ActionRisk::Critical,
+        vitals_win::Risk::Forbidden => ActionRisk::Forbidden,
+    }
+}
+
+/// Assesses suspending a process, without doing it.
+#[tauri::command]
+#[cfg(windows)]
+#[allow(clippy::needless_pass_by_value)]
+pub fn plan_suspend_process(pid: u32, name: Option<String>, protected: bool) -> ActionPlan {
+    use vitals_core::ids::Pid;
+
+    let plan = vitals_win::actions::plan_suspend(Pid(pid), name.as_deref(), protected);
+
+    ActionPlan {
+        risk: map_risk(plan.risk),
+        consequence: plan.consequence.to_owned(),
+        needs_confirmation: plan.risk.needs_confirmation(),
+        elevation_might_help: plan.risk.elevation_might_help(),
+    }
+}
+
+/// Terminates a process.
+///
+/// Takes the start time as well as the PID: between the frame that listed
+/// the process and this call, it can exit and its PID be reused. Acting on
+/// the PID alone would kill whichever process inherited the number.
+#[tauri::command]
+#[cfg(windows)]
+pub fn terminate_process(pid: u32, start_time: u64) -> CommandResult<()> {
+    use vitals_core::ids::Pid;
+
+    vitals_win::actions::terminate(ProcessKey::new(Pid(pid), start_time), 1)?;
+    Ok(())
+}
+
+/// Suspends every thread in a process.
+#[tauri::command]
+#[cfg(windows)]
+pub fn suspend_process(pid: u32, start_time: u64) -> CommandResult<()> {
+    use vitals_core::ids::Pid;
+
+    vitals_win::actions::suspend(ProcessKey::new(Pid(pid), start_time))?;
+    Ok(())
+}
+
+/// Resumes a suspended process.
+#[tauri::command]
+#[cfg(windows)]
+pub fn resume_process(pid: u32, start_time: u64) -> CommandResult<()> {
+    use vitals_core::ids::Pid;
+
+    vitals_win::actions::resume(ProcessKey::new(Pid(pid), start_time))?;
+    Ok(())
 }
 
 #[cfg(test)]

@@ -24,6 +24,7 @@
 
 #![cfg(windows)]
 
+pub mod actions;
 pub mod cpu;
 pub mod disk;
 pub mod frame;
@@ -33,6 +34,7 @@ pub mod network;
 pub mod process;
 pub mod sampler;
 
+pub use actions::{Priority, Risk};
 pub use cpu::{CpuTimes, CpuUsage};
 pub use disk::{DiskCounters, DiskRates, VolumeInfo, enumerate_volumes};
 pub use frame::FrameBuilder;
