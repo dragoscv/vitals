@@ -51,11 +51,24 @@ impl From<vitals_core::Error> for CommandError {
 type CommandResult<T> = std::result::Result<T, CommandError>;
 
 /// Static machine facts, fetched once at startup.
+///
+/// Read on demand rather than cached in state: it is a few milliseconds, it
+/// is asked for once when the About panel opens, and caching it would mean
+/// deciding when to invalidate a value that can genuinely change under a
+/// running process — a CPU cannot be hot-swapped, but a VM can be migrated.
 #[tauri::command]
 pub fn get_host_info() -> CommandResult<HostInfo> {
-    Err(CommandError::Unsupported {
-        message: "host info requires the platform backend, which is in progress".into(),
-    })
+    #[cfg(windows)]
+    {
+        Ok(vitals_win::hostinfo::read())
+    }
+
+    #[cfg(not(windows))]
+    {
+        Err(CommandError::Unsupported {
+            message: "host info needs a platform backend, and only Windows has one".into(),
+        })
+    }
 }
 
 /// What the backend can currently do, given privileges and installed parts.

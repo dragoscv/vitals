@@ -33,6 +33,7 @@ pub mod frame;
 pub mod gpu;
 pub mod history;
 pub mod host;
+pub mod hostinfo;
 pub mod memory;
 pub mod network;
 pub mod process;

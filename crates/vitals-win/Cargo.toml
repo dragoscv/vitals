@@ -26,7 +26,9 @@ windows = { version = "0.62.2", features = [
 	"Win32_Security",
 	"Win32_Storage_FileSystem",
 	"Win32_System_RemoteDesktop",
+	"Win32_System_Registry",
 	"Wdk_System_SystemInformation",
+	"Wdk_System_SystemServices",
 	"Wdk_System_Threading",
 ] }
 windows-sys = { version = "0.61.2", features = [
