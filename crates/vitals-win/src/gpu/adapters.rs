@@ -7,7 +7,7 @@ use std::ffi::c_void;
 use vitals_core::ids::GpuId;
 use vitals_core::units::Bytes;
 
-use super::engines::{EngineUsage, classify_node, compute_utilisation};
+use super::engines::EngineUsage;
 
 /// `D3DKMT_HANDLE`
 type D3dkmtHandle = u32;
@@ -18,12 +18,6 @@ type D3dkmtHandle = u32;
 /// machine with two real GPUs — because it counts potential slots rather
 /// than present devices. This bounds what we will allocate for.
 const MAX_ADAPTERS: usize = 64;
-
-/// Nodes queried per adapter.
-///
-/// Real hardware exposes 4–10. Querying beyond that costs a syscall per node
-/// per tick for engines that do not exist.
-const MAX_NODES: u32 = 16;
 
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
@@ -226,83 +220,89 @@ fn wide_to_string(buffer: &[u16]) -> Option<String> {
 /// Samples GPU engine utilisation across ticks.
 #[derive(Debug, Default)]
 pub struct GpuSampler {
-    /// Previous cumulative running time, keyed by (adapter LUID, node).
-    previous: std::collections::HashMap<(u64, u32), u64>,
+    /// The WDDM performance counters, when this machine has them.
+    ///
+    /// `None` on a machine with no WDDM driver — a server, a container, a VM
+    /// with a basic display adapter. Adapters still enumerate there; they
+    /// just report no engine data, which is the truth.
+    counters: Option<super::counters::EngineCounters>,
 }
 
 impl GpuSampler {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            previous: std::collections::HashMap::with_capacity(32),
+            counters: super::counters::EngineCounters::open(),
         }
     }
 
     /// Discards baselines, so the first sample after a resume reports
     /// nothing rather than the whole paused interval.
+    ///
+    /// Reopening rather than clearing a map: PDH holds the baseline
+    /// internally, and there is no way to reset it from outside.
     pub fn reset(&mut self) {
-        self.previous.clear();
+        self.counters = super::counters::EngineCounters::open();
     }
 
     /// Enumerates adapters and fills in engine utilisation.
     ///
-    /// `elapsed_ticks` is real elapsed time in 100ns units. Pass 0 on the
-    /// first call.
+    /// `elapsed_ticks` is unused now that utilisation comes from PDH, which
+    /// does its own rate arithmetic against its own interval. It is kept in
+    /// the signature because the parameter is part of the sampler contract
+    /// and a vendor-SDK source would need it again.
     #[must_use]
-    pub fn sample(&mut self, elapsed_ticks: u64) -> Vec<GpuAdapter> {
+    pub fn sample(&mut self, _elapsed_ticks: u64) -> Vec<GpuAdapter> {
         let mut adapters = enumerate_adapters();
 
+        let Some(counters) = self.counters.as_mut() else {
+            return adapters;
+        };
+
+        let samples = counters.sample();
+
         for adapter in &mut adapters {
-            adapter.engines = self.sample_engines(adapter.luid, elapsed_ticks);
+            adapter.engines = engines_for(&samples, adapter.luid);
         }
 
         adapters
     }
-
-    /// Reads per-node running time for one adapter.
-    fn sample_engines(&mut self, luid: u64, elapsed_ticks: u64) -> Vec<EngineUsage> {
-        let mut out = Vec::with_capacity(8);
-
-        for node in 0..MAX_NODES {
-            // Note for when the statistics query lands: aliased nodes report
-            // the same running time as their primary, so both must not be
-            // counted. `KMTQAITYPE_NODEMETADATA` (32) carries an `is_aliased`
-            // flag for exactly this, and the check belongs here.
-            let Some(running) = query_node_running_time(luid, node) else {
-                // Nodes are contiguous; the first failure means we have run
-                // past the end.
-                break;
-            };
-
-            let previous = self.previous.insert((luid, node), running);
-
-            let utilisation = previous.map_or(vitals_core::units::Percent::ZERO, |prev| {
-                compute_utilisation(prev, running, elapsed_ticks)
-            });
-
-            out.push(EngineUsage {
-                kind: classify_node(node),
-                node,
-                utilisation,
-            });
-        }
-
-        out
-    }
 }
 
-/// Placeholder for the per-node running-time query.
+/// Rolls per-process counter rows up into per-engine totals for one adapter.
 ///
-/// The real read is `D3DKMTQueryStatistics` with
-/// `D3DKMT_QUERYSTATISTICS_NODE`, whose structure is a 1.5 KB union that
-/// differs across Windows builds. Getting its layout wrong reads plausible
-/// nonsense rather than failing, so it is being brought up separately against
-/// a known-good reference rather than guessed at here.
-///
-/// Returning `None` means the UI shows engine data as unavailable — honest,
-/// and distinguishable from a genuinely idle GPU.
-const fn query_node_running_time(_luid: u64, _node: u32) -> Option<u64> {
-    None
+/// Summed across processes, because two applications each using 40% of the 3D
+/// engine leave it 80% busy. Clamped at 100 because PDH's per-process
+/// percentages are computed independently and timer skew can push a sum
+/// slightly past it — reporting 103% would look like a bug in us.
+fn engines_for(samples: &[super::counters::EngineSample], luid: u64) -> Vec<EngineUsage> {
+    let mut out: Vec<EngineUsage> = Vec::with_capacity(8);
+
+    for sample in samples.iter().filter(|s| s.luid == luid) {
+        if let Some(existing) = out.iter_mut().find(|e| e.kind == sample.kind) {
+            let combined = f64::from(existing.utilisation.get()) + sample.utilisation;
+            existing.utilisation = percent_clamped(combined);
+        } else {
+            out.push(EngineUsage {
+                kind: sample.kind,
+                // PDH reports an engine ordinal per instance, but the useful
+                // grouping is by kind — a GPU with four copy engines is one
+                // "Copy" row to a user. Node 0 is a placeholder for the
+                // rolled-up row.
+                node: 0,
+                utilisation: percent_clamped(sample.utilisation),
+            });
+        }
+    }
+
+    out.sort_by(|a, b| b.utilisation.get().total_cmp(&a.utilisation.get()));
+    out
+}
+
+/// Builds a `Percent` from a possibly out-of-range float.
+fn percent_clamped(value: f64) -> vitals_core::units::Percent {
+    #[allow(clippy::cast_possible_truncation)]
+    vitals_core::units::Percent::new(value.clamp(0.0, 100.0) as f32)
 }
 
 #[cfg(test)]
@@ -433,17 +433,32 @@ mod tests {
     }
 
     #[test]
-    fn repeated_sampling_does_not_leak_baselines() {
+    fn repeated_sampling_does_not_accumulate_state() {
+        // The old version of this test watched a baseline map for unbounded
+        // growth. PDH keeps the baseline internally now, so what is worth
+        // asserting instead is that the engine list stays bounded: a leak
+        // would show up as the same engine appearing once per tick.
         let mut sampler = GpuSampler::new();
+
         for _ in 0..50 {
             let _ = sampler.sample(1_000_000);
         }
-        // One entry per adapter per node at most.
-        assert!(
-            sampler.previous.len() <= MAX_ADAPTERS * MAX_NODES as usize,
-            "baseline map grew to {}",
-            sampler.previous.len()
-        );
+
+        for adapter in sampler.sample(1_000_000) {
+            assert!(
+                adapter.engines.len() <= 16,
+                "{} reported {} engines",
+                adapter.name,
+                adapter.engines.len()
+            );
+
+            // Rolled up by kind, so a kind must never appear twice.
+            let mut kinds: Vec<_> = adapter.engines.iter().map(|e| e.kind).collect();
+            let before = kinds.len();
+            kinds.sort_unstable();
+            kinds.dedup();
+            assert_eq!(before, kinds.len(), "an engine kind was reported twice");
+        }
     }
 
     #[test]

@@ -6,7 +6,15 @@ use vitals_win::gpu::adapters::GpuSampler;
 
 fn main() {
     let mut sampler = GpuSampler::new();
-    let adapters = sampler.sample(0);
+
+    // Utilisation is a rate, so the first sample only establishes a baseline
+    // and reports no engines. Sampling twice is what the real sampler does
+    // across two ticks; doing it here keeps the probe honest rather than
+    // showing zero engines on a machine that has them.
+    let _ = sampler.sample(0);
+    std::thread::sleep(std::time::Duration::from_secs(1));
+
+    let adapters = sampler.sample(10_000_000);
 
     if adapters.is_empty() {
         println!("no GPU adapters reported (headless, container, or no WDDM driver)");
@@ -31,6 +39,20 @@ fn main() {
 
     let with_engines = adapters.iter().filter(|a| !a.engines.is_empty()).count();
     if with_engines == 0 {
-        println!("engine utilisation: unavailable (D3DKMTQueryStatistics not yet wired)");
+        println!("engine utilisation: no engine was busy during the sample");
+        println!("(idle GPU, or no WDDM GPU Engine counters on this machine)");
+        return;
+    }
+
+    println!();
+    for adapter in adapters.iter().filter(|a| !a.engines.is_empty()) {
+        println!("{}", adapter.name);
+        for engine in &adapter.engines {
+            println!(
+                "  {:>7.2}%  {}",
+                engine.utilisation.get(),
+                engine.kind.slug()
+            );
+        }
     }
 }

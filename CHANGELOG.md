@@ -126,6 +126,12 @@ but nothing has been through a public beta.
   `WTSQuerySessionInformationW` returns does not match the documented
   `WTSINFOW` layout, and parsing it anyway would produce a plausible wrong
   answer.
+- **GPU engine utilisation**, per engine and per process, from the WDDM
+  performance counters — the same source Task Manager reads. Per-engine
+  rather than one blended number: a machine transcoding video is 100% busy
+  on the encode engine and idle on 3D, and averaging them reports 50%, which
+  describes neither. GPU memory, clocks and fan still need a vendor SDK and
+  remain unavailable rather than guessed.
 
 #### Actions
 

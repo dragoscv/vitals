@@ -67,9 +67,9 @@ Vitals is an attempt at all of it in one place, fast, and readable.
 **Core** — efficiency mode, affinity presets and a handle/DLL finder on
 Processes · _measured_ startup impact scores.
 
-**Beyond the task manager** — per-app connection blocking · GPU engine
-utilisation, which needs a `D3DKMTQueryStatistics` layout we do not yet have
-a known-good reference for.
+**Beyond the task manager** — per-app connection blocking · GPU memory,
+clocks and fan, which need a vendor SDK (NVML, ADL) rather than anything
+Windows exposes.
 
 **Around the edges** — tray with live graphs · a floating always-on-top HUD ·
 a command palette · alerts and rules · a flight recorder that captures a

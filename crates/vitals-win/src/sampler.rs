@@ -12,11 +12,14 @@ use std::time::{Duration, Instant};
 
 use vitals_core::error::Result;
 use vitals_core::ids::ProcessKey;
-use vitals_core::metrics::{CpuMetrics, DiskMetrics, NetworkMetrics, SystemMetrics};
+use vitals_core::metrics::{
+    CpuMetrics, DiskMetrics, GpuEngine, GpuMetrics, GpuVendor, NetworkMetrics, SystemMetrics,
+};
 use vitals_core::units::{Bytes, BytesPerSec, Percent};
 
 use crate::cpu::{CpuSampler, logical_core_count, process_cpu_percent};
 use crate::disk::enumerate_volumes;
+use crate::gpu::adapters::GpuSampler;
 use crate::memory::MemorySampler;
 use crate::network::{NetworkCounters, compute_rates as compute_net_rates, enumerate_adapters};
 use crate::process::{ProcessEnumerator, RawProcess};
@@ -92,6 +95,12 @@ pub struct SystemSampler {
     /// screen asks, and this thread writes it every second. One `Arc` keeps
     /// there being exactly one history rather than two that disagree.
     history: crate::history::SharedHistory,
+
+    /// GPU adapters and their engine utilisation.
+    ///
+    /// Holds an open PDH query, so it is constructed once and reused. Opening
+    /// it costs ~285 ms; a tick costs ~1.1 ms.
+    gpu: GpuSampler,
 }
 
 impl Default for SystemSampler {
@@ -115,6 +124,7 @@ impl SystemSampler {
             volumes: Vec::new(),
             volumes_read_at: None,
             history: crate::history::SharedHistory::default(),
+            gpu: GpuSampler::new(),
         }
     }
 
@@ -138,6 +148,10 @@ impl SystemSampler {
         // or a share disconnects.
         self.volumes.clear();
         self.volumes_read_at = None;
+        // PDH holds its own baseline, so this reopens the query rather than
+        // clearing a map. Without it the first sample after a resume covers
+        // the whole paused interval.
+        self.gpu.reset();
     }
 
     /// Takes one complete sample.
@@ -176,6 +190,7 @@ impl SystemSampler {
         let processes = self.resolve_process_rates(raw_processes, elapsed);
         let disks = self.volumes(now);
         let networks = self.build_network_metrics(elapsed);
+        let gpus = self.build_gpu_metrics(elapsed);
 
         Ok(Sample {
             system: SystemMetrics {
@@ -183,7 +198,7 @@ impl SystemSampler {
                 memory,
                 disks,
                 networks,
-                gpus: Vec::new(),
+                gpus,
                 power_draw: None,
                 battery: None,
             },
@@ -294,6 +309,64 @@ impl SystemSampler {
     }
 
     /// Differences network counters and builds per-interface metrics.
+    /// Enumerates GPU adapters and their engine utilisation.
+    ///
+    /// Memory, clocks, fan and power are left `None` rather than zero: they
+    /// need a vendor SDK, and a zero here would be indistinguishable from a
+    /// GPU genuinely sitting idle at 0 MHz.
+    fn build_gpu_metrics(&mut self, elapsed_ms: u32) -> Vec<GpuMetrics> {
+        // 100ns units, matching the kernel's accounting elsewhere. Unused by
+        // the PDH source, which does its own rate arithmetic, but part of the
+        // sampler contract.
+        let elapsed_ticks = u64::from(elapsed_ms) * 10_000;
+
+        self.gpu
+            .sample(elapsed_ticks)
+            .into_iter()
+            .map(|adapter| {
+                // The headline is the busiest primary engine, not a blend.
+                // A machine transcoding video is genuinely 100% busy on the
+                // encode engine while 3D is idle, and averaging them would
+                // report 50% — a number describing neither.
+                let utilization = adapter
+                    .engines
+                    .iter()
+                    .filter(|engine| engine.kind.is_primary_workload())
+                    .map(|engine| engine.utilisation)
+                    .max_by(|a, b| a.get().total_cmp(&b.get()))
+                    .unwrap_or(Percent::ZERO);
+
+                GpuMetrics {
+                    id: adapter.id,
+                    name: adapter.name.clone(),
+                    vendor: vendor_from_name(&adapter.name),
+                    engines: adapter
+                        .engines
+                        .iter()
+                        .map(|engine| GpuEngine {
+                            name: engine.kind.slug().to_owned(),
+                            utilization: engine.utilisation,
+                        })
+                        .collect(),
+                    utilization,
+                    memory_used: None,
+                    memory_total: adapter.dedicated_memory,
+                    shared_memory_used: None,
+                    core_clock: None,
+                    memory_clock: None,
+                    temperature: None,
+                    hotspot_temperature: None,
+                    power: None,
+                    power_limit: None,
+                    fan_percent: None,
+                    fan_rpm: None,
+                    throttled: None,
+                    driver_version: None,
+                }
+            })
+            .collect()
+    }
+
     fn build_network_metrics(&mut self, elapsed_ms: u32) -> Vec<NetworkMetrics> {
         let adapters = enumerate_adapters();
         let mut next_baseline = HashMap::with_capacity(adapters.len());
@@ -335,6 +408,30 @@ impl SystemSampler {
 }
 
 /// Builds machine-wide CPU metrics from per-core usage.
+/// Infers the vendor from the driver-reported adapter name.
+///
+/// A string match, because the alternative — reading the PCI vendor ID —
+/// means a registry walk per adapter for a field used only to pick an icon.
+/// Anything unrecognised is `Unknown` rather than guessed: a wrong vendor
+/// badge is a small lie, but it is still a lie.
+fn vendor_from_name(name: &str) -> GpuVendor {
+    let lower = name.to_ascii_lowercase();
+
+    if lower.contains("nvidia") || lower.contains("geforce") || lower.contains("quadro") {
+        GpuVendor::Nvidia
+    } else if lower.contains("amd") || lower.contains("radeon") {
+        GpuVendor::Amd
+    } else if lower.contains("intel") || lower.contains("arc ") {
+        GpuVendor::Intel
+    } else if lower.contains("qualcomm") || lower.contains("adreno") {
+        GpuVendor::Qualcomm
+    } else if lower.contains("apple") {
+        GpuVendor::Apple
+    } else {
+        GpuVendor::Unknown
+    }
+}
+
 fn build_cpu_metrics(per_core: &[crate::cpu::CpuUsage], processes: &[RawProcess]) -> CpuMetrics {
     let cores = per_core.len().max(1) as f32;
 
