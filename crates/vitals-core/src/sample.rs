@@ -168,6 +168,32 @@ mod tests {
     use super::*;
 
     #[test]
+    fn every_rate_the_frontend_can_send_deserialises() {
+        // These strings are what `apps/desktop/src/lib/sampleRate.ts` puts on
+        // the wire, and the generated `SampleRate.ts` union is what allows
+        // them. A rename here would still typecheck on both sides — ts-rs
+        // regenerates the union and TypeScript is happy — while every
+        // `set_sample_rate` call started failing at runtime, in a background
+        // invoke whose rejection is deliberately swallowed. Nothing else
+        // catches that.
+        let wire = [
+            ("realtime", SampleRate::Realtime),
+            ("high", SampleRate::High),
+            ("normal", SampleRate::Normal),
+            ("low", SampleRate::Low),
+            ("background", SampleRate::Background),
+            ("paused", SampleRate::Paused),
+        ];
+
+        for (name, expected) in wire {
+            let parsed: SampleRate = serde_json::from_str(&format!("\"{name}\""))
+                .unwrap_or_else(|error| panic!("{name} must deserialise: {error}"));
+
+            assert_eq!(parsed, expected, "{name}");
+        }
+    }
+
+    #[test]
     fn hidden_window_drops_to_background_rate() {
         assert_eq!(
             SampleRate::for_window_state(false, false, false),

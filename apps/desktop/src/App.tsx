@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import { signalReady } from './lib/ready';
+import { effectiveRate, pushSampleRate } from './lib/sampleRate';
 import { useSettings } from './settings/store';
 import { AppShell } from './shell/AppShell';
 import { hasTauriHost } from './shell/host';
@@ -42,6 +43,43 @@ function useAppVersion(): string {
 }
 
 /**
+ * Keeps the Rust sampler's cadence in step with the settings and the window.
+ *
+ * Sends on change rather than on a timer, and only when the resolved rate
+ * actually differs — dragging the rate control through three options should
+ * not produce three round trips to the backend for two rates nobody stopped
+ * on.
+ *
+ * `visibilitychange` covers minimise and occlusion. It fires in a Tauri
+ * webview the same way it does in a browser, so no Tauri-specific window
+ * event is needed.
+ */
+function useSampleRate(settings: ReturnType<typeof useSettings.getState>['settings']): void {
+  const { samplingRate, throttleWhenHidden } = settings;
+
+  useEffect(() => {
+    let last: string | null = null;
+
+    const send = () => {
+      const rate = effectiveRate(
+        { samplingRate, throttleWhenHidden },
+        document.visibilityState === 'visible',
+      );
+
+      if (rate === last) return;
+      last = rate;
+      void pushSampleRate(rate);
+    };
+
+    send();
+    document.addEventListener('visibilitychange', send);
+    return () => {
+      document.removeEventListener('visibilitychange', send);
+    };
+  }, [samplingRate, throttleWhenHidden]);
+}
+
+/**
  * The application shell.
  *
  * Settings hydration and the ready signal are separated on purpose. The window
@@ -56,6 +94,8 @@ export function App() {
   const setTheme = useSettings((state) => state.setTheme);
   const hydrate = useSettings((state) => state.hydrate);
   const version = useAppVersion();
+
+  useSampleRate(settings);
 
   useEffect(() => {
     void hydrate();
