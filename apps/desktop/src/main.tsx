@@ -5,6 +5,7 @@ import { initI18n } from '@vitals/i18n';
 
 import { App } from './App';
 import { registerDashboardStrings } from './features/dashboard';
+import { registerPerformanceStrings } from './features/performance';
 import { registerShellStrings } from './shell/strings';
 import './styles.css';
 
@@ -26,6 +27,7 @@ async function bootstrap(): Promise<void> {
   // threw before React ever mounted and left the app stuck on its splash.
   registerShellStrings();
   registerDashboardStrings();
+  registerPerformanceStrings();
 
   createRoot(container).render(
     <StrictMode>

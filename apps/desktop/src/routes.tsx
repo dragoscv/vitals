@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { EmptyState, Skeleton } from '@vitals/ui';
 
 import { DashboardScreen } from './features/dashboard';
+import { PerformanceScreen } from './features/performance';
 import { ProcessesScreen } from './features/processes';
 import { navItems, type RouteId } from './shell/navigation';
 import { SHELL_NS } from './shell/strings';
@@ -68,9 +69,10 @@ export function RouteView({
   switch (route) {
     case 'dashboard':
       return <DashboardScreen onNavigate={onNavigate} />;
+    case 'performance':
+      return <PerformanceScreen />;
     case 'processes':
       return <ProcessesScreen />;
-    case 'performance':
     case 'startup':
     case 'services':
     case 'appHistory':

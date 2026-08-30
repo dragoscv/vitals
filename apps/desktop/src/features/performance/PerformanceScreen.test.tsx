@@ -1,0 +1,180 @@
+import { fireEvent, render, screen, within } from '@testing-library/react';
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
+
+import { i18n, initI18n } from '@vitals/i18n';
+
+import { HistoryCollector } from '../dashboard/history';
+import { makeSystem, type SystemOverrides } from '../dashboard/test-fixtures';
+import { createManualSystemSource, NO_SAMPLER } from '../dashboard/useSystemSnapshot';
+import { PerformanceScreen } from './PerformanceScreen';
+import { registerPerformanceStrings } from './strings';
+
+beforeAll(async () => {
+  await initI18n();
+  registerPerformanceStrings();
+});
+
+beforeEach(async () => {
+  await i18n.changeLanguage('en');
+});
+
+function mount(overrides: SystemOverrides = {}) {
+  const source = createManualSystemSource();
+  const collector = new HistoryCollector();
+  const system = makeSystem(overrides);
+
+  source.push({ system, processes: new Map() });
+  // A few frames so the charts have something to draw and the panels are not
+  // exercising only their empty paths.
+  for (let seq = 1; seq <= 3; seq += 1) {
+    collector.push({ system, processes: new Map(), seq, elapsedMs: 1000, timestampMs: seq * 1000 });
+  }
+
+  render(<PerformanceScreen source={source} historyCollector={collector} />);
+  return { source, collector };
+}
+
+describe('PerformanceScreen', () => {
+  it('shows skeletons before the first frame', () => {
+    render(
+      <PerformanceScreen
+        source={createManualSystemSource()}
+        historyCollector={new HistoryCollector()}
+      />,
+    );
+
+    expect(document.querySelector('[aria-busy="true"]')).toBeTruthy();
+  });
+
+  it('explains a dead sampler instead of waiting forever', () => {
+    // Same rule as everywhere else in this app: a loading state must resolve
+    // either way, or a broken app looks merely busy.
+    const source = createManualSystemSource();
+    source.push({ pending: false, system: null, error: NO_SAMPLER });
+
+    render(<PerformanceScreen source={source} historyCollector={new HistoryCollector()} />);
+
+    expect(screen.getByText('No readings are arriving')).toBeTruthy();
+    expect(document.querySelector('[aria-busy="true"]')).toBeNull();
+  });
+
+  it('lists every resource in the rail', () => {
+    mount({ gpus: [{ id: 0, name: 'RTX 3060 Ti' }], disks: [{ id: 0, mount: 'C:' }] });
+
+    const rail = screen.getByRole('navigation', { name: 'Resources' });
+    expect(within(rail).getByRole('button', { name: /CPU/ })).toBeTruthy();
+    expect(within(rail).getByRole('button', { name: /Memory/ })).toBeTruthy();
+    expect(within(rail).getByRole('button', { name: /RTX 3060 Ti/ })).toBeTruthy();
+    expect(within(rail).getByRole('button', { name: /C:/ })).toBeTruthy();
+  });
+
+  it('opens on CPU', () => {
+    mount();
+    expect(screen.getByText('Logical processors (4)')).toBeTruthy();
+  });
+
+  it('switches panels when a resource is chosen', () => {
+    mount();
+
+    const rail = screen.getByRole('navigation', { name: 'Resources' });
+    fireEvent.click(within(rail).getByRole('button', { name: /Memory/ }));
+
+    // A memory-only figure, to prove the panel actually changed.
+    expect(screen.getByText('Composition')).toBeTruthy();
+  });
+
+  it('marks the selected resource for assistive technology', () => {
+    mount();
+    const rail = screen.getByRole('navigation', { name: 'Resources' });
+    const cpu = within(rail).getByRole('button', { name: /CPU/ });
+
+    expect(cpu.getAttribute('aria-current')).toBe('true');
+  });
+
+  it('hides virtual adapters until asked', () => {
+    mount({
+      networks: [
+        { id: 0, name: 'Ethernet', kind: 'ethernet' },
+        { id: 1, name: 'vEthernet (WSL)', kind: 'virtual' },
+      ],
+    });
+
+    const rail = screen.getByRole('navigation', { name: 'Resources' });
+    expect(within(rail).queryByRole('button', { name: /WSL/ })).toBeNull();
+
+    fireEvent.click(screen.getByRole('checkbox'));
+    expect(within(rail).getByRole('button', { name: /WSL/ })).toBeTruthy();
+  });
+
+  describe('thermals', () => {
+    it('is absent when the machine reports no temperature', () => {
+      mount({
+        cpu: { temperature: null },
+        gpus: [{ id: 0, temperature: null, hotspotTemperature: null }],
+        disks: [{ id: 0, temperature: null }],
+      });
+
+      const rail = screen.getByRole('navigation', { name: 'Resources' });
+      expect(within(rail).queryByRole('button', { name: /Thermals/ })).toBeNull();
+    });
+
+    it('lists the readings and says what cannot be measured', () => {
+      mount({ cpu: { temperature: 62 } });
+
+      const rail = screen.getByRole('navigation', { name: 'Resources' });
+      fireEvent.click(within(rail).getByRole('button', { name: /Thermals/ }));
+
+      expect(screen.getByText('CPU package')).toBeTruthy();
+      // The honesty section: the limitation is Vitals', not the machine's, and
+      // saying so stops someone hunting for a hardware fault.
+      expect(screen.getByText('What cannot be measured')).toBeTruthy();
+      expect(screen.getByText('Per-core CPU temperature')).toBeTruthy();
+    });
+
+    it('separates GPU hotspot from core', () => {
+      // Hotspot runs well above core and is what actually throttles, so
+      // folding them into one reading would hide the number that matters.
+      mount({ gpus: [{ id: 0, name: 'RTX', temperature: 60, hotspotTemperature: 88 }] });
+
+      const rail = screen.getByRole('navigation', { name: 'Resources' });
+      fireEvent.click(within(rail).getByRole('button', { name: /Thermals/ }));
+
+      expect(screen.getByText('RTX core')).toBeTruthy();
+      expect(screen.getByText('RTX hotspot')).toBeTruthy();
+    });
+  });
+
+  describe('honesty about missing readings', () => {
+    it('omits an optional row rather than rendering it blank', () => {
+      // A machine reporting no SMART data would otherwise show a column of
+      // empty rows that looks like the panel failed to load.
+      mount({ disks: [{ id: 0, mount: 'C:', health: null, queueDepth: null }] });
+
+      const rail = screen.getByRole('navigation', { name: 'Resources' });
+      fireEvent.click(within(rail).getByRole('button', { name: /C:/ }));
+
+      expect(screen.queryByText('Life remaining')).toBeNull();
+      expect(screen.getByText('Active time')).toBeTruthy();
+    });
+
+    it('states unavailability for a headline figure', () => {
+      // Dropping the row is right for optional detail; for a figure the panel
+      // is *about*, silence would read as a rendering bug.
+      mount({ memory: { swapUsed: null } });
+
+      const rail = screen.getByRole('navigation', { name: 'Resources' });
+      fireEvent.click(within(rail).getByRole('button', { name: /Memory/ }));
+
+      expect(screen.getAllByText('Not reported by your hardware').length).toBeGreaterThan(0);
+    });
+  });
+
+  it('renders in Romanian without falling back to key paths', async () => {
+    await i18n.changeLanguage('ro');
+    mount();
+
+    expect(screen.getByRole('heading', { name: 'Performanță' })).toBeTruthy();
+    const rail = screen.getByRole('navigation', { name: 'Resurse' });
+    expect(within(rail).getByRole('button', { name: /Procesor/ })).toBeTruthy();
+  });
+});
