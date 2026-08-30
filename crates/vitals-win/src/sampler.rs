@@ -13,7 +13,8 @@ use std::time::{Duration, Instant};
 use vitals_core::error::Result;
 use vitals_core::ids::ProcessKey;
 use vitals_core::metrics::{
-    CpuMetrics, DiskMetrics, GpuEngine, GpuMetrics, GpuVendor, NetworkMetrics, SystemMetrics,
+    BatteryMetrics, CpuMetrics, DiskMetrics, GpuEngine, GpuMetrics, GpuVendor, NetworkMetrics,
+    SystemMetrics,
 };
 use vitals_core::units::{Bytes, BytesPerSec, Percent};
 
@@ -210,8 +211,11 @@ impl SystemSampler {
                 disks,
                 networks,
                 gpus,
+                // System-wide power draw needs either a vendor SDK or an
+                // EC/ACPI read behind a driver; neither exists here, so it
+                // stays unavailable rather than becoming a plausible zero.
                 power_draw: None,
-                battery: None,
+                battery: build_battery_metrics(),
             },
             processes,
             elapsed_ms: elapsed,
@@ -447,6 +451,50 @@ impl SystemSampler {
 }
 
 /// Builds machine-wide CPU metrics from per-core usage.
+/// Reads battery state, or `None` on a machine that has no battery.
+///
+/// On the tick rather than behind the 5-second sensor cache because this is
+/// `GetSystemPowerStatus`, not WMI: measured at 0.01 ms warm. The sensor
+/// cache exists for the thermal reads that cost tens of milliseconds, and
+/// putting a free call behind it would only make the charge figure stale.
+///
+/// Health, cycle count, temperature and instantaneous draw are left `None`.
+/// They come from the battery's own IOCTL interface, which is a separate
+/// read against a device handle — worth doing, but not worth faking here.
+fn build_battery_metrics() -> Option<BatteryMetrics> {
+    battery_from_aggregate(crate::sensors::power::aggregate_battery()?)
+}
+
+/// The pure half of [`build_battery_metrics`], so the decisions below can be
+/// tested on a machine that has no battery — such as the one this was written
+/// on.
+fn battery_from_aggregate(
+    aggregate: crate::sensors::power::AggregateBattery,
+) -> Option<BatteryMetrics> {
+    // Charge as a share of full capacity. Both figures are in the same
+    // driver-defined unit, which cancels — so this is a ratio even though
+    // neither number means anything on its own.
+    let charge = match (aggregate.remaining_capacity, aggregate.max_capacity) {
+        (Some(remaining), Some(max)) if max > 0 => {
+            Percent::ratio(u64::from(remaining), u64::from(max))
+        }
+        // A battery present but not reporting capacity is real — some
+        // firmware only exposes it while discharging. Reporting zero would
+        // say "flat", so the whole reading is withheld instead.
+        _ => return None,
+    };
+
+    Some(BatteryMetrics {
+        charge,
+        charging: aggregate.charging,
+        time_remaining_secs: aggregate.estimated_seconds.map(u64::from),
+        power: None,
+        health: None,
+        cycle_count: None,
+        temperature: None,
+    })
+}
+
 /// Infers the vendor from the driver-reported adapter name.
 ///
 /// A string match, because the alternative — reading the PCI vendor ID —
@@ -548,6 +596,59 @@ mod tests {
     use super::*;
     use std::thread::sleep;
     use std::time::Duration;
+
+    fn aggregate(
+        remaining: Option<u32>,
+        max: Option<u32>,
+    ) -> crate::sensors::power::AggregateBattery {
+        crate::sensors::power::AggregateBattery {
+            on_ac: false,
+            charging: false,
+            discharging: true,
+            max_capacity: max,
+            remaining_capacity: remaining,
+            estimated_seconds: Some(3600),
+        }
+    }
+
+    #[test]
+    fn battery_charge_is_a_ratio_of_the_driver_units() {
+        // Neither number means anything on its own — the unit is
+        // driver-defined — but it cancels in the ratio.
+        let metrics = battery_from_aggregate(aggregate(Some(2500), Some(5000)))
+            .expect("a battery reporting capacity must produce metrics");
+
+        assert!((metrics.charge.get() - 50.0).abs() < 0.01);
+        assert_eq!(metrics.time_remaining_secs, Some(3600));
+    }
+
+    #[test]
+    fn a_battery_that_will_not_report_capacity_is_withheld_not_zeroed() {
+        // Some firmware only exposes capacity while discharging. Reporting
+        // zero would tell the user their battery is flat, which is a much
+        // worse answer than showing nothing.
+        assert!(battery_from_aggregate(aggregate(None, Some(5000))).is_none());
+        assert!(battery_from_aggregate(aggregate(Some(2500), None)).is_none());
+        assert!(battery_from_aggregate(aggregate(None, None)).is_none());
+    }
+
+    #[test]
+    fn a_zero_capacity_battery_does_not_divide_by_zero() {
+        // A dying or misreporting battery can report a full capacity of zero.
+        assert!(battery_from_aggregate(aggregate(Some(0), Some(0))).is_none());
+    }
+
+    #[test]
+    fn health_and_cycle_count_are_unavailable_rather_than_invented() {
+        // They need the battery's own IOCTL interface. `None` says "not
+        // read"; a zero would say "worn out" and "never charged".
+        let metrics = battery_from_aggregate(aggregate(Some(100), Some(100))).expect("metrics");
+
+        assert!(metrics.health.is_none());
+        assert!(metrics.cycle_count.is_none());
+        assert!(metrics.temperature.is_none());
+        assert!(metrics.power.is_none());
+    }
 
     #[test]
     fn the_first_sample_reports_no_rates() {
