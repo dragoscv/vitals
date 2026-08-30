@@ -30,6 +30,7 @@ pub mod host;
 pub mod memory;
 pub mod network;
 pub mod process;
+pub mod sampler;
 
 pub use cpu::{CpuTimes, CpuUsage};
 pub use disk::{DiskCounters, DiskRates, VolumeInfo, enumerate_volumes};
@@ -37,3 +38,4 @@ pub use host::WindowsHost;
 pub use memory::{MemoryPressure, MemorySampler};
 pub use network::{AdapterInfo, NetworkCounters, NetworkRates, enumerate_adapters};
 pub use process::{ProcessEnumerator, RawProcess};
+pub use sampler::{Sample, SampledProcess, SystemSampler};

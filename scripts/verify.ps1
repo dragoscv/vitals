@@ -14,7 +14,11 @@
 [CmdletBinding()]
 param(
     # Skip the production bundle build, which is the slowest gate.
-    [switch]$SkipBuild
+    [switch]$SkipBuild,
+
+    # Skip the release-build performance budget, which needs an optimised
+    # compile and so is slow from cold.
+    [switch]$SkipPerf
 )
 
 $ErrorActionPreference = 'Continue'
@@ -69,6 +73,17 @@ Invoke-Gate 'bindings: no drift' {
     cargo test -p vitals-core --features ts --quiet | Out-Null
     git diff --exit-code -- packages/protocol/src/generated
 } | Out-Null
+
+if (-not $SkipPerf) {
+    # Must be a release build: debug is several times slower and would
+    # measure the compiler's lack of optimisation rather than our code.
+    $perf = Invoke-Gate 'rust: perf budget' {
+        cargo test -p vitals-win --release --test overhead -- --nocapture
+    }
+    $perf | Select-String -Pattern 'median' | ForEach-Object {
+        Write-Host "  $($_.Line.Trim())" -ForegroundColor DarkGray
+    }
+}
 
 Invoke-Gate 'ts: typecheck' { pnpm typecheck } | Out-Null
 Invoke-Gate 'ts: lint' { pnpm lint } | Out-Null

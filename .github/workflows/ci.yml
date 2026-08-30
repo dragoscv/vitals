@@ -54,6 +54,14 @@ jobs:
       - name: Test
         run: cargo test --workspace
 
+      # A release build is required: the debug build is several times slower
+      # and would measure the compiler's lack of optimisation rather than
+      # our own code. Windows only, since the budget covers the Windows
+      # sampler.
+      - name: Performance budget
+        if: runner.os == 'Windows'
+        run: cargo test -p vitals-win --release --test overhead -- --nocapture
+
   bindings:
     name: Generated bindings are current
     runs-on: windows-latest

@@ -96,6 +96,15 @@ impl ProcessEnumerator {
         }
     }
 
+    /// Current buffer size in bytes.
+    ///
+    /// Exposed for the overhead gate, which asserts the buffer converges
+    /// rather than growing on every tick.
+    #[must_use]
+    pub fn buffer_capacity(&self) -> usize {
+        self.buffer.len()
+    }
+
     /// Reads the current process list.
     ///
     /// # Errors
