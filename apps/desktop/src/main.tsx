@@ -4,16 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { initI18n } from '@vitals/i18n';
 
 import { App } from './App';
-import { registerAppsStrings } from './features/apps';
-import { registerBenchmarksStrings } from './features/benchmarks';
-import { registerConnectionStrings } from './features/connections';
 import { registerDashboardStrings } from './features/dashboard';
-import { registerDevicesStrings } from './features/devices';
-import { registerHistoryStrings } from './features/history';
-import { registerPerformanceStrings } from './features/performance';
-import { registerStartupStrings } from './features/startup';
-import { registerStorageStrings } from './features/storage';
-import { registerUsersStrings } from './features/users';
 import { registerShellStrings } from './shell/strings';
 import './styles.css';
 
@@ -33,17 +24,13 @@ async function bootstrap(): Promise<void> {
   // Strictly after the await: i18next only defines `addResourceBundle` once
   // initialised, and this used to run at module scope in `App.tsx` — which
   // threw before React ever mounted and left the app stuck on its splash.
+  //
+  // Only the two eager surfaces register here. Every other feature registers
+  // its own strings from its lazy chunk, because importing a bundle from this
+  // file pulls the whole feature in through its barrel and undoes the route
+  // splitting entirely.
   registerShellStrings();
   registerDashboardStrings();
-  registerPerformanceStrings();
-  registerConnectionStrings();
-  registerStartupStrings();
-  registerAppsStrings();
-  registerStorageStrings();
-  registerDevicesStrings();
-  registerBenchmarksStrings();
-  registerHistoryStrings();
-  registerUsersStrings();
 
   createRoot(container).render(
     <StrictMode>

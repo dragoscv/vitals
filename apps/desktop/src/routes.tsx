@@ -1,17 +1,72 @@
+import { Suspense, lazy } from 'react';
+
 import { Skeleton } from '@vitals/ui';
 
 import { DashboardScreen } from './features/dashboard';
-import { ConnectionsScreen } from './features/connections';
-import { AppsScreen } from './features/apps';
-import { BenchmarksScreen } from './features/benchmarks';
-import { DevicesScreen } from './features/devices';
-import { AppHistoryScreen } from './features/history';
-import { PerformanceScreen } from './features/performance';
-import { ProcessesScreen } from './features/processes';
-import { StartupScreen } from './features/startup';
-import { StorageScreen } from './features/storage';
-import { UsersScreen } from './features/users';
 import { type RouteId } from './shell/navigation';
+
+// Dashboard is eager: it is what the window opens on, so deferring it would
+// only add a flash of skeleton to the one screen whose load time is the
+// app's perceived startup time.
+//
+// Every other section is lazy. Only one is ever on screen, and most sessions
+// touch two or three, so eagerly parsing all eleven made the first paint pay
+// for Benchmarks, Storage and Users that the user may never open. Each of
+// these is a chunk the browser fetches from local disk on first navigation.
+//
+// Each chunk registers its own translations as it loads. That has to happen
+// before the component renders, which is exactly what awaiting it inside the
+// `lazy` factory guarantees — registering from `main.tsx` instead would
+// import every barrel eagerly and collapse the split back into one bundle.
+const ConnectionsScreen = lazy(async () => {
+  const m = await import('./features/connections');
+  m.registerConnectionStrings();
+  return { default: m.ConnectionsScreen };
+});
+const AppsScreen = lazy(async () => {
+  const m = await import('./features/apps');
+  m.registerAppsStrings();
+  return { default: m.AppsScreen };
+});
+const BenchmarksScreen = lazy(async () => {
+  const m = await import('./features/benchmarks');
+  m.registerBenchmarksStrings();
+  return { default: m.BenchmarksScreen };
+});
+const DevicesScreen = lazy(async () => {
+  const m = await import('./features/devices');
+  m.registerDevicesStrings();
+  return { default: m.DevicesScreen };
+});
+const AppHistoryScreen = lazy(async () => {
+  const m = await import('./features/history');
+  m.registerHistoryStrings();
+  return { default: m.AppHistoryScreen };
+});
+const PerformanceScreen = lazy(async () => {
+  const m = await import('./features/performance');
+  m.registerPerformanceStrings();
+  return { default: m.PerformanceScreen };
+});
+const ProcessesScreen = lazy(async () => {
+  const m = await import('./features/processes');
+  return { default: m.ProcessesScreen };
+});
+const StartupScreen = lazy(async () => {
+  const m = await import('./features/startup');
+  m.registerStartupStrings();
+  return { default: m.StartupScreen };
+});
+const StorageScreen = lazy(async () => {
+  const m = await import('./features/storage');
+  m.registerStorageStrings();
+  return { default: m.StorageScreen };
+});
+const UsersScreen = lazy(async () => {
+  const m = await import('./features/users');
+  m.registerUsersStrings();
+  return { default: m.UsersScreen };
+});
 
 /**
  * Shown while a section's data is still arriving.
@@ -46,6 +101,24 @@ export function RouteView({
 }: {
   readonly route: RouteId;
   /** Lets a screen send the user elsewhere — dashboard alerts do this. */
+  readonly onNavigate?: (route: RouteId) => void;
+}) {
+  return (
+    // Keyed on the route so switching sections shows the skeleton again
+    // rather than holding the previous screen visible while the next chunk
+    // loads. Without the key React would keep the old boundary mounted and
+    // the app would appear frozen for the duration of the fetch.
+    <Suspense key={route} fallback={<RouteSkeleton />}>
+      <RouteContent route={route} {...(onNavigate && { onNavigate })} />
+    </Suspense>
+  );
+}
+
+function RouteContent({
+  route,
+  onNavigate,
+}: {
+  readonly route: RouteId;
   readonly onNavigate?: (route: RouteId) => void;
 }) {
   switch (route) {

@@ -10,7 +10,7 @@ import path from 'node:path';
 // nothing, which looks like a hung app.
 const DEV_PORT = 5273;
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   plugins: [react(), tailwindcss()],
 
   resolve: {
@@ -42,7 +42,15 @@ export default defineConfig({
     // Asking for 'esbuild' here pulls in a now-optional dependency and is
     // slower for no benefit.
     minify: true,
-    sourcemap: true,
+    // No maps in a packaged build. `frontendDist` is the whole `dist`
+    // directory, so anything written there ends up inside the installer and
+    // inside every differential update — and the maps were 3 MB of a 3.8 MB
+    // dist, four times the size of the app they describe.
+    //
+    // `hidden` is not enough: it only removes the `sourceMappingURL` comment
+    // and still writes the files, which Tauri would still package. Set
+    // VITALS_SOURCEMAPS=1 to get them back for a debugging build.
+    sourcemap: command !== 'build' || process.env.VITALS_SOURCEMAPS === '1',
     rollupOptions: {
       output: {
         // Split React into its own chunk so a UI-only change does not
@@ -65,4 +73,4 @@ export default defineConfig({
     setupFiles: ['./src/test/setup.ts'],
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
   },
-});
+}));

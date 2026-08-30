@@ -416,9 +416,21 @@ mod tests {
     /// Spawns a long-lived child to act on.
     ///
     /// Every destructive test operates on a process we created ourselves.
+    ///
+    /// `cmd` with stdin held open, rather than the obvious `cmd /c ping -n 30`.
+    /// That spawned a *grandchild*: killing `cmd` left `ping` alive holding
+    /// the inherited stdout pipe, and the test harness then blocked until the
+    /// orphan finished on its own — 29 seconds of the workspace test suite,
+    /// for tests whose own assertions took 0.07s.
+    ///
+    /// A bare `cmd` waiting on a piped stdin is a single process that lives
+    /// until killed and exits the instant it is, and null stdio means nothing
+    /// of ours is inherited even if a test leaks one.
     fn spawn_victim() -> std::process::Child {
         Command::new("cmd")
-            .args(["/c", "ping -n 30 127.0.0.1 > nul"])
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
             .spawn()
             .expect("spawn a test process")
     }

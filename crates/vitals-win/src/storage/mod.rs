@@ -225,8 +225,13 @@ mod tests {
     }
 
     #[test]
-    fn cleanup_discovery_returns_only_locations_that_exist() {
+    // Both properties below are about the same real discovery pass, and that
+    // pass sizes every temp and cache directory on the machine — five seconds
+    // of the test suite. Asserting both against one set of candidates costs
+    // half as much and tests exactly the same things.
+    fn cleanup_discovery_is_honest_about_what_it_found() {
         let candidates = find_cleanup_candidates(None);
+
         for candidate in &candidates {
             assert!(
                 std::fs::symlink_metadata(&candidate.path).is_ok(),
@@ -235,11 +240,9 @@ mod tests {
             );
             assert!(!candidate.reason.is_empty());
         }
-    }
 
-    #[test]
-    fn cleanup_totals_never_include_an_unmeasured_location() {
-        let candidates = find_cleanup_candidates(None);
+        // A location whose size could not be measured must not silently
+        // contribute zero to the headline "you can reclaim this much".
         let measured: u64 = candidates
             .iter()
             .filter(|c| c.safety <= Safety::Risky)

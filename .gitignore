@@ -1,6 +1,10 @@
 # Dependencies
 node_modules/
 .pnpm-store/
+# The real cache directory on this setup is `.pnpm-cache`, not `.pnpm-store`.
+# Missing it meant 214 MB of registry metadata — 399 files — was committed,
+# and every clone paid for it.
+.pnpm-cache/
 
 # Build output
 dist/

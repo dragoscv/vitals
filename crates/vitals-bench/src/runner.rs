@@ -436,6 +436,13 @@ mod tests {
     }
 
     #[test]
+    // Allocates the full 512 MB working set and runs the benchmark three
+    // times. The bounds below are the point of the test and only mean
+    // something against a real working set, so it cannot be shrunk — it is
+    // run deliberately instead:
+    //
+    //   cargo test -p vitals-bench --release -- --ignored
+    #[ignore = "allocates 512 MB and runs the real workload; run with --ignored"]
     fn a_memory_result_reports_bandwidth_in_mb_per_second() {
         let mut runner = Runner::new();
         let result = runner

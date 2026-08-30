@@ -1,10 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { TooltipProvider } from '@vitals/ui';
 
 import { RouteView } from '../routes';
-import { SettingsDialog } from '../settings/SettingsDialog';
 import { useSettings } from '../settings/store';
 import { Content } from './Content';
 import { ErrorBoundary } from './ErrorBoundary';
@@ -12,6 +11,14 @@ import { navItems } from './navigation';
 import { RouteError } from './RouteError';
 import { Sidebar } from './Sidebar';
 import { TitleBar } from './TitleBar';
+
+// Lazy: the dialog and its panels are 17 KB of the entry chunk for a surface
+// most sessions never open. It renders nothing until `open`, so there is no
+// fallback to show — the chunk loads in the moment between the click and the
+// dialog's own open animation.
+const SettingsDialog = lazy(async () => ({
+  default: (await import('../settings/SettingsDialog')).SettingsDialog,
+}));
 
 /**
  * Below this width the sidebar is forced to icons only.
@@ -127,7 +134,18 @@ export function AppShell({ version }: AppShellProps) {
         </div>
       </div>
 
-      <SettingsDialog open={settingsOpen} onOpenChange={onSettingsOpenChange} version={version} />
+      {/* Only mounted once it has been opened, so the chunk is never fetched
+          for a session that never touches settings. `null` is the right
+          fallback: a closed dialog renders nothing anyway. */}
+      {settingsOpen && (
+        <Suspense fallback={null}>
+          <SettingsDialog
+            open={settingsOpen}
+            onOpenChange={onSettingsOpenChange}
+            version={version}
+          />
+        </Suspense>
+      )}
     </TooltipProvider>
   );
 }

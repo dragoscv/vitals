@@ -1,0 +1,27 @@
+# Prettier does not read .gitignore, so without this file it walks the whole
+# tree — including Rust build output, which alone holds thousands of JSON
+# files it has no business reading. Measured: 28.7s to check 3 formattable
+# files, almost all of it spent traversing directories listed below.
+
+# Rust build output
+target/
+
+# Node
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+build/
+.turbo/
+**/src-tauri/gen/
+
+# Generated, not hand-written: reformatting these would fight the generator
+packages/protocol/src/generated/
+
+# Lockfiles
+pnpm-lock.yaml
+Cargo.lock
+
+# Agent scratch space
+.copilot-tmp/

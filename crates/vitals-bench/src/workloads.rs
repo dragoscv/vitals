@@ -93,14 +93,26 @@ fn cpu_kernel(iterations: u64, seed: u64) -> u64 {
 /// was counted.
 #[must_use]
 pub fn cpu_single_thread() -> Measurement {
+    cpu_single_thread_with(CPU_ITERATIONS)
+}
+
+/// [`cpu_single_thread`] with an explicit iteration count.
+///
+/// Exists so tests can assert the shape of the result — that it scores, that
+/// it takes measurable time — without running the full production workload.
+/// A debug-build test doing 12 million iterations cost seconds of every
+/// `cargo test`, to check a property a thousand iterations proves just as
+/// well.
+#[must_use]
+pub fn cpu_single_thread_with(iterations: u64) -> Measurement {
     let started = Instant::now();
     // The kernel's return value is consumed here and nowhere else. Without
     // this barrier the call has no observable effect and vanishes entirely.
-    black_box(cpu_kernel(black_box(CPU_ITERATIONS), 0x5EED));
+    black_box(cpu_kernel(black_box(iterations), 0x5EED));
     let elapsed = started.elapsed();
 
     Measurement {
-        score: throughput(CPU_ITERATIONS as f64, elapsed),
+        score: throughput(iterations as f64, elapsed),
         elapsed,
     }
 }
@@ -114,14 +126,18 @@ pub fn cpu_single_thread() -> Measurement {
 /// run and report a score the machine cannot actually sustain.
 #[must_use]
 pub fn cpu_multi_thread() -> Measurement {
-    let threads = std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get);
-
     // Each thread runs the full single-thread count, so the multi-thread
     // score is directly comparable to the single-thread one: perfect scaling
     // would be exactly `threads` times larger. Dividing a fixed total across
     // threads instead would shrink each thread's slice until it measured
     // spawn overhead on high-core machines.
-    let per_thread = CPU_ITERATIONS;
+    cpu_multi_thread_with(CPU_ITERATIONS)
+}
+
+/// [`cpu_multi_thread`] with an explicit per-thread iteration count.
+#[must_use]
+pub fn cpu_multi_thread_with(per_thread: u64) -> Measurement {
+    let threads = std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get);
 
     let started = Instant::now();
     std::thread::scope(|scope| {
@@ -189,7 +205,20 @@ impl MemoryBuffer {
     /// faults to whichever benchmark ran first.
     #[must_use]
     pub fn allocate() -> Self {
-        let len = WORKING_SET_BYTES / size_of::<u64>();
+        Self::with_bytes(WORKING_SET_BYTES)
+    }
+
+    /// Allocates a working set of an explicit size.
+    ///
+    /// Only the full [`WORKING_SET_BYTES`] buffer measures DRAM; a small one
+    /// measures cache and must never be used for a reported score. It exists
+    /// for tests, which check that the workloads return plausible finite
+    /// numbers rather than checking any particular speed — and building the
+    /// 64-million-element cycle for that took thirteen seconds per test in a
+    /// debug build.
+    #[must_use]
+    pub fn with_bytes(bytes: usize) -> Self {
+        let len = (bytes / size_of::<u64>()).max(2);
 
         let mut values = vec![0u64; len];
         for (i, slot) in values.iter_mut().enumerate() {
@@ -345,9 +374,16 @@ fn throughput(work: f64, elapsed: Duration) -> f64 {
 mod tests {
     use super::*;
 
+    /// Enough work to be measurable, little enough to be free.
+    ///
+    /// These tests assert the *shape* of a measurement, never a speed, so the
+    /// production iteration count buys nothing here and cost seconds on every
+    /// `cargo test` in a debug build.
+    const TEST_ITERATIONS: u64 = 50_000;
+
     #[test]
     fn single_thread_run_takes_measurable_time_and_scores() {
-        let m = cpu_single_thread();
+        let m = cpu_single_thread_with(TEST_ITERATIONS);
         assert!(
             m.elapsed > Duration::ZERO,
             "a zero duration means the kernel was optimised away"
@@ -357,7 +393,7 @@ mod tests {
 
     #[test]
     fn multi_thread_run_takes_measurable_time_and_scores() {
-        let m = cpu_multi_thread();
+        let m = cpu_multi_thread_with(TEST_ITERATIONS);
         assert!(m.elapsed > Duration::ZERO);
         assert!(m.score > 0.0 && m.score.is_finite(), "score {}", m.score);
     }
@@ -431,12 +467,16 @@ mod tests {
         );
     }
 
-    // The memory workloads allocate half a gigabyte, so they share one buffer
-    // rather than being split across tests that each build their own.
+    /// Big enough to exercise the code, small enough to be free.
+    ///
+    /// This measures cache, not DRAM, which is fine for every assertion that
+    /// only checks a score is finite and positive.
+    const TEST_WORKING_SET: usize = 1024 * 1024;
+
     #[test]
     fn memory_workloads_report_plausible_measured_values() {
-        let buffer = MemoryBuffer::allocate();
-        assert_eq!(buffer.len(), WORKING_SET_BYTES / size_of::<u64>());
+        let buffer = MemoryBuffer::with_bytes(TEST_WORKING_SET);
+        assert_eq!(buffer.len(), TEST_WORKING_SET / size_of::<u64>());
         assert!(!buffer.is_empty());
 
         let bandwidth = memory_bandwidth(&buffer);
@@ -449,9 +489,31 @@ mod tests {
 
         let latency = memory_latency(&buffer);
         assert!(latency.elapsed > Duration::ZERO);
-        // A dependent load that misses cache cannot resolve in under a
-        // nanosecond on any real machine. Anything faster means the chase
-        // stayed in cache or was elided, both of which invalidate the figure.
+        assert!(
+            latency.score > 0.0 && latency.score.is_finite(),
+            "latency {} ns",
+            latency.score
+        );
+    }
+
+    /// The one test that must pay for a real working set.
+    ///
+    /// A dependent load that misses cache cannot resolve in under a
+    /// nanosecond on any real machine, so a faster figure means the chase
+    /// stayed in cache or was elided — both of which invalidate the reported
+    /// score. Proving that needs the production buffer, and no smaller one
+    /// would prove anything, so this is `#[ignore]`d and run deliberately:
+    ///
+    /// ```text
+    /// cargo test -p vitals-bench --release -- --ignored
+    /// ```
+    #[test]
+    #[ignore = "allocates 512 MB; run explicitly with --ignored"]
+    fn the_real_working_set_actually_reaches_dram() {
+        let buffer = MemoryBuffer::allocate();
+        assert_eq!(buffer.len(), WORKING_SET_BYTES / size_of::<u64>());
+
+        let latency = memory_latency(&buffer);
         assert!(
             latency.score > 1.0,
             "{} ns per dependent load is not a DRAM access",
