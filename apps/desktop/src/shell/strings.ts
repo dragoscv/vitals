@@ -111,9 +111,15 @@ const ro = {
 /**
  * Registers the bundle.
  *
- * `deep: false, overwrite: false` so that once these keys move into
+ * `deep: true, overwrite: false` so that once these keys move into
  * `@vitals/i18n` the real translations win and this module becomes inert
  * rather than silently shadowing them.
+ *
+ * Both flags matter and the pairing is not obvious: with `deep: false`
+ * i18next shallow-merges, replacing the existing bundle wholesale, so
+ * `overwrite: false` protects nothing at all. This shipped as `false, false`
+ * — which would have quietly shadowed the real translations at migration —
+ * until a test on the dashboard's identical registration caught it.
  *
  * # Panics
  *
@@ -132,6 +138,6 @@ export function registerShellStrings(): void {
     );
   }
 
-  i18n.addResourceBundle('en', SHELL_NS, en, false, false);
-  i18n.addResourceBundle('ro', SHELL_NS, ro, false, false);
+  i18n.addResourceBundle('en', SHELL_NS, en, true, false);
+  i18n.addResourceBundle('ro', SHELL_NS, ro, true, false);
 }

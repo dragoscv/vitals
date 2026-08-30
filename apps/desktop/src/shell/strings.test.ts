@@ -54,4 +54,26 @@ describe('shell string registration order', () => {
       );
     }
   });
+
+  it('defers to a translation that already exists', async () => {
+    // These strings are a placeholder until they move into `@vitals/i18n`, and
+    // the whole point of `overwrite: false` is that this module goes inert at
+    // that moment rather than shadowing the real translations.
+    //
+    // It did not work. `deep: false` makes i18next replace the bundle
+    // wholesale, so `overwrite: false` protected nothing — the placeholder
+    // would have won. Verified by reverting to `false, false`: this fails.
+    vi.resetModules();
+
+    const { initI18n, i18n } = await import('@vitals/i18n');
+    const { registerShellStrings, SHELL_NS } = await import('./strings');
+
+    await initI18n('en');
+    i18n.addResourceBundle('en', SHELL_NS, { window: { close: 'Real translation' } }, true, true);
+    registerShellStrings();
+
+    expect(i18n.t('window.close', { ns: SHELL_NS })).toBe('Real translation');
+    // The keys it does not collide with are still registered.
+    expect(i18n.exists('window.minimise', { ns: SHELL_NS })).toBe(true);
+  });
 });
