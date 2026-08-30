@@ -1,0 +1,154 @@
+{
+  "app": {
+    "name": "Vitals",
+    "tagline": "Vezi ce face de fapt calculatorul tău."
+  },
+  "nav": {
+    "dashboard": "Panou",
+    "performance": "Performanță",
+    "processes": "Procese",
+    "startup": "Pornire",
+    "services": "Servicii",
+    "appHistory": "Istoric aplicații",
+    "users": "Utilizatori",
+    "network": "Rețea",
+    "storage": "Stocare",
+    "installedApps": "Aplicații instalate",
+    "devices": "Dispozitive și senzori",
+    "benchmarks": "Teste de performanță",
+    "settings": "Setări"
+  },
+  "metric": {
+    "cpu": "Procesor",
+    "memory": "Memorie",
+    "disk": "Disc",
+    "network": "Rețea",
+    "gpu": "Placă video",
+    "thermals": "Temperaturi",
+    "power": "Consum",
+    "battery": "Baterie",
+    "unknown": "Necunoscut",
+    "notAvailable": "Indisponibil"
+  },
+  "process": {
+    "name": "Nume",
+    "pid": "PID",
+    "status": "Stare",
+    "user": "Utilizator",
+    "threads": "Fire de execuție",
+    "handles": "Handle-uri",
+    "uptime": "Durată de funcționare",
+    "count_one": "{{count}} proces",
+    "count_few": "{{count}} procese",
+    "count_other": "{{count}} de procese",
+    "state": {
+      "running": "În execuție",
+      "suspended": "Suspendat",
+      "waiting": "În așteptare",
+      "notResponding": "Nu răspunde",
+      "zombie": "Încheiat"
+    },
+    "action": {
+      "endTask": "Închide procesul",
+      "endTree": "Închide arborele de procese",
+      "suspend": "Suspendă",
+      "resume": "Reia",
+      "openLocation": "Deschide locația fișierului",
+      "properties": "Proprietăți",
+      "efficiencyMode": "Mod eficiență",
+      "priority": "Prioritate",
+      "affinity": "Setează afinitatea"
+    },
+    "confirm": {
+      "endTitle": "Închizi {{name}}?",
+      "endBody": "Lucrările nesalvate din această aplicație se vor pierde.",
+      "endCriticalTitle": "{{name}} este un proces critic de sistem",
+      "endCriticalBody": "Închiderea lui va destabiliza Windows și poate cauza o repornire sau pierderea datelor."
+    }
+  },
+  "capability": {
+    "needsElevation": "Necesită drepturi de administrator",
+    "needsHelper": "Necesită serviciul auxiliar Vitals",
+    "needsPlugin": "Necesită un supliment opțional",
+    "noSuchHardware": "Componentele tale nu raportează această valoare",
+    "notSupported": "Indisponibil pe acest sistem",
+    "disabledByUser": "Dezactivat în setări",
+    "enable": "Activează",
+    "learnMore": "Află mai multe"
+  },
+  "common": {
+    "search": "Caută",
+    "cancel": "Anulează",
+    "confirm": "Confirmă",
+    "close": "Închide",
+    "retry": "Reîncearcă",
+    "loading": "Se încarcă…",
+    "empty": "Nimic de afișat",
+    "error": "A apărut o eroare",
+    "copy": "Copiază",
+    "copied": "Copiat",
+    "refresh": "Reîmprospătează"
+  },
+  "settings": {
+    "title": "Setări",
+    "appearance": {
+      "title": "Aspect",
+      "theme": "Temă",
+      "themeLight": "Luminoasă",
+      "themeDark": "Întunecată",
+      "themeSystem": "Ca sistemul",
+      "accent": "Culoare de accent",
+      "surface": "Suprafață",
+      "surfaceSolid": "Opacă",
+      "surfaceMica": "Mica",
+      "surfaceAcrylic": "Acrilic",
+      "density": "Densitate",
+      "reduceMotion": "Redu animațiile"
+    },
+    "language": {
+      "title": "Limbă și regiune",
+      "language": "Limbă"
+    },
+    "sampling": {
+      "title": "Eșantionare",
+      "rate": "Viteză de actualizare",
+      "backgroundThrottle": "Încetinește când e ascuns",
+      "backgroundThrottleHint": "Menține consumul Vitals aproape de zero când nu te uiți la el."
+    },
+    "history": {
+      "title": "Istoric",
+      "enable": "Înregistrează istoricul",
+      "enableHint": "Stocat doar pe acest calculator. Dezactivat implicit.",
+      "retention": "Păstrează datele",
+      "diskUsage": "Ocupă în prezent {{size}}",
+      "clear": "Șterge tot istoricul"
+    },
+    "privacy": {
+      "title": "Confidențialitate",
+      "crashReports": "Trimite rapoarte de eroare",
+      "crashReportsHint": "Dezactivat implicit. Nu include niciodată nume de fișiere sau linii de comandă.",
+      "usageData": "Trimite date anonime de utilizare",
+      "reputationLookups": "Verifică fișierele pe VirusTotal",
+      "reputationLookupsHint": "Trimite doar un hash al fișierului, niciodată fișierul."
+    },
+    "advanced": {
+      "title": "Avansat",
+      "warning": "Acestea pot deteriora componentele sau pot cauza pierderi de date. Activează doar dacă știi ce faci.",
+      "enable": "Activează funcțiile avansate"
+    },
+    "about": {
+      "title": "Despre",
+      "version": "Versiunea {{version}}",
+      "contribute": "Vitals este gratuit și open source, pentru totdeauna.",
+      "contributeBody": "Ai găsit o problemă sau vrei o funcție nouă? Deschide un issue pe GitHub — fiecare raport îl face mai bun.",
+      "openIssues": "Deschide un issue",
+      "viewSource": "Vezi codul sursă",
+      "checkUpdates": "Caută actualizări"
+    }
+  },
+  "a11y": {
+    "mainNavigation": "Navigare principală",
+    "sortBy": "Sortează după {{column}}",
+    "chartOf": "{{metric}} în timp"
+  }
+}

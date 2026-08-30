@@ -1,0 +1,399 @@
+{
+  "name": "@tauri-apps/plugin-opener",
+  "dist-tags": { "latest": "2.5.4" },
+  "versions": {
+    "1.0.0": {
+      "name": "@tauri-apps/plugin-opener",
+      "version": "1.0.0",
+      "dist": {
+        "shasum": "51b5bce6a76d8e0af1f5f42cecaaaa057d6fd93d",
+        "tarball": "https://registry.npmjs.org/@tauri-apps/plugin-opener/-/plugin-opener-1.0.0.tgz",
+        "fileCount": 1,
+        "integrity": "sha512-u9+U4Pgrm/Kstgqmf4J2OeFqkshuI6CeEgcNodC5p6zFZbNpYii50WtS84qLNSBMbcyASrsqytwytbObbcJfNw==",
+        "signatures": [
+          {
+            "sig": "MEQCIAvEHNAp7CF6wa7bkvt+6In8HdszTg8CYzUn8h9SC9xIAiBNtshc7QOdCL7l/KSSjP5RAWLdM5B9HO3VAHqsRzdBjw==",
+            "keyid": "SHA256:jl3bwswu80PjjokCgh0o2w5c2U4LhQAE57gj9cz1kzA"
+          }
+        ],
+        "unpackedSize": 405
+      }
+    },
+    "2.0.0": {
+      "name": "@tauri-apps/plugin-opener",
+      "version": "2.0.0",
+      "dependencies": { "@tauri-apps/api": "^2.0.0" },
+      "dist": {
+        "shasum": "16de1f5dfe4ec0c150c1e14dd07d0eea7a89c80f",
+        "tarball": "https://registry.npmjs.org/@tauri-apps/plugin-opener/-/plugin-opener-2.0.0.tgz",
+        "fileCount": 7,
+        "integrity": "sha512-J7xGF34HCI/ZdAh2hH72mYg5otwxWYY/5KJ+c2wE+Dr8qzCGF+PhdttNVam94RFTs5mwJ393t/mo8OSolFyWtw==",
+        "signatures": [
+          {
+            "sig": "MEQCIChJcfP1NPpH81AnwUfO+C6+F5mUKD0YtZH8nFjjzispAiAme9QPXmQ5YFgNk3XuulvGROa7LCQEd+oLs20OHsy5Dw==",
+            "keyid": "SHA256:jl3bwswu80PjjokCgh0o2w5c2U4LhQAE57gj9cz1kzA"
+          }
+        ],
+        "attestations": {
+          "url": "https://registry.npmjs.org/-/npm/v1/attestations/@tauri-apps%2fplugin-opener@2.0.0",
+          "provenance": { "predicateType": "https://slsa.dev/provenance/v1" }
+        },
+        "unpackedSize": 11700
+      }
+    },
+    "2.2.0": {
+      "name": "@tauri-apps/plugin-opener",
+      "version": "2.2.0",
+      "dependencies": { "@tauri-apps/api": "^2.0.0" },
+      "dist": {
+        "shasum": "a9aa3272a440f2a011228acb3c46c0619506914d",
+        "tarball": "https://registry.npmjs.org/@tauri-apps/plugin-opener/-/plugin-opener-2.2.0.tgz",
+        "fileCount": 7,
+        "integrity": "sha512-FSOjVsIKlRWPjjcnHgrjdxJlOFfPTkw5GtfutCyJSDyHJ/M3NULd8dkGewkWwozDFwiAJj1hqaj2R3K12uXWIw==",
+        "signatures": [
+          {
+            "sig": "MEUCIFYjnkLDV0nwdRKVh9D8NfPDwReCk5i+wuZTsYU8CWIxAiEAl9gfh3S/XD0QDYXVOOzyIts2KodyzmdzFFGOE8B5qAA=",
+            "keyid": "SHA256:jl3bwswu80PjjokCgh0o2w5c2U4LhQAE57gj9cz1kzA"
+          }
+        ],
+        "attestations": {
+          "url": "https://registry.npmjs.org/-/npm/v1/attestations/@tauri-apps%2fplugin-opener@2.2.0",
+          "provenance": { "predicateType": "https://slsa.dev/provenance/v1" }
+        },
+        "unpackedSize": 12777
+      }
+    },
+    "2.2.1": {
+      "name": "@tauri-apps/plugin-opener",
+      "version": "2.2.1",
+      "dependencies": { "@tauri-apps/api": "^2.0.0" },
+      "dist": {
+        "shasum": "cf0d74f683171d0cb31657baa417ad7b75cef4c0",
+        "tarball": "https://registry.npmjs.org/@tauri-apps/plugin-opener/-/plugin-opener-2.2.1.tgz",
+        "fileCount": 7,
+        "integrity": "sha512-zloo4xzBqeh363xNA+xYt+7+/cu/lPYuG5PRtxjWAaSyfMqFo6IINdizkDBYylUewLiplXb5+S65GLVkeXTHPg==",
+        "signatures": [
+          {
+            "sig": "MEQCIBjH1BIp5OmtXh1wvXhEIqJ2kXMlwGaAdov0SV8wVv0rAiBwqonSq11LlB9TxdwNxiVzZXfZqOgXYm9cQLhcMhwuNQ==",
+            "keyid": "SHA256:jl3bwswu80PjjokCgh0o2w5c2U4LhQAE57gj9cz1kzA"
+          }
+        ],
+        "attestations": {
+          "url": "https://registry.npmjs.org/-/npm/v1/attestations/@tauri-apps%2fplugin-opener@2.2.1",
+          "provenance": { "predicateType": "https://slsa.dev/provenance/v1" }
+        },
+        "unpackedSize": 12777
+      }
+    },
+    "2.2.2": {
+      "name": "@tauri-apps/plugin-opener",
+      "version": "2.2.2",
+      "dependencies": { "@tauri-apps/api": "^2.0.0" },
+      "dist": {
+        "shasum": "31f5bde7fc1ba2431c83ee1378ea34eb6fc67b20",
+        "tarball": "https://registry.npmjs.org/@tauri-apps/plugin-opener/-/plugin-opener-2.2.2.tgz",
+        "fileCount": 7,
+        "integrity": "sha512-E/XIHKqGV+FT8PDdkfMETmgPUxcR79Rk8USuzbadD/ZdvsKCfQR5q+6rpZC9zEnG2wzi9lVQM4D3xwrtGGIB8A==",
+        "signatures": [
+          {
+            "sig": "MEUCIEyrA+Dv3ONCldUa3kvv9BBLSt8TVPXWlKIR4hKvtzOQAiEAgXxym5KRsEbPPTfjyckBbQLOximnxlHlQXCLujvDkxI=",
+            "keyid": "SHA256:jl3bwswu80PjjokCgh0o2w5c2U4LhQAE57gj9cz1kzA"
+          }
+        ],
+        "attestations": {
+          "url": "https://registry.npmjs.org/-/npm/v1/attestations/@tauri-apps%2fplugin-opener@2.2.2",
+          "provenance": { "predicateType": "https://slsa.dev/provenance/v1" }
+        },
+        "unpackedSize": 13169
+      }
+    },
+    "2.2.3": {
+      "name": "@tauri-apps/plugin-opener",
+      "version": "2.2.3",
+      "dependencies": { "@tauri-apps/api": "^2.0.0" },
+      "dist": {
+        "shasum": "6f0ddb715d9603ee51df574cea2f0cd0a07eaad3",
+        "tarball": "https://registry.npmjs.org/@tauri-apps/plugin-opener/-/plugin-opener-2.2.3.tgz",
+        "fileCount": 7,
+        "integrity": "sha512-QZDtGwqs2ssjc+GbHzTFlN0gtgXR7B1dcphIJ3vBrX+PXOdI58hP82TyT2rbH2myBVj2uWkyqKhM8FbbGopqng==",
+        "signatures": [
+          {
+            "sig": "MEYCIQDoi/6tnzm1L7fXe5nGUGWVaX/mHBJZ1H4cKCkJSTvyIAIhAMy5Z6fZWpRfEqh91yHlOKK1WmdryPUgnA6O8mSxxi7q",
+            "keyid": "SHA256:jl3bwswu80PjjokCgh0o2w5c2U4LhQAE57gj9cz1kzA"
+          }
+        ],
+        "attestations": {
+          "url": "https://registry.npmjs.org/-/npm/v1/attestations/@tauri-apps%2fplugin-opener@2.2.3",
+          "provenance": { "predicateType": "https://slsa.dev/provenance/v1" }
+        },
+        "unpackedSize": 13169
+      }
+    },
+    "2.2.4": {
+      "name": "@tauri-apps/plugin-opener",
+      "version": "2.2.4",
+      "dependencies": { "@tauri-apps/api": "^2.0.0" },
+      "dist": {
+        "shasum": "1130aa1586676f8f51b703ba112ec60854476a37",
+        "tarball": "https://registry.npmjs.org/@tauri-apps/plugin-opener/-/plugin-opener-2.2.4.tgz",
+        "fileCount": 7,
+        "integrity": "sha512-5oXWr80ek8JHwQ/budIdZTHAWBF4XfYMiXIyH8Pr92QtwEG+6xCgCcws0k4xCemVDEetclveJPu8yB9ysuU/dQ==",
+        "signatures": [
+          {
+            "sig": "MEYCIQDGafNQMuFnfOH0lv1k+PrXs42XgApTasrkuAJdrE1IZwIhAOEMt2V8HjbaZJx6ST5vpdLAHBhH/VXkL5KiAclUI3nR",
+            "keyid": "SHA256:jl3bwswu80PjjokCgh0o2w5c2U4LhQAE57gj9cz1kzA"
+          }
+        ],
+        "attestations": {
+          "url": "https://registry.npmjs.org/-/npm/v1/attestations/@tauri-apps%2fplugin-opener@2.2.4",
+          "provenance": { "predicateType": "https://slsa.dev/provenance/v1" }
+        },
+        "unpackedSize": 13169
+      }
+    },
+    "2.2.5": {
+      "name": "@tauri-apps/plugin-opener",
+      "version": "2.2.5",
+      "dependencies": { "@tauri-apps/api": "^2.0.0" },
+      "dist": {
+        "shasum": "928b917d28d3e8b5bafb90f5f91fb0ed20c27fd4",
+        "tarball": "https://registry.npmjs.org/@tauri-apps/plugin-opener/-/plugin-opener-2.2.5.tgz",
+        "fileCount": 7,
+        "integrity": "sha512-hHsJ9RPWpZvZEPVFaL+d25gABMUMOf/A6ESXnvf/ii9guTukj58WXsAE/SOysXRIhej7kseRCxnOnIMpSCdUsQ==",
+        "signatures": [
+          {
+            "sig": "MEQCIAdf+2brdTWiIUc7VTNxR+q+ilPuI5pgCvPa99ZgXG2ZAiBnC1fOwNqPtxiyHZbwcwzNfjXRDNEk1zyxxUWwPi4rSA==",
+            "keyid": "SHA256:jl3bwswu80PjjokCgh0o2w5c2U4LhQAE57gj9cz1kzA"
+          }
+        ],
+        "attestations": {
+          "url": "https://registry.npmjs.org/-/npm/v1/attestations/@tauri-apps%2fplugin-opener@2.2.5",
+          "provenance": { "predicateType": "https://slsa.dev/provenance/v1" }
+        },
+        "unpackedSize": 13169
+      }
+    },
+    "2.2.6": {
+      "name": "@tauri-apps/plugin-opener",
+      "version": "2.2.6",
+      "dependencies": { "@tauri-apps/api": "^2.0.0" },
+      "dist": {
+        "shasum": "a4dc328541708d40e3bb969231974353a4ad6983",
+        "tarball": "https://registry.npmjs.org/@tauri-apps/plugin-opener/-/plugin-opener-2.2.6.tgz",
+        "fileCount": 7,
+        "integrity": "sha512-bSdkuP71ZQRepPOn8BOEdBKYJQvl6+jb160QtJX/i2H9BF6ZySY/kYljh76N2Ne5fJMQRge7rlKoStYQY5Jq1w==",
+        "signatures": [
+          {
+            "sig": "MEYCIQCH7Q7zoyuHTVNcDXRCuNqGX837O5f1o7ZmVlwhL+MFEQIhANx1lhcEsSfGb59M4C8Rox4c2GRqp6968aKqiFvg+41C",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "attestations": {
+          "url": "https://registry.npmjs.org/-/npm/v1/attestations/@tauri-apps%2fplugin-opener@2.2.6",
+          "provenance": { "predicateType": "https://slsa.dev/provenance/v1" }
+        },
+        "unpackedSize": 13169
+      }
+    },
+    "2.2.7": {
+      "name": "@tauri-apps/plugin-opener",
+      "version": "2.2.7",
+      "dependencies": { "@tauri-apps/api": "^2.0.0" },
+      "dist": {
+        "shasum": "2fccf081e8bd32b61cfc31640845d81a0bf8ed06",
+        "tarball": "https://registry.npmjs.org/@tauri-apps/plugin-opener/-/plugin-opener-2.2.7.tgz",
+        "fileCount": 7,
+        "integrity": "sha512-uduEyvOdjpPOEeDRrhwlCspG/f9EQalHumWBtLBnp3fRp++fKGLqDOyUhSIn7PzX45b/rKep//ZQSAQoIxobLA==",
+        "signatures": [
+          {
+            "sig": "MEUCIQDgo8d2t8ZBpVHRKOyWtKPQ2e6XxOmYn4UDl3mayIu5AwIgfTNdNBmPwB/sOUGwCFDF0OMLixDtytQ6K0l+6dqRFXg=",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "attestations": {
+          "url": "https://registry.npmjs.org/-/npm/v1/attestations/@tauri-apps%2fplugin-opener@2.2.7",
+          "provenance": { "predicateType": "https://slsa.dev/provenance/v1" }
+        },
+        "unpackedSize": 13175
+      }
+    },
+    "2.3.0": {
+      "name": "@tauri-apps/plugin-opener",
+      "version": "2.3.0",
+      "dependencies": { "@tauri-apps/api": "^2.0.0" },
+      "dist": {
+        "shasum": "ea883f48daffd22873bbc40cc81b266df6f6a6cd",
+        "tarball": "https://registry.npmjs.org/@tauri-apps/plugin-opener/-/plugin-opener-2.3.0.tgz",
+        "fileCount": 7,
+        "integrity": "sha512-yAbauwp8BCHIhhA48NN8rEf6OtfZBPCgTOCa10gmtoVCpmic5Bq+1Ba7C+NZOjogedkSiV7hAotjYnnbUVmYrw==",
+        "signatures": [
+          {
+            "sig": "MEQCIHW0v5ydMLHEfhl2Uj+dY/0Wd/RHDuY24vPehfU1VtTJAiBgS7hvsD6LdDwAxOraoJ12HEwyoEXRgq4eJiUGGgfC6w==",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "attestations": {
+          "url": "https://registry.npmjs.org/-/npm/v1/attestations/@tauri-apps%2fplugin-opener@2.3.0",
+          "provenance": { "predicateType": "https://slsa.dev/provenance/v1" }
+        },
+        "unpackedSize": 13175
+      }
+    },
+    "2.3.1": {
+      "name": "@tauri-apps/plugin-opener",
+      "version": "2.3.1",
+      "dependencies": { "@tauri-apps/api": "^2.0.0" },
+      "dist": {
+        "shasum": "876009e2f693f038f8731cd15a0915aef6c4876e",
+        "tarball": "https://registry.npmjs.org/@tauri-apps/plugin-opener/-/plugin-opener-2.3.1.tgz",
+        "fileCount": 6,
+        "integrity": "sha512-ia4EW2x/ux2qYpuBRoo1qHwK9/tPwnXYX8HizrJlyHyd3iJCueI5lC7Oa3y1zaCKLZH5elEFSWunnfar8ejbdg==",
+        "signatures": [
+          {
+            "sig": "MEQCIHVbLJGGkZq37eTGIKYnHxc7ZH0ZBK6utKKe+XBgQDt3AiApEgZfXvTPET6LrIYrQ9hDrdyOjg3DMDjrtphhmkRU4Q==",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "attestations": {
+          "url": "https://registry.npmjs.org/-/npm/v1/attestations/@tauri-apps%2fplugin-opener@2.3.1",
+          "provenance": { "predicateType": "https://slsa.dev/provenance/v1" }
+        },
+        "unpackedSize": 13819
+      }
+    },
+    "2.4.0": {
+      "name": "@tauri-apps/plugin-opener",
+      "version": "2.4.0",
+      "dependencies": { "@tauri-apps/api": "^2.6.0" },
+      "dist": {
+        "shasum": "57eae5998e1c396791af16832a9dde16eca06439",
+        "tarball": "https://registry.npmjs.org/@tauri-apps/plugin-opener/-/plugin-opener-2.4.0.tgz",
+        "fileCount": 6,
+        "integrity": "sha512-43VyN8JJtvKWJY72WI/KNZszTpDpzHULFxQs0CJBIYUdCRowQ6Q1feWTDb979N7nldqSuDOaBupZ6wz2nvuWwQ==",
+        "signatures": [
+          {
+            "sig": "MEUCICAirS+XSaTWk4VUJiqqcIVdcimnqpCqh9ujWxE3IFUXAiEAxH+8hNei5rqpjnYXmyf1NHZGtIM/krGB6rXuyTXiZn8=",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "attestations": {
+          "url": "https://registry.npmjs.org/-/npm/v1/attestations/@tauri-apps%2fplugin-opener@2.4.0",
+          "provenance": { "predicateType": "https://slsa.dev/provenance/v1" }
+        },
+        "unpackedSize": 13819
+      }
+    },
+    "2.5.0": {
+      "name": "@tauri-apps/plugin-opener",
+      "version": "2.5.0",
+      "dependencies": { "@tauri-apps/api": "^2.8.0" },
+      "dist": {
+        "shasum": "f4ed07559065616bf14012686f5273070a39e003",
+        "tarball": "https://registry.npmjs.org/@tauri-apps/plugin-opener/-/plugin-opener-2.5.0.tgz",
+        "fileCount": 7,
+        "integrity": "sha512-B0LShOYae4CZjN8leiNDbnfjSrTwoZakqKaWpfoH6nXiJwt6Rgj6RnVIffG3DoJiKsffRhMkjmBV9VeilSb4TA==",
+        "signatures": [
+          {
+            "sig": "MEUCIHbbs+a5mSXrXeoNbDkYemNZKewPN+u+jJ0eDpQtwFV4AiEAzOQ8EOI6TmjW8fEwXd5BPad9e2HBUQc9kOC6nhCklUw=",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "attestations": {
+          "url": "https://registry.npmjs.org/-/npm/v1/attestations/@tauri-apps%2fplugin-opener@2.5.0",
+          "provenance": { "predicateType": "https://slsa.dev/provenance/v1" }
+        },
+        "unpackedSize": 14088
+      }
+    },
+    "2.5.1": {
+      "name": "@tauri-apps/plugin-opener",
+      "version": "2.5.1",
+      "dependencies": { "@tauri-apps/api": "^2.8.0" },
+      "dist": {
+        "shasum": "aedf32d399e9d0f6dcaacca4e2461550ab8d3b79",
+        "tarball": "https://registry.npmjs.org/@tauri-apps/plugin-opener/-/plugin-opener-2.5.1.tgz",
+        "fileCount": 7,
+        "integrity": "sha512-nyT6oW4ibyXJN2duVBZlPhPmN/+jViOtX0B95f7j5W3R493wEyCNRgjL6YXUp7cB1pKKG6spk7/Q46ZKuzeeBQ==",
+        "signatures": [
+          {
+            "sig": "MEUCIA1lTaP4PSjtoNR3APm4wV4VReHv5dT2ClnO88qnLEN1AiEAorPljVknbrCu11+QzxT8JjWfTeWKTZOX7I/eob9rANM=",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "attestations": {
+          "url": "https://registry.npmjs.org/-/npm/v1/attestations/@tauri-apps%2fplugin-opener@2.5.1",
+          "provenance": { "predicateType": "https://slsa.dev/provenance/v1" }
+        },
+        "unpackedSize": 14088
+      }
+    },
+    "2.5.2": {
+      "name": "@tauri-apps/plugin-opener",
+      "version": "2.5.2",
+      "dependencies": { "@tauri-apps/api": "^2.8.0" },
+      "dist": {
+        "shasum": "6e2127d0ad7627a16103215ed596e4fa42bda199",
+        "tarball": "https://registry.npmjs.org/@tauri-apps/plugin-opener/-/plugin-opener-2.5.2.tgz",
+        "fileCount": 7,
+        "integrity": "sha512-ei/yRRoCklWHImwpCcDK3VhNXx+QXM9793aQ64YxpqVF0BDuuIlXhZgiAkc15wnPVav+IbkYhmDJIv5R326Mew==",
+        "signatures": [
+          {
+            "sig": "MEQCICSJlm56nkbyY7hWqVw0XjttMwUt0AKkXo+/DRkjqtjKAiAKYo6ptctwEyVxe/cnWUquQeH7Uxqg2GEtlKzsbA2h/w==",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "attestations": {
+          "url": "https://registry.npmjs.org/-/npm/v1/attestations/@tauri-apps%2fplugin-opener@2.5.2",
+          "provenance": { "predicateType": "https://slsa.dev/provenance/v1" }
+        },
+        "unpackedSize": 14088
+      }
+    },
+    "2.5.3": {
+      "name": "@tauri-apps/plugin-opener",
+      "version": "2.5.3",
+      "dependencies": { "@tauri-apps/api": "^2.8.0" },
+      "dist": {
+        "shasum": "09f8fe143567839cc491f4f8fde21caa0f1a8b89",
+        "tarball": "https://registry.npmjs.org/@tauri-apps/plugin-opener/-/plugin-opener-2.5.3.tgz",
+        "fileCount": 7,
+        "integrity": "sha512-CCcUltXMOfUEArbf3db3kCE7Ggy1ExBEBl51Ko2ODJ6GDYHRp1nSNlQm5uNCFY5k7/ufaK5Ib3Du/Zir19IYQQ==",
+        "signatures": [
+          {
+            "sig": "MEUCIGIQDvMNOXqI1Vq1ha6gT/tK/CPSRTxjfArOFPwXBRaDAiEA7Ml5whelJv9YKrYyzTqY90UOZDEKsvfuaBXGd9OTvGM=",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "attestations": {
+          "url": "https://registry.npmjs.org/-/npm/v1/attestations/@tauri-apps%2fplugin-opener@2.5.3",
+          "provenance": { "predicateType": "https://slsa.dev/provenance/v1" }
+        },
+        "unpackedSize": 14088
+      }
+    },
+    "2.5.4": {
+      "name": "@tauri-apps/plugin-opener",
+      "version": "2.5.4",
+      "dependencies": { "@tauri-apps/api": "^2.11.0" },
+      "dist": {
+        "integrity": "sha512-1HnPkb+AmgO29HBazm4uPLKB+r7zzcTBW1d0fyYp1uP+jwtpoiNDGKMMzz58SFp49nOIrxdE3aUJtT57lfO9CQ==",
+        "shasum": "b37883e4d36125b8c5a0c74f683395958a65bd7d",
+        "tarball": "https://registry.npmjs.org/@tauri-apps/plugin-opener/-/plugin-opener-2.5.4.tgz",
+        "fileCount": 7,
+        "unpackedSize": 14093,
+        "attestations": {
+          "url": "https://registry.npmjs.org/-/npm/v1/attestations/@tauri-apps%2fplugin-opener@2.5.4",
+          "provenance": { "predicateType": "https://slsa.dev/provenance/v1" }
+        },
+        "signatures": [
+          {
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U",
+            "sig": "MEUCIAjn1++j+cRxpb+5RRtR083Nnv48ILuXII3HkrDhVPINAiEA3xz8aBywKd+rWLf5O9Ks4lKWxAPw1QFY9rfZhnJ1nBI="
+          }
+        ]
+      }
+    }
+  },
+  "modified": "2026-05-02T11:39:24.031Z",
+  "cachedAt": 1788046616678
+}

@@ -1,0 +1,23 @@
+/*
+ * Application stylesheet.
+ *
+ * Design tokens live in @vitals/ui so they can be shared with any other
+ * surface (a future HUD window, the settings-only view). This file holds only
+ * what is specific to the main window.
+ */
+
+@import '@vitals/ui/styles.css';
+
+@source '../src';
+@source '../../../packages/ui/src';
+
+/*
+ * The window is a fixed-height flex column with a single scrolling region.
+ * Letting the document itself scroll would detach the title bar and sidebar
+ * from the viewport, which immediately reads as "this is a web page".
+ */
+#root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}

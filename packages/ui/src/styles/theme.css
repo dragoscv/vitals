@@ -1,0 +1,301 @@
+/*
+ * Vitals design tokens.
+ *
+ * Tailwind v4 CSS-first configuration. There is no tailwind.config.js.
+ *
+ * ## The three independent axes
+ *
+ * 1. **Mode** — light / dark, driven by `.dark` on the root.
+ * 2. **Accent** — the single hue the user picks, applied via `data-accent`.
+ * 3. **Surface** — solid / mica / acrylic, applied via `data-surface`.
+ *
+ * These are deliberately orthogonal: any accent works in any mode with any
+ * surface. Products that entangle them end up with an accent that is
+ * unreadable in one mode and a "custom theme" feature nobody can use.
+ *
+ * ## Why OKLCH
+ *
+ * Accent colours are generated from a single hue by varying lightness and
+ * chroma in OKLCH. In sRGB, rotating hue at fixed "lightness" produces wildly
+ * different *perceived* brightness — yellow reads far lighter than blue at the
+ * same nominal value. That is why hand-picked palettes look inconsistent when
+ * a user changes the accent. OKLCH is perceptually uniform, so one formula
+ * yields a legible ramp for every hue, and contrast ratios hold.
+ */
+
+@import 'tailwindcss';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  /* ---- Typography ---------------------------------------------------- */
+  --font-sans:
+    'Inter Variable', 'Inter', system-ui, -apple-system, 'Segoe UI Variable Text', 'Segoe UI',
+    sans-serif;
+  /* Tabular figures are non-negotiable for live metrics: without them every
+   * digit change shifts the column and the whole table appears to vibrate. */
+  --font-mono:
+    'JetBrains Mono Variable', 'JetBrains Mono', 'Cascadia Mono', 'SF Mono', ui-monospace, monospace;
+
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1rem;
+
+  /* ---- Motion --------------------------------------------------------- */
+  /* One shared easing vocabulary. Ad-hoc cubic-beziers per component are why
+   * most apps feel subtly incoherent in motion. */
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-in-out-quart: cubic-bezier(0.76, 0, 0.24, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  --duration-instant: 80ms;
+  --duration-fast: 140ms;
+  --duration-normal: 220ms;
+  --duration-slow: 380ms;
+
+  /* ---- Radii ---------------------------------------------------------- */
+  --radius-widget: 0.75rem;
+  --radius-control: 0.5rem;
+
+  /* ---- Data visualisation --------------------------------------------- */
+  /*
+   * A categorical palette chosen for two properties the usual defaults lack:
+   * it stays distinguishable under the three common colour-vision
+   * deficiencies, and every entry holds >=3:1 contrast against both the light
+   * and dark surface. Chart series must never depend on the accent, which the
+   * user can change to anything.
+   */
+  --color-chart-cpu: oklch(0.62 0.19 250);
+  --color-chart-memory: oklch(0.68 0.17 155);
+  --color-chart-disk: oklch(0.7 0.16 85);
+  --color-chart-network: oklch(0.65 0.2 305);
+  --color-chart-gpu: oklch(0.66 0.19 25);
+  --color-chart-thermal: oklch(0.7 0.18 45);
+  --color-chart-power: oklch(0.72 0.15 195);
+  --color-chart-neutral: oklch(0.6 0.02 260);
+
+  /* Semantic status colours, independent of accent. */
+  --color-status-ok: oklch(0.65 0.17 150);
+  --color-status-warn: oklch(0.75 0.16 75);
+  --color-status-danger: oklch(0.62 0.22 25);
+  --color-status-info: oklch(0.65 0.16 240);
+}
+
+/*
+ * ---- Semantic surface tokens -----------------------------------------
+ *
+ * Components reference these, never a raw colour. That is what makes a theme
+ * swap a one-file change instead of a find-and-replace across the codebase.
+ */
+:root {
+  --accent-hue: 250;
+  --accent-chroma: 0.19;
+
+  --color-bg-base: oklch(0.98 0.002 260);
+  --color-bg-subtle: oklch(0.96 0.003 260);
+  --color-bg-raised: oklch(1 0 0);
+  --color-bg-overlay: oklch(1 0 0 / 0.85);
+  --color-bg-inset: oklch(0.94 0.004 260);
+
+  --color-border-subtle: oklch(0.9 0.004 260);
+  --color-border-default: oklch(0.85 0.005 260);
+  --color-border-strong: oklch(0.72 0.008 260);
+
+  --color-fg-default: oklch(0.22 0.008 260);
+  --color-fg-muted: oklch(0.48 0.008 260);
+  --color-fg-subtle: oklch(0.62 0.008 260);
+  --color-fg-on-accent: oklch(1 0 0);
+
+  --color-accent: oklch(0.55 var(--accent-chroma) var(--accent-hue));
+  --color-accent-hover: oklch(0.5 var(--accent-chroma) var(--accent-hue));
+  --color-accent-subtle: oklch(0.95 0.03 var(--accent-hue));
+  --color-accent-border: oklch(0.8 0.08 var(--accent-hue));
+
+  /* Elevation via layered shadow rather than a single blur: a single shadow
+   * reads as a flat drop, two reads as a lift. */
+  --shadow-widget: 0 1px 2px oklch(0 0 0 / 0.04), 0 4px 12px oklch(0 0 0 / 0.06);
+  --shadow-overlay: 0 2px 4px oklch(0 0 0 / 0.06), 0 12px 32px oklch(0 0 0 / 0.12);
+
+  color-scheme: light;
+}
+
+.dark {
+  /*
+   * Not pure black. An OLED-black background against white text produces
+   * halation that makes small text visibly smear, and this UI is dense with
+   * 11px numerals. A very dark neutral is measurably easier to read.
+   */
+  --color-bg-base: oklch(0.17 0.006 260);
+  --color-bg-subtle: oklch(0.2 0.007 260);
+  --color-bg-raised: oklch(0.23 0.008 260);
+  --color-bg-overlay: oklch(0.2 0.008 260 / 0.9);
+  --color-bg-inset: oklch(0.14 0.006 260);
+
+  --color-border-subtle: oklch(0.28 0.008 260);
+  --color-border-default: oklch(0.34 0.009 260);
+  --color-border-strong: oklch(0.46 0.01 260);
+
+  --color-fg-default: oklch(0.95 0.003 260);
+  --color-fg-muted: oklch(0.72 0.006 260);
+  --color-fg-subtle: oklch(0.58 0.007 260);
+  --color-fg-on-accent: oklch(0.15 0.01 260);
+
+  /* Lighter and less saturated than the light-mode accent: a colour tuned for
+   * a white background is glaring on a dark one. */
+  --color-accent: oklch(0.72 calc(var(--accent-chroma) * 0.85) var(--accent-hue));
+  --color-accent-hover: oklch(0.78 calc(var(--accent-chroma) * 0.85) var(--accent-hue));
+  --color-accent-subtle: oklch(0.28 0.05 var(--accent-hue));
+  --color-accent-border: oklch(0.42 0.09 var(--accent-hue));
+
+  --shadow-widget: 0 1px 2px oklch(0 0 0 / 0.3), 0 4px 12px oklch(0 0 0 / 0.35);
+  --shadow-overlay: 0 2px 4px oklch(0 0 0 / 0.4), 0 12px 32px oklch(0 0 0 / 0.5);
+
+  color-scheme: dark;
+}
+
+/* ---- Accent presets --------------------------------------------------- */
+/* Only the hue and chroma change; every derived token follows automatically. */
+[data-accent='blue'] {
+  --accent-hue: 250;
+  --accent-chroma: 0.19;
+}
+[data-accent='violet'] {
+  --accent-hue: 295;
+  --accent-chroma: 0.2;
+}
+[data-accent='pink'] {
+  --accent-hue: 350;
+  --accent-chroma: 0.19;
+}
+[data-accent='red'] {
+  --accent-hue: 25;
+  --accent-chroma: 0.21;
+}
+[data-accent='orange'] {
+  --accent-hue: 55;
+  --accent-chroma: 0.18;
+}
+[data-accent='amber'] {
+  --accent-hue: 80;
+  --accent-chroma: 0.17;
+}
+[data-accent='green'] {
+  --accent-hue: 150;
+  --accent-chroma: 0.17;
+}
+[data-accent='teal'] {
+  --accent-hue: 180;
+  --accent-chroma: 0.15;
+}
+[data-accent='cyan'] {
+  --accent-hue: 215;
+  --accent-chroma: 0.16;
+}
+[data-accent='graphite'] {
+  --accent-hue: 260;
+  --accent-chroma: 0.02;
+}
+
+/* ---- Surface modes ---------------------------------------------------- */
+/*
+ * Translucency is applied to the *chrome* only — sidebar, title bar, overlays.
+ * Never to a chart or a data table: text over a moving desktop background is
+ * harder to read, and a task manager is read, not admired.
+ */
+[data-surface='mica'] .surface-chrome {
+  background-color: color-mix(in oklch, var(--color-bg-subtle) 80%, transparent);
+  backdrop-filter: blur(48px) saturate(1.4);
+}
+
+[data-surface='acrylic'] .surface-chrome {
+  background-color: color-mix(in oklch, var(--color-bg-subtle) 62%, transparent);
+  backdrop-filter: blur(24px) saturate(1.8);
+}
+
+[data-surface='solid'] .surface-chrome {
+  background-color: var(--color-bg-subtle);
+}
+
+/* ---- Accessibility ----------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  /*
+   * Honoured properly: animations are reduced to near-zero rather than
+   * removed. Setting `animation: none` breaks components that rely on an
+   * animationend event to unmount, leaving orphaned DOM.
+   */
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@media (prefers-contrast: more) {
+  :root {
+    --color-border-subtle: var(--color-border-strong);
+    --color-border-default: var(--color-border-strong);
+    --color-fg-muted: var(--color-fg-default);
+  }
+}
+
+/* ---- Base -------------------------------------------------------------- */
+@layer base {
+  * {
+    border-color: var(--color-border-subtle);
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+    overflow: hidden;
+  }
+
+  body {
+    background-color: var(--color-bg-base);
+    color: var(--color-fg-default);
+    font-family: var(--font-sans);
+    /* A desktop app should not feel like a web page: text selection and the
+     * browser context menu are opt-in per component, not global. */
+    user-select: none;
+    -webkit-user-select: none;
+    overscroll-behavior: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Every number in the product. Tabular figures stop column jitter. */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum';
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+    border-radius: var(--radius-control);
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-border-default);
+    border-radius: 5px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--color-border-strong);
+    background-clip: content-box;
+  }
+}

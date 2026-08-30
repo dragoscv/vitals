@@ -1,0 +1,47 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+build/
+out/
+target/
+*.tsbuildinfo
+
+# Turborepo
+.turbo/
+
+# Generated protocol bindings (regenerated from Rust on build)
+packages/protocol/src/generated/
+
+# Env
+.env
+.env.*
+!.env.example
+
+# Editor / OS
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/launch.json
+.idea/
+.DS_Store
+Thumbs.db
+
+# Test / coverage
+coverage/
+.vitest/
+test-results/
+
+# Agent scratch (globally gitignored convention)
+.copilot-tmp/
+
+# Tauri
+apps/desktop/src-tauri/gen/
+apps/desktop/src-tauri/target/
+
+# Signing keys — never commit
+*.pem
+*.key
+!**/tauri-updater.pub

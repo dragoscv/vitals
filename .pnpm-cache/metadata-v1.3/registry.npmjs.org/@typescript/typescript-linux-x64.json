@@ -1,0 +1,1124 @@
+{
+  "name": "@typescript/typescript-linux-x64",
+  "dist-tags": { "rc": "7.0.1-rc", "latest": "7.0.2", "next": "7.1.0-dev.20260829.1" },
+  "versions": {
+    "7.0.1-rc": {
+      "name": "@typescript/typescript-linux-x64",
+      "version": "7.0.1-rc",
+      "dist": {
+        "shasum": "e0a21851d783270d6638ea62186865499573e504",
+        "tarball": "https://registry.npmjs.org/@typescript/typescript-linux-x64/-/typescript-linux-x64-7.0.1-rc.tgz",
+        "fileCount": 114,
+        "integrity": "sha512-PfLJSu0JzroDkqw2m4nqflPEcn8yev0m/vHFQlY9EzHorzjR6QG0wL8AJHvnD1e6h1s76AZngJ5u+z1K/D/HKw==",
+        "signatures": [
+          {
+            "sig": "MEUCIFhaj3GPHX9dJddMQWK/mX7/YNLUliWL6YpslVwUrjgxAiEA19qobrRG1DE2HRB+mtZAUZycDTFuBPYRet45dDM3jWU=",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "unpackedSize": 29694487
+      },
+      "engines": { "node": ">=16.20.0" },
+      "os": ["linux"],
+      "cpu": ["x64"]
+    },
+    "7.0.2": {
+      "name": "@typescript/typescript-linux-x64",
+      "version": "7.0.2",
+      "dist": {
+        "shasum": "73269cb0baba50aea0ca060445a6b88e583f1ce2",
+        "tarball": "https://registry.npmjs.org/@typescript/typescript-linux-x64/-/typescript-linux-x64-7.0.2.tgz",
+        "fileCount": 114,
+        "integrity": "sha512-EYdf2cNg7rgCWJnxCdJ+F3V39O8ihb37eHAu1LK8oAFizgTQbPOK7zHHXbPt8rX24COqODXeI3sIf0fCXG7H/A==",
+        "signatures": [
+          {
+            "sig": "MEQCID5HnnxMfpqvK60MvUY0mrH43XXckjsaCowg3RUutmw7AiB8k8eQ1fJRg/fgDXqFeQApMd2iZuIXimCW7bduggkezw==",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "unpackedSize": 27945990
+      },
+      "engines": { "node": ">=16.20.0" },
+      "os": ["linux"],
+      "cpu": ["x64"]
+    },
+    "7.1.0-dev.20260708.3": {
+      "name": "@typescript/typescript-linux-x64",
+      "version": "7.1.0-dev.20260708.3",
+      "dist": {
+        "shasum": "04e2fd6263805405ada10fed0ae20889e5445e9f",
+        "tarball": "https://registry.npmjs.org/@typescript/typescript-linux-x64/-/typescript-linux-x64-7.1.0-dev.20260708.3.tgz",
+        "fileCount": 114,
+        "integrity": "sha512-vcrbeLuAdNuW+hPI+XmYdgHHaL3rWWiK9xCK52XWu+AZGnoibXG7C4IV7wEzQGv9qYb3N9/rO3BIr/Xgx5KBgQ==",
+        "signatures": [
+          {
+            "sig": "MEUCICObcAZNzqjWQ2Y9XHGjIvEDyNu6T+39M7ldUumIrAVpAiEA+mZEr3Hj/2JVpY1bDKdt3BJaL5ERuk1DtrFnh/ZcLWw=",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "unpackedSize": 27946003
+      },
+      "engines": { "node": ">=16.20.0" },
+      "os": ["linux"],
+      "cpu": ["x64"]
+    },
+    "7.1.0-dev.20260710.1": {
+      "name": "@typescript/typescript-linux-x64",
+      "version": "7.1.0-dev.20260710.1",
+      "dist": {
+        "shasum": "7ee6dd688cc97a153de83a157f8a885775d5e131",
+        "tarball": "https://registry.npmjs.org/@typescript/typescript-linux-x64/-/typescript-linux-x64-7.1.0-dev.20260710.1.tgz",
+        "fileCount": 114,
+        "integrity": "sha512-lFR+a+SfJAn/mwggNxzKqXozpAtLENLqTm3Hoe2FClABNOIBZxNmSRwUkLb2WROTSlkvwl/Xg92bUUFcualOEg==",
+        "signatures": [
+          {
+            "sig": "MEUCIQCO4rLuil8F3Hr6dDSV65pUtfYxhxIPwaL0hMzwmqzVfgIgf+kH9EUwpZulhntD/oVEW8voxljSLJBtYagu1cPdmkQ=",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "unpackedSize": 27950099
+      },
+      "engines": { "node": ">=16.20.0" },
+      "os": ["linux"],
+      "cpu": ["x64"]
+    },
+    "7.1.0-dev.20260711.1": {
+      "name": "@typescript/typescript-linux-x64",
+      "version": "7.1.0-dev.20260711.1",
+      "dist": {
+        "shasum": "83e2f136f9aab0d34901bb2b9c777eabebd823bd",
+        "tarball": "https://registry.npmjs.org/@typescript/typescript-linux-x64/-/typescript-linux-x64-7.1.0-dev.20260711.1.tgz",
+        "fileCount": 114,
+        "integrity": "sha512-WTav8ZruxQAako0CoG2A5UVmRVjz8rNS3QtT8AJCd2CkZcwEqZQ8LuA1ssYnGA2TBYYFQlFVQSOXn5NUHv3pZQ==",
+        "signatures": [
+          {
+            "sig": "MEYCIQCGpVfPNcHa+zCFkhnkI+lpTxwzHvJOXvkXBKkN7cJ0egIhAKiGsfoc8X+Rn5K314r62UGyKM9QySjwseQ+8sqQjqmp",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "unpackedSize": 27950099
+      },
+      "engines": { "node": ">=16.20.0" },
+      "os": ["linux"],
+      "cpu": ["x64"]
+    },
+    "7.1.0-dev.20260712.1": {
+      "name": "@typescript/typescript-linux-x64",
+      "version": "7.1.0-dev.20260712.1",
+      "dist": {
+        "shasum": "f90f61a3c22516c56a082f143fcd589e9d56ef3e",
+        "tarball": "https://registry.npmjs.org/@typescript/typescript-linux-x64/-/typescript-linux-x64-7.1.0-dev.20260712.1.tgz",
+        "fileCount": 114,
+        "integrity": "sha512-K9iLj8jqQrFRC0dRztRjMxUEFK7A1P0kA9oLI0AgL0W7ToR9mYQBcx21roYawkoU6EqLUpxTr4pSOs1Cb9H2Fg==",
+        "signatures": [
+          {
+            "sig": "MEYCIQC70dfEyVIf1ezLbl2RW10/ZwFClemiFJWFbrAd4m6fjQIhANEDNbfQzx7+I90JYdL644lTHTqvpux937Qd0wJJYXFl",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "unpackedSize": 27950099
+      },
+      "engines": { "node": ">=16.20.0" },
+      "os": ["linux"],
+      "cpu": ["x64"]
+    },
+    "7.1.0-dev.20260713.1": {
+      "name": "@typescript/typescript-linux-x64",
+      "version": "7.1.0-dev.20260713.1",
+      "dist": {
+        "shasum": "bea6411a5709f3440f0fb0e3f1d4dfa7e302a690",
+        "tarball": "https://registry.npmjs.org/@typescript/typescript-linux-x64/-/typescript-linux-x64-7.1.0-dev.20260713.1.tgz",
+        "fileCount": 114,
+        "integrity": "sha512-9bdgDqg5ZDjtgFiMIVo/G56yTDXgxSaKFkxL9i9wL4ly5WMyyVlDjw30KRwG4bEmhICkgJNKOy7TEaSzBeSLVQ==",
+        "signatures": [
+          {
+            "sig": "MEQCIEkmkTWUpN17KEJeWgTInVjT27NrxNbl4vWLATgKrBnTAiBGFYOIgwlToXp1FryZgZzlqL9F9YnJc39Ja41ZtfPlXw==",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "unpackedSize": 27950099
+      },
+      "engines": { "node": ">=16.20.0" },
+      "os": ["linux"],
+      "cpu": ["x64"]
+    },
+    "7.1.0-dev.20260714.1": {
+      "name": "@typescript/typescript-linux-x64",
+      "version": "7.1.0-dev.20260714.1",
+      "dist": {
+        "shasum": "a247106d7986333073bfa5a43161704082ccfa54",
+        "tarball": "https://registry.npmjs.org/@typescript/typescript-linux-x64/-/typescript-linux-x64-7.1.0-dev.20260714.1.tgz",
+        "fileCount": 114,
+        "integrity": "sha512-3H7UvAkTRkj7UvvxGP3iY6xWtFB+VHBwTwvJt8Uesm1NQ0eFhDMheI9ISC9j4p0v3PKbd9nHrLGiqo1f/ZSSXQ==",
+        "signatures": [
+          {
+            "sig": "MEQCICEwLwuPxfO9W0MDoRony9p/O2WQas/et+9+NddjjkGhAiBZsywya9VqtRfEdtjCyyO66OQyEBhsBequCwSBm9Lswg==",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "unpackedSize": 27966483
+      },
+      "engines": { "node": ">=16.20.0" },
+      "os": ["linux"],
+      "cpu": ["x64"]
+    },
+    "7.1.0-dev.20260715.1": {
+      "name": "@typescript/typescript-linux-x64",
+      "version": "7.1.0-dev.20260715.1",
+      "dist": {
+        "shasum": "7c26bbcae5180f43eba6f4b0138a0e49b2623755",
+        "tarball": "https://registry.npmjs.org/@typescript/typescript-linux-x64/-/typescript-linux-x64-7.1.0-dev.20260715.1.tgz",
+        "fileCount": 114,
+        "integrity": "sha512-xbMwApfMra6Q6AKbhGresCpIswocWOsMQkVX6yxv3vRoJ8rtYs8LtBOJog6d2VJm0EPHk/pCGl7sQohxkOnVKA==",
+        "signatures": [
+          {
+            "sig": "MEQCIAyLww1nWe6FxRVWblYQ/oRKWUBc7pH8MUH9GXqxyLJ8AiBWvoBzlQ1zdYuCsb44RzVsbNRHro3aqgGGQ8tum2l49Q==",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "unpackedSize": 27966483
+      },
+      "engines": { "node": ">=16.20.0" },
+      "os": ["linux"],
+      "cpu": ["x64"]
+    },
+    "7.1.0-dev.20260717.1": {
+      "name": "@typescript/typescript-linux-x64",
+      "version": "7.1.0-dev.20260717.1",
+      "dist": {
+        "shasum": "1b5ebac7613e62a88dd651be42ed9e2971a645e3",
+        "tarball": "https://registry.npmjs.org/@typescript/typescript-linux-x64/-/typescript-linux-x64-7.1.0-dev.20260717.1.tgz",
+        "fileCount": 114,
+        "integrity": "sha512-6OQ3gVJYvQ7mTe7Gw/BPEDfXq0DQJf7Z8lLtxIhc3hxBokrszkbG3wFr+ZxdlbeHI8sJrwIEXOB5ckl+we4lgw==",
+        "signatures": [
+          {
+            "sig": "MEQCIB9syrfKS7OK+wo7LYgkSNuGr1My6ms3A78JQZab3jy6AiBYcqpEtZGOxk4DWxMC4ydy/K1QH1SDwevmbVMk+Xh/PA==",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "unpackedSize": 28011539
+      },
+      "engines": { "node": ">=16.20.0" },
+      "os": ["linux"],
+      "cpu": ["x64"]
+    },
+    "7.1.0-dev.20260719.1": {
+      "name": "@typescript/typescript-linux-x64",
+      "version": "7.1.0-dev.20260719.1",
+      "dist": {
+        "shasum": "5be0da70355d1c05fba6dbce910b51cca0f96d99",
+        "tarball": "https://registry.npmjs.org/@typescript/typescript-linux-x64/-/typescript-linux-x64-7.1.0-dev.20260719.1.tgz",
+        "fileCount": 114,
+        "integrity": "sha512-03FRihWSqulpNaMglhJfo0f32chjC0/KZxdpEvppnIiDX2tGUs21dvXZ01E5kgInrS1QEDP3TycmbzmYnNLL9Q==",
+        "signatures": [
+          {
+            "sig": "MEUCIBoU07GotGuxwZwDBBzens0MqTn6S5l8zuYv74fsL0yfAiEA5QAGQsupVE/xr/X9J1GhzncqLhtaq+JjnNLDtClqJwI=",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "unpackedSize": 28011539
+      },
+      "engines": { "node": ">=16.20.0" },
+      "os": ["linux"],
+      "cpu": ["x64"]
+    },
+    "7.1.0-dev.20260720.1": {
+      "name": "@typescript/typescript-linux-x64",
+      "version": "7.1.0-dev.20260720.1",
+      "dist": {
+        "shasum": "c218e5f256a0edf331bee11edf86d9109f2b2759",
+        "tarball": "https://registry.npmjs.org/@typescript/typescript-linux-x64/-/typescript-linux-x64-7.1.0-dev.20260720.1.tgz",
+        "fileCount": 114,
+        "integrity": "sha512-ZFgoLA4VAo4CkQBKND4w9IGFzNFGvpTyDRRP5YnejLhnuPhOoo5UmO7FF7S2Di5z+mAB3h1/PhQNY9GHiGbvTw==",
+        "signatures": [
+          {
+            "sig": "MEUCIA2DRySSsFnXxeTQJ8lHCQY3gOIzBVkFReuv2wUbK/FOAiEA149rhgICFKrj80sUREPeOodBiy64y9lsK332ceA6EHE=",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "unpackedSize": 28011539
+      },
+      "engines": { "node": ">=16.20.0" },
+      "os": ["linux"],
+      "cpu": ["x64"]
+    },
+    "7.1.0-dev.20260721.1": {
+      "name": "@typescript/typescript-linux-x64",
+      "version": "7.1.0-dev.20260721.1",
+      "dist": {
+        "shasum": "df75146aea86c4638f4e27feb6930caa953c42c5",
+        "tarball": "https://registry.npmjs.org/@typescript/typescript-linux-x64/-/typescript-linux-x64-7.1.0-dev.20260721.1.tgz",
+        "fileCount": 114,
+        "integrity": "sha512-RudthuIwgfNqBBoTfy0rpTJhMsV7FjCeKuI3GgMDAT2kCDGDvRNW5ooakajwdSqPYBUQfsxYJrmWAW7oy6lgDw==",
+        "signatures": [
+          {
+            "sig": "MEYCIQC47L6iDPBIMzl5OP2h6h069lcTcNQjBhd6dx945Q4WjgIhAMXeeK22qSpShrH4knew/3aJZm/wbD3Hp3r3bF1udmD5",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "unpackedSize": 28019731
+      },
+      "engines": { "node": ">=16.20.0" },
+      "os": ["linux"],
+      "cpu": ["x64"]
+    },
+    "7.1.0-dev.20260722.1": {
+      "name": "@typescript/typescript-linux-x64",
+      "version": "7.1.0-dev.20260722.1",
+      "dist": {
+        "shasum": "75c3b7c1667b36621db0eec68a21c78fcca604d6",
+        "tarball": "https://registry.npmjs.org/@typescript/typescript-linux-x64/-/typescript-linux-x64-7.1.0-dev.20260722.1.tgz",
+        "fileCount": 114,
+        "integrity": "sha512-El1DYaT7NHwhKPSdsGr8wPdcRn0OJMOkwbXz/GD5UdMbc88BaWWr+iNHeZ01Yg42Jtfil1LZY37cXH/q65BKSg==",
+        "signatures": [
+          {
+            "sig": "MEUCIQCP35ElvcbqbCKgIBmtBSoyQfSKlN28hmceQVLWTL4smwIgS4qgoY5Y+YCGSKYu3ezmt9LAIGpGhLnQADvXkfWS30A=",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "unpackedSize": 28027923
+      },
+      "engines": { "node": ">=16.20.0" },
+      "os": ["linux"],
+      "cpu": ["x64"]
+    },
+    "7.1.0-dev.20260723.1": {
+      "name": "@typescript/typescript-linux-x64",
+      "version": "7.1.0-dev.20260723.1",
+      "dist": {
+        "shasum": "a8d665fb267a231fe7f138091fdbf1e937808779",
+        "tarball": "https://registry.npmjs.org/@typescript/typescript-linux-x64/-/typescript-linux-x64-7.1.0-dev.20260723.1.tgz",
+        "fileCount": 114,
+        "integrity": "sha512-Cs/xlas7Vjag3bn5ItuezFKb/boX+UWi2UGE+VdCARySgr3jUGWqeiASG/UHCugB5TD6Z0g1MXOjl8WSYSny5A==",
+        "signatures": [
+          {
+            "sig": "MEQCIE2oPgfxNn77kjFzoBt/WFCLnQ4QK/ipTjcMmxAxu6wEAiBK0gp3dX3vRdNawY6nNczmIV+BgtNRQQyTTlBpIUFm6g==",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "unpackedSize": 28032019
+      },
+      "engines": { "node": ">=16.20.0" },
+      "os": ["linux"],
+      "cpu": ["x64"]
+    },
+    "7.1.0-dev.20260724.1": {
+      "name": "@typescript/typescript-linux-x64",
+      "version": "7.1.0-dev.20260724.1",
+      "dist": {
+        "shasum": "31b3ae3473a35e239f8c7b01f43b738df30b3c7d",
+        "tarball": "https://registry.npmjs.org/@typescript/typescript-linux-x64/-/typescript-linux-x64-7.1.0-dev.20260724.1.tgz",
+        "fileCount": 114,
+        "integrity": "sha512-om+g1eCCcRrEs4Ms8R/TkxriK22k0xwM/mpVNh5f0rrqv90EfbBNvKkWqrK29iRPcd9IX9qTJNBhe/HIPSUfdQ==",
+        "signatures": [
+          {
+            "sig": "MEUCIEwYtkEAzEbkYfYotg1mip8/U2yBOduWJZ4zz9PT1lWbAiEAuMAsulpsVQFLjOP0Qcxqbf1lW25OZ0T58i59HbcH/F8=",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          },
+          {
+            "sig": "MEUCIQCvvgRUNm/ka321QGu1MQUq3xaU6shvzg0x07vRzuyDGwIgPrpCOyezBBgAMitdq6H8ezKrswTvYXMlVBKmoK+1vSg=",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "unpackedSize": 28032019
+      },
+      "engines": { "node": ">=16.20.0" },
+      "os": ["linux"],
+      "cpu": ["x64"]
+    },
+    "7.1.0-dev.20260725.1": {
+      "name": "@typescript/typescript-linux-x64",
+      "version": "7.1.0-dev.20260725.1",
+      "dist": {
+        "shasum": "8634a71fd76401945121e2b97a9999d5b2cf53c4",
+        "tarball": "https://registry.npmjs.org/@typescript/typescript-linux-x64/-/typescript-linux-x64-7.1.0-dev.20260725.1.tgz",
+        "fileCount": 114,
+        "integrity": "sha512-ZhzPCzZkXsHLfSF+4GL6RIJDbKUgEgN3S1s0FXLWuLJ5DgSTNvxF0ScqrEUfE1LLvg1bRmbsLznpcrsPkbxyZw==",
+        "signatures": [
+          {
+            "sig": "MEUCIQDNeV6UXu1ZkQqFb7rO1lBhH8ZP8Wx1uyWxdt2uSRqrTQIgIVlvO0bePBgQhED/Mi36KtAkyWolfaOEpfhQ9MCrcU0=",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          },
+          {
+            "sig": "MEUCICQ09sXMv9z4CLrhtuHk1xZGHr1lC52SlQr3aFmDrsRCAiEA425QEtH8nRb+gij70dlujmctwxW31BZs/IPLKcaPKOY=",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "unpackedSize": 28072979
+      },
+      "engines": { "node": ">=16.20.0" },
+      "os": ["linux"],
+      "cpu": ["x64"]
+    },
+    "7.1.0-dev.20260726.1": {
+      "name": "@typescript/typescript-linux-x64",
+      "version": "7.1.0-dev.20260726.1",
+      "dist": {
+        "shasum": "8b2d743f4a85a972acf812f158e90548f6975cb3",
+        "tarball": "https://registry.npmjs.org/@typescript/typescript-linux-x64/-/typescript-linux-x64-7.1.0-dev.20260726.1.tgz",
+        "fileCount": 114,
+        "integrity": "sha512-DSwsjdEUNjUdW9vcC9FnE9CKDVzew0vynSP04I20lhaR4kHHmTzayKqxEMEQt/tCGBkT9bSNXAMJNVSKrWjY9g==",
+        "signatures": [
+          {
+            "sig": "MEUCIFftqeQ6KQ91dWwpTLWq3W1oKDhDoLkDKaTe0a9kVRvMAiEAyGWGzrT3NCAXUPBmRNio52qmN39NZr2aFlVng2SZ5hY=",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          },
+          {
+            "sig": "MEUCIBS4xmFxqug7RAvoOgLY2aDqWaWgM6bCeENVXQCWTh4LAiEArRqCVN03kleFIlliSVJEXDST0oCw6Q6h1VoyOhR3fH8=",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "unpackedSize": 28072979
+      },
+      "engines": { "node": ">=16.20.0" },
+      "os": ["linux"],
+      "cpu": ["x64"]
+    },
+    "7.1.0-dev.20260727.1": {
+      "name": "@typescript/typescript-linux-x64",
+      "version": "7.1.0-dev.20260727.1",
+      "dist": {
+        "shasum": "b62dc807135c0030f71fb0c584abdbbcfa9c47e8",
+        "tarball": "https://registry.npmjs.org/@typescript/typescript-linux-x64/-/typescript-linux-x64-7.1.0-dev.20260727.1.tgz",
+        "fileCount": 114,
+        "integrity": "sha512-g5F3kaO3fUVYZRtiDxpAlqGrBWYJz5nv/DbJogr9hk7BQS6eIkWstFrTzhMjdkHOXa/TtxS5LpDf495PC/vEKw==",
+        "signatures": [
+          {
+            "sig": "MEQCIFcV1yCKBN1HwHv+7/gZ9+5m06eG4BzbSaZspfq/fKHtAiA0JccYo3Zio5W5WMrflzMjcfA4RDaVK2HGZ3kEy26hww==",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          },
+          {
+            "sig": "MEUCIEOO5mcmU6ydKPdvtcMlG/vUWrczF9yk97DQmJyfKF3mAiEAhEXPOO0n0d4Y2rWZl5NHmTVqtcdYaeZB3U9jQ3I5SBI=",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "unpackedSize": 28072979
+      },
+      "engines": { "node": ">=16.20.0" },
+      "os": ["linux"],
+      "cpu": ["x64"]
+    },
+    "7.1.0-dev.20260728.1": {
+      "name": "@typescript/typescript-linux-x64",
+      "version": "7.1.0-dev.20260728.1",
+      "dist": {
+        "shasum": "0018c19f1ef3c755fcd90293c67d5252d15efaf9",
+        "tarball": "https://registry.npmjs.org/@typescript/typescript-linux-x64/-/typescript-linux-x64-7.1.0-dev.20260728.1.tgz",
+        "fileCount": 114,
+        "integrity": "sha512-i3Sh6JGczcUoF160WMyaFqO4Ft4W3nOQDdrduIH1oVG+eRIxFMC37jsPtuPRwz7uwQ7IDGHWnSgDnDAMkE7yeA==",
+        "signatures": [
+          {
+            "sig": "MEUCIBqiDVhtLgUKj8nVAyROT8LoPb/75ys0eLwIs2DLR1NZAiEAs6g44cvYQa5T2dlQ6ypE7edtn/751EdW0R3cv/E7M/Y=",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          },
+          {
+            "sig": "MEQCIFlLCMOGJqS3drsB9eDIxhHhb7Qa+vrZGeBSArCxKeDRAiA8YWGI6UIQAJpOOMm7YOWkllXd2OfAYzwkS/WJynto2g==",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "unpackedSize": 28064787
+      },
+      "engines": { "node": ">=16.20.0" },
+      "os": ["linux"],
+      "cpu": ["x64"]
+    },
+    "7.1.0-dev.20260730.1": {
+      "name": "@typescript/typescript-linux-x64",
+      "version": "7.1.0-dev.20260730.1",
+      "dist": {
+        "shasum": "32077b2d596881b33178ec5d5d8178fcfaefed87",
+        "tarball": "https://registry.npmjs.org/@typescript/typescript-linux-x64/-/typescript-linux-x64-7.1.0-dev.20260730.1.tgz",
+        "fileCount": 114,
+        "integrity": "sha512-477olHEmfCc5TCHK0zi99FQDAwhhxZT10lh/8u1ZWiPP5RBfC9pVEsBNQvI04fzCORWTI21648/o0WSMxEds7A==",
+        "signatures": [
+          {
+            "sig": "MEYCIQDBqbvTuKl2u1BTZ0EapWKUzsbsshk0glveBeRbOM81bQIhAO1s9bvS7R7wiaxXOOLn7y5ywpgbZXT7ObkVerND18bS",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          },
+          {
+            "sig": "MEQCIFol77wU96ulY2lu3o4RovvR1KeHtpPoVzTTfPvhT4GNAiBi12Tvi2c3GkVu5JmLHDrFx2oMJAZto5ibN3WKA6sq2w==",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "unpackedSize": 28081171
+      },
+      "engines": { "node": ">=16.20.0" },
+      "os": ["linux"],
+      "cpu": ["x64"]
+    },
+    "7.1.0-dev.20260731.1": {
+      "name": "@typescript/typescript-linux-x64",
+      "version": "7.1.0-dev.20260731.1",
+      "dist": {
+        "shasum": "0acecfb3b1a99c08a909240b3f370aec753302fc",
+        "tarball": "https://registry.npmjs.org/@typescript/typescript-linux-x64/-/typescript-linux-x64-7.1.0-dev.20260731.1.tgz",
+        "fileCount": 114,
+        "integrity": "sha512-KFZhCHupYOAnxjJKGNx/AA+WqzBgA3VdnzjpGF5pH8KJOUvt5pqJGRqjRSTXMQRitdpzjOMTNAtcwQx0bqxYfw==",
+        "signatures": [
+          {
+            "sig": "MEUCIQC/pxXTvQSBTDj7AFvdZ5j6CNhw3WsQ5O98yaKIcGnJKAIgNN1B67n8QT4b4+hP9xQg+Dm8rQU7yuR2v9UiZYJpCuI=",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          },
+          {
+            "sig": "MEQCIHYKqrb2yOCodNTbm9REbRpJiZs14VBntWqP+WPyMYuFAiBklo8UM1I1vTsF195SSRR4fmkWtJYyYd1D4vJMfUdxjA==",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "unpackedSize": 28089363
+      },
+      "engines": { "node": ">=16.20.0" },
+      "os": ["linux"],
+      "cpu": ["x64"]
+    },
+    "7.1.0-dev.20260801.1": {
+      "name": "@typescript/typescript-linux-x64",
+      "version": "7.1.0-dev.20260801.1",
+      "dist": {
+        "shasum": "ca877b8920f96b1d5f77ac06956f1c9cb28b2af9",
+        "tarball": "https://registry.npmjs.org/@typescript/typescript-linux-x64/-/typescript-linux-x64-7.1.0-dev.20260801.1.tgz",
+        "fileCount": 114,
+        "integrity": "sha512-xHTdZQ/Em4ZF5GmLdtzOkdoZ9VOmh8+QEHedkGoZCS7qJyD/vJnQ+m7TmY2wD0GyiQ2qcCaSPgagH4ap76AcTQ==",
+        "signatures": [
+          {
+            "sig": "MEQCID3MoHXHSdIIFzzD+S3JGN8IwJUav3NhQhi1S6oPY0lUAiAS9wmYt04MKN7rZHV7xz2kugKbP39YtoysjBfLqFPhHw==",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          },
+          {
+            "sig": "MEYCIQDhuXo33yzITkdM2Kc2oVHoRvFhhPD7ims3bEzXK8Yl0AIhAPVGSf9VV6kvHwt1/71+CN8kjwNXaQ1rD5w4jEmOtoz7",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "unpackedSize": 28089363
+      },
+      "engines": { "node": ">=16.20.0" },
+      "os": ["linux"],
+      "cpu": ["x64"]
+    },
+    "7.1.0-dev.20260802.1": {
+      "name": "@typescript/typescript-linux-x64",
+      "version": "7.1.0-dev.20260802.1",
+      "dist": {
+        "shasum": "7eb956f22e32abb2a9ddc07da92a3303e5378a40",
+        "tarball": "https://registry.npmjs.org/@typescript/typescript-linux-x64/-/typescript-linux-x64-7.1.0-dev.20260802.1.tgz",
+        "fileCount": 114,
+        "integrity": "sha512-A/jhcgx6UJY8uatfVcHK6/nAPsifIh+S60dq5//5FBp27/Nx5M1zfVh209YqeLi5YVZ/DxBuqJP0E2VUgO5o3g==",
+        "signatures": [
+          {
+            "sig": "MEUCIQCUKihZ3TGe5+tEBgdVeobZ6dtOiwKHXuTOOXDEWaQtgQIgMTog69spNhZ9aJdffzNcoq+FO/HgO23njGrgJFGP+ak=",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          },
+          {
+            "sig": "MEUCIQCOJwOQ8z4gCQzoC06AiPwIBr5oan+VX46WCn54W6rbHgIgOr3GNSll1Lvk1qQQSJtvJwzdTTERWC06vemj4ehNRJo=",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "unpackedSize": 28089363
+      },
+      "engines": { "node": ">=16.20.0" },
+      "os": ["linux"],
+      "cpu": ["x64"]
+    },
+    "7.1.0-dev.20260803.1": {
+      "name": "@typescript/typescript-linux-x64",
+      "version": "7.1.0-dev.20260803.1",
+      "dist": {
+        "shasum": "6915f389945b1e5026a67b6a3cfac4ec48d05ade",
+        "tarball": "https://registry.npmjs.org/@typescript/typescript-linux-x64/-/typescript-linux-x64-7.1.0-dev.20260803.1.tgz",
+        "fileCount": 114,
+        "integrity": "sha512-2DH33DjZLia7c40eBw7uHFvCntuaiPoCMA02rYFFjcvx7u1uO5Eujd8txRQY5N9FRXM8T3gnuZVnLPMHBN63tg==",
+        "signatures": [
+          {
+            "sig": "MEYCIQCAQaA0fDb1QM5KNXXqjaUNEcKuboDECVxS79KzOj8OBQIhALtlQQbi9yu3S0RSGEIv2vjIka3jwmENCASbhihzMXQo",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          },
+          {
+            "sig": "MEQCIHZoi7sAMdTbZHk7LcnEQo4Zc05n0ZlF9WvekmzdeQu1AiB2VRHVu7PB1PDM4XEyhLJimjVUHivyAcP51Zxb3yKJmA==",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "unpackedSize": 28089363
+      },
+      "engines": { "node": ">=16.20.0" },
+      "os": ["linux"],
+      "cpu": ["x64"]
+    },
+    "7.1.0-dev.20260804.1": {
+      "name": "@typescript/typescript-linux-x64",
+      "version": "7.1.0-dev.20260804.1",
+      "dist": {
+        "shasum": "3470721fb052e02f9b87f8d81fbc2c53c6a8c93f",
+        "tarball": "https://registry.npmjs.org/@typescript/typescript-linux-x64/-/typescript-linux-x64-7.1.0-dev.20260804.1.tgz",
+        "fileCount": 114,
+        "integrity": "sha512-Y7M9PSRbqDkHT48MfgHYvEDvCdelqGyj79Ml2P3kGU5zZsqdDRoQq8qiArQbYlnOl4INPcyPVtVK6qrJ6Wj39A==",
+        "signatures": [
+          {
+            "sig": "MEUCIQD/SVtFqiODIbUwkjPSfMgvqeXH3vUatKUbSukfZqiF3gIgIPVcQpdOnumyiwEE73x5/P/GZdUAWe8FuDPVKZ+QlEY=",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          },
+          {
+            "sig": "MEUCIGiJag3Aas0OcnxdkfLsGDhLJCmCaP0b3NT5yMV0DFHCAiEA2yM3cT5wcBjm3SwdUwHdOW2sQLyNj9pWQBcWDQX+9sA=",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "unpackedSize": 28089363
+      },
+      "engines": { "node": ">=16.20.0" },
+      "os": ["linux"],
+      "cpu": ["x64"]
+    },
+    "7.1.0-dev.20260805.1": {
+      "name": "@typescript/typescript-linux-x64",
+      "version": "7.1.0-dev.20260805.1",
+      "dist": {
+        "shasum": "a8c928249a16df45bb1d472c111550e5d0e1f9f6",
+        "tarball": "https://registry.npmjs.org/@typescript/typescript-linux-x64/-/typescript-linux-x64-7.1.0-dev.20260805.1.tgz",
+        "fileCount": 114,
+        "integrity": "sha512-3Vj8wAIL4yNSh4GqRf70lpD8jkWLrNTWS7Usab6ixDFLSLi5ND3I3WMvJQGfQ45rLe84UfCxHcHb0EPAaqZxCQ==",
+        "signatures": [
+          {
+            "sig": "MEQCIH2OhH4gTyrGvVTpQegsgJqZNgmu3GyMlNaB3WOQpaqyAiBNLUdbjkgg3ImTwsmPKNgM+OWVYivtV4UX8ixmlIu7dA==",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          },
+          {
+            "sig": "MEUCIQC0OZBmwxsnMMqbWAUAKQRacejZaJsVCrs/hWTQ30PJvwIgN6stvjmn9cxl92PyH2WUmAuaUBSqV7pkjmT5gsi0Xa4=",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "unpackedSize": 28089363
+      },
+      "engines": { "node": ">=16.20.0" },
+      "os": ["linux"],
+      "cpu": ["x64"]
+    },
+    "7.1.0-dev.20260806.1": {
+      "name": "@typescript/typescript-linux-x64",
+      "version": "7.1.0-dev.20260806.1",
+      "dist": {
+        "shasum": "c971c9368e80cc4cb7a0cc3e62bcd5ba2c93cc72",
+        "tarball": "https://registry.npmjs.org/@typescript/typescript-linux-x64/-/typescript-linux-x64-7.1.0-dev.20260806.1.tgz",
+        "fileCount": 114,
+        "integrity": "sha512-iNH6RIT7d1yin1XrgTvzPyIEe36l/pl1w6tfBcNF++S31xjZrjWwJFEkvEaCdj5xH/hd7zO2mNZp/4hCPeH5Pw==",
+        "signatures": [
+          {
+            "sig": "MEYCIQDyttNDqShuUWHnS13JFkfwZMNkX5r0ICU42q/L3j7nZAIhAPWCCYDlPMH/fgz/aayzJ6BK+cA9w3NG95rPe4jvgD1U",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          },
+          {
+            "sig": "MEUCIQC4hEA0HZ1n+wtcENSdg0GhRGAhv654BxmzwUPF4fAB1wIgGT3mlFNJyVuK5anKAZ0iIF0Uk3iLW8ALOhVxn2BsK7g=",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "unpackedSize": 28093459
+      },
+      "engines": { "node": ">=16.20.0" },
+      "os": ["linux"],
+      "cpu": ["x64"]
+    },
+    "7.1.0-dev.20260807.1": {
+      "name": "@typescript/typescript-linux-x64",
+      "version": "7.1.0-dev.20260807.1",
+      "dist": {
+        "shasum": "71946579f783e465fc22d61dfe018c81d1bd4b6d",
+        "tarball": "https://registry.npmjs.org/@typescript/typescript-linux-x64/-/typescript-linux-x64-7.1.0-dev.20260807.1.tgz",
+        "fileCount": 114,
+        "integrity": "sha512-TMS3c9kKqPOLZPoasVa8SjuhaJ8z4JduzGwt3P/yDHpzOFOPld7C7ZoIGSuHQ407mAB+Xz5RKFypdSdyW8Kz5Q==",
+        "signatures": [
+          {
+            "sig": "MEQCIAodLf7LFCO8VGEynJHGZNcC8ZqZ1TnSNIq9Z+3I+XoDAiBGaeUXPg8DKUlH4kBO5wElCd4oOEpwuLKvtlr5Jx+YVg==",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          },
+          {
+            "sig": "MEUCIQCgdIWqU22Tzfat0qRR9EoOCD91+OedDts51R82HzfdiQIgUEAbOmkdPGOmXLzNemTuB+IVKibRDwzkg5jAYovI5LE=",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "unpackedSize": 28093459
+      },
+      "engines": { "node": ">=16.20.0" },
+      "os": ["linux"],
+      "cpu": ["x64"]
+    },
+    "7.1.0-dev.20260808.1": {
+      "name": "@typescript/typescript-linux-x64",
+      "version": "7.1.0-dev.20260808.1",
+      "dist": {
+        "shasum": "277cae66bb4ce9e17faf3121cf075dd3355bfb75",
+        "tarball": "https://registry.npmjs.org/@typescript/typescript-linux-x64/-/typescript-linux-x64-7.1.0-dev.20260808.1.tgz",
+        "fileCount": 114,
+        "integrity": "sha512-X1pClt7M6zQhDR7Vl6xtmZF4r7I+fp7VNHmWOtqQmeI3ep4CDJEYCPZZ6UZCXdFW+YfsTXCfSvT4YPiNtzjrBQ==",
+        "signatures": [
+          {
+            "sig": "MEQCICil8WvpudcrfQXnTuRP8M4mMiZc8RR49fJYmG1trSRZAiBmYfFbiDjRqP+B3OLUL6bTs5vY/dsPJt9izLR0v/5skg==",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          },
+          {
+            "sig": "MEUCICa/oAD1bIATuD4FaNMHwXbCRSuRlRN0Qp0Lop6OAZaMAiEAt/UUGCzxNbt9VNR7GTsGf8dhmljNzd2qtifIjnjG0xE=",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "unpackedSize": 28097555
+      },
+      "engines": { "node": ">=16.20.0" },
+      "os": ["linux"],
+      "cpu": ["x64"]
+    },
+    "7.1.0-dev.20260809.1": {
+      "name": "@typescript/typescript-linux-x64",
+      "version": "7.1.0-dev.20260809.1",
+      "dist": {
+        "shasum": "90e44d92019c356230b9470d03980939aeb5d4c7",
+        "tarball": "https://registry.npmjs.org/@typescript/typescript-linux-x64/-/typescript-linux-x64-7.1.0-dev.20260809.1.tgz",
+        "fileCount": 114,
+        "integrity": "sha512-KWhxqS2bPe+eN+FCIiLMxckXZRk7hAxnWjxM8J2LkN3XOtgp1+CHzFBYIgwyr1HL/PR2Y93DVNOe1aXFXVmZHg==",
+        "signatures": [
+          {
+            "sig": "MEYCIQDNErhQKeGSeB2dxda3Ck2Nq/8NSTEX+Xzff9vQubPWQQIhANg3VWqGX4e5E0hT275nLoAYHgFuB3bUqf8xqlbauwp6",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          },
+          {
+            "sig": "MEYCIQDmqBMikIVRkX063ruaQVYLPzZeNL/9S6LWVMR9/hON9AIhAOf5rd/N9ic5Dkzne2L6mbl3jRwtAkcDkOCQXncQgS/Y",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "unpackedSize": 28097555
+      },
+      "engines": { "node": ">=16.20.0" },
+      "os": ["linux"],
+      "cpu": ["x64"]
+    },
+    "7.1.0-dev.20260810.1": {
+      "name": "@typescript/typescript-linux-x64",
+      "version": "7.1.0-dev.20260810.1",
+      "dist": {
+        "shasum": "1e201f8e7642e374be7cb0b7244054a400cea014",
+        "tarball": "https://registry.npmjs.org/@typescript/typescript-linux-x64/-/typescript-linux-x64-7.1.0-dev.20260810.1.tgz",
+        "fileCount": 114,
+        "integrity": "sha512-WbbOpQzNFEPOCndicvCkfLRoThQeNdReaJXVQSyLB9/5ghlWgKKj1iUiAJXO9pcAk/Ld1CCnOXU19ZZuunrhAQ==",
+        "signatures": [
+          {
+            "sig": "MEUCIHL+ABjc7WT9bWpVO/lyFskBh0oAnvCm0LHaJXPWZXOVAiEA8e/9MeKkTHs+O/icKCDJYaicl6IfD3Pxr/AIbWH1Tyk=",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          },
+          {
+            "sig": "MEQCIB5+299Ar/rwjp0+q2ftTCwRvYfnVvLLfCXTiuGgm9JwAiAa91hAGTEHvR02mM2gUwrtJMDIEiwDcAl7DdV9iKpRhg==",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "unpackedSize": 28097555
+      },
+      "engines": { "node": ">=16.20.0" },
+      "os": ["linux"],
+      "cpu": ["x64"]
+    },
+    "7.1.0-dev.20260811.1": {
+      "name": "@typescript/typescript-linux-x64",
+      "version": "7.1.0-dev.20260811.1",
+      "dist": {
+        "shasum": "92db578bb2f57cfedb3e6b40dd987bcabbb91acd",
+        "tarball": "https://registry.npmjs.org/@typescript/typescript-linux-x64/-/typescript-linux-x64-7.1.0-dev.20260811.1.tgz",
+        "fileCount": 114,
+        "integrity": "sha512-dJl1Bx63i+J75XHo4OrlGPeGtLQUY2HnKwtEMFRWoceZ/bz4/e+xYOaaZKTvUzOm5zF8KOUoBxb7xkT8PHUz7A==",
+        "signatures": [
+          {
+            "sig": "MEQCIDXy6bCAXhvSxq68dKJyrPcVESzG6hFyCq4HxvNISm2DAiBXW+hRFL0hZn3ysAV6RDpY1IodE5VVva1dv151Gpqtsw==",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          },
+          {
+            "sig": "MEYCIQDGNGuEkpMVmQUA7MrsQXGeYwiIK5seHkcMEge6jbsEwwIhAPnqitDAfdrzl32iFheZXyFMfDQvBqGYYx5nyeyafzvF",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "unpackedSize": 28257299
+      },
+      "engines": { "node": ">=16.20.0" },
+      "os": ["linux"],
+      "cpu": ["x64"]
+    },
+    "7.1.0-dev.20260812.1": {
+      "name": "@typescript/typescript-linux-x64",
+      "version": "7.1.0-dev.20260812.1",
+      "dist": {
+        "shasum": "a6f1a69080f7c87d065388009c43ed1a8eea0421",
+        "tarball": "https://registry.npmjs.org/@typescript/typescript-linux-x64/-/typescript-linux-x64-7.1.0-dev.20260812.1.tgz",
+        "fileCount": 114,
+        "integrity": "sha512-lkZgaqFV278XoLW3w+lRvKKPxKo7NXPNbcENny14R86BYKOHDx3cfrnkHBISGmm3uIbKYjkmQk3OJPJgMOsHYQ==",
+        "signatures": [
+          {
+            "sig": "MEQCIAFRxXwu0JQOpj4uEZTz1RlEMnNTB3CgH/E1KIR/K/VsAiAo37DJ/NaoHcodb1/CGvP3wqPufq8WqBx8OskxSKOpaA==",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          },
+          {
+            "sig": "MEUCIQDbqujpaPInV5ecKAsdhlHzVev4NBdPAklDJWATGC0iiAIgbL3mdYS3YlJUw0FZTrPiivJDM2ZmdqDEFRrZyJcdydU=",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "unpackedSize": 28257299
+      },
+      "engines": { "node": ">=16.20.0" },
+      "os": ["linux"],
+      "cpu": ["x64"]
+    },
+    "7.1.0-dev.20260813.1": {
+      "name": "@typescript/typescript-linux-x64",
+      "version": "7.1.0-dev.20260813.1",
+      "dist": {
+        "shasum": "8ec7ad03ddeeed5cd44b11db3c1df8a84fc13390",
+        "tarball": "https://registry.npmjs.org/@typescript/typescript-linux-x64/-/typescript-linux-x64-7.1.0-dev.20260813.1.tgz",
+        "fileCount": 114,
+        "integrity": "sha512-b8lE860somMur1mIcJUcTkaiA7Rfai3QlBAiY24U7xiLvGgi3SZzY/eCFz0GF92klqDIsGqUsKInWxBKATdW8A==",
+        "signatures": [
+          {
+            "sig": "MEUCIQClz1mQOhskm4PzjEOqW5nbR4TsU8KeWVMpkNI23NDJwgIgb0fd0ekRKo2LfHjmLxA9nUpynPyEQgPwCftRZqV9ZP4=",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          },
+          {
+            "sig": "MEUCIB28KBMZF4uVfwJ+/5sy1gbM2RZVrf5sGGo2cpOGCZUgAiEA2kkUKxxHftKSN5KAsEWhwlGHiYY0PkNQLYl35dZs9cM=",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "unpackedSize": 28261395
+      },
+      "engines": { "node": ">=16.20.0" },
+      "os": ["linux"],
+      "cpu": ["x64"]
+    },
+    "7.1.0-dev.20260815.1": {
+      "name": "@typescript/typescript-linux-x64",
+      "version": "7.1.0-dev.20260815.1",
+      "dist": {
+        "shasum": "f8309b2824da228a4e2717f96c412d024ab3b102",
+        "tarball": "https://registry.npmjs.org/@typescript/typescript-linux-x64/-/typescript-linux-x64-7.1.0-dev.20260815.1.tgz",
+        "fileCount": 114,
+        "integrity": "sha512-+ulIyUEtjLo0GdVU2ySMyBd9SiG79ADmABczbty29jiVHwyuG5Wg8D3x39Gan+59wgcprvj28x73dvqzvxo+Ww==",
+        "signatures": [
+          {
+            "sig": "MEUCICihjqrEAlI/F4no9TYKWPnm5+3jieFaWSFOQkdcpzvEAiEA5pRDZIp4PaYhf1uzIeVYZCcsmQFFBl7/TWew3cshdOA=",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          },
+          {
+            "sig": "MEUCIQDJAFUqZFlcrVrOf3UTvrUzo0FRmKFtaGSjGDuP7xgXvQIge+/XV3YfiocXDfeKhiMQ8IQwwIgTNnuSI2LyQtw2eJQ=",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "unpackedSize": 28380008
+      },
+      "engines": { "node": ">=16.20.0" },
+      "os": ["linux"],
+      "cpu": ["x64"]
+    },
+    "7.1.0-dev.20260816.1": {
+      "name": "@typescript/typescript-linux-x64",
+      "version": "7.1.0-dev.20260816.1",
+      "dist": {
+        "shasum": "f9b58820eef0d588e6145ce65653810da61c57e5",
+        "tarball": "https://registry.npmjs.org/@typescript/typescript-linux-x64/-/typescript-linux-x64-7.1.0-dev.20260816.1.tgz",
+        "fileCount": 114,
+        "integrity": "sha512-QMfvO+BOpMgZNl44pTzfNSFKraOZttjLH1eP3kZvyaNF0aXl5MXdY2Ee9AsBqjbS4uUjfSGF8jjx676ez37+Jw==",
+        "signatures": [
+          {
+            "sig": "MEQCID2uU39rTXDCaWC4Vn9qy+kXbiPpQkOhuDSzH0YVuhLGAiB0PRrFrwB29zK6xCvUTAxr5Nw5OhzN8+EytIJWxU+GrQ==",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          },
+          {
+            "sig": "MEUCIB1x0L2YU/okYIQgj1/vCUFVwJprrIHrRILUQ4u1E3oHAiEA8MMLNLjl+tq9WSrfXHYNNN3woPf2p7leMFtus/jDxu8=",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "unpackedSize": 28380008
+      },
+      "engines": { "node": ">=16.20.0" },
+      "os": ["linux"],
+      "cpu": ["x64"]
+    },
+    "7.1.0-dev.20260817.1": {
+      "name": "@typescript/typescript-linux-x64",
+      "version": "7.1.0-dev.20260817.1",
+      "dist": {
+        "shasum": "364db58cf21df856ed236433ff93e4e704b004f6",
+        "tarball": "https://registry.npmjs.org/@typescript/typescript-linux-x64/-/typescript-linux-x64-7.1.0-dev.20260817.1.tgz",
+        "fileCount": 114,
+        "integrity": "sha512-HkYIfyFCjopf/9g7FdABIQUpkAjbVMTkjO9Q+dmNYVvZb89K47ZAPrhVAw5Em3zcCdc3qK9MXVXBfcfqD/YSmg==",
+        "signatures": [
+          {
+            "sig": "MEYCIQDMptuiVxh668ZFmUisFR3HTmHGszDz17ATViAeU4dwjQIhAJQIQHRZSeHL6RR949z+OdjD2VIwkik94/8ORbqxKaX3",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          },
+          {
+            "sig": "MEUCIBs0Xm9RzbJ8hD1DZBtXXTdayE3bUdzc1Uxtm2avLVLiAiEAkgp2Iq+ChC23kGQ6qFW0fVYTdLcMF6Gk/CcT0ytK640=",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "unpackedSize": 28380008
+      },
+      "engines": { "node": ">=16.20.0" },
+      "os": ["linux"],
+      "cpu": ["x64"]
+    },
+    "7.1.0-dev.20260818.1": {
+      "name": "@typescript/typescript-linux-x64",
+      "version": "7.1.0-dev.20260818.1",
+      "dist": {
+        "shasum": "e932e85602a0b5a10f4d5044f8b7f8c0a23e036b",
+        "tarball": "https://registry.npmjs.org/@typescript/typescript-linux-x64/-/typescript-linux-x64-7.1.0-dev.20260818.1.tgz",
+        "fileCount": 114,
+        "integrity": "sha512-dtixD58SgGhJhEv9gomCVoXeQ0EBIAE6Bh9E3JT3bWAXqE2a/5URJOhCLOf82up0PThbJFZlX5+HEHZNzIoKWA==",
+        "signatures": [
+          {
+            "sig": "MEUCIAy08vblW3aiLOjC56QoXKjiyNh5zKPqF637hlbRMCSdAiEA+m0Ne/JJqlSIYbE5HXGLdax5uPq+krVucJ16uNRPRJE=",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          },
+          {
+            "sig": "MEYCIQCYoLhlU8VeTIFfkCCYyyvBDEe4vQ3fK+2g2oVeFCUI+wIhAKX1bxTEIVoM/mISrgH3uwFbWI7wxH1WCUGqjTNDROAJ",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "unpackedSize": 28412776
+      },
+      "engines": { "node": ">=16.20.0" },
+      "os": ["linux"],
+      "cpu": ["x64"]
+    },
+    "7.1.0-dev.20260819.1": {
+      "name": "@typescript/typescript-linux-x64",
+      "version": "7.1.0-dev.20260819.1",
+      "dist": {
+        "shasum": "4363c45054a09c089605790ed6ec3570c0c50115",
+        "tarball": "https://registry.npmjs.org/@typescript/typescript-linux-x64/-/typescript-linux-x64-7.1.0-dev.20260819.1.tgz",
+        "fileCount": 114,
+        "integrity": "sha512-t+qhWUi+XTj8F+sQ9SUt6bI3OMR/hR5SEXd6CMEYT9I0IQYMwBanVfPrfRz3EjCvGwpVahhezV3hOw6Z3NP29Q==",
+        "signatures": [
+          {
+            "sig": "MEUCICamjlG0DHw5tBW7cGXxzkWuj+Z9uTA6A42eZFaDSB6SAiEAh9UBPvHjF9KUaUF8j0J+yF2EmbFQChglpT8NgpsMvmc=",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          },
+          {
+            "sig": "MEUCIQCHTNofr29Al4l9c2Vh48nxl/CRRkPfreLGCF20A7oqaAIgUXKSQ+5IyBkmaHxd6gjm2FoY7r8wQ9szKNOTDrxzrYk=",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "unpackedSize": 28420968
+      },
+      "engines": { "node": ">=16.20.0" },
+      "os": ["linux"],
+      "cpu": ["x64"]
+    },
+    "7.1.0-dev.20260821.1": {
+      "name": "@typescript/typescript-linux-x64",
+      "version": "7.1.0-dev.20260821.1",
+      "dist": {
+        "shasum": "c0d427b6b6591e985b17432905427ef8b62e9a6c",
+        "tarball": "https://registry.npmjs.org/@typescript/typescript-linux-x64/-/typescript-linux-x64-7.1.0-dev.20260821.1.tgz",
+        "fileCount": 114,
+        "integrity": "sha512-m2NY6lwHyjLsTOp0f6GrjvS/b1cIRxQbFxO/z7XtnsO17Gu0GTC9XhXiCuiPhyeipeERWK+SOigmEhY1S3QCcg==",
+        "signatures": [
+          {
+            "sig": "MEYCIQCxxrwidj5YxlOmMI2nQUT56jwVmjWy4Ye+P3fw/z9g4AIhAMQFke6hNiFeHAN661j4zWodaA63Kgvqw5voHAgQE+Sa",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          },
+          {
+            "sig": "MEYCIQDD3R9+tzGHH/MaV2UTdioKgEl2bJeS3Z+RQGFhvtHabAIhAL2iMhNrKvh2UQo1pRxyFtVO4thjVHY/37FDEXVndSUV",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "unpackedSize": 29117288
+      },
+      "engines": { "node": ">=16.20.0" },
+      "os": ["linux"],
+      "cpu": ["x64"]
+    },
+    "7.1.0-dev.20260822.1": {
+      "name": "@typescript/typescript-linux-x64",
+      "version": "7.1.0-dev.20260822.1",
+      "dist": {
+        "shasum": "a4d65ff18278d7e44d0eaa7e05c298c61fe41faf",
+        "tarball": "https://registry.npmjs.org/@typescript/typescript-linux-x64/-/typescript-linux-x64-7.1.0-dev.20260822.1.tgz",
+        "fileCount": 114,
+        "integrity": "sha512-Pu80IArog3ucL649Dc/TDzY4ZDVidqGrT+7Ej8Xnj0HdwtfwwD7KZee2usDGHNtNS+NRBujhYgCHn5Biq+4QYQ==",
+        "signatures": [
+          {
+            "sig": "MEYCIQCh2mfp/6xQskVXA2xwwk9KUwdOqzI3+eSsleSVADmuoAIhAMqO/HTr/7JDDtLxGQg2lQDoTSJJiYywWxTO911bZL+7",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          },
+          {
+            "sig": "MEQCIDYGsbSz/PQjDBh7+Gg58lFJA3o9Z8i2JYWej3acHQUiAiASa55GkMyEivxC/FcyXXQxxz9Ria65On4dSYgGGLs0Uw==",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "unpackedSize": 29178728
+      },
+      "engines": { "node": ">=16.20.0" },
+      "os": ["linux"],
+      "cpu": ["x64"]
+    },
+    "7.1.0-dev.20260823.1": {
+      "name": "@typescript/typescript-linux-x64",
+      "version": "7.1.0-dev.20260823.1",
+      "dist": {
+        "shasum": "c304637f54de2a6b640a9a1fed23a54238092565",
+        "tarball": "https://registry.npmjs.org/@typescript/typescript-linux-x64/-/typescript-linux-x64-7.1.0-dev.20260823.1.tgz",
+        "fileCount": 114,
+        "integrity": "sha512-as9N886eEv4tj4+zqbOVGD5Sa02j7BNC22cea0BMM+YHjhVA2S+iylZ/9o4EeWfWfRjEv+MrO5MWmmNS0iRV3A==",
+        "signatures": [
+          {
+            "sig": "MEYCIQDaTY8WaWYYRzHf7gxUSQ0gUH/SSy6VtgQgRr6oplc9qAIhAMl7Oh3nb9tQtWVhG1JxBBNn//WceGTHA82zuu6gKfT1",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          },
+          {
+            "sig": "MEUCIGSA57Du5S2Zj2YHd73V4crFH10+xwZb91VJVX3Bn7qwAiEAvEqy2FyWwKJwXlFx0Ufaq/X5pWxPkzgnyxX5W6tGpMI=",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "unpackedSize": 29178728
+      },
+      "engines": { "node": ">=16.20.0" },
+      "os": ["linux"],
+      "cpu": ["x64"]
+    },
+    "7.1.0-dev.20260824.1": {
+      "name": "@typescript/typescript-linux-x64",
+      "version": "7.1.0-dev.20260824.1",
+      "dist": {
+        "shasum": "dd1c1238ded4f313772c983e73e2f0276429fa6c",
+        "tarball": "https://registry.npmjs.org/@typescript/typescript-linux-x64/-/typescript-linux-x64-7.1.0-dev.20260824.1.tgz",
+        "fileCount": 114,
+        "integrity": "sha512-6MvVCKa6rhGCXRe8fZuI12GATD2WbPnuSvbFSG+Ir4EVm41E8p+siZO8/DtlJNUUtLNVsnwO4eRj4MT2R+Lb/Q==",
+        "signatures": [
+          {
+            "sig": "MEYCIQDq8QHcMWdpxTMyIiTbzVRsjMizbQdTYSuD1BBTB41CdAIhAI3BLo2Qk3qb4qO45wPpdTMLGwP2eSrpQSE0SWAB3Bkp",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          },
+          {
+            "sig": "MEUCIHdjliKUarRP0L8f33hV6OcUmZaDQPOVGL+kiBGeM3YHAiEAsi8UrGvKtUT6eSDwzPocxTIgXOxYB2luxJ2xzcLUfKU=",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "unpackedSize": 29178728
+      },
+      "engines": { "node": ">=16.20.0" },
+      "os": ["linux"],
+      "cpu": ["x64"]
+    },
+    "7.1.0-dev.20260825.1": {
+      "name": "@typescript/typescript-linux-x64",
+      "version": "7.1.0-dev.20260825.1",
+      "dist": {
+        "shasum": "f43f576afd97302e9126f6775b42e31bd3111cfc",
+        "tarball": "https://registry.npmjs.org/@typescript/typescript-linux-x64/-/typescript-linux-x64-7.1.0-dev.20260825.1.tgz",
+        "fileCount": 114,
+        "integrity": "sha512-qZIzRJqwAYvUYxUCNMAviOSK1uUHi1sOY3znKwKdAS7tzcAVHbQ2UaI6a+oRFiUml8Xsx/pP6zQ4ioptvfJJkA==",
+        "signatures": [
+          {
+            "sig": "MEUCIQCd11LRotJTP/6vFL4uG3c4RADOLRwpo//q4p+kyzLGLQIgYHAZuiycIk4BMoRkZivuV5iXFDURIuUv8Yhs+GMN3X0=",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          },
+          {
+            "sig": "MEYCIQD3nzctFJmyoaKbjinm0Jno4mv5fVovuGIXp3bZdxXu8wIhAJQD/J30J0gnRi3KwNzJ71XkUa4wvUAtO3PvuWVXcwbo",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "unpackedSize": 29162344
+      },
+      "engines": { "node": ">=16.20.0" },
+      "os": ["linux"],
+      "cpu": ["x64"]
+    },
+    "7.1.0-dev.20260826.1": {
+      "name": "@typescript/typescript-linux-x64",
+      "version": "7.1.0-dev.20260826.1",
+      "dist": {
+        "shasum": "690e88094da227e069fcde33d3e0a69f6f1fcaf6",
+        "tarball": "https://registry.npmjs.org/@typescript/typescript-linux-x64/-/typescript-linux-x64-7.1.0-dev.20260826.1.tgz",
+        "fileCount": 114,
+        "integrity": "sha512-R0GeopttynHqVvHAAlXRpIHHrD+VaQES5DhCEuw0vb+G4lERccjr2hKafz2h2PRd/Lln79ZRP5XQVt8KQe46OA==",
+        "signatures": [
+          {
+            "sig": "MEUCIQDDQ1Uivk5PHuM6wVlzHBQiWz1dIvuYUxmCRG/RCkWLOAIgQ7nhKJrSFeA9waDj2u1B1W5jwi6HM0UTDRzj3Do0BkM=",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          },
+          {
+            "sig": "MEUCIQCwgyPSPZbehnE9C/x3g4JVPmA5uQ0+/b5pV7umlgSeAgIgQ3kyvmwUc4Lfcl19kfMXYnLpPkoJr8ucwYrnZTApcI8=",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "unpackedSize": 29064040
+      },
+      "engines": { "node": ">=16.20.0" },
+      "os": ["linux"],
+      "cpu": ["x64"]
+    },
+    "7.1.0-dev.20260827.1": {
+      "name": "@typescript/typescript-linux-x64",
+      "version": "7.1.0-dev.20260827.1",
+      "dist": {
+        "shasum": "95869e5f0b86950ba36bdd2873efcccb8bc5d501",
+        "tarball": "https://registry.npmjs.org/@typescript/typescript-linux-x64/-/typescript-linux-x64-7.1.0-dev.20260827.1.tgz",
+        "fileCount": 114,
+        "integrity": "sha512-Ubp/eiknAFKz68UVcmNe2S7IFeI6f4saJGrtr0tQdZmSYtxiTru/laLlEz1cErGwY0KNbqtmHnWk+RVuNGDETw==",
+        "signatures": [
+          {
+            "sig": "MEUCIQCox5K/jgIVfIIlT4Ueb3q8ZKBAOkFQGs26HiZGVXXVbAIgJpTMM7Zz5z06I+SGfXfh+g8J0yKOWNa0rnwevLS1Yoc=",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          },
+          {
+            "sig": "MEYCIQDTlqoU4hK1e3S4Ugzkz1aeLwXQFJl6V3ZDYy5kd+OYAwIhAJUW3mdEbbJcIt/x6BKrjK/dStvPr0pc3NOVQdxBIeAv",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "unpackedSize": 29072232
+      },
+      "engines": { "node": ">=16.20.0" },
+      "os": ["linux"],
+      "cpu": ["x64"]
+    },
+    "7.1.0-dev.20260828.1": {
+      "name": "@typescript/typescript-linux-x64",
+      "version": "7.1.0-dev.20260828.1",
+      "dist": {
+        "shasum": "31609db5e55ac7dc33b03153c6606752220f99bf",
+        "tarball": "https://registry.npmjs.org/@typescript/typescript-linux-x64/-/typescript-linux-x64-7.1.0-dev.20260828.1.tgz",
+        "fileCount": 114,
+        "integrity": "sha512-Bcp+KkaEQnYXLEvHaFTFxp1XfL+Fpmr2iIrstjnuwiw+P1iEZKVbicFPgjz7gQmxJ4f4r7ZopB7jgHqmg0WFcg==",
+        "signatures": [
+          {
+            "sig": "MEYCIQCFWxiZYF/nQrWeg4tIZDp+A5m7v66MGaScxRefz3dJVgIhAOiwrDtcaLJl4CTNC1rZmY3/ULb4jFEUEFMBgqno8tTL",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          },
+          {
+            "sig": "MEUCIQDotZMMWlx6kyfOJgYSCBZgOzsq8uuEMGAiL3T5yGR/IgIgds+zogROVPgwevryzbjbQ91e//yP3Xrc5RM/bI7fDPk=",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "unpackedSize": 29076328
+      },
+      "engines": { "node": ">=16.20.0" },
+      "os": ["linux"],
+      "cpu": ["x64"]
+    },
+    "7.1.0-dev.20260829.1": {
+      "name": "@typescript/typescript-linux-x64",
+      "version": "7.1.0-dev.20260829.1",
+      "dist": {
+        "shasum": "dcf1009a977559054bccebc5668153d5c4c468a2",
+        "tarball": "https://registry.npmjs.org/@typescript/typescript-linux-x64/-/typescript-linux-x64-7.1.0-dev.20260829.1.tgz",
+        "fileCount": 114,
+        "integrity": "sha512-rII/nZZtCjIE5j5ZHYh/Znx7tEWF3seHxuhl5mzbhugOMkljbvJRx9ifSBed2Cn1niMe70fUL4fwSEdxt9ggvA==",
+        "signatures": [
+          {
+            "sig": "MEUCIQCfGgTWbqZTw7waDvINlgjrA9qqnJJCRUZItP0OsrIyYQIgfNCrglTFPOr05AnXjmBIcajI3lXPfc9oy18msffFfvE=",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          },
+          {
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U",
+            "sig": "MEYCIQCb828d6SoccEqap5c/MtQhmU6NErxBT+yDGOmp2Ux2JQIhAIE2Y8hbpV7kTX36MNEL0XyxFi5KxC+116+Abakc9iWZ"
+          }
+        ],
+        "unpackedSize": 29105000
+      },
+      "engines": { "node": ">=16.20.0" },
+      "os": ["linux"],
+      "cpu": ["x64"]
+    }
+  },
+  "modified": "2026-08-29T08:12:38.438Z",
+  "cachedAt": 1788046618767
+}

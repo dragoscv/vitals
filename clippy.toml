@@ -1,0 +1,3 @@
+# Sampling hot paths must not allocate casually; keep the bar high.
+too-many-arguments-threshold = 8
+type-complexity-threshold = 500

@@ -1,0 +1,4 @@
+{
+  "extends": "@vitals/config/tsconfig/react",
+  "include": ["src/**/*"]
+}

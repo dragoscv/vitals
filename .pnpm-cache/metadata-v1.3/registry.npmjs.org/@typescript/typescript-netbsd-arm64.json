@@ -1,0 +1,48 @@
+{
+  "name": "@typescript/typescript-netbsd-arm64",
+  "dist-tags": { "rc": "7.0.1-rc", "latest": "7.0.2" },
+  "versions": {
+    "7.0.1-rc": {
+      "name": "@typescript/typescript-netbsd-arm64",
+      "version": "7.0.1-rc",
+      "dist": {
+        "shasum": "a3cf5068e1a3044e0b927fc77a5a446d39812e3a",
+        "tarball": "https://registry.npmjs.org/@typescript/typescript-netbsd-arm64/-/typescript-netbsd-arm64-7.0.1-rc.tgz",
+        "fileCount": 114,
+        "integrity": "sha512-FfbPxH3dTfp8yVIaNM7bdWTixXuyxpzoemluqcqMROSIz+ImpCG3Q9HO9Ptzp9/giv+P9YYEnCMSXh61migj2w==",
+        "signatures": [
+          {
+            "sig": "MEQCIGXj+m3i4Zp+tY4QHqkSTXfsje7Y+f3ehtfvea+BNsyDAiBQ9HQtDlFOzExjN1ermKuXjZVKRYqGtfkROqxeQyg5Vg==",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "unpackedSize": 28355126
+      },
+      "engines": { "node": ">=16.20.0" },
+      "os": ["netbsd"],
+      "cpu": ["arm64"]
+    },
+    "7.0.2": {
+      "name": "@typescript/typescript-netbsd-arm64",
+      "version": "7.0.2",
+      "dist": {
+        "integrity": "sha512-+polYF4MF04aPpO5FTkHran9yUQDSXqy5GiSDKpsll5jy3l3+g9QLhpf39T+ePtefhXLOGrLl0QIjkQP6VnelA==",
+        "shasum": "3a3649f97fafa210b4e6e3798c15e06605c8a901",
+        "tarball": "https://registry.npmjs.org/@typescript/typescript-netbsd-arm64/-/typescript-netbsd-arm64-7.0.2.tgz",
+        "fileCount": 114,
+        "unpackedSize": 26586149,
+        "signatures": [
+          {
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U",
+            "sig": "MEUCICE5g5++ct/o1OrTAcSgAI8pPSCQD1RW+nqZu7uMKR9hAiEAuT7TNeNkXGr4iYthsoI9xkLoZ6c1ok9LOs2iTXCr6sI="
+          }
+        ]
+      },
+      "engines": { "node": ">=16.20.0" },
+      "os": ["netbsd"],
+      "cpu": ["arm64"]
+    }
+  },
+  "modified": "2026-07-08T15:50:25.372Z",
+  "cachedAt": 1788046619067
+}

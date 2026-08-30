@@ -1,0 +1,78 @@
+name: A number looks wrong
+description: A metric disagrees with Task Manager, HWiNFO, your BIOS, or reality.
+labels: ['bug', 'accuracy']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Wrong numbers are the most serious bug class in this project — a
+        monitoring tool that lies is worse than no tool. Thank you for
+        reporting it.
+
+  - type: input
+    id: metric
+    attributes:
+      label: Which metric
+      placeholder: e.g. CPU package temperature, GPU VRAM used, disk active time
+    validations:
+      required: true
+
+  - type: input
+    id: shown
+    attributes:
+      label: What Vitals shows
+      placeholder: e.g. 0 °C
+    validations:
+      required: true
+
+  - type: input
+    id: expected
+    attributes:
+      label: What it should be, and what you compared against
+      placeholder: e.g. 54 °C, per HWiNFO 8.20 and the BIOS
+    validations:
+      required: true
+
+  - type: textarea
+    id: hardware
+    attributes:
+      label: Hardware
+      description: |
+        CPU, motherboard, GPU, and RAM. Sensor layouts vary enormously between
+        boards, so the exact model matters more than you would think.
+      placeholder: |
+        CPU: AMD Ryzen 9 7950X
+        Board: ASUS ROG STRIX X670E-E
+        GPU: NVIDIA RTX 4080
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Windows version
+      description: Run `winver` if you are not sure.
+      placeholder: Windows 11 24H2 (26100.2033)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: helper
+    attributes:
+      label: Is the Vitals helper service installed?
+      description: Settings → About shows this. Several metrics degrade without it.
+      options:
+        - 'Yes'
+        - 'No'
+        - Not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: report
+    attributes:
+      label: Diagnostic report
+      description: |
+        Optional but very helpful. Settings → About → Export diagnostic report
+        produces a file you can attach. It contains hardware identifiers and
+        metric values, and never file names or command lines.

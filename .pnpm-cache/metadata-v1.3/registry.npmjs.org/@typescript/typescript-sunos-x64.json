@@ -1,0 +1,48 @@
+{
+  "name": "@typescript/typescript-sunos-x64",
+  "dist-tags": { "rc": "7.0.1-rc", "latest": "7.0.2" },
+  "versions": {
+    "7.0.1-rc": {
+      "name": "@typescript/typescript-sunos-x64",
+      "version": "7.0.1-rc",
+      "dist": {
+        "shasum": "4f7665b930ae91716142efe008d7f7c232fd5f88",
+        "tarball": "https://registry.npmjs.org/@typescript/typescript-sunos-x64/-/typescript-sunos-x64-7.0.1-rc.tgz",
+        "fileCount": 114,
+        "integrity": "sha512-UYjDeUxd765V9qcwlUPk4pEXyL0i3G76CJm9baK4i99u1pGO1psf3nXDw4MMmElVOPvGbZag99ZR/O59E2OX6w==",
+        "signatures": [
+          {
+            "sig": "MEQCIGSUSOdmSjfOVVlhn1zkdw+kDoYUu8G3vvsu7T6Mr4Z6AiAuKc3QU033Ih+udwhOxGjqheyeIMSvy3yymxkLLGnTZg==",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "unpackedSize": 29538942
+      },
+      "engines": { "node": ">=16.20.0" },
+      "os": ["sunos"],
+      "cpu": ["x64"]
+    },
+    "7.0.2": {
+      "name": "@typescript/typescript-sunos-x64",
+      "version": "7.0.2",
+      "dist": {
+        "integrity": "sha512-dLJDGaLZ1D4HPQn62u1n8mBDkJREwMsAkCdkwd4Ieqw+x3TUyTsqY0YiBCtE6H6OzzgGk3iuZ3vFWRS+E8/d1g==",
+        "shasum": "aba8d3464c3565a7044789baba96916bd4ab2c88",
+        "tarball": "https://registry.npmjs.org/@typescript/typescript-sunos-x64/-/typescript-sunos-x64-7.0.2.tgz",
+        "fileCount": 114,
+        "unpackedSize": 27790445,
+        "signatures": [
+          {
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U",
+            "sig": "MEQCIAN532SW1fuVc+7H47ac/qdB/cO3sFp9eevJgwpzos21AiA6adUjNwKYO/EQJIJejPzr9qYpNSkSvgc3Mdx4G3varw=="
+          }
+        ]
+      },
+      "engines": { "node": ">=16.20.0" },
+      "os": ["sunos"],
+      "cpu": ["x64"]
+    }
+  },
+  "modified": "2026-07-08T15:50:41.923Z",
+  "cachedAt": 1788046619022
+}

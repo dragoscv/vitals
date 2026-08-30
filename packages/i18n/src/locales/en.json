@@ -1,0 +1,153 @@
+{
+  "app": {
+    "name": "Vitals",
+    "tagline": "See what your computer is actually doing."
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "performance": "Performance",
+    "processes": "Processes",
+    "startup": "Startup",
+    "services": "Services",
+    "appHistory": "App history",
+    "users": "Users",
+    "network": "Network",
+    "storage": "Storage",
+    "installedApps": "Installed apps",
+    "devices": "Devices & sensors",
+    "benchmarks": "Benchmarks",
+    "settings": "Settings"
+  },
+  "metric": {
+    "cpu": "CPU",
+    "memory": "Memory",
+    "disk": "Disk",
+    "network": "Network",
+    "gpu": "GPU",
+    "thermals": "Thermals",
+    "power": "Power",
+    "battery": "Battery",
+    "unknown": "Unknown",
+    "notAvailable": "Not available"
+  },
+  "process": {
+    "name": "Name",
+    "pid": "PID",
+    "status": "Status",
+    "user": "User",
+    "threads": "Threads",
+    "handles": "Handles",
+    "uptime": "Uptime",
+    "count_one": "{{count}} process",
+    "count_other": "{{count}} processes",
+    "state": {
+      "running": "Running",
+      "suspended": "Suspended",
+      "waiting": "Waiting",
+      "notResponding": "Not responding",
+      "zombie": "Ended"
+    },
+    "action": {
+      "endTask": "End task",
+      "endTree": "End process tree",
+      "suspend": "Suspend",
+      "resume": "Resume",
+      "openLocation": "Open file location",
+      "properties": "Properties",
+      "efficiencyMode": "Efficiency mode",
+      "priority": "Priority",
+      "affinity": "Set affinity"
+    },
+    "confirm": {
+      "endTitle": "End {{name}}?",
+      "endBody": "Unsaved work in this app will be lost.",
+      "endCriticalTitle": "{{name}} is a critical system process",
+      "endCriticalBody": "Ending it will make Windows unstable and may cause a restart or data loss."
+    }
+  },
+  "capability": {
+    "needsElevation": "Requires administrator rights",
+    "needsHelper": "Requires the Vitals helper service",
+    "needsPlugin": "Requires an optional add-on",
+    "noSuchHardware": "Your hardware does not report this",
+    "notSupported": "Not available on this system",
+    "disabledByUser": "Turned off in settings",
+    "enable": "Enable",
+    "learnMore": "Learn more"
+  },
+  "common": {
+    "search": "Search",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "close": "Close",
+    "retry": "Retry",
+    "loading": "Loading…",
+    "empty": "Nothing to show",
+    "error": "Something went wrong",
+    "copy": "Copy",
+    "copied": "Copied",
+    "refresh": "Refresh"
+  },
+  "settings": {
+    "title": "Settings",
+    "appearance": {
+      "title": "Appearance",
+      "theme": "Theme",
+      "themeLight": "Light",
+      "themeDark": "Dark",
+      "themeSystem": "Match system",
+      "accent": "Accent colour",
+      "surface": "Surface",
+      "surfaceSolid": "Solid",
+      "surfaceMica": "Mica",
+      "surfaceAcrylic": "Acrylic",
+      "density": "Density",
+      "reduceMotion": "Reduce motion"
+    },
+    "language": {
+      "title": "Language & region",
+      "language": "Language"
+    },
+    "sampling": {
+      "title": "Sampling",
+      "rate": "Update speed",
+      "backgroundThrottle": "Slow down when hidden",
+      "backgroundThrottleHint": "Keeps Vitals near-zero cost when you are not looking at it."
+    },
+    "history": {
+      "title": "History",
+      "enable": "Record history",
+      "enableHint": "Stored only on this computer. Off by default.",
+      "retention": "Keep data for",
+      "diskUsage": "Currently using {{size}}",
+      "clear": "Delete all history"
+    },
+    "privacy": {
+      "title": "Privacy",
+      "crashReports": "Send crash reports",
+      "crashReportsHint": "Off by default. Never includes file names or process command lines.",
+      "usageData": "Send anonymous usage data",
+      "reputationLookups": "Check files against VirusTotal",
+      "reputationLookupsHint": "Sends only a file hash, never the file."
+    },
+    "advanced": {
+      "title": "Advanced",
+      "warning": "These can damage hardware or lose data. Only turn this on if you know what you are doing.",
+      "enable": "Enable advanced features"
+    },
+    "about": {
+      "title": "About",
+      "version": "Version {{version}}",
+      "contribute": "Vitals is free and open source, forever.",
+      "contributeBody": "Found a bug or want a feature? Open an issue on GitHub — every report makes it better.",
+      "openIssues": "Open an issue",
+      "viewSource": "View source",
+      "checkUpdates": "Check for updates"
+    }
+  },
+  "a11y": {
+    "mainNavigation": "Main navigation",
+    "sortBy": "Sort by {{column}}",
+    "chartOf": "{{metric}} over time"
+  }
+}

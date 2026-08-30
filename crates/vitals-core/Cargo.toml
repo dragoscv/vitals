@@ -1,0 +1,27 @@
+[package]
+name = "vitals-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "OS-agnostic domain model and provider traits for Vitals."
+
+[dependencies]
+serde = { workspace = true }
+thiserror = { workspace = true }
+ts-rs = { workspace = true, optional = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
+
+[features]
+default = ["ts"]
+# Emits TypeScript definitions for every type crossing the IPC boundary.
+# Optional so a consumer that only needs the Rust model (the CLI, the helper)
+# does not pay for the macro expansion.
+ts = ["dep:ts-rs"]
+
+[lints]
+workspace = true

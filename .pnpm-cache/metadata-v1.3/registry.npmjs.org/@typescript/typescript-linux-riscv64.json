@@ -1,0 +1,48 @@
+{
+  "name": "@typescript/typescript-linux-riscv64",
+  "dist-tags": { "rc": "7.0.1-rc", "latest": "7.0.2" },
+  "versions": {
+    "7.0.1-rc": {
+      "name": "@typescript/typescript-linux-riscv64",
+      "version": "7.0.1-rc",
+      "dist": {
+        "shasum": "0fd9dc6b13db6da1c43ea927feaf8357d0444518",
+        "tarball": "https://registry.npmjs.org/@typescript/typescript-linux-riscv64/-/typescript-linux-riscv64-7.0.1-rc.tgz",
+        "fileCount": 114,
+        "integrity": "sha512-rxeqnNnGiYzv/LlPHi/3+4p0ooR1cNJLjRIHXKovtiVmxXGJq6gtw8VSpbHuWPekyFMXgIAoLCZN0SQ51rAALQ==",
+        "signatures": [
+          {
+            "sig": "MEUCIAuebCZjx2TNbWE2MUAmYL9RC65nPTn0DllUHDcU9024AiEAqFU6ZRGTQdWWICMpR8cPdBGphyq3xZkLPSO6vx/7fs0=",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          }
+        ],
+        "unpackedSize": 27634215
+      },
+      "engines": { "node": ">=16.20.0" },
+      "os": ["linux"],
+      "cpu": ["riscv64"]
+    },
+    "7.0.2": {
+      "name": "@typescript/typescript-linux-riscv64",
+      "version": "7.0.2",
+      "dist": {
+        "integrity": "sha512-wf0jqEDOjrPRnKwYRyyJDRo11KMbvMFrU+q4zqKyChODBzvlkbhNQfKvLxQCcwTpdDaXSHZTVuh0JoCrKCUMHQ==",
+        "shasum": "b6e8a35c289b3ea97a92a41d461aaeed0d3b36e1",
+        "tarball": "https://registry.npmjs.org/@typescript/typescript-linux-riscv64/-/typescript-linux-riscv64-7.0.2.tgz",
+        "fileCount": 114,
+        "unpackedSize": 25930774,
+        "signatures": [
+          {
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U",
+            "sig": "MEYCIQC3r9ECTp0Zz46rALiu6k86cYSiaZeZk8WCXc15UlWXegIhAKpo93BgMYK/ryql7jbafTOQo5rVR8BLoRu+0GN0UV8I"
+          }
+        ]
+      },
+      "engines": { "node": ">=16.20.0" },
+      "os": ["linux"],
+      "cpu": ["riscv64"]
+    }
+  },
+  "modified": "2026-07-08T15:50:13.591Z",
+  "cachedAt": 1788046619100
+}

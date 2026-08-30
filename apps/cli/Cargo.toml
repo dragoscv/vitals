@@ -1,0 +1,28 @@
+[package]
+name = "vitals-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Vitals command line companion."
+
+[[bin]]
+name = "vitals"
+path = "src/main.rs"
+
+[dependencies]
+vitals-core = { workspace = true }
+vitals-ipc = { workspace = true }
+
+clap = { version = "4.6.6", features = ["derive"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
+vitals-win = { workspace = true }
+
+[lints]
+workspace = true

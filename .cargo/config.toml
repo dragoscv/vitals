@@ -1,0 +1,5 @@
+# ts-rs reads TS_RS_EXPORT_DIR at compile time to decide where generated
+# TypeScript lands. Set here rather than in a `.env` so it applies to every
+# crate in the workspace and to CI, which does not source dotenv files.
+[env]
+TS_RS_EXPORT_DIR = { value = "packages/protocol/src/generated", relative = true }

@@ -1,0 +1,54 @@
+name: Bug report
+description: Something is broken, crashes, or behaves unexpectedly.
+labels: ['bug']
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected instead
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: |
+        A reliable reproduction is the single most useful thing in a bug
+        report. If it only happens sometimes, say what you were doing when it
+        did — that is still useful.
+      placeholder: |
+        1. Open the Processes tab
+        2. Sort by GPU
+        3. …
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Vitals version
+      description: Settings → About
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Windows version
+      placeholder: Windows 11 24H2 (26100.2033)
+    validations:
+      required: true
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: Screenshots, logs, hardware — whatever seems relevant.

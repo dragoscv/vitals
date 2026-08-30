@@ -1,0 +1,61 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Vitals",
+  "version": "0.1.0",
+  "identifier": "app.vitals.desktop",
+  "build": {
+    "beforeDevCommand": "pnpm dev:vite",
+    "devUrl": "http://localhost:5273",
+    "beforeBuildCommand": "pnpm build:vite",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "withGlobalTauri": false,
+    "windows": [
+      {
+        "label": "main",
+        "title": "Vitals",
+        "width": 1280,
+        "height": 820,
+        "minWidth": 720,
+        "minHeight": 520,
+        "resizable": true,
+        "center": true,
+        "decorations": false,
+        "transparent": false,
+        "dragDropEnabled": false,
+        "visible": false,
+        "theme": null
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.ico"],
+    "publisher": "Vitals contributors",
+    "copyright": "MIT © Vitals contributors",
+    "category": "Utility",
+    "shortDescription": "A modern, fast system monitor and task manager.",
+    "longDescription": "Vitals is a fast, native system monitor and task manager: a configurable dashboard, deep performance telemetry, full process control, network and storage management, and benchmarks. Free and open source, forever.",
+    "licenseFile": "../../../LICENSE",
+    "windows": {
+      "nsis": {
+        "installMode": "perMachine",
+        "displayLanguageSelector": false,
+        "languages": ["English"]
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "active": true,
+      "dialog": false,
+      "endpoints": ["https://github.com/vitals-app/vitals/releases/latest/download/latest.json"],
+      "pubkey": "REPLACE_WITH_TAURI_UPDATER_PUBLIC_KEY"
+    }
+  }
+}

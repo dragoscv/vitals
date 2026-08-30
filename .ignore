@@ -1,0 +1,8 @@
+# Read by ripgrep / fd / VS Code search — NOT by git.
+# Directories that are tracked or generated but not worth grepping.
+pnpm-lock.yaml
+Cargo.lock
+packages/protocol/src/generated/
+target/
+dist/
+.turbo/

@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Vitals</title>
+    <!--
+      The splash is inlined in the document rather than rendered by React so
+      it is visible on the very first paint, before any JavaScript has parsed.
+      A window that shows an empty rectangle for 200ms reads as a slow app,
+      and first-launch perception is most of how "fast" is judged.
+    -->
+    <style>
+      :root {
+        color-scheme: light dark;
+      }
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #f8f8f9;
+      }
+      @media (prefers-color-scheme: dark) {
+        html,
+        body {
+          background: #1c1c1f;
+        }
+      }
+      #splash {
+        position: fixed;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        transition: opacity 180ms ease-out;
+      }
+      #splash[hidden] {
+        opacity: 0;
+        pointer-events: none;
+      }
+      .pulse {
+        width: 44px;
+        height: 44px;
+        border-radius: 12px;
+        background: currentColor;
+        color: #5b7cfa;
+        opacity: 0.9;
+        animation: beat 1.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+      }
+      @keyframes beat {
+        0%,
+        100% {
+          transform: scale(0.9);
+          opacity: 0.55;
+        }
+        50% {
+          transform: scale(1);
+          opacity: 1;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .pulse {
+          animation: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="splash" aria-hidden="true"><div class="pulse"></div></div>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

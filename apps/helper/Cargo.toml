@@ -1,0 +1,30 @@
+[package]
+name = "vitals-helper"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Vitals elevated helper service: ETW tracing and privileged operations."
+
+[[bin]]
+name = "vitals-helper"
+path = "src/main.rs"
+
+[dependencies]
+vitals-core = { workspace = true }
+vitals-ipc = { workspace = true }
+
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
+vitals-win = { workspace = true }
+windows-service = "0.8.1"
+
+[lints]
+workspace = true

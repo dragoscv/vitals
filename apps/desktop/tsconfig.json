@@ -1,0 +1,10 @@
+{
+  "extends": "@vitals/config/tsconfig/react",
+  "compilerOptions": {
+    "types": ["vite/client"],
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "include": ["src/**/*", "vite.config.ts"]
+}

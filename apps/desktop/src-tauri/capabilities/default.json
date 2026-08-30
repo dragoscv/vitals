@@ -1,0 +1,27 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Capabilities granted to the main Vitals window. Deliberately narrow: the webview is the largest attack surface in the product, so it gets only what it demonstrably needs.",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-start-dragging",
+    "core:window:allow-minimize",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-close",
+    "core:window:allow-show",
+    "core:window:allow-hide",
+    "core:window:allow-set-focus",
+    "core:window:allow-is-maximized",
+    "core:event:default",
+    "os:default",
+    "store:default",
+    "dialog:allow-open",
+    "dialog:allow-save",
+    "dialog:allow-message",
+    "dialog:allow-confirm",
+    "opener:allow-open-url",
+    "updater:default",
+    "global-shortcut:default"
+  ]
+}

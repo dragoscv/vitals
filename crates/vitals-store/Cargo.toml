@@ -1,0 +1,16 @@
+[package]
+name = "vitals-store"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Local SQLite time-series store with downsampling and retention."
+
+[dependencies]
+vitals-core = { workspace = true }
+serde = { workspace = true }
+
+[lints]
+workspace = true

@@ -1,0 +1,16 @@
+[package]
+name = "vitals-bench"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Benchmark harness and scoring."
+
+[dependencies]
+vitals-core = { workspace = true }
+serde = { workspace = true }
+
+[lints]
+workspace = true
