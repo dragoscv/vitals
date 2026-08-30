@@ -7,7 +7,9 @@ import { RouteView } from '../routes';
 import { SettingsDialog } from '../settings/SettingsDialog';
 import { useSettings } from '../settings/store';
 import { Content } from './Content';
+import { ErrorBoundary } from './ErrorBoundary';
 import { navItems } from './navigation';
+import { RouteError } from './RouteError';
 import { Sidebar } from './Sidebar';
 import { TitleBar } from './TitleBar';
 
@@ -102,10 +104,25 @@ export function AppShell({ version }: AppShellProps) {
           />
 
           <Content routeKey={route}>
-            {/* `navigate` is threaded through so a screen can send the user
-                elsewhere — the dashboard's alerts link to the section that
-                explains them, which is what makes them actionable. */}
-            <RouteView route={route} onNavigate={navigate} />
+            {/*
+             * The boundary is INSIDE Content, not around the whole shell: a
+             * crash in one screen must leave the sidebar and Settings usable.
+             * A monitoring tool that blanks its own window when something goes
+             * wrong looks like it broke the machine it was meant to diagnose.
+             *
+             * `resetKey={route}` clears a stale error on navigation — without
+             * it, one screen crashing would show its error over every screen
+             * the user visited afterwards.
+             */}
+            <ErrorBoundary
+              resetKey={route}
+              fallback={(error, retry) => <RouteError error={error} onRetry={retry} />}
+            >
+              {/* `navigate` is threaded through so a screen can send the user
+                  elsewhere — the dashboard's alerts link to the section that
+                  explains them, which is what makes them actionable. */}
+              <RouteView route={route} onNavigate={navigate} />
+            </ErrorBoundary>
           </Content>
         </div>
       </div>

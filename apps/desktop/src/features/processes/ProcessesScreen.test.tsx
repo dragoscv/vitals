@@ -16,7 +16,7 @@ import { initI18n } from '@vitals/i18n';
 import type { ActionPlan, ProcessActionsApi } from './actions';
 import { ProcessesScreen } from './ProcessesScreen';
 import { makeMap, makeProcess } from './test-fixtures';
-import { createManualSnapshotSource, INITIAL_SNAPSHOT } from './useProcessSnapshot';
+import { createManualSnapshotSource, INITIAL_SNAPSHOT, NO_SAMPLER } from './useProcessSnapshot';
 
 beforeAll(async () => {
   await initI18n('en');
@@ -105,6 +105,34 @@ describe('rendering', () => {
     render(<ProcessesScreen source={source} actions={stubActions()} storage={memoryStorage()} />);
     expect(screen.queryByRole('grid')).toBeNull();
     expect(document.querySelector('[aria-busy="true"]')).not.toBeNull();
+  });
+
+  it('explains a dead sampler instead of blaming the user filter', async () => {
+    // "No process matches — clear the search" is only true when a filter
+    // excluded them. With no sampler there is nothing to match in the first
+    // place, and that message sends the user hunting for a mistake they did
+    // not make. Found live: the table sat at "0 of 0 processes" forever.
+    const source = createManualSnapshotSource({
+      ...INITIAL_SNAPSHOT,
+      pending: false,
+      error: NO_SAMPLER,
+    });
+    render(<ProcessesScreen source={source} actions={stubActions()} storage={memoryStorage()} />);
+
+    expect(await screen.findByText('No readings are arriving')).toBeTruthy();
+    expect(screen.queryByText('No process matches')).toBeNull();
+    expect(document.querySelector('[aria-busy="true"]')).toBeNull();
+  });
+
+  it('still blames the filter when a filter is genuinely responsible', async () => {
+    const source = createManualSnapshotSource({
+      ...INITIAL_SNAPSHOT,
+      pending: false,
+      processes: makeMap([]),
+    });
+    render(<ProcessesScreen source={source} actions={stubActions()} storage={memoryStorage()} />);
+
+    expect(await screen.findByText('No process matches')).toBeTruthy();
   });
 
   it('renders an em-dash where a reading is absent, never a zero', async () => {

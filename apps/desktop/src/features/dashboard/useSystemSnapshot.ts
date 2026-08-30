@@ -41,6 +41,25 @@ export const INITIAL_SYSTEM_SNAPSHOT: SystemSnapshot = {
   pending: true,
 };
 
+/**
+ * How long to wait for the first frame before saying something is wrong.
+ *
+ * `pending` is the dashboard's skeleton state, and a skeleton that can never
+ * resolve is the same failure as the splash screen that pulsed forever: the
+ * app looks busy rather than broken, so nobody reports it and there is
+ * nothing on screen to diagnose from. Observed live in the browser, where
+ * there is no Tauri host and therefore no frame will EVER arrive — the grid
+ * sat on skeletons indefinitely.
+ *
+ * Five seconds is well past the measured first-frame time (the sampler ticks
+ * at 1 Hz and the first sample lands within ~1 s of window creation), so this
+ * cannot fire on a merely slow start.
+ */
+export const FIRST_FRAME_TIMEOUT_MS = 5000;
+
+/** Reported when no frame ever arrives; matched by the screen to explain why. */
+export const NO_SAMPLER = 'no-sampler';
+
 export interface SystemSource {
   subscribe(listener: () => void): () => void;
   current(): SystemSnapshot;
@@ -58,18 +77,46 @@ export function createTauriSystemSource(onFrame?: (snapshot: Snapshot) => void):
 
   let unlisten: (() => void) | null = null;
   let disposed = false;
+  let firstFrameTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /**
+   * Leaves `pending` behind for good, with an error instead of data.
+   *
+   * Clearing `pending` matters as much as setting `error`: the screen keys its
+   * skeletons off `pending`, so an error alone would leave them on screen
+   * underneath the explanation.
+   */
+  const giveUp = (reason: string): void => {
+    if (!value.pending) return;
+    publish({ ...value, pending: false, error: reason });
+  };
 
   const start = (): void => {
     // Without a host there is no IPC to listen on, and `listen()` dereferences
     // an internals global that does not exist — throwing
     // "Cannot read properties of undefined (reading 'transformCallback')"
-    // from inside a promise nobody awaits. Guarding here keeps the dashboard
-    // renderable under `vite preview` and in tests, showing skeletons rather
-    // than dying on an unhandled rejection.
-    if (!hasTauriHost()) return;
+    // from inside a promise nobody awaits.
+    //
+    // Resolved immediately rather than left pending: in a browser the answer
+    // is already known, and making the user wait five seconds to be told
+    // something we could say at once is just a slower way to be unhelpful.
+    if (!hasTauriHost()) {
+      giveUp(NO_SAMPLER);
+      return;
+    }
+
+    // The host exists but may still never deliver — a sampler thread that
+    // panicked on startup produces exactly this, and it is invisible from here.
+    firstFrameTimer = setTimeout(() => {
+      giveUp(NO_SAMPLER);
+    }, FIRST_FRAME_TIMEOUT_MS);
 
     void subscribeToMetrics({
       onSnapshot(snapshot: Snapshot) {
+        if (firstFrameTimer !== null) {
+          clearTimeout(firstFrameTimer);
+          firstFrameTimer = null;
+        }
         onFrame?.(snapshot);
         publish({
           system: snapshot.system,
@@ -87,7 +134,10 @@ export function createTauriSystemSource(onFrame?: (snapshot: Snapshot) => void):
         // The last good readings are kept. Blanking the dashboard on a
         // transient sampler error reads as "your machine stopped", which is a
         // far more alarming statement than the error itself.
-        publish({ ...value, error: message });
+        //
+        // `pending` is cleared too: an error before the first frame means the
+        // skeletons will never resolve on their own.
+        publish({ ...value, pending: false, error: message });
       },
     }).then((stop) => {
       if (disposed) stop();
@@ -104,6 +154,10 @@ export function createTauriSystemSource(onFrame?: (snapshot: Snapshot) => void):
         listeners.delete(listener);
         if (listeners.size === 0) {
           disposed = true;
+          if (firstFrameTimer !== null) {
+            clearTimeout(firstFrameTimer);
+            firstFrameTimer = null;
+          }
           unlisten?.();
           unlisten = null;
         }

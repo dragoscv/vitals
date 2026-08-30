@@ -15,7 +15,7 @@
  * imaginary here because all twelve widgets change on the same tick anyway.
  */
 
-import { LayoutGrid, Plus, RotateCcw, Settings2 } from 'lucide-react';
+import { LayoutGrid, PlugZap, Plus, RotateCcw, Settings2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -37,7 +37,12 @@ import { history as sharedHistory, type HistoryCollector } from './history';
 import { DASHBOARD_NS } from './strings';
 import { useHistory } from './useHistory';
 import { useLayout, type LayoutBackend } from './useLayout';
-import { createTauriSystemSource, useSystemSnapshot, type SystemSource } from './useSystemSnapshot';
+import {
+  createTauriSystemSource,
+  NO_SAMPLER,
+  useSystemSnapshot,
+  type SystemSource,
+} from './useSystemSnapshot';
 import { AlertsWidget } from './widgets/AlertsWidget';
 import {
   BatteryWidget,
@@ -180,6 +185,24 @@ export function DashboardScreen({
 
       {!layoutController.hydrated || snapshot.pending ? (
         <DashboardSkeleton />
+      ) : snapshot.system === null ? (
+        /*
+         * No frame ever arrived. Distinct from the skeleton state, which is
+         * bounded by a timeout in the source precisely so this branch can be
+         * reached — a loading state that cannot resolve makes a broken app
+         * look busy, which is how the splash-screen hang went unnoticed.
+         */
+        <EmptyState
+          icon={<PlugZap />}
+          title={t('noData.title')}
+          // Falls back to the generic explanation rather than omitting the
+          // description: a title alone leaves the user with nothing to act on.
+          description={
+            snapshot.error === null || snapshot.error === NO_SAMPLER
+              ? t('noData.noSampler')
+              : snapshot.error
+          }
+        />
       ) : placements.length === 0 ? (
         <EmptyState
           icon={<LayoutGrid />}

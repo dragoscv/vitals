@@ -30,6 +30,9 @@ export const MISSING_KEYS = {
   'process.results': '{{shown}} of {{total}} processes',
   'process.empty.title': 'No process matches',
   'process.empty.body': 'Clear the search or choose a different filter.',
+  'process.noSampler.title': 'No readings are arriving',
+  'process.noSampler.body':
+    'Vitals cannot reach the part of itself that measures your computer. Nothing is wrong with the machine — restarting Vitals usually fixes this.',
   'process.loading': 'Waiting for the first sample…',
   'process.action.endTreeCount': 'End process tree ({{count}})',
   'process.action.searchOnline': 'Search online',

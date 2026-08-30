@@ -32,6 +32,7 @@ import { RiskDialog, type RiskAction, type RiskRequest } from './RiskDialog';
 import { fallback } from './strings';
 import {
   createTauriSnapshotSource,
+  NO_SAMPLER,
   useProcessSnapshot,
   type SnapshotSource,
 } from './useProcessSnapshot';
@@ -373,10 +374,23 @@ export function ProcessesScreen({
           </div>
         ) : rows.length === 0 ? (
           <div className="flex flex-1 items-center justify-center">
-            <EmptyState
-              title={t('process.empty.title', fallback('process.empty.title'))}
-              description={t('process.empty.body', fallback('process.empty.body'))}
-            />
+            {/*
+             * "No process matches" is only true when a filter excluded them.
+             * With no sampler there are no rows to match in the first place,
+             * and telling the user to clear their search sends them looking
+             * for a mistake they did not make.
+             */}
+            {snapshot.error === NO_SAMPLER ? (
+              <EmptyState
+                title={t('process.noSampler.title', fallback('process.noSampler.title'))}
+                description={t('process.noSampler.body', fallback('process.noSampler.body'))}
+              />
+            ) : (
+              <EmptyState
+                title={t('process.empty.title', fallback('process.empty.title'))}
+                description={t('process.empty.body', fallback('process.empty.body'))}
+              />
+            )}
           </div>
         ) : (
           <ProcessTable

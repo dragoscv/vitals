@@ -8,7 +8,7 @@ import { HistoryCollector } from './history';
 import { registerDashboardStrings } from './strings';
 import { makeProcess, makeProcessMap, makeSystem } from './test-fixtures';
 import type { LayoutBackend } from './useLayout';
-import { createManualSystemSource } from './useSystemSnapshot';
+import { createManualSystemSource, NO_SAMPLER } from './useSystemSnapshot';
 import { defaultLayout, type DashboardLayout } from './widgets';
 
 beforeAll(async () => {
@@ -81,6 +81,27 @@ describe('DashboardScreen', () => {
     );
 
     expect(document.querySelector('[aria-busy="true"]')).toBeTruthy();
+  });
+
+  it('explains itself instead of showing skeletons forever', async () => {
+    // Found by opening the running dev server: with no Tauri host no frame
+    // will EVER arrive, and the grid sat on its skeletons indefinitely. That
+    // is the splash-screen failure again in a different place — an unbounded
+    // loading state makes a broken app look merely busy, so nobody reports it
+    // and there is nothing on screen to diagnose from.
+    const source = createManualSystemSource();
+    source.push({ pending: false, system: null, error: NO_SAMPLER });
+
+    render(
+      <DashboardScreen
+        source={source}
+        layoutBackend={memoryBackend()}
+        historyCollector={new HistoryCollector()}
+      />,
+    );
+
+    expect(await screen.findByText('No readings are arriving')).toBeTruthy();
+    expect(document.querySelector('[aria-busy="true"]')).toBeNull();
   });
 
   it('renders the default widgets once data lands', async () => {

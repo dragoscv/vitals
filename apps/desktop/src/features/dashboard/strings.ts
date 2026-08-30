@@ -166,6 +166,11 @@ const en = {
   waiting: 'Collecting data…',
   waitingBody: 'Charts fill in as samples arrive.',
   unavailable: 'Not reported by your hardware',
+  noData: {
+    title: 'No readings are arriving',
+    noSampler:
+      'Vitals cannot reach the part of itself that measures your computer. Nothing is wrong with the machine — restarting Vitals usually fixes this.',
+  },
 } as const;
 
 const ro = {
@@ -320,6 +325,11 @@ const ro = {
   waiting: 'Se colectează date…',
   waitingBody: 'Graficele se completează pe măsură ce sosesc măsurătorile.',
   unavailable: 'Neraportat de hardware-ul tău',
+  noData: {
+    title: 'Nu sosesc măsurători',
+    noSampler:
+      'Vitals nu poate ajunge la partea din el care măsoară calculatorul. Nu este nimic în neregulă cu mașina — de obicei repornirea aplicației Vitals rezolvă asta.',
+  },
 } as const;
 
 /**

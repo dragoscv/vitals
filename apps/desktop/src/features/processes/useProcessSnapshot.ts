@@ -40,6 +40,19 @@ export interface SnapshotSource {
   current(): ProcessSnapshot;
 }
 
+/**
+ * How long to wait for the first frame before saying something is wrong.
+ *
+ * Mirrors the dashboard's bound, and exists for the same reason: `pending`
+ * drives the skeleton rows, and a skeleton that can never resolve makes a
+ * broken app look merely busy. Observed live in the browser, where there is
+ * no host and the table sat at "0 of 0 processes" indefinitely.
+ */
+export const FIRST_FRAME_TIMEOUT_MS = 5000;
+
+/** Reported when no frame ever arrives, so the screen can explain why. */
+export const NO_SAMPLER = 'no-sampler';
+
 /** Creates a source backed by the Tauri event channel. */
 export function createTauriSnapshotSource(): SnapshotSource {
   let value = INITIAL;
@@ -52,16 +65,38 @@ export function createTauriSnapshotSource(): SnapshotSource {
 
   let unlisten: (() => void) | null = null;
   let disposed = false;
+  let firstFrameTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /** Leaves `pending` for good, with an error instead of rows. */
+  const giveUp = (reason: string): void => {
+    if (!value.pending) return;
+    publish({ ...value, pending: false, error: reason });
+  };
 
   const start = (): void => {
     // No host means no IPC: `listen()` reaches into an internals global that
     // is undefined and throws "Cannot read properties of undefined (reading
-    // 'transformCallback')" inside a floating promise. The table stays on its
-    // skeletons instead, which is correct under `vite preview` and in tests.
-    if (!hasTauriHost()) return;
+    // 'transformCallback')" inside a floating promise.
+    //
+    // Resolved at once rather than after the timeout: in a browser the answer
+    // is already known, so waiting five seconds to say it is just slower.
+    if (!hasTauriHost()) {
+      giveUp(NO_SAMPLER);
+      return;
+    }
+
+    // The host exists but may still never deliver — a sampler thread that
+    // panicked at startup looks exactly like this and is otherwise invisible.
+    firstFrameTimer = setTimeout(() => {
+      giveUp(NO_SAMPLER);
+    }, FIRST_FRAME_TIMEOUT_MS);
 
     void subscribeToMetrics({
       onSnapshot(snapshot: Snapshot) {
+        if (firstFrameTimer !== null) {
+          clearTimeout(firstFrameTimer);
+          firstFrameTimer = null;
+        }
         publish({
           // The map is mutated in place by the reconciler, so a new object
           // identity is created here for each frame — otherwise
@@ -75,7 +110,9 @@ export function createTauriSnapshotSource(): SnapshotSource {
         });
       },
       onError(message: string) {
-        publish({ ...value, error: message });
+        // `pending` cleared too: an error before the first frame means the
+        // skeletons would otherwise never resolve, hiding the message.
+        publish({ ...value, pending: false, error: message });
       },
     }).then((stop) => {
       if (disposed) stop();
@@ -92,6 +129,10 @@ export function createTauriSnapshotSource(): SnapshotSource {
         listeners.delete(listener);
         if (listeners.size === 0) {
           disposed = true;
+          if (firstFrameTimer !== null) {
+            clearTimeout(firstFrameTimer);
+            firstFrameTimer = null;
+          }
           unlisten?.();
           unlisten = null;
         }

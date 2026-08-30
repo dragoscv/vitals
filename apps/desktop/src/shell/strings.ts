@@ -59,6 +59,10 @@ const en = {
     title: '{{section}} is not ready yet',
     body: 'This section is still being built. Nothing here is missing from your computer — only from Vitals.',
   },
+  routeError: {
+    title: 'This section stopped working',
+    retry: 'Try again',
+  },
 } as const;
 
 const ro = {
@@ -105,6 +109,10 @@ const ro = {
   placeholder: {
     title: '{{section}} nu este gata încă',
     body: 'Această secțiune este încă în lucru. Nu lipsește nimic din calculatorul tău — doar din Vitals.',
+  },
+  routeError: {
+    title: 'Această secțiune a încetat să funcționeze',
+    retry: 'Încearcă din nou',
   },
 } as const;
 
