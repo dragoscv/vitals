@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { initI18n } from '@vitals/i18n';
 
 import { App } from './App';
+import { registerDashboardStrings } from './features/dashboard';
 import { registerShellStrings } from './shell/strings';
 import './styles.css';
 
@@ -24,6 +25,7 @@ async function bootstrap(): Promise<void> {
   // initialised, and this used to run at module scope in `App.tsx` — which
   // threw before React ever mounted and left the app stuck on its splash.
   registerShellStrings();
+  registerDashboardStrings();
 
   createRoot(container).render(
     <StrictMode>

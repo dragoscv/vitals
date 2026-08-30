@@ -13,6 +13,7 @@ import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
 import type { Process } from '@vitals/protocol';
 
 import { subscribeToMetrics, type Snapshot } from '@/lib/metrics';
+import { hasTauriHost } from '../../shell/host';
 
 const EMPTY_PROCESSES: ReadonlyMap<string, Process> = new Map();
 
@@ -53,6 +54,12 @@ export function createTauriSnapshotSource(): SnapshotSource {
   let disposed = false;
 
   const start = (): void => {
+    // No host means no IPC: `listen()` reaches into an internals global that
+    // is undefined and throws "Cannot read properties of undefined (reading
+    // 'transformCallback')" inside a floating promise. The table stays on its
+    // skeletons instead, which is correct under `vite preview` and in tests.
+    if (!hasTauriHost()) return;
+
     void subscribeToMetrics({
       onSnapshot(snapshot: Snapshot) {
         publish({

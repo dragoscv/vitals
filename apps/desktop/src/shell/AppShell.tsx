@@ -102,7 +102,10 @@ export function AppShell({ version }: AppShellProps) {
           />
 
           <Content routeKey={route}>
-            <RouteView route={route} />
+            {/* `navigate` is threaded through so a screen can send the user
+                elsewhere — the dashboard's alerts link to the section that
+                explains them, which is what makes them actionable. */}
+            <RouteView route={route} onNavigate={navigate} />
           </Content>
         </div>
       </div>

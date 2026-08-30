@@ -4,6 +4,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { initI18n, i18n } from '@vitals/i18n';
 
 import type { SettingsBackend } from '../settings/persistence';
+import { registerDashboardStrings } from '../features/dashboard';
 import { resetSettingsForTests, setSettingsBackend, useSettings } from '../settings/store';
 import { ThemeProvider } from '../theme/ThemeProvider';
 import { AppShell } from './AppShell';
@@ -34,6 +35,10 @@ const nullBackend: SettingsBackend = {
 beforeAll(async () => {
   await initI18n();
   registerShellStrings();
+  // The shell renders whichever screen the route names, and the dashboard is
+  // the default route — so its namespace is part of this component's
+  // environment, exactly as it is in `main.tsx`.
+  registerDashboardStrings();
 });
 
 beforeEach(async () => {
@@ -64,7 +69,11 @@ describe('AppShell', () => {
     renderShell();
     const main = screen.getByRole('main');
 
-    expect(within(main).getByText(/Dashboard is not ready yet/)).toBeTruthy();
+    // Dashboard is a real screen now, so it is asserted by its own heading
+    // rather than the placeholder. Storage is still unbuilt and remains the
+    // case that proves an unimplemented route renders its explanation instead
+    // of a blank panel.
+    expect(within(main).getByRole('heading', { name: 'Dashboard' })).toBeTruthy();
 
     fireEvent.click(screen.getByRole('button', { name: 'Storage' }));
 

@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next';
 
 import { EmptyState, Skeleton } from '@vitals/ui';
 
+import { DashboardScreen } from './features/dashboard';
+import { ProcessesScreen } from './features/processes';
 import { navItems, type RouteId } from './shell/navigation';
 import { SHELL_NS } from './shell/strings';
 
@@ -55,11 +57,20 @@ export function RouteSkeleton() {
  * without a view is a compile error at the `never` case, not a blank panel
  * discovered by a user.
  */
-export function RouteView({ route }: { readonly route: RouteId }) {
+export function RouteView({
+  route,
+  onNavigate,
+}: {
+  readonly route: RouteId;
+  /** Lets a screen send the user elsewhere — dashboard alerts do this. */
+  readonly onNavigate?: (route: RouteId) => void;
+}) {
   switch (route) {
     case 'dashboard':
-    case 'performance':
+      return <DashboardScreen onNavigate={onNavigate} />;
     case 'processes':
+      return <ProcessesScreen />;
+    case 'performance':
     case 'startup':
     case 'services':
     case 'appHistory':
