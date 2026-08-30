@@ -38,6 +38,17 @@ export const MISSING_KEYS = {
   'process.action.searchOnline': 'Search online',
   'process.action.copyDetails': 'Copy details',
   'process.action.notImplemented': 'Not wired up yet — the backend command does not exist.',
+  'process.action.priority.idle': 'Low',
+  'process.action.priority.belowNormal': 'Below normal',
+  'process.action.priority.normal': 'Normal',
+  'process.action.priority.aboveNormal': 'Above normal',
+  'process.action.priority.high': 'High',
+  // Named for what it does rather than what Windows calls it. "Realtime" reads
+  // as a promise of speed; it is actually a way to starve input handling and
+  // make the machine look frozen.
+  'process.action.priority.realtime': 'Realtime (can freeze the machine)',
+  'process.action.priority.failed': 'Could not change the priority of {{name}}',
+  'process.action.priority.changed': '{{name}} set to {{priority}}',
   'process.confirm.title': 'End {{name}}?',
   'process.confirm.suspendTitle': 'Suspend {{name}}?',
   'process.confirm.treeTitle': 'End {{name}} and {{count}} child processes?',

@@ -121,7 +121,10 @@ impl Default for AppState {
 fn platform_capabilities() -> Capabilities {
     #[cfg(windows)]
     {
-        vitals_win::WindowsHost::new().capabilities()
+        // `detect()`, not `new()`: the latter is a zero-value constructor for
+        // the pure capability tests, and calling it here meant an elevated
+        // Vitals reported the same capabilities as an unelevated one.
+        vitals_win::WindowsHost::detect().capabilities()
     }
 
     #[cfg(not(windows))]

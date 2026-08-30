@@ -93,6 +93,10 @@ pub fn run() {
             commands::suspend_process,
             #[cfg(windows)]
             commands::resume_process,
+            #[cfg(windows)]
+            commands::set_process_priority,
+            #[cfg(windows)]
+            commands::set_process_affinity,
             // On-demand inventories. Request/response rather than pushed:
             // slow to gather, rarely changing, and only wanted while their
             // own screen is open. See `inventory` for the full argument.

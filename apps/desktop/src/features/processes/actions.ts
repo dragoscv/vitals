@@ -31,6 +31,24 @@ export interface ActionPlan {
   readonly elevationMightHelp: boolean;
 }
 
+/**
+ * Scheduling priorities, slowest to fastest.
+ *
+ * Ordered because the menu presents them as a scale, and an alphabetical or
+ * arbitrary order makes "above normal" and "below normal" easy to misread at
+ * a glance.
+ */
+export const priorities = [
+  'idle',
+  'below-normal',
+  'normal',
+  'above-normal',
+  'high',
+  'realtime',
+] as const;
+
+export type ProcessPriority = (typeof priorities)[number];
+
 /** The narrow surface the UI needs; injectable so tests need no Tauri host. */
 export interface ProcessActionsApi {
   planTerminate(process: Process): Promise<ActionPlan>;
@@ -38,6 +56,16 @@ export interface ProcessActionsApi {
   terminate(process: Process): Promise<void>;
   suspend(process: Process): Promise<void>;
   resume(process: Process): Promise<void>;
+  setPriority(process: Process, priority: ProcessPriority): Promise<void>;
+  /**
+   * Pins a process to a set of logical processors.
+   *
+   * Reachable from here but not yet from the menu: choosing a mask needs a
+   * core picker, which is its own piece of UI. `affinity` therefore stays in
+   * [`UNIMPLEMENTED_ACTIONS`] — shipping a menu item that cannot express the
+   * argument would be worse than one that says it is not ready.
+   */
+  setAffinity(process: Process, mask: bigint): Promise<void>;
 }
 
 /**
@@ -85,6 +113,31 @@ export const tauriProcessActions: ProcessActionsApi = {
       pid: process.key.pid,
       startTime: process.key.startTime,
     }),
+
+  setPriority: (process, priority) =>
+    invoke<void>('set_process_priority', {
+      pid: process.key.pid,
+      startTime: process.key.startTime,
+      priority,
+    }),
+
+  setAffinity: (process, mask) =>
+    invoke<void>('set_process_affinity', {
+      pid: process.key.pid,
+      startTime: process.key.startTime,
+      // Sent as a JSON number, not a string: serde refuses a string for a
+      // `u64` field. Verified — `{"mask":"255"}` fails with `invalid type:
+      // string`, while a bare `18446744073709551615` parses fine, because
+      // serde_json reads the literal digits rather than going through an f64.
+      //
+      // `JSON.stringify` cannot serialise a bigint, so the conversion has to
+      // happen here. Above 2^53 this loses precision — a machine with more
+      // than 53 logical processors cannot express a mask touching its top
+      // cores. That is a real limit, and the reason the caller is not wired
+      // up yet: the core picker that produces this mask has to decide what
+      // to do about it first.
+      mask: Number(mask),
+    }),
 };
 
 /**
@@ -95,12 +148,7 @@ export const tauriProcessActions: ProcessActionsApi = {
  * disabled with a reason reads as honest. Nothing here is faked — the menu
  * items are inert and say why.
  */
-export const UNIMPLEMENTED_ACTIONS = [
-  'priority',
-  'affinity',
-  'openLocation',
-  'properties',
-] as const;
+export const UNIMPLEMENTED_ACTIONS = ['affinity', 'openLocation', 'properties'] as const;
 
 export type UnimplementedAction = (typeof UNIMPLEMENTED_ACTIONS)[number];
 

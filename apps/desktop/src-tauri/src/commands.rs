@@ -6,6 +6,8 @@
 //! serialise on the webview's main thread and make the UI stutter, which is
 //! the exact failure this product exists to avoid.
 
+#[cfg(windows)]
+use serde::Deserialize;
 use tauri::State;
 
 use vitals_core::capability::Capabilities;
@@ -212,6 +214,74 @@ pub fn resume_process(pid: u32, start_time: u64) -> CommandResult<()> {
     use vitals_core::ids::Pid;
 
     vitals_win::actions::resume(ProcessKey::new(Pid(pid), start_time))?;
+    Ok(())
+}
+
+/// Scheduling priority, as the webview names it.
+///
+/// A DTO rather than deriving `Serialize` onto `vitals_win::Priority`: the
+/// platform enum maps onto Windows priority classes and is free to grow a
+/// variant that has no meaning to the UI. This is the wire contract, and it
+/// is meant to be boring.
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[cfg(windows)]
+#[serde(rename_all = "kebab-case")]
+pub enum PriorityDto {
+    Idle,
+    BelowNormal,
+    Normal,
+    AboveNormal,
+    High,
+    Realtime,
+}
+
+#[cfg(windows)]
+impl From<PriorityDto> for vitals_win::Priority {
+    fn from(value: PriorityDto) -> Self {
+        match value {
+            PriorityDto::Idle => Self::Idle,
+            PriorityDto::BelowNormal => Self::BelowNormal,
+            PriorityDto::Normal => Self::Normal,
+            PriorityDto::AboveNormal => Self::AboveNormal,
+            PriorityDto::High => Self::High,
+            PriorityDto::Realtime => Self::Realtime,
+        }
+    }
+}
+
+/// Changes a process's scheduling priority.
+///
+/// `vitals-win` has implemented this since the actions module landed, and the
+/// capability report advertised it — but no command exposed it, so the UI
+/// listed it as unimplemented. The backend was claiming a capability the
+/// frontend had no way to reach.
+///
+/// Realtime is deliberately reachable. A CPU-bound process there can starve
+/// input and make the machine look frozen, which is why the UI warns; hiding
+/// the option outright would just send people to Task Manager to do the same
+/// thing with less warning.
+#[tauri::command]
+#[cfg(windows)]
+#[allow(clippy::needless_pass_by_value)]
+pub fn set_process_priority(pid: u32, start_time: u64, priority: PriorityDto) -> CommandResult<()> {
+    use vitals_core::ids::Pid;
+
+    vitals_win::actions::set_priority(ProcessKey::new(Pid(pid), start_time), priority.into())?;
+    Ok(())
+}
+
+/// Pins a process to a set of logical processors.
+///
+/// The mask is a bitfield, one bit per logical processor. An empty mask is
+/// refused by the backend rather than being treated as "all": a process
+/// affinitised to no processor cannot be scheduled at all, and Windows
+/// returns a bare `INVALID_PARAMETER` that says nothing about why.
+#[tauri::command]
+#[cfg(windows)]
+pub fn set_process_affinity(pid: u32, start_time: u64, mask: u64) -> CommandResult<()> {
+    use vitals_core::ids::Pid;
+
+    vitals_win::actions::set_affinity(ProcessKey::new(Pid(pid), start_time), mask)?;
     Ok(())
 }
 

@@ -16,6 +16,7 @@ import {
   tauriProcessActions,
   type ActionPlan,
   type ProcessActionsApi,
+  type ProcessPriority,
 } from './actions';
 import {
   DEFAULT_PREFERENCES,
@@ -324,6 +325,19 @@ export function ProcessesScreen({
       onSuspend: () => void beginAction('suspend', row),
       onResume: () => {
         void actions.resume(row.process).catch((error: unknown) => setFailure(errorMessage(error)));
+      },
+      // No confirmation. Priority is reversible, takes effect immediately and
+      // is undone by choosing another — the plan-then-confirm path exists for
+      // actions that destroy work, and putting a dialog in front of this one
+      // would dilute the ones that matter.
+      //
+      // Realtime is the arguable exception, but its own menu label carries
+      // the warning, which is a better place for it than a modal the user
+      // learns to dismiss.
+      onSetPriority: (priority: ProcessPriority) => {
+        void actions
+          .setPriority(row.process, priority)
+          .catch((error: unknown) => setFailure(errorMessage(error)));
       },
       onSearchOnline: () => {
         globalThis.open?.(

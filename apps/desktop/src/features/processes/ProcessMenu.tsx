@@ -22,10 +22,38 @@ import {
 
 import type { Process } from '@vitals/protocol';
 
-import { UNIMPLEMENTED_ACTIONS, type UnimplementedAction } from './actions';
+import {
+  UNIMPLEMENTED_ACTIONS,
+  priorities,
+  type ProcessPriority,
+  type UnimplementedAction,
+} from './actions';
 import { fallback } from './strings';
 
-const PRIORITIES = ['realtime', 'high', 'aboveNormal', 'normal', 'belowNormal', 'idle'] as const;
+/**
+ * Highest first, which is the reverse of the wire order.
+ *
+ * A menu is read top-down and "make this faster" is the common intent, so the
+ * option people want is under the cursor rather than at the bottom.
+ */
+const MENU_ORDER: readonly ProcessPriority[] = [...priorities].reverse();
+
+/**
+ * Translation key per wire value.
+ *
+ * Written out rather than derived by string manipulation so `fallback` can
+ * typecheck it. A derived `process.action.priority.${string}` is opaque to
+ * the compiler, which is exactly how a missing translation reaches the UI as
+ * a raw key path.
+ */
+const PRIORITY_KEYS = {
+  idle: 'process.action.priority.idle',
+  'below-normal': 'process.action.priority.belowNormal',
+  normal: 'process.action.priority.normal',
+  'above-normal': 'process.action.priority.aboveNormal',
+  high: 'process.action.priority.high',
+  realtime: 'process.action.priority.realtime',
+} as const satisfies Record<ProcessPriority, string>;
 
 export interface ProcessMenuProps {
   readonly process: Process;
@@ -34,6 +62,7 @@ export interface ProcessMenuProps {
   readonly onTerminateTree: () => void;
   readonly onSuspend: () => void;
   readonly onResume: () => void;
+  readonly onSetPriority: (priority: ProcessPriority) => void;
   readonly onSearchOnline: () => void;
   readonly onCopyDetails: () => void;
 }
@@ -72,24 +101,27 @@ export function ProcessMenu(props: ProcessMenuProps): React.JSX.Element {
         <ContextMenuItem onSelect={props.onSuspend}>{t('process.action.suspend')}</ContextMenuItem>
       )}
 
-      {/* Priority, affinity, file location and properties have no backend
-          command yet. They are shown disabled with the reason rather than
-          hidden: a task manager with no priority menu reads as unfinished,
-          and one that fakes the action would be worse than either. */}
       <ContextMenuSub>
-        <ContextMenuSubTrigger disabled title={unavailable(t)}>
-          {t('process.action.priority')}
-        </ContextMenuSubTrigger>
+        <ContextMenuSubTrigger>{t('process.action.priority')}</ContextMenuSubTrigger>
         <ContextMenuSubContent>
-          {PRIORITIES.map((priority) => (
-            <ContextMenuItem key={priority} disabled>
-              {priority}
+          {MENU_ORDER.map((priority) => (
+            <ContextMenuItem
+              key={priority}
+              onSelect={() => {
+                props.onSetPriority(priority);
+              }}
+            >
+              {t(PRIORITY_KEYS[priority], fallback(PRIORITY_KEYS[priority]))}
             </ContextMenuItem>
           ))}
         </ContextMenuSubContent>
       </ContextMenuSub>
 
-      {UNIMPLEMENTED_ACTIONS.filter((action) => action !== 'priority').map((action) => (
+      {/* File location and properties still have no backend command. Shown
+          disabled with the reason rather than hidden: a task manager missing
+          them reads as unfinished, and one that fakes them would be worse
+          than either. */}
+      {UNIMPLEMENTED_ACTIONS.map((action) => (
         <ContextMenuItem key={action} disabled title={unavailable(t)}>
           {t(`process.action.${action satisfies UnimplementedAction}`)}
         </ContextMenuItem>

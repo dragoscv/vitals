@@ -55,6 +55,8 @@ function stubActions(overrides: Partial<ProcessActionsApi> = {}): ProcessActions
     terminate: vi.fn(async () => undefined),
     suspend: vi.fn(async () => undefined),
     resume: vi.fn(async () => undefined),
+    setPriority: vi.fn(async () => undefined),
+    setAffinity: vi.fn(async () => undefined),
     ...overrides,
   };
 }
@@ -354,6 +356,32 @@ describe('keyboard access', () => {
     await screen.findByTestId('risk-dialog');
     fireEvent.click(screen.getByTestId('risk-confirm'));
     await waitFor(() => expect(actions.terminate).toHaveBeenCalledOnce());
+  });
+
+  it('changes priority from the submenu without a confirmation dialog', async () => {
+    // The submenu was inert for a long time — the backend command existed and
+    // nothing exposed it — so this asserts the whole path, not just that the
+    // items render.
+    //
+    // No dialog on purpose: priority is reversible and immediate, and putting
+    // a modal in front of it would dilute the ones guarding actions that
+    // destroy work.
+    const actions = stubActions();
+    mountScreen(actions);
+    await openMenuFor(300);
+
+    const menu = await screen.findByRole('menu');
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Priority' }));
+
+    const item = await screen.findByRole('menuitem', { name: 'Below normal' });
+    fireEvent.click(item);
+
+    await waitFor(() => expect(actions.setPriority).toHaveBeenCalledOnce());
+    expect(actions.setPriority).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'chrome.exe' }),
+      'below-normal',
+    );
+    expect(screen.queryByTestId('risk-dialog')).toBeNull();
   });
 
   it('Delete goes through the same plan-and-confirm path as the menu', async () => {

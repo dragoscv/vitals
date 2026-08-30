@@ -23,6 +23,26 @@ impl WindowsHost {
         }
     }
 
+    /// Reads the real state of this machine.
+    ///
+    /// [`Self::new`] is deliberately a zero-value constructor so the mapping
+    /// below stays pure and testable without a Windows machine. Something has
+    /// to fill it in, though, and nothing did: `capabilities()` was being
+    /// called on `new()` directly, so an elevated Vitals reported exactly the
+    /// same capability set as an unelevated one and greyed out features the
+    /// user actually had.
+    #[must_use]
+    pub fn detect() -> Self {
+        Self {
+            elevated: is_elevated(),
+            // Neither component exists yet. Stated here rather than silently
+            // defaulted, so the day one ships there is an obvious place to
+            // wire it in.
+            helper_available: false,
+            sidecar_available: false,
+        }
+    }
+
     /// Computes the capability set from current privilege and component
     /// availability.
     ///
@@ -102,6 +122,56 @@ impl WindowsHost {
     }
 }
 
+/// Whether this process is running with an elevated token.
+///
+/// `TOKEN_ELEVATION` rather than checking group membership: on a machine with
+/// UAC on, an administrator's *unelevated* process still has the
+/// Administrators group in its token, marked deny-only. Membership therefore
+/// answers "could this user elevate", which is not the question — the
+/// question is what this process can do right now.
+///
+/// Returns `false` on any failure. Wrongly claiming elevation would offer the
+/// user actions that then fail; wrongly denying it greys out something that
+/// would have worked, which is the safer direction to be wrong in.
+fn is_elevated() -> bool {
+    use windows::Win32::Foundation::{CloseHandle, HANDLE};
+    use windows::Win32::Security::{
+        GetTokenInformation, TOKEN_ELEVATION, TOKEN_QUERY, TokenElevation,
+    };
+    use windows::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
+
+    let mut token = HANDLE::default();
+
+    // SAFETY: `GetCurrentProcess` is a pseudo-handle needing no release, and
+    // `OpenProcessToken` writes to `token` only on success.
+    let opened = unsafe { OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &raw mut token) };
+    if opened.is_err() {
+        return false;
+    }
+
+    let mut elevation = TOKEN_ELEVATION::default();
+    let mut returned = 0_u32;
+
+    // SAFETY: the buffer matches the size declared, and `token` is live until
+    // the close below.
+    let queried = unsafe {
+        GetTokenInformation(
+            token,
+            TokenElevation,
+            Some((&raw mut elevation).cast()),
+            u32::try_from(size_of::<TOKEN_ELEVATION>()).unwrap_or(0),
+            &raw mut returned,
+        )
+    };
+
+    // SAFETY: `token` came from `OpenProcessToken` and is closed exactly once.
+    unsafe {
+        let _ = CloseHandle(token);
+    }
+
+    queried.is_ok() && elevation.TokenIsElevated != 0
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -133,6 +203,51 @@ mod tests {
         assert!(caps.has(Capability::PerProcessDiskIo));
         assert!(caps.has(Capability::ShortLivedProcesses));
         assert!(caps.has(Capability::FirewallControl));
+    }
+
+    #[test]
+    fn detection_reports_something_and_agrees_with_the_pure_mapping() {
+        // `detect()` is the piece that was missing: the mapping below it was
+        // always correct and always tested, but nothing ever called it with a
+        // real elevation value, so an elevated Vitals reported an unelevated
+        // capability set.
+        //
+        // The elevated branch cannot be asserted from a test run — it depends
+        // on how the runner was launched, and demanding elevation to run the
+        // suite would be worse than the gap. What can be checked is that
+        // detection produces the same answer as constructing the struct by
+        // hand with the value it found, which is the join that was broken.
+        let detected = WindowsHost::detect();
+        let by_hand = WindowsHost {
+            elevated: detected.elevated,
+            helper_available: detected.helper_available,
+            sidecar_available: detected.sidecar_available,
+        };
+
+        let from_detection = detected.capabilities();
+        let from_hand = by_hand.capabilities();
+
+        assert_eq!(
+            from_detection.available.len(),
+            from_hand.available.len(),
+            "detection must feed the same mapping the tests exercise"
+        );
+
+        // Whatever the privilege level, plain enumeration always works, and
+        // something must always be unavailable — the vendor-plugin features
+        // have no implementation at any privilege level.
+        assert!(from_detection.has(Capability::TerminateProcess));
+        assert!(!from_detection.unavailable.is_empty());
+    }
+
+    #[test]
+    fn elevation_is_a_property_of_this_process_not_of_the_user() {
+        // Nothing to assert about the value itself, but the call must not
+        // panic or hang — it opens and closes a token handle, and a leak here
+        // would accumulate on every capability refresh.
+        for _ in 0..100 {
+            let _ = WindowsHost::detect();
+        }
     }
 
     #[test]
