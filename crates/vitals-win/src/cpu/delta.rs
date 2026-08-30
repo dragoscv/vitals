@@ -135,8 +135,18 @@ pub fn process_cpu_percent(
         return Percent::ZERO;
     }
 
+    // Convert to f64 *before* dividing.
+    //
+    // Integer division here truncates: a process at 3.7% reported 3%, and
+    // anything under 1% reported 0%. Since most processes on an idle machine
+    // sit between 0.1% and 0.9%, that rendered almost the entire table as
+    // zero — which is exactly the uselessly coarse behaviour we are trying
+    // to improve on.
+    //
+    // f64 rather than f32: the numerator is a 100ns tick count that reaches
+    // ~10^14 within a day of uptime, well past f32's 24-bit mantissa.
     let used = u128::from(process_delta).saturating_mul(100);
-    Percent::new((used / available) as f32)
+    Percent::new((used as f64 / available as f64) as f32)
 }
 
 #[cfg(test)]
@@ -256,6 +266,40 @@ mod tests {
     fn process_cpu_handles_degenerate_inputs() {
         assert_eq!(process_cpu_percent(SECOND, 0, 4), Percent::ZERO);
         assert_eq!(process_cpu_percent(SECOND, SECOND, 0), Percent::ZERO);
+    }
+
+    #[test]
+    fn fractional_process_cpu_is_not_truncated_to_zero() {
+        // Regression guard. Integer division reported every process using
+        // under 1% of the machine as exactly 0%, which on an idle box is
+        // almost all of them.
+        //
+        // Half a core-second over one second on 32 cores = 1.5625%.
+        let cpu = process_cpu_percent(SECOND / 2, SECOND, 32);
+        assert!(
+            (cpu.get() - 1.5625).abs() < 0.001,
+            "expected 1.5625%, got {cpu}"
+        );
+    }
+
+    #[test]
+    fn sub_one_percent_usage_is_reported_with_precision() {
+        // 1% of one core on a 32-core machine = 0.03125% of the machine.
+        let cpu = process_cpu_percent(SECOND / 100, SECOND, 32);
+        assert!(
+            cpu.get() > 0.0,
+            "a busy process must never read as exactly zero"
+        );
+        assert!((cpu.get() - 0.031_25).abs() < 0.0001, "got {cpu}");
+    }
+
+    #[test]
+    fn precision_holds_after_days_of_uptime() {
+        // A 100ns tick count reaches ~8.6e11 per day per core, which
+        // overflows f32's exact-integer range. f64 keeps the ratio accurate.
+        let a_week = SECOND * 60 * 60 * 24 * 7;
+        let cpu = process_cpu_percent(a_week / 4, a_week, 4);
+        assert!((cpu.get() - 6.25).abs() < 0.01, "got {cpu}");
     }
 
     #[test]

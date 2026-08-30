@@ -102,7 +102,14 @@ pub struct MemoryMetrics {
     pub committed: Bytes,
     pub commit_limit: Bytes,
     pub swap_total: Bytes,
-    pub swap_used: Bytes,
+    /// Page file / swap actually occupied.
+    ///
+    /// `None` where the platform cannot report it cheaply. On Windows the
+    /// figure is only available through WMI or a performance counter, both
+    /// far too slow for the per-tick path, so it arrives on a slower cadence.
+    /// Zero would be a lie — an idle page file and an unmeasured one are
+    /// different facts.
+    pub swap_used: Option<Bytes>,
     /// Hardware-reserved, invisible to the OS.
     pub hardware_reserved: Bytes,
     /// Page faults per second — the real indicator of memory pressure.

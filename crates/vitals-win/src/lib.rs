@@ -26,6 +26,10 @@
 
 pub mod cpu;
 pub mod host;
+pub mod memory;
+pub mod process;
 
 pub use cpu::{CpuTimes, CpuUsage};
 pub use host::WindowsHost;
+pub use memory::{MemoryPressure, MemorySampler};
+pub use process::{ProcessEnumerator, RawProcess};
