@@ -24,6 +24,8 @@
 
 #![cfg(windows)]
 
+pub mod cpu;
 pub mod host;
 
+pub use cpu::{CpuTimes, CpuUsage};
 pub use host::WindowsHost;
