@@ -70,16 +70,16 @@ describe('AppShell', () => {
     const main = screen.getByRole('main');
 
     // Dashboard is a real screen now, so it is asserted by its own heading
-    // rather than the placeholder. Benchmarks is still unbuilt and is now the
-    // case that proves an unimplemented route renders its explanation instead
-    // of a blank panel — Storage used to play that role and has since been
-    // built, which is exactly the drift this comment exists to prevent.
+    // rather than the placeholder. Users is still unbuilt and is now the case
+    // that proves an unimplemented route renders its explanation instead of a
+    // blank panel — Storage, then Benchmarks, each played that role and have
+    // since been built, which is exactly the drift this comment prevents.
     expect(within(main).getByRole('heading', { name: 'Dashboard' })).toBeTruthy();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Benchmarks' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Users' }));
 
-    expect(within(main).getByText(/Benchmarks is not ready yet/)).toBeTruthy();
-    expect(useSettings.getState().route).toBe('benchmarks');
+    expect(within(main).getByText(/Users is not ready yet/)).toBeTruthy();
+    expect(useSettings.getState().route).toBe('users');
   });
 
   it('names the window after the section so the taskbar says where you are', () => {

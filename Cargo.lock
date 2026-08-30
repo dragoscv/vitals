@@ -4928,6 +4928,7 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "vitals-core",
+ "vitals-win",
 ]
 
 [[package]]
@@ -4972,6 +4973,7 @@ dependencies = [
  "thiserror 2.0.20",
  "tracing",
  "tracing-subscriber",
+ "vitals-bench",
  "vitals-core",
  "vitals-ipc",
  "vitals-linux",

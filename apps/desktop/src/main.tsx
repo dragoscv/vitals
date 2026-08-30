@@ -5,6 +5,7 @@ import { initI18n } from '@vitals/i18n';
 
 import { App } from './App';
 import { registerAppsStrings } from './features/apps';
+import { registerBenchmarksStrings } from './features/benchmarks';
 import { registerConnectionStrings } from './features/connections';
 import { registerDashboardStrings } from './features/dashboard';
 import { registerDevicesStrings } from './features/devices';
@@ -38,6 +39,7 @@ async function bootstrap(): Promise<void> {
   registerAppsStrings();
   registerStorageStrings();
   registerDevicesStrings();
+  registerBenchmarksStrings();
 
   createRoot(container).render(
     <StrictMode>

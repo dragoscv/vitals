@@ -5,6 +5,7 @@
 //! prepared frames, because a task manager whose own UI thread is busy
 //! aggregating numbers will misreport the machine it is measuring.
 
+pub mod benchmarks;
 pub mod commands;
 pub mod inventory;
 pub mod sampling;
@@ -115,6 +116,13 @@ pub fn run() {
             inventory::cancel_storage_scan,
             #[cfg(windows)]
             inventory::find_cleanup_candidates,
+            // Benchmarks. The extreme case of the on-demand argument above:
+            // a suite occupies every core for seconds, so it is only ever
+            // started by the user from its own screen.
+            #[cfg(windows)]
+            benchmarks::list_benchmarks,
+            #[cfg(windows)]
+            benchmarks::run_benchmarks,
         ])
         .run(tauri::generate_context!())
         .expect("failed to start the Vitals application");

@@ -15,8 +15,29 @@
 //!   single run on a machine with background load is noise.
 //! - A run is marked `tainted` if load appeared mid-benchmark, rather than
 //!   being quietly published.
+//!
+//! ## What is here
+//!
+//! - [`workloads`] — the four measurements this build performs, and the
+//!   `black_box` barriers that stop the optimiser deleting them.
+//! - [`conditions`] — reads the real power plan, line status and background
+//!   CPU so [`RunConditions`] is measured rather than defaulted.
+//! - [`runner`] — the catalogue of every benchmark the UI may list, including
+//!   the six that resolve to a stated reason instead of a number, plus the
+//!   repeat-and-median loop.
 
 use serde::{Deserialize, Serialize};
+
+pub mod conditions;
+pub mod rng;
+pub mod runner;
+pub mod workloads;
+
+pub use conditions::ConditionsProbe;
+pub use runner::{
+    BenchmarkInfo, BenchmarkSuite, CATALOGUE, RUNS_PER_BENCHMARK, Runner, Unavailable, info_for,
+    unavailable_reason, unit_for,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -32,6 +53,44 @@ pub enum BenchmarkKind {
     DiskRandomWrite,
     GpuCompute,
     GpuRender,
+}
+
+impl BenchmarkKind {
+    /// The camelCase identifier the frontend uses.
+    ///
+    /// Deliberately separate from the `kebab-case` serde representation: that
+    /// one is the persisted form in saved benchmark history and changing it
+    /// would orphan stored results, whereas this is the IPC vocabulary the UI
+    /// switches on. Coupling the two would mean a rename in either place
+    /// silently breaking the other.
+    #[must_use]
+    pub const fn id(self) -> &'static str {
+        match self {
+            Self::CpuSingleThread => "cpuSingleThread",
+            Self::CpuMultiThread => "cpuMultiThread",
+            Self::MemoryBandwidth => "memoryBandwidth",
+            Self::MemoryLatency => "memoryLatency",
+            Self::DiskSequentialRead => "diskSequentialRead",
+            Self::DiskSequentialWrite => "diskSequentialWrite",
+            Self::DiskRandomRead => "diskRandomRead",
+            Self::DiskRandomWrite => "diskRandomWrite",
+            Self::GpuCompute => "gpuCompute",
+            Self::GpuRender => "gpuRender",
+        }
+    }
+
+    /// Parses an identifier sent by the frontend.
+    ///
+    /// Returns `None` for anything unrecognised so the command layer can
+    /// refuse it by name, rather than falling back to a default kind and
+    /// running a benchmark nobody asked for.
+    #[must_use]
+    pub fn from_id(id: &str) -> Option<Self> {
+        CATALOGUE
+            .iter()
+            .map(|info| info.kind)
+            .find(|kind| kind.id() == id)
+    }
 }
 
 /// Conditions during a run, recorded so results are comparable.
@@ -186,5 +245,21 @@ mod tests {
                 .variability()
                 .is_none()
         );
+    }
+
+    #[test]
+    fn every_id_round_trips() {
+        // The frontend contract is these exact strings; a typo here is a
+        // benchmark the UI can list but never start.
+        for info in CATALOGUE {
+            assert_eq!(BenchmarkKind::from_id(info.kind.id()), Some(info.kind));
+        }
+    }
+
+    #[test]
+    fn unknown_ids_are_rejected_rather_than_defaulted() {
+        assert_eq!(BenchmarkKind::from_id("cpu-single-thread"), None);
+        assert_eq!(BenchmarkKind::from_id(""), None);
+        assert_eq!(BenchmarkKind::from_id("diskSequentialReadd"), None);
     }
 }

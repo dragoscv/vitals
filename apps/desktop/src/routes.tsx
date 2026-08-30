@@ -6,6 +6,7 @@ import { EmptyState, Skeleton } from '@vitals/ui';
 import { DashboardScreen } from './features/dashboard';
 import { ConnectionsScreen } from './features/connections';
 import { AppsScreen } from './features/apps';
+import { BenchmarksScreen } from './features/benchmarks';
 import { DevicesScreen } from './features/devices';
 import { PerformanceScreen } from './features/performance';
 import { ProcessesScreen } from './features/processes';
@@ -92,9 +93,10 @@ export function RouteView({
       return <StorageScreen />;
     case 'devices':
       return <DevicesScreen />;
+    case 'benchmarks':
+      return <BenchmarksScreen />;
     case 'appHistory':
     case 'users':
-    case 'benchmarks':
       return <NotBuiltYet route={route} />;
     default: {
       const exhaustive: never = route;

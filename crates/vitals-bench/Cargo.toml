@@ -12,5 +12,11 @@ description = "Benchmark harness and scoring."
 vitals-core = { workspace = true }
 serde = { workspace = true }
 
+# Only for `conditions`: the power scheme, AC line status and background CPU
+# a run happened under. A benchmark score without them is not comparable, and
+# there is no portable way to read any of the three.
+[target.'cfg(windows)'.dependencies]
+vitals-win = { workspace = true }
+
 [lints]
 workspace = true
