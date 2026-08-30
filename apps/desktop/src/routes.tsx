@@ -6,9 +6,11 @@ import { EmptyState, Skeleton } from '@vitals/ui';
 import { DashboardScreen } from './features/dashboard';
 import { ConnectionsScreen } from './features/connections';
 import { AppsScreen } from './features/apps';
+import { DevicesScreen } from './features/devices';
 import { PerformanceScreen } from './features/performance';
 import { ProcessesScreen } from './features/processes';
 import { StartupScreen } from './features/startup';
+import { StorageScreen } from './features/storage';
 import { navItems, type RouteId } from './shell/navigation';
 import { SHELL_NS } from './shell/strings';
 
@@ -86,10 +88,12 @@ export function RouteView({
       return <StartupScreen mode="services" />;
     case 'installedApps':
       return <AppsScreen />;
+    case 'storage':
+      return <StorageScreen />;
+    case 'devices':
+      return <DevicesScreen />;
     case 'appHistory':
     case 'users':
-    case 'storage':
-    case 'devices':
     case 'benchmarks':
       return <NotBuiltYet route={route} />;
     default: {

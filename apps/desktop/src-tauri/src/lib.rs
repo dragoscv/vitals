@@ -101,6 +101,20 @@ pub fn run() {
             inventory::get_installed_apps,
             #[cfg(windows)]
             inventory::uninstall_app,
+            #[cfg(windows)]
+            inventory::get_sensors,
+            // Storage. `scan_storage` and `find_cleanup_candidates` are
+            // async so the synchronous command thread stays free — otherwise
+            // `cancel_storage_scan` would queue behind the very scan it is
+            // meant to stop.
+            #[cfg(windows)]
+            inventory::get_volumes,
+            #[cfg(windows)]
+            inventory::scan_storage,
+            #[cfg(windows)]
+            inventory::cancel_storage_scan,
+            #[cfg(windows)]
+            inventory::find_cleanup_candidates,
         ])
         .run(tauri::generate_context!())
         .expect("failed to start the Vitals application");
