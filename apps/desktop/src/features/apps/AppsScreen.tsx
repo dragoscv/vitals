@@ -65,10 +65,12 @@ export function AppsScreen({
   const [confirming, setConfirming] = useState<InstalledApp | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  const apps = state.snapshot?.apps ?? [];
+  // The `?? []` fallback goes inside the memo. Outside it, the empty array
+  // is a fresh identity on every render, so the memo's dependency changes
+  // every time and it recomputes a sort of the whole list for nothing.
   const visible = useMemo(
-    () => sortApps(filterApps(apps, query), sort, locale),
-    [apps, query, sort, locale],
+    () => sortApps(filterApps(state.snapshot?.apps ?? [], query), sort, locale),
+    [state.snapshot?.apps, query, sort, locale],
   );
 
   if (state.pending) return <AppsSkeleton />;

@@ -1,4 +1,4 @@
-import { Suspense, lazy } from 'react';
+import { Activity, Suspense, lazy, useState } from 'react';
 
 import { Skeleton } from '@vitals/ui';
 
@@ -103,14 +103,51 @@ export function RouteView({
   /** Lets a screen send the user elsewhere — dashboard alerts do this. */
   readonly onNavigate?: (route: RouteId) => void;
 }) {
+  // Every route the user has opened stays mounted, hidden, for the rest of
+  // the session.
+  //
+  // Previously exactly one screen existed at a time, so leaving a section
+  // destroyed it and returning re-ran its whole load: scroll position, sort
+  // order, expanded rows and search text all reset, and the Startup tab paid
+  // another registry-and-SCM walk to redraw a list the user had just been
+  // reading.
+  //
+  // `<Activity mode="hidden">` keeps the state and the DOM but tears down
+  // effects, so a hidden screen holds no subscription and no timer. That is
+  // the property that makes this affordable: eleven mounted screens cost
+  // eleven React trees in memory, not eleven pollers.
+  //
+  // Only VISITED routes are rendered. Rendering all eleven up front would
+  // resolve every `lazy` import immediately and undo the code splitting that
+  // keeps the first paint cheap.
+  // State rather than a ref: a ref mutated during render is invisible to
+  // React's concurrent scheduler, which may render a component twice or
+  // discard the result. The lint rule that forbids it is correct — the
+  // symptom would be a route occasionally not appearing in the set at all.
+  //
+  // The updater returns the SAME set when the route is already known, so a
+  // revisit is not a state change and does not re-render.
+  const [visited, setVisited] = useState<ReadonlySet<RouteId>>(() => new Set([route]));
+
+  if (!visited.has(route)) {
+    // Setting state during render is the supported way to derive state from
+    // props. React discards the in-progress render and immediately retries
+    // with the new value, before anything reaches the DOM.
+    setVisited((current) => (current.has(route) ? current : new Set(current).add(route)));
+  }
+
   return (
-    // Keyed on the route so switching sections shows the skeleton again
-    // rather than holding the previous screen visible while the next chunk
-    // loads. Without the key React would keep the old boundary mounted and
-    // the app would appear frozen for the duration of the fetch.
-    <Suspense key={route} fallback={<RouteSkeleton />}>
-      <RouteContent route={route} {...(onNavigate && { onNavigate })} />
-    </Suspense>
+    <>
+      {[...visited].map((id) => (
+        // Keyed per route, and each gets its own boundary: a section still
+        // loading its chunk must not blank a sibling that is already up.
+        <Activity key={id} mode={id === route ? 'visible' : 'hidden'}>
+          <Suspense fallback={<RouteSkeleton />}>
+            <RouteContent route={id} {...(onNavigate && { onNavigate })} />
+          </Suspense>
+        </Activity>
+      ))}
+    </>
   );
 }
 

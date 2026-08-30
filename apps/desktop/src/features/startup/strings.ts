@@ -27,6 +27,7 @@ const en = {
   },
 
   refresh: 'Refresh',
+  refreshing: 'Refreshing…',
 
   filter: {
     all: 'All',
@@ -133,6 +134,7 @@ const ro = {
   },
 
   refresh: 'Reîmprospătează',
+  refreshing: 'Se reîmprospătează…',
 
   filter: {
     all: 'Toate',

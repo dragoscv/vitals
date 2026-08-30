@@ -51,7 +51,11 @@ export function AppHistoryScreen({
   const [sort, setSort] = useState<HistorySort>('cpu');
   const [confirmingClear, setConfirmingClear] = useState(false);
 
-  const records = state.snapshot?.records ?? [];
+  // Memoised rather than written inline as `?? []`: a fresh empty array on
+  // every render is a new identity, which changes the dependency below and
+  // makes the sort recompute for nothing.
+  const records = useMemo(() => state.snapshot?.records ?? [], [state.snapshot?.records]);
+
   const visible = useMemo(
     () => sortHistory(filterHistory(records, query), sort, locale),
     [records, query, sort, locale],

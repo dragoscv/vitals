@@ -39,8 +39,23 @@ export async function readStartup(withServiceConfig: boolean): Promise<StartupSn
 
 export interface StartupState {
   readonly snapshot: StartupSnapshot | null;
-  /** True until the first read settles, whether it succeeds or fails. */
+  /**
+   * True only while there is nothing to show yet.
+   *
+   * Distinct from [`refreshing`] on purpose. Screens stay mounted between
+   * navigations now, so returning to one re-reads while a perfectly good
+   * list is already on screen. Treating that as "pending" replaced the list
+   * with a skeleton every time the user came back — the exact flicker this
+   * hook is meant to avoid.
+   */
   readonly pending: boolean;
+  /**
+   * True while a read is in flight that is *not* the first one.
+   *
+   * The screen shows the existing data and a quiet indicator rather than
+   * tearing the list down.
+   */
+  readonly refreshing: boolean;
   readonly error: string | null;
   refresh: () => void;
 }
@@ -48,6 +63,7 @@ export interface StartupState {
 export function useStartup(withServiceConfig: boolean, reader?: StartupReader): StartupState {
   const [snapshot, setSnapshot] = useState<StartupSnapshot | null>(null);
   const [pending, setPending] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // An injected reader replaces the host check rather than being consulted
@@ -61,14 +77,24 @@ export function useStartup(withServiceConfig: boolean, reader?: StartupReader): 
   const inFlight = useRef(false);
   const mounted = useRef(true);
 
+  // Survives the effect teardown that `<Activity mode="hidden">` performs,
+  // which is what lets a return visit know it already has something to show.
+  const hasData = useRef(false);
+
   const load = useCallback(async () => {
     if (inFlight.current) return;
     inFlight.current = true;
+
+    // `hasData` is read from the ref rather than the state value so this
+    // does not need `snapshot` in its dependency list — which would rebuild
+    // `load`, retrigger the effect below, and refetch in a loop.
+    if (hasData.current) setRefreshing(true);
 
     try {
       const next = await readerRef.current(withServiceConfig);
       if (!mounted.current) return;
       setSnapshot(next);
+      hasData.current = true;
       setError(null);
     } catch (cause: unknown) {
       if (!mounted.current) return;
@@ -77,7 +103,10 @@ export function useStartup(withServiceConfig: boolean, reader?: StartupReader): 
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
       inFlight.current = false;
-      if (mounted.current) setPending(false);
+      if (mounted.current) {
+        setPending(false);
+        setRefreshing(false);
+      }
     }
   }, [withServiceConfig]);
 
@@ -106,5 +135,12 @@ export function useStartup(withServiceConfig: boolean, reader?: StartupReader): 
     };
   }, [load, injected]);
 
-  return { snapshot, pending, error, refresh };
+  // `pending` needs no guard against the refresh case: it is set to false
+  // once and never back to true, so after the first load it stays false for
+  // the life of the hook. The skeleton-on-every-return that motivated this
+  // work came from the screen being UNMOUNTED, which reset this to its
+  // `useState(true)` initial value; `<Activity>` keeps it mounted and the
+  // state survives. Verified by reintroducing a gate here and watching the
+  // tests pass unchanged — it was solving a problem that did not exist.
+  return { snapshot, pending, refreshing, error, refresh };
 }

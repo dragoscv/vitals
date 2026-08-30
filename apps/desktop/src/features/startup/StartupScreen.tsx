@@ -20,7 +20,7 @@ import { RefreshCw, ShieldAlert } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { Badge, Button, EmptyState, SearchInput, SegmentedControl, Skeleton } from '@vitals/ui';
+import { Badge, Button, EmptyState, SearchInput, SegmentedControl, Skeleton, cn } from '@vitals/ui';
 
 import {
   countServices,
@@ -85,9 +85,13 @@ export function StartupScreen({ mode, reader }: StartupScreenProps): React.JSX.E
           <h2 className="text-lg font-semibold">{t(`${mode}.title`)}</h2>
           <p className="text-2xs text-[var(--color-fg-muted)]">{t(`${mode}.subtitle`)}</p>
         </div>
-        <Button variant="ghost" size="sm" onClick={state.refresh}>
-          <RefreshCw aria-hidden className="size-4" />
-          {t('refresh')}
+        {/* The spin is the only signal that a re-read is happening. Screens
+            stay mounted now, so returning to this tab refreshes underneath a
+            list that is already drawn — without this the data would change
+            under the user with no explanation. */}
+        <Button variant="ghost" size="sm" onClick={state.refresh} disabled={state.refreshing}>
+          <RefreshCw aria-hidden className={cn('size-4', state.refreshing && 'animate-spin')} />
+          {state.refreshing ? t('refreshing') : t('refresh')}
         </Button>
       </header>
 
