@@ -61,6 +61,13 @@ pub struct SampledProcess {
     pub cpu: Percent,
     pub disk_read: BytesPerSec,
     pub disk_write: BytesPerSec,
+    /// Share of GPU this process was responsible for, when the WDDM counters
+    /// report it.
+    ///
+    /// `None` rather than zero on a machine with no GPU Engine counters. Zero
+    /// would claim the process used no GPU, which is a different statement
+    /// from not having measured.
+    pub gpu: Option<Percent>,
 }
 
 /// Samples every subsystem on a shared clock.
@@ -187,10 +194,14 @@ impl SystemSampler {
         // rates` consumes it, so nothing is cloned.
         self.history.record(&raw_processes);
 
-        let processes = self.resolve_process_rates(raw_processes, elapsed);
+        // GPU before processes: one PDH read produces both the per-adapter
+        // engine breakdown and the per-process attribution, and reading it
+        // twice would double the cost for data already in hand.
+        let (gpus, gpu_by_process) = self.build_gpu_metrics(elapsed);
+
+        let processes = self.resolve_process_rates(raw_processes, elapsed, &gpu_by_process);
         let disks = self.volumes(now);
         let networks = self.build_network_metrics(elapsed);
-        let gpus = self.build_gpu_metrics(elapsed);
 
         Ok(Sample {
             system: SystemMetrics {
@@ -230,9 +241,14 @@ impl SystemSampler {
         &mut self,
         raw: Vec<RawProcess>,
         elapsed_ms: u32,
+        gpu_by_process: &HashMap<u32, Percent>,
     ) -> Vec<SampledProcess> {
         // 100ns units, matching the kernel's CPU accounting.
         let elapsed_ticks = u64::from(elapsed_ms) * 10_000;
+
+        // Whether the machine can report GPU attribution at all, which is a
+        // different question from whether anything used the GPU this tick.
+        let gpu_available = self.gpu.is_available();
 
         let mut out = Vec::with_capacity(raw.len());
 
@@ -286,6 +302,18 @@ impl SystemSampler {
             // the list meant ~550 heap allocations per tick purely to hand
             // the same data onwards.
             out.push(SampledProcess {
+                // Looked up before the move, since `process` is consumed
+                // below. `None` means no GPU counters exist on this machine;
+                // `Some(0)` means they do and this process did no GPU work.
+                // An empty map cannot distinguish the two — an idle GPU also
+                // produces no rows — so availability is asked of the sampler
+                // rather than inferred from the data.
+                gpu: gpu_available.then(|| {
+                    gpu_by_process
+                        .get(&process.key.pid.get())
+                        .copied()
+                        .unwrap_or(Percent::ZERO)
+                }),
                 raw: process,
                 cpu,
                 disk_read,
@@ -308,20 +336,28 @@ impl SystemSampler {
         out
     }
 
-    /// Differences network counters and builds per-interface metrics.
     /// Enumerates GPU adapters and their engine utilisation.
     ///
     /// Memory, clocks, fan and power are left `None` rather than zero: they
     /// need a vendor SDK, and a zero here would be indistinguishable from a
     /// GPU genuinely sitting idle at 0 MHz.
-    fn build_gpu_metrics(&mut self, elapsed_ms: u32) -> Vec<GpuMetrics> {
+    ///
+    /// Also returns per-process utilisation, keyed by PID, because the same
+    /// PDH read produces both and the process list needs it.
+    fn build_gpu_metrics(&mut self, elapsed_ms: u32) -> (Vec<GpuMetrics>, HashMap<u32, Percent>) {
         // 100ns units, matching the kernel's accounting elsewhere. Unused by
         // the PDH source, which does its own rate arithmetic, but part of the
         // sampler contract.
         let elapsed_ticks = u64::from(elapsed_ms) * 10_000;
 
-        self.gpu
-            .sample(elapsed_ticks)
+        let (adapters, samples) = self.gpu.sample_with_processes(elapsed_ticks);
+
+        let by_process = crate::gpu::counters::total_by_process(&samples)
+            .into_iter()
+            .map(|(pid, total)| (pid.get(), crate::gpu::adapters::percent_clamped(total)))
+            .collect();
+
+        let metrics = adapters
             .into_iter()
             .map(|adapter| {
                 // The headline is the busiest primary engine, not a blend.
@@ -364,9 +400,12 @@ impl SystemSampler {
                     driver_version: None,
                 }
             })
-            .collect()
+            .collect();
+
+        (metrics, by_process)
     }
 
+    /// Differences network counters and builds per-interface metrics.
     fn build_network_metrics(&mut self, elapsed_ms: u32) -> Vec<NetworkMetrics> {
         let adapters = enumerate_adapters();
         let mut next_baseline = HashMap::with_capacity(adapters.len());

@@ -236,6 +236,16 @@ impl GpuSampler {
         }
     }
 
+    /// Whether this machine reports GPU engine data at all.
+    ///
+    /// Distinct from "nothing used the GPU this tick": an idle GPU produces
+    /// no counter rows either, and conflating the two would report a real
+    /// zero as unavailable.
+    #[must_use]
+    pub const fn is_available(&self) -> bool {
+        self.counters.is_some()
+    }
+
     /// Discards baselines, so the first sample after a resume reports
     /// nothing rather than the whole paused interval.
     ///
@@ -252,11 +262,24 @@ impl GpuSampler {
     /// the signature because the parameter is part of the sampler contract
     /// and a vendor-SDK source would need it again.
     #[must_use]
-    pub fn sample(&mut self, _elapsed_ticks: u64) -> Vec<GpuAdapter> {
+    pub fn sample(&mut self, elapsed_ticks: u64) -> Vec<GpuAdapter> {
+        self.sample_with_processes(elapsed_ticks).0
+    }
+
+    /// Samples adapters and returns the per-process rows alongside them.
+    ///
+    /// One PDH read produces both: the counter is already keyed by process,
+    /// so per-process attribution is free here and would cost a second full
+    /// read if the caller asked for it separately.
+    #[must_use]
+    pub fn sample_with_processes(
+        &mut self,
+        _elapsed_ticks: u64,
+    ) -> (Vec<GpuAdapter>, Vec<super::counters::EngineSample>) {
         let mut adapters = enumerate_adapters();
 
         let Some(counters) = self.counters.as_mut() else {
-            return adapters;
+            return (adapters, Vec::new());
         };
 
         let samples = counters.sample();
@@ -265,7 +288,7 @@ impl GpuSampler {
             adapter.engines = engines_for(&samples, adapter.luid);
         }
 
-        adapters
+        (adapters, samples)
     }
 }
 
@@ -300,7 +323,11 @@ fn engines_for(samples: &[super::counters::EngineSample], luid: u64) -> Vec<Engi
 }
 
 /// Builds a `Percent` from a possibly out-of-range float.
-fn percent_clamped(value: f64) -> vitals_core::units::Percent {
+///
+/// PDH computes each process's percentage independently, so a sum across
+/// processes can land slightly past 100 through timer skew. Clamping is more
+/// honest than reporting 103%.
+pub(crate) fn percent_clamped(value: f64) -> vitals_core::units::Percent {
     #[allow(clippy::cast_possible_truncation)]
     vitals_core::units::Percent::new(value.clamp(0.0, 100.0) as f32)
 }

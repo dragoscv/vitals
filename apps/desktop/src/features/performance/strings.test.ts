@@ -51,6 +51,29 @@ describe('performance translations', () => {
     }
   });
 
+  it('names every GPU engine slug the backend emits', () => {
+    // These come from `EngineKind::slug()` in vitals-win. The panel does
+    // `t(`gpu.engine.${engine.name}`)`, so a missing one renders the raw
+    // slug — "videoencode" instead of "Video encode", and untranslated in
+    // Romanian. The panel falls back deliberately rather than showing
+    // nothing, which makes the gap easy to miss without this test.
+    const slugs = [
+      '3d',
+      'decode',
+      'encode',
+      'copy',
+      'compute',
+      'video-processing',
+      'display',
+      'other',
+    ];
+    const paths = new Set(keyPaths(bundles.en));
+
+    for (const slug of slugs) {
+      expect(paths, `missing gpu.engine.${slug}`).toContain(`gpu.engine.${slug}`);
+    }
+  });
+
   it('names every disk and network kind', () => {
     // Same indexing hazard: `kind.<value>` comes straight from the protocol.
     const kinds = [

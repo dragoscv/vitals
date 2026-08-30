@@ -76,15 +76,24 @@ export function GpuPanel({
           <p className="text-2xs mb-0.5 text-[var(--color-fg-muted)]">{t('gpu.engines')}</p>
           <p className="text-2xs mb-2 text-[var(--color-fg-subtle)]">{t('gpu.enginesHint')}</p>
           <div className="flex flex-col gap-1.5">
-            {gpu.engines.map((engine) => (
-              <Meter
-                key={engine.name}
-                label={engine.name}
-                accessibleLabel={`${gpu.name} ${engine.name}`}
-                value={engine.utilization}
-                valueText={formatPercent(engine.utilization, locale)}
-              />
-            ))}
+            {gpu.engines.map((engine) => {
+              // The backend sends a stable slug, not a display name. Falling
+              // back to the slug rather than hiding an unrecognised engine:
+              // driver vocabularies differ (`ofa` exists on recent NVIDIA
+              // parts and nowhere else), and a busy engine we cannot name is
+              // still one the user should see.
+              const label = t(`gpu.engine.${engine.name}`, { defaultValue: engine.name });
+
+              return (
+                <Meter
+                  key={engine.name}
+                  label={label}
+                  accessibleLabel={`${gpu.name} ${label}`}
+                  value={engine.utilization}
+                  valueText={formatPercent(engine.utilization, locale)}
+                />
+              );
+            })}
           </div>
         </div>
       )}

@@ -166,6 +166,23 @@ fn is_meaningfully_different(previous: &Process, current: &Process) -> bool {
         return true;
     }
 
+    // GPU, on the same epsilon as CPU — it is the same kind of quantity and
+    // rendered in the same column width.
+    //
+    // The `None` cases are deliberately exact. A reading appearing or
+    // disappearing is the difference between "not measured" and "measured,
+    // and idle", which the UI renders as an em-dash versus 0% — a threshold
+    // must never swallow that.
+    match (previous.gpu, current.gpu) {
+        (Some(before), Some(after)) => {
+            if (before.get() - after.get()).abs() >= CPU_EPSILON {
+                return true;
+            }
+        }
+        (None, None) => {}
+        _ => return true,
+    }
+
     // Anything that changes rarely but matters when it does is compared
     // exactly — a state flip, an elevation change or a thread-count change
     // must never be swallowed by a threshold.
@@ -212,7 +229,9 @@ fn convert(sampled: SampledProcess) -> Process {
         // actually using the network.
         net_rx: BytesPerSec::ZERO,
         net_tx: BytesPerSec::ZERO,
-        gpu: None,
+        gpu: sampled.gpu,
+        // Per-process VRAM needs a vendor SDK; the WDDM counter set reports
+        // utilisation only.
         gpu_memory: None,
         thread_count: raw.thread_count,
         handle_count: Some(raw.handle_count),
@@ -389,6 +408,46 @@ mod tests {
         let mut b = base_process();
         b.flags = ProcessFlags::ELEVATED;
         assert!(is_meaningfully_different(&a, &b));
+    }
+
+    #[test]
+    fn a_gpu_reading_appearing_or_vanishing_is_always_sent() {
+        // `None` and `Some(0)` mean different things — "not measured" versus
+        // "measured, and idle" — and the UI renders them differently, as an
+        // em-dash versus 0%. A numeric threshold would treat the transition
+        // as a zero-sized change and the row would keep showing the stale
+        // one indefinitely.
+        let a = base_process();
+
+        let mut b = base_process();
+        b.gpu = Some(Percent::ZERO);
+
+        assert!(
+            is_meaningfully_different(&a, &b),
+            "unmeasured -> measured-and-idle must reach the UI"
+        );
+        assert!(
+            is_meaningfully_different(&b, &a),
+            "measured-and-idle -> unmeasured must reach the UI too"
+        );
+    }
+
+    #[test]
+    fn trivial_gpu_jitter_does_not_count_as_a_change() {
+        // Same reasoning as CPU: below what the column can render, so sending
+        // the row costs payload for a number that looks identical.
+        let mut a = base_process();
+        a.gpu = Some(Percent::new(12.0));
+
+        let mut b = base_process();
+        b.gpu = Some(Percent::new(12.01));
+
+        assert!(!is_meaningfully_different(&a, &b));
+
+        let mut c = base_process();
+        c.gpu = Some(Percent::new(20.0));
+
+        assert!(is_meaningfully_different(&a, &c), "8% is not jitter");
     }
 
     #[test]

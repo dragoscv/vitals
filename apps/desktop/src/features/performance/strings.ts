@@ -69,6 +69,19 @@ const en = {
     engines: 'Engines',
     enginesHint:
       'A single "GPU %" hides the case that matters: a machine can sit at 5% overall while the video decode engine is pinned.',
+    // Keyed by the slug the Rust `EngineKind` emits. An unknown engine falls
+    // back to its raw slug rather than being hidden — a busy engine we cannot
+    // name is still worth showing.
+    engine: {
+      '3d': '3D',
+      decode: 'Video decode',
+      encode: 'Video encode',
+      copy: 'Copy',
+      compute: 'Compute',
+      'video-processing': 'Video processing',
+      display: 'Display',
+      other: 'Other',
+    },
     dedicatedMemory: 'Dedicated memory',
     sharedMemory: 'Shared memory',
     coreClock: 'Core clock',
@@ -228,6 +241,16 @@ const ro = {
     engines: 'Motoare',
     enginesHint:
       'Un singur procent „GPU" ascunde exact cazul care contează: sistemul poate sta la 5% în total în timp ce motorul de decodare video este la maxim.',
+    engine: {
+      '3d': '3D',
+      decode: 'Decodare video',
+      encode: 'Codare video',
+      copy: 'Copiere',
+      compute: 'Calcul',
+      'video-processing': 'Procesare video',
+      display: 'Afișare',
+      other: 'Altul',
+    },
     dedicatedMemory: 'Memorie dedicată',
     sharedMemory: 'Memorie partajată',
     coreClock: 'Frecvență nucleu',
