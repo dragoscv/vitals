@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { initI18n } from '@vitals/i18n';
 
 import { App } from './App';
+import { registerAppsStrings } from './features/apps';
 import { registerConnectionStrings } from './features/connections';
 import { registerDashboardStrings } from './features/dashboard';
 import { registerPerformanceStrings } from './features/performance';
@@ -32,6 +33,7 @@ async function bootstrap(): Promise<void> {
   registerPerformanceStrings();
   registerConnectionStrings();
   registerStartupStrings();
+  registerAppsStrings();
 
   createRoot(container).render(
     <StrictMode>

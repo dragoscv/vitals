@@ -373,7 +373,8 @@ pub struct InstalledAppDto {
     /// published quiet string, whereas a bespoke uninstaller generally cannot.
     pub is_msi: bool,
     pub per_user: bool,
-    pub source: String,
+    /// Translation key, not display text. See `app_source`.
+    pub source: &'static str,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -388,7 +389,22 @@ pub struct AppsSnapshot {
     /// hide something the user expected, and without this figure a broken scan
     /// and a well-filtered one look identical — both produce a short list.
     pub rejected: usize,
+    /// The same total, broken down by reason.
+    ///
+    /// The breakdown is what makes the number actionable rather than merely
+    /// present: "900 system components" is Windows working as designed, while
+    /// "900 with no display name" would mean the scan itself is broken. The
+    /// aggregate alone cannot tell those apart.
+    pub rejected_by_reason: Vec<RejectionDto>,
     pub duplicates_collapsed: usize,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RejectionDto {
+    /// Translation key. See `reject_reason`.
+    pub reason: &'static str,
+    pub count: usize,
 }
 
 /// Enumerates installed applications.
@@ -406,8 +422,83 @@ pub fn get_installed_apps() -> AppsSnapshot {
         apps: scan.apps.iter().map(installed_app_dto).collect(),
         examined: scan.examined,
         rejected: scan.rejected_total(),
+        rejected_by_reason: scan
+            .rejected
+            .iter()
+            .map(|(reason, count)| RejectionDto {
+                reason: reject_reason(*reason),
+                count: *count,
+            })
+            .collect(),
         duplicates_collapsed: scan.duplicates_collapsed,
     }
+}
+
+#[cfg(windows)]
+const fn reject_reason(reason: vitals_win::apps::RejectReason) -> &'static str {
+    use vitals_win::apps::RejectReason as R;
+    match reason {
+        R::NoDisplayName => "noDisplayName",
+        R::SystemComponent => "systemComponent",
+        R::UpdateOrHotfix => "updateOrHotfix",
+        R::ChildOfAnotherEntry => "childOfAnotherEntry",
+        R::OrphanPatch => "orphanPatch",
+    }
+}
+
+/// Launches an application's own uninstaller.
+///
+/// # What this deliberately does not do
+///
+/// It does not delete files, remove registry keys, or "clean up" anything.
+/// Vitals launches the command the vendor published in `UninstallString` and
+/// stops there. Writing a bespoke uninstaller means guessing which files
+/// belong to a product, and a wrong guess is unrecoverable data loss in a
+/// tool the user opened to make their computer *better*.
+///
+/// # Interactive, not silent
+///
+/// Even where a `QuietUninstallString` exists, the interactive command is
+/// preferred. Silent removal of an application the user picked from a list is
+/// the wrong default: the vendor's own dialog is the last checkpoint before
+/// an irreversible action, it is where "also delete my settings?" is asked,
+/// and skipping it turns a misclick into a permanent loss.
+///
+/// The command is executed through `cmd /c`, because `UninstallString` is a
+/// raw command line — `"C:\App\unins.exe" /uninstall` — with quoting and
+/// arguments that only a shell parses correctly. Splitting it by hand breaks
+/// on the paths most likely to contain spaces.
+#[tauri::command]
+#[cfg(windows)]
+// Tauri deserialises command arguments into owned values; it cannot hand us a
+// borrow.
+#[allow(clippy::needless_pass_by_value)]
+pub fn uninstall_app(command: String) -> CommandResult<()> {
+    use std::os::windows::process::CommandExt;
+    use std::process::Command;
+
+    // CREATE_NO_WINDOW: the shell itself must not flash a console. The
+    // uninstaller's own UI still appears, which is the point.
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
+    if command.trim().is_empty() {
+        return Err(CommandError::NotFound {
+            message: "this application published no uninstall command".into(),
+        });
+    }
+
+    Command::new("cmd")
+        .args(["/c", &command])
+        .creation_flags(CREATE_NO_WINDOW)
+        // Spawned, never waited on. An uninstaller is interactive and can sit
+        // on a confirmation dialog for minutes; blocking the command here
+        // would freeze the webview's IPC for exactly that long.
+        .spawn()
+        .map_err(|err| CommandError::Internal {
+            message: format!("could not start the uninstaller: {err}"),
+        })?;
+
+    Ok(())
 }
 
 #[cfg(windows)]
@@ -427,6 +518,20 @@ fn installed_app_dto(app: &vitals_win::apps::InstalledApp) -> InstalledAppDto {
         quiet_uninstall_string: app.quiet_uninstall_string.clone(),
         is_msi: app.is_msi,
         per_user: app.per_user,
-        source: format!("{:?}", app.source),
+        source: app_source(app.source),
+    }
+}
+
+/// Stable key, for the same reason as `startup_source`: Debug output is
+/// variant names, and indexing a translation table with those makes a Rust
+/// rename silently print a key path to the user.
+#[cfg(windows)]
+const fn app_source(source: vitals_win::apps::AppSource) -> &'static str {
+    use vitals_win::apps::AppSource as S;
+    match source {
+        S::MachineNative => "machineNative",
+        S::MachineWow64 => "machineWow64",
+        S::UserNative => "userNative",
+        S::UserWow64 => "userWow64",
     }
 }

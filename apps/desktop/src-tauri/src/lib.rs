@@ -99,6 +99,8 @@ pub fn run() {
             inventory::get_startup,
             #[cfg(windows)]
             inventory::get_installed_apps,
+            #[cfg(windows)]
+            inventory::uninstall_app,
         ])
         .run(tauri::generate_context!())
         .expect("failed to start the Vitals application");

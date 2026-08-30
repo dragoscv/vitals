@@ -5,6 +5,7 @@ import { EmptyState, Skeleton } from '@vitals/ui';
 
 import { DashboardScreen } from './features/dashboard';
 import { ConnectionsScreen } from './features/connections';
+import { AppsScreen } from './features/apps';
 import { PerformanceScreen } from './features/performance';
 import { ProcessesScreen } from './features/processes';
 import { StartupScreen } from './features/startup';
@@ -83,10 +84,11 @@ export function RouteView({
       // Same component, different mode: the two share one backend call, and
       // `services` is what asks for start types — an SCM round trip each.
       return <StartupScreen mode="services" />;
+    case 'installedApps':
+      return <AppsScreen />;
     case 'appHistory':
     case 'users':
     case 'storage':
-    case 'installedApps':
     case 'devices':
     case 'benchmarks':
       return <NotBuiltYet route={route} />;

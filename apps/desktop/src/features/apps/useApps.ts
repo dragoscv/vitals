@@ -1,0 +1,100 @@
+/**
+ * Fetches the installed-application list, and launches uninstallers.
+ *
+ * Not polled. Installed programs change when the user installs or removes
+ * something, and re-walking four registry views on a timer would produce a
+ * byte-identical result at real cost. One read on mount, plus a refresh —
+ * which is genuinely needed here, because an uninstall the user just ran is
+ * exactly the case where the list goes stale while they are looking at it.
+ */
+
+import { useCallback, useEffect, useRef, useState } from 'react';
+
+import { hasTauriHost } from '../../shell/host';
+import type { AppsSnapshot } from './model';
+
+/** Reported when there is no Tauri host, so the screen can explain itself. */
+export const NO_HOST = 'no-host';
+
+export type AppsReader = () => Promise<AppsSnapshot>;
+export type Uninstaller = (command: string) => Promise<void>;
+
+/** The real reader. Dynamic import so a browser never evaluates the IPC module. */
+export async function readApps(): Promise<AppsSnapshot> {
+  const { invoke } = await import('@tauri-apps/api/core');
+  return invoke<AppsSnapshot>('get_installed_apps');
+}
+
+export async function runUninstaller(command: string): Promise<void> {
+  const { invoke } = await import('@tauri-apps/api/core');
+  return invoke<void>('uninstall_app', { command });
+}
+
+export interface AppsState {
+  readonly snapshot: AppsSnapshot | null;
+  /** True until the first read settles, whether it succeeds or fails. */
+  readonly pending: boolean;
+  readonly error: string | null;
+  refresh: () => void;
+}
+
+export function useApps(reader?: AppsReader): AppsState {
+  const [snapshot, setSnapshot] = useState<AppsSnapshot | null>(null);
+  const [pending, setPending] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // An injected reader replaces the host check rather than sitting behind it.
+  // A seam the production path can veto silently never runs in tests, and
+  // every assertion then fails for an unrelated reason.
+  const injected = reader !== undefined;
+  const readerRef = useRef<AppsReader>(reader ?? readApps);
+  readerRef.current = reader ?? readApps;
+
+  const inFlight = useRef(false);
+  const mounted = useRef(true);
+
+  const load = useCallback(async () => {
+    if (inFlight.current) return;
+    inFlight.current = true;
+
+    try {
+      const next = await readerRef.current();
+      if (!mounted.current) return;
+      setSnapshot(next);
+      setError(null);
+    } catch (cause: unknown) {
+      if (!mounted.current) return;
+      // The previous list survives a failed refresh; the error line says so.
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      inFlight.current = false;
+      if (mounted.current) setPending(false);
+    }
+  }, []);
+
+  const refresh = useCallback(() => {
+    void load();
+  }, [load]);
+
+  useEffect(() => {
+    mounted.current = true;
+
+    if (!injected && !hasTauriHost()) {
+      // Resolved at once: a loading state that cannot end makes a broken app
+      // look busy, which this project has shipped three times already.
+      setPending(false);
+      setError(NO_HOST);
+      return () => {
+        mounted.current = false;
+      };
+    }
+
+    void load();
+
+    return () => {
+      mounted.current = false;
+    };
+  }, [load, injected]);
+
+  return { snapshot, pending, error, refresh };
+}
