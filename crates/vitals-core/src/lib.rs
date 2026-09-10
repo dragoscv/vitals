@@ -20,6 +20,7 @@
 //!   reports what it can do via [`Capabilities`] so the UI can disable
 //!   affordances up front instead of showing an error after a click.
 
+pub mod alerts;
 pub mod capability;
 pub mod error;
 #[cfg(feature = "fixtures")]

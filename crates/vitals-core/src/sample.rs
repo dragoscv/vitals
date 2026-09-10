@@ -150,6 +150,14 @@ impl Frame {
         matches!(self.payload, FramePayload::Keyframe { .. })
     }
 
+    /// The machine-wide metrics, present in both payload kinds.
+    #[must_use]
+    pub const fn system(&self) -> &SystemMetrics {
+        match &self.payload {
+            FramePayload::Keyframe { system, .. } | FramePayload::Delta { system, .. } => system,
+        }
+    }
+
     /// Converts a byte count observed over this frame into a per-second rate.
     ///
     /// Guards against a zero interval, which happens when two samples land in
