@@ -53,20 +53,30 @@ impl WindowsHost {
     pub fn capabilities(self) -> Capabilities {
         let mut caps = Capabilities::new();
 
-        // Always available: plain enumeration needs no privilege.
+        // Always available: these need no privilege AND have an
+        // implementation behind them. Both conditions matter — this list
+        // once advertised handle enumeration and efficiency mode with no code
+        // behind either.
         caps = caps
-            .with(Capability::HandleEnumeration)
             .with(Capability::TerminateProcess)
             .with(Capability::SuspendProcess)
             .with(Capability::SetProcessPriority)
             .with(Capability::SetProcessAffinity)
-            .with(Capability::SetEfficiencyMode)
-            .with(Capability::TrimWorkingSet)
             .with(Capability::PerProcessGpu)
-            .with(Capability::ManageStartupItems)
-            .with(Capability::UninstallApplications)
-            .with(Capability::ErrorReports)
-            .with(Capability::WindowFlashCapture);
+            .with(Capability::UninstallApplications);
+
+        // Possible without privilege, not yet written. Each moves up to the
+        // list above in the commit that implements it.
+        for cap in [
+            Capability::HandleEnumeration,
+            Capability::SetEfficiencyMode,
+            Capability::TrimWorkingSet,
+            Capability::ManageStartupItems,
+            Capability::ErrorReports,
+            Capability::WindowFlashCapture,
+        ] {
+            caps = caps.without(cap, Unavailable::NotImplemented);
+        }
 
         // ETW-backed observation requires the helper: a kernel trace session
         // cannot be started from an unelevated process.

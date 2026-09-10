@@ -35,12 +35,6 @@ export interface AppSettings {
   readonly historyEnabled: boolean;
   readonly retentionDays: number;
 
-  readonly crashReports: boolean;
-  readonly usageData: boolean;
-  readonly reputationLookups: boolean;
-
-  readonly advancedEnabled: boolean;
-
   /** Shell layout. Persisted so the window reopens the way it was left. */
   readonly sidebarCollapsed: boolean;
   readonly lastRoute: RouteId;
@@ -71,12 +65,6 @@ export const defaultSettings: AppSettings = {
 
   historyEnabled: false,
   retentionDays: 7,
-
-  crashReports: false,
-  usageData: false,
-  reputationLookups: false,
-
-  advancedEnabled: false,
 
   sidebarCollapsed: false,
   lastRoute: defaultRoute,
@@ -152,11 +140,10 @@ export function parseSettings(raw: unknown): AppSettings {
       ? (retention as number)
       : defaultSettings.retentionDays,
 
-    crashReports: bool(record['crashReports'], defaultSettings.crashReports),
-    usageData: bool(record['usageData'], defaultSettings.usageData),
-    reputationLookups: bool(record['reputationLookups'], defaultSettings.reputationLookups),
-
-    advancedEnabled: bool(record['advancedEnabled'], defaultSettings.advancedEnabled),
+    // `crashReports`, `usageData`, `reputationLookups` and `advancedEnabled`
+    // were removed: no telemetry, lookup or advanced feature existed behind
+    // them, so the switches promised behaviour that never happened. Old store
+    // files carrying those keys are simply ignored here.
 
     sidebarCollapsed: bool(record['sidebarCollapsed'], defaultSettings.sidebarCollapsed),
     lastRoute: isRouteId(record['lastRoute']) ? record['lastRoute'] : defaultSettings.lastRoute,

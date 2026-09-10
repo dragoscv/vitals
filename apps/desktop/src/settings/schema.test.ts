@@ -39,11 +39,30 @@ describe('parseSettings', () => {
   it('ships every data-emitting option off by default', () => {
     // A system monitor that opts you in to telemetry is not one to trust with
     // process-level visibility. This is a product promise, so it is asserted.
-    expect(defaultSettings.crashReports).toBe(false);
-    expect(defaultSettings.usageData).toBe(false);
-    expect(defaultSettings.reputationLookups).toBe(false);
+    //
+    // The strongest form of the promise is that the settings do not exist:
+    // `crashReports`, `usageData` and `reputationLookups` were switches with
+    // nothing behind them, so they were removed rather than defaulted off.
+    // These assertions fail if anyone reintroduces one.
+    const keys = Object.keys(defaultSettings);
+    expect(keys).not.toContain('crashReports');
+    expect(keys).not.toContain('usageData');
+    expect(keys).not.toContain('reputationLookups');
+
+    // Recording to disk is opt-in for the same reason.
     expect(defaultSettings.historyEnabled).toBe(false);
-    expect(defaultSettings.advancedEnabled).toBe(false);
+  });
+
+  it('ignores keys left behind by an older version', () => {
+    // Store files written before those switches were removed must still load.
+    const parsed = parseSettings({
+      crashReports: true,
+      usageData: true,
+      advancedEnabled: true,
+      historyEnabled: true,
+    });
+    expect(parsed.historyEnabled).toBe(true);
+    expect(Object.keys(parsed)).not.toContain('crashReports');
   });
 
   it('orders sampling intervals from fastest to slowest', () => {

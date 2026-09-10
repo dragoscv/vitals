@@ -5,7 +5,6 @@ import {
   ShieldCheck,
   SlidersHorizontal,
   Timer,
-  Wrench,
   type LucideIcon,
 } from 'lucide-react';
 import { useState } from 'react';
@@ -25,7 +24,6 @@ import {
 import { SHELL_NS } from '../shell/strings';
 import {
   AboutPanel,
-  AdvancedPanel,
   AppearancePanel,
   GeneralPanel,
   NotificationsPanel,
@@ -33,15 +31,7 @@ import {
   SamplingPanel,
 } from './panels';
 
-const tabIds = [
-  'general',
-  'appearance',
-  'sampling',
-  'notifications',
-  'privacy',
-  'advanced',
-  'about',
-] as const;
+const tabIds = ['general', 'appearance', 'sampling', 'notifications', 'privacy', 'about'] as const;
 
 type TabId = (typeof tabIds)[number];
 
@@ -51,7 +41,6 @@ const tabIcons: Readonly<Record<TabId, LucideIcon>> = {
   sampling: Timer,
   notifications: Bell,
   privacy: ShieldCheck,
-  advanced: Wrench,
   about: Info,
 };
 
@@ -74,7 +63,6 @@ export function SettingsDialog({ open, onOpenChange, version }: SettingsDialogPr
     sampling: t('settings.sampling.title'),
     notifications: ts('settings.notifications.title'),
     privacy: t('settings.privacy.title'),
-    advanced: t('settings.advanced.title'),
     about: t('settings.about.title'),
   };
 
@@ -134,9 +122,6 @@ export function SettingsDialog({ open, onOpenChange, version }: SettingsDialogPr
               </TabsContent>
               <TabsContent value="privacy">
                 <PrivacyPanel />
-              </TabsContent>
-              <TabsContent value="advanced">
-                <AdvancedPanel />
               </TabsContent>
               <TabsContent value="about">
                 <AboutPanel version={version} />

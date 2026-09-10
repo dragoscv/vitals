@@ -60,10 +60,10 @@ export interface ProcessActionsApi {
   /**
    * Pins a process to a set of logical processors.
    *
-   * Reachable from here but not yet from the menu: choosing a mask needs a
-   * core picker, which is its own piece of UI. `affinity` therefore stays in
-   * [`UNIMPLEMENTED_ACTIONS`] — shipping a menu item that cannot express the
-   * argument would be worse than one that says it is not ready.
+   * The backend command is wired; what is missing is a core picker to choose
+   * the mask. Until that lands the menu item is listed under
+   * [`UNIMPLEMENTED_ACTIONS`] as "needs a picker", which is the honest state:
+   * not "the backend cannot", but "the UI cannot yet ask you which cores".
    */
   setAffinity(process: Process, mask: bigint): Promise<void>;
 }

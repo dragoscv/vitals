@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 
-import { signalReady } from './lib/ready';
+import { signalReady, wasAutostarted } from './lib/ready';
 import { effectiveRate, pushSampleRate } from './lib/sampleRate';
+import { pushHistoryEnabled, reconcileAutostart } from './lib/settingsSync';
 import { useSettings } from './settings/store';
 import { AppShell } from './shell/AppShell';
 import { hasTauriHost } from './shell/host';
@@ -80,6 +81,39 @@ function useSampleRate(settings: ReturnType<typeof useSettings.getState>['settin
 }
 
 /**
+ * Pushes the settings that take effect outside the webview.
+ *
+ * Waits for hydration: before it, `settings` is the defaults, and pushing
+ * `historyEnabled: false` from the defaults would briefly turn off a store the
+ * user has enabled, and `startWithWindows: false` would remove their Run-key
+ * entry on every launch.
+ */
+function useSettingsSync(
+  settings: ReturnType<typeof useSettings.getState>['settings'],
+  hydrated: boolean,
+): void {
+  const { historyEnabled, startWithWindows } = settings;
+  const patch = useSettings((state) => state.patch);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    void pushHistoryEnabled(historyEnabled);
+  }, [hydrated, historyEnabled]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    void reconcileAutostart(startWithWindows).then((actual) => {
+      // The OS is the source of truth. If it refused, or Task Manager had
+      // already disabled the entry, the switch must show that rather than
+      // the value we wished for.
+      if (actual !== null && actual !== startWithWindows) {
+        patch({ startWithWindows: actual });
+      }
+    });
+  }, [hydrated, startWithWindows, patch]);
+}
+
+/**
  * The application shell.
  *
  * Settings hydration and the ready signal are separated on purpose. The window
@@ -96,15 +130,35 @@ export function App() {
   const version = useAppVersion();
 
   useSampleRate(settings);
+  useSettingsSync(settings, hydrated);
 
   useEffect(() => {
     void hydrate();
   }, [hydrate]);
 
-  // Two frames after the shell commits, whether or not settings have loaded.
+  // Reveal two frames after the shell commits — unless this launch came from
+  // the autostart entry and the user asked to start minimised, in which case
+  // the window stays hidden and the tray is the way back in.
+  //
+  // A user launch reveals without waiting for hydration: a slow or corrupt
+  // settings file must never cost them the window. An autostarted launch
+  // waits, because the decision depends on a setting, and there is no user in
+  // front of the screen to notice the delay.
+  const startMinimised = settings.startMinimised;
   useEffect(() => {
-    signalReady();
-  }, []);
+    let live = true;
+    void wasAutostarted().then((auto) => {
+      if (!live) return;
+      if (!auto) {
+        signalReady();
+        return;
+      }
+      if (hydrated && !startMinimised) signalReady();
+    });
+    return () => {
+      live = false;
+    };
+  }, [hydrated, startMinimised]);
 
   return (
     <ThemeProvider

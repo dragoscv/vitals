@@ -13,8 +13,29 @@
 
 import { invoke } from '@tauri-apps/api/core';
 
+import { hasTauriHost } from '../shell/host';
+
 /** Set once so a re-render or a StrictMode double-invoke cannot re-trigger. */
 let signalled = false;
+
+/**
+ * Whether this instance was launched by the autostart entry.
+ *
+ * Cached after the first call: the answer cannot change for the lifetime of
+ * the process, and the reveal path must not wait on IPC twice.
+ */
+let autostarted: Promise<boolean> | null = null;
+
+export function wasAutostarted(): Promise<boolean> {
+  if (autostarted === null) {
+    autostarted = hasTauriHost()
+      ? invoke<{ autostarted: boolean }>('get_launch_options')
+          .then((options) => options.autostarted)
+          .catch(() => false)
+      : Promise.resolve(false);
+  }
+  return autostarted;
+}
 
 /**
  * Reveals the window on the next frame after paint.
@@ -42,4 +63,5 @@ export function signalReady(): void {
 /** Test seam: lets a test start from a clean state. */
 export function resetReadyForTests(): void {
   signalled = false;
+  autostarted = null;
 }

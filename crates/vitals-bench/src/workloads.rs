@@ -292,8 +292,7 @@ pub fn memory_bandwidth(buffer: &MemoryBuffer) -> Measurement {
     let mut c = 0u64;
     let mut d = 0u64;
 
-    let chunks = data.chunks_exact(4);
-    let remainder = chunks.remainder();
+    let (chunks, remainder) = data.as_chunks::<4>();
     for chunk in chunks {
         a = a.wrapping_add(chunk[0]);
         b = b.wrapping_add(chunk[1]);

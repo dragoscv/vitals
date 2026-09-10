@@ -116,6 +116,26 @@ function createCore(): CoreSeries {
 }
 
 /**
+ * Every buffer in a `CoreSeries`, in declaration order.
+ *
+ * Explicit so that adding a field to `CoreSeries` that is not a `RingBuffer`
+ * fails to compile here, rather than throwing at runtime the first time a
+ * gap is recorded.
+ */
+function coreBuffers(core: CoreSeries): readonly RingBuffer[] {
+  return [
+    core.cpu,
+    core.cpuKernel,
+    core.memoryUsed,
+    core.memoryPercent,
+    core.diskRead,
+    core.diskWrite,
+    core.netRx,
+    core.netTx,
+  ];
+}
+
+/**
  * A history collector.
  *
  * Exported as a factory as well as a singleton so tests can drive one in
@@ -210,10 +230,12 @@ export class HistoryCollector {
    */
   markGap(): void {
     const { core } = this.state;
-    // `Object.values` on an interface without an index signature resolves to
-    // the `any[]` overload, which silently disables type checking on the
-    // element. Naming the element type keeps this honest.
-    for (const buffer of Object.values<RingBuffer>(core)) buffer.pushGap();
+    // Named rather than `Object.values(core)`: on an interface with no index
+    // signature that resolves to the `any[]` overload, which silently turns
+    // off type checking on the element. Listing them also means adding a
+    // non-buffer field to `CoreSeries` is a compile error here rather than a
+    // runtime `pushGap is not a function`.
+    for (const buffer of coreBuffers(core)) buffer.pushGap();
     for (const map of [this.state.gpu, this.state.gpuMemory, this.state.diskActive]) {
       for (const buffer of map.values()) buffer.pushGap();
     }

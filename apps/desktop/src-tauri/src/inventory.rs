@@ -862,6 +862,7 @@ const fn unavailable_key(reason: vitals_core::capability::Unavailable) -> &'stat
         U::NeedsHelper => "needsHelper",
         U::NeedsPlugin => "needsPlugin",
         U::DisabledByUser => "disabledByUser",
+        U::NotImplemented => "notImplemented",
     }
 }
 

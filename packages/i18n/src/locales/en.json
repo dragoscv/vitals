@@ -76,6 +76,7 @@
     "noSuchHardware": "Your hardware does not report this",
     "notSupported": "Not available on this system",
     "disabledByUser": "Turned off in settings",
+    "notImplemented": "Not built yet",
     "enable": "Enable",
     "learnMore": "Learn more"
   },
@@ -106,6 +107,9 @@
       "surfaceMica": "Mica",
       "surfaceAcrylic": "Acrylic",
       "density": "Density",
+      "densityCompact": "Compact",
+      "densityDefault": "Default",
+      "densityComfortable": "Comfortable",
       "reduceMotion": "Reduce motion"
     },
     "language": {
@@ -128,16 +132,11 @@
     },
     "privacy": {
       "title": "Privacy",
-      "crashReports": "Send crash reports",
-      "crashReportsHint": "Off by default. Never includes file names or process command lines.",
-      "usageData": "Send anonymous usage data",
-      "reputationLookups": "Check files against VirusTotal",
-      "reputationLookupsHint": "Sends only a file hash, never the file."
-    },
-    "advanced": {
-      "title": "Advanced",
-      "warning": "These can damage hardware or lose data. Only turn this on if you know what you are doing.",
-      "enable": "Enable advanced features"
+      "noTelemetry": "Vitals sends nothing anywhere.",
+      "localOnly": "Everything it measures stays on this computer. History, if you turn it on, is a local file you can delete.",
+      "noCrashReports": "There is no crash reporting and no usage analytics — not opt-in, not opt-out, none.",
+      "noLookups": "No file is ever hashed or looked up online.",
+      "lanServer": "The only network feature is the optional LAN server for your phone and other tools. It is off until you turn it on, and it only ever talks to devices on your own network."
     },
     "about": {
       "title": "About",

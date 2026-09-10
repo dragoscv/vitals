@@ -105,6 +105,12 @@ export function AppearancePanel() {
     acrylic: t('settings.appearance.surfaceAcrylic'),
   } as const;
 
+  const densityLabels = {
+    compact: t('settings.appearance.densityCompact'),
+    default: t('settings.appearance.densityDefault'),
+    comfortable: t('settings.appearance.densityComfortable'),
+  } as const;
+
   return (
     <>
       <SettingsSection title={t('settings.appearance.title')}>
@@ -153,7 +159,10 @@ export function AppearancePanel() {
                 const density = densities.find((candidate) => candidate === value);
                 if (density) setTheme({ density });
               }}
-              options={densities.map((density) => ({ value: density, label: density }))}
+              options={densities.map((density) => ({
+                value: density,
+                label: densityLabels[density],
+              }))}
             />
           )}
         </SettingsRow>
@@ -388,83 +397,22 @@ export function NotificationsPanel() {
 
 export function PrivacyPanel() {
   const { t } = useTranslation();
-  const settings = useSettings((state) => state.settings);
-  const patch = useSettings((state) => state.patch);
 
+  // No switches. Vitals has no telemetry, no crash reporting and no online
+  // reputation lookups, so there is nothing to opt out of. The earlier panel
+  // showed three switches that read nothing and sent nothing — a control that
+  // does nothing is worse than an honest sentence.
   return (
     <SettingsSection title={t('settings.privacy.title')}>
-      <SettingsRow
-        label={t('settings.privacy.crashReports')}
-        description={t('settings.privacy.crashReportsHint')}
-      >
-        {({ labelId, describedBy }) => (
-          <Switch
-            aria-labelledby={labelId}
-            aria-describedby={describedBy}
-            checked={settings.crashReports}
-            onCheckedChange={(value) => patch({ crashReports: value })}
-          />
-        )}
-      </SettingsRow>
-
-      <SettingsRow label={t('settings.privacy.usageData')}>
-        {({ labelId }) => (
-          <Switch
-            aria-labelledby={labelId}
-            checked={settings.usageData}
-            onCheckedChange={(value) => patch({ usageData: value })}
-          />
-        )}
-      </SettingsRow>
-
-      <SettingsRow
-        label={t('settings.privacy.reputationLookups')}
-        description={t('settings.privacy.reputationLookupsHint')}
-      >
-        {({ labelId, describedBy }) => (
-          <Switch
-            aria-labelledby={labelId}
-            aria-describedby={describedBy}
-            checked={settings.reputationLookups}
-            onCheckedChange={(value) => patch({ reputationLookups: value })}
-          />
-        )}
-      </SettingsRow>
-    </SettingsSection>
-  );
-}
-
-export function AdvancedPanel() {
-  const { t } = useTranslation();
-  const settings = useSettings((state) => state.settings);
-  const patch = useSettings((state) => state.patch);
-
-  return (
-    <SettingsSection title={t('settings.advanced.title')}>
-      {/*
-       * `role="alert"` is deliberately not used: the warning is present from
-       * the moment the tab opens rather than appearing in response to an
-       * action, and an alert fired on render interrupts whatever the screen
-       * reader was saying. It is a described-by on the switch instead, so it
-       * is read at the point the decision is actually made.
-       */}
-      <p
-        id="advanced-warning"
-        className="rounded-[var(--radius-control)] border border-[var(--color-status-danger)] bg-[var(--color-bg-inset)] p-2.5 text-2xs text-[var(--color-fg-default)]"
-      >
-        {t('settings.advanced.warning')}
-      </p>
-
-      <SettingsRow label={t('settings.advanced.enable')}>
-        {({ labelId }) => (
-          <Switch
-            aria-labelledby={labelId}
-            aria-describedby="advanced-warning"
-            checked={settings.advancedEnabled}
-            onCheckedChange={(value) => patch({ advancedEnabled: value })}
-          />
-        )}
-      </SettingsRow>
+      <div className="space-y-2 py-2 text-sm">
+        <p className="font-medium">{t('settings.privacy.noTelemetry')}</p>
+        <ul className="list-disc space-y-1 pl-5 text-2xs text-[var(--color-fg-muted)]">
+          <li>{t('settings.privacy.localOnly')}</li>
+          <li>{t('settings.privacy.noCrashReports')}</li>
+          <li>{t('settings.privacy.noLookups')}</li>
+          <li>{t('settings.privacy.lanServer')}</li>
+        </ul>
+      </div>
     </SettingsSection>
   );
 }

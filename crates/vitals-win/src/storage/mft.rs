@@ -408,7 +408,9 @@ fn parse_records(buffer: &[u8], out: &mut Vec<MftEntry>) {
             if name_end <= buffer.len() && name_start >= offset {
                 let bytes = &buffer[name_start..name_end];
                 let units: Vec<u16> = bytes
-                    .chunks_exact(2)
+                    .as_chunks::<2>()
+                    .0
+                    .iter()
                     .map(|pair| u16::from_le_bytes([pair[0], pair[1]]))
                     .collect();
 

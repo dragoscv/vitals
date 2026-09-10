@@ -22,6 +22,8 @@
     "dialog:allow-confirm",
     "opener:allow-open-url",
     "updater:default",
-    "global-shortcut:default"
+    "process:allow-restart",
+    "autostart:default",
+    "notification:default"
   ]
 }

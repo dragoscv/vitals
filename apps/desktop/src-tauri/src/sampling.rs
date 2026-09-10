@@ -83,6 +83,13 @@ fn run(app: &AppHandle, stop: &AtomicBool) {
     // tick. Resets on the first success.
     let mut consecutive_failures = 0_u32;
 
+    // History used to be written only when this loop exited. This is a task
+    // manager: its user kills processes for a living, and a killed Vitals
+    // lost the whole session's tally. A flush a minute bounds the loss to
+    // sixty seconds at the cost of one small write nobody will notice.
+    #[cfg(windows)]
+    let mut last_flush = Instant::now();
+
     while !stop.load(Ordering::Relaxed) {
         let Some(interval) = current_interval(app) else {
             // Paused. Poll the flag rather than sampling, so resuming is
@@ -97,9 +104,20 @@ fn run(app: &AppHandle, stop: &AtomicBool) {
         match backend.next_frame() {
             Ok(frame) => {
                 consecutive_failures = 0;
+                #[cfg(windows)]
+                if let Some(state) = app.try_state::<AppState>() {
+                    state.publish_processes(backend.take_rollup_sample());
+                }
                 if app.emit(FRAME_EVENT, &frame).is_err() {
                     // The window is gone. Nothing to sample for.
                     break;
+                }
+                #[cfg(windows)]
+                if last_flush.elapsed() >= HISTORY_FLUSH_INTERVAL {
+                    if let Some(state) = app.try_state::<AppState>() {
+                        state.save_history();
+                    }
+                    last_flush = Instant::now();
                 }
             }
             Err(error) => {
@@ -130,15 +148,17 @@ fn run(app: &AppHandle, stop: &AtomicBool) {
         }
     }
 
-    // The loop ends when the window closes or the app quits. Writing here is
-    // the only place the session's accumulated history is persisted — doing
-    // it every tick would mean a disk write per second for data nobody has
-    // asked to see.
+    // The loop ends when the window closes or the app quits. Final flush of
+    // whatever accrued since the last periodic one.
     #[cfg(windows)]
     if let Some(state) = app.try_state::<AppState>() {
         state.save_history();
     }
 }
+
+/// How often the accumulated history is written while running.
+#[cfg(windows)]
+const HISTORY_FLUSH_INTERVAL: Duration = Duration::from_secs(60);
 
 /// Sleeps in slices so a stop request is honoured promptly.
 ///
@@ -184,6 +204,9 @@ fn current_interval(app: &AppHandle) -> Option<Duration> {
 struct Backend {
     sampler: vitals_win::SystemSampler,
     frames: vitals_win::FrameBuilder,
+    /// The per-session reduction of the last sample, taken before the sample
+    /// is consumed by the frame builder.
+    rollup: Vec<vitals_win::users::ProcessSample>,
 }
 
 #[cfg(windows)]
@@ -192,6 +215,7 @@ impl Backend {
         Self {
             sampler: vitals_win::SystemSampler::new(),
             frames: vitals_win::FrameBuilder::new(),
+            rollup: Vec::new(),
         }
     }
 
@@ -201,7 +225,21 @@ impl Backend {
 
     fn next_frame(&mut self) -> vitals_core::error::Result<vitals_core::sample::Frame> {
         let sample = self.sampler.sample()?;
+        self.rollup = sample
+            .processes
+            .iter()
+            .map(|p| vitals_win::users::ProcessSample {
+                pid: p.raw.key.pid,
+                session_id: p.raw.session_id,
+                cpu_percent: f64::from(p.cpu.0),
+                private_bytes: p.raw.private_bytes,
+            })
+            .collect();
         Ok(self.frames.build(sample))
+    }
+
+    fn take_rollup_sample(&mut self) -> Vec<vitals_win::users::ProcessSample> {
+        std::mem::take(&mut self.rollup)
     }
 }
 

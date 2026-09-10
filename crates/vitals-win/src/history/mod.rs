@@ -55,10 +55,26 @@ impl ProcessSample for RawProcess {
 /// Holds the accumulated history plus the per-PID state needed to compute
 /// deltas between ticks. Callers load it once, call `record` on every sampler
 /// tick, and periodically call `save` to persist the history.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct AppHistoryStore {
     history: AppHistory,
     prev_state: BTreeMap<Pid, accumulate::ProcessState>,
+    /// Whether `record` folds samples in. Off means the sampler still calls
+    /// it every tick and it does nothing, so toggling costs no plumbing.
+    ///
+    /// A store records by default; it is the application, reading the user's
+    /// setting, that turns it off.
+    enabled: bool,
+}
+
+impl Default for AppHistoryStore {
+    fn default() -> Self {
+        Self {
+            history: AppHistory::default(),
+            prev_state: BTreeMap::new(),
+            enabled: true,
+        }
+    }
 }
 
 impl AppHistoryStore {
@@ -73,6 +89,7 @@ impl AppHistoryStore {
         Self {
             history,
             prev_state: BTreeMap::new(),
+            enabled: true,
         }
     }
 
@@ -81,8 +98,28 @@ impl AppHistoryStore {
     /// This is the hot path, called on every sampler tick. Deltas are computed
     /// against the previous tick's state, which is maintained internally.
     pub fn record(&mut self, samples: &[RawProcess]) {
+        if !self.enabled {
+            return;
+        }
         let now = SystemTime::now();
         accumulate::accumulate(&mut self.history, samples, &mut self.prev_state, now);
+    }
+
+    /// Turns accumulation on or off.
+    ///
+    /// Disabling also drops the per-PID delta state: when re-enabled later,
+    /// the first tick must establish a fresh baseline rather than charge the
+    /// whole gap to whatever ran across it.
+    pub fn set_enabled(&mut self, enabled: bool) {
+        if !enabled {
+            self.prev_state.clear();
+        }
+        self.enabled = enabled;
+    }
+
+    #[must_use]
+    pub const fn is_enabled(&self) -> bool {
+        self.enabled
     }
 
     /// Returns a snapshot of the current history.
@@ -145,7 +182,21 @@ impl SharedHistory {
     /// Separate from construction because the sampler creates the store
     /// before the app knows where its data directory is.
     pub fn load_from(&self, path: &Path) {
-        self.with_mut(|store| *store = AppHistoryStore::load(path));
+        self.with_mut(|store| {
+            let enabled = store.enabled;
+            *store = AppHistoryStore::load(path);
+            store.enabled = enabled;
+        });
+    }
+
+    /// Whether ticks are being accumulated.
+    pub fn set_enabled(&self, enabled: bool) {
+        self.with_mut(|store| store.set_enabled(enabled));
+    }
+
+    #[must_use]
+    pub fn is_enabled(&self) -> bool {
+        self.with_mut(|store| store.is_enabled())
     }
 
     /// Folds one tick of samples in.
@@ -227,10 +278,7 @@ mod tests {
 
     #[test]
     fn store_records_and_snapshots() {
-        let mut store = AppHistoryStore {
-            history: AppHistory::new(),
-            prev_state: BTreeMap::new(),
-        };
+        let mut store = AppHistoryStore::default();
 
         let samples = vec![
             stub_process(100, r"C:\app1.exe", 50_000_000, 1000, 2000),
@@ -248,10 +296,7 @@ mod tests {
 
     #[test]
     fn store_clear_resets_state() {
-        let mut store = AppHistoryStore {
-            history: AppHistory::new(),
-            prev_state: BTreeMap::new(),
-        };
+        let mut store = AppHistoryStore::default();
 
         let samples = vec![stub_process(100, r"C:\app.exe", 50_000_000, 1000, 2000)];
 
@@ -267,10 +312,7 @@ mod tests {
         let temp_dir = std::env::temp_dir();
         let path = temp_dir.join("vitals-test-store.json");
 
-        let mut store = AppHistoryStore {
-            history: AppHistory::new(),
-            prev_state: BTreeMap::new(),
-        };
+        let mut store = AppHistoryStore::default();
 
         let samples = vec![stub_process(100, r"C:\test.exe", 50_000_000, 1024, 2048)];
         store.record(&samples);

@@ -167,7 +167,6 @@ crates/
   vitals-ipc   frame ring buffer and the helper command protocol
   vitals-store local time-series storage
   vitals-bench benchmark harness
-  vitals-plugin plugin contract
 packages/
   ui  charts  protocol (generated)  i18n  config
 ```

@@ -138,18 +138,18 @@ in repo memory. This audit found the ninth through the eighteenth.
 
 Status values: `todo`, `doing`, `done`, `blocked`, `dropped`.
 
-| Slice | Theme                                                                | Status |
-| ----- | -------------------------------------------------------------------- | ------ |
-| S1    | Dependency upgrades, tooling, VS Code tasks                          | doing  |
-| S2    | Truth fixes — dead settings, false capabilities, dead crates         | todo   |
-| S3    | `vitals-store` for real: SQLite history, retention, flight recorder  | todo   |
-| S4    | LAN server: REST, SSE, WebSocket, Prometheus, mDNS                   | todo   |
-| S5    | CLI that samples directly                                            | todo   |
-| S6    | Mobile PWA and QR pairing                                            | todo   |
-| S7    | UI polish: motion, palette, ultrawide, export, shortcuts             | todo   |
-| S8    | Tray, HUD, alerts, notifications, updater                            | todo   |
-| S9    | New Windows metrics: DiskCounters, efficiency mode, handles, modules | todo   |
-| S10   | Docs, ADRs, CI, supply-chain audits                                  | todo   |
+| Slice | Theme                                                                | Status                                                                                         |
+| ----- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| S1    | Dependency upgrades, tooling, VS Code tasks                          | done                                                                                           |
+| S2    | Truth fixes — dead settings, false capabilities, dead crates         | done (S2-03 notifications, S2-09 persistence unify, S2-15 get_capabilities carried into S8/S7) |
+| S3    | `vitals-store` for real: SQLite history, retention, flight recorder  | todo                                                                                           |
+| S4    | LAN server: REST, SSE, WebSocket, Prometheus, mDNS                   | todo                                                                                           |
+| S5    | CLI that samples directly                                            | todo                                                                                           |
+| S6    | Mobile PWA and QR pairing                                            | todo                                                                                           |
+| S7    | UI polish: motion, palette, ultrawide, export, shortcuts             | todo                                                                                           |
+| S8    | Tray, HUD, alerts, notifications, updater                            | todo                                                                                           |
+| S9    | New Windows metrics: DiskCounters, efficiency mode, handles, modules | todo                                                                                           |
+| S10   | Docs, ADRs, CI, supply-chain audits                                  | todo                                                                                           |
 
 Per-item status lives in `tracker.csv`. This file records the reasoning; the
 CSV records the state.
@@ -161,4 +161,21 @@ CSV records the state.
 Every claim of "done" needs a command and its output. Recorded here as work
 lands, newest first.
 
-_(nothing yet)_
+### 2026-09-10 — S2 truth fixes (commit follows)
+
+- `cargo clippy --workspace --all-targets -- -D warnings` → exit 0
+- `cargo test --workspace` → 722 passed, 0 failed (541 in vitals-win)
+- `pnpm typecheck` → exit 0 · `eslint .` → exit 0 · `format:check` → clean
+- `pnpm test` → 71 files, 688 desktop tests pass
+- Ripple caught by the compiler: adding `Unavailable::NotImplemented` failed
+  the exhaustive match in `inventory.rs:858` — fixed, plus both locale files.
+- Decision recorded: `pnpm minimumReleaseAge: 0` with a comment (user chose to
+  keep latest-of-everything over the 24 h quarantine).
+
+### 2026-09-10 — S1 upgrades (commit 7d9128c)
+
+- vitest 5.0.0: 71 test files pass; `clearMocks` flip harmless.
+- Typed ESLint found one genuine floating promise
+  (`AppHistoryScreen.test.tsx:23`, `initI18n` never awaited).
+- `expect_used` now warns in production code: 2 startup sites justified
+  inline, 186 test sites covered by `allow-expect-in-tests`.

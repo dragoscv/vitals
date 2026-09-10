@@ -38,6 +38,7 @@ import {
   type SnapshotSource,
 } from './useProcessSnapshot';
 import { useStableOrder } from './useStableOrder';
+import { useSettings } from '../../settings/store';
 
 export interface ProcessesScreenProps {
   /** Injectable so tests and the sampler-less preview need no Tauri host. */
@@ -54,6 +55,7 @@ export function ProcessesScreen({
 }: ProcessesScreenProps = {}): React.JSX.Element {
   const { t, i18n } = useTranslation();
   const locale = i18n.language;
+  const confirmEndTask = useSettings((state) => state.settings.confirmEndTask);
 
   // A lazy state initialiser rather than a ref written during render: the
   // source must be created exactly once, and a ref read during render is a
@@ -236,7 +238,13 @@ export function ProcessesScreen({
       // doing nothing would look like a broken menu item, and the user
       // deserves to be told that Windows — not a missing privilege — is what
       // stops this. The dialog renders no confirm button in that case.
-      if (!plan.needsConfirmation && plan.risk !== 'forbidden') {
+      //
+      // "Confirm before ending a task" off means the low-risk confirmation is
+      // skipped; a plan the backend marks high-risk or forbidden is still
+      // shown, because that setting is about convenience, not about
+      // suppressing a warning that the process is critical.
+      const skipConfirm = !confirmEndTask && plan.risk !== 'critical';
+      if ((!plan.needsConfirmation || skipConfirm) && plan.risk !== 'forbidden') {
         await runPending();
         return;
       }
@@ -248,7 +256,7 @@ export function ProcessesScreen({
         childCount: Math.max(0, ids.length - 1),
       });
     },
-    [actions, built.byId, runPending],
+    [actions, built.byId, confirmEndTask, runPending],
   );
 
   const onKeyDown = useCallback(

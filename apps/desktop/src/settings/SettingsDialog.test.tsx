@@ -65,17 +65,13 @@ describe('SettingsDialog', () => {
     render(<Harness />);
 
     const dialog = await screen.findByRole('dialog', { name: 'Settings' });
-    for (const name of [
-      'General',
-      'Appearance',
-      'Sampling',
-      'Notifications',
-      'Privacy',
-      'Advanced',
-      'About',
-    ]) {
+    for (const name of ['General', 'Appearance', 'Sampling', 'Notifications', 'Privacy', 'About']) {
       expect(within(dialog).getByRole('tab', { name }), `${name} tab missing`).toBeTruthy();
     }
+
+    // Removed along with the four settings that read nothing and sent
+    // nothing. A switch that does not do what it says is worse than absent.
+    expect(within(dialog).queryByRole('tab', { name: 'Advanced' })).toBeNull();
   });
 
   it('shows exactly one panel at a time', async () => {
@@ -198,17 +194,17 @@ describe('SettingsDialog', () => {
     }
   });
 
-  it('warns before advanced features and ties the warning to the switch', async () => {
+  it('states plainly that nothing is sent, with no switches to get wrong', async () => {
     setSettingsBackend(memoryBackend().backend);
     render(<Harness />);
     const dialog = await screen.findByRole('dialog');
 
-    selectTab(dialog, 'Advanced');
+    selectTab(dialog, 'Privacy');
 
-    const toggle = await within(dialog).findByRole('switch');
-    const describedBy = toggle.getAttribute('aria-describedby');
-    expect(describedBy).toBeTruthy();
-    // The warning must be read at the point of decision, not merely be nearby.
-    expect(document.getElementById(describedBy as string)?.textContent).toMatch(/damage hardware/i);
+    const panel = await within(dialog).findByRole('tabpanel');
+    expect(panel.textContent).toMatch(/sends nothing anywhere/i);
+    // The point of the rewrite: a promise the code can keep, rather than
+    // three toggles wired to nothing.
+    expect(within(panel).queryAllByRole('switch')).toHaveLength(0);
   });
 });

@@ -119,6 +119,13 @@ pub enum Unavailable {
     NeedsPlugin,
     /// The user has explicitly disabled it in settings.
     DisabledByUser,
+    /// Vitals has not built it yet. The platform could do it; we cannot.
+    ///
+    /// Distinct from the other reasons because none of them are the user's
+    /// problem to solve and this one is not either — but a capability that is
+    /// merely unwritten must never be reported as available. Five were, for
+    /// months, because the only alternative was lying in the other direction.
+    NotImplemented,
 }
 
 impl Unavailable {

@@ -4,7 +4,6 @@ members = [
     "crates/vitals-core",
     "crates/vitals-ipc",
     "crates/vitals-store",
-    "crates/vitals-plugin",
     "crates/vitals-bench",
     "crates/vitals-win",
     "crates/vitals-linux",
@@ -27,7 +26,6 @@ authors = ["Vitals contributors"]
 vitals-core = { path = "crates/vitals-core" }
 vitals-ipc = { path = "crates/vitals-ipc" }
 vitals-store = { path = "crates/vitals-store" }
-vitals-plugin = { path = "crates/vitals-plugin" }
 vitals-bench = { path = "crates/vitals-bench" }
 vitals-win = { path = "crates/vitals-win" }
 vitals-linux = { path = "crates/vitals-linux" }

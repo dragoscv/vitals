@@ -95,6 +95,20 @@ pub fn clear_app_history(state: tauri::State<'_, AppState>) -> CommandResult<()>
     Ok(())
 }
 
+/// Turns accumulation on or off, mirroring the "Record history" setting.
+///
+/// The frontend sends this on hydration and on every change. Until the first
+/// call arrives the store records nothing: a user who has never opened
+/// Settings has the default (off), and a tally that started before their
+/// preference was known would be recording without consent.
+#[tauri::command]
+#[cfg(windows)]
+#[allow(clippy::needless_pass_by_value)]
+pub fn set_history_enabled(state: tauri::State<'_, AppState>, enabled: bool) -> CommandResult<()> {
+    state.set_history_enabled(enabled);
+    Ok(())
+}
+
 /// Placeholder stubs for non-Windows platforms.
 ///
 /// The app is Windows-only, but the frontend might be previewed in a browser
@@ -111,5 +125,11 @@ pub fn get_app_history() -> CommandResult<AppHistorySnapshot> {
 #[tauri::command]
 #[cfg(not(windows))]
 pub fn clear_app_history() -> CommandResult<()> {
+    Ok(())
+}
+
+#[tauri::command]
+#[cfg(not(windows))]
+pub fn set_history_enabled(_enabled: bool) -> CommandResult<()> {
     Ok(())
 }

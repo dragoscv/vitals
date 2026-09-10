@@ -2,6 +2,17 @@ packages:
   - 'apps/*'
   - 'packages/*'
 
+# pnpm 12 quarantines packages published in the last 24 hours, which is a real
+# defence against a compromised maintainer — most malicious publishes are
+# yanked within hours. This repo opts out because its policy is the latest
+# stable of everything, and that collides with the quarantine on the day a
+# release lands.
+#
+# The trade this makes explicit: we rely on the lockfile being reviewed and on
+# CI running `--frozen-lockfile`, not on a waiting period. If that stops being
+# true, raise this to 1440 rather than leaving it at zero and hoping.
+minimumReleaseAge: 0
+
 catalog:
   # React
   react: 19.3.0

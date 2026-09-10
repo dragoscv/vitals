@@ -76,6 +76,7 @@
     "needsPlugin": "Necesită un supliment opțional",
     "noSuchHardware": "Componentele tale nu raportează această valoare",
     "notSupported": "Indisponibil pe acest sistem",
+    "notImplemented": "Nu este construită încă",
     "disabledByUser": "Dezactivat în setări",
     "enable": "Activează",
     "learnMore": "Află mai multe"
@@ -107,6 +108,9 @@
       "surfaceMica": "Mica",
       "surfaceAcrylic": "Acrilic",
       "density": "Densitate",
+      "densityCompact": "Compact",
+      "densityDefault": "Implicit",
+      "densityComfortable": "Confortabil",
       "reduceMotion": "Redu animațiile"
     },
     "language": {
@@ -129,16 +133,11 @@
     },
     "privacy": {
       "title": "Confidențialitate",
-      "crashReports": "Trimite rapoarte de eroare",
-      "crashReportsHint": "Dezactivat implicit. Nu include niciodată nume de fișiere sau linii de comandă.",
-      "usageData": "Trimite date anonime de utilizare",
-      "reputationLookups": "Verifică fișierele pe VirusTotal",
-      "reputationLookupsHint": "Trimite doar un hash al fișierului, niciodată fișierul."
-    },
-    "advanced": {
-      "title": "Avansat",
-      "warning": "Acestea pot deteriora componentele sau pot cauza pierderi de date. Activează doar dacă știi ce faci.",
-      "enable": "Activează funcțiile avansate"
+      "noTelemetry": "Vitals nu trimite nimic nicăieri.",
+      "localOnly": "Tot ce măsură rămâne pe acest calculator. Istoricul, dacă îl activezi, este un fișier local pe care îl poți șterge.",
+      "noCrashReports": "Nu există raportare de erori și nici analiză de utilizare — nici opțional, nici implicit, deloc.",
+      "noLookups": "Niciun fișier nu este vreodată verificat sau căutat online.",
+      "lanServer": "Singura funcție de rețea este serverul LAN opțional pentru telefon și alte aplicații. Este oprit până îl pornești și comunică doar cu dispozitive din rețeaua ta."
     },
     "about": {
       "title": "Despre",

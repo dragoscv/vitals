@@ -105,8 +105,13 @@ export function useLayout(backend: LayoutBackend = createLayoutBackend()): Layou
   // The default argument allocates a fresh backend on every render, so the
   // value itself can never be a stable dependency. The ref is stable, and the
   // effects read `.current` at the moment they actually need it.
+  // Written in an effect, never during render: React 19's concurrent
+  // scheduler may discard a render, and `react-hooks/refs` forbids the
+  // render-time write for exactly that reason.
   const backendRef = useRef(backend);
-  backendRef.current = backend;
+  useEffect(() => {
+    backendRef.current = backend;
+  });
 
   useEffect(() => {
     let cancelled = false;

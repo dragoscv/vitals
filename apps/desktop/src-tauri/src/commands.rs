@@ -118,6 +118,33 @@ pub fn show_main_window(window: tauri::Window) -> CommandResult<()> {
     Ok(())
 }
 
+/// Whether the process was started by the autostart entry.
+///
+/// The Run-key command line always carries `--minimized`; whether the window
+/// actually stays hidden is the frontend's decision, made from the
+/// `startMinimised` setting once it has hydrated. Doing it here would need
+/// the setting before the store is readable.
+#[must_use]
+pub fn launched_minimised() -> bool {
+    std::env::args().skip(1).any(|arg| arg == "--minimized")
+}
+
+/// Runtime facts about how this instance was started.
+#[derive(Debug, Clone, Copy, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LaunchOptions {
+    /// Started by the autostart entry rather than by the user.
+    pub autostarted: bool,
+}
+
+/// Lets the frontend decide whether to reveal the window at all.
+#[tauri::command]
+pub fn get_launch_options() -> LaunchOptions {
+    LaunchOptions {
+        autostarted: launched_minimised(),
+    }
+}
+
 /// How dangerous an action is, as the frontend sees it.
 ///
 /// Mirrors [`vitals_win::Risk`] rather than re-exporting it so the wire

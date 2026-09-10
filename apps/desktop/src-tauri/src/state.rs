@@ -20,6 +20,19 @@ pub struct AppState {
     /// inventing records.
     #[cfg(windows)]
     history: RwLock<Option<vitals_win::history::SharedHistory>>,
+    /// The user's "record history" preference, kept here so it survives the
+    /// window between the frontend sending it and the sampler attaching.
+    #[cfg(windows)]
+    history_enabled: std::sync::atomic::AtomicBool,
+    /// The most recent per-process sample, reduced to what session rollups
+    /// need.
+    ///
+    /// Published by the sampler every tick so request/response commands
+    /// (Users, and later the LAN API) can answer from the same instant the
+    /// dashboard is showing, instead of taking a second, unsynchronised
+    /// snapshot of their own. Empty until the first tick lands.
+    #[cfg(windows)]
+    latest_processes: RwLock<std::sync::Arc<Vec<vitals_win::users::ProcessSample>>>,
 }
 
 impl AppState {
@@ -30,6 +43,10 @@ impl AppState {
             capabilities: RwLock::new(platform_capabilities()),
             #[cfg(windows)]
             history: RwLock::new(None),
+            #[cfg(windows)]
+            history_enabled: std::sync::atomic::AtomicBool::new(false),
+            #[cfg(windows)]
+            latest_processes: RwLock::new(std::sync::Arc::new(Vec::new())),
         }
     }
 
@@ -39,6 +56,18 @@ impl AppState {
 
     pub fn set_sample_rate(&self, rate: SampleRate) {
         *self.rate.write() = rate;
+    }
+
+    /// Replaces the published process sample. Called by the sampler thread.
+    #[cfg(windows)]
+    pub fn publish_processes(&self, processes: Vec<vitals_win::users::ProcessSample>) {
+        *self.latest_processes.write() = std::sync::Arc::new(processes);
+    }
+
+    /// The most recent process sample, shared rather than copied.
+    #[cfg(windows)]
+    pub fn latest_processes(&self) -> std::sync::Arc<Vec<vitals_win::users::ProcessSample>> {
+        std::sync::Arc::clone(&self.latest_processes.read())
     }
 
     pub fn capabilities(&self) -> Capabilities {
@@ -55,7 +84,28 @@ impl AppState {
     #[cfg(windows)]
     pub fn attach_history(&self, history: vitals_win::history::SharedHistory) {
         history.load_from(&history_path());
+        // Off until the frontend says otherwise. The store's own default is
+        // on, which is right for a library and wrong for a user who has not
+        // consented.
+        history.set_enabled(
+            self.history_enabled
+                .load(std::sync::atomic::Ordering::Relaxed),
+        );
         *self.history.write() = Some(history);
+    }
+
+    /// Applies the "record history" setting.
+    #[cfg(windows)]
+    pub fn set_history_enabled(&self, enabled: bool) {
+        self.history_enabled
+            .store(enabled, std::sync::atomic::Ordering::Relaxed);
+        if let Some(history) = self.history.read().as_ref() {
+            history.set_enabled(enabled);
+            if !enabled {
+                // Turning it off is a good moment to make what exists durable.
+                let _ = history.save(&history_path());
+            }
+        }
     }
 
     /// Reads the accumulated history.

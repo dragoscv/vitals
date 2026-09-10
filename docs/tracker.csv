@@ -1,33 +1,33 @@
 id,slice,category,title,detail,decision,status,verification
-S1-01,S1,tooling,Upgrade vitest to 5.0.0,vitest + @vitest/coverage-v8 pinned exactly; clearMocks now defaults true,D5,todo,
-S1-02,S1,tooling,Upgrade React to 19.3.0,react + react-dom + @types/react + @types/react-dom,D5,todo,
-S1-03,S1,tooling,Upgrade remaining npm deps,happy-dom eslint globals typescript-eslint lucide-react motion rimraf i18next react-i18next tauri plugins react-virtual,D5,todo,
-S1-04,S1,tooling,Upgrade prettier-plugin-tailwindcss to 0.8.1,Requires prettier>=3.7 despite peer range; add tailwindStylesheet; expect one large format-only diff,D5,todo,
-S1-05,S1,tooling,Upgrade Cargo deps,interprocess 2.4.4 and any others found by cargo update,D5,todo,
-S1-06,S1,tooling,ESLint recommendedTypeChecked,projectService + tsconfigRootDir + onUnsupportedTypeScriptVersion error; migrate tseslint.config to defineConfig,D22,todo,
-S1-07,S1,tooling,Add .vscode/tasks.json,Curated task set; also allowlist tasks.json in .gitignore,D22,todo,
-S1-08,S1,tooling,Add .vscode/extensions.json and settings.json,Recommended extensions and workspace settings,D22,todo,
-S1-09,S1,tooling,Vitest coverage thresholds,coverage-v8 is installed but unused,D22,todo,
-S1-10,S1,tooling,Migrate manualChunks to codeSplitting.groups,Rolldown deprecates the function form; use [\\/] in test regexes,D5,todo,
-S1-11,S1,tooling,Add origin remote,github.com/dragoscv/vitals - never push,D19,todo,
-S2-01,S2,truth,Wire startWithWindows and startMinimised,tauri-plugin-autostart 2.5.1 with --minimized arg; reconcile with StartupApproved on launch,D13,todo,
-S2-02,S2,truth,Wire confirmEndTask,RiskDialog must honour the setting,D13,todo,
+S1-01,S1,tooling,Upgrade vitest to 5.0.0,vitest + @vitest/coverage-v8 pinned exactly; clearMocks now defaults true,D5,done,gates green 2026-09-10
+S1-02,S1,tooling,Upgrade React to 19.3.0,react + react-dom + @types/react + @types/react-dom,D5,done,gates green 2026-09-10
+S1-03,S1,tooling,Upgrade remaining npm deps,happy-dom eslint globals typescript-eslint lucide-react motion rimraf i18next react-i18next tauri plugins react-virtual,D5,done,gates green 2026-09-10
+S1-04,S1,tooling,Upgrade prettier-plugin-tailwindcss to 0.8.1,Requires prettier>=3.7 despite peer range; add tailwindStylesheet; expect one large format-only diff,D5,done,gates green 2026-09-10
+S1-05,S1,tooling,Upgrade Cargo deps,interprocess 2.4.4 and any others found by cargo update,D5,done,gates green 2026-09-10
+S1-06,S1,tooling,ESLint recommendedTypeChecked,projectService + tsconfigRootDir + onUnsupportedTypeScriptVersion error; migrate tseslint.config to defineConfig,D22,done,gates green 2026-09-10
+S1-07,S1,tooling,Add .vscode/tasks.json,Curated task set; also allowlist tasks.json in .gitignore,D22,done,gates green 2026-09-10
+S1-08,S1,tooling,Add .vscode/extensions.json and settings.json,Recommended extensions and workspace settings,D22,done,gates green 2026-09-10
+S1-09,S1,tooling,Vitest coverage thresholds,coverage-v8 is installed but unused,D22,done,gates green 2026-09-10
+S1-10,S1,tooling,Migrate manualChunks to codeSplitting.groups,Rolldown deprecates the function form; use [\\/] in test regexes,D5,done,gates green 2026-09-10
+S1-11,S1,tooling,Add origin remote,github.com/dragoscv/vitals - never push,D19,done,gates green 2026-09-10
+S2-01,S2,truth,Wire startWithWindows and startMinimised,tauri-plugin-autostart 2.5.1 with --minimized arg; reconcile with StartupApproved on launch,D13,done,gates green 2026-09-10
+S2-02,S2,truth,Wire confirmEndTask,RiskDialog must honour the setting,D13,done,gates green 2026-09-10
 S2-03,S2,truth,Wire notificationsEnabled and the three alert switches,tauri-plugin-notification 2.4.0 driven by the existing TS alerts engine,D13,todo,
-S2-04,S2,truth,Wire historyEnabled,Sampler must not attach history when off,D13,todo,
-S2-05,S2,truth,Delete crashReports usageData reputationLookups advancedEnabled,No telemetry exists and none is planned,D13,todo,
-S2-06,S2,truth,Fix untranslated density labels,panels.tsx maps enum values straight to labels,D13,todo,
-S2-07,S2,truth,Fix backendRef write during render,useLayout.ts - move to useEffect,D13,todo,
-S2-08,S2,truth,Remove affinity from UNIMPLEMENTED_ACTIONS,set_process_affinity is wired,D13,todo,
+S2-04,S2,truth,Wire historyEnabled,Sampler must not attach history when off,D13,done,gates green 2026-09-10
+S2-05,S2,truth,Delete crashReports usageData reputationLookups advancedEnabled,No telemetry exists and none is planned,D13,done,gates green 2026-09-10
+S2-06,S2,truth,Fix untranslated density labels,panels.tsx maps enum values straight to labels,D13,done,gates green 2026-09-10
+S2-07,S2,truth,Fix backendRef write during render,useLayout.ts - move to useEffect,D13,done,gates green 2026-09-10
+S2-08,S2,truth,Remove affinity from UNIMPLEMENTED_ACTIONS,set_process_affinity is wired,D13,done,gates green 2026-09-10
 S2-09,S2,truth,Unify the two persistence layers,settings/persistence.ts and useLayout.ts duplicate ~40 lines,D13,todo,
-S2-10,S2,truth,Feed get_users rollups,rollup_by_session exists with 7 tests,D12,todo,
-S2-11,S2,truth,Remove false capability claims,HandleEnumeration and SetEfficiencyMode until implemented in S9,D12,todo,
-S2-12,S2,truth,Delete vitals-plugin,No consumer and no plan,D11,todo,
-S2-13,S2,truth,Remove unused workspace Cargo deps,14 of 20 referenced by nobody,D11,todo,
-S2-14,S2,truth,Remove unused npm deps,cmdk date-fns @tanstack/react-table and unused tauri plugins; recharts from the catalog,D16,todo,
+S2-10,S2,truth,Feed get_users rollups,rollup_by_session exists with 7 tests,D12,done,gates green 2026-09-10
+S2-11,S2,truth,Remove false capability claims,HandleEnumeration and SetEfficiencyMode until implemented in S9,D12,done,gates green 2026-09-10
+S2-12,S2,truth,Delete vitals-plugin,No consumer and no plan,D11,done,gates green 2026-09-10
+S2-13,S2,truth,Remove unused workspace Cargo deps,14 of 20 referenced by nobody,D11,done,gates green 2026-09-10
+S2-14,S2,truth,Remove unused npm deps,cmdk date-fns @tanstack/react-table and unused tauri plugins; recharts from the catalog,D16,done,gates green 2026-09-10
 S2-15,S2,truth,Wire or delete get_capabilities,Frontend derives from the frame; decide and act,D12,todo,
-S2-16,S2,truth,Remove unused global-shortcut permission,Granted for nothing until S7 registers a palette shortcut,D13,todo,
+S2-16,S2,truth,Remove unused global-shortcut permission,Granted for nothing until S7 registers a palette shortcut,D13,done,gates green 2026-09-10
 S3-01,S3,store,Implement vitals-store on rusqlite,4-tier time series with WAL; schema migrations,D11,todo,
-S3-02,S3,store,Periodic history flush,Currently persisted only at loop exit; a kill loses the session,D11,todo,
+S3-02,S3,store,Periodic history flush,Currently persisted only at loop exit; a kill loses the session,D11,done,gates green 2026-09-10
 S3-03,S3,store,Enforce retentionDays,Prune on a schedule; wire the setting through,D13,todo,
 S3-04,S3,store,Flight recorder,Capture 60 s of frames and export a shareable bundle,D8,todo,
 S4-01,S4,server,New crate vitals-server on axum 0.8.9,default-features off; http1 json tokio ws query,D2,todo,

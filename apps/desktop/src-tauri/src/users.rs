@@ -55,13 +55,25 @@ pub struct UsersSnapshot {
 /// sub-second interval, so faster polling would just produce the same result.
 #[tauri::command]
 #[cfg(windows)]
-pub fn get_users() -> CommandResult<UsersSnapshot> {
+// Tauri's command macro requires `State` by value; it cannot be borrowed.
+#[allow(clippy::needless_pass_by_value)]
+pub fn get_users(state: tauri::State<'_, crate::state::AppState>) -> CommandResult<UsersSnapshot> {
     use vitals_win::users;
 
-    // For now, return sessions with empty rollups. The rollup requires process
-    // samples, and integrating that is deferred to a follow-up when the
-    // sampler's output is made available to this command.
     let sessions = users::collect()?;
+    // Rollups come from the sampler's most recent tick rather than a fresh
+    // enumeration, so the per-session totals agree with what the Processes
+    // screen is showing at the same moment.
+    let processes = state.latest_processes();
+    let rollups = users::rollup_by_session(&processes)
+        .into_iter()
+        .map(|r| SessionRollupDto {
+            session_id: r.session_id,
+            process_count: r.process_count,
+            cpu_percent: r.cpu_percent,
+            memory_bytes: r.memory_bytes,
+        })
+        .collect();
 
     Ok(UsersSnapshot {
         sessions: sessions
@@ -80,7 +92,7 @@ pub fn get_users() -> CommandResult<UsersSnapshot> {
                 is_services: session.is_services(),
             })
             .collect(),
-        rollups: Vec::new(),
+        rollups,
     })
 }
 

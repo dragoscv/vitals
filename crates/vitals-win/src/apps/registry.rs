@@ -279,7 +279,9 @@ impl RegKey {
         // even byte count for a corrupt value, so the odd trailing byte is
         // dropped rather than being read past the end of the buffer.
         let units: Vec<u16> = bytes
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|pair| u16::from_le_bytes([pair[0], pair[1]]))
             .collect();
 

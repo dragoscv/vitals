@@ -34,6 +34,10 @@ pub fn run() {
         // routed to the running window instead of starting a second sampler.
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
             if let Some(window) = app.get_webview_window("main") {
+                // `show` as well as unminimise: an instance started minimised
+                // to the tray has a hidden window, and a second launch is the
+                // user asking for it.
+                let _ = window.show();
                 let _ = window.unminimize();
                 let _ = window.set_focus();
             }
@@ -43,7 +47,16 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_notification::init())
+        // `--minimized` is what the Run-key entry passes back to us; the
+        // frontend reads it via `get_launch_options` and skips the reveal.
+        .plugin(
+            tauri_plugin_autostart::Builder::new()
+                .args(["--minimized"])
+                .app_name("Vitals")
+                .build(),
+        )
         .manage(state::AppState::new())
         // The sampler starts with the app and stops when the handle drops at
         // shutdown. Managed so it stays alive for the process lifetime —
@@ -60,8 +73,12 @@ pub fn run() {
             // window, and the app would run invisibly with no way to reach
             // it. A blank window the user can close beats a process they can
             // only find in Task Manager.
+            //
+            // Not armed for an autostarted launch: hidden is then the
+            // intended state, and the tray is how the user reaches it.
             let reveal = app.handle().clone();
-            std::thread::spawn(move || {
+            if !commands::launched_minimised() {
+                std::thread::spawn(move || {
                 std::thread::sleep(std::time::Duration::from_secs(5));
 
                 if let Some(window) = reveal.get_webview_window("main") {
@@ -75,7 +92,8 @@ pub fn run() {
                     );
                     let _ = window.show();
                 }
-            });
+                });
+            }
 
             Ok(())
         })
@@ -83,6 +101,7 @@ pub fn run() {
             commands::get_host_info,
             commands::get_capabilities,
             commands::set_sample_rate,
+            commands::get_launch_options,
             commands::show_main_window,
             #[cfg(windows)]
             commands::plan_terminate_process,
@@ -136,6 +155,7 @@ pub fn run() {
             // than the command simply not existing.
             history::get_app_history,
             history::clear_app_history,
+            history::set_history_enabled,
             users::get_users,
         ])
         .run(tauri::generate_context!())
