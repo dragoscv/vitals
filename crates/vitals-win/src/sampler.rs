@@ -368,13 +368,17 @@ impl SystemSampler {
                 // A machine transcoding video is genuinely 100% busy on the
                 // encode engine while 3D is idle, and averaging them would
                 // report 50% — a number describing neither.
+                //
+                // `None`, not zero, when there are no engines to take the
+                // max of: an adapter with no counters is unmeasured, and the
+                // machine's phantom display adapters were reporting 0 %
+                // beside a real GPU at 16 %.
                 let utilization = adapter
                     .engines
                     .iter()
                     .filter(|engine| engine.kind.is_primary_workload())
                     .map(|engine| engine.utilisation)
-                    .max_by(|a, b| a.get().total_cmp(&b.get()))
-                    .unwrap_or(Percent::ZERO);
+                    .max_by(|a, b| a.get().total_cmp(&b.get()));
 
                 GpuMetrics {
                     id: adapter.id,

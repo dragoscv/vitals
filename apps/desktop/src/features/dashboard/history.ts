@@ -207,7 +207,9 @@ export class HistoryCollector {
     core.netTx.push(tx);
 
     for (const gpu of gpus) {
-      pushInto(this.state.gpu, gpu.id, gpu.utilization);
+      // Same rule as memory on the next line: an unmeasured adapter gets no
+      // point, so its series stays absent rather than flat at zero.
+      if (gpu.utilization !== null) pushInto(this.state.gpu, gpu.id, gpu.utilization);
       if (gpu.memoryUsed !== null) pushInto(this.state.gpuMemory, gpu.id, gpu.memoryUsed);
     }
 

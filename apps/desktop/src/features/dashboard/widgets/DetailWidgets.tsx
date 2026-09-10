@@ -65,12 +65,16 @@ export function GpuWidget({ system, locale }: DetailWidgetProps): React.JSX.Elem
               <Badge tone="warn">{t('alert.gpuThrottled.title', { gpu: gpu.name })}</Badge>
             )}
           </div>
-          <Meter
-            label={t('metric.gpu', { ns: 'translation' })}
-            accessibleLabel={gpu.name}
-            value={gpu.utilization}
-            valueText={formatPercent(gpu.utilization, locale)}
-          />
+          {gpu.utilization !== null ? (
+            <Meter
+              label={t('metric.gpu', { ns: 'translation' })}
+              accessibleLabel={gpu.name}
+              value={gpu.utilization}
+              valueText={formatPercent(gpu.utilization, locale)}
+            />
+          ) : (
+            <Unavailable />
+          )}
           {gpu.memoryUsed !== null && gpu.memoryTotal !== null ? (
             <Meter
               label={t('gpu.memory')}

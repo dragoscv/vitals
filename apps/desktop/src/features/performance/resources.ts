@@ -40,8 +40,14 @@ export interface ResourceEntry {
   readonly name: string;
   /** Secondary line in the rail — the mount point, link speed, vendor. */
   readonly detail: string | null;
-  /** Headline reading, 0-100, for the rail's inline meter. */
-  readonly utilization: number;
+  /**
+   * Headline reading, 0-100, for the rail's inline meter.
+   *
+   * `null` when there is no honest percentage: a network adapter (link speed
+   * is a nominal ceiling), or a GPU with no engine counters. The rail omits
+   * the meter for these rather than drawing an empty one.
+   */
+  readonly utilization: number | null;
   /** The device's own id within its kind, for looking the device back up. */
   readonly deviceId: number | null;
 }
@@ -119,9 +125,8 @@ export function buildResourceList(
       detail: nic.adapter,
       // Networks have no meaningful percentage: link speed is a nominal
       // ceiling that Wi-Fi never reaches and that is null on many adapters.
-      // Zero here keeps the meter honest rather than inventing a scale, and
-      // the rail shows throughput as text instead.
-      utilization: 0,
+      // The rail shows throughput as text instead.
+      utilization: null,
       deviceId: nic.id,
     });
   }
@@ -132,7 +137,7 @@ export function buildResourceList(
       kind: 'thermals',
       name: '',
       detail: null,
-      utilization: hottest(system) ?? 0,
+      utilization: hottest(system),
       deviceId: null,
     });
   }

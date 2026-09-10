@@ -168,21 +168,30 @@ pub fn render(system: &SystemMetrics, processes: &[Process], top_n: usize) -> St
     }
 
     if !system.gpus.is_empty() {
-        gauge(
-            &mut out,
-            "vitals_gpu_percent",
-            "Busiest engine on each GPU.",
-            |o| {
-                for g in &system.gpus {
-                    let _ = writeln!(
-                        o,
-                        "vitals_gpu_percent{{gpu=\"{}\"}} {}",
-                        escape(&g.name),
-                        num(g.utilization.0)
-                    );
-                }
-            },
-        );
+        // Same rule as memory below: an adapter with no engine counters has
+        // no series, rather than a 0 % that would pull `avg()` down.
+        let measured: Vec<_> = system
+            .gpus
+            .iter()
+            .filter_map(|g| g.utilization.map(|u| (g, u)))
+            .collect();
+        if !measured.is_empty() {
+            gauge(
+                &mut out,
+                "vitals_gpu_percent",
+                "Busiest engine on each GPU.",
+                |o| {
+                    for (g, utilization) in &measured {
+                        let _ = writeln!(
+                            o,
+                            "vitals_gpu_percent{{gpu=\"{}\"}} {}",
+                            escape(&g.name),
+                            num(utilization.0)
+                        );
+                    }
+                },
+            );
+        }
         // Only emitted for GPUs that report it. A card whose driver hides VRAM
         // must not appear to have zero.
         let with_memory: Vec<_> = system
@@ -440,7 +449,7 @@ mod tests {
             name: "Test GPU".into(),
             vendor: vitals_core::metrics::GpuVendor::Unknown,
             engines: Vec::new(),
-            utilization: Percent(17.0),
+            utilization: Some(Percent(17.0)),
             memory_used: None,
             memory_total: None,
             shared_memory_used: None,
@@ -461,6 +470,39 @@ mod tests {
             "{out}"
         );
         assert!(!out.contains("vitals_gpu_memory_bytes"), "{out}");
+    }
+
+    #[test]
+    fn an_adapter_with_no_counters_has_no_gpu_percent_series() {
+        // Two phantom display adapters on the dev machine reported 0 %
+        // beside a real GPU at 16 %; averaged in Grafana that read as 5 %.
+        let mut s = fixtures::system();
+        s.gpus.push(vitals_core::metrics::GpuMetrics {
+            id: vitals_core::ids::GpuId(1),
+            name: "Phantom".into(),
+            vendor: vitals_core::metrics::GpuVendor::Unknown,
+            engines: Vec::new(),
+            utilization: None,
+            memory_used: None,
+            memory_total: None,
+            shared_memory_used: None,
+            core_clock: None,
+            memory_clock: None,
+            temperature: None,
+            hotspot_temperature: None,
+            power: None,
+            power_limit: None,
+            fan_percent: None,
+            fan_rpm: None,
+            throttled: None,
+            driver_version: None,
+        });
+        let out = render(&s, &[], 0);
+        assert!(!out.contains(r#"gpu="Phantom""#), "{out}");
+        assert!(
+            !out.contains("vitals_gpu_percent"),
+            "no measured GPU, no series at all: {out}"
+        );
     }
 
     #[test]

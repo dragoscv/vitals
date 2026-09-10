@@ -62,10 +62,12 @@ impl MachineSample {
             disk_write_bps: m.disks.iter().map(|d| d.write.0).sum(),
             net_rx_bps: m.networks.iter().map(|n| n.rx.0).sum(),
             net_tx_bps: m.networks.iter().map(|n| n.tx.0).sum(),
+            // Only adapters that measured something. A phantom adapter's
+            // `None` must not drag the max down to 0.
             gpu_percent: m
                 .gpus
                 .iter()
-                .map(|g| g.utilization.0)
+                .filter_map(|g| g.utilization.map(|p| p.0))
                 .fold(None, |acc, v| Some(acc.map_or(v, |a: f32| a.max(v)))),
             cpu_temp_c: m.cpu.temperature.map(|c| c.0),
             power_draw_w: m.power_draw.map(|w| w.0),

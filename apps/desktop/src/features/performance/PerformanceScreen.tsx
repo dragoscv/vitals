@@ -161,9 +161,9 @@ function RailButton({
     >
       <span className="flex items-baseline justify-between gap-2">
         <span className="truncate text-sm font-medium">{label}</span>
-        {/* Networks report no meaningful percentage, so the meter is omitted
-            rather than pinned at zero — see the note in `resources.ts`. */}
-        {entry.kind !== 'network' && (
+        {/* No reading, no number. Networks have no honest percentage and a
+            GPU without counters is unmeasured — see `resources.ts`. */}
+        {entry.utilization !== null && (
           <span className="tnum shrink-0 font-mono text-sm text-[var(--color-fg-muted)]">
             {entry.kind === 'thermals'
               ? `${Math.round(entry.utilization)}°`
@@ -176,7 +176,7 @@ function RailButton({
           {entry.detail}
         </span>
       )}
-      {entry.kind !== 'network' && entry.kind !== 'thermals' && (
+      {entry.utilization !== null && entry.kind !== 'thermals' && (
         <Meter
           className="mt-1"
           label=""

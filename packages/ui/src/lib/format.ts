@@ -20,8 +20,8 @@ const BINARY_UNITS = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'] as const;
  * kilobytes would make our numbers disagree with Explorer, and the user would
  * — reasonably — conclude that we are the ones that are wrong.
  */
-export function formatBytes(bytes: number, locale?: string, precision?: number): string {
-  if (!Number.isFinite(bytes)) return '—';
+export function formatBytes(bytes: number | null, locale?: string, precision?: number): string {
+  if (bytes === null || !Number.isFinite(bytes)) return '—';
   if (bytes === 0) return '0 B';
 
   const negative = bytes < 0;
@@ -44,15 +44,15 @@ export function formatBytes(bytes: number, locale?: string, precision?: number):
 }
 
 /** Formats a throughput in bytes per second. */
-export function formatThroughput(bytesPerSec: number, locale?: string): string {
-  if (!Number.isFinite(bytesPerSec)) return '—';
+export function formatThroughput(bytesPerSec: number | null, locale?: string): string {
+  if (bytesPerSec === null || !Number.isFinite(bytesPerSec)) return '—';
   if (bytesPerSec === 0) return '0 B/s';
   return `${formatBytes(bytesPerSec, locale)}/s`;
 }
 
 /** Formats a 0..100 percentage. */
-export function formatPercent(value: number, locale?: string, digits = 1): string {
-  if (!Number.isFinite(value)) return '—';
+export function formatPercent(value: number | null, locale?: string, digits = 1): string {
+  if (value === null || !Number.isFinite(value)) return '—';
   return (
     new Intl.NumberFormat(locale, {
       minimumFractionDigits: digits,
@@ -62,8 +62,8 @@ export function formatPercent(value: number, locale?: string, digits = 1): strin
 }
 
 /** Formats a frequency given in hertz, scaling to MHz or GHz. */
-export function formatFrequency(hertz: number, locale?: string): string {
-  if (!Number.isFinite(hertz) || hertz === 0) return '—';
+export function formatFrequency(hertz: number | null, locale?: string): string {
+  if (hertz === null || !Number.isFinite(hertz) || hertz === 0) return '—';
 
   if (hertz >= 1e9) {
     return `${new Intl.NumberFormat(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(hertz / 1e9)} GHz`;
@@ -72,13 +72,13 @@ export function formatFrequency(hertz: number, locale?: string): string {
 }
 
 /** Formats a temperature in Celsius. */
-export function formatTemperature(celsius: number, locale?: string): string {
-  if (!Number.isFinite(celsius)) return '—';
+export function formatTemperature(celsius: number | null, locale?: string): string {
+  if (celsius === null || !Number.isFinite(celsius)) return '—';
   return `${new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(celsius)}°C`;
 }
 
-export function formatWatts(watts: number, locale?: string): string {
-  if (!Number.isFinite(watts)) return '—';
+export function formatWatts(watts: number | null, locale?: string): string {
+  if (watts === null || !Number.isFinite(watts)) return '—';
   const digits = Math.abs(watts) >= 100 ? 0 : 1;
   return `${new Intl.NumberFormat(locale, { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(watts)} W`;
 }

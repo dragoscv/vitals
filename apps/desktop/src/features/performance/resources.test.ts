@@ -102,7 +102,9 @@ describe('buildResourceList', () => {
     const system = makeSystem({ networks: [{ id: 0, rx: 5_000_000, linkSpeed: null }] });
     const nic = buildResourceList(system).find((entry) => entry.id === 'network:0');
 
-    expect(nic?.utilization).toBe(0);
+    // Null, not zero: there is no honest percentage for a network adapter,
+    // and the rail omits the meter rather than drawing an empty one.
+    expect(nic?.utilization).toBeNull();
   });
 
   it('omits the thermals entry when nothing reports a temperature', () => {

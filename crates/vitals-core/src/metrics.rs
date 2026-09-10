@@ -277,7 +277,13 @@ pub struct GpuMetrics {
     /// this right and it is one of its few genuinely good ideas.
     pub engines: Vec<GpuEngine>,
     /// Highest utilisation across engines, for a single summary column.
-    pub utilization: Percent,
+    ///
+    /// `None` when the adapter exposes no engine counters at all — a virtual
+    /// display, a render-only device, or a driver whose PDH instances failed
+    /// to load. Those are unknown, not idle, and the previous non-optional
+    /// type made them all read 0 %: the phone app showed “GPU 0 %” on a
+    /// machine whose real GPU was at 16 %.
+    pub utilization: Option<Percent>,
     pub memory_used: Option<Bytes>,
     pub memory_total: Option<Bytes>,
     pub shared_memory_used: Option<Bytes>,
