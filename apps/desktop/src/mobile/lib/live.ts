@@ -10,18 +10,27 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 
 import type { ControlRequest, VitalsClient } from '@vitals/client';
-import type { Frame } from '@vitals/protocol';
+import type { Alert, Frame } from '@vitals/protocol';
 
 import { fold, type Snapshot } from './frames';
 import type { Pairing } from './pairing';
 
 /** The subset of `VitalsClient` the phone uses; a test hands in a plain object. */
-export type MobileClient = Pick<VitalsClient, 'health' | 'host' | 'stream' | 'control'>;
+export type MobileClient = Pick<VitalsClient, 'health' | 'host' | 'stream' | 'control' | 'alerts'>;
 
 export type ConnectionState = 'connecting' | 'live' | 'reconnecting' | 'unreachable';
 
 /** How many readings a card's sparkline remembers — about a minute at 1 Hz. */
 export const HISTORY_LENGTH = 60;
+
+/**
+ * How often the alert list is re-read while a PC is connected.
+ *
+ * Alerts are raised on sustained conditions (a minute of busy disk, tens of
+ * seconds of CPU), so a 15 s poll sees every one of them within its own
+ * lifetime and costs one small request rather than a byte per frame.
+ */
+export const ALERTS_POLL_MS = 15_000;
 
 /** Everything a screen needs about one PC. Immutable; a new object per frame. */
 export interface LiveState {
@@ -29,6 +38,12 @@ export interface LiveState {
   readonly snapshot: Snapshot | null;
   readonly cpuHistory: readonly number[];
   readonly memoryHistory: readonly number[];
+  /**
+   * `null` until the first successful read: "not fetched yet" and "nothing
+   * is wrong" are different facts, and the card must not say "all clear"
+   * about a PC it has not asked.
+   */
+  readonly alerts: readonly Alert[] | null;
 }
 
 const INITIAL: LiveState = {
@@ -36,6 +51,7 @@ const INITIAL: LiveState = {
   snapshot: null,
   cpuHistory: [],
   memoryHistory: [],
+  alerts: null,
 };
 
 /**
@@ -50,6 +66,9 @@ export class LiveMachine {
   private current: LiveState = INITIAL;
   private readonly listeners = new Set<() => void>();
   private stop: (() => void) | undefined;
+  private alertsTimer: ReturnType<typeof setTimeout> | undefined;
+  /** Bumped on every drop and close so a poll that was in flight discards its reply. */
+  private alertsEpoch = 0;
 
   constructor(private readonly client: MobileClient) {}
 
@@ -58,8 +77,15 @@ export class LiveMachine {
     if (this.stop !== undefined) return;
     this.stop = this.client.stream({
       onFrame: (frame) => this.apply(frame),
-      onOpen: () => this.set({ ...this.current, state: 'live' }),
+      onOpen: () => {
+        this.set({ ...this.current, state: 'live' });
+        // Alerts ride on the connection, not on the frames: they start when
+        // the stream opens (and again after every reconnect) and stop when
+        // it drops, so a PC that is unreachable is not also polled forever.
+        this.startAlerts();
+      },
       onDrop: () => {
+        this.stopAlerts();
         if (this.current.state === 'live') this.set({ ...this.current, state: 'reconnecting' });
       },
       onRetry: (_delay, attempt) => {
@@ -70,8 +96,37 @@ export class LiveMachine {
 
   /** Closes the stream and cancels reconnects. */
   close(): void {
+    this.stopAlerts();
     this.stop?.();
     this.stop = undefined;
+  }
+
+  private startAlerts(): void {
+    this.stopAlerts();
+    const epoch = ++this.alertsEpoch;
+    const tick = (): void => {
+      this.client.alerts().then(
+        (alerts) => {
+          if (epoch !== this.alertsEpoch) return;
+          this.set({ ...this.current, alerts });
+          this.alertsTimer = setTimeout(tick, ALERTS_POLL_MS);
+        },
+        () => {
+          // A failed read keeps the last known list rather than clearing it:
+          // a transient 5xx must not flash "all clear" over a real warning.
+          // The stream's own drop handling decides whether the PC is gone.
+          if (epoch !== this.alertsEpoch) return;
+          this.alertsTimer = setTimeout(tick, ALERTS_POLL_MS);
+        },
+      );
+    };
+    tick();
+  }
+
+  private stopAlerts(): void {
+    this.alertsEpoch += 1;
+    if (this.alertsTimer !== undefined) clearTimeout(this.alertsTimer);
+    this.alertsTimer = undefined;
   }
 
   /** Sends a control request over HTTP. Errors are the client's `VitalsError`s. */
@@ -95,6 +150,7 @@ export class LiveMachine {
     const memory = snapshot.system.memory;
     const memoryPercent = memory.total > 0 ? (memory.used / memory.total) * 100 : 0;
     this.set({
+      ...this.current,
       state: 'live',
       snapshot,
       cpuHistory: push(this.current.cpuHistory, snapshot.system.cpu.total),

@@ -5,6 +5,7 @@ import { initI18n } from '@vitals/i18n';
 
 import { followSystemTheme } from './lib/theme';
 import { MobileApp, storedLocale } from './MobileApp';
+import { registerMobileStrings } from './strings';
 import './styles.css';
 
 /**
@@ -20,6 +21,8 @@ async function bootstrap(): Promise<void> {
 
   followSystemTheme(document.documentElement, window.matchMedia.bind(window));
   await initI18n(storedLocale(window.localStorage), { reportMissingKeys: import.meta.env.DEV });
+  // After init, never before: i18next has no addResourceBundle until then.
+  registerMobileStrings();
 
   createRoot(container).render(
     <StrictMode>

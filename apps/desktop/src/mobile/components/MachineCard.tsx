@@ -1,6 +1,13 @@
+import { AlertTriangle, CheckCircle2, Info, XCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
-import { busiestNic, headlineTemperature, primaryGpu } from '@vitals/protocol';
+import {
+  busiestNic,
+  headlineTemperature,
+  primaryGpu,
+  type Alert,
+  type Severity,
+} from '@vitals/protocol';
 import {
   Badge,
   Card,
@@ -14,6 +21,7 @@ import {
 
 import type { ConnectionState, LiveState } from '../lib/live';
 import type { Pairing } from '../lib/pairing';
+import { MOBILE_ALERTS_NS } from '../strings';
 import { Sparkline } from './Sparkline';
 
 export interface MachineCardProps {
@@ -27,6 +35,18 @@ const TONE: Record<ConnectionState, 'ok' | 'warn' | 'danger' | 'neutral'> = {
   connecting: 'neutral',
   reconnecting: 'warn',
   unreachable: 'danger',
+};
+
+const SEVERITY_ICON: Readonly<Record<Severity, typeof Info>> = {
+  critical: XCircle,
+  warning: AlertTriangle,
+  info: Info,
+};
+
+const SEVERITY_TONE: Readonly<Record<Severity, string>> = {
+  critical: 'text-[var(--color-status-danger)]',
+  warning: 'text-[var(--color-status-warn)]',
+  info: 'text-[var(--color-fg-muted)]',
 };
 
 /** One paired PC at a glance. The whole card is the tap target. */
@@ -110,7 +130,82 @@ export function MachineCard({ pairing, live, onOpen }: MachineCardProps) {
           </div>
         )}
       </button>
+      {/* Outside the button: an alert row can itself be a tap target, and a
+          button inside a button is invalid HTML that browsers repair by
+          dropping the inner one. */}
+      {live.alerts !== null && (
+        <AlertsStrip alerts={live.alerts} onProcesses={() => onOpen(pairing.id)} />
+      )}
     </Card>
+  );
+}
+
+/**
+ * What is wrong with this PC, or the one line saying nothing is.
+ *
+ * `title` is an i18n key from the server (`alert.<kind>.title`) with the
+ * numbers already rounded in `values`, so the phone and the desktop cannot
+ * disagree about a percentage. The severity is spoken as text beside the
+ * icon: colour alone is invisible to a screen reader and to a third of
+ * colour-blind users on a red/amber pair.
+ */
+function AlertsStrip({
+  alerts,
+  onProcesses,
+}: {
+  readonly alerts: readonly Alert[];
+  readonly onProcesses: () => void;
+}) {
+  const { t } = useTranslation(MOBILE_ALERTS_NS);
+
+  if (alerts.length === 0) {
+    return (
+      <p className="flex items-center gap-2 border-t border-[var(--color-border-subtle)] px-4 py-2 text-2xs text-[var(--color-fg-muted)]">
+        <CheckCircle2 aria-hidden className="size-3.5 shrink-0 text-[var(--color-status-ok)]" />
+        <span>{t('alert.none')}</span>
+      </p>
+    );
+  }
+
+  return (
+    <ul
+      // Polite, and only because this list changes rarely — the meters above
+      // update every second and would make a live region unusable.
+      aria-live="polite"
+      className="border-t border-[var(--color-border-subtle)]"
+    >
+      {alerts.map((alert) => {
+        const Icon = SEVERITY_ICON[alert.severity];
+        const body = (
+          <>
+            <Icon aria-hidden className={cn('size-4 shrink-0', SEVERITY_TONE[alert.severity])} />
+            <span className="min-w-0 flex-1 truncate text-left">
+              {t(alert.title, alert.values)}
+            </span>
+            <span className={cn('shrink-0 text-2xs font-medium', SEVERITY_TONE[alert.severity])}>
+              {t(`alert.severity.${alert.severity}`)}
+            </span>
+          </>
+        );
+        const className = 'flex min-h-[44px] w-full items-center gap-2 px-4 py-2 text-sm';
+        return (
+          // Keyed on kind *and* subject: two disks can be nearly full at once.
+          <li key={`${alert.kind}:${alert.subject}`}>
+            {alert.route === 'processes' ? (
+              <button
+                type="button"
+                onClick={onProcesses}
+                className={cn(className, 'active:bg-[var(--color-bg-subtle)]')}
+              >
+                {body}
+              </button>
+            ) : (
+              <div className={className}>{body}</div>
+            )}
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 
