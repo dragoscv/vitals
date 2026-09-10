@@ -23,7 +23,7 @@ function gpu(name: string, utilization: number | null): GpuMetrics {
     fanRpm: null,
     throttled: null,
     driverVersion: null,
-  } as GpuMetrics;
+  };
 }
 
 function system(overrides: Partial<SystemMetrics>): SystemMetrics {
