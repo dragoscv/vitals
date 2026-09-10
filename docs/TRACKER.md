@@ -143,9 +143,9 @@ Status values: `todo`, `doing`, `done`, `blocked`, `dropped`.
 | S1    | Dependency upgrades, tooling, VS Code tasks                          | done                                                                                           |
 | S2    | Truth fixes — dead settings, false capabilities, dead crates         | done (S2-03 notifications, S2-09 persistence unify, S2-15 get_capabilities carried into S8/S7) |
 | S3    | `vitals-store` for real: SQLite history, retention, flight recorder  | done                                                                                           |
-| S4    | LAN server: REST, SSE, WebSocket, Prometheus, mDNS                   | doing (10/12 done; mDNS, named-pipe IPC and TS SDK remain)                                     |
+| S4    | LAN server: REST, SSE, WebSocket, Prometheus, mDNS                   | done except S4-11 named-pipe IPC (deferred to S5, the CLI slice it serves)                     |
 | S5    | CLI that samples directly                                            | todo                                                                                           |
-| S6    | Mobile PWA and QR pairing                                            | todo                                                                                           |
+| S6    | Mobile PWA and QR pairing                                            | done except S6-05 alerts feed (mirrors the S8 alert engine, which does not exist yet)          |
 | S7    | UI polish: motion, palette, ultrawide, export, shortcuts             | todo                                                                                           |
 | S8    | Tray, HUD, alerts, notifications, updater                            | todo                                                                                           |
 | S9    | New Windows metrics: DiskCounters, efficiency mode, handles, modules | todo                                                                                           |
@@ -160,6 +160,46 @@ CSV records the state.
 
 Every claim of "done" needs a command and its output. Recorded here as work
 lands, newest first.
+
+### 2026-09-10 — S6 mobile app, mDNS, SDK, gates (commits cac19cd … 2861e6f)
+
+- `pnpm test` → 65 desktop files, 712 tests; `@vitals/client` 30 tests.
+- `cargo test --workspace` → **783 passed, 0 failed**.
+- `cargo clippy --workspace --all-targets -- -D warnings` → exit 0.
+- `pnpm typecheck` · `eslint .` · `format:check` → clean.
+- `scripts/check-drift.ps1` → 0 failures, 3 warnings (all genuine:
+  `export_flight_recording`, `get_capabilities`, `query_machine_history` are
+  registered and nothing invokes them).
+- `scripts/verify.ps1 -SkipBuild -SkipPerf` → all 9 gates pass.
+- Mobile bundle: **126 kB gzipped** including React (budget 150). React is
+  67 kB of it; the next 31 kB is a shared `@vitals/ui` chunk carrying Radix
+  internals the phone barely uses — splitting it is a follow-up in `ui`.
+- **Live session against the real server** (`serve_dev` on :7332, real
+  sampler): paired via fragment, URL stripped, card showed 70 % CPU /
+  118 GB of 192 GB, processes tab listed 723 rows sorted by CPU, action
+  sheet opened with the two-tap confirm.
+- **Two product defects found only by looking at the phone**, both fixed at
+  the source so every consumer benefits:
+  1. `PID 0 · 43 %` at the top of the process list. The System Idle Process
+     shipped in every frame; `is_idle_process()` existed but only a test
+     called it. Filtered in `frame.rs`; regression test asserts the sampler
+     still sees it and the frame does not.
+  2. `GPU 0 %` for two phantom adapters beside a real GPU at 16 %.
+     `utilization` was non-optional with `.unwrap_or(ZERO)` — the one
+     principle broken at the type level. Now `Option<Percent>`; the compiler
+     walked eight files. `ResourceEntry.utilization` had the same lie for
+     network adapters and is nullable too.
+- Mutation checks recorded: the mDNS lifecycle test was decorative twice
+  before it was real (a browse after shutdown returns nothing whether or not
+  the responder was torn down); the confirm-step test fails if the first tap
+  calls `control()`; `check-drift.ps1` fails on kebab-case `ProcessKey` and
+  on a misspelled `invoke`.
+- Decisions: ask-questions round confirmed control-from-phone with two-tap
+  confirm, several PCs side by side, mDNS only while the server runs, and
+  SDK → OpenAPI → Home Assistant as the third-party order.
+- Deferred, with reason: S4-11 named-pipe IPC belongs with the CLI slice
+  (S5) that consumes it; S6-05 alerts feed mirrors an alert engine (S8) that
+  is not built yet; pull-to-refresh skipped — data is live at 1 Hz.
 
 ### 2026-09-10 — S4 LAN server (commits 76e2c4f, 201fe3d, 217e5bc)
 

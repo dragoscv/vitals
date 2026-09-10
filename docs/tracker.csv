@@ -38,25 +38,25 @@ S4-05,S4,server,WebSocket stream,Bidirectional so the phone can send control com
 S4-06,S4,server,Prometheus /metrics,Hand-written exposition (one snapshot; a registry would duplicate every value),D2,done,server crate + 11 socket tests + prove_lan live 2026-09-10
 S4-07,S4,server,Serve mobile assets,Via AppHandle asset_resolver - do not embed dist twice,D14,done,server crate + 11 socket tests + prove_lan live 2026-09-10
 S4-08,S4,server,LAN interface enumeration,list_afinet_netifas with virtual-adapter filtering and user choice,D1,done,server crate + 11 socket tests + prove_lan live 2026-09-10
-S4-09,S4,server,mDNS advertisement,vitals.local so the QR URL survives a DHCP change,D22,todo,
+S4-09,S4,server,mDNS advertisement,vitals.local so the QR URL survives a DHCP change,D22,done,mdns-sd 0.21.3; lifecycle test mutation-proven 2026-09-10
 S4-10,S4,server,Settings panel for the server,Off by default; port; interface; token lifecycle; QR,D3,done,server crate + 11 socket tests + prove_lan live 2026-09-10
 S4-11,S4,server,Named-pipe IPC for the CLI,interprocess - lets the CLI attach to a running app,D2,todo,
-S4-12,S4,server,TypeScript client SDK package,Typed client over REST and SSE generated from the protocol types,D2,todo,
+S4-12,S4,server,TypeScript client SDK package,Typed client over REST and SSE generated from the protocol types,D2,done,@vitals/client, 30 tests, zero deps 2026-09-10
 S5-01,S5,cli,Implement vitals ps,Direct sampling via vitals-win; table and JSON,D4,todo,
 S5-02,S5,cli,Implement vitals top,Live refreshing view,D4,todo,
 S5-03,S5,cli,Implement vitals info,Host information,D4,todo,
 S5-04,S5,cli,Implement vitals report,The why-is-my-PC-slow bundle,D4,todo,
 S5-05,S5,cli,Implement vitals serve,Headless LAN server with no GUI,D4,todo,
 S5-06,S5,cli,Attach mode,Read the running app via the named pipe,D2,todo,
-S6-01,S6,mobile,mobile.html entry,build.rolldownOptions.input; own component tree; never imports the desktop shell,D14,todo,
-S6-02,S6,mobile,Manifest and A2HS meta,No service worker - LAN is not a secure context,D14,todo,
-S6-03,S6,mobile,Mobile overview screen,CPU RAM GPU network disk temps with sparklines,D15,todo,
-S6-04,S6,mobile,Mobile processes list,Read-only by default,D15,todo,
+S6-01,S6,mobile,mobile.html entry,build.rolldownOptions.input; own component tree; never imports the desktop shell,D14,done,mobile.html entry + import-boundary test 2026-09-10
+S6-02,S6,mobile,Manifest and A2HS meta,No service worker - LAN is not a secure context,D14,done,inline manifest, viewport-fit, no SW 2026-09-10
+S6-03,S6,mobile,Mobile overview screen,CPU RAM GPU network disk temps with sparklines,D15,done,MachineCard w/ sparklines, live vs real server 2026-09-10
+S6-04,S6,mobile,Mobile processes list,Read-only by default,D15,done,virtualised 700+ rows, sort, search 2026-09-10
 S6-05,S6,mobile,Mobile alerts feed,Mirrors the desktop diagnosis,D15,todo,
-S6-06,S6,mobile,Mobile process control,Separate token scope; off by default,D15,todo,
-S6-07,S6,mobile,Multi-machine support,One phone watching several PCs,D15,todo,
+S6-06,S6,mobile,Mobile process control,Separate token scope; off by default,D15,done,two-tap confirm, state-aware, 403 explained 2026-09-10
+S6-07,S6,mobile,Multi-machine support,One phone watching several PCs,D15,done,pairings accumulate; one card per PC 2026-09-10
 S6-08,S6,mobile,QR pairing UI,SVG rendered in Rust (qrcode crate) so the secret never crosses IPC twice,D1,done,server crate + 11 socket tests + prove_lan live 2026-09-10
-S6-09,S6,mobile,Native-feel mobile shell,Bottom tabs safe-area insets touch targets pull-to-refresh,D14,todo,
+S6-09,S6,mobile,Native-feel mobile shell,Bottom tabs safe-area insets touch targets pull-to-refresh,D14,done,bottom tabs, safe-area, 44px targets, sheet motion 2026-09-10
 S7-01,S7,ui,Motion via LazyMotion domAnimation,MotionConfig reducedMotion mapped to the existing 3-state setting,D17,todo,
 S7-02,S7,ui,Route transitions,AnimatePresence mode=wait keyed on route,D17,todo,
 S7-03,S7,ui,Command palette,Radix Dialog plus own listbox with correct aria-activedescendant,D16,todo,
@@ -93,3 +93,7 @@ S10-10,S10,ci,Remove the global RUSTFLAGS from release.yml,It busts the shared r
 S10-11,S10,ci,Fix the ISSUE_TEMPLATE org,vitals-app/vitals should be dragoscv/vitals,D19,todo,
 S10-12,S10,ci,Verify the ARM64 leg builds,In the matrix but never proven,D22,todo,
 S10-13,S10,ci,Align setup-node versions,v6 in ci.yml and v5 in release.yml,D22,todo,
+S9-90,S9,win,Idle process leaked into every frame,PID 0 was top CPU in any sorted list; filtered at frame boundary,D1,done,frame.rs test + phone session 2026-09-10
+S9-91,S9,core,GPU utilization Option<Percent>,Phantom adapters read 0% instead of unknown; type change rippled through 8 files,D1,done,prometheus test + typecheck 2026-09-10
+S10-90,S10,gates,check-drift.ps1 + pre-commit hook,serde/ts_rs casing; invoke vs command; locale parity; secrets; .only,D1,done,mutation-tested both checks; hook blocked a probe 2026-09-10
+S10-91,S10,docs,AGENTS.md + skills add-a-metric add-a-command,Written from the defects found this session,D1,done,committed 1d88d42
