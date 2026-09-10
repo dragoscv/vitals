@@ -22,6 +22,10 @@ default = ["ts"]
 # Optional so a consumer that only needs the Rust model (the CLI, the helper)
 # does not pay for the macro expansion.
 ts = ["dep:ts-rs"]
+# Plausible values for tests in this crate and its dependents. Off by default
+# so they can never reach a release binary; enable as a dev-dependency:
+#   vitals-core = { workspace = true, features = ["fixtures"] }
+fixtures = []
 
 [lints]
 workspace = true

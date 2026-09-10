@@ -143,7 +143,7 @@ impl fmt::Display for SensorId {
     feature = "ts",
     ts(export, export_to = "core/", rename_all = "camelCase")
 )]
-#[serde(rename_all = "kebab-case")]
+#[serde(rename_all = "camelCase")]
 pub struct ProcessKey {
     pub pid: Pid,
     /// Process creation time, in 100ns intervals since the platform epoch.

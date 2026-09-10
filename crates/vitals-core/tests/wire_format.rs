@@ -86,15 +86,20 @@ fn a_host() -> HostInfo {
     }
 }
 
-/// Collects every key containing an underscore, at any depth.
+/// Collects every key that is not camelCase, at any depth.
 ///
 /// Recursive because the failure was in a nested field: a top-level check
 /// would have passed while `system.power_draw` was still wrong.
+///
+/// Checks for `-` as well as `_`: `ProcessKey` shipped with
+/// `rename_all = "kebab-case"` for months, serialising `start-time` against a
+/// TypeScript binding that said `startTime`. The underscore-only version of
+/// this test passed the whole time.
 fn snake_case_keys(value: &serde_json::Value, path: &str, found: &mut Vec<String>) {
     match value {
         serde_json::Value::Object(map) => {
             for (key, child) in map {
-                if key.contains('_') {
+                if key.contains('_') || key.contains('-') {
                     found.push(format!("{path}.{key}"));
                 }
                 snake_case_keys(child, &format!("{path}.{key}"), found);

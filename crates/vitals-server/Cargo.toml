@@ -1,0 +1,33 @@
+[package]
+name = "vitals-server"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "The local HTTP API: REST, SSE, WebSocket and Prometheus, over the LAN."
+
+[dependencies]
+vitals-core = { workspace = true }
+
+axum = { workspace = true }
+tokio = { workspace = true }
+tokio-stream = { workspace = true }
+futures-util = { workspace = true }
+tower-http = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+subtle = { workspace = true }
+getrandom = { workspace = true }
+local-ip-address = { workspace = true }
+qrcode = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time", "net"] }
+vitals-core = { workspace = true, features = ["fixtures"] }
+
+[lints]
+workspace = true

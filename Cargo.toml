@@ -4,6 +4,7 @@ members = [
     "crates/vitals-core",
     "crates/vitals-ipc",
     "crates/vitals-store",
+    "crates/vitals-server",
     "crates/vitals-bench",
     "crates/vitals-win",
     "crates/vitals-linux",
@@ -26,6 +27,7 @@ authors = ["Vitals contributors"]
 vitals-core = { path = "crates/vitals-core" }
 vitals-ipc = { path = "crates/vitals-ipc" }
 vitals-store = { path = "crates/vitals-store" }
+vitals-server = { path = "crates/vitals-server" }
 vitals-bench = { path = "crates/vitals-bench" }
 vitals-win = { path = "crates/vitals-win" }
 vitals-linux = { path = "crates/vitals-linux" }
@@ -66,6 +68,7 @@ tower-http = { version = "0.7.1", default-features = false, features = ["set-hea
 tokio-stream = { version = "0.1.18", features = ["sync"] }
 futures-util = { version = "0.3.32", default-features = false, features = ["std"] }
 subtle = "2.6.1"
+getrandom = "0.4.3"
 local-ip-address = "0.6.13"
 qrcode = { version = "0.14.1", default-features = false, features = ["svg"] }
 

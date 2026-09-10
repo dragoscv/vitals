@@ -22,6 +22,8 @@
 
 pub mod capability;
 pub mod error;
+#[cfg(feature = "fixtures")]
+pub mod fixtures;
 pub mod history;
 pub mod ids;
 #[macro_use]
