@@ -286,3 +286,47 @@ async fn a_token_in_the_query_works_for_streams_that_cannot_set_headers() {
     .await;
     assert_eq!(status, 200);
 }
+
+#[tokio::test]
+async fn a_client_joining_mid_stream_receives_a_keyframe_not_a_delta() {
+    // Found against a live sampler: connecting 2.5 s in returned
+    // `processes=0`, because the newest frame was a delta describing changes
+    // against state the client had never received.
+    let h = start().await;
+
+    h.frames.publish(Arc::new(fixtures::keyframe(
+        1,
+        vec![fixtures::process("chrome.exe", 100, 5.0)],
+    )));
+
+    let delta = Frame {
+        seq: vitals_core::sample::FrameSeq(2),
+        timestamp_ms: 1_700_000_001_000,
+        elapsed_ms: 1_000,
+        payload: vitals_core::sample::FramePayload::Delta {
+            system: fixtures::system(),
+            changed: vec![fixtures::process("chrome.exe", 100, 9.0)],
+            exited: Vec::new(),
+        },
+    };
+    h.frames.publish(Arc::new(delta));
+
+    let (status, body) = request(&h.base, "GET", "/api/v1/snapshot", Some(READ_TOKEN), None).await;
+    assert_eq!(status, 200);
+    assert!(
+        body.contains("\"kind\":\"keyframe\""),
+        "a new client must be given complete state: {body}"
+    );
+    // And CURRENT state: the delta raised chrome to 9%, and the snapshot
+    // must say so. Serving the stale keyframe would pass the assertion above
+    // and still show a phone thirty-second-old numbers.
+    assert!(body.contains("\"seq\":2"), "{body}");
+    assert!(
+        body.contains("\"cpu\":9.0"),
+        "the delta was not applied: {body}"
+    );
+    assert!(
+        !body.contains("\"cpu\":5.0"),
+        "stale keyframe value survived: {body}"
+    );
+}

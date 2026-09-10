@@ -10,6 +10,7 @@ pub mod commands;
 pub mod history;
 pub mod inventory;
 pub mod sampling;
+pub mod server;
 pub mod state;
 pub mod store;
 pub mod users;
@@ -59,6 +60,7 @@ pub fn run() {
                 .build(),
         )
         .manage(state::AppState::new())
+        .manage(server::LanServer::new())
         // The sampler starts with the app and stops when the handle drops at
         // shutdown. Managed so it stays alive for the process lifetime —
         // dropping the handle would silently stop all sampling.
@@ -132,6 +134,12 @@ pub fn run() {
             store::get_history_usage,
             store::export_flight_recording,
             store::write_flight_recording,
+            server::get_lan_status,
+            server::start_lan_server,
+            server::stop_lan_server,
+            server::create_pairing,
+            server::revoke_pairing,
+            server::revoke_all_pairings,
             users::get_users,
         ])
         .run(tauri::generate_context!())

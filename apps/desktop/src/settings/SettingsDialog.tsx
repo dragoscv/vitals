@@ -4,6 +4,7 @@ import {
   Palette,
   ShieldCheck,
   SlidersHorizontal,
+  Smartphone,
   Timer,
   type LucideIcon,
 } from 'lucide-react';
@@ -30,8 +31,17 @@ import {
   PrivacyPanel,
   SamplingPanel,
 } from './panels';
+import { RemoteAccessPanel } from './lan/RemoteAccessPanel';
 
-const tabIds = ['general', 'appearance', 'sampling', 'notifications', 'privacy', 'about'] as const;
+const tabIds = [
+  'general',
+  'appearance',
+  'sampling',
+  'notifications',
+  'remote',
+  'privacy',
+  'about',
+] as const;
 
 type TabId = (typeof tabIds)[number];
 
@@ -40,6 +50,7 @@ const tabIcons: Readonly<Record<TabId, LucideIcon>> = {
   appearance: Palette,
   sampling: Timer,
   notifications: Bell,
+  remote: Smartphone,
   privacy: ShieldCheck,
   about: Info,
 };
@@ -62,6 +73,7 @@ export function SettingsDialog({ open, onOpenChange, version }: SettingsDialogPr
     appearance: t('settings.appearance.title'),
     sampling: t('settings.sampling.title'),
     notifications: ts('settings.notifications.title'),
+    remote: ts('settings.remote.title'),
     privacy: t('settings.privacy.title'),
     about: t('settings.about.title'),
   };
@@ -119,6 +131,9 @@ export function SettingsDialog({ open, onOpenChange, version }: SettingsDialogPr
               </TabsContent>
               <TabsContent value="notifications">
                 <NotificationsPanel />
+              </TabsContent>
+              <TabsContent value="remote">
+                <RemoteAccessPanel />
               </TabsContent>
               <TabsContent value="privacy">
                 <PrivacyPanel />

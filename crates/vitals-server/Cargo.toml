@@ -29,5 +29,8 @@ qrcode = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time", "net"] }
 vitals-core = { workspace = true, features = ["fixtures"] }
 
+[target.'cfg(windows)'.dev-dependencies]
+vitals-win = { workspace = true }
+
 [lints]
 workspace = true

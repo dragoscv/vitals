@@ -5530,6 +5530,7 @@ dependencies = [
  "vitals-core",
  "vitals-linux",
  "vitals-macos",
+ "vitals-server",
  "vitals-store",
  "vitals-win",
 ]
@@ -5591,6 +5592,7 @@ dependencies = [
  "tower-http 0.7.1",
  "tracing",
  "vitals-core",
+ "vitals-win",
 ]
 
 [[package]]

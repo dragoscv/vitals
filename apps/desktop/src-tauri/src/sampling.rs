@@ -136,6 +136,14 @@ fn run(app: &AppHandle, stop: &AtomicBool) {
                         Err(error) => tracing::warn!(%error, "frame did not serialise"),
                     }
                 }
+                // The LAN server, only while it is running: a clone of a
+                // 600-process keyframe every tick for a server that is off
+                // would be the sampler paying for a feature nobody enabled.
+                if let Some(server) = app.try_state::<crate::server::LanServer>()
+                    && server.is_running()
+                {
+                    server.publish(std::sync::Arc::new(frame.clone()));
+                }
                 if app.emit(FRAME_EVENT, &frame).is_err() {
                     // The window is gone. Nothing to sample for.
                     break;

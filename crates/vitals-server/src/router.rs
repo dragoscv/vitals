@@ -190,7 +190,10 @@ async fn health(State(state): State<ApiState>) -> Json<Health> {
 /// `204 No Content` before the first tick, rather than an empty object: a
 /// client can tell "not sampling yet" from "sampling, everything is zero".
 async fn snapshot(State(state): State<ApiState>) -> Response {
-    match state.frames.latest() {
+    // The keyframe, not the last frame: a one-shot caller asking "what is
+    // running" must get the whole list, not the handful of processes that
+    // happened to change since the previous tick.
+    match state.frames.initial() {
         Some(frame) => Json(&*frame).into_response(),
         None => StatusCode::NO_CONTENT.into_response(),
     }
@@ -204,17 +207,21 @@ async fn host(State(state): State<ApiState>) -> Response {
 }
 
 async fn metrics(State(state): State<ApiState>) -> Response {
+    // System-wide numbers from the newest frame (a delta still carries the
+    // full `system` tree), but the process list from the last keyframe:
+    // ranking "top processes" from a delta would rank whichever happened to
+    // change, not whichever is busiest.
     let Some(frame) = state.frames.latest() else {
         return StatusCode::NO_CONTENT.into_response();
     };
-    let (system, processes) = match &frame.payload {
-        vitals_core::sample::FramePayload::Keyframe { system, processes } => {
-            (system, processes.as_slice())
-        }
-        // A delta carries only what changed, so ranking "top processes" from
-        // it would rank the ones that happened to move. Prometheus scrapes
-        // every 15 s or so; the next keyframe is at most 30 frames away.
-        vitals_core::sample::FramePayload::Delta { system, .. } => (system, [].as_slice()),
+    let system = match &frame.payload {
+        vitals_core::sample::FramePayload::Keyframe { system, .. }
+        | vitals_core::sample::FramePayload::Delta { system, .. } => system,
+    };
+    let keyframe = state.frames.initial();
+    let processes = match keyframe.as_deref().map(|f| &f.payload) {
+        Some(vitals_core::sample::FramePayload::Keyframe { processes, .. }) => processes.as_slice(),
+        _ => [].as_slice(),
     };
 
     (
@@ -229,7 +236,7 @@ async fn metrics(State(state): State<ApiState>) -> Response {
 
 /// Frames as server-sent events.
 async fn stream(State(state): State<ApiState>) -> Response {
-    let initial = state.frames.latest();
+    let initial = state.frames.initial();
     let live = BroadcastStream::new(state.frames.subscribe());
 
     // Send whatever we already have first, so a client that connects between
@@ -280,7 +287,7 @@ async fn websocket(
 async fn pump(mut socket: WebSocket, state: ApiState, scope: Scope) {
     let mut rx = state.frames.subscribe();
 
-    if let Some(frame) = state.frames.latest()
+    if let Some(frame) = state.frames.initial()
         && send_frame(&mut socket, &frame).await.is_err()
     {
         return;
