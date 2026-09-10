@@ -369,14 +369,36 @@ fn handle_control(state: &ApiState, scope: Scope, text: &str) -> String {
 
 /// The same control surface over plain HTTP, for clients that do not want a
 /// socket (a shell script with curl, Home Assistant).
+///
+/// Takes the body as raw `Bytes` and parses it by hand so the **scope check
+/// happens first**. With `Json<ControlRequest>` as an extractor, axum rejects
+/// a malformed body with 422 before the handler runs, so a read-only client
+/// with a slightly wrong request learns nothing about why it is refused —
+/// and a correct one gets 403. Authorisation before validation is also the
+/// safer order: an unauthorised caller should not be able to probe the
+/// schema.
 async fn control(
     State(state): State<ApiState>,
     axum::Extension(Granted(scope)): axum::Extension<Granted>,
-    Json(request): Json<ControlRequest>,
+    body: axum::body::Bytes,
 ) -> Response {
     if !scope.allows_control() {
         return (StatusCode::FORBIDDEN, Json(ControlError::Forbidden)).into_response();
     }
+
+    let request = match serde_json::from_slice::<ControlRequest>(&body) {
+        Ok(request) => request,
+        Err(error) => {
+            return (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                Json(ControlError::Unsupported {
+                    message: format!("could not read the request: {error}"),
+                }),
+            )
+                .into_response();
+        }
+    };
+
     match state.controller.apply(request) {
         Ok(()) => StatusCode::NO_CONTENT.into_response(),
         Err(error) => {

@@ -255,6 +255,41 @@ async fn a_control_token_reaches_the_controller() {
 }
 
 #[tokio::test]
+async fn a_read_token_is_refused_before_the_body_is_even_parsed() {
+    // Scope before schema. With the body as an extractor, axum answered 422
+    // first, so a read-only caller with a slightly wrong request never
+    // learned it was read-only — and could probe the schema by watching
+    // 422 turn into 403.
+    let h = start().await;
+    let (status, _) = request(
+        &h.base,
+        "POST",
+        "/api/v1/control",
+        Some(READ_TOKEN),
+        Some(r#"{"action":"nonsense"}"#),
+    )
+    .await;
+    assert_eq!(status, 403, "scope must be checked before the body");
+    assert_eq!(h.controller.calls.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
+async fn a_control_token_with_a_malformed_body_gets_a_reason() {
+    let h = start().await;
+    let (status, body) = request(
+        &h.base,
+        "POST",
+        "/api/v1/control",
+        Some(CONTROL_TOKEN),
+        Some(r#"{"action":"nonsense"}"#),
+    )
+    .await;
+    assert_eq!(status, 422);
+    assert!(body.contains("could not read the request"), "{body}");
+    assert_eq!(h.controller.calls.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
 async fn the_web_app_is_served_without_a_token_but_carries_no_data() {
     // The page has to load before it can read the token out of the fragment.
     let h = start().await;
