@@ -162,13 +162,40 @@
       "memory": "Memorie",
       "motherboard": "Placă de bază",
       "bios": "BIOS",
-      "copyFacts": "Copiază detaliile sistemului"
+      "copyFacts": "Copiază detaliile sistemului",
+      "update": {
+        "title": "Actualizări",
+        "idle": "Vitals poate verifica pe GitHub dacă există o versiune mai nouă.",
+        "checking": "Se caută actualizări…",
+        "upToDate": "Ai deja cea mai recentă versiune.",
+        "available": "Versiunea {{version}} este disponibilă.",
+        "notesTitle": "Ce s-a schimbat",
+        "download": "Descarcă actualizarea",
+        "downloading": "Se descarcă versiunea {{version}}…",
+        "downloadProgress": "Descărcarea actualizării",
+        "ready": "Versiunea {{version}} este gata de instalare.",
+        "restart": "Repornește pentru actualizare",
+        "installing": "Se instalează versiunea {{version}}…",
+        "error": "Verificarea actualizărilor a eșuat: {{message}}",
+        "retry": "Încearcă din nou",
+        "unconfigured": "Actualizările nu sunt configurate pentru această versiune.",
+        "unconfiguredHint": "Versiunile de dezvoltare și cele nesemnate nu pot verifica o actualizare. Descarcă cea mai recentă versiune de pe GitHub."
+      }
     }
   },
   "a11y": {
     "mainNavigation": "Navigare principală",
     "sortBy": "Sortează după {{column}}",
     "chartOf": "{{metric}} în timp"
+  },
+  "hud": {
+    "title": "Vitals",
+    "pin": "Ține deasupra",
+    "unpin": "Nu mai ține deasupra",
+    "clickThrough": "Clicurile trec prin fereastră",
+    "clickThroughOff": "Oprește trecerea clicurilor",
+    "clickThroughHint": "Clicurile ajung la ce se află dedesubt. Apasă Ctrl+Shift+H ca să revii.",
+    "close": "Ascunde suprapunerea"
   },
   "mobile": {
     "tab": {

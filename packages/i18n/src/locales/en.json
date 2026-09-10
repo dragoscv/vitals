@@ -160,13 +160,40 @@
       "memory": "Memory",
       "motherboard": "Motherboard",
       "bios": "BIOS",
-      "copyFacts": "Copy system details"
+      "copyFacts": "Copy system details",
+      "update": {
+        "title": "Updates",
+        "idle": "Vitals can check GitHub for a newer version.",
+        "checking": "Checking for updates…",
+        "upToDate": "You are running the latest version.",
+        "available": "Version {{version}} is available.",
+        "notesTitle": "What changed",
+        "download": "Download update",
+        "downloading": "Downloading version {{version}}…",
+        "downloadProgress": "Update download",
+        "ready": "Version {{version}} is ready to install.",
+        "restart": "Restart to update",
+        "installing": "Installing version {{version}}…",
+        "error": "The update check failed: {{message}}",
+        "retry": "Try again",
+        "unconfigured": "Updates are not configured for this build.",
+        "unconfiguredHint": "Development and unsigned builds cannot verify an update. Download the latest release from GitHub instead."
+      }
     }
   },
   "a11y": {
     "mainNavigation": "Main navigation",
     "sortBy": "Sort by {{column}}",
     "chartOf": "{{metric}} over time"
+  },
+  "hud": {
+    "title": "Vitals",
+    "pin": "Keep on top",
+    "unpin": "Unpin from the top",
+    "clickThrough": "Click-through",
+    "clickThroughOff": "Stop clicks passing through",
+    "clickThroughHint": "Clicks pass through to whatever is behind. Press Ctrl+Shift+H to bring it back.",
+    "close": "Hide the overlay"
   },
   "mobile": {
     "tab": {

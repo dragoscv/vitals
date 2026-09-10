@@ -57,7 +57,7 @@
       "active": true,
       "dialog": false,
       "endpoints": ["https://github.com/dragoscv/vitals/releases/latest/download/latest.json"],
-      "pubkey": "REPLACE_WITH_TAURI_UPDATER_PUBLIC_KEY"
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEQwQjFDQTc1NENGMjdCMEMKUldRTWUvSk1kY3F4MERLMG5qdnFTelFVVDhKUzM4Wm5SbzF4cXJlb2JPai90eFdaUitoY3FBd3EK"
     }
   }
 }
