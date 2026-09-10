@@ -12,6 +12,10 @@
 //! | `GET /metrics`         | Prometheus text exposition                     |
 //! | `/*`                   | The mobile web app (static, from the caller)   |
 //!
+//! Alongside the router, [`mdns`] can announce the server as
+//! `_vitals._tcp.local.` so a paired phone finds it again without a rescan.
+//! The announcement lives exactly as long as the listener does.
+//!
 //! **Off by default.** Nothing here binds a socket until the host application
 //! decides to. When it does, every route except `/health` requires a bearer
 //! token, compared in constant time. Tokens carry a scope: `read` can see,
@@ -29,6 +33,7 @@
 pub mod auth;
 pub mod control;
 pub mod lan;
+pub mod mdns;
 pub mod prometheus;
 pub mod router;
 pub mod state;
@@ -36,5 +41,6 @@ pub mod state;
 pub use auth::{Scope, Token, TokenSet};
 pub use control::{ControlError, ControlRequest, Controller};
 pub use lan::{Interface, interfaces, pairing_qr_svg, pairing_url};
+pub use mdns::{Advertisement, advertise};
 pub use router::{ServeHandle, serve};
 pub use state::{ApiState, FrameSource, StaticAssets};

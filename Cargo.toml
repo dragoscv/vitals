@@ -71,6 +71,12 @@ subtle = "2.6.1"
 getrandom = "0.4.3"
 local-ip-address = "0.6.13"
 qrcode = { version = "0.14.1", default-features = false, features = ["svg"] }
+# mdns-sd rather than libmdns/zeroconf: it needs no async runtime of its own
+# (it runs one plain thread), has no C dependency on Bonjour/Avahi, and
+# exposes per-interface enable/disable, which is what lets the advertisement
+# stay on the one adapter the user chose in `lan.rs`. Logging goes through
+# `log`; we do not enable its `async` feature.
+mdns-sd = { version = "0.21.3", default-features = false }
 
 # Type generation
 #

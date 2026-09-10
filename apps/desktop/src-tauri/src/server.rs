@@ -17,8 +17,8 @@ use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use vitals_server::state::ServerLock;
 use vitals_server::{
-    ApiState, ControlError, ControlRequest, Controller, FrameSource, Interface, Scope, ServeHandle,
-    Token, TokenSet,
+    Advertisement, ApiState, ControlError, ControlRequest, Controller, FrameSource, Interface,
+    Scope, ServeHandle, Token, TokenSet,
 };
 
 use crate::commands::CommandError;
@@ -35,6 +35,9 @@ pub struct LanServer {
     frames: FrameSource,
     tokens: Arc<ServerLock<TokenSet>>,
     running: Mutex<Option<ServeHandle>>,
+    /// The `mDNS` record, held beside the listener rather than inside it so
+    /// the two can only ever be started and stopped together.
+    advertisement: Mutex<Option<Advertisement>>,
     controller: Arc<dyn Controller>,
 }
 
@@ -60,6 +63,7 @@ impl LanServer {
             frames: FrameSource::new(),
             tokens: Arc::new(ServerLock::new(tokens)),
             running: Mutex::new(None),
+            advertisement: Mutex::new(None),
             controller: Arc::new(DesktopController),
         }
     }
@@ -228,11 +232,16 @@ pub fn get_lan_status(server: tauri::State<'_, LanServer>) -> LanStatus {
 
 /// Starts listening. Idempotent: a second call while running returns the
 /// existing port rather than binding a second socket.
+///
+/// `address` is the adapter the user picked in Settings; `None` takes the
+/// best guess, the same one `create_pairing` puts in the QR code, so the
+/// advertised address and the paired address cannot disagree.
 #[tauri::command]
 pub async fn start_lan_server(
     app: tauri::AppHandle,
     server: tauri::State<'_, LanServer>,
     port: Option<u16>,
+    address: Option<std::net::Ipv4Addr>,
 ) -> CommandResult<u16> {
     if let Some(existing) = server.port() {
         return Ok(existing);
@@ -256,12 +265,58 @@ pub async fn start_lan_server(
     let bound = handle.addr.port();
     *server.running.lock() = Some(handle);
     tracing::info!(port = bound, "LAN server listening");
+
+    // Only now, with the socket actually bound: an advertisement for a server
+    // that failed to start would point every phone at a closed port.
+    start_advertising(
+        &server,
+        address,
+        bound,
+        &app.package_info().version.to_string(),
+    );
+
     Ok(bound)
 }
 
+/// Announces the running server over `mDNS`, or explains why it could not.
+///
+/// Discovery is a convenience: a failure here leaves the server perfectly
+/// usable through the QR code, so it is logged and never propagated.
+fn start_advertising(
+    server: &tauri::State<'_, LanServer>,
+    address: Option<std::net::Ipv4Addr>,
+    port: u16,
+    app_version: &str,
+) {
+    let chosen = address.or_else(|| vitals_server::interfaces().first().map(|i| i.address));
+    let Some(chosen) = chosen else {
+        tracing::warn!("no LAN address to advertise on; discovery is unavailable");
+        return;
+    };
+
+    match vitals_server::advertise(chosen, port, app_version) {
+        Ok(advertisement) => {
+            tracing::info!(name = advertisement.fullname(), %chosen, "advertising over mDNS");
+            *server.advertisement.lock() = Some(advertisement);
+        }
+        // Multicast is commonly blocked on locked-down networks. The server
+        // still works; only automatic discovery is lost.
+        Err(error) => tracing::warn!(%error, "could not advertise over mDNS"),
+    }
+}
+
+/// Stops listening and withdraws the `mDNS` record.
+///
+/// The advertisement is torn down **first**: a phone that resolves the record
+/// during the gap would otherwise connect to a socket that is already closing.
+/// Nothing is broadcast once this returns — that is the whole point of the
+/// feature being off by default.
 #[tauri::command]
 #[allow(clippy::needless_pass_by_value)]
 pub fn stop_lan_server(server: tauri::State<'_, LanServer>) {
+    if let Some(mut advertisement) = server.advertisement.lock().take() {
+        advertisement.shutdown();
+    }
     if let Some(mut handle) = server.running.lock().take() {
         handle.stop();
         tracing::info!("LAN server stopped");

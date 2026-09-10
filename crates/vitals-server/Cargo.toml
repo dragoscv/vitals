@@ -24,6 +24,7 @@ subtle = { workspace = true }
 getrandom = { workspace = true }
 local-ip-address = { workspace = true }
 qrcode = { workspace = true }
+mdns-sd = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time", "net"] }
