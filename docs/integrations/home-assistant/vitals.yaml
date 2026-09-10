@@ -1,0 +1,182 @@
+# Vitals → Home Assistant, as a package. No custom component, no HACS.
+#
+# Copy this file to <config>/packages/vitals.yaml and add to configuration.yaml:
+#
+#   homeassistant:
+#     packages: !include_dir_named packages
+#
+# Then put these three lines in secrets.yaml. The token is stored with its
+# "Bearer " prefix because Home Assistant cannot join a literal to a secret:
+#
+#   vitals_authorization: "Bearer <token from the pairing QR>"
+#   vitals_url_snapshot: "http://vitals-pc.local:7331/api/v1/snapshot"
+#   vitals_url_health: "http://vitals-pc.local:7331/api/v1/health"
+#
+# The `rest` integration is built in. It fetches each `resource` on a timer
+# and runs the Jinja `value_template`s over the JSON it receives. Every path
+# below is checked by crates/vitals-server/tests/home_assistant.rs against a
+# real frame, so a renamed field on the PC side fails that test instead of
+# silently reading `unknown` on your dashboard.
+#
+# Numbers Vitals cannot measure arrive as JSON `null`, never as 0. The
+# templates that read such fields return `none`, which Home Assistant shows
+# as `unknown`. Do not "fix" them to default to 0 — a GPU that does not
+# report utilisation is not a GPU sitting idle.
+
+rest:
+  # ── Readings ──────────────────────────────────────────────────────────
+  - resource: !secret vitals_url_snapshot
+    # `!secret vitals_url_snapshot` must be the full URL:
+    #   http://vitals-pc.local:7331/api/v1/snapshot
+    # (A secret because it carries your PC's address, not because it is
+    # sensitive — it keeps this file pasteable without editing.)
+    method: GET
+    headers:
+      Authorization: !secret vitals_authorization
+    # The PC samples once a second, but 5 s is plenty for a dashboard and
+    # keeps Home Assistant's recorder database small. Anything under 2 s
+    # only wastes writes.
+    scan_interval: 5
+    # Shorter than scan_interval so a sleeping PC cannot queue up requests.
+    timeout: 4
+    sensor:
+      - name: Vitals CPU
+        unique_id: vitals_cpu_percent
+        value_template: '{{ value_json.payload.system.cpu.total | round(1) }}'
+        unit_of_measurement: '%'
+        icon: mdi:cpu-64-bit
+        # `measurement` tells the recorder this is a gauge, so history graphs
+        # and statistics cards work. Without it you get a plain text history.
+        state_class: measurement
+
+      - name: Vitals memory used
+        unique_id: vitals_memory_percent
+        # Both fields are bytes; the ratio is what a person means by "RAM".
+        value_template: >-
+          {{ (100 * value_json.payload.system.memory.used
+              / value_json.payload.system.memory.total) | round(1) }}
+        unit_of_measurement: '%'
+        icon: mdi:memory
+        state_class: measurement
+
+      - name: Vitals memory used GiB
+        unique_id: vitals_memory_used_gib
+        value_template: '{{ (value_json.payload.system.memory.used / 1073741824) | round(2) }}'
+        # data_size lets Home Assistant convert the unit in the UI if you
+        # prefer GB or MB; the wire value is bytes, hence the 1024³ divisor.
+        device_class: data_size
+        unit_of_measurement: GiB
+        state_class: measurement
+
+      - name: Vitals GPU
+        unique_id: vitals_gpu_percent
+        # Guarded twice: a machine may have no GPU list at all, and a GPU
+        # that exposes no engine counters reports `utilization: null`. Both
+        # must come out as `unknown`, not 0.
+        value_template: >-
+          {{ value_json.payload.system.gpus[0].utilization | round(1)
+             if value_json.payload.system.gpus
+                and value_json.payload.system.gpus[0].utilization is not none
+             else none }}
+        unit_of_measurement: '%'
+        icon: mdi:expansion-card
+        state_class: measurement
+
+      - name: Vitals CPU temperature
+        unique_id: vitals_cpu_temperature
+        # Most desktop boards do not expose this to an unelevated process;
+        # expect `unknown` unless Vitals runs elevated or a sensor driver is
+        # installed. Same null guard as the GPU.
+        value_template: >-
+          {{ value_json.payload.system.cpu.temperature | round(1)
+             if value_json.payload.system.cpu.temperature is not none
+             else none }}
+        device_class: temperature
+        unit_of_measurement: °C
+        state_class: measurement
+
+      - name: Vitals processes
+        unique_id: vitals_process_count
+        value_template: '{{ value_json.payload.system.cpu.processCount }}'
+        icon: mdi:application-cog
+        state_class: measurement
+
+      - name: Vitals uptime
+        unique_id: vitals_uptime
+        value_template: '{{ value_json.payload.system.cpu.uptimeSecs }}'
+        # duration + seconds: the UI renders "2d 3h" instead of a raw number.
+        device_class: duration
+        unit_of_measurement: s
+        icon: mdi:timer-outline
+        state_class: measurement
+
+      - name: Vitals busiest disk read
+        unique_id: vitals_disk_read_top
+        # "Busiest" = the single disk with the highest read rate right now,
+        # so a dashboard has one number rather than one per volume. Empty
+        # list (a machine with no readable disks) → unknown.
+        value_template: >-
+          {{ ((value_json.payload.system.disks | map(attribute='read') | max) / 1048576) | round(2)
+             if value_json.payload.system.disks else none }}
+        device_class: data_rate
+        unit_of_measurement: MiB/s
+        icon: mdi:harddisk
+        state_class: measurement
+
+      - name: Vitals busiest disk write
+        unique_id: vitals_disk_write_top
+        value_template: >-
+          {{ ((value_json.payload.system.disks | map(attribute='write') | max) / 1048576) | round(2)
+             if value_json.payload.system.disks else none }}
+        device_class: data_rate
+        unit_of_measurement: MiB/s
+        icon: mdi:harddisk
+        state_class: measurement
+
+      - name: Vitals busiest network download
+        unique_id: vitals_network_rx_top
+        # rx = bytes received per second on the busiest adapter. Bytes, not
+        # bits — divide by 131072 instead if you want Mbit/s.
+        value_template: >-
+          {{ ((value_json.payload.system.networks | map(attribute='rx') | max) / 1048576) | round(2)
+            if value_json.payload.system.networks else none }}
+        device_class: data_rate
+        unit_of_measurement: MiB/s
+        icon: mdi:download-network
+        state_class: measurement
+
+      - name: Vitals busiest network upload
+        unique_id: vitals_network_tx_top
+        value_template: >-
+          {{ ((value_json.payload.system.networks | map(attribute='tx') | max) / 1048576) | round(2)
+             if value_json.payload.system.networks else none }}
+        device_class: data_rate
+        unit_of_measurement: MiB/s
+        icon: mdi:upload-network
+        state_class: measurement
+
+  # ── Reachability ──────────────────────────────────────────────────────
+  # /api/v1/health needs no token: it only says "something is listening"
+  # and which version. Polled less often — its job is to notice the PC
+  # going to sleep, not to chart anything.
+  - resource: !secret vitals_url_health
+    # Full URL: http://vitals-pc.local:7331/api/v1/health
+    method: GET
+    scan_interval: 30
+    timeout: 4
+    binary_sensor:
+      - name: Vitals PC reachable
+        unique_id: vitals_pc_reachable
+        value_template: '{{ value_json.ok }}'
+        device_class: connectivity
+
+# When the PC is off, the request fails and the `rest` binary sensor
+# becomes `unavailable`, not `off`. This template sensor folds that into a
+# plain on/off you can use in automations ("turn the desk lamp off when the
+# PC has been off for 10 minutes").
+template:
+  - binary_sensor:
+      - name: Vitals PC online
+        unique_id: vitals_pc_online
+        device_class: connectivity
+        state: "{{ is_state('binary_sensor.vitals_pc_reachable', 'on') }}"
