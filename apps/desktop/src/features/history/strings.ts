@@ -30,6 +30,8 @@ const en = {
 
   column: {
     name: 'Application',
+    // Export-only; the table shows it under the name.
+    executable: 'Executable',
     cpuTime: 'CPU time',
     diskRead: 'Disk read',
     diskWrite: 'Disk write',
@@ -100,6 +102,7 @@ const ro = {
 
   column: {
     name: 'Aplicație',
+    executable: 'Executabil',
     cpuTime: 'Timp CPU',
     diskRead: 'Citiri disc',
     diskWrite: 'Scrieri disc',

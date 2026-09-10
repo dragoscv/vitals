@@ -45,6 +45,9 @@ import {
   formatCount,
 } from '@vitals/ui';
 
+import { ExportButton } from '../../components/ExportButton';
+import type { ExportColumn } from '../../lib/export';
+import { oneOf, useUrlState } from '../../lib/useUrlState';
 import { STORAGE_NS } from './strings';
 import {
   directorySorts,
@@ -92,8 +95,16 @@ export function StorageScreen({ source }: StorageScreenProps = {}): React.JSX.El
   const state = useStorage(source);
   const [selected, setSelected] = useState<string | null>(null);
   const [depth, setDepth] = useState<DepthId>('shallow');
-  const [query, setQuery] = useState('');
-  const [sort, setSort] = useState<DirectorySort>('allocated');
+  // Only the result table's view goes in the URL. The chosen volume and depth
+  // are scan parameters, not view state: restoring them from a link would
+  // imply the scan itself was restored, and it is not.
+  const [view, patchView] = useUrlState<{ q: string; sort: DirectorySort }>(
+    'storage',
+    { q: '', sort: 'allocated' },
+    { sort: oneOf(directorySorts) },
+  );
+  const query = view.q;
+  const sort = view.sort;
 
   const volumes = useMemo(() => sortVolumes(state.volumes), [state.volumes]);
   // Falls back to the first volume so the scan button is usable immediately,
@@ -205,9 +216,13 @@ export function StorageScreen({ source }: StorageScreenProps = {}): React.JSX.El
           snapshot={state.snapshot}
           locale={locale}
           query={query}
-          onQueryChange={setQuery}
+          onQueryChange={(q) => {
+            patchView({ q });
+          }}
           sort={sort}
-          onSortChange={setSort}
+          onSortChange={(next) => {
+            patchView({ sort: next });
+          }}
           rows={rows}
         />
       )}
@@ -331,6 +346,20 @@ function ScanResult({
   const { t } = useTranslation(STORAGE_NS);
   const elevationFixable = snapshot.skipped.filter((entry) => entry.elevationFixable).length;
 
+  // Bytes and counts, not "1.4 GB": the point of exporting a disk scan is to
+  // sort and sum it somewhere else. `incomplete` travels as the reason key so
+  // a floor is never mistaken for a measurement in the spreadsheet either.
+  const exportColumns = useMemo(
+    (): readonly ExportColumn<DirectoryEntry>[] => [
+      { id: 'path', header: t('column.path'), value: (entry) => entry.path },
+      { id: 'allocatedBytes', header: t('column.allocated'), value: (entry) => entry.allocated },
+      { id: 'logicalBytes', header: t('column.logical'), value: (entry) => entry.logical },
+      { id: 'files', header: t('column.files'), value: (entry) => entry.files },
+      { id: 'incomplete', header: t('incomplete'), value: (entry) => entry.incomplete },
+    ],
+    [t],
+  );
+
   return (
     <Card>
       <CardHeader>
@@ -392,6 +421,7 @@ function ScanResult({
             }}
             options={directorySorts.map((id) => ({ value: id, label: t(`sort.${id}`) }))}
           />
+          <ExportButton name="storage" rows={rows} columns={exportColumns} />
         </div>
 
         {rows.length === 0 ? (

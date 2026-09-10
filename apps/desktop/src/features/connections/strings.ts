@@ -37,6 +37,10 @@ const en = {
     remote: 'Remote address',
     state: 'State',
     pid: 'PID',
+    // Export-only: the table joins address and port in one cell, a
+    // spreadsheet wants them apart so the port column can be filtered.
+    localPort: 'Local port',
+    remotePort: 'Remote port',
   },
 
   summary: {
@@ -108,6 +112,8 @@ const ro = {
     remote: 'Adresă la distanță',
     state: 'Stare',
     pid: 'PID',
+    localPort: 'Port local',
+    remotePort: 'Port la distanță',
   },
 
   summary: {

@@ -17,6 +17,9 @@ import { useTranslation } from 'react-i18next';
 import type { Process } from '@vitals/protocol';
 import { Badge, Button, EmptyState, SearchInput, SegmentedControl, Skeleton, cn } from '@vitals/ui';
 
+import { ExportButton } from '../../components/ExportButton';
+import type { ExportColumn } from '../../lib/export';
+import { oneOf, useUrlState } from '../../lib/useUrlState';
 import {
   useSystemSnapshot,
   createTauriSystemSource,
@@ -56,8 +59,16 @@ export function ConnectionsScreen({
   );
   const processes = useSystemSnapshot(processSource ?? defaultSource ?? emptySource());
 
-  const [filter, setFilter] = useState<ConnectionFilter>('all');
-  const [query, setQuery] = useState('');
+  const [view, patchView] = useUrlState<{ q: string; filter: ConnectionFilter }>(
+    'network',
+    { q: '', filter: 'all' },
+    { filter: oneOf(connectionFilters) },
+  );
+  const query = view.q;
+  const filter = view.filter;
+  const setQuery = (q: string): void => {
+    patchView({ q });
+  };
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
 
   // PID to name, built once per frame rather than searched per row: the socket
@@ -84,6 +95,30 @@ export function ConnectionsScreen({
   }, [state.snapshot, namesByPid, t]);
 
   const visible = useMemo(() => applySearch(groups, filter, query), [groups, filter, query]);
+
+  // The export is the flat socket list, one row per socket with its owning
+  // application in the first column. The grouping is a reading aid; a CSV
+  // consumer wants a table, and the application name is what makes each row
+  // meaningful on its own.
+  type SocketExportRow = ConnectionRow & { readonly app: string };
+  const exportRows = useMemo(
+    (): readonly SocketExportRow[] =>
+      visible.flatMap((group) => group.rows.map((row) => ({ ...row, app: group.name }))),
+    [visible],
+  );
+  const exportColumns = useMemo(
+    (): readonly ExportColumn<SocketExportRow>[] => [
+      { id: 'app', header: t('column.app'), value: (row) => row.app },
+      { id: 'protocol', header: t('column.protocol'), value: (row) => row.protocol },
+      { id: 'localAddress', header: t('column.local'), value: (row) => row.localAddress },
+      { id: 'localPort', header: t('column.localPort'), value: (row) => row.localPort },
+      { id: 'remoteAddress', header: t('column.remote'), value: (row) => row.remoteAddress },
+      { id: 'remotePort', header: t('column.remotePort'), value: (row) => row.remotePort },
+      { id: 'state', header: t('column.state'), value: (row) => row.state },
+      { id: 'ownerPid', header: t('column.pid'), value: (row) => row.ownerPid },
+    ],
+    [t],
+  );
 
   if (state.pending) return <ConnectionsSkeleton />;
 
@@ -126,10 +161,11 @@ export function ConnectionsScreen({
           value={filter}
           ariaLabel={t('filterLabel')}
           onValueChange={(next) => {
-            setFilter(next);
+            patchView({ filter: next });
           }}
           options={connectionFilters.map((id) => ({ value: id, label: t(`filter.${id}`) }))}
         />
+        <ExportButton name="connections" rows={exportRows} columns={exportColumns} />
       </div>
 
       {visible.length === 0 ? (

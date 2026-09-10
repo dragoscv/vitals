@@ -34,6 +34,9 @@ import {
   formatBytes,
 } from '@vitals/ui';
 
+import { ExportButton } from '../../components/ExportButton';
+import type { ExportColumn } from '../../lib/export';
+import { oneOf, useUrlState } from '../../lib/useUrlState';
 import { APPS_NS } from './strings';
 import {
   appSorts,
@@ -60,8 +63,17 @@ export function AppsScreen({
   const locale = i18n.language;
 
   const state = useApps(reader);
-  const [query, setQuery] = useState('');
-  const [sort, setSort] = useState<AppSort>('name');
+  // Search and sort live in the URL fragment so a reload restores the view.
+  const [view, patchView] = useUrlState<{ q: string; sort: AppSort }>(
+    'installedApps',
+    { q: '', sort: 'name' },
+    { sort: oneOf(appSorts) },
+  );
+  const query = view.q;
+  const sort = view.sort;
+  const setQuery = (q: string): void => {
+    patchView({ q });
+  };
   const [confirming, setConfirming] = useState<InstalledApp | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -71,6 +83,26 @@ export function AppsScreen({
   const visible = useMemo(
     () => sortApps(filterApps(state.snapshot?.apps ?? [], query), sort, locale),
     [state.snapshot?.apps, query, sort, locale],
+  );
+
+  const exportColumns = useMemo(
+    (): readonly ExportColumn<InstalledApp>[] => [
+      { id: 'name', header: t('column.name'), value: (app) => app.name },
+      { id: 'publisher', header: t('column.publisher'), value: (app) => app.publisher },
+      { id: 'version', header: t('column.version'), value: (app) => app.version },
+      { id: 'installDate', header: t('column.installed'), value: (app) => app.installDate },
+      // Bytes as the installer wrote them, or empty. Never the formatted
+      // "1.2 GB" and never 0 for "did not report".
+      { id: 'estimatedSizeBytes', header: t('column.size'), value: (app) => app.estimatedSize },
+      {
+        id: 'installLocation',
+        header: t('column.location'),
+        value: (app) => app.installLocation,
+      },
+      { id: 'source', header: t('column.source'), value: (app) => app.source },
+      { id: 'perUser', header: t('column.perUser'), value: (app) => app.perUser },
+    ],
+    [t],
   );
 
   if (state.pending) return <AppsSkeleton />;
@@ -136,10 +168,11 @@ export function AppsScreen({
           value={sort}
           ariaLabel={t('sortLabel')}
           onValueChange={(next) => {
-            setSort(next);
+            patchView({ sort: next });
           }}
           options={appSorts.map((id) => ({ value: id, label: t(`sort.${id}`) }))}
         />
+        <ExportButton name="installed-apps" rows={visible} columns={exportColumns} />
       </div>
 
       {visible.length === 0 ? (

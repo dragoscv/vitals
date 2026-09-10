@@ -21,6 +21,9 @@ import {
   formatBytes,
 } from '@vitals/ui';
 
+import { ExportButton } from '../../components/ExportButton';
+import type { ExportColumn } from '../../lib/export';
+import { oneOf, useUrlState } from '../../lib/useUrlState';
 import { HISTORY_NS } from './strings';
 import {
   computeTotals,
@@ -47,8 +50,16 @@ export function AppHistoryScreen({
   const locale = i18n.language;
 
   const state = useAppHistory(reader, clearer);
-  const [query, setQuery] = useState('');
-  const [sort, setSort] = useState<HistorySort>('cpu');
+  const [view, patchView] = useUrlState<{ q: string; sort: HistorySort }>(
+    'appHistory',
+    { q: '', sort: 'cpu' },
+    { sort: oneOf(historySorts) },
+  );
+  const query = view.q;
+  const sort = view.sort;
+  const setQuery = (q: string): void => {
+    patchView({ q });
+  };
   const [confirmingClear, setConfirmingClear] = useState(false);
 
   // Memoised rather than written inline as `?? []`: a fresh empty array on
@@ -59,6 +70,44 @@ export function AppHistoryScreen({
   const visible = useMemo(
     () => sortHistory(filterHistory(records, query), sort, locale),
     [records, query, sort, locale],
+  );
+
+  // Seconds, bytes and epoch milliseconds — the units the store keeps, so a
+  // spreadsheet can sum them. ISO timestamps for the two dates because a
+  // 13-digit epoch is unreadable and every tool parses ISO 8601.
+  const exportColumns = useMemo(
+    (): readonly ExportColumn<AppHistoryRecord>[] => [
+      { id: 'name', header: t('column.name'), value: (record) => record.name },
+      { id: 'executable', header: t('column.executable'), value: (record) => record.executable },
+      { id: 'cpuSeconds', header: t('column.cpuTime'), value: (record) => record.cpuSeconds },
+      {
+        id: 'diskReadBytes',
+        header: t('column.diskRead'),
+        value: (record) => record.diskReadBytes,
+      },
+      {
+        id: 'diskWriteBytes',
+        header: t('column.diskWrite'),
+        value: (record) => record.diskWriteBytes,
+      },
+      {
+        id: 'peakPrivateBytes',
+        header: t('column.peakMemory'),
+        value: (record) => record.peakPrivateBytes,
+      },
+      {
+        id: 'firstSeen',
+        header: t('column.firstSeen'),
+        value: (record) => new Date(record.firstSeen).toISOString(),
+      },
+      {
+        id: 'lastSeen',
+        header: t('column.lastSeen'),
+        value: (record) => new Date(record.lastSeen).toISOString(),
+      },
+      { id: 'sessions', header: t('column.sessions'), value: (record) => record.sessions },
+    ],
+    [t],
   );
 
   if (state.pending) return <HistorySkeleton />;
@@ -141,10 +190,11 @@ export function AppHistoryScreen({
           value={sort}
           ariaLabel={t('sortLabel')}
           onValueChange={(next) => {
-            setSort(next);
+            patchView({ sort: next });
           }}
           options={historySorts.map((id) => ({ value: id, label: t(`sort.${id}`) }))}
         />
+        <ExportButton name="app-history" rows={visible} columns={exportColumns} />
       </div>
 
       {records.length === 0 ? (

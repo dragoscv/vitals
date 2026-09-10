@@ -17,8 +17,10 @@ import {
   TooltipProvider,
 } from '@vitals/ui';
 
+import { ExportButton } from '../../components/ExportButton';
+import type { ExportColumn } from '../../lib/export';
 import { COLUMNS, type ColumnId } from './columns';
-import type { KindFilter } from './model';
+import type { KindFilter, ProcessRow } from './model';
 import { fallback } from './strings';
 
 export interface ProcessToolbarProps {
@@ -34,6 +36,9 @@ export interface ProcessToolbarProps {
   readonly total: number;
   /** True while row positions are held because the pointer is over the table. */
   readonly orderHeld: boolean;
+  /** The rows as drawn — filtered, sorted — so the file matches the screen. */
+  readonly exportRows: readonly ProcessRow[];
+  readonly exportColumns: readonly ExportColumn<ProcessRow>[];
 }
 
 export function ProcessToolbar(props: ProcessToolbarProps): React.JSX.Element {
@@ -134,6 +139,8 @@ export function ProcessToolbar(props: ProcessToolbarProps): React.JSX.Element {
           ))}
         </DropdownMenuContent>
       </DropdownMenu>
+
+      <ExportButton name="processes" rows={props.exportRows} columns={props.exportColumns} />
     </div>
   );
 }

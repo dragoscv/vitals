@@ -32,6 +32,10 @@ const en = {
     version: 'Version',
     installed: 'Installed',
     size: 'Size',
+    // Export-only columns; the table does not draw them.
+    location: 'Install location',
+    source: 'Registry view',
+    perUser: 'Installed for this user only',
   },
 
   summary: {
@@ -115,6 +119,9 @@ const ro = {
     version: 'Versiune',
     installed: 'Instalat',
     size: 'Dimensiune',
+    location: 'Locația instalării',
+    source: 'Vedere registru',
+    perUser: 'Instalat doar pentru acest utilizator',
   },
 
   summary: {

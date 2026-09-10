@@ -41,6 +41,8 @@ import {
   formatWatts,
 } from '@vitals/ui';
 
+import { ExportButton } from '../../components/ExportButton';
+import type { ExportColumn } from '../../lib/export';
 import {
   aggregateIsRedundant,
   batteryHealthPercent,
@@ -393,6 +395,21 @@ function ReadingsSection({ snapshot }: { readonly snapshot: SensorsSnapshot }) {
   const { t } = useTranslation(DEVICES_NS);
   const rows = useMemo(() => sortReadings(snapshot.readings), [snapshot.readings]);
 
+  // The raw value and its unit as separate columns. A "42 °C" string cannot be
+  // charted; `42` with `temperature` beside it can, and the unit column is
+  // what stops a chipset at 42 °C being read as a rail at 42 V.
+  const exportColumns = useMemo(
+    (): readonly ExportColumn<SensorReading>[] => [
+      { id: 'key', header: t('sensors.key'), value: (reading) => reading.key },
+      { id: 'label', header: t('sensors.label'), value: (reading) => reading.label },
+      { id: 'value', header: t('sensors.value'), value: (reading) => reading.value },
+      { id: 'unit', header: t('sensors.unit'), value: (reading) => reading.unit },
+      { id: 'source', header: t('sensors.source'), value: (reading) => reading.source },
+      { id: 'quality', header: t('sensors.quality'), value: (reading) => reading.quality },
+    ],
+    [t],
+  );
+
   return (
     <Card regionLabel={t('sensors.title')}>
       <CardHeader>
@@ -402,6 +419,7 @@ function ReadingsSection({ snapshot }: { readonly snapshot: SensorsSnapshot }) {
             {t('sensors.title')}
           </span>
         </CardTitle>
+        <ExportButton name="sensors" rows={rows} columns={exportColumns} />
       </CardHeader>
       {/* The table draws its own padding, so the body sheds it — otherwise the
           header rule and the first row do not line up. */}

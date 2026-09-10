@@ -83,6 +83,9 @@ const en = {
     value: 'Reading',
     source: 'Source',
     quality: 'Quality',
+    // Export-only columns.
+    key: 'Sensor ID',
+    unit: 'Unit',
     none: 'Nothing measurable',
     noneBody:
       'No sensor on this machine is readable without a kernel driver or administrator rights. Everything Vitals could show, and what each one would need, is listed below.',
@@ -229,6 +232,8 @@ const ro = {
     value: 'Valoare',
     source: 'Sursă',
     quality: 'Calitate',
+    key: 'ID senzor',
+    unit: 'Unitate',
     none: 'Nimic măsurabil',
     noneBody:
       'Niciun senzor de pe această mașină nu poate fi citit fără un driver de kernel sau drepturi de administrator. Tot ce ar putea afișa Vitals, și de ce ar avea nevoie fiecare, este listat mai jos.',

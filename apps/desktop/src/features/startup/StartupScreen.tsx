@@ -17,11 +17,14 @@
  */
 
 import { RefreshCw, ShieldAlert } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { Badge, Button, EmptyState, SearchInput, SegmentedControl, Skeleton, cn } from '@vitals/ui';
 
+import { ExportButton } from '../../components/ExportButton';
+import type { ExportColumn } from '../../lib/export';
+import { oneOf, useUrlState } from '../../lib/useUrlState';
 import {
   countServices,
   countStartup,
@@ -52,9 +55,23 @@ export function StartupScreen({ mode, reader }: StartupScreenProps): React.JSX.E
   const { t } = useTranslation(STARTUP_NS);
   const state = useStartup(mode === 'services', reader);
 
-  const [query, setQuery] = useState('');
-  const [startupFilter, setStartupFilter] = useState<StartupFilter>('all');
-  const [serviceFilter, setServiceFilter] = useState<ServiceFilter>('all');
+  // One component, two routes, so the fragment is keyed on the mode: a query
+  // typed into Services must not reappear when the user opens Startup.
+  const [view, patchView] = useUrlState<{
+    q: string;
+    startup: StartupFilter;
+    service: ServiceFilter;
+  }>(
+    mode,
+    { q: '', startup: 'all', service: 'all' },
+    { startup: oneOf(startupFilters), service: oneOf(serviceFilters) },
+  );
+  const query = view.q;
+  const startupFilter = view.startup;
+  const serviceFilter = view.service;
+  const setQuery = (q: string): void => {
+    patchView({ q });
+  };
 
   const snapshot = state.snapshot;
 
@@ -65,6 +82,35 @@ export function StartupScreen({ mode, reader }: StartupScreenProps): React.JSX.E
   const serviceRows = useMemo(
     () => sortServices(filterServices(snapshot?.services ?? [], serviceFilter, query)),
     [snapshot, serviceFilter, query],
+  );
+
+  const startupColumns = useMemo(
+    (): readonly ExportColumn<StartupEntry>[] => [
+      { id: 'name', header: t('column.name'), value: (entry) => labelFor(entry) },
+      { id: 'publisher', header: t('column.publisher'), value: (entry) => entry.publisher },
+      { id: 'source', header: t('column.source'), value: (entry) => entry.source },
+      { id: 'state', header: t('column.state'), value: (entry) => entry.state },
+      { id: 'command', header: t('column.command'), value: (entry) => entry.command },
+      { id: 'imagePath', header: t('column.path'), value: (entry) => entry.imagePath },
+      { id: 'pid', header: t('column.pid'), value: (entry) => entry.pid },
+    ],
+    [t],
+  );
+  const serviceColumns = useMemo(
+    (): readonly ExportColumn<ServiceEntry>[] => [
+      { id: 'displayName', header: t('column.name'), value: (service) => labelFor(service) },
+      { id: 'name', header: t('column.serviceName'), value: (service) => service.name },
+      { id: 'state', header: t('column.state'), value: (service) => service.state },
+      { id: 'startType', header: t('column.startType'), value: (service) => service.startType },
+      { id: 'pid', header: t('column.pid'), value: (service) => service.pid },
+      { id: 'binaryPath', header: t('column.path'), value: (service) => service.binaryPath },
+      {
+        id: 'svchostGroup',
+        header: t('column.sharedGroup'),
+        value: (service) => service.svchostGroup,
+      },
+    ],
+    [t],
   );
 
   if (state.pending) return <StartupSkeleton />;
@@ -116,14 +162,21 @@ export function StartupScreen({ mode, reader }: StartupScreenProps): React.JSX.E
           value={isServices ? serviceFilter : startupFilter}
           ariaLabel={t(`${mode}.filterLabel`)}
           onValueChange={(next) => {
-            if (isServices) setServiceFilter(next as ServiceFilter);
-            else setStartupFilter(next as StartupFilter);
+            // The control's value type is the union of both filter sets, so
+            // it is narrowed by the mode rather than by the type system.
+            if (isServices) patchView({ service: next as ServiceFilter });
+            else patchView({ startup: next as StartupFilter });
           }}
           options={(isServices ? serviceFilters : startupFilters).map((id) => ({
             value: id,
             label: t(`filter.${id}`),
           }))}
         />
+        {isServices ? (
+          <ExportButton name="services" rows={serviceRows} columns={serviceColumns} />
+        ) : (
+          <ExportButton name="startup" rows={startupRows} columns={startupColumns} />
+        )}
       </div>
 
       {rows.length === 0 ? (

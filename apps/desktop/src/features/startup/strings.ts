@@ -98,6 +98,11 @@ const en = {
     state: 'Status',
     startType: 'Start type',
     command: 'Command',
+    // Export-only columns; the table does not draw them.
+    pid: 'PID',
+    path: 'Path',
+    serviceName: 'Service name',
+    sharedGroup: 'Shared process group',
   },
 
   allUsers: 'All users',
@@ -208,6 +213,10 @@ const ro = {
     state: 'Stare',
     startType: 'Tip de pornire',
     command: 'Comandă',
+    pid: 'PID',
+    path: 'Cale',
+    serviceName: 'Numele serviciului',
+    sharedGroup: 'Grup de proces partajat',
   },
 
   allUsers: 'Toți utilizatorii',

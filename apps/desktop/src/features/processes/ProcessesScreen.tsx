@@ -11,6 +11,8 @@ import { useTranslation } from 'react-i18next';
 
 import { EmptyState, Skeleton } from '@vitals/ui';
 
+import type { ExportColumn } from '../../lib/export';
+import { oneOf, parseHash, useUrlState } from '../../lib/useUrlState';
 import {
   errorMessage,
   tauriProcessActions,
@@ -19,6 +21,7 @@ import {
   type ProcessPriority,
 } from './actions';
 import {
+  COLUMNS,
   DEFAULT_PREFERENCES,
   loadPreferences,
   savePreferences,
@@ -39,6 +42,10 @@ import {
 } from './useProcessSnapshot';
 import { useStableOrder } from './useStableOrder';
 import { useSettings } from '../../settings/store';
+
+const COLUMN_IDS = COLUMNS.map((column) => column.id);
+const KINDS: readonly KindFilter[] = ['all', 'apps', 'background', 'system'];
+const DIRECTIONS = ['asc', 'desc'] as const;
 
 export interface ProcessesScreenProps {
   /** Injectable so tests and the sampler-less preview need no Tauri host. */
@@ -65,14 +72,58 @@ export function ProcessesScreen({
   );
   const snapshot = useProcessSnapshot(source ?? (defaultSource as SnapshotSource));
 
-  const [preferences, setPreferences] = useState<TablePreferences>(() =>
-    storage === undefined ? loadPreferences() : loadPreferences(storage),
+  // The search box is URL-only. Sort, direction and kind are preferences that
+  // already persist in localStorage; the URL mirrors them so a reload or a
+  // pasted link restores the same view, and when a link names them it wins
+  // over what is stored — a link is an explicit request, storage is a habit.
+  const [view, patchView] = useUrlState<{
+    q: string;
+    sort: ColumnId;
+    dir: 'asc' | 'desc';
+    kind: KindFilter;
+  }>(
+    'processes',
+    {
+      q: '',
+      sort: DEFAULT_PREFERENCES.sortColumn,
+      dir: DEFAULT_PREFERENCES.sortDirection,
+      kind: DEFAULT_PREFERENCES.kind,
+    },
+    { sort: oneOf(COLUMN_IDS), dir: oneOf(DIRECTIONS), kind: oneOf(KINDS) },
   );
+  const query = view.q;
+  const setQuery = useCallback(
+    (q: string) => {
+      patchView({ q });
+    },
+    [patchView],
+  );
+
+  const [preferences, setPreferences] = useState<TablePreferences>(() => {
+    const stored = storage === undefined ? loadPreferences() : loadPreferences(storage);
+    // Only keys the fragment actually names override storage. `view` alone
+    // cannot tell "the URL said cpu" from "the URL said nothing and cpu is
+    // the default", and the latter must not clobber a stored choice.
+    const named = parseHash(window.location.hash);
+    if (named.route !== 'processes') return stored;
+    return {
+      ...stored,
+      ...(named.params.has('sort') && { sortColumn: view.sort }),
+      ...(named.params.has('dir') && { sortDirection: view.dir }),
+      ...(named.params.has('kind') && { kind: view.kind }),
+    };
+  });
   useEffect(() => {
     savePreferences(preferences, storage);
   }, [preferences, storage]);
+  useEffect(() => {
+    patchView({
+      sort: preferences.sortColumn,
+      dir: preferences.sortDirection,
+      kind: preferences.kind,
+    });
+  }, [preferences.sortColumn, preferences.sortDirection, preferences.kind, patchView]);
 
-  const [query, setQuery] = useState('');
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set<string>());
   const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set<string>());
   const [focusedId, setFocusedId] = useState<string | null>(null);
@@ -365,6 +416,48 @@ export function ProcessesScreen({
 
   const total = snapshot.processes.size;
 
+  // Raw units: CPU as a fraction of the machine, bytes, bytes per second,
+  // seconds. The rolled-up figures are what the row displays, so a collapsed
+  // parent exports the same total the user was looking at. Network, GPU and
+  // handles stay `null` where they were not measured.
+  const exportColumns = useMemo(
+    (): readonly ExportColumn<ProcessRow>[] => [
+      { id: 'name', header: t('process.name'), value: (row) => row.process.name },
+      { id: 'pid', header: t('process.pid'), value: (row) => row.process.key.pid },
+      { id: 'state', header: t('process.status'), value: (row) => row.process.state },
+      { id: 'user', header: t('process.user'), value: (row) => row.process.user },
+      {
+        id: 'cpuFraction',
+        header: t('process.column.cpu', fallback('process.column.cpu')),
+        value: (row) => row.rolledCpu,
+      },
+      {
+        id: 'memoryBytes',
+        header: t('process.column.memory', fallback('process.column.memory')),
+        value: (row) => row.rolledMemory,
+      },
+      {
+        id: 'diskBytesPerSecond',
+        header: t('process.column.disk', fallback('process.column.disk')),
+        value: (row) => row.rolledDisk,
+      },
+      {
+        id: 'networkBytesPerSecond',
+        header: t('process.column.network', fallback('process.column.network')),
+        value: (row) => row.rolledNetwork,
+      },
+      {
+        id: 'gpuFraction',
+        header: t('process.column.gpu', fallback('process.column.gpu')),
+        value: (row) => row.rolledGpu,
+      },
+      { id: 'threads', header: t('process.threads'), value: (row) => row.process.threadCount },
+      { id: 'handles', header: t('process.handles'), value: (row) => row.process.handleCount },
+      { id: 'uptimeSeconds', header: t('process.uptime'), value: (row) => row.process.uptimeSecs },
+    ],
+    [t],
+  );
+
   return (
     <div className="flex h-full min-h-0 flex-col">
       <ProcessToolbar
@@ -379,6 +472,8 @@ export function ProcessesScreen({
         shown={built.matchCount}
         total={total}
         orderHeld={frozen}
+        exportRows={rows}
+        exportColumns={exportColumns}
       />
 
       {failure !== null && (
