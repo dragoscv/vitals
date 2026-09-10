@@ -145,9 +145,9 @@ Status values: `todo`, `doing`, `done`, `blocked`, `dropped`.
 | S3    | `vitals-store` for real: SQLite history, retention, flight recorder  | done                                                                                           |
 | S4    | LAN server: REST, SSE, WebSocket, Prometheus, mDNS                   | done except S4-11 named-pipe IPC (deferred to S5, the CLI slice it serves)                     |
 | S5    | CLI that samples directly                                            | todo                                                                                           |
-| S6    | Mobile PWA and QR pairing                                            | done except S6-05 alerts feed (mirrors the S8 alert engine, which does not exist yet)          |
+| S6    | Mobile PWA and QR pairing                                            | done except S6-05 alerts feed (S8 engine now exposes GET /api/v1/alerts; phone UI pending)     |
 | S7    | UI polish: motion, palette, ultrawide, export, shortcuts             | todo                                                                                           |
-| S8    | Tray, HUD, alerts, notifications, updater                            | todo                                                                                           |
+| S8    | Tray, HUD, alerts, notifications, updater                            | done (6/6; alerts engine in Rust feeds desktop, tray, toasts, LAN)                             |
 | S9    | New Windows metrics: DiskCounters, efficiency mode, handles, modules | todo                                                                                           |
 | S10   | Docs, ADRs, CI, supply-chain audits                                  | todo                                                                                           |
 
@@ -160,6 +160,73 @@ CSV records the state.
 
 Every claim of "done" needs a command and its output. Recorded here as work
 lands, newest first.
+
+### 2026-09-10 — S11 HUD overlay window (uncommitted)
+
+### 2026-09-10 — S8 shell: tray, alerts, HUD, updater, diagnosis (commits 6a4b4f6 … 8e293b7)
+
+Live verification drove the real WebView2 over CDP
+(`WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9333`), not
+the browser — the browser has no Tauri host and cannot exercise `invoke`.
+
+```
+pnpm -C apps/desktop exec vitest run      → Test Files 71 passed, Tests 755 passed
+cargo test --workspace                    → 822 passed (before diagnosis.rs), +11 in vitals-core
+cargo clippy --workspace --all-targets -- -D warnings → clippy=0
+pwsh scripts/check-drift.ps1              → 0 failure(s), 3 warning(s) — 44 invokes, 47 commands
+node .copilot-tmp/drive-diagnosis.mjs (live webview):
+  button disabled? false
+  dialog text: "Why is my PC slow? … Nothing is holding your computer back. …"
+  copied feedback shown / dialog closed on Escape / console errors: (none)
+```
+
+Found by looking, not by tests: the dashboard showed **"No readings are
+arriving"** on a machine that `get_alerts` and a raw `listen('vitals://frame')`
+proved was being sampled (4 frames in 3.5 s). Root cause: both Tauri sources
+set `disposed = true` on the last unsubscribe and never reset it, so the
+remount `<Activity>`/StrictMode performs tore the new listener down on
+arrival. Fixed in 9e65797 with two regression tests; both go red with the
+one-line reset removed (verified by mutation).
+
+Clipboard: `navigator.clipboard.writeText` rejects with `NotAllowedError:
+Document is not focused` when the window is driven from outside. The Copy
+button now catches the rejection instead of leaving a dangling promise.
+
+Not verified live in this session: a verdict _with_ contributors. Synthetic
+CPU load from PowerShell jobs raised `cpuSustained` once (15-sample sustain
+observed at 15:03:57) but did not do so reliably enough to drive the dialog
+at the same instant; the contributor path is covered by `diagnosis.rs`
+tests and `DiagnosisDialog.test.tsx` with fixtures.
+
+An always-on-top, transparent, chromeless second window showing CPU, memory
+and GPU with 40 px traces, a hover-revealed toolbar (pin, click-through,
+close) and `Ctrl+Shift+H`. Its own capability file grants six permissions and
+nothing else — no store, no filesystem, no process control.
+
+- `pnpm typecheck` → exit 0 (6 tasks successful).
+- `npx eslint apps/desktop/src` → exit 0, no output.
+- `vitest run src/hud src/settings src/lib/useHud.test.ts` → **10 files,
+  58 tests passed**.
+- `cargo clippy -p vitals-desktop --all-targets -- -D warnings` → exit 0.
+- `scripts/check-drift.ps1` → **0 failures**, 3 warnings, all pre-existing
+  (`export_flight_recording`, `get_capabilities`, `query_machine_history`).
+  Both new commands are registered _and_ invoked, so neither is warned about.
+- Bundle: `hud.html`'s transitive module graph is **114.4 kB gzipped**, of
+  which the shared React chunk is 68.3 kB — **46.1 kB for the overlay**,
+  inside the 60 kB budget. Rolldown reports the entry chunk itself at
+  3.02 kB gz; the rest is the shared `cn`/`@vitals/ui` chunk (31.8 kB) and
+  the Tailwind stylesheet (9.0 kB).
+- **Not verified**: nothing that needs a display. Whether Windows actually
+  composites the transparent window without a decorated frame, whether
+  `skip_taskbar` keeps it out of Alt+Tab, whether `startDragging` moves it
+  from a pointer-down anywhere on the panel, and whether
+  `setIgnoreCursorEvents(true)` really passes clicks through are all
+  compositor behaviours. Tests prove the _calls_ are made with the right
+  arguments; they cannot prove the window manager honours them.
+- `scripts/check-size.ps1` reports "all assets" over budget (311.9 kB of
+  273.1 kB). That build contained three agents' concurrent work — a tray, an
+  alerts feature and this overlay — so the overage is not attributable here
+  and the budget must be re-baselined once the tree settles, deliberately.
 
 ### 2026-09-10 — S6 mobile app, mDNS, SDK, gates (commits cac19cd … 2861e6f)
 

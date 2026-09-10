@@ -12,7 +12,7 @@ S1-10,S1,tooling,Migrate manualChunks to codeSplitting.groups,Rolldown deprecate
 S1-11,S1,tooling,Add origin remote,github.com/dragoscv/vitals - never push,D19,done,gates green 2026-09-10
 S2-01,S2,truth,Wire startWithWindows and startMinimised,tauri-plugin-autostart 2.5.1 with --minimized arg; reconcile with StartupApproved on launch,D13,done,gates green 2026-09-10
 S2-02,S2,truth,Wire confirmEndTask,RiskDialog must honour the setting,D13,done,gates green 2026-09-10
-S2-03,S2,truth,Wire notificationsEnabled and the three alert switches,tauri-plugin-notification 2.4.0 driven by the existing TS alerts engine,D13,todo,
+S2-03,S2,truth,Wire notificationsEnabled and the three alert switches,tauri-plugin-notification 2.4.0 driven by the existing TS alerts engine,D13,done,AlertPrefs pushed to Rust; families mapped 2026-09-10
 S2-04,S2,truth,Wire historyEnabled,Sampler must not attach history when off,D13,done,gates green 2026-09-10
 S2-05,S2,truth,Delete crashReports usageData reputationLookups advancedEnabled,No telemetry exists and none is planned,D13,done,gates green 2026-09-10
 S2-06,S2,truth,Fix untranslated density labels,panels.tsx maps enum values straight to labels,D13,done,gates green 2026-09-10
@@ -67,12 +67,12 @@ S7-07,S7,ui,Search and filter on every table with URL state,Consistent across sc
 S7-08,S7,ui,Shared Skeleton and StatList primitives,Remove the duplication across ten feature folders,D8,todo,
 S7-09,S7,ui,Toasts via sonner,Themed through CSS variables not classNames,D8,todo,
 S7-10,S7,ui,Tests for the 11 untested ui components and TimeSeriesChart,,D22,todo,
-S8-01,S8,shell,System tray with a live sparkline,Rust-side Image::new_owned at the DPI-correct slot size; skip unchanged buffers,D8,todo,
-S8-02,S8,shell,Tray menu and minimise-to-tray,Justifies the existing setting,D8,todo,
-S8-03,S8,shell,Always-on-top HUD window,Hash route on index.html; own narrow capability; click-through toggle,D8,todo,
-S8-04,S8,shell,Alerts and rules engine wired to notifications,Hysteresis and cooldown to prevent toast storms,D8,todo,
-S8-05,S8,shell,Updater flow,check download install plus a settings panel; loud failure while the pubkey is a placeholder,D20,todo,
-S8-06,S8,shell,Why is my PC slow report,One click correlating the subsystems,D22,todo,
+S8-01,S8,shell,System tray with a live sparkline,Rust-side Image::new_owned at the DPI-correct slot size; skip unchanged buffers,D8,done,CPU bar, redraw skipped when unchanged, 7 tests 2026-09-10
+S8-02,S8,shell,Tray menu and minimise-to-tray,Justifies the existing setting,D8,done,menu + closeToTray default on; strands-window defect closed 2026-09-10
+S8-03,S8,shell,Always-on-top HUD window,Hash route on index.html; own narrow capability; click-through toggle,D8,done,third Vite entry, own capability, 46 kB gz 2026-09-10
+S8-04,S8,shell,Alerts and rules engine wired to notifications,Hysteresis and cooldown to prevent toast storms,D8,done,Rust engine: sustain/hysteresis/cooldown, 17 tests 2026-09-10
+S8-05,S8,shell,Updater flow,check download install plus a settings panel; loud failure while the pubkey is a placeholder,D20,done,real key, latest.json in release.yml, unconfigured state 2026-09-10
+S8-06,S8,shell,Why is my PC slow report,One click correlating the subsystems,D22,done,diagnosis.rs 11 tests + DiagnosisDialog 7 tests; live-driven via CDP 2026-09-10
 S9-01,S9,metrics,Per-process Disk column from DiskCounters,SYSTEM_PROCESS_INFORMATION_EXTENSION - matches Task Manager,D22,todo,
 S9-02,S9,metrics,Efficiency mode,SetProcessInformation ProcessPowerThrottling plus IDLE_PRIORITY_CLASS; read back with GetProcessInformation,D8,todo,
 S9-03,S9,metrics,Affinity presets,Primitive already exists; add the preset UI layer,D8,todo,
@@ -97,3 +97,7 @@ S9-90,S9,win,Idle process leaked into every frame,PID 0 was top CPU in any sorte
 S9-91,S9,core,GPU utilization Option<Percent>,Phantom adapters read 0% instead of unknown; type change rippled through 8 files,D1,done,prometheus test + typecheck 2026-09-10
 S10-90,S10,gates,check-drift.ps1 + pre-commit hook,serde/ts_rs casing; invoke vs command; locale parity; secrets; .only,D1,done,mutation-tested both checks; hook blocked a probe 2026-09-10
 S10-91,S10,docs,AGENTS.md + skills add-a-metric add-a-command,Written from the defects found this session,D1,done,committed 1d88d42
+S11-10,S11,ui,HUD overlay window,"Second Tauri window (hud.html) with CPU/memory/GPU, drag, click-through, own narrow capability",D1,done,typecheck+eslint+58 vitest+clippy+drift green; 46.1 kB gz excl. React 2026-09-10
+S9-92,S9,mobile,Phone card showed a phantom GPU adapter,gpus[0] is a virtual display here; shared selectors in @vitals/protocol,D1,done,live check GPU 7% 2026-09-10
+S10-92,S10,gates,Per-entry size budgets from the module graph,Filename pattern was wrong in both directions; real initial load 172.9 kB,D1,done,check-size.ps1 2026-09-10
+S9-93,S9,dashboard,Hidden route stopped receiving frames,disposed flag never reset on resubscribe (Activity/StrictMode); alerts source had the same defect,D1,done,2 regression tests mutation-checked; live dashboard recovered 2026-09-10
