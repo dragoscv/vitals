@@ -40,6 +40,27 @@ Both defects found on 2026-09-10 came from a prover, not from a test:
 Add one for any subsystem with an external boundary. Run the existing ones
 after touching the code they cover.
 
+### Look at it
+
+Two of the four defects found on 2026-09-10 were invisible to every test and
+obvious within ten seconds of opening the page: `PID 0 · 43 %` at the top of
+the process list, and `GPU 0 %` beside a real GPU at 16 %. Both were
+backend bugs; the phone was simply the first client to render the data
+without the desktop's incidental filtering.
+
+`cargo run -p vitals-server --example serve_dev` serves live metrics on
+:7332 with the token `dev`, so any client can be pointed at a real machine.
+Open the thing you built and read the numbers. A screen that renders is not
+a screen that is right.
+
+### A new client is an audit
+
+Every time this project grows a consumer — the LAN API, Prometheus, the
+SDK, the phone — it finds bugs in code that was already "done". The reason
+is always the same: the existing consumer happened to hide the problem. When
+you add one, expect to fix the backend, and fix it **at the source** so
+every consumer benefits rather than patching the new client.
+
 ## Contracts that compile separately
 
 Two sides that build independently will drift, and no compiler will say so.
@@ -59,6 +80,25 @@ two seconds; it runs in CI and in the pre-commit hook.
    suffixes (`_few`, `_many`) are exempt: Romanian needs forms English does not.
 4. **Generated bindings.** `cargo test -p vitals-core --features ts` regenerates
    `packages/protocol/src/generated`; a dirty tree afterwards means drift.
+
+Two more that no script can check, so they are on you:
+
+5. **A template or query string that addresses a field by name.** The Home
+   Assistant package's Jinja paths and the Prometheus dashboards read fields
+   by dotted name; rename one in Rust and they silently read nothing forever.
+   `crates/vitals-server/tests/home_assistant.rs` resolves every path against
+   a real serialised frame — extend it when you add a sensor.
+6. **Documentation that states behaviour.** `docs/api/openapi.yaml` has a
+   drift test for its route list, but not for its prose. If you change a
+   status code or an ordering, grep the docs.
+
+## Authorisation before validation
+
+Check who is asking before checking what they asked. An extractor that
+parses the body runs _before_ the handler, so `Json<T>` as an argument means
+a malformed request from an unauthorised caller gets 422 rather than 403 —
+which lets them probe the schema by watching the status change. Take
+`Bytes` and parse by hand where the order matters (`control` in `router.rs`).
 
 ## Tests
 
@@ -140,6 +180,8 @@ this is changed back, and which real failure a guard exists for.
 ## Before you finish
 
 - `pwsh -NoProfile -File scripts/verify.ps1`
+- `pwsh -NoProfile -File scripts/hooks/install.ps1` once per clone; the
+  pre-commit hook catches formatting, drift, secrets and `.only` in seconds.
 - Update `docs/tracker.csv` (state) and `docs/TRACKER.md` (reasoning, plus a
   verification-log entry with real command output).
 - Close the ripple: callers, both locales, the CLI, the SDK, the docs. Say
