@@ -57,7 +57,18 @@ impl FrameBuilder {
     pub fn build(&mut self, sample: Sample) -> Frame {
         self.seq = self.seq.saturating_add(1);
 
-        let processes: Vec<Process> = sample.processes.into_iter().map(convert).collect();
+        // The System Idle Process is dropped here, once, for every consumer.
+        // PID 0 accumulates the CPU time of every idle cycle on every core,
+        // so it ranks first in any list sorted by CPU and makes the machine
+        // look permanently pegged. `is_idle_process` existed, but nothing on
+        // the production path called it — the phone app was the first client
+        // to show the list unfiltered, with "PID 0 · 43 %" at the top.
+        let processes: Vec<Process> = sample
+            .processes
+            .into_iter()
+            .filter(|p| !p.raw.is_idle_process())
+            .map(convert)
+            .collect();
 
         // Keyframe when the client has no baseline, or on the periodic
         // refresh. `seq == 1` covers the first frame after a reset.
@@ -308,6 +319,28 @@ mod tests {
         std::thread::sleep(std::time::Duration::from_millis(120));
         let frame = builder.build(sample());
         assert!(!frame.is_keyframe(), "the second frame should be a delta");
+    }
+
+    #[test]
+    fn the_idle_pseudo_process_never_reaches_a_frame() {
+        // The enumerator sees PID 0 (asserted in enumerate.rs); the frame
+        // must not. It is the single largest CPU "consumer" on any machine
+        // and every process list sorted by CPU would put it first.
+        let raw = sample();
+        assert!(
+            raw.processes.iter().any(|p| p.raw.is_idle_process()),
+            "precondition: the sampler itself still reports PID 0"
+        );
+
+        let mut builder = FrameBuilder::new();
+        let frame = builder.build(raw);
+        let FramePayload::Keyframe { processes, .. } = &frame.payload else {
+            unreachable!("first frame is a keyframe")
+        };
+        assert!(
+            processes.iter().all(|p| p.key.pid.get() != 0),
+            "PID 0 leaked into the wire frame"
+        );
     }
 
     #[test]
