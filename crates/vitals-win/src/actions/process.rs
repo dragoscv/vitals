@@ -109,7 +109,12 @@ pub(crate) fn verify_identity(handle: &ProcessHandle, expected: ProcessKey) -> R
         )));
     }
 
-    if creation.cast_unsigned() != expected.start_time {
+    // Normalised on both sides: `expected` came through `ProcessKey::new`,
+    // which rounds to what a JavaScript number can hold, so the raw kernel
+    // value must be rounded the same way or every key that has crossed the
+    // IPC boundary fails here. It did — every process action reported "PID
+    // was reused" the first time a client actually sent a key back.
+    if ProcessKey::normalise_start_time(creation.cast_unsigned()) != expected.start_time {
         return Err(Error::NotFound(format!(
             "process {} exited and its PID was reused",
             expected.pid.get()

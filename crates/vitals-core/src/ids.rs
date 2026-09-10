@@ -146,18 +146,51 @@ impl fmt::Display for SensorId {
 #[serde(rename_all = "camelCase")]
 pub struct ProcessKey {
     pub pid: Pid,
-    /// Process creation time, in 100ns intervals since the platform epoch.
+    /// Process creation time, in 100ns intervals since the platform epoch,
+    /// **rounded to the nearest value a JavaScript number can hold**.
     ///
     /// Opaque: only ever compared for equality, never interpreted here.
+    ///
+    /// The rounding is load-bearing. A Windows `FILETIME` is ~1.3 × 10¹⁷,
+    /// above 2⁵³, so the exact integer survives JSON but not the webview's
+    /// `number`. The value the UI sent back differed from the one the
+    /// sampler held by a few hundred nanoseconds, the identity check
+    /// rejected it, and every action on every process failed with "PID was
+    /// reused" — found the day a client actually round-tripped a key.
+    /// Normalising in [`Self::new`] means the sampler, the frame, the
+    /// webview and the identity check all hold the same value. The
+    /// granularity lost is under 2 µs, and no PID is recycled that fast.
     #[cfg_attr(feature = "ts", ts(type = "number"))]
     pub start_time: u64,
 }
 
 impl ProcessKey {
+    /// Builds a key, normalising `start_time` so it round-trips through a
+    /// JavaScript `number` unchanged. See the field docs for why.
     #[inline]
     #[must_use]
-    pub const fn new(pid: Pid, start_time: u64) -> Self {
-        Self { pid, start_time }
+    pub fn new(pid: Pid, start_time: u64) -> Self {
+        Self {
+            pid,
+            start_time: Self::normalise_start_time(start_time),
+        }
+    }
+
+    /// The nearest `u64` a JavaScript `number` can represent exactly.
+    ///
+    /// Idempotent: an already-representable value maps to itself, so a key
+    /// that has been through the webview compares equal to one freshly read
+    /// from the kernel and normalised the same way.
+    #[inline]
+    #[must_use]
+    // The whole point is the lossy round trip through f64.
+    #[allow(
+        clippy::cast_precision_loss,
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss
+    )]
+    pub fn normalise_start_time(start_time: u64) -> u64 {
+        (start_time as f64) as u64
     }
 }
 
@@ -189,5 +222,47 @@ mod tests {
     #[test]
     fn process_key_display_is_unambiguous() {
         assert_eq!(ProcessKey::new(Pid(12), 34).to_string(), "12@34");
+    }
+
+    #[test]
+    fn a_start_time_survives_a_round_trip_through_a_javascript_number() {
+        // A real FILETIME from this machine: above 2^53, so the exact integer
+        // is not representable as a JS number. What the webview sends back is
+        // whatever `Number(x)` produced; the key must already be that value.
+        let filetime: u64 = 134_335_449_035_919_847;
+        let key = ProcessKey::new(Pid(1), filetime);
+
+        // What the webview does: parse to f64, serialise back.
+        #[allow(
+            clippy::cast_precision_loss,
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss
+        )]
+        let round_tripped = (key.start_time as f64) as u64;
+
+        assert_eq!(key.start_time, round_tripped);
+        assert_ne!(
+            key.start_time, filetime,
+            "the test value must actually be unrepresentable, or it proves nothing"
+        );
+    }
+
+    #[test]
+    fn normalisation_is_idempotent_so_a_key_from_the_webview_matches_a_fresh_one() {
+        let raw: u64 = 134_335_449_035_919_847;
+        let once = ProcessKey::normalise_start_time(raw);
+        let twice = ProcessKey::normalise_start_time(once);
+        assert_eq!(once, twice);
+        assert_eq!(ProcessKey::new(Pid(1), raw), ProcessKey::new(Pid(1), once));
+    }
+
+    #[test]
+    fn normalisation_keeps_distinct_processes_distinct() {
+        // Two processes started within the same 2 µs would collide, which is
+        // acceptable because PIDs are not recycled that fast — but processes
+        // a full millisecond apart must remain distinct or the key is useless.
+        let a = ProcessKey::new(Pid(1), 134_335_449_035_919_847);
+        let b = ProcessKey::new(Pid(1), 134_335_449_035_919_847 + 10_000);
+        assert_ne!(a, b);
     }
 }

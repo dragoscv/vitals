@@ -210,3 +210,22 @@ fn the_frame_carries_the_keys_the_client_actually_reads() {
         );
     }
 }
+
+#[test]
+fn disk_counter_source_serialises_to_the_literals_the_ui_compares_against() {
+    // The UI does `source === 'storageStack'`. The generated union says
+    // `"storageStack" | "allIo"` because ts_rs renames to camelCase; serde
+    // must produce the same spelling or the comparison is never true and the
+    // tooltip falls through to "not yet known" — which is exactly what it
+    // did live, with every gate green.
+    use vitals_core::process::DiskCounterSource;
+
+    assert_eq!(
+        serde_json::to_value(DiskCounterSource::StorageStack).expect("serialise"),
+        serde_json::Value::String("storageStack".into())
+    );
+    assert_eq!(
+        serde_json::to_value(DiskCounterSource::AllIo).expect("serialise"),
+        serde_json::Value::String("allIo".into())
+    );
+}
