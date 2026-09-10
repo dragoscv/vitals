@@ -16,6 +16,24 @@ import { defaultSettings, parseSettings, type AppSettings } from './schema';
  */
 const WRITE_DEBOUNCE_MS = 250;
 
+/**
+ * Where the overlay window reads the language from.
+ *
+ * The HUD's capability grants it no store access, on purpose, so the one
+ * setting it needs is mirrored into `localStorage`, which every webview of
+ * this app shares. Must match `LOCALE_KEY` in `src/hud/main.tsx`.
+ */
+const HUD_LOCALE_KEY = 'vitals.locale.v1';
+
+function mirrorLocale(locale: string): void {
+  try {
+    window.localStorage.setItem(HUD_LOCALE_KEY, locale);
+  } catch {
+    // Storage can be unavailable or full. The overlay then falls back to
+    // English, which is a nuisance rather than a failure.
+  }
+}
+
 interface SettingsState {
   readonly settings: AppSettings;
   /**
@@ -80,6 +98,7 @@ export const useSettings = create<SettingsState>((set, get) => ({
     if (settings.locale !== i18n.language) {
       await i18n.changeLanguage(settings.locale);
     }
+    mirrorLocale(settings.locale);
 
     set({ settings, hydrated: true, route: settings.lastRoute });
   },
@@ -92,6 +111,7 @@ export const useSettings = create<SettingsState>((set, get) => ({
     if (changes.locale !== undefined && changes.locale !== i18n.language) {
       void i18n.changeLanguage(changes.locale);
     }
+    if (changes.locale !== undefined) mirrorLocale(changes.locale);
   },
 
   setTheme(theme) {

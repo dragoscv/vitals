@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Vitals overlay</title>
+    <style>
+        /*
+        The window itself is transparent, so every layer above the desktop
+        wallpaper must be too. A background colour anywhere here — including
+        the user-agent default on `body` — paints an opaque rectangle around
+        the panel and the rounded corners disappear.
+      */
+        :root {
+            color-scheme: dark;
+        }
+
+        html,
+        body,
+        #root {
+            margin: 0;
+            height: 100%;
+            background: transparent;
+        }
+
+        body {
+            /* An overlay is not a document. Selecting its numbers by accident
+           while dragging it across the screen is never what was meant. */
+            user-select: none;
+            -webkit-user-select: none;
+            overflow: hidden;
+            cursor: default;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="root"></div>
+    <script type="module" src="/src/hud/main.tsx"></script>
+</body>
+
+</html>

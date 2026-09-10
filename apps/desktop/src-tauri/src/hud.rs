@@ -1,0 +1,119 @@
+//! The always-on-top overlay window.
+//!
+//! A second webview loading `hud.html`, created on demand rather than at
+//! startup: an overlay nobody has asked for should not cost a webview process,
+//! and the setting that re-opens it on launch calls the same command the
+//! toggle does, so there is one code path rather than two that can disagree.
+//!
+//! Its capability (`capabilities/hud.json`) is scoped to this window's label
+//! and grants dragging, cursor pass-through, always-on-top, hide and close —
+//! nothing else. A chromeless window that floats above everything is the
+//! easiest surface in the product to mistake for something it is not, so it
+//! gets the least it can work with.
+
+use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
+
+use crate::commands::CommandError;
+
+type CommandResult<T> = std::result::Result<T, CommandError>;
+
+/// The window label. Must match `"windows"` in `capabilities/hud.json`, or the
+/// webview loads with no permissions at all and every `invoke` from it is
+/// denied at runtime with nothing failing to compile.
+pub const LABEL: &str = "hud";
+
+/// Small enough to sit in a corner, large enough for three rows and a trace.
+/// Not resizable: there is nothing to reflow, and a drag handle on a window
+/// whose whole surface is a drag region fights the dragging.
+const WIDTH: f64 = 220.0;
+const HEIGHT: f64 = 96.0;
+
+// Click-through is deliberately NOT a command here. The overlay toggles its
+// own cursor pass-through through `core:window:allow-set-ignore-cursor-events`,
+// which its capability already grants, and a command would be a second way to
+// do the same thing that the main window has no reason to reach for. The
+// grant is narrower than it looks: the capability is scoped to this label, so
+// nothing else in the app gains it.
+
+fn os_error(context: &str, error: &tauri::Error) -> CommandError {
+    CommandError::from(vitals_core::Error::Os {
+        context: format!("{context}: {error}"),
+        code: 0,
+    })
+}
+
+/// Shows the overlay if it is hidden, hides it if it is visible.
+///
+/// Returns whether the overlay is visible afterwards, so the caller's switch
+/// reflects what actually happened rather than what it asked for.
+///
+/// Hide rather than close on the way out: recreating the webview costs a
+/// process start and loses the sparkline history, and this is bound to a
+/// global shortcut people press repeatedly.
+#[tauri::command]
+pub fn toggle_hud(app: tauri::AppHandle) -> CommandResult<bool> {
+    if let Some(window) = app.get_webview_window(LABEL) {
+        let visible = window.is_visible().unwrap_or(false);
+        if visible {
+            window.hide().map_err(|e| os_error("hide overlay", &e))?;
+        } else {
+            window.show().map_err(|e| os_error("show overlay", &e))?;
+        }
+        return Ok(!visible);
+    }
+
+    set_hud_visible(app, true)
+}
+
+/// Drives the overlay to a known state, creating it if needed.
+///
+/// This is what the settings switch and the "re-open on start" path call. A
+/// toggle cannot serve them: restoring a stored `true` at launch must not
+/// close an overlay a race left open.
+#[tauri::command]
+// Tauri's command macro injects the handle by value; it cannot hand us a
+// borrow, and the early-return branches do not consume it.
+#[allow(clippy::needless_pass_by_value)]
+pub fn set_hud_visible(app: tauri::AppHandle, visible: bool) -> CommandResult<bool> {
+    if let Some(window) = app.get_webview_window(LABEL) {
+        if visible {
+            window.show().map_err(|e| os_error("show overlay", &e))?;
+        } else {
+            window.hide().map_err(|e| os_error("hide overlay", &e))?;
+        }
+        return Ok(visible);
+    }
+
+    if !visible {
+        // Nothing to hide. Building a window in order to hide it would start a
+        // webview process for a feature the user has just turned off.
+        return Ok(false);
+    }
+
+    WebviewWindowBuilder::new(&app, LABEL, WebviewUrl::App("hud.html".into()))
+        // On Windows a transparent webview needs the window itself
+        // undecorated; a decorated frame paints an opaque client area behind
+        // the page whatever the page's own background says. `macOSPrivateApi`
+        // is not needed here — it is a macOS-only requirement.
+        .transparent(true)
+        .decorations(false)
+        .always_on_top(true)
+        // Absent from Alt+Tab and the taskbar: an overlay is a readout, not a
+        // window anyone wants to cycle to, and one that steals a tab stop
+        // from the app underneath is worse than no overlay.
+        .skip_taskbar(true)
+        .resizable(false)
+        .maximizable(false)
+        .minimizable(false)
+        .focused(false)
+        // A drop shadow on a transparent window is drawn around the window
+        // rectangle, not around the rounded panel inside it, so it renders as
+        // a grey box floating on the wallpaper.
+        .shadow(false)
+        .inner_size(WIDTH, HEIGHT)
+        .title("Vitals overlay")
+        .build()
+        .map_err(|e| os_error("create overlay", &e))?;
+
+    Ok(true)
+}

@@ -1,0 +1,27 @@
+/*
+ * Overlay stylesheet.
+ *
+ * Shares the palette with the desktop through @vitals/ui so the HUD reads as
+ * part of the same product. Only what a floating, transparent, always-on-top
+ * window needs lives here.
+ */
+
+@import '@vitals/ui/styles.css';
+
+@source '../hud';
+@source '../../../../packages/ui/src';
+
+/*
+ * theme.css paints the document surface for the main window. The overlay must
+ * stay transparent all the way down or the desktop behind it is hidden by an
+ * opaque rectangle the user never asked for.
+ */
+html,
+body,
+#root {
+  background: transparent;
+}
+
+#root {
+  height: 100%;
+}
