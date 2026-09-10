@@ -12,3 +12,4 @@
 
 export * from './generated';
 export * from './guards';
+export * from './select';

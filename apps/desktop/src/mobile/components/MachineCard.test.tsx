@@ -65,6 +65,32 @@ describe('MachineCard', () => {
     expect(screen.getByText('13%')).toBeTruthy();
   });
 
+  it('shows the real card, not the virtual display the kernel enumerates first', () => {
+    // The bug this replaced: `gpus[0]` on this machine is a Parsec virtual
+    // display with no counters, so the card read "—" while the RTX was at
+    // 17 %. Selection is now "busiest measured adapter", shared with the
+    // overlay and tested once in @vitals/protocol.
+    const live: LiveState = {
+      state: 'live',
+      snapshot: {
+        system: system({
+          gpus: [
+            { name: 'Display adapter 0x0003', utilization: null },
+            { name: 'RTX 3060 Ti', utilization: 17 },
+          ] as unknown as SystemMetrics['gpus'],
+        }),
+        processes: new Map(),
+        seq: 1,
+        timestampMs: 0,
+      },
+      cpuHistory: [10, 12.5],
+      memoryHistory: [25, 25],
+    };
+    render(<MachineCard pairing={pairing} live={live} onOpen={() => {}} />);
+    expect(screen.getByText('17%')).toBeTruthy();
+    expect(screen.queryByText('—')).toBeNull();
+  });
+
   it('shows the connection state as text, not only colour', () => {
     const live: LiveState = {
       state: 'reconnecting',

@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 
+import { busiestNic, headlineTemperature, primaryGpu } from '@vitals/protocol';
 import {
   Badge,
   Card,
@@ -34,12 +35,12 @@ export function MachineCard({ pairing, live, onOpen }: MachineCardProps) {
   const locale = i18n.language;
   const system = live.snapshot?.system;
 
-  const gpu = system?.gpus[0];
-  const busiestNic = system?.networks.reduce<(typeof system.networks)[number] | undefined>(
-    (best, nic) => (best === undefined || nic.rx + nic.tx > best.rx + best.tx ? nic : best),
-    undefined,
-  );
-  const temperature = system?.cpu.temperature ?? gpu?.temperature ?? null;
+  // gpus[0] was wrong: the kernel enumerates a virtual display first on
+  // this machine, so the card showed a dash beside a GPU at 17 %. The shared
+  // selectors pick the busiest MEASURED adapter and are tested once.
+  const gpu = system === undefined ? undefined : (primaryGpu(system) ?? undefined);
+  const nic = system === undefined ? undefined : busiestNic(system);
+  const temperature = system === undefined ? null : headlineTemperature(system);
 
   return (
     <Card className="overflow-hidden">
@@ -84,7 +85,7 @@ export function MachineCard({ pairing, live, onOpen }: MachineCardProps) {
             <dl
               className={cn(
                 'grid gap-2 text-2xs',
-                facts(gpu !== undefined, busiestNic !== undefined, temperature !== null),
+                facts(gpu !== undefined, nic !== undefined, temperature !== null),
               )}
             >
               {gpu !== undefined && (
@@ -93,10 +94,10 @@ export function MachineCard({ pairing, live, onOpen }: MachineCardProps) {
                   value={formatPercent(gpu.utilization, locale, 0)}
                 />
               )}
-              {busiestNic !== undefined && (
+              {nic !== undefined && (
                 <Fact
                   label={t('mobile.machines.network')}
-                  value={`↓${formatThroughput(busiestNic.rx, locale)} ↑${formatThroughput(busiestNic.tx, locale)}`}
+                  value={`↓${formatThroughput(nic.rx, locale)} ↑${formatThroughput(nic.tx, locale)}`}
                 />
               )}
               {temperature !== null && (
