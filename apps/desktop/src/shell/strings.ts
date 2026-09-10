@@ -34,8 +34,15 @@ const en = {
       startWithWindows: 'Start with Windows',
       startWithWindowsHint: 'Vitals opens in the background when you sign in.',
       startMinimised: 'Start minimised to the tray',
+      closeToTray: 'Close to tray',
+      closeToTrayHint: 'The × button hides Vitals; it keeps monitoring. Quit from the tray menu.',
+      hudVisible: 'Show the overlay',
+      hudVisibleHint:
+        'A small always-on-top panel with CPU, memory and GPU. Ctrl+Shift+H shows or hides it.',
       confirmEndTask: 'Ask before ending a task',
       confirmEndTaskHint: 'Critical system processes always ask, whatever this is set to.',
+      quit: 'Quit Vitals',
+      quitHint: 'Stops monitoring and closes the app completely.',
     },
     notifications: {
       title: 'Notifications',
@@ -97,6 +104,17 @@ const en = {
       exporting: 'Saving\u2026',
     },
   },
+  // Rendered by Rust, not React: the tray must work with the window hidden,
+  // so these are pushed to the backend rather than read by a component.
+  tray: {
+    show: 'Show Vitals',
+    pause: 'Pause sampling',
+    quit: 'Quit',
+    cpu: 'CPU',
+    memory: 'Memory',
+    gpu: 'GPU',
+    stillRunning: 'Vitals is still running in the tray.',
+  },
   placeholder: {
     title: '{{section}} is not ready yet',
     body: 'This section is still being built. Nothing here is missing from your computer — only from Vitals.',
@@ -125,9 +143,17 @@ const ro = {
       startWithWindows: 'Pornește odată cu Windows',
       startWithWindowsHint: 'Vitals pornește în fundal când te autentifici.',
       startMinimised: 'Pornește minimizat în bara de sistem',
+      closeToTray: 'Închide în bara de sistem',
+      closeToTrayHint:
+        'Butonul × ascunde Vitals; monitorizarea continuă. Închide-l din meniul barei de sistem.',
+      hudVisible: 'Afișează suprapunerea',
+      hudVisibleHint:
+        'Un panou mic, mereu deasupra, cu procesor, memorie și placă video. Ctrl+Shift+H îl afișează sau îl ascunde.',
       confirmEndTask: 'Cere confirmare înainte de a opri un proces',
       confirmEndTaskHint:
         'Procesele critice de sistem cer întotdeauna confirmare, indiferent de această setare.',
+      quit: 'Închide Vitals',
+      quitHint: 'Oprește monitorizarea și închide aplicația complet.',
     },
     notifications: {
       title: 'Notificări',
@@ -189,6 +215,15 @@ const ro = {
       save: 'Salvează\u2026',
       exporting: 'Se salvează\u2026',
     },
+  },
+  tray: {
+    show: 'Afișează Vitals',
+    pause: 'Suspendă măsurarea',
+    quit: 'Închide',
+    cpu: 'CPU',
+    memory: 'Memorie',
+    gpu: 'GPU',
+    stillRunning: 'Vitals rulează în continuare în bara de sistem.',
   },
   placeholder: {
     title: '{{section}} nu este gata încă',

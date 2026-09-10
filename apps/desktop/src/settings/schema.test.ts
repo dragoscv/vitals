@@ -69,4 +69,24 @@ describe('parseSettings', () => {
     expect(samplingIntervalMs.fast).toBeLessThan(samplingIntervalMs.normal);
     expect(samplingIntervalMs.normal).toBeLessThan(samplingIntervalMs.slow);
   });
+
+  it('closes to the tray by default, and lets a stored false survive', () => {
+    // The one switch that defaults on. A monitor closed by reflex would
+    // otherwise stop monitoring with nothing on screen to say so — and the
+    // default must survive a store file written before the key existed.
+    expect(defaultSettings.closeToTray).toBe(true);
+    expect(parseSettings({}).closeToTray).toBe(true);
+    expect(parseSettings({ closeToTray: false }).closeToTray).toBe(false);
+    expect(parseSettings({ closeToTray: 'no' }).closeToTray).toBe(true);
+  });
+
+  it('keeps the overlay off until asked for, and reopens one left on', () => {
+    // An always-on-top window nobody asked for is an intrusion, so the
+    // default is off; but a user who left it on expects it back after a
+    // restart, which is what the stored `true` is for.
+    expect(defaultSettings.hudVisible).toBe(false);
+    expect(parseSettings({}).hudVisible).toBe(false);
+    expect(parseSettings({ hudVisible: true }).hudVisible).toBe(true);
+    expect(parseSettings({ hudVisible: 'yes' }).hudVisible).toBe(false);
+  });
 });

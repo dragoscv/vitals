@@ -16,6 +16,7 @@ import {
 
 import { SHELL_NS } from '../shell/strings';
 import { hasTauriHost } from '../shell/host';
+import { quitApp } from '../lib/settingsSync';
 import { useTheme } from '../theme/ThemeProvider';
 import { accents, densities, surfaces, themeModes, type Accent } from '../theme/types';
 import { SettingsRow, SettingsSection } from './SettingsRow';
@@ -24,6 +25,7 @@ import { retentionDayOptions, samplingRates } from './schema';
 import { useSettings } from './store';
 import { useHostInfo } from './useHostInfo';
 import { useHistoryUsage } from './useHistoryUsage';
+import { UpdateSection } from './UpdatePanel';
 
 /**
  * Locale names are written in their own language, not translated.
@@ -73,6 +75,34 @@ export function GeneralPanel() {
       </SettingsRow>
 
       <SettingsRow
+        label={t('settings.general.closeToTray')}
+        description={t('settings.general.closeToTrayHint')}
+      >
+        {({ labelId, describedBy }) => (
+          <Switch
+            aria-labelledby={labelId}
+            aria-describedby={describedBy}
+            checked={settings.closeToTray}
+            onCheckedChange={(value) => patch({ closeToTray: value })}
+          />
+        )}
+      </SettingsRow>
+
+      <SettingsRow
+        label={t('settings.general.hudVisible')}
+        description={t('settings.general.hudVisibleHint')}
+      >
+        {({ labelId, describedBy }) => (
+          <Switch
+            aria-labelledby={labelId}
+            aria-describedby={describedBy}
+            checked={settings.hudVisible}
+            onCheckedChange={(value) => patch({ hudVisible: value })}
+          />
+        )}
+      </SettingsRow>
+
+      <SettingsRow
         label={t('settings.general.confirmEndTask')}
         description={t('settings.general.confirmEndTaskHint')}
       >
@@ -83,6 +113,20 @@ export function GeneralPanel() {
             checked={settings.confirmEndTask}
             onCheckedChange={(value) => patch({ confirmEndTask: value })}
           />
+        )}
+      </SettingsRow>
+
+      <SettingsRow label={t('settings.general.quit')} description={t('settings.general.quitHint')}>
+        {({ labelId }) => (
+          <Button
+            aria-labelledby={labelId}
+            variant="secondary"
+            onClick={() => {
+              void quitApp();
+            }}
+          >
+            {t('settings.general.quit')}
+          </Button>
         )}
       </SettingsRow>
     </SettingsSection>
@@ -502,6 +546,8 @@ export function AboutPanel({ version }: { readonly version: string }) {
         ) : (
           info !== null && <HostFacts info={info} />
         )}
+
+        <UpdateSection />
 
         <p className="text-sm">{t('settings.about.contribute')}</p>
         <p className="text-2xs text-[var(--color-fg-muted)]">

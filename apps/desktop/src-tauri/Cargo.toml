@@ -54,5 +54,10 @@ version = "2.11.0"
 [dependencies.tauri-plugin-single-instance]
 version = "2.4.4"
 
+[dev-dependencies]
+# The tray tests need a plausible machine to format a tooltip from; the shared
+# fixture is the only copy that stays in step when a metric field is added.
+vitals-core = { workspace = true, features = ["fixtures"] }
+
 [lints]
 workspace = true

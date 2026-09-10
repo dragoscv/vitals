@@ -22,7 +22,11 @@ export interface AppSettings {
 
   readonly startWithWindows: boolean;
   readonly startMinimised: boolean;
+  /** The × button hides the window instead of quitting. */
+  readonly closeToTray: boolean;
   readonly confirmEndTask: boolean;
+  /** Whether the always-on-top overlay is showing. Re-opened on launch. */
+  readonly hudVisible: boolean;
 
   readonly samplingRate: SamplingRate;
   readonly throttleWhenHidden: boolean;
@@ -53,7 +57,12 @@ export const defaultSettings: AppSettings = {
 
   startWithWindows: false,
   startMinimised: false,
+  // On, unlike almost everything else here, because the alternative is worse:
+  // a monitor closed by reflex stops monitoring with no warning. It records
+  // nothing and sends nothing, so the "everything off" promise is untouched.
+  closeToTray: true,
   confirmEndTask: true,
+  hudVisible: false,
 
   samplingRate: 'normal',
   throttleWhenHidden: true,
@@ -122,7 +131,9 @@ export function parseSettings(raw: unknown): AppSettings {
 
     startWithWindows: bool(record['startWithWindows'], defaultSettings.startWithWindows),
     startMinimised: bool(record['startMinimised'], defaultSettings.startMinimised),
+    closeToTray: bool(record['closeToTray'], defaultSettings.closeToTray),
     confirmEndTask: bool(record['confirmEndTask'], defaultSettings.confirmEndTask),
+    hudVisible: bool(record['hudVisible'], defaultSettings.hudVisible),
 
     samplingRate: pick(record['samplingRate'], isSamplingRate, defaultSettings.samplingRate),
     throttleWhenHidden: bool(record['throttleWhenHidden'], defaultSettings.throttleWhenHidden),
