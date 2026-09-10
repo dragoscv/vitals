@@ -26,6 +26,7 @@ import { useTranslation } from 'react-i18next';
 
 import type { SystemMetrics } from '@vitals/protocol';
 import { EmptyState, Meter, formatCount, formatTemperature } from '@vitals/ui';
+import { StatList } from '../StatList';
 
 import { PERFORMANCE_NS } from '../strings';
 
@@ -83,16 +84,14 @@ export function ThermalsPanel({
       {fans.length > 0 && (
         <div>
           <p className="mb-1.5 text-2xs text-[var(--color-fg-muted)]">{t('thermals.fanSpeed')}</p>
-          <dl className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {fans.map((fan) => (
-              <div key={fan.key}>
-                <dt className="text-2xs text-[var(--color-fg-muted)]">{fan.label}</dt>
-                <dd className="tnum font-mono text-sm">
-                  {fan.rpm !== null ? `${formatCount(fan.rpm, locale)} RPM` : `${fan.percent}%`}
-                </dd>
-              </div>
-            ))}
-          </dl>
+          <StatList
+            columns={3}
+            stats={fans.map((fan) => ({
+              key: fan.key,
+              label: fan.label,
+              value: fan.rpm !== null ? `${formatCount(fan.rpm, locale)} RPM` : `${fan.percent}%`,
+            }))}
+          />
         </div>
       )}
 

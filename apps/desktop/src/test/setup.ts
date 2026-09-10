@@ -6,6 +6,18 @@
  * the gaps are filled here.
  */
 
+import { beforeEach } from 'vitest';
+
+// Screens mirror their search and sort into `location.hash` (lib/useUrlState)
+// and read it back on mount. happy-dom keeps one window per test FILE, so
+// without this a query typed in one test is silently restored by the next
+// test's mount — and a table that should show every row shows none.
+beforeEach(() => {
+  if (typeof history !== 'undefined' && location.hash !== '') {
+    history.replaceState(null, '', location.pathname + location.search);
+  }
+});
+
 // ResizeObserver is used by every chart. Absent in happy-dom.
 if (!('ResizeObserver' in globalThis)) {
   globalThis.ResizeObserver = class {

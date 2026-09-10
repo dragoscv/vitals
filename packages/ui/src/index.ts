@@ -88,6 +88,7 @@ export { Select, type SelectGroup, type SelectOption, type SelectProps } from '.
 export { Separator, type SeparatorProps } from './components/Separator';
 export { Skeleton, type SkeletonProps } from './components/Skeleton';
 export { Spinner, type SpinnerProps } from './components/Spinner';
+export { StatList, type Stat, type StatListProps } from './components/StatList';
 export { Switch, type SwitchProps } from './components/Switch';
 export { Tabs, TabsContent, TabsList, TabsTrigger } from './components/Tabs';
 export {

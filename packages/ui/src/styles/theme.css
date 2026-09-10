@@ -232,6 +232,19 @@
   }
 }
 
+/*
+ * The same collapse for the toast stack when reduced motion comes from the
+ * app's own setting rather than the OS. The media query above cannot see
+ * `data-reduce-motion`, and sonner animates via CSS custom properties on
+ * `[data-sonner-toast]`, so the durations are pinned here. Not `animation:
+ * none`: sonner waits for the exit transition before unmounting.
+ */
+.vitals-toaster-still [data-sonner-toast],
+.vitals-toaster-still [data-sonner-toast] * {
+  animation-duration: 0.01ms !important;
+  transition-duration: 0.01ms !important;
+}
+
 @media (prefers-contrast: more) {
   :root {
     --color-border-subtle: var(--color-border-strong);

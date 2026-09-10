@@ -12,6 +12,26 @@
 @source '../../../packages/ui/src';
 
 /*
+ * Ultrawide breakpoints.
+ *
+ * Tailwind stops at 2xl (96rem / 1536px). A 4K or 5120px-wide window is the
+ * normal case for the people who buy a system monitor, and at those widths a
+ * three-column grid leaves half the screen empty. Named after the panel class
+ * they target: 3xl = 1080p/1200p wide, 4xl = 1440p wide, 5xl = 4K wide. Used
+ * as `3xl:grid-cols-4` on grids, and as `@3xl:` container variants on any
+ * feature rendered inside the main content wrapper (see Content.tsx).
+ */
+@theme {
+  --breakpoint-3xl: 120rem;
+  --breakpoint-4xl: 160rem;
+  --breakpoint-5xl: 240rem;
+
+  --container-3xl: 120rem;
+  --container-4xl: 160rem;
+  --container-5xl: 240rem;
+}
+
+/*
  * The window is a fixed-height flex column with a single scrolling region.
  * Letting the document itself scroll would detach the title bar and sidebar
  * from the viewport, which immediately reads as "this is a web page".
@@ -25,14 +45,17 @@
 /*
  * Maximum width of a content column.
  *
- * The window can be dragged across a 5120px ultrawide. Without a cap, a card
- * grid stretches every tile to a metre wide and paragraph text runs far past
- * the ~75-character line at which reading accuracy collapses. 1600px is
- * deliberately generous — this app is dense and tables want room — but finite,
- * and the surplus becomes margin rather than stretch.
+ * Two caps, because two kinds of content. `--content-max` bounds grids and
+ * tables: generous, since the app is dense and tiles genuinely benefit from
+ * width, but finite so a 5120px ultrawide gets margin rather than tiles a
+ * metre wide. `--reading-max` bounds anything text-heavy (help panels,
+ * explanations, settings prose): past ~75 characters a line, reading accuracy
+ * collapses, and 90rem holds that at the body size with room for a sidebar
+ * column.
  */
 :root {
-  --content-max: 1600px;
+  --content-max: 240rem;
+  --reading-max: 90rem;
 }
 
 /*

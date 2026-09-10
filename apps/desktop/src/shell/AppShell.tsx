@@ -13,6 +13,7 @@ import { RouteError } from './RouteError';
 import { Sidebar } from './Sidebar';
 import type { ShortcutActions } from './shortcuts';
 import { TitleBar } from './TitleBar';
+import { useSamplerToasts } from './useSamplerToasts';
 import { useShortcuts } from './useShortcuts';
 
 // Lazy: the dialog and its panels are 17 KB of the entry chunk for a surface
@@ -27,6 +28,13 @@ const SettingsDialog = lazy(async () => ({
 // surfaces that most sessions never open, and both render nothing while
 // closed. Deferring them keeps Motion's and their own weight out of the first
 // paint.
+// sonner is 9.7 KB gzipped and a toast is a rare event; the region mounts
+// after first paint. Anything fired before it lands is queued by sonner's
+// own store, so nothing is lost.
+const Toaster = lazy(async () => ({
+  default: (await import('@vitals/ui/toast')).Toaster,
+}));
+
 const CommandPalette = lazy(async () => ({
   default: (await import('./CommandPalette')).CommandPalette,
 }));
@@ -121,6 +129,7 @@ export function AppShell({ version }: AppShellProps) {
     [navigate, onSettingsOpenChange],
   );
   useShortcuts(shortcutActions);
+  useSamplerToasts();
 
   const narrow = useNarrowViewport();
   const collapsed = collapsedSetting || narrow;
@@ -205,6 +214,13 @@ export function AppShell({ version }: AppShellProps) {
           <ShortcutsHelp open={helpOpen} onOpenChange={setHelpOpen} />
         </Suspense>
       )}
+
+      <Suspense fallback={null}>
+        <Toaster
+          regionLabel={t('common.notifications')}
+          closeLabel={t('common.dismissNotification')}
+        />
+      </Suspense>
     </TooltipProvider>
   );
 }

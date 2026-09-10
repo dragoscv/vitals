@@ -15,11 +15,14 @@
     "clean": "rimraf dist"
   },
   "peerDependencies": {
-    "react": "catalog:"
+    "react": "catalog:",
+    "react-dom": "catalog:"
   },
   "devDependencies": {
+    "@testing-library/react": "catalog:",
     "@types/react": "catalog:",
     "@vitals/config": "workspace:*",
+    "@vitest/coverage-v8": "catalog:",
     "happy-dom": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"

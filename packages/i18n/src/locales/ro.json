@@ -92,7 +92,9 @@
     "error": "A apărut o eroare",
     "copy": "Copiază",
     "copied": "Copiat",
-    "refresh": "Reîmprospătează"
+    "refresh": "Reîmprospătează",
+    "notifications": "Notificări",
+    "dismissNotification": "Închide notificarea"
   },
   "settings": {
     "title": "Setări",

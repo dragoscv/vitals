@@ -89,6 +89,21 @@ describe('RingBuffer', () => {
     expect(zero.last).toBe(0);
   });
 
+  it('keeps a gap in place across a wrap and still excludes it from extent', () => {
+    // Fills past capacity so the gap is read through the wrapped-head branch
+    // of `at()`; a wrong start offset would either lose the gap or shift it
+    // onto a neighbouring real sample.
+    const buf = new RingBuffer(3);
+    buf.push(100);
+    buf.push(5);
+    buf.pushGap();
+    buf.push(7);
+
+    expect(buf.toArray().map((v) => (Number.isNaN(v) ? 'gap' : v))).toEqual([5, 'gap', 7]);
+    expect(buf.extent()).toEqual({ min: 5, max: 7 });
+    expect(buf.average()).toBe(6);
+  });
+
   it('clears back to an empty state', () => {
     const buf = new RingBuffer(3);
     buf.push(1);

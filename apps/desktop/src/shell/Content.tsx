@@ -41,16 +41,20 @@ export function Content({
       className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto outline-none"
     >
       {/*
-       * Content is capped and centred rather than filling the window.
+       * Content is capped and centred rather than filling the window without limit.
        *
-       * At 21:9 and beyond an uncapped grid produces card rows a metre wide and
-       * text lines far past the ~75 character readability limit. `--content-max`
-       * is generous — this is a data-dense app and cards genuinely benefit from
-       * width — but it is finite, and the leftover space becomes margin instead
-       * of stretch. The min-width side is handled by the layout, not here: the
-       * sidebar collapses so 720px still leaves a usable column.
+       * `--content-max` bounds grids and tables; it is generous because this is a
+       * data-dense app and the ultrawide breakpoints (3xl–5xl in styles.css) let
+       * grids add columns rather than stretch tiles. Text-heavy blocks cap
+       * themselves at `--reading-max`. The min-width side is handled by the
+       * layout, not here: the sidebar collapses so 720px still leaves a usable
+       * column.
+       *
+       * `@container/main` names this element as a container query root so
+       * features can respond to the width they actually get (`@3xl/main:`)
+       * rather than to the window, which differs from it by the sidebar.
        */}
-      <div className="mx-auto w-full max-w-[var(--content-max)] px-4 py-4 sm:px-6 sm:py-5">
+      <div className="@container/main mx-auto w-full max-w-[var(--content-max)] px-4 py-4 sm:px-6 sm:py-5">
         {children}
       </div>
     </main>

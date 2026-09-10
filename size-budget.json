@@ -1,7 +1,7 @@
 {
   "comment": "Budgets in bytes. Raise deliberately, never to make CI pass. shippedGzipBytes raised 2026-09-10 for the Motion runtime chunk (S7-01, 23.7 KB gz, lazy; initial load unchanged).",
   "initialGzipBytes": 185919.0,
-  "shippedGzipBytes": 358800.0,
+  "shippedGzipBytes": 367195.0,
   "installerBytes": 3148917.0,
   "hudGzipBytes": 120088.0,
   "mobileGzipBytes": 146055.0

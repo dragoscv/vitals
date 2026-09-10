@@ -10,6 +10,7 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
+    "./toast": "./src/components/Toaster.tsx",
     "./styles.css": "./src/styles/theme.css"
   },
   "scripts": {
@@ -23,6 +24,7 @@
     "clsx": "catalog:",
     "lucide-react": "catalog:",
     "radix-ui": "catalog:",
+    "sonner": "catalog:",
     "tailwind-merge": "catalog:"
   },
   "peerDependencies": {
@@ -33,6 +35,7 @@
     "@testing-library/react": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
     "@vitals/config": "workspace:*",
     "happy-dom": "catalog:",
     "tailwindcss": "catalog:",

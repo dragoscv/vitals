@@ -123,6 +123,10 @@ const en = {
     title: 'This section stopped working',
     retry: 'Try again',
   },
+  sampler: {
+    errorTitle: 'A reading failed',
+    errorBody: 'Vitals kept the last good numbers. {{detail}}',
+  },
 } as const;
 
 /** English half of the additions for the palette and the shortcut sheet. */
@@ -255,6 +259,10 @@ const ro = {
   placeholder: {
     title: '{{section}} nu este gata încă',
     body: 'Această secțiune este încă în lucru. Nu lipsește nimic din calculatorul tău — doar din Vitals.',
+  },
+  sampler: {
+    errorTitle: 'O măsurătoare a eșuat',
+    errorBody: 'Vitals a păstrat ultimele valori bune. {{detail}}',
   },
   routeError: {
     title: 'Această secțiune a încetat să funcționeze',

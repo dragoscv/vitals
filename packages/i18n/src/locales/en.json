@@ -91,7 +91,9 @@
     "error": "Something went wrong",
     "copy": "Copy",
     "copied": "Copied",
-    "refresh": "Refresh"
+    "refresh": "Refresh",
+    "notifications": "Notifications",
+    "dismissNotification": "Dismiss notification"
   },
   "settings": {
     "title": "Settings",
