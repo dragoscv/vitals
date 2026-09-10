@@ -1,0 +1,1317 @@
+openapi: 3.1.0
+info:
+  title: Vitals local API
+  version: 0.1.0
+  summary: The LAN HTTP API served by a running Vitals desktop.
+  description: |
+    Vitals is a Windows system monitor. When the user turns on **Remote
+    access** in Settings, the desktop app starts a plain-HTTP server on the
+    LAN (default port `7331`, bound on `0.0.0.0`) so a phone, a Prometheus
+    scraper or a shell script can read the same numbers the desktop shows.
+
+    ## Off by default, LAN only
+
+    Nothing binds a socket until the user opts in. There is no TLS: a
+    self-signed certificate would make every phone show a warning and break
+    the install-to-home-screen flow, buying a dialog instead of security. The
+    threat model is a home or office network, and the server exists to stop a
+    device that never scanned the QR code from reading your process list — not
+    to survive an attacker who can already read your traffic.
+
+    ## Authentication: a bearer token from QR pairing
+
+    Every route except `GET /api/v1/health` (and the static mobile web app)
+    requires a token. The desktop mints one per pairing — 32 bytes from the
+    OS CSPRNG, base64url without padding, so always 43 characters — and shows
+    it once as a QR code. The QR encodes
+    `http://<address>:<port>/mobile.html#t=<token>`; the token lives in the
+    URL **fragment**, which browsers never send to a server, so it cannot land
+    in a request line or an access log.
+
+    Present it either way:
+
+    - `Authorization: Bearer <token>` — preferred.
+    - `?token=<token>` — for `EventSource` and `WebSocket`, which cannot set
+      headers in a browser. A query string can end up in a log; the server
+      writes no access log, and the alternative is that the phone cannot
+      stream at all.
+
+    ## Scopes: read versus control
+
+    A token has one of two scopes. `read` sees everything and is the default
+    for a new pairing. `control` can also end, suspend, resume and re-prioritise
+    processes; it is never the default, because a phone left on a desk with a
+    control token is a remote kill switch for the machine. A read token calling
+    `POST /api/v1/control` gets `403` with `{"kind":"forbidden"}`.
+
+    ## A wrong token and a missing token return identical 401s — this is deliberate
+
+    Both cases return the same status, the same `WWW-Authenticate` header and
+    the same body. Telling a caller "that token exists but is wrong" is a free
+    oracle. Tokens are compared in constant time against every token in the
+    set, so timing cannot reveal list position either. To tell "wrong address"
+    from "wrong token", call `/api/v1/health` first: it needs no token.
+
+    ## A field that is null was not measured. It is never zero-when-unknown.
+
+    Every optional number in this document is `null` when the machine cannot
+    report it: a GPU whose driver hides VRAM has `memoryUsed: null`, not `0`.
+    An unmeasured reading and a genuinely-zero reading are different facts,
+    and the desktop renders the first as an em dash. Clients must preserve the
+    distinction. The Prometheus endpoint follows the same rule by **omitting**
+    the series rather than emitting zero.
+
+    ## Static files
+
+    Any path not listed below falls through to the bundled mobile web app
+    (`/` serves `/mobile.html`). Those files are unauthenticated on purpose:
+    anyone with the installer already has them, and the page cannot show
+    anything until it has a token. A path containing `..` returns `400`; a
+    server built without the web app returns `404` for everything unlisted.
+  license:
+    name: MIT
+    identifier: MIT
+
+servers:
+  - url: http://{address}:{port}
+    description: The machine running Vitals, on the local network.
+    variables:
+      address:
+        default: 192.168.1.20
+        description: The LAN IPv4 address shown in Settings → Remote access.
+      port:
+        default: '7331'
+        description: Default `7331`; configurable in Settings.
+
+tags:
+  - name: health
+    description: The one unauthenticated call.
+  - name: metrics
+    description: Reading the machine.
+  - name: control
+    description: Acting on processes. Needs the `control` scope.
+
+security:
+  - bearer: []
+  - queryToken: []
+
+paths:
+  /api/v1/health:
+    get:
+      tags: [health]
+      summary: Is something listening, and which frame shape does it speak?
+      description: |
+        Deliberately outside the auth layer so a client can tell "wrong
+        address" from "wrong token". Exposes only the version and the fact
+        that a server is there.
+      operationId: health
+      security: []
+      responses:
+        '200':
+          description: A Vitals server is listening.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+
+  /api/v1/snapshot:
+    get:
+      tags: [metrics]
+      summary: The most recent keyframe.
+      description: |
+        The last **keyframe**, not the last frame: a one-shot caller asking
+        "what is running" must get the whole process list, not the handful
+        that happened to change since the previous tick. The `payload.kind`
+        is therefore always `keyframe` here.
+      operationId: snapshot
+      responses:
+        '200':
+          description: The newest keyframe.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Frame'
+        '204':
+          description: |
+            Nothing has been sampled yet. An empty status rather than an empty
+            object, so a client can tell "not sampling yet" from "sampling,
+            and everything is zero".
+        '401':
+          $ref: '#/components/responses/Unauthorised'
+
+  /api/v1/host:
+    get:
+      tags: [metrics]
+      summary: Static facts about the machine.
+      operationId: host
+      responses:
+        '200':
+          description: Hostname, OS, CPU model, core topology and so on.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HostInfo'
+        '204':
+          description: The host has not been probed yet.
+        '401':
+          $ref: '#/components/responses/Unauthorised'
+
+  /api/v1/stream:
+    get:
+      tags: [metrics]
+      summary: Frames as server-sent events.
+      description: |
+        A `text/event-stream` in which every event's `data:` line is one
+        `Frame` as JSON. The first event is the current keyframe (so a client
+        connecting between ticks renders immediately); every subsequent event
+        is whatever the sampler produced, usually a `delta`. A keep-alive
+        comment is sent every 15 seconds. A client that falls behind has
+        frames dropped for it rather than queued — live metrics want the
+        current numbers, not a backlog.
+
+        `X-Accel-Buffering: no` is set so a reverse proxy does not buffer the
+        stream. Irrelevant on a LAN, harmless to set.
+
+        Browsers cannot set headers on an `EventSource`, so pass the token as
+        `?token=`.
+      operationId: stream
+      responses:
+        '200':
+          description: An open event stream. Each event's data is a `Frame`.
+          headers:
+            X-Accel-Buffering:
+              schema:
+                type: string
+                const: 'no'
+              description: Tells proxies not to buffer the stream.
+          content:
+            text/event-stream:
+              schema:
+                $ref: '#/components/schemas/Frame'
+              example: |
+                data: {"seq":42,"timestampMs":1757500000000,"elapsedMs":1003,"payload":{"kind":"delta","system":{...},"changed":[...],"exited":[1234]}}
+
+        '401':
+          $ref: '#/components/responses/Unauthorised'
+
+  /api/v1/ws:
+    get:
+      tags: [metrics, control]
+      summary: WebSocket — frames out, control commands in.
+      description: |
+        OpenAPI cannot describe a WebSocket, so this entry documents the
+        upgrade and the message protocol in prose.
+
+        **Upgrade.** A standard `GET` with `Upgrade: websocket`. The token
+        goes in `Authorization: Bearer …` or, from a browser, in `?token=`.
+        Auth is checked before the upgrade, so a bad token gets `401`, never a
+        socket that immediately closes.
+
+        **Server → client.** Text messages, each one `Frame` as JSON — the
+        current keyframe first, then every frame the sampler produces.
+        Frames a slow client misses are skipped, not queued.
+
+        **Client → server.** Text messages, each one `ControlRequest` as
+        JSON. The server replies with exactly one text message per request:
+        a `ControlReply` — `{"ok":true}` on success, or `{"ok":false,
+        "error":{…}}` where `error` is a `ControlError`. A message that is not
+        a valid `ControlRequest` gets `{"ok":false,"error":{"kind":
+        "unsupported","message":"could not read the request: …"}}`; a request
+        from a `read`-scope token gets `{"kind":"forbidden"}`. Binary and
+        ping frames are ignored.
+
+        Unlike the HTTP control route, the socket does not map errors to
+        status codes — the `kind` field is the only signal.
+      operationId: websocket
+      responses:
+        '101':
+          description: Switching protocols. The message protocol above applies from here.
+        '400':
+          description: Not a valid WebSocket handshake (missing or malformed `Connection`, `Upgrade`, `Sec-WebSocket-Key` or `Sec-WebSocket-Version`).
+        '401':
+          $ref: '#/components/responses/Unauthorised'
+        '426':
+          description: The connection cannot be upgraded (HTTP/2 or later).
+
+  /api/v1/control:
+    post:
+      tags: [control]
+      summary: Act on a process over plain HTTP.
+      description: |
+        The same control surface as the WebSocket, for clients that do not
+        want a socket — a shell script with `curl`, Home Assistant. Requires
+        the `control` scope.
+
+        Every action names a `ProcessKey`, never a bare PID: a client that took
+        a second to tap "End" must not kill whatever recycled the PID in the
+        meantime. Take the key from a `Process` in a frame; do not construct
+        one.
+
+        The body is parsed before the scope check, so a malformed request from
+        a read-only token is reported as a body error, not as `403`.
+      operationId: control
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ControlRequest'
+            examples:
+              terminate:
+                value: { action: terminate, key: { pid: 4242, startTime: 133724800000000000 } }
+              setPriority:
+                value:
+                  action: set-priority
+                  key: { pid: 4242, startTime: 133724800000000000 }
+                  priority: below-normal
+      responses:
+        '204':
+          description: Applied.
+        '401':
+          $ref: '#/components/responses/Unauthorised'
+        '403':
+          description: |
+            Refused. Either the token is `read`-only (`kind: forbidden`) or
+            the operating system refused the operation (`kind:
+            access-denied`) — the process may be protected, or elevation
+            might help.
+
+            The scope check runs **before** the body is parsed, so a
+            read-only token gets this answer even when the request is
+            malformed. The other order let a caller probe the schema by
+            watching 422 turn into 403.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ControlError'
+              example: { kind: forbidden }
+        '404':
+          description: The process is gone, or its start time no longer matches (the PID was recycled).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ControlError'
+              example: { kind: not-found }
+        '422':
+          description: |
+            The body is not a `ControlRequest` — invalid JSON, an unknown
+            `action`, or a missing `key`. Only reachable with a token that
+            already has the `control` scope.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ControlError'
+              example: { kind: unsupported, message: 'could not read the request: …' }
+        '500':
+          description: The host failed for a reason it can only describe in prose.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ControlError'
+              example: { kind: internal, message: '…' }
+        '501':
+          description: This host has no way to do this — no controller, or a priority it does not know.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ControlError'
+              example: { kind: unsupported, message: 'this host cannot act on processes' }
+
+  /metrics:
+    get:
+      tags: [metrics]
+      summary: Prometheus text exposition.
+      description: |
+        Prometheus exposition format 0.0.4. System-wide gauges come from the
+        newest frame; the per-process gauges rank the last keyframe and keep
+        the top 20 by CPU, then private memory — one series per process on a
+        600-process machine would be more than a small Prometheus wants.
+
+        A metric that cannot be measured is **omitted**, never zero: a GPU
+        with no engine counters has no `vitals_gpu_percent` series, and a
+        desktop with no battery has no `vitals_battery_percent`. Use
+        `absent()` for absence. The full metric list is in
+        `docs/api/README.md`.
+
+        Prometheus sends `Authorization: Bearer` from `bearer_token` /
+        `bearer_token_file` in the scrape config.
+      operationId: metrics
+      responses:
+        '200':
+          description: The exposition body.
+          content:
+            text/plain; version=0.0.4; charset=utf-8:
+              schema:
+                type: string
+              example: |
+                # HELP vitals_cpu_percent Total CPU utilisation across all cores.
+                # TYPE vitals_cpu_percent gauge
+                vitals_cpu_percent 12.5
+                # HELP vitals_memory_bytes Physical memory, by state.
+                # TYPE vitals_memory_bytes gauge
+                vitals_memory_bytes{state="total"} 34359738368
+                vitals_memory_bytes{state="used"} 17179869184
+        '204':
+          description: Nothing has been sampled yet.
+        '401':
+          $ref: '#/components/responses/Unauthorised'
+
+components:
+  securitySchemes:
+    bearer:
+      type: http
+      scheme: bearer
+      description: |
+        `Authorization: Bearer <token>`. The token is 43 characters of
+        base64url (`A–Z a–z 0–9 - _`, no padding), shown once at pairing.
+    queryToken:
+      type: apiKey
+      in: query
+      name: token
+      description: |
+        The same token as a `?token=` query parameter, for `EventSource` and
+        `WebSocket` clients that cannot set headers. Prefer the header
+        wherever you can.
+
+  responses:
+    Unauthorised:
+      description: |
+        No valid token. **Identical whether the token is missing or wrong** —
+        distinguishing them would tell a guesser it had found a real token.
+        Call `/api/v1/health` to confirm the address is right.
+      headers:
+        WWW-Authenticate:
+          schema:
+            type: string
+            const: Bearer realm="vitals"
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+          example: { error: a bearer token is required }
+
+  schemas:
+    # ── Envelopes ──────────────────────────────────────────────────────
+    Health:
+      type: object
+      required: [ok, version, modelVersion]
+      properties:
+        ok:
+          type: boolean
+          const: true
+        version:
+          type: string
+          description: The Vitals release, e.g. `0.1.0`.
+        modelVersion:
+          type: integer
+          minimum: 0
+          description: |
+            The frame-shape version the server speaks, so a client can refuse
+            to parse a `Frame` shape it does not know rather than rendering
+            garbage.
+
+    ApiError:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+
+    Frame:
+      type: object
+      description: |
+        One sampling tick, as delivered to the desktop UI and to every remote
+        client. The `payload.kind` discriminator says whether this is a full
+        `keyframe` or a `delta` against the previous frame.
+      required: [seq, timestampMs, elapsedMs, payload]
+      properties:
+        seq:
+          type: integer
+          minimum: 0
+          description: |
+            Monotonically increasing frame counter. Use gaps in this sequence
+            to detect dropped frames rather than guessing from timestamps,
+            which are subject to clock adjustment.
+        timestampMs:
+          type: integer
+          description: Milliseconds since the Unix epoch, for display and correlation only.
+        elapsedMs:
+          type: integer
+          description: |
+            Actual elapsed time since the previous frame. Rate calculations
+            must divide by this, not by the nominal interval: under load the
+            sampler runs late, and assuming a perfect 1000 ms is how monitors
+            report throughput spikes that never happened.
+        payload:
+          $ref: '#/components/schemas/FramePayload'
+
+    FramePayload:
+      description: |
+        What a frame carries. Most frames are deltas: sending 2000 full
+        process records at 1 Hz is ~2 MB/s of serialisation for data that
+        barely changes. A periodic keyframe bounds the damage if one is lost.
+        `system` is complete in **both** kinds.
+      oneOf:
+        - $ref: '#/components/schemas/Keyframe'
+        - $ref: '#/components/schemas/Delta'
+      discriminator:
+        propertyName: kind
+        mapping:
+          keyframe: '#/components/schemas/Keyframe'
+          delta: '#/components/schemas/Delta'
+
+    Keyframe:
+      type: object
+      required: [kind, system, processes]
+      properties:
+        kind:
+          type: string
+          const: keyframe
+        system:
+          $ref: '#/components/schemas/SystemMetrics'
+        processes:
+          type: array
+          description: Every process on the machine.
+          items:
+            $ref: '#/components/schemas/Process'
+
+    Delta:
+      type: object
+      required: [kind, system, changed, exited]
+      properties:
+        kind:
+          type: string
+          const: delta
+        system:
+          $ref: '#/components/schemas/SystemMetrics'
+        changed:
+          type: array
+          description: Processes that appeared or whose values changed.
+          items:
+            $ref: '#/components/schemas/Process'
+        exited:
+          type: array
+          description: Processes that exited, by PID. Apply exits before changes so a recycled PID survives.
+          items:
+            $ref: '#/components/schemas/Pid'
+
+    # ── Units ──────────────────────────────────────────────────────────
+    # Newtypes in Rust, plain numbers on the wire. Named so a reader can see
+    # the unit without reading every description.
+    Percent:
+      type: number
+      description: 0–100.
+    Bytes:
+      type: integer
+      minimum: 0
+    BytesPerSec:
+      type: integer
+      minimum: 0
+      description: Bytes per second, already divided by the frame's real `elapsedMs`.
+    Hertz:
+      type: integer
+      minimum: 0
+    Celsius:
+      type: number
+    Watts:
+      type: number
+    Pid:
+      type: integer
+      minimum: 0
+      description: A process identifier. Unsafe to act on alone — see `ProcessKey`.
+
+    ThrottleReason:
+      type: string
+      enum: [thermal, powerLimit, currentLimit, voltageDrop, powerPolicy, unknown]
+
+    # ── System ─────────────────────────────────────────────────────────
+    SystemMetrics:
+      type: object
+      description: Everything sampled about the machine in one tick.
+      required: [cpu, memory, disks, networks, gpus, powerDraw, battery]
+      properties:
+        cpu:
+          $ref: '#/components/schemas/CpuMetrics'
+        memory:
+          $ref: '#/components/schemas/MemoryMetrics'
+        disks:
+          type: array
+          items:
+            $ref: '#/components/schemas/DiskMetrics'
+        networks:
+          type: array
+          items:
+            $ref: '#/components/schemas/NetworkMetrics'
+        gpus:
+          type: array
+          items:
+            $ref: '#/components/schemas/GpuMetrics'
+        powerDraw:
+          description: Total system power draw where measurable (laptops, some desktops).
+          oneOf:
+            - $ref: '#/components/schemas/Watts'
+            - type: 'null'
+        battery:
+          oneOf:
+            - $ref: '#/components/schemas/BatteryMetrics'
+            - type: 'null'
+
+    CpuMetrics:
+      type: object
+      required:
+        - total
+        - perCore
+        - kernel
+        - effectiveClock
+        - maxClock
+        - temperature
+        - power
+        - throttled
+        - processCount
+        - threadCount
+        - handleCount
+        - uptimeSecs
+        - contextSwitches
+        - interrupts
+      properties:
+        total:
+          $ref: '#/components/schemas/Percent'
+        perCore:
+          type: array
+          description: Per logical processor.
+          items:
+            $ref: '#/components/schemas/Percent'
+        kernel:
+          description: Kernel-mode share of `total`.
+          $ref: '#/components/schemas/Percent'
+        effectiveClock:
+          description: |
+            Current effective clock, averaged across active cores. "Effective"
+            rather than requested: modern CPUs park and boost constantly, and
+            the nominal base clock says nothing about what is happening now.
+          oneOf:
+            - $ref: '#/components/schemas/Hertz'
+            - type: 'null'
+        maxClock:
+          oneOf:
+            - $ref: '#/components/schemas/Hertz'
+            - type: 'null'
+        temperature:
+          oneOf:
+            - $ref: '#/components/schemas/Celsius'
+            - type: 'null'
+        power:
+          oneOf:
+            - $ref: '#/components/schemas/Watts'
+            - type: 'null'
+        throttled:
+          description: Non-null when the CPU is held below its capability by heat or power limits — the headline signal for "why is my PC slow".
+          oneOf:
+            - $ref: '#/components/schemas/ThrottleReason'
+            - type: 'null'
+        processCount:
+          type: integer
+          minimum: 0
+        threadCount:
+          type: integer
+          minimum: 0
+        handleCount:
+          type: [integer, 'null']
+          minimum: 0
+        uptimeSecs:
+          type: integer
+          minimum: 0
+        contextSwitches:
+          type: [number, 'null']
+          description: Context switches per second.
+        interrupts:
+          type: [number, 'null']
+          description: Interrupts per second.
+
+    MemoryMetrics:
+      type: object
+      required:
+        - total
+        - used
+        - available
+        - cached
+        - pagedPool
+        - nonPagedPool
+        - committed
+        - commitLimit
+        - swapTotal
+        - swapUsed
+        - hardwareReserved
+        - pageFaultsPerSec
+        - speed
+        - slotsUsed
+        - slotsTotal
+        - formFactor
+      properties:
+        total:
+          $ref: '#/components/schemas/Bytes'
+        used:
+          description: In use by processes and the kernel — the number users care about.
+          $ref: '#/components/schemas/Bytes'
+        available:
+          $ref: '#/components/schemas/Bytes'
+        cached:
+          description: Cached file data. Counted as available, because it is.
+          $ref: '#/components/schemas/Bytes'
+        pagedPool:
+          description: Kernel memory that can be paged out.
+          $ref: '#/components/schemas/Bytes'
+        nonPagedPool:
+          description: Kernel memory that cannot.
+          $ref: '#/components/schemas/Bytes'
+        committed:
+          $ref: '#/components/schemas/Bytes'
+        commitLimit:
+          $ref: '#/components/schemas/Bytes'
+        swapTotal:
+          $ref: '#/components/schemas/Bytes'
+        swapUsed:
+          description: |
+            Page file actually occupied. Null where the platform cannot report
+            it cheaply — on Windows it needs WMI or a performance counter,
+            both too slow for the per-tick path. Zero would be a lie: an idle
+            page file and an unmeasured one are different facts.
+          oneOf:
+            - $ref: '#/components/schemas/Bytes'
+            - type: 'null'
+        hardwareReserved:
+          description: Hardware-reserved, invisible to the OS.
+          $ref: '#/components/schemas/Bytes'
+        pageFaultsPerSec:
+          type: [number, 'null']
+          description: |
+            Page faults per second — the real indicator of memory pressure. A
+            machine at 90% RAM with no faulting is fine; one at 60% that is
+            thrashing is not.
+        speed:
+          oneOf:
+            - $ref: '#/components/schemas/Hertz'
+            - type: 'null'
+        slotsUsed:
+          type: [integer, 'null']
+          minimum: 0
+        slotsTotal:
+          type: [integer, 'null']
+          minimum: 0
+        formFactor:
+          type: [string, 'null']
+
+    DiskKind:
+      type: string
+      enum: [hdd, ssd, nvme, removable, network, optical, unknown]
+
+    DiskHealth:
+      type: object
+      description: SMART overall health, when readable.
+      required: [lifeRemaining, powerOnHours, totalWritten, reallocatedSectors, failing]
+      properties:
+        lifeRemaining:
+          oneOf:
+            - $ref: '#/components/schemas/Percent'
+            - type: 'null'
+        powerOnHours:
+          type: [integer, 'null']
+          minimum: 0
+        totalWritten:
+          oneOf:
+            - $ref: '#/components/schemas/Bytes'
+            - type: 'null'
+        reallocatedSectors:
+          type: [integer, 'null']
+          minimum: 0
+        failing:
+          type: boolean
+
+    DiskMetrics:
+      type: object
+      required:
+        - id
+        - name
+        - model
+        - mount
+        - kind
+        - total
+        - free
+        - read
+        - write
+        - activeTime
+        - responseMs
+        - queueDepth
+        - temperature
+        - health
+      properties:
+        id:
+          type: integer
+          minimum: 0
+          description: Stable within one server run; use it to correlate across frames.
+        name:
+          type: string
+        model:
+          type: [string, 'null']
+        mount:
+          type: [string, 'null']
+          description: '`C:`, `/dev/nvme0n1`, etc.'
+        kind:
+          $ref: '#/components/schemas/DiskKind'
+        total:
+          $ref: '#/components/schemas/Bytes'
+        free:
+          $ref: '#/components/schemas/Bytes'
+        read:
+          $ref: '#/components/schemas/BytesPerSec'
+        write:
+          $ref: '#/components/schemas/BytesPerSec'
+        activeTime:
+          description: Share of time the disk had at least one IO outstanding.
+          $ref: '#/components/schemas/Percent'
+        responseMs:
+          type: [number, 'null']
+          description: Average response time in milliseconds — correlates with a machine feeling slow far more than throughput does.
+        queueDepth:
+          type: [number, 'null']
+        temperature:
+          oneOf:
+            - $ref: '#/components/schemas/Celsius'
+            - type: 'null'
+        health:
+          oneOf:
+            - $ref: '#/components/schemas/DiskHealth'
+            - type: 'null'
+
+    NetworkKind:
+      type: string
+      enum: [ethernet, wiFi, cellular, bluetooth, loopback, virtual, vpn, unknown]
+
+    NetworkMetrics:
+      type: object
+      required:
+        - id
+        - name
+        - adapter
+        - kind
+        - rx
+        - tx
+        - rxTotal
+        - txTotal
+        - linkSpeed
+        - ipv4
+        - ipv6
+        - mac
+        - connected
+        - signal
+        - ssid
+        - errorsPerSec
+      properties:
+        id:
+          type: integer
+          minimum: 0
+        name:
+          type: string
+        adapter:
+          type: [string, 'null']
+        kind:
+          $ref: '#/components/schemas/NetworkKind'
+        rx:
+          $ref: '#/components/schemas/BytesPerSec'
+        tx:
+          $ref: '#/components/schemas/BytesPerSec'
+        rxTotal:
+          $ref: '#/components/schemas/Bytes'
+        txTotal:
+          $ref: '#/components/schemas/Bytes'
+        linkSpeed:
+          type: [integer, 'null']
+          minimum: 0
+          description: Bits per second.
+        ipv4:
+          type: [string, 'null']
+        ipv6:
+          type: [string, 'null']
+        mac:
+          type: [string, 'null']
+        connected:
+          type: boolean
+        signal:
+          description: Wi-Fi signal strength.
+          oneOf:
+            - $ref: '#/components/schemas/Percent'
+            - type: 'null'
+        ssid:
+          type: [string, 'null']
+        errorsPerSec:
+          type: [number, 'null']
+          description: Dropped packets per second — the first sign of a failing cable or saturated link.
+
+    GpuVendor:
+      type: string
+      enum: [nvidia, amd, intel, apple, qualcomm, unknown]
+
+    GpuEngine:
+      type: object
+      required: [name, utilization]
+      properties:
+        name:
+          type: string
+          description: '`3D`, `Copy`, `Video Decode`, `Compute`…'
+        utilization:
+          $ref: '#/components/schemas/Percent'
+
+    GpuMetrics:
+      type: object
+      required:
+        - id
+        - name
+        - vendor
+        - engines
+        - utilization
+        - memoryUsed
+        - memoryTotal
+        - sharedMemoryUsed
+        - coreClock
+        - memoryClock
+        - temperature
+        - hotspotTemperature
+        - power
+        - powerLimit
+        - fanPercent
+        - fanRpm
+        - throttled
+        - driverVersion
+      properties:
+        id:
+          type: integer
+          minimum: 0
+        name:
+          type: string
+        vendor:
+          $ref: '#/components/schemas/GpuVendor'
+        engines:
+          type: array
+          description: |
+            Per-engine utilisation. A single "GPU %" is close to meaningless:
+            a machine can sit at 5% overall while the video-decode engine is
+            pinned.
+          items:
+            $ref: '#/components/schemas/GpuEngine'
+        utilization:
+          description: |
+            Highest utilisation across engines. Null when the adapter exposes
+            no engine counters at all — a virtual display, a render-only
+            device. Those are unknown, not idle; the previous non-optional
+            type made them all read 0%.
+          oneOf:
+            - $ref: '#/components/schemas/Percent'
+            - type: 'null'
+        memoryUsed:
+          oneOf:
+            - $ref: '#/components/schemas/Bytes'
+            - type: 'null'
+        memoryTotal:
+          oneOf:
+            - $ref: '#/components/schemas/Bytes'
+            - type: 'null'
+        sharedMemoryUsed:
+          oneOf:
+            - $ref: '#/components/schemas/Bytes'
+            - type: 'null'
+        coreClock:
+          oneOf:
+            - $ref: '#/components/schemas/Hertz'
+            - type: 'null'
+        memoryClock:
+          oneOf:
+            - $ref: '#/components/schemas/Hertz'
+            - type: 'null'
+        temperature:
+          oneOf:
+            - $ref: '#/components/schemas/Celsius'
+            - type: 'null'
+        hotspotTemperature:
+          oneOf:
+            - $ref: '#/components/schemas/Celsius'
+            - type: 'null'
+        power:
+          oneOf:
+            - $ref: '#/components/schemas/Watts'
+            - type: 'null'
+        powerLimit:
+          oneOf:
+            - $ref: '#/components/schemas/Watts'
+            - type: 'null'
+        fanPercent:
+          oneOf:
+            - $ref: '#/components/schemas/Percent'
+            - type: 'null'
+        fanRpm:
+          type: [integer, 'null']
+          minimum: 0
+        throttled:
+          oneOf:
+            - $ref: '#/components/schemas/ThrottleReason'
+            - type: 'null'
+        driverVersion:
+          type: [string, 'null']
+
+    BatteryMetrics:
+      type: object
+      required: [charge, charging, timeRemainingSecs, power, health, cycleCount, temperature]
+      properties:
+        charge:
+          $ref: '#/components/schemas/Percent'
+        charging:
+          type: boolean
+        timeRemainingSecs:
+          type: [integer, 'null']
+          minimum: 0
+          description: Estimated seconds remaining, when the OS will say.
+        power:
+          description: Current draw; negative while charging.
+          oneOf:
+            - $ref: '#/components/schemas/Watts'
+            - type: 'null'
+        health:
+          description: Full-charge capacity as a share of design capacity — battery wear.
+          oneOf:
+            - $ref: '#/components/schemas/Percent'
+            - type: 'null'
+        cycleCount:
+          type: [integer, 'null']
+          minimum: 0
+        temperature:
+          oneOf:
+            - $ref: '#/components/schemas/Celsius'
+            - type: 'null'
+
+    # ── Processes ──────────────────────────────────────────────────────
+    ProcessKey:
+      type: object
+      description: |
+        An unambiguous reference to a running process. **`startTime` is
+        required because PIDs are reused.** Windows recycles them
+        aggressively: a `TerminateProcess` against a PID captured a second ago
+        can kill an unrelated process that just inherited the number. Pairing
+        the PID with the creation timestamp closes that race, and every
+        control action requires the pair, never a bare PID. Copy the key from
+        a `Process`; never construct one.
+      required: [pid, startTime]
+      properties:
+        pid:
+          $ref: '#/components/schemas/Pid'
+        startTime:
+          type: integer
+          description: |
+            Process creation time, in 100 ns intervals since the platform
+            epoch. Opaque: only ever compared for equality, never interpreted.
+
+    ProcessKind:
+      type: string
+      enum: [app, background, service, system, containerized]
+
+    ProcessState:
+      type: string
+      enum: [running, suspended, waiting, notResponding, zombie]
+
+    IntegrityLevel:
+      type: string
+      enum: [untrusted, low, medium, high, system, protected]
+
+    ProtectionLevel:
+      type: string
+      enum: [none, light, full]
+
+    Process:
+      type: object
+      description: |
+        A snapshot of one process at one instant. Deliberately flat: the
+        process table holds thousands of these per frame, so anything that
+        needs a heap walk per process (command line, full path, icon) is not
+        here.
+      required:
+        - key
+        - parent
+        - name
+        - kind
+        - state
+        - flags
+        - integrity
+        - protection
+        - cpu
+        - memoryPrivate
+        - memoryWorkingSet
+        - diskRead
+        - diskWrite
+        - netRx
+        - netTx
+        - gpu
+        - gpuMemory
+        - threadCount
+        - handleCount
+        - user
+        - uptimeSecs
+      properties:
+        key:
+          description: Race-free identity. Prefer this over `key.pid` for any action.
+          $ref: '#/components/schemas/ProcessKey'
+        parent:
+          oneOf:
+            - $ref: '#/components/schemas/Pid'
+            - type: 'null'
+        name:
+          type: string
+          description: Executable name only (`chrome.exe`), not the full path.
+        kind:
+          $ref: '#/components/schemas/ProcessKind'
+        state:
+          $ref: '#/components/schemas/ProcessState'
+        flags:
+          type: integer
+          minimum: 0
+          description: A bitfield of process attributes. Opaque to remote clients.
+        integrity:
+          oneOf:
+            - $ref: '#/components/schemas/IntegrityLevel'
+            - type: 'null'
+        protection:
+          $ref: '#/components/schemas/ProtectionLevel'
+        cpu:
+          description: Share of total machine CPU, not of a single core.
+          $ref: '#/components/schemas/Percent'
+        memoryPrivate:
+          description: Private bytes — memory freed if the process exited. The honest "how much RAM is this using".
+          $ref: '#/components/schemas/Bytes'
+        memoryWorkingSet:
+          description: Resident working set, including shared pages.
+          $ref: '#/components/schemas/Bytes'
+        diskRead:
+          $ref: '#/components/schemas/BytesPerSec'
+        diskWrite:
+          $ref: '#/components/schemas/BytesPerSec'
+        netRx:
+          description: |
+            Per-process network throughput, only when an ETW session is
+            running. Windows exposes no per-process network counters without a
+            kernel trace the unelevated app cannot start. Null, never zero: a
+            zero would render as "0 B/s" against every process on the machine.
+          oneOf:
+            - $ref: '#/components/schemas/BytesPerSec'
+            - type: 'null'
+        netTx:
+          oneOf:
+            - $ref: '#/components/schemas/BytesPerSec'
+            - type: 'null'
+        gpu:
+          oneOf:
+            - $ref: '#/components/schemas/Percent'
+            - type: 'null'
+        gpuMemory:
+          oneOf:
+            - $ref: '#/components/schemas/Bytes'
+            - type: 'null'
+        threadCount:
+          type: integer
+          minimum: 0
+        handleCount:
+          type: [integer, 'null']
+          minimum: 0
+        user:
+          type: [string, 'null']
+          description: Owning user; null when the server lacks rights to query the token.
+        uptimeSecs:
+          type: integer
+          minimum: 0
+
+    # ── Host ───────────────────────────────────────────────────────────
+    CoreClass:
+      type: string
+      enum: [performance, efficiency, lowPower, standard]
+
+    HostInfo:
+      type: object
+      required:
+        - hostname
+        - osName
+        - osVersion
+        - kernelVersion
+        - architecture
+        - cpuModel
+        - cpuVendor
+        - physicalCores
+        - logicalCores
+        - coreTopology
+        - totalMemory
+        - bootTimeMs
+        - isVirtualMachine
+        - motherboard
+        - biosVersion
+      properties:
+        hostname:
+          type: string
+        osName:
+          type: string
+        osVersion:
+          type: string
+        kernelVersion:
+          type: string
+        architecture:
+          type: string
+        cpuModel:
+          type: string
+        cpuVendor:
+          type: string
+        physicalCores:
+          type: integer
+          minimum: 0
+        logicalCores:
+          type: integer
+          minimum: 0
+        coreTopology:
+          description: |
+            One entry per logical core, on hybrid designs (Intel P/E, ARM
+            big.LITTLE). Null when the CPU is homogeneous or the topology is
+            unknown. An E-core at 100% and a P-core at 100% are not the same
+            event.
+          oneOf:
+            - type: array
+              items:
+                $ref: '#/components/schemas/CoreClass'
+            - type: 'null'
+        totalMemory:
+          $ref: '#/components/schemas/Bytes'
+        bootTimeMs:
+          type: integer
+          description: Milliseconds since the Unix epoch.
+        isVirtualMachine:
+          type: boolean
+        motherboard:
+          type: [string, 'null']
+        biosVersion:
+          type: [string, 'null']
+
+    # ── Control ────────────────────────────────────────────────────────
+    ControlPriority:
+      type: string
+      description: The same string set the desktop's context menu uses.
+      enum: [idle, below-normal, normal, above-normal, high, realtime]
+
+    ControlRequest:
+      description: |
+        A command for the host. Tagged by `action`, kebab-case. Every variant
+        carries a full `ProcessKey`, never a bare PID.
+      oneOf:
+        - $ref: '#/components/schemas/TerminateRequest'
+        - $ref: '#/components/schemas/SuspendRequest'
+        - $ref: '#/components/schemas/ResumeRequest'
+        - $ref: '#/components/schemas/SetPriorityRequest'
+      discriminator:
+        propertyName: action
+        mapping:
+          terminate: '#/components/schemas/TerminateRequest'
+          suspend: '#/components/schemas/SuspendRequest'
+          resume: '#/components/schemas/ResumeRequest'
+          set-priority: '#/components/schemas/SetPriorityRequest'
+
+    TerminateRequest:
+      type: object
+      required: [action, key]
+      properties:
+        action:
+          type: string
+          const: terminate
+        key:
+          $ref: '#/components/schemas/ProcessKey'
+
+    SuspendRequest:
+      type: object
+      required: [action, key]
+      properties:
+        action:
+          type: string
+          const: suspend
+        key:
+          $ref: '#/components/schemas/ProcessKey'
+
+    ResumeRequest:
+      type: object
+      required: [action, key]
+      properties:
+        action:
+          type: string
+          const: resume
+        key:
+          $ref: '#/components/schemas/ProcessKey'
+
+    SetPriorityRequest:
+      type: object
+      required: [action, key, priority]
+      properties:
+        action:
+          type: string
+          const: set-priority
+        key:
+          $ref: '#/components/schemas/ProcessKey'
+        priority:
+          $ref: '#/components/schemas/ControlPriority'
+
+    ControlError:
+      description: |
+        Why a control request was refused. Tagged by `kind`, kebab-case. Over
+        HTTP the same value also selects the status code: `forbidden` and
+        `access-denied` → 403, `not-found` → 404, `unsupported` → 501,
+        `internal` → 500.
+      oneOf:
+        - type: object
+          description: The token can read but not act.
+          required: [kind]
+          properties:
+            kind:
+              type: string
+              const: forbidden
+        - type: object
+          description: The process is gone, or the key no longer matches (PID recycled).
+          required: [kind]
+          properties:
+            kind:
+              type: string
+              const: not-found
+        - type: object
+          description: The operating system refused. Elevation might help, or the process may be protected.
+          required: [kind]
+          properties:
+            kind:
+              type: string
+              const: access-denied
+        - type: object
+          description: The host has no way to do this (no backend, unknown priority…).
+          required: [kind, message]
+          properties:
+            kind:
+              type: string
+              const: unsupported
+            message:
+              type: string
+        - type: object
+          required: [kind, message]
+          properties:
+            kind:
+              type: string
+              const: internal
+            message:
+              type: string
+      discriminator:
+        propertyName: kind
+
+    ControlReply:
+      type: object
+      description: The WebSocket reply to a `ControlRequest`. Over HTTP the equivalent is the status code.
+      required: [ok]
+      properties:
+        ok:
+          type: boolean
+        error:
+          description: Present only when `ok` is false.
+          $ref: '#/components/schemas/ControlError'

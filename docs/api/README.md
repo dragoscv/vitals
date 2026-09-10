@@ -1,0 +1,182 @@
+# Vitals local API — integration guide
+
+The full contract is in [`openapi.yaml`](./openapi.yaml). This page is the
+short version: how to get a token, the exact commands, and what to expect.
+
+Everything here is **off by default**. Nothing listens until you turn on
+Remote access in the desktop app, and it listens on your LAN only, over plain
+HTTP. Read the `info.description` in the OpenAPI document for the threat model
+before exposing it any further than that.
+
+## Getting a token
+
+1. In Vitals, open **Settings → Remote access** and turn it on. Windows will
+   ask about the firewall the first time; allow it on private networks or the
+   server starts and nothing can reach it.
+2. Click **Pair a device**. Choose the scope: **read** (the default; sees
+   everything, changes nothing) or **control** (can also end, suspend, resume
+   and re-prioritise processes — never give this to a device you would not
+   hand your keyboard to).
+3. A QR code appears. It encodes a URL of this shape:
+
+   ```
+   http://192.168.1.20:7331/mobile.html#t=<43-character-token>
+   ```
+
+   The token is the part after `#t=`. It is in the URL **fragment**, so a
+   browser never sends it to the server; the mobile page reads it from
+   `location.hash`. For a script, scan the QR with anything that shows the raw
+   text, or use the **copy** button next to it.
+
+4. The token is shown **once**. Afterwards Settings shows only its first eight
+   characters. Lose it and you revoke that pairing and make a new one.
+
+Below, `$T` is your token and `$V` is the base URL. In PowerShell:
+
+```powershell
+$V = 'http://192.168.1.20:7331'
+$T = 'paste-the-token-here'
+```
+
+Use `curl.exe`, not `curl` — in Windows PowerShell `curl` is an alias for
+`Invoke-WebRequest` and the flags below will not work.
+
+## Quick start
+
+**Is anything there?** The only call that needs no token. Use it to tell
+"wrong address" from "wrong token", because every other route returns the
+same `401` whether the token is missing or merely unknown — that is deliberate.
+
+```powershell
+curl.exe -s "$V/api/v1/health"
+# {"ok":true,"version":"0.1.0","modelVersion":1}
+```
+
+**The current picture** — the latest keyframe: every system reading and every
+process. `204 No Content` (empty body) means the sampler has not ticked yet;
+wait a second and try again.
+
+```powershell
+curl.exe -s -H "Authorization: Bearer $T" "$V/api/v1/snapshot"
+```
+
+**Static facts** about the machine — hostname, OS, CPU model, core topology:
+
+```powershell
+curl.exe -s -H "Authorization: Bearer $T" "$V/api/v1/host"
+```
+
+**Live frames as server-sent events.** `-N` turns off curl's output buffering
+so you see each frame as it arrives. The first event is the current keyframe;
+the rest are usually deltas (`"kind":"delta"`) carrying only the processes
+that changed plus the PIDs that exited. Apply `exited` before `changed`.
+
+```powershell
+curl.exe -s -N -H "Authorization: Bearer $T" "$V/api/v1/stream"
+```
+
+An `EventSource` in a browser cannot set headers, so there the token goes in
+the query string instead: `$V/api/v1/stream?token=$T`. Prefer the header
+anywhere you can.
+
+**End a process.** Needs a **control** token. Copy the whole `key` object from
+a process in a frame — both `pid` and `startTime`. The start time is what stops
+you killing whatever recycled the PID between you reading it and you acting on
+it; the server will not accept a bare PID.
+
+```powershell
+curl.exe -s -o NUL -w "%{http_code}`n" -X POST `
+  -H "Authorization: Bearer $T" -H "Content-Type: application/json" `
+  -d '{"action":"terminate","key":{"pid":4242,"startTime":133724800000000000}}' `
+  "$V/api/v1/control"
+```
+
+| Status | Meaning                                                                                                             |
+| ------ | ------------------------------------------------------------------------------------------------------------------- |
+| `204`  | Done.                                                                                                               |
+| `403`  | `{"kind":"forbidden"}` — your token is read-only. `{"kind":"access-denied"}` — Windows refused (protected process). |
+| `404`  | `{"kind":"not-found"}` — the process is gone, or the PID was recycled and the start time no longer matches.         |
+| `501`  | `{"kind":"unsupported", …}` — this host cannot do that (no controller, unknown priority).                           |
+| `500`  | `{"kind":"internal", …}` — something else went wrong; the message says what.                                        |
+
+Other actions: `suspend`, `resume`, and `set-priority` with an extra
+`"priority"` of `idle`, `below-normal`, `normal`, `above-normal`, `high` or
+`realtime`.
+
+## Reading the JSON
+
+**A field that is `null` was not measured. It is never zero-when-unknown.**
+A GPU whose driver hides VRAM has `"memoryUsed": null`, a process whose
+network traffic is not being traced has `"netRx": null`, a desktop has
+`"battery": null`. Show a dash, skip the point on a chart, leave it out of an
+average — do not coerce it to `0`. The desktop renders every one of these as
+an em dash, and a client that renders `0` is telling the user something the
+machine never said.
+
+Rates (`rx`, `diskRead`, …) are already per second, divided by the frame's
+real `elapsedMs`, not the nominal interval. Check `health.modelVersion` before
+parsing frames if you cache a parser; a server with a shape you do not know
+should be refused, not half-rendered.
+
+## Prometheus
+
+`GET /metrics` serves the text exposition format. A metric that cannot be
+measured is **omitted**, never `0`, so use `absent()` in alerts rather than
+`== 0`. Add to `prometheus.yml`:
+
+```yaml
+scrape_configs:
+  - job_name: vitals
+    scrape_interval: 5s
+    static_configs:
+      - targets: ['192.168.1.20:7331']
+    # A read-scope token is enough. Keep it out of the config file:
+    bearer_token_file: /etc/prometheus/vitals.token
+```
+
+Series you will see (all gauges):
+
+| Metric                            | Labels                 | Notes                                                    |
+| --------------------------------- | ---------------------- | -------------------------------------------------------- |
+| `vitals_cpu_percent`              |                        | Whole machine.                                           |
+| `vitals_cpu_kernel_percent`       |                        | Kernel-mode share.                                       |
+| `vitals_cpu_core_percent`         | `core`                 | Per logical processor.                                   |
+| `vitals_cpu_temperature_celsius`  |                        | Only when a sensor reports it.                           |
+| `vitals_memory_bytes`             | `state`                | `total`, `used`, `available`, `cached`.                  |
+| `vitals_disk_bytes_per_second`    | `disk`, `direction`    | `read` / `write`.                                        |
+| `vitals_disk_active_percent`      | `disk`                 | Share of time with IO outstanding.                       |
+| `vitals_disk_capacity_bytes`      | `disk`, `state`        | `total` / `free`.                                        |
+| `vitals_network_bytes_per_second` | `adapter`, `direction` | `rx` / `tx`.                                             |
+| `vitals_gpu_percent`              | `gpu`                  | Busiest engine. Absent for GPUs with no engine counters. |
+| `vitals_gpu_memory_bytes`         | `gpu`                  | Absent where the driver does not report VRAM.            |
+| `vitals_power_draw_watts`         |                        | Whole system; laptops and some desktops.                 |
+| `vitals_battery_percent`          |                        | Absent on machines without a battery.                    |
+| `vitals_process_count`            |                        |                                                          |
+| `vitals_thread_count`             |                        |                                                          |
+| `vitals_uptime_seconds`           |                        |                                                          |
+| `vitals_process_cpu_percent`      | `name`, `pid`          | Top 20 processes by CPU, then private memory.            |
+| `vitals_process_memory_bytes`     | `name`, `pid`          | Private bytes, same top 20.                              |
+
+Per-process series are capped at twenty because one series per process on a
+600-process machine is 1200 series a second, and the tail is noise.
+
+## WebSocket
+
+`GET /api/v1/ws` upgrades to a socket that sends every `Frame` as a JSON text
+message and accepts `ControlRequest` JSON in the other direction, replying
+`{"ok":true}` or `{"ok":false,"error":{"kind":…}}` once per request. Browsers
+pass the token as `?token=`. The typed client in `packages/client` wraps this
+with reconnection; read `packages/client/src/client.ts` for a working
+implementation.
+
+## Home Assistant
+
+See [`../integrations/home-assistant.md`](../integrations/home-assistant.md)
+for REST and command-line sensor examples against this API.
+
+## Keeping this in step with the code
+
+`crates/vitals-server/tests/openapi.rs` fails if a route exists in
+`router.rs` and not in `openapi.yaml`, or the other way round, or if a metric
+name in `prometheus.rs` is missing from the table above. Change the server,
+change this.
