@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <!--
+      viewport-fit=cover lets the page paint under the iOS home indicator so
+      the tab bar can pad itself with env(safe-area-inset-bottom) instead of
+      floating above a white strip.
+    -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#f8f8f9" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#1c1c1f" media="(prefers-color-scheme: dark)" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <!--
+      Inline manifest: the page is served over plain HTTP on a LAN, which is
+      not a secure context, so no service worker can register. "Add to Home
+      screen" still works from a manifest alone, and a data: URL keeps this a
+      single-file entry with nothing extra for the server to route.
+    -->
+    <link
+      rel="manifest"
+      href='data:application/manifest+json,{"name":"Vitals","short_name":"Vitals","start_url":"/mobile.html","scope":"/","display":"standalone","background_color":"#1c1c1f","theme_color":"#5b7cfa"}'
+    />
+    <title>Vitals</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+      }
+
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #f8f8f9;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        html,
+        body {
+          background: #1c1c1f;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/mobile/main.tsx"></script>
+  </body>
+</html>

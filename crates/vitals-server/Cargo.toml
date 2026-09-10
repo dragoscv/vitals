@@ -27,7 +27,7 @@ qrcode = { workspace = true }
 mdns-sd = { workspace = true }
 
 [dev-dependencies]
-tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time", "net"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time", "net", "signal"] }
 vitals-core = { workspace = true, features = ["fixtures"] }
 
 [target.'cfg(windows)'.dev-dependencies]

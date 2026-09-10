@@ -29,6 +29,7 @@
     "@tauri-apps/plugin-store": "catalog:",
     "@tauri-apps/plugin-updater": "catalog:",
     "@vitals/charts": "workspace:*",
+    "@vitals/client": "workspace:*",
     "@vitals/i18n": "workspace:*",
     "@vitals/protocol": "workspace:*",
     "@vitals/ui": "workspace:*",

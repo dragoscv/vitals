@@ -169,5 +169,79 @@
     "mainNavigation": "Navigare principală",
     "sortBy": "Sortează după {{column}}",
     "chartOf": "{{metric}} în timp"
+  },
+  "mobile": {
+    "tab": {
+      "machines": "Calculatoare",
+      "processes": "Procese",
+      "settings": "Setări"
+    },
+    "connection": {
+      "live": "Conectat",
+      "connecting": "Se conectează…",
+      "reconnecting": "Se reconectează…",
+      "unreachable": "Inaccesibil"
+    },
+    "machines": {
+      "title": "Calculatoare",
+      "cpu": "Procesor",
+      "memory": "Memorie",
+      "gpu": "Placă video",
+      "network": "Rețea",
+      "temperature": "Temperatură",
+      "memoryOf": "{{used}} din {{total}}",
+      "waiting": "Se așteaptă prima citire…",
+      "openProcesses": "Arată procesele de pe {{name}}"
+    },
+    "empty": {
+      "title": "Niciun calculator asociat încă",
+      "body": "Pe calculatorul pe care vrei să-l urmărești, deschide Vitals → Setări → Acces de la distanță, activează-l, apoi scanează codul QR afișat cu camera acestui telefon.",
+      "pairFailed": "Asocierea nu a reușit",
+      "pairFailedBody": "Calculatorul nu a răspuns sau codul a expirat. Afișează un cod QR nou pe PC și scanează-l din nou."
+    },
+    "processes": {
+      "title": "Procese",
+      "search": "Caută procese",
+      "sortBy": "Sortează după",
+      "sortCpu": "Procesor",
+      "sortMemory": "Memorie",
+      "none": "Nimic nu se potrivește",
+      "noneBody": "Niciun proces de pe acest calculator nu se potrivește cu ce ai scris.",
+      "pickMachine": "Alege întâi un calculator",
+      "pickMachineBody": "Deschide fila Calculatoare și atinge calculatorul ale cărui procese vrei să le vezi.",
+      "count_one": "{{count}} proces",
+      "count_few": "{{count}} procese",
+      "count_other": "{{count}} de procese"
+    },
+    "action": {
+      "title": "Ce să facă {{name}}?",
+      "end": "Închide",
+      "suspend": "Suspendă",
+      "resume": "Reia",
+      "cancel": "Anulează",
+      "confirmEnd": "Închide {{name}}",
+      "confirmHint": "Atinge din nou pentru a confirma. Lucrul nesalvat din această aplicație se va pierde.",
+      "working": "Se lucrează…",
+      "done": "Gata",
+      "readOnly": "Acest telefon a fost asociat doar pentru citire",
+      "readOnlyBody": "Asociază-l din nou de pe PC, cu controlul permis, dacă vrei să închizi procese de aici.",
+      "notFound": "Procesul s-a încheiat deja",
+      "denied": "Windows nu a permis ca Vitals să atingă acest proces",
+      "failed": "Nu a funcționat"
+    },
+    "settings": {
+      "title": "Setări",
+      "paired": "Calculatoare asociate",
+      "rename": "Redenumește",
+      "renameLabel": "Numele acestui calculator",
+      "save": "Salvează",
+      "remove": "Uită",
+      "removeConfirm": "Atinge din nou pentru a uita {{name}}",
+      "language": "Limbă",
+      "theme": "Aspect",
+      "themeFollows": "Urmează setarea de luminos sau întunecat a telefonului.",
+      "pairAnother": "Asociază alt PC",
+      "pairAnotherBody": "Deschide Vitals pe acel calculator, mergi la Setări → Acces de la distanță și scanează codul QR cu acest telefon."
+    }
   }
 }

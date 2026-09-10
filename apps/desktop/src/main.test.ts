@@ -43,7 +43,11 @@ describe('application bootstrap', () => {
       '<div id="splash"><div class="pulse"></div></div><div id="root"></div>';
   });
 
-  it('mounts without throwing and dismisses the splash', async () => {
+  // Longer than the default: this imports the whole application, and its
+  // two waitFor windows (3 s each) can legitimately exceed the 5 s default
+  // when a cargo build is competing for the machine — which is exactly when
+  // the suite is run. It timed out once under load and passed alone in 2.5 s.
+  it('mounts without throwing and dismisses the splash', { timeout: 15_000 }, async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
 
     await import('./main');

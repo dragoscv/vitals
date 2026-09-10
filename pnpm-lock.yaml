@@ -310,6 +310,9 @@ importers:
       '@vitals/charts':
         specifier: workspace:*
         version: link:../../packages/charts
+      '@vitals/client':
+        specifier: workspace:*
+        version: link:../../packages/client
       '@vitals/i18n':
         specifier: workspace:*
         version: link:../../packages/i18n

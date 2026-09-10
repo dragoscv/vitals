@@ -167,5 +167,78 @@
     "mainNavigation": "Main navigation",
     "sortBy": "Sort by {{column}}",
     "chartOf": "{{metric}} over time"
+  },
+  "mobile": {
+    "tab": {
+      "machines": "Machines",
+      "processes": "Processes",
+      "settings": "Settings"
+    },
+    "connection": {
+      "live": "Live",
+      "connecting": "Connecting…",
+      "reconnecting": "Reconnecting…",
+      "unreachable": "Unreachable"
+    },
+    "machines": {
+      "title": "Machines",
+      "cpu": "CPU",
+      "memory": "Memory",
+      "gpu": "GPU",
+      "network": "Network",
+      "temperature": "Temperature",
+      "memoryOf": "{{used}} of {{total}}",
+      "waiting": "Waiting for the first reading…",
+      "openProcesses": "Show processes on {{name}}"
+    },
+    "empty": {
+      "title": "No PC is paired yet",
+      "body": "On the computer you want to watch, open Vitals → Settings → Remote access, turn it on, then scan the QR code it shows with this phone's camera.",
+      "pairFailed": "That pairing did not work",
+      "pairFailedBody": "The computer did not answer, or the code has expired. Show a fresh QR code on the PC and scan it again."
+    },
+    "processes": {
+      "title": "Processes",
+      "search": "Search processes",
+      "sortBy": "Sort by",
+      "sortCpu": "CPU",
+      "sortMemory": "Memory",
+      "none": "Nothing matches",
+      "noneBody": "No process on this computer matches what you typed.",
+      "pickMachine": "Choose a computer first",
+      "pickMachineBody": "Open the Machines tab and tap the computer whose processes you want to see.",
+      "count_one": "{{count}} process",
+      "count_other": "{{count}} processes"
+    },
+    "action": {
+      "title": "What should {{name}} do?",
+      "end": "End task",
+      "suspend": "Suspend",
+      "resume": "Resume",
+      "cancel": "Cancel",
+      "confirmEnd": "End {{name}}",
+      "confirmHint": "Tap again to confirm. Unsaved work in this app will be lost.",
+      "working": "Working…",
+      "done": "Done",
+      "readOnly": "This phone was paired read-only",
+      "readOnlyBody": "Re-pair it from the PC with control allowed if you want to end tasks from here.",
+      "notFound": "That process has already ended",
+      "denied": "Windows would not let Vitals touch this process",
+      "failed": "That did not work"
+    },
+    "settings": {
+      "title": "Settings",
+      "paired": "Paired computers",
+      "rename": "Rename",
+      "renameLabel": "Name for this computer",
+      "save": "Save",
+      "remove": "Forget",
+      "removeConfirm": "Tap again to forget {{name}}",
+      "language": "Language",
+      "theme": "Appearance",
+      "themeFollows": "Follows your phone's light or dark setting.",
+      "pairAnother": "Pair another PC",
+      "pairAnotherBody": "Open Vitals on that computer, go to Settings → Remote access, and scan its QR code with this phone."
+    }
   }
 }

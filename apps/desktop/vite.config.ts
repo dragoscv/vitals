@@ -52,6 +52,14 @@ export default defineConfig(({ command }) => ({
     // VITALS_SOURCEMAPS=1 to get them back for a debugging build.
     sourcemap: command !== 'build' || process.env.VITALS_SOURCEMAPS === '1',
     rolldownOptions: {
+      // Two pages, one build: `index.html` is the desktop webview and
+      // `mobile.html` is what a phone loads from the LAN server. Both land
+      // in `dist`, which is Tauri's `frontendDist`, so the phone is served
+      // the exact build the desktop is running.
+      input: {
+        index: path.resolve(import.meta.dirname, 'index.html'),
+        mobile: path.resolve(import.meta.dirname, 'mobile.html'),
+      },
       output: {
         // Split React into its own chunk so a UI-only change does not
         // invalidate the whole bundle for the updater's differential

@@ -1,0 +1,82 @@
+/*
+ * Mobile web app stylesheet.
+ *
+ * Shares every token with the desktop through @vitals/ui so a phone shows the
+ * same palette as the PC it is watching. Only what is specific to a touch
+ * surface lives here.
+ */
+
+@import '@vitals/ui/styles.css';
+
+@source '../mobile';
+@source '../../../../packages/ui/src';
+
+/*
+ * theme.css locks the document to `overflow: hidden` for the desktop window.
+ * A phone page must scroll within its content region, and the browser's own
+ * rubber-banding is what makes it feel native, so the root becomes a fixed
+ * flex column with one scrolling child.
+ */
+#root {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+}
+
+/* Text selection is opt-out on the desktop; on a phone a long-press that
+ * selects a process name is the expected behaviour, not a defect. */
+body {
+  user-select: text;
+  -webkit-user-select: text;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.safe-top {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+/*
+ * A bottom sheet that appears instantly reads as a mis-render on a phone; the
+ * slide is what tells the thumb where the sheet came from and where a swipe
+ * would send it. Short and decelerating, matching the platform sheets around
+ * it. Disabled under reduced motion — the fade alone still marks the change.
+ */
+@keyframes sheet-rise {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes sheet-dim {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.sheet-panel {
+  animation: sheet-rise 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.sheet-backdrop {
+  animation: sheet-dim 180ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sheet-panel {
+    animation: sheet-dim 120ms ease-out both;
+  }
+}
+
+:root[data-reduce-motion='true'] .sheet-panel {
+  animation: sheet-dim 120ms ease-out both;
+}
