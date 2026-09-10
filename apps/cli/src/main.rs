@@ -83,6 +83,17 @@ enum Commands {
     },
     /// One-shot machine summary.
     Info,
+    /// Turn Windows 11 efficiency mode on (default) or off for one process.
+    ///
+    /// The PID is matched against a fresh sample and refused if absent, so
+    /// a recycled PID is never acted on. Prints the state read back after.
+    Eco {
+        /// The process ID, as `vitals ps` shows it.
+        pid: u32,
+        /// Restore normal scheduling instead of enabling efficiency mode.
+        #[arg(long)]
+        off: bool,
+    },
     /// Capture a diagnostic report for sharing.
     Report {
         /// Seconds to record before writing the report.
@@ -137,6 +148,7 @@ fn main() -> Result<()> {
             commands::top::run(&mut source, Duration::from_millis(interval), cli.json)
         }
         Commands::Info => commands::info::run(&mut source, cli.json),
+        Commands::Eco { pid, off } => commands::eco::run(&mut source, pid, !off, cli.json),
         Commands::Report { duration, output } => commands::report::run(
             &mut source,
             Duration::from_secs(duration),
@@ -183,6 +195,33 @@ mod tests {
     #[test]
     fn unknown_subcommand_is_rejected() {
         assert!(Cli::try_parse_from(["vitals", "nonsense"]).is_err());
+    }
+
+    #[test]
+    fn eco_takes_a_pid_and_defaults_to_on() {
+        let cli = Cli::try_parse_from(["vitals", "eco", "4242"]).unwrap();
+        assert!(matches!(
+            cli.command,
+            Commands::Eco {
+                pid: 4242,
+                off: false
+            }
+        ));
+        let cli = Cli::try_parse_from(["vitals", "eco", "4242", "--off", "--json"]).unwrap();
+        assert!(cli.json);
+        assert!(matches!(
+            cli.command,
+            Commands::Eco {
+                pid: 4242,
+                off: true
+            }
+        ));
+    }
+
+    #[test]
+    fn eco_refuses_a_missing_or_non_numeric_pid() {
+        assert!(Cli::try_parse_from(["vitals", "eco"]).is_err());
+        assert!(Cli::try_parse_from(["vitals", "eco", "notepad"]).is_err());
     }
 
     #[test]

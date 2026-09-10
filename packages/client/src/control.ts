@@ -30,7 +30,14 @@ export type ControlRequest =
   | { action: 'terminate'; key: ProcessKey }
   | { action: 'suspend'; key: ProcessKey }
   | { action: 'resume'; key: ProcessKey }
-  | { action: 'set-priority'; key: ProcessKey; priority: ControlPriority };
+  | { action: 'set-priority'; key: ProcessKey; priority: ControlPriority }
+  /**
+   * Windows 11 efficiency mode (EcoQoS + low priority). `enabled: false`
+   * restores normal scheduling. There is no read-back over the API — see the
+   * note on the Rust enum for why handles, modules and this state stay
+   * desktop-only.
+   */
+  | { action: 'set-efficiency-mode'; key: ProcessKey; enabled: boolean };
 
 /** Why the host refused a {@link ControlRequest}. */
 export type ControlError =

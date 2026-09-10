@@ -134,12 +134,14 @@ curl.exe -s -o NUL -w "%{http_code}`n" -X POST `
 | `204`  | Done.                                                                                                               |
 | `403`  | `{"kind":"forbidden"}` — your token is read-only. `{"kind":"access-denied"}` — Windows refused (protected process). |
 | `404`  | `{"kind":"not-found"}` — the process is gone, or the PID was recycled and the start time no longer matches.         |
-| `501`  | `{"kind":"unsupported", …}` — this host cannot do that (no controller, unknown priority).                           |
+| `501`  | `{"kind":"unsupported", …}` — this host cannot do that (no controller, unknown priority, no efficiency mode).       |
 | `500`  | `{"kind":"internal", …}` — something else went wrong; the message says what.                                        |
 
-Other actions: `suspend`, `resume`, and `set-priority` with an extra
+Other actions: `suspend`, `resume`, `set-priority` with an extra
 `"priority"` of `idle`, `below-normal`, `normal`, `above-normal`, `high` or
-`realtime`.
+`realtime`, and `set-efficiency-mode` with a required boolean `"enabled"`
+(Windows 11 efficiency mode — the leaf icon in Task Manager; `false` restores
+normal scheduling). The CLI wraps the last one as `vitals eco <pid> [--off]`.
 
 ## Reading the JSON
 

@@ -302,8 +302,8 @@ paths:
         meantime. Take the key from a `Process` in a frame; do not construct
         one.
 
-        The body is parsed before the scope check, so a malformed request from
-        a read-only token is reported as a body error, not as `403`.
+        The scope check runs before the body is parsed, so a malformed request
+        from a read-only token is answered `403`, never with a body error.
       operationId: control
       requestBody:
         required: true
@@ -319,6 +319,11 @@ paths:
                   action: set-priority
                   key: { pid: 4242, startTime: 133724800000000000 }
                   priority: below-normal
+              setEfficiencyMode:
+                value:
+                  action: set-efficiency-mode
+                  key: { pid: 4242, startTime: 133724800000000000 }
+                  enabled: true
       responses:
         '204':
           description: Applied.
@@ -365,7 +370,7 @@ paths:
                 $ref: '#/components/schemas/ControlError'
               example: { kind: internal, message: '…' }
         '501':
-          description: This host has no way to do this — no controller, or a priority it does not know.
+          description: This host has no way to do this — no controller, a priority it does not know, or a Windows build without efficiency mode.
           content:
             application/json:
               schema:
@@ -1327,6 +1332,7 @@ components:
         - $ref: '#/components/schemas/SuspendRequest'
         - $ref: '#/components/schemas/ResumeRequest'
         - $ref: '#/components/schemas/SetPriorityRequest'
+        - $ref: '#/components/schemas/SetEfficiencyModeRequest'
       discriminator:
         propertyName: action
         mapping:
@@ -1334,6 +1340,7 @@ components:
           suspend: '#/components/schemas/SuspendRequest'
           resume: '#/components/schemas/ResumeRequest'
           set-priority: '#/components/schemas/SetPriorityRequest'
+          set-efficiency-mode: '#/components/schemas/SetEfficiencyModeRequest'
 
     TerminateRequest:
       type: object
@@ -1376,6 +1383,27 @@ components:
           $ref: '#/components/schemas/ProcessKey'
         priority:
           $ref: '#/components/schemas/ControlPriority'
+
+    SetEfficiencyModeRequest:
+      type: object
+      description: |
+        Turn Windows 11 efficiency mode (EcoQoS plus low priority) on or off
+        for one process — what Task Manager's leaf icon does. `enabled: false`
+        restores normal scheduling. The `enabled` flag is required; a missing
+        value is a `422`, never a default.
+
+        There is no read-back over HTTP: whether a process is currently in
+        efficiency mode is a desktop-only detail, like its handles and
+        modules, because answering it means opening the process on every poll.
+      required: [action, key, enabled]
+      properties:
+        action:
+          type: string
+          const: set-efficiency-mode
+        key:
+          $ref: '#/components/schemas/ProcessKey'
+        enabled:
+          type: boolean
 
     ControlError:
       description: |

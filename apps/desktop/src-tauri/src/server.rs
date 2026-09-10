@@ -309,6 +309,9 @@ impl Controller for DesktopController {
                 };
                 actions::set_priority(key, priority)
             }
+            ControlRequest::SetEfficiencyMode { key, enabled } => {
+                actions::set_efficiency_mode(key, enabled)
+            }
         };
 
         outcome.map_err(|error| match error {

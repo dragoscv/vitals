@@ -11,10 +11,11 @@
 
 #![allow(clippy::expect_used, clippy::unwrap_used)]
 
-use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
 
 use vitals_core::fixtures;
+use vitals_core::ids::{Pid, ProcessKey};
 use vitals_core::sample::Frame;
 use vitals_server::state::ServerLock;
 use vitals_server::{
@@ -28,11 +29,15 @@ const CONTROL_TOKEN: &str = "control-token-value";
 #[derive(Debug, Default)]
 struct RecordingController {
     calls: AtomicUsize,
+    /// What the last call carried, so a test can prove the request survived
+    /// deserialisation intact rather than merely arriving.
+    last: Mutex<Option<ControlRequest>>,
 }
 
 impl Controller for RecordingController {
-    fn apply(&self, _request: ControlRequest) -> Result<(), ControlError> {
+    fn apply(&self, request: ControlRequest) -> Result<(), ControlError> {
         self.calls.fetch_add(1, Ordering::SeqCst);
+        *self.last.lock().unwrap() = Some(request);
         Ok(())
     }
 }
@@ -288,6 +293,50 @@ async fn a_read_token_is_refused_before_the_body_is_even_parsed() {
     .await;
     assert_eq!(status, 403, "scope must be checked before the body");
     assert_eq!(h.controller.calls.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
+async fn a_read_token_cannot_set_efficiency_mode_even_with_a_malformed_body() {
+    // Same guarantee for the newest action: 403 arrives before the body is
+    // looked at, so `enabled` being missing here must not turn into a 422.
+    let h = start().await;
+    let (status, _) = request(
+        &h.base,
+        "POST",
+        "/api/v1/control",
+        Some(READ_TOKEN),
+        Some(r#"{"action":"set-efficiency-mode","key":{"pid":4242,"startTime":1}}"#),
+    )
+    .await;
+    assert_eq!(status, 403);
+    assert_eq!(h.controller.calls.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
+async fn a_control_token_can_set_efficiency_mode_and_the_controller_sees_the_flag() {
+    let h = start().await;
+    let body =
+        r#"{"action":"set-efficiency-mode","key":{"pid":4242,"startTime":1},"enabled":true}"#;
+    let (status, _) = request(
+        &h.base,
+        "POST",
+        "/api/v1/control",
+        Some(CONTROL_TOKEN),
+        Some(body),
+    )
+    .await;
+    assert_eq!(status, 204);
+    assert_eq!(h.controller.calls.load(Ordering::SeqCst), 1);
+    assert_eq!(
+        h.controller.last.lock().unwrap().clone(),
+        Some(ControlRequest::SetEfficiencyMode {
+            key: ProcessKey {
+                pid: Pid(4242),
+                start_time: 1
+            },
+            enabled: true,
+        })
+    );
 }
 
 #[tokio::test]

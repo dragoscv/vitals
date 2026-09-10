@@ -7,7 +7,7 @@
  * that supplies its own (React Native, a proxying fetch).
  */
 
-import type { Frame, HostInfo } from '@vitals/protocol';
+import type { Alert, Frame, HostInfo, ProcessKey } from '@vitals/protocol';
 
 import { type Attempt, type BackoffOptions, DEFAULT_BACKOFF, Reconnector } from './backoff';
 import type { ControlError, ControlReply, ControlRequest, Health } from './control';
@@ -119,6 +119,18 @@ export class VitalsClient {
   }
 
   /**
+   * `GET /api/v1/alerts` — every condition currently raised on the host.
+   *
+   * An empty array is the healthy answer, not a failure, and is by far the
+   * most common one. The `title` and `cause` on each alert are i18n keys
+   * (`alert.<kind>.title`), not prose — see `Alert` in `@vitals/protocol`.
+   */
+  async alerts(): Promise<Alert[]> {
+    const response = await this.request('/api/v1/alerts');
+    return this.json<Alert[]>(response);
+  }
+
+  /**
    * `GET /metrics` — the Prometheus exposition text, verbatim.
    *
    * Returns an empty string before the first tick (the server's 204) so a
@@ -149,6 +161,16 @@ export class VitalsClient {
         status: response.status,
       });
     }
+  }
+
+  /**
+   * Turns Windows 11 efficiency mode on or off for one process — a named
+   * wrapper over {@link control} so a caller cannot misspell the tag or omit
+   * the flag. Same rejections as `control`; `unsupported` when the host's
+   * Windows build has no EcoQoS.
+   */
+  setEfficiencyMode(key: ProcessKey, enabled: boolean): Promise<void> {
+    return this.control({ action: 'set-efficiency-mode', key, enabled });
   }
 
   /**

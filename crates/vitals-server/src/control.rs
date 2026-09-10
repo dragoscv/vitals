@@ -32,6 +32,18 @@ pub enum ControlRequest {
         key: ProcessKey,
         priority: String,
     },
+    /// Windows 11 efficiency mode (`EcoQoS` + low priority). `enabled: false`
+    /// restores the process's normal scheduling.
+    ///
+    /// This is the only per-process *setting* exposed here. The desktop's
+    /// handles and modules panels are deliberately **not** mirrored as
+    /// routes: each allocates megabytes per call and runs only while a user
+    /// has that section expanded. A polling client would turn an on-demand
+    /// cost into a continuous one on someone else's machine.
+    SetEfficiencyMode {
+        key: ProcessKey,
+        enabled: bool,
+    },
 }
 
 /// Why a control request was refused.
@@ -93,6 +105,33 @@ mod tests {
         assert!(json.contains(r#""action":"terminate""#), "{json}");
         let back: ControlRequest = serde_json::from_str(&json).unwrap();
         assert_eq!(back, req);
+    }
+
+    #[test]
+    fn set_efficiency_mode_is_tagged_in_kebab_case_and_carries_a_boolean() {
+        let json =
+            r#"{"action":"set-efficiency-mode","key":{"pid":42,"startTime":7},"enabled":true}"#;
+        let req: ControlRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(
+            req,
+            ControlRequest::SetEfficiencyMode {
+                key: ProcessKey {
+                    pid: Pid(42),
+                    start_time: 7,
+                },
+                enabled: true,
+            }
+        );
+        let back = serde_json::to_string(&req).unwrap();
+        assert!(back.contains(r#""action":"set-efficiency-mode""#), "{back}");
+        assert!(back.contains(r#""enabled":true"#), "{back}");
+    }
+
+    #[test]
+    fn set_efficiency_mode_without_the_flag_is_rejected_rather_than_defaulted() {
+        // A missing `enabled` must not quietly mean "on" or "off".
+        let json = r#"{"action":"set-efficiency-mode","key":{"pid":42,"startTime":7}}"#;
+        assert!(serde_json::from_str::<ControlRequest>(json).is_err());
     }
 
     #[test]

@@ -2,6 +2,7 @@
 //! `--json` flag and writes to stdout; everything diagnostic goes to stderr
 //! so `--json` stays pipeable.
 
+pub mod eco;
 pub mod info;
 pub mod ps;
 pub mod report;

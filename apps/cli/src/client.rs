@@ -1,9 +1,9 @@
 //! A thin blocking client for the local API.
 //!
-//! Every method maps one read route in `docs/api/openapi.yaml`. Errors carry
+//! Every method maps one route in `docs/api/openapi.yaml`. Errors carry
 //! the route so a user sees "snapshot answered 500", not a bare status code.
-//! `POST /control` is deliberately absent: no subcommand acts on a process
-//! yet, and a client method nothing calls is a promise nothing tests.
+//! `POST /control` exists for exactly the actions a subcommand issues
+//! (`vitals eco`); a client method nothing calls is a promise nothing tests.
 
 use std::io::Read;
 use std::time::Duration;
@@ -13,6 +13,7 @@ use serde::Deserialize;
 use vitals_core::alerts::Alert;
 use vitals_core::provider::HostInfo;
 use vitals_core::sample::Frame;
+use vitals_server::{ControlError, ControlRequest};
 
 /// What `/api/v1/health` returns.
 #[derive(Debug, Clone, Deserialize)]
@@ -86,6 +87,31 @@ impl Client {
     /// Connection failure or a non-2xx status.
     pub fn alerts(&self) -> Result<Vec<Alert>> {
         self.get_json("/api/v1/alerts")
+    }
+
+    /// `POST /api/v1/control`. A 204 is success; anything else carries a
+    /// [`ControlError`] whose message is what the user sees, so "Windows
+    /// protects this process" is not flattened into "answered 403".
+    ///
+    /// # Errors
+    /// Connection failure, or the host refused the request.
+    pub fn control(&self, request: &ControlRequest) -> Result<()> {
+        let path = "/api/v1/control";
+        let response = self
+            .agent
+            .post(format!("{}{path}", self.base))
+            .header("content-type", "application/json")
+            .send_json(request)
+            .with_context(|| format!("POST {path}"))?;
+        let status = response.status();
+        if status == ureq::http::StatusCode::NO_CONTENT {
+            return Ok(());
+        }
+        let text = response.into_body().read_to_string().unwrap_or_default();
+        match serde_json::from_str::<ControlError>(&text) {
+            Ok(error) => bail!("{error} (POST {path} answered {status})"),
+            Err(_) => bail!("POST {path} answered {status}"),
+        }
     }
 
     /// Opens `/api/v1/stream` and returns the raw body for an SSE reader.

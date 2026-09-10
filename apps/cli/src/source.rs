@@ -10,8 +10,10 @@ use std::time::Duration;
 
 use anyhow::{Context, Result};
 use vitals_core::alerts::Alert;
+use vitals_core::ids::ProcessKey;
 use vitals_core::provider::HostInfo;
 use vitals_core::sample::Frame;
+use vitals_server::ControlRequest;
 
 use crate::client::Client;
 use crate::discovery;
@@ -206,6 +208,48 @@ impl Source {
             Self::Direct(direct) => Ok(direct.alerts()),
         }
     }
+
+    /// Acts on a process: through the desktop's controller when attached, so
+    /// the app's own risk checks apply; through the platform actions directly
+    /// otherwise.
+    ///
+    /// # Errors
+    /// The host refused (read-only scope, protected process, PID recycled),
+    /// or this platform has no process backend.
+    pub fn control(&mut self, request: ControlRequest) -> Result<()> {
+        match self {
+            Self::Attached(a) => a.client.control(&request),
+            Self::Direct(direct) => direct.control(request),
+        }
+    }
+
+    /// Whether the processes this source describes run on *this* machine, so
+    /// a platform call by PID here means the same process it means there.
+    /// True for direct sampling and for an attachment to a loopback address;
+    /// false for `--attach http://some-other-host`.
+    #[must_use]
+    pub fn is_local(&self) -> bool {
+        match self {
+            Self::Attached(a) => {
+                let base = a.client.base();
+                base.contains("127.0.0.1") || base.contains("localhost") || base.contains("[::1]")
+            }
+            Self::Direct(_) => true,
+        }
+    }
+
+    /// Reads a process's efficiency-mode state off the local kernel. `None`
+    /// when it cannot be read — the source is remote, the platform has no
+    /// backend, or the process denies a handle — never a guessed `false`.
+    ///
+    /// # Errors
+    /// The process has exited or its PID was reused.
+    pub fn efficiency_mode(&self, key: ProcessKey) -> Result<Option<bool>> {
+        if !self.is_local() {
+            return Ok(None);
+        }
+        Direct::efficiency_mode(key)
+    }
 }
 
 // ── Direct sampling ────────────────────────────────────────────────────
@@ -272,6 +316,21 @@ impl Direct {
     fn alerts(&self) -> Vec<Alert> {
         self.active_alerts()
     }
+
+    #[allow(clippy::unused_self)]
+    fn control(&self, request: ControlRequest) -> Result<()> {
+        use vitals_win::actions;
+        match request {
+            ControlRequest::SetEfficiencyMode { key, enabled } => {
+                actions::set_efficiency_mode(key, enabled).map_err(Into::into)
+            }
+            other => anyhow::bail!("the CLI does not issue {other:?} directly"),
+        }
+    }
+
+    fn efficiency_mode(key: ProcessKey) -> Result<Option<bool>> {
+        vitals_win::actions::efficiency_mode(key).map_err(Into::into)
+    }
 }
 
 #[cfg(not(windows))]
@@ -308,6 +367,16 @@ impl Direct {
     #[allow(clippy::unused_self)]
     fn alerts(&self) -> Vec<Alert> {
         Vec::new()
+    }
+
+    #[allow(clippy::unused_self, clippy::needless_pass_by_value)]
+    fn control(&self, _request: ControlRequest) -> Result<()> {
+        anyhow::bail!("no process backend on this platform")
+    }
+
+    #[allow(clippy::unnecessary_wraps)]
+    fn efficiency_mode(_key: ProcessKey) -> Result<Option<bool>> {
+        Ok(None)
     }
 }
 

@@ -82,6 +82,28 @@ describe('VitalsClient HTTP methods', () => {
     await expect(client(impl).snapshot()).resolves.toEqual(FRAME);
   });
 
+  it('fetches alerts with the bearer token and resolves the array, treating an empty list as healthy', async () => {
+    const alert = {
+      kind: 'diskSpace',
+      severity: 'warning',
+      subject: 'C:',
+      title: 'alert.diskSpace.title',
+      cause: 'alert.diskSpace.cause',
+      values: { disk: 'C:', percent: 4 },
+      route: 'storage',
+      sinceSample: 12,
+    };
+    const { impl, calls } = scripted(
+      { status: 200, body: JSON.stringify([alert]) },
+      { status: 200, body: '[]' },
+    );
+    const c = client(impl);
+    await expect(c.alerts()).resolves.toEqual([alert]);
+    await expect(c.alerts()).resolves.toEqual([]);
+    expect(calls[0]?.url).toBe(`${BASE}/api/v1/alerts`);
+    expect(new Headers(calls[0]?.init?.headers).get('Authorization')).toBe(`Bearer ${TOKEN}`);
+  });
+
   it('returns null from host on 204', async () => {
     const { impl } = scripted({ status: 204 });
     await expect(client(impl).host()).resolves.toBeNull();
@@ -125,6 +147,31 @@ describe('VitalsClient HTTP methods', () => {
       action: 'set-priority',
       key: { pid: 42, startTime: 7 },
       priority: 'below-normal',
+    });
+  });
+
+  it('setEfficiencyMode posts the set-efficiency-mode action with the key and flag', async () => {
+    const { impl, calls } = scripted({ status: 204 });
+    await client(impl).setEfficiencyMode({ pid: 42, startTime: 7 }, false);
+    expect(calls[0]?.init?.method).toBe('POST');
+    expect(JSON.parse(asText(calls[0]?.init?.body))).toEqual({
+      action: 'set-efficiency-mode',
+      key: { pid: 42, startTime: 7 },
+      enabled: false,
+    });
+  });
+
+  it('setEfficiencyMode rejects with the parsed reason when the host has no efficiency mode', async () => {
+    const { impl } = scripted({
+      status: 501,
+      body: '{"kind":"unsupported","message":"EfficiencyMode is not available"}',
+    });
+    const error = await failure(client(impl).setEfficiencyMode({ pid: 1, startTime: 2 }, true));
+    expect(error.kind).toBe('http');
+    expect(error.status).toBe(501);
+    expect(error.detail).toEqual({
+      kind: 'unsupported',
+      message: 'EfficiencyMode is not available',
     });
   });
 
