@@ -98,6 +98,22 @@ pub fn set_alert_prefs(alerts: State<'_, crate::alerts::Alerts>, prefs: crate::a
     alerts.set_prefs(prefs);
 }
 
+/// "Why is my PC slow?" — the current alerts joined against the process list.
+///
+/// Request/response, and the webview supplies the processes it already
+/// holds, because the alternative is the backend cloning six hundred
+/// processes every tick for a button that is pressed once a week. The
+/// system metrics come from the same frame so the two agree on the instant.
+#[tauri::command]
+#[allow(clippy::needless_pass_by_value)]
+pub fn diagnose(
+    alerts: State<'_, crate::alerts::Alerts>,
+    system: vitals_core::metrics::SystemMetrics,
+    processes: Vec<vitals_core::process::Process>,
+) -> vitals_core::diagnosis::Diagnosis {
+    vitals_core::diagnosis::diagnose(&alerts.active(), &system, &processes)
+}
+
 /// Localised toast titles, pushed at start and on a language change.
 ///
 /// Toasts render in Rust because they must fire while the window is hidden;

@@ -89,7 +89,7 @@ $invoked = Get-Rg @('-o', '--no-filename', "invoke(<[^>]*>)?\('([a-z_]+)'", 'app
 # Anchored to `])`, not to the first `]`: the list contains `#[cfg(windows)]`
 # attributes, and a lazy match stops inside the first of those — which is how
 # this check silently saw 5 commands out of 66 on its first run.
-$handlerBlock = (Get-Rg @('-U', '--no-filename', 'generate_handler!\[[\s\S]*?\]\)', 'apps/desktop/src-tauri/src/lib.rs')) -join "`n"
+$handlerBlock = (Get-Rg @('-U', '--no-filename', 'generate_handler!\[[\s\S]*?\n\s*\]', 'apps/desktop/src-tauri/src/lib.rs')) -join "`n"
 # Strip comments first: the block is heavily commented, and prose ending in a
 # comma would otherwise be read as a command name ("seconds,", "changing,").
 $handlerCode = ($handlerBlock -split "`n" | ForEach-Object { ($_ -replace '//.*$', '') }) -join "`n"

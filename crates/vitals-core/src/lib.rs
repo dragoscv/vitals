@@ -22,6 +22,7 @@
 
 pub mod alerts;
 pub mod capability;
+pub mod diagnosis;
 pub mod error;
 #[cfg(feature = "fixtures")]
 pub mod fixtures;

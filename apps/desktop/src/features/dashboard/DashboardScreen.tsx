@@ -16,7 +16,7 @@
  * imaginary here because all twelve widgets change on the same tick anyway.
  */
 
-import { LayoutGrid, PlugZap, Plus, RotateCcw, Settings2 } from 'lucide-react';
+import { LayoutGrid, PlugZap, Plus, RotateCcw, Settings2, Stethoscope } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -35,6 +35,8 @@ import {
 
 import type { RouteId } from '../../shell/navigation';
 import { useAlerts, type AlertSource } from '../alerts/useAlerts';
+import { DiagnosisDialog } from '../diagnosis/DiagnosisDialog';
+import { createTauriDiagnosisSource, type DiagnosisSource } from '../diagnosis/source';
 import { history as sharedHistory, type HistoryCollector } from './history';
 import { DASHBOARD_NS } from './strings';
 import { useHistory } from './useHistory';
@@ -76,6 +78,8 @@ export interface DashboardScreenProps {
   readonly source?: SystemSource;
   /** Injectable for the same reason as `source`: no Tauri host in tests. */
   readonly alertSource?: AlertSource;
+  /** The "Why is my PC slow?" backend; injectable for the same reason. */
+  readonly diagnosisSource?: DiagnosisSource;
   readonly layoutBackend?: LayoutBackend;
   readonly historyCollector?: HistoryCollector;
   /**
@@ -89,6 +93,7 @@ export interface DashboardScreenProps {
 export function DashboardScreen({
   source,
   alertSource,
+  diagnosisSource,
   layoutBackend,
   historyCollector = sharedHistory,
   onNavigate,
@@ -126,6 +131,12 @@ export function DashboardScreen({
 
   const alerts = useAlerts(alertSource);
 
+  const [diagnosisSourceFallback] = useState<DiagnosisSource | null>(() =>
+    diagnosisSource === undefined ? createTauriDiagnosisSource() : null,
+  );
+  const activeDiagnosis = diagnosisSource ?? diagnosisSourceFallback;
+  const [asking, setAsking] = useState(false);
+
   const navigate = (route: RouteId): void => {
     onNavigate?.(route);
   };
@@ -138,6 +149,19 @@ export function DashboardScreen({
           <p className="text-2xs text-[var(--color-fg-muted)]">{t('subtitle')}</p>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
+          {!editing && (
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={snapshot.system === null}
+              onClick={() => {
+                setAsking(true);
+              }}
+            >
+              <Stethoscope aria-hidden className="size-4" />
+              {t('diagnosis.ask')}
+            </Button>
+          )}
           {editing && (
             <>
               <DropdownMenu>
@@ -261,6 +285,18 @@ export function DashboardScreen({
             );
           })}
         </div>
+      )}
+
+      {activeDiagnosis !== null && (
+        <DiagnosisDialog
+          open={asking}
+          onOpenChange={setAsking}
+          source={activeDiagnosis}
+          system={snapshot.system}
+          processes={snapshot.processes}
+          history={historyState}
+          locale={locale}
+        />
       )}
     </div>
   );
