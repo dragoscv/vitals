@@ -74,6 +74,12 @@ export function createTauriSnapshotSource(): SnapshotSource {
   };
 
   const start = (): void => {
+    // Third copy of the same defect fixed in `useSystemSnapshot` and
+    // `useAlerts`: a restart after the last subscriber left (Activity hiding
+    // the route, StrictMode's double mount) inherited `disposed = true` and
+    // tore the new subscription down on arrival. Found live — the Processes
+    // screen reported "no readings" on a machine that was being sampled.
+    disposed = false;
     // No host means no IPC: `listen()` reaches into an internals global that
     // is undefined and throws "Cannot read properties of undefined (reading
     // 'transformCallback')" inside a floating promise.
