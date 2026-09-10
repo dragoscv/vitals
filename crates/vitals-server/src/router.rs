@@ -5,7 +5,7 @@ use std::net::SocketAddr;
 use std::time::Duration;
 
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
-use axum::extract::{Query, Request, State};
+use axum::extract::{ConnectInfo, Query, Request, State};
 use axum::http::{HeaderValue, StatusCode, header};
 use axum::middleware::{self, Next};
 use axum::response::sse::{Event, KeepAlive, Sse};
@@ -44,7 +44,7 @@ impl ServeHandle {
     }
 }
 
-/// Binds and starts serving on the current tokio runtime.
+/// Binds `0.0.0.0:port` and starts serving on the current tokio runtime.
 ///
 /// Port `0` asks the OS for a free one; the real port is on the returned
 /// handle. Binding `0.0.0.0` is what makes this reachable from a phone, and
@@ -57,11 +57,27 @@ impl ServeHandle {
 /// declines it gets a server that starts and is unreachable, which the UI
 /// must explain rather than showing a spinner.
 pub async fn serve(state: ApiState, port: u16) -> std::io::Result<ServeHandle> {
-    let listener = TcpListener::bind(("0.0.0.0", port)).await?;
+    serve_on(state, SocketAddr::from(([0, 0, 0, 0], port))).await
+}
+
+/// Binds exactly `addr` and starts serving on the current tokio runtime.
+///
+/// The desktop uses this for its always-on `127.0.0.1` listener, which must
+/// never be reachable from the network — binding loopback is the mechanism,
+/// not a filter applied afterwards. Port `0` asks the OS for a free one.
+///
+/// # Errors
+///
+/// Fails if the address is already in use or the OS refuses the bind.
+pub async fn serve_on(state: ApiState, addr: SocketAddr) -> std::io::Result<ServeHandle> {
+    let listener = TcpListener::bind(addr).await?;
     let addr = listener.local_addr()?;
     let (stop_tx, stop_rx) = oneshot::channel();
 
-    let app = router(state);
+    // The peer address is what `authorise` uses to decide whether the
+    // loopback bypass applies, so the connect info must be attached here;
+    // without it the extractor fails and every guarded route answers 500.
+    let app = router(state).into_make_service_with_connect_info::<SocketAddr>();
     tokio::spawn(async move {
         let served = axum::serve(listener, app)
             .with_graceful_shutdown(async {
@@ -105,14 +121,30 @@ pub fn router(state: ApiState) -> Router {
 #[derive(Debug, Clone, Copy)]
 struct Granted(Scope);
 
-/// Rejects anything without a valid bearer token.
+/// Rejects anything without a valid bearer token, unless the caller is on the
+/// loopback interface and the host has opted into [`ApiState::loopback_scope`].
 ///
 /// Accepts the token in `Authorization: Bearer …` or, for `EventSource` and
 /// `WebSocket` — neither of which can set headers in a browser — in a `token`
 /// query parameter. That is a real trade: a query string can land in a log.
 /// The server writes no access log, and the alternative is that the phone
 /// cannot stream at all.
+///
+/// The loopback decision is made on the **peer** address of the connection,
+/// never on which listener accepted it: a `0.0.0.0` listener receives
+/// loopback connections too, and a `127.0.0.1` listener cannot receive any
+/// other kind. Reading the peer is therefore both necessary and sufficient.
 async fn authorise(State(state): State<ApiState>, request: Request, next: Next) -> Response {
+    let peer = request
+        .extensions()
+        .get::<ConnectInfo<SocketAddr>>()
+        .map(|ConnectInfo(addr)| *addr);
+    if let Some(scope) = loopback_grant(&state, peer) {
+        let mut request = request;
+        request.extensions_mut().insert(Granted(scope));
+        return next.run(request).await;
+    }
+
     let presented = bearer(&request).or_else(|| query_token(&request));
 
     let Some(presented) = presented else {
@@ -128,6 +160,16 @@ async fn authorise(State(state): State<ApiState>, request: Request, next: Next) 
     let mut request = request;
     request.extensions_mut().insert(Granted(scope));
     next.run(request).await
+}
+
+/// The scope a tokenless caller at `peer` is granted, if any.
+///
+/// A missing peer (the router driven without a socket, as in unit tests)
+/// is treated as remote: failing closed is the only safe default for an
+/// auth bypass.
+fn loopback_grant(state: &ApiState, peer: Option<SocketAddr>) -> Option<Scope> {
+    let scope = state.loopback_scope?;
+    peer.filter(|addr| addr.ip().is_loopback()).map(|_| scope)
 }
 
 fn bearer(request: &Request) -> Option<String> {
@@ -482,5 +524,72 @@ pub fn mime_for(path: &str) -> &'static str {
         Some("woff2") => "font/woff2",
         Some("ico") => "image/x-icon",
         _ => "application/octet-stream",
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use std::net::SocketAddr;
+    use std::sync::Arc;
+
+    use super::loopback_grant;
+    use crate::auth::{Scope, TokenSet};
+    use crate::state::{ApiState, FrameSource, ServerLock};
+
+    fn state(loopback_scope: Option<Scope>) -> ApiState {
+        ApiState {
+            frames: FrameSource::new(),
+            tokens: Arc::new(ServerLock::new(TokenSet::default())),
+            controller: Arc::new(crate::control::NoControl),
+            assets: None,
+            host: Arc::new(|| None),
+            alerts: Arc::new(Vec::new),
+            version: "test".into(),
+            loopback_scope,
+        }
+    }
+
+    fn peer(text: &str) -> SocketAddr {
+        text.parse().unwrap()
+    }
+
+    #[test]
+    fn a_lan_peer_is_never_granted_the_loopback_scope() {
+        // The bypass is keyed on the peer, not the listener: a `0.0.0.0`
+        // listener with the bypass on would otherwise hand control to
+        // everything on the network.
+        let s = state(Some(Scope::Control));
+        assert_eq!(loopback_grant(&s, Some(peer("192.168.1.5:1234"))), None);
+        assert_eq!(loopback_grant(&s, Some(peer("[fe80::1]:1234"))), None);
+    }
+
+    #[test]
+    fn loopback_v4_and_v6_peers_get_exactly_the_configured_scope() {
+        let s = state(Some(Scope::Read));
+        assert_eq!(
+            loopback_grant(&s, Some(peer("127.0.0.1:50000"))),
+            Some(Scope::Read)
+        );
+        assert_eq!(
+            loopback_grant(&s, Some(peer("[::1]:50000"))),
+            Some(Scope::Read)
+        );
+    }
+
+    #[test]
+    fn loopback_grants_nothing_when_the_host_has_not_opted_in() {
+        // The LAN server's configuration. Loopback callers there still need
+        // a token, exactly as before this bypass existed.
+        let s = state(None);
+        assert_eq!(loopback_grant(&s, Some(peer("127.0.0.1:50000"))), None);
+    }
+
+    #[test]
+    fn an_unknown_peer_fails_closed() {
+        // No connect info means the router was driven without a socket;
+        // an auth bypass must not fire on missing information.
+        let s = state(Some(Scope::Control));
+        assert_eq!(loopback_grant(&s, None), None);
     }
 }

@@ -19,6 +19,7 @@ use vitals_core::sample::Frame;
 use vitals_server::state::ServerLock;
 use vitals_server::{
     ApiState, ControlError, ControlRequest, Controller, FrameSource, Scope, Token, TokenSet, serve,
+    serve_on,
 };
 
 const READ_TOKEN: &str = "read-token-value";
@@ -54,8 +55,16 @@ impl Drop for Harness {
 }
 
 async fn start() -> Harness {
-    let frames = FrameSource::new();
-    let controller = Arc::new(RecordingController::default());
+    start_with(None).await
+}
+
+/// Builds the state the harness serves. Shared with the loopback tests so
+/// the two configurations differ in exactly one field.
+fn state_with(
+    frames: &FrameSource,
+    controller: &Arc<RecordingController>,
+    loopback_scope: Option<Scope>,
+) -> ApiState {
     let tokens = TokenSet {
         tokens: vec![
             Token {
@@ -73,7 +82,7 @@ async fn start() -> Harness {
         ],
     };
 
-    let state = ApiState {
+    ApiState {
         frames: frames.clone(),
         tokens: Arc::new(ServerLock::new(tokens)),
         controller: controller.clone(),
@@ -84,7 +93,14 @@ async fn start() -> Harness {
         host: Arc::new(|| None),
         alerts: Arc::new(Vec::new),
         version: "0.0.0-test".into(),
-    };
+        loopback_scope,
+    }
+}
+
+async fn start_with(loopback_scope: Option<Scope>) -> Harness {
+    let frames = FrameSource::new();
+    let controller = Arc::new(RecordingController::default());
+    let state = state_with(&frames, &controller, loopback_scope);
 
     // Port 0: the OS picks a free one, so tests never collide with a real
     // server or with each other.
@@ -381,4 +397,110 @@ async fn a_client_joining_mid_stream_receives_a_keyframe_not_a_delta() {
         !body.contains("\"cpu\":5.0"),
         "stale keyframe value survived: {body}"
     );
+}
+
+// ── Loopback bypass ────────────────────────────────────────────────────
+//
+// Every request in this file arrives from 127.0.0.1, so the existing 401
+// assertions above are also the proof that `loopback_scope: None` — the LAN
+// server's setting — leaves loopback callers exactly as strict as before.
+
+#[tokio::test]
+async fn with_a_read_loopback_scope_a_tokenless_local_caller_can_read_but_not_control() {
+    let h = start_with(Some(Scope::Read)).await;
+
+    let (status, _) = request(&h.base, "GET", "/api/v1/snapshot", None, None).await;
+    assert_eq!(
+        status, 204,
+        "before the first frame the answer is 'nothing yet'"
+    );
+
+    h.frames.publish(Arc::new(frame(1)));
+    let (status, body) = request(&h.base, "GET", "/api/v1/snapshot", None, None).await;
+    assert_eq!(status, 200, "{body}");
+    assert!(body.contains("\"kind\":\"keyframe\""), "{body}");
+
+    // Read scope cannot control, token or no token.
+    let control = r#"{"action":"terminate","key":{"pid":4242,"startTime":1}}"#;
+    let (status, _) = request(&h.base, "POST", "/api/v1/control", None, Some(control)).await;
+    assert_eq!(status, 403);
+    assert_eq!(h.controller.calls.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
+async fn with_a_control_loopback_scope_a_tokenless_local_caller_reaches_the_controller() {
+    let h = start_with(Some(Scope::Control)).await;
+    let control = r#"{"action":"suspend","key":{"pid":4242,"startTime":1}}"#;
+    let (status, _) = request(&h.base, "POST", "/api/v1/control", None, Some(control)).await;
+    assert_eq!(status, 204);
+    assert_eq!(h.controller.calls.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn a_presented_token_still_decides_scope_on_loopback_when_the_bypass_is_off() {
+    // The bypass must not have changed what a token means: the same requests
+    // that succeed tokenlessly above are refused here, and a wrong token is
+    // still refused identically to a missing one.
+    let h = start_with(None).await;
+    let (missing, missing_body) = request(&h.base, "GET", "/api/v1/snapshot", None, None).await;
+    let (wrong, wrong_body) = request(&h.base, "GET", "/api/v1/snapshot", Some("nope"), None).await;
+    assert_eq!(missing, 401);
+    assert_eq!(wrong, 401);
+    assert_eq!(missing_body, wrong_body);
+}
+
+#[tokio::test]
+async fn a_non_loopback_peer_is_refused_even_when_the_bypass_is_on() {
+    // The adversarial case. Connecting to the machine's own LAN address
+    // gives a peer of that address, not 127.0.0.1, so this is a real
+    // network-path request as the server sees it. Skipped, not faked, on a
+    // machine with no LAN interface.
+    let Some(interface) = vitals_server::interfaces().into_iter().next() else {
+        eprintln!("no LAN interface on this machine; cannot exercise the non-loopback path");
+        return;
+    };
+
+    let frames = FrameSource::new();
+    let controller = Arc::new(RecordingController::default());
+    let state = state_with(&frames, &controller, Some(Scope::Control));
+    let mut handle = serve_on(state, std::net::SocketAddr::from((interface.address, 0)))
+        .await
+        .expect("bind the LAN address");
+    let base = format!("http://{}", handle.addr);
+
+    let (status, _) = request(&base, "GET", "/api/v1/snapshot", None, None).await;
+    assert_eq!(
+        status, 401,
+        "a LAN peer must never inherit the loopback grant"
+    );
+    let control = r#"{"action":"suspend","key":{"pid":4242,"startTime":1}}"#;
+    let (status, _) = request(&base, "POST", "/api/v1/control", None, Some(control)).await;
+    assert_eq!(status, 401);
+    assert_eq!(controller.calls.load(Ordering::SeqCst), 0);
+
+    // And a real token still works over that path, so the bypass has not
+    // replaced authentication, only supplemented it on loopback.
+    let (status, _) = request(
+        &base,
+        "POST",
+        "/api/v1/control",
+        Some(CONTROL_TOKEN),
+        Some(control),
+    )
+    .await;
+    assert_eq!(status, 204);
+    handle.stop();
+}
+
+#[tokio::test]
+async fn serve_on_binds_exactly_the_address_it_is_given() {
+    let frames = FrameSource::new();
+    let controller = Arc::new(RecordingController::default());
+    let state = state_with(&frames, &controller, None);
+    let mut handle = serve_on(state, "127.0.0.1:0".parse().unwrap())
+        .await
+        .expect("bind");
+    assert!(handle.addr.ip().is_loopback(), "{}", handle.addr);
+    assert_ne!(handle.addr.port(), 0);
+    handle.stop();
 }

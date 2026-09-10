@@ -7,7 +7,7 @@ use tokio::sync::broadcast;
 use vitals_core::provider::HostInfo;
 use vitals_core::sample::Frame;
 
-use crate::auth::TokenSet;
+use crate::auth::{Scope, TokenSet};
 use crate::control::Controller;
 
 /// Where frames come from.
@@ -179,6 +179,19 @@ pub struct ApiState {
     /// Shown at `/api/v1/health` so a client can tell which build it is
     /// talking to before trusting the shape of anything else.
     pub version: String,
+    /// Scope granted to a caller on the loopback interface **without a
+    /// token**. `None` — the LAN server's setting — means loopback callers
+    /// are treated like anyone else.
+    ///
+    /// A process on the same machine, running as the same user, already
+    /// owns Vitals: it can read the token file, or simply kill the app. A
+    /// token therefore buys nothing against it, and demanding one makes
+    /// `vitals ps` unusable until the user has done a pairing dance with
+    /// their own computer. The desktop's `127.0.0.1` listener sets this to
+    /// `Control`; the `0.0.0.0` listener never does, and the check is made
+    /// against the connecting peer, not the listener, so a LAN request can
+    /// never qualify.
+    pub loopback_scope: Option<Scope>,
 }
 
 impl std::fmt::Debug for ApiState {
@@ -186,6 +199,7 @@ impl std::fmt::Debug for ApiState {
         f.debug_struct("ApiState")
             .field("version", &self.version)
             .field("has_assets", &self.assets.is_some())
+            .field("loopback_scope", &self.loopback_scope)
             .finish_non_exhaustive()
     }
 }

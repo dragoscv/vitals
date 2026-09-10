@@ -35,6 +35,7 @@ async fn main() {
         host: Arc::new(|| None),
         alerts: Arc::new(Vec::new),
         version: "prove".into(),
+        loopback_scope: None,
     };
 
     let handle = vitals_server::serve(state, 0).await.expect("bind");

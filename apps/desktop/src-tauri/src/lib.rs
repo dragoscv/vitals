@@ -71,8 +71,9 @@ pub fn run() {
         .setup(setup)
         .on_window_event(on_window_event)
         .invoke_handler(handler())
-        .run(tauri::generate_context!())
-        .expect("failed to start the Vitals application");
+        .build(tauri::generate_context!())
+        .expect("failed to start the Vitals application")
+        .run(on_run_event);
 }
 
 /// Every command the webview may call.
@@ -177,8 +178,23 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let handle = sampling::spawn(app.handle().clone());
     app.manage(handle);
     tray::install(app.handle())?;
+    server::start_local_api(app.handle());
     arm_reveal_safety_net(app.handle().clone());
     Ok(())
+}
+
+/// Teardown that must happen however the app ends.
+///
+/// `Exit` is the one event both quit paths — the tray menu and the
+/// `quit_app` command, which each call `app.exit(0)` — funnel through, so the
+/// local API's discovery file is removed here rather than in each of them.
+// Tauri's `run` callback signature takes the event by value; there is no
+// borrowing variant to satisfy `needless_pass_by_value` with.
+#[allow(clippy::needless_pass_by_value)]
+fn on_run_event(app: &tauri::AppHandle, event: tauri::RunEvent) {
+    if matches!(event, tauri::RunEvent::Exit) {
+        server::stop_local_api(app);
+    }
 }
 
 /// The × button hides rather than closes while `closeToTray` is on.

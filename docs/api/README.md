@@ -8,6 +8,44 @@ Remote access in the desktop app, and it listens on your LAN only, over plain
 HTTP. Read the `info.description` in the OpenAPI document for the threat model
 before exposing it any further than that.
 
+The one exception is the **local API** below, which the `vitals` CLI uses and
+which is reachable only from the machine itself.
+
+## Local API (loopback)
+
+While the desktop app runs it also serves the same routes on
+`http://127.0.0.1:7330`, for scripts and the `vitals` CLI on the same
+machine. Two things differ from the LAN server:
+
+- **No token is needed from `127.0.0.1`.** A process running as you on this
+  machine already owns Vitals — it can read the token file or end the app —
+  so a token would buy nothing and would make `vitals ps` unusable until you
+  had paired with your own computer. Loopback callers are granted **control**
+  scope. The LAN server never does this: the decision is made on the
+  connecting address, so a request over the network still needs a token even
+  on a machine where the local API is up.
+- **It is not on the network.** The listener is bound to `127.0.0.1` only;
+  there is no firewall prompt, no mDNS announcement and nothing in Settings.
+
+If 7330 is already taken the app falls back to a port the OS chooses. Read the
+**discovery file** rather than assuming the port:
+
+```
+%LOCALAPPDATA%\Vitals\local-api.json
+```
+
+```json
+{ "port": 7330, "pid": 12345, "version": "0.1.0" }
+```
+
+The file is written when the app starts and removed when it exits. After a
+crash it may survive; check that `pid` is still alive before trusting `port`.
+
+```powershell
+$d = Get-Content "$env:LOCALAPPDATA\Vitals\local-api.json" | ConvertFrom-Json
+curl.exe -s "http://127.0.0.1:$($d.port)/api/v1/snapshot"
+```
+
 ## Getting a token
 
 1. In Vitals, open **Settings → Remote access** and turn it on. Windows will

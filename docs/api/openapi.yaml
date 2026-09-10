@@ -18,6 +18,19 @@ info:
     device that never scanned the QR code from reading your process list — not
     to survive an attacker who can already read your traffic.
 
+    ## The local API: the same routes on `127.0.0.1:7330`, no token needed
+
+    Independently of Remote access, a running desktop serves these routes on
+    the loopback interface only, so the `vitals` CLI and local scripts can
+    attach without pairing. A caller connecting from `127.0.0.1` is granted
+    `control` scope with no token: a process running as the same user on the
+    same machine already owns the app, and a token would buy nothing. The
+    listener is bound to loopback, is never advertised over mDNS, and the
+    grant is decided on the connecting address — a request over the LAN still
+    needs a token. If port 7330 is taken the OS picks another; the app writes
+    `%LOCALAPPDATA%\Vitals\local-api.json` as `{"port":N,"pid":P,"version":"x.y.z"}`
+    on start and removes it on exit. See `README.md` in this directory.
+
     ## Authentication: a bearer token from QR pairing
 
     Every route except `GET /api/v1/health` (and the static mobile web app)

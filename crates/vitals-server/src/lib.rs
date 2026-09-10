@@ -42,5 +42,5 @@ pub use auth::{Scope, Token, TokenSet};
 pub use control::{ControlError, ControlRequest, Controller};
 pub use lan::{Interface, interfaces, pairing_qr_svg, pairing_url};
 pub use mdns::{Advertisement, advertise};
-pub use router::{ServeHandle, serve};
+pub use router::{ServeHandle, serve, serve_on};
 pub use state::{ApiState, FrameSource, StaticAssets};

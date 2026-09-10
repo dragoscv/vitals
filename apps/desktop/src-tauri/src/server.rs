@@ -7,8 +7,16 @@
 //! from the right-click menu" are the same function with the same risk
 //! checks.
 //!
-//! **Off by default.** Nothing here binds a socket until `start_lan_server`
-//! is called, and it is called only when the user flips the switch.
+//! **The LAN server is off by default.** Nothing binds a network-facing
+//! socket until `start_lan_server` is called, and it is called only when the
+//! user flips the switch.
+//!
+//! The **local API** is different: it listens on `127.0.0.1` from startup so
+//! the `vitals` CLI can attach to the running app without any setup. It is
+//! unreachable from the network by construction — the bind address is the
+//! mechanism, not a filter — and grants a loopback caller `control` without
+//! a token, because a process on this machine as this user already owns the
+//! app (see `ApiState::loopback_scope`).
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -30,11 +38,31 @@ type CommandResult<T> = std::result::Result<T, CommandError>;
 /// type by hand if the QR scan fails.
 pub const DEFAULT_PORT: u16 = 7331;
 
+/// The loopback listener's preferred port. One below the LAN default so the
+/// two are easy to tell apart in `netstat`. If it is taken the OS picks
+/// another and the discovery file says which.
+pub const LOCAL_PORT: u16 = 7330;
+
+/// What the CLI reads to find the running app.
+///
+/// The `pid` lets a reader detect a stale file left by a crash: if that
+/// process is gone, so is the listener, however plausible the port looks.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct LocalApiDiscovery {
+    pub port: u16,
+    pub pid: u32,
+    pub version: String,
+}
+
 /// Managed by Tauri: everything about the server that outlives a request.
 pub struct LanServer {
     frames: FrameSource,
     tokens: Arc<ServerLock<TokenSet>>,
     running: Mutex<Option<ServeHandle>>,
+    /// The loopback-only listener. Held apart from `running` so the LAN
+    /// status and port keep meaning "what a phone can reach"; the local API
+    /// is never shown in Settings and is never advertised.
+    local: Mutex<Option<ServeHandle>>,
     /// The `mDNS` record, held beside the listener rather than inside it so
     /// the two can only ever be started and stopped together.
     advertisement: Mutex<Option<Advertisement>>,
@@ -45,6 +73,7 @@ impl std::fmt::Debug for LanServer {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("LanServer")
             .field("running", &self.running.lock().is_some())
+            .field("local", &self.local.lock().is_some())
             .finish_non_exhaustive()
     }
 }
@@ -63,6 +92,7 @@ impl LanServer {
             frames: FrameSource::new(),
             tokens: Arc::new(ServerLock::new(tokens)),
             running: Mutex::new(None),
+            local: Mutex::new(None),
             advertisement: Mutex::new(None),
             controller: Arc::new(DesktopController),
         }
@@ -73,13 +103,155 @@ impl LanServer {
         self.frames.publish(frame);
     }
 
+    /// True while any listener — LAN or loopback — wants frames. The sampler
+    /// gates its per-tick clone on this, so it must cover both or the CLI
+    /// would see a server that answers `204` forever.
     #[must_use]
     pub fn is_running(&self) -> bool {
-        self.running.lock().is_some()
+        self.running.lock().is_some() || self.local.lock().is_some()
     }
 
+    /// The LAN listener's port only. The local API is deliberately excluded:
+    /// Settings shows this as "what your phone connects to".
     fn port(&self) -> Option<u16> {
         self.running.lock().as_ref().map(|h| h.addr.port())
+    }
+
+    /// The loopback listener's port, if it is up.
+    #[must_use]
+    pub fn local_port(&self) -> Option<u16> {
+        self.local.lock().as_ref().map(|h| h.addr.port())
+    }
+
+    /// Builds the state both listeners serve. One function so the loopback
+    /// and LAN servers can never disagree about frames, tokens or controller;
+    /// the two differ only in `assets` and `loopback_scope`.
+    fn api_state(
+        &self,
+        app: &tauri::AppHandle,
+        assets: Option<vitals_server::StaticAssets>,
+        loopback_scope: Option<Scope>,
+    ) -> ApiState {
+        ApiState {
+            frames: self.frames.clone(),
+            tokens: Arc::clone(&self.tokens),
+            controller: Arc::clone(&self.controller),
+            assets,
+            host: Arc::new(host_info),
+            alerts: {
+                let app = app.clone();
+                Arc::new(move || {
+                    tauri::Manager::try_state::<crate::alerts::Alerts>(&app)
+                        .map(|a| a.active())
+                        .unwrap_or_default()
+                })
+            },
+            version: app.package_info().version.to_string(),
+            loopback_scope,
+        }
+    }
+}
+
+// ── The local API ──────────────────────────────────────────────────────
+
+fn discovery_path() -> PathBuf {
+    data_dir().join("local-api.json")
+}
+
+/// Starts the loopback listener and writes the discovery file.
+///
+/// Called from `setup`, before the sampler's first tick. Tries
+/// [`LOCAL_PORT`] first so the CLI has a well-known default, and falls back
+/// to an OS-chosen port rather than failing: a second Vitals build running
+/// side by side, or an unrelated program on 7330, must not cost the user
+/// their monitor. Failure here is logged, never fatal — the desktop works
+/// without it and only the CLI is affected.
+pub fn start_local_api(app: &tauri::AppHandle) {
+    let Some(server) = tauri::Manager::try_state::<LanServer>(app) else {
+        tracing::warn!("local API not started: server state is not managed");
+        return;
+    };
+    if server.local.lock().is_some() {
+        return;
+    }
+
+    let state = server.api_state(app, None, Some(Scope::Control));
+    let version = app.package_info().version.to_string();
+    let app = app.clone();
+
+    tauri::async_runtime::spawn(async move {
+        let loopback = std::net::Ipv4Addr::LOCALHOST;
+        let preferred = std::net::SocketAddr::from((loopback, LOCAL_PORT));
+        let handle = match vitals_server::serve_on(state.clone(), preferred).await {
+            Ok(handle) => handle,
+            Err(error) => {
+                tracing::info!(%error, port = LOCAL_PORT, "preferred local API port is taken; asking the OS for one");
+                match vitals_server::serve_on(state, std::net::SocketAddr::from((loopback, 0)))
+                    .await
+                {
+                    Ok(handle) => handle,
+                    Err(error) => {
+                        tracing::warn!(%error, "could not start the local API; the CLI will not find this app");
+                        return;
+                    }
+                }
+            }
+        };
+
+        let port = handle.addr.port();
+        let Some(server) = tauri::Manager::try_state::<LanServer>(&app) else {
+            return;
+        };
+        *server.local.lock() = Some(handle);
+        tracing::info!(port, "local API listening on 127.0.0.1");
+
+        write_discovery(&LocalApiDiscovery {
+            port,
+            pid: std::process::id(),
+            version,
+        });
+    });
+}
+
+/// Stops the loopback listener and removes the discovery file.
+///
+/// Best effort, called on the quit path. The `pid` in the file lets a CLI
+/// cope with the file surviving a crash, so a failure to delete here is a
+/// nuisance rather than a wrong answer.
+pub fn stop_local_api(app: &tauri::AppHandle) {
+    if let Some(server) = tauri::Manager::try_state::<LanServer>(app)
+        && let Some(mut handle) = server.local.lock().take()
+    {
+        handle.stop();
+        tracing::info!("local API stopped");
+    }
+    remove_discovery();
+}
+
+fn write_discovery(discovery: &LocalApiDiscovery) {
+    let path = discovery_path();
+    if let Some(dir) = path.parent() {
+        let _ = std::fs::create_dir_all(dir);
+    }
+    match serde_json::to_vec(discovery) {
+        Ok(bytes) => {
+            if let Err(error) = std::fs::write(&path, bytes) {
+                tracing::warn!(%error, ?path, "could not write the local API discovery file");
+            }
+        }
+        Err(error) => tracing::warn!(%error, "could not serialise the local API discovery file"),
+    }
+}
+
+fn remove_discovery() {
+    let path = discovery_path();
+    match std::fs::remove_file(&path) {
+        Ok(()) => {}
+        // Already gone is the desired end state, not a failure.
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => {
+            tracing::warn!(%error, ?path, "could not remove the local API discovery file");
+        }
     }
 }
 
@@ -247,22 +419,9 @@ pub async fn start_lan_server(
         return Ok(existing);
     }
 
-    let state = ApiState {
-        frames: server.frames.clone(),
-        tokens: Arc::clone(&server.tokens),
-        controller: Arc::clone(&server.controller),
-        assets: Some(embedded_assets(app.clone())),
-        host: Arc::new(host_info),
-        alerts: {
-            let app = app.clone();
-            Arc::new(move || {
-                tauri::Manager::try_state::<crate::alerts::Alerts>(&app)
-                    .map(|a| a.active())
-                    .unwrap_or_default()
-            })
-        },
-        version: app.package_info().version.to_string(),
-    };
+    // `loopback_scope: None` on purpose: this listener faces the network, and
+    // a local caller who wants tokenless access has the loopback listener.
+    let state = server.api_state(&app, Some(embedded_assets(app.clone())), None);
 
     let handle = vitals_server::serve(state, port.unwrap_or(DEFAULT_PORT))
         .await
@@ -454,4 +613,64 @@ fn embedded_assets(app: tauri::AppHandle) -> vitals_server::StaticAssets {
             (asset.bytes().to_vec(), mime)
         })
     })
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_discovery_file_has_the_exact_shape_the_cli_parses() {
+        // `{"port":N,"pid":P,"version":"x.y.z"}` is the contract the CLI is
+        // built against; a serde rename here would break `vitals ps` with
+        // nothing failing to compile.
+        let text = serde_json::to_string(&LocalApiDiscovery {
+            port: 7330,
+            pid: 4242,
+            version: "1.2.3".into(),
+        })
+        .unwrap();
+        assert_eq!(text, r#"{"port":7330,"pid":4242,"version":"1.2.3"}"#);
+
+        let back: LocalApiDiscovery = serde_json::from_str(&text).unwrap();
+        assert_eq!(back.port, 7330);
+        assert_eq!(back.pid, 4242);
+    }
+
+    #[test]
+    fn the_local_listener_counts_as_running_but_is_not_the_lan_port() {
+        // The sampler publishes only while `is_running()`; if the loopback
+        // listener did not count, the CLI would see 204 forever. Yet the
+        // Settings panel's port must keep meaning the LAN listener only.
+        let server = LanServer::new();
+        assert!(!server.is_running());
+        assert_eq!(server.port(), None);
+
+        let handle = tauri::async_runtime::block_on(async {
+            let state = ApiState {
+                frames: server.frames.clone(),
+                tokens: Arc::clone(&server.tokens),
+                controller: Arc::clone(&server.controller),
+                assets: None,
+                host: Arc::new(|| None),
+                alerts: Arc::new(Vec::new),
+                version: "test".into(),
+                loopback_scope: Some(Scope::Control),
+            };
+            vitals_server::serve_on(state, "127.0.0.1:0".parse().unwrap())
+                .await
+                .unwrap()
+        });
+        let port = handle.addr.port();
+        *server.local.lock() = Some(handle);
+
+        assert!(server.is_running());
+        assert_eq!(server.port(), None, "the LAN port must not report loopback");
+        assert_eq!(server.local_port(), Some(port));
+
+        if let Some(mut h) = server.local.lock().take() {
+            h.stop();
+        }
+    }
 }
