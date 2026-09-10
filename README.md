@@ -3,7 +3,8 @@
 **See what your computer is actually doing.**
 
 A fast, native system monitor and task manager for Windows — with macOS and
-Linux to follow. Free and open source, forever.
+Linux to follow. Free and open source, forever. Watch it from your phone,
+scrape it with Prometheus, script it from a terminal.
 
 > **Status: early development.** Every section works against live data on
 > Windows — there are no placeholder screens left. The Windows sampler is
@@ -31,10 +32,15 @@ Vitals is an attempt at all of it in one place, fast, and readable.
   unknown, never as zero. A feature your privileges do not allow is greyed out
   with the reason, never a button that throws when clicked.
 - **"Why is my PC slow?"** One click correlates CPU, disk, memory pressure,
-  network and thermal throttling, then names the cause in plain language.
+  network and thermal throttling, then names the cause in plain language —
+  a verdict, the culprits, and a minute of chart, with a Copy button for
+  pasting into a bug report.
 - **It catches what vanishes.** Processes that live for under a second, and
   windows that flash and disappear, are recorded rather than missed between
   samples.
+- **It is not only a window.** The same readings reach a tray icon, an
+  always-on-top HUD, your phone over the LAN, Prometheus, Home Assistant, a
+  TypeScript SDK and a CLI — all from one sampler, so they always agree.
 
 ## What works today
 
@@ -61,19 +67,72 @@ Vitals is an attempt at all of it in one place, fast, and readable.
 - **App history** — accumulated per-application CPU, disk and peak memory.
   Vitals' own tally, starting at first run; not Windows' SRUM data.
 - **Users** — logon sessions with per-session process and resource rollups.
+- **Processes, deeper** — efficiency mode, affinity presets, open handles
+  and loaded modules per process, and file actions on the executable.
+- **Alerts** — a stateful engine in Rust with sustain, hysteresis and
+  cooldown, feeding the dashboard, the tray, toasts and the LAN API. Memory
+  pressure needs a high page-fault rate _and_ low free memory; 90 % RAM full
+  of file cache is a healthy machine.
+- **Command palette** (`Ctrl+K`), keyboard shortcuts (`?` lists them), CSV
+  and JSON export on every table, and search that lives in the URL so a view
+  can be linked.
+- **History** — a SQLite time-series store with retention, and a flight
+  recorder that captures a minute of everything for a bug report.
+
+### Around the edges
+
+- **Tray icon** with live CPU; closing the window hides it there if you ask.
+- **HUD** — an always-on-top, transparent, click-through overlay for CPU,
+  memory and GPU. `Ctrl+Shift+H`.
+- **Updater** — checks a minisign signature before installing anything; an
+  unsigned update is refused.
+
+### From your phone
+
+Turn on **Remote access** in Settings, scan the QR code, and the phone shows
+the machine's load, its process list and its alerts. Several PCs sit side by
+side. Ending a process from the phone needs a separate control-scoped
+token and a two-tap confirm. Off by default; nothing listens until you turn
+it on. See [SECURITY.md](SECURITY.md) for the threat model.
+
+### From anything else
+
+The phone talks to a small HTTP server inside the app, and so can you:
+
+- **REST, SSE and WebSocket** at `/api/v1/*` — the contract is in
+  [`docs/api/openapi.yaml`](docs/api/openapi.yaml) and the short version in
+  [`docs/api/README.md`](docs/api/README.md).
+- **Prometheus** at `/metrics`. Absent readings are absent series, not zero.
+- **Home Assistant** — a ready-made package in
+  [`docs/integrations/home-assistant.md`](docs/integrations/home-assistant.md).
+- **`@vitals/client`** — a typed TypeScript SDK over all three transports,
+  built on the same generated types the app uses.
+- **mDNS** — the server advertises `_vitals._tcp` while it runs, and stops
+  when it stops.
+
+### From a terminal
+
+```powershell
+vitals top              # live, like the app's process list
+vitals ps --top 10      # one shot; add --json to pipe it
+vitals info             # the machine
+vitals report --duration 30
+vitals serve            # headless LAN server on :7331, token printed once
+```
+
+When the desktop app is running the CLI attaches to it over loopback and
+sees the same numbers. When it is not, the CLI samples the machine itself.
 
 ## Planned
 
-**Core** — efficiency mode, affinity presets and a handle/DLL finder on
-Processes · _measured_ startup impact scores.
+**Core** — _measured_ startup impact scores · an elevated helper for the
+readings that need `SeDebugPrivilege` (per-process disk I/O is one).
 
 **Beyond the task manager** — per-app connection blocking · GPU memory,
 clocks and fan, which need a vendor SDK (NVML, ADL) rather than anything
 Windows exposes.
 
-**Around the edges** — tray with live graphs · a floating always-on-top HUD ·
-a command palette · alerts and rules · a flight recorder that captures a
-minute of everything for sharing in a bug report · a scriptable CLI.
+**Platforms** — macOS and Linux backends behind the existing traits.
 
 ## Installing
 
@@ -122,6 +181,7 @@ cargo test --workspace # Rust tests
 pnpm lint              # eslint
 cargo clippy --workspace --all-targets -- -D warnings
 pnpm protocol:generate # regenerate TypeScript types from the Rust model
+pwsh -NoProfile -File scripts/check-drift.ps1   # contract drift, two seconds
 ```
 
 Every gate CI runs, in one command:
@@ -143,6 +203,12 @@ cargo test --workspace --release -- --ignored
 pwsh -NoProfile -File scripts/check-size.ps1
 ```
 
+To see the LAN API against your own machine without pairing anything:
+
+```bash
+cargo run -p vitals-server --example serve_dev   # :7332, token "dev"
+```
+
 ### A note on TypeScript
 
 The repo pins two compilers on purpose. `tsc` is TypeScript 7 (the Go port) and
@@ -157,18 +223,21 @@ and can be collapsed once typescript-eslint supports 7.1.
 ```
 apps/
   desktop/     Tauri 2 shell — React 19 frontend, thin Rust host
+               three entries: the app, the HUD overlay, the phone page
   helper/      optional elevated service: ETW tracing, privileged operations
-  cli/         scriptable companion
+               (planned; a stub today)
+  cli/         vitals top / ps / info / report / serve
 crates/
   vitals-core  OS-agnostic domain model and provider traits
   vitals-win   Windows backend (NT native API, PDH, WMI, ETW, IPHLPAPI)
   vitals-macos empty backend stub — the trait boundary, no implementation
   vitals-linux empty backend stub — the trait boundary, no implementation
   vitals-ipc   frame ring buffer and the helper command protocol
-  vitals-store local time-series storage
+  vitals-store SQLite time-series history, retention, flight recorder
+  vitals-server axum HTTP server: REST, SSE, WebSocket, Prometheus, mDNS
   vitals-bench benchmark harness
 packages/
-  ui  charts  protocol (generated)  i18n  config
+  ui  charts  protocol (generated)  client (SDK)  i18n  config
 ```
 
 Two principles hold the design together:
@@ -178,6 +247,9 @@ Two principles hold the design together:
 2. **The dependency arrow points inward.** `vitals-win` depends on
    `vitals-core`, never the reverse — which is what makes macOS and Linux an
    implementation rather than a rewrite.
+
+The longer version is in [docs/architecture.md](docs/architecture.md); the
+decisions behind it are in [docs/adr/](docs/adr/README.md).
 
 ## Contributing
 

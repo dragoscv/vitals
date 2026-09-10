@@ -1,0 +1,33 @@
+# Latest-stable policy (ADR 0005): every dependency is expected to move
+# forward continuously. Weekly, grouped, so a Monday brings three PRs rather
+# than thirty.
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      cargo:
+        patterns: ['*']
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      npm:
+        patterns: ['*']
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      actions:
+        patterns: ['*']

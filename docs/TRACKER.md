@@ -143,13 +143,13 @@ Status values: `todo`, `doing`, `done`, `blocked`, `dropped`.
 | S1    | Dependency upgrades, tooling, VS Code tasks                          | done                                                                                             |
 | S2    | Truth fixes — dead settings, false capabilities, dead crates         | done (S2-03 notifications, S2-09 persistence unify, S2-15 get_capabilities carried into S8/S7)   |
 | S3    | `vitals-store` for real: SQLite history, retention, flight recorder  | done                                                                                             |
-| S4    | LAN server: REST, SSE, WebSocket, Prometheus, mDNS                   | done except S4-11 named-pipe IPC (deferred to S5, the CLI slice it serves)                       |
-| S5    | CLI that samples directly                                            | done (6/6; attaches to the app over :7330, samples directly otherwise)                           |
+| S4    | LAN server: REST, SSE, WebSocket, Prometheus, mDNS                   | done (S4-11 named-pipe IPC landed 2026-09-11 with the CLI attach path)                           |
+| S5    | CLI that samples directly                                            | done (6/6; attaches to the app over its named pipe, then :7330, samples directly otherwise)      |
 | S6    | Mobile PWA and QR pairing                                            | done except S6-05 alerts feed (S8 engine now exposes GET /api/v1/alerts; phone UI pending)       |
 | S7    | UI polish: motion, palette, ultrawide, export, shortcuts             | done (10/10)                                                                                     |
 | S8    | Tray, HUD, alerts, notifications, updater                            | done (6/6; alerts engine in Rust feeds desktop, tray, toasts, LAN)                               |
 | S9    | New Windows metrics: DiskCounters, efficiency mode, handles, modules | backend done for 01/02/04/05 (vitals-win + vitals-core); 03/06/07 and the Tauri commands pending |
-| S10   | Docs, ADRs, CI, supply-chain audits                                  | todo                                                                                             |
+| S10   | Docs, ADRs, CI, supply-chain audits                                  | done except S10-12 (ARM64 leg unproven — needs a run on `windows-11-arm`, and agents never push) |
 
 Per-item status lives in `tracker.csv`. This file records the reasoning; the
 CSV records the state.
@@ -160,6 +160,101 @@ CSV records the state.
 
 Every claim of "done" needs a command and its output. Recorded here as work
 lands, newest first.
+
+### 2026-09-11 — S4-11 / S5-06 attach pipe: one sampler per machine (no commit yet)
+
+**Why it came back.** The 2026-09-10 decision was loopback HTTP only. That
+left the CLI dependent on a discovery file, a port and a PID check, and the
+fallback silently ran a second sampler beside the app. The pipe removes all
+three: `vitals-ipc::attach` binds an `interprocess` local socket named
+`vitals-<user>` (a Windows named pipe; Unix socket elsewhere), speaks
+newline-delimited JSON (`hello` → `{status,version,modelVersion}`,
+`subscribe` → frames, `snapshot` → one frame), and the desktop feeds it from
+`sampling.rs` beside the LAN publish, gated on `has_clients()` so an idle pipe
+costs one atomic load per tick. No tokens: the pipe ACL is the boundary (module
+doc explains). Loopback HTTP is kept for `--attach <url>` and older desktops.
+
+**Fold rule.** The server keeps a materialised view (exits before changes, as
+`vitals-server::FrameSource`) so the first frame a subscriber sees is complete
+and current — not the latest delta, not the stale keyframe. A subscriber that
+falls 8 frames behind is re-synchronised with a keyframe instead of a delta it
+cannot apply. Frames are not folded while nobody is attached, so the sampler
+reads `wants_keyframe()` and forces one on the first tick after a connect.
+
+**Defect found by looking, not by tests.** Against the live app the first
+`--source app` frame took **15 s**: the window was hidden, so the sampler was
+on `SampleRate::Background` (20 s), and `snapshot` gave up at 6 s. The wait is
+now 25 s with the reason in a comment. Same class as every other new-consumer
+audit in this file.
+
+```
+cargo clippy -p vitals-ipc -p vitals-cli -p vitals-desktop --all-targets -- -D warnings
+  → Finished `dev` profile (0 warnings)
+cargo test -p vitals-ipc -p vitals-cli -p vitals-desktop
+  → vitals-ipc lib 20 passed; tests/attach.rs 9 passed; vitals-cli 35 passed; vitals-desktop 34 passed
+vitals top --json --source local | Select-Object -First 3
+  → source: sampling directly
+    {"t":1789077347471,"system":{"cpu":{"total":0.0, …      (first tick primes baselines)
+    {"t":1789077348517,"system":{"cpu":{"total":67.49068, …
+vitals info --source app          (desktop PID 76916, rebuilt by tauri dev at 00:56)
+  → source: attached to Vitals 0.1.0 over vitals-vladu
+    Host  DRAGOS / OS  Windows 11 10.0 (26200)
+vitals top --json --source app | Select-Object -First 3
+  → source: attached to Vitals 0.1.0 over vitals-vladu
+    {"t":1789077391770,"system":{"cpu":{"total":51.519672, …
+    {"t":1789077407871, …   (15 s gap = Background rate with the window hidden)
+```
+
+Not updated, with reason: `docs/adr/**`, README, CHANGELOG, CONTRIBUTING,
+SECURITY, workflows — owned by another agent this session; the ADR recording
+the loopback-only decision should gain a "superseded 2026-09-11" note when
+they next touch it. `packages/client` / SDK: unaffected, the pipe is not a
+network surface. Locales: no UI string changed.
+
+### 2026-09-11 — S10 docs, ADRs, CI, audits (no commit — docs and workflows only)
+
+**What was written.** 29 ADRs in `docs/adr/` (D1–D22 from the decisions
+table, plus the seven technical decisions named in S10-02) with a README
+index; `docs/architecture.md`; README rewritten around what exists now;
+CONTRIBUTING pointed at `verify.ps1`, `check-drift.ps1`, the hook install,
+the prover pattern and the sentence-name rule for tests; SECURITY.md's LAN
+threat model, with the helper reframed as planned-not-shipped; CHANGELOG
+Unreleased grouped by commit type over `7d9128c..HEAD`.
+
+**Every factual claim was checked with `rg` before it was written**, and
+two were wrong in the brief: the pairing fragment key is `#t=`, not
+`#token=` (`lan.rs:197`), and tokens are 32 CSPRNG bytes base64url-encoded
+(`auth.rs:134`), which is what SECURITY.md now says. S10-03 turned out to
+exist already (`docs/api/README.md` + `openapi.yaml`, commit `38aecf2`);
+it is linked rather than duplicated.
+
+**CI.** `ci.yml`: a `Supply chain` job — `cargo audit --deny warnings` via
+`taiki-e/install-action@v2` (never `rustsec/audit-check`, which compiles
+the tool from source) and `pnpm audit --audit-level high`; the frontend job
+now builds the bundle and runs `check-size.ps1 -SkipInstaller`. No
+tag-triggered CI run was added. `release.yml`: Verify, a new Bindings-drift
+step and the perf budget are gated to the x64 leg (F24); the global
+`RUSTFLAGS` is gone (F25); `setup-node@v6` on both files. `dependabot.yml`
+covers cargo, npm and github-actions weekly, grouped. `ISSUE_TEMPLATE/
+config.yml` points at `dragoscv/vitals` (F17).
+
+**Not done, and why.** S10-12 (ARM64 leg): the matrix entry is correct
+by inspection but proving it needs a workflow run on `windows-11-arm`,
+which needs a push — and agents never push (D19). Marked `blocked` in the
+CSV. No Rust or TypeScript source was touched, so no cargo or vitest gate
+was re-run here; the drift gate and format check were.
+
+```text
+npx prettier --write <every md/yml touched>   → all formatted
+pnpm format:check                              → All matched files use Prettier code style!
+pwsh -NoProfile -File scripts/check-drift.ps1  → drift: 0 failure(s), 2 warning(s)
+                                                 checked 11 ts_rs files, 52 invokes, 54 commands, 2 locales
+                                                 (warnings pre-existing: export_flight_recording,
+                                                  query_machine_history registered but not invoked)
+rg -n "vitals-app" . --glob '!target'          → only the F17 finding above and the S10-11 tracker row
+rg --files crates apps | rg "examples[\\/]"    → prove_store, prove_lan, prove_process_detail, serve_dev
+                                                 all exist as named in CONTRIBUTING.md
+```
 
 ### 2026-09-10 — S7-01/02/03/06 palette, shortcuts, transitions, motion (commit 45371d1) + toasts mounted
 

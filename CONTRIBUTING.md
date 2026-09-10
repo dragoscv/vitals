@@ -26,21 +26,43 @@ Requires [Rust](https://rustup.rs) stable, [Node](https://nodejs.org) 22+,
 git clone https://github.com/dragoscv/vitals
 cd vitals
 pnpm install
+pwsh -NoProfile -File scripts/hooks/install.ps1   # once per clone
 pnpm --filter @vitals/desktop dev
 ```
 
+The hook install puts a pre-commit gate in place that catches formatting,
+contract drift, secrets and a stray `.only` in a few seconds — before CI
+spends four minutes telling you the same thing.
+
 ## Before you open a pull request
 
-```bash
-cargo fmt --all
-cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace
-pnpm lint && pnpm typecheck && pnpm test
+One command runs every gate CI runs and exits non-zero on the first failure:
+
+```powershell
+pwsh -NoProfile -File scripts/verify.ps1
 ```
 
-CI runs all of these plus a check that the generated TypeScript matches the
-Rust model. If you changed anything in `crates/vitals-core`, run
-`pnpm protocol:generate` and commit the result.
+The individual pieces, if you want them separately:
+
+```powershell
+pwsh -NoProfile -File scripts/check-drift.ps1   # two seconds; run it first
+cargo fmt --all; cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace
+pnpm lint; pnpm typecheck; pnpm test; pnpm format:check
+pwsh -NoProfile -File scripts/check-size.ps1 -SkipInstaller
+```
+
+`check-drift.ps1` looks for the things two separately-compiled sides cannot
+catch: a struct deriving `ts_rs::TS` without `#[serde(rename_all =
+"camelCase")]`, an `invoke('name')` with no `#[tauri::command]` behind it
+(or one not in `generate_handler!`), and a locale key present in one language
+only. Each of those shipped once before the script existed.
+
+If you changed anything in `crates/vitals-core`, run `pnpm protocol:generate`
+and commit the result; CI fails on a dirty `packages/protocol/src/generated`.
+
+**Do not chain `git commit` after the gates with `;`.** The commit runs
+whether or not the gates passed. Run the gates, read the output, then commit.
 
 ## House rules
 
@@ -72,9 +94,11 @@ or a WMI query belongs behind a cache or on a slower cadence.
 noise. A comment explaining why it is written that way — a race, a platform
 quirk, a measured trade-off — is the most valuable thing in the file.
 
+**British spelling** in prose and comments.
+
 ## Tests
 
-Test behaviour and edge cases, not implementation. The tests worth writing are
+Test the **guarantee**, not the implementation. The tests worth writing are
 the ones that encode a decision:
 
 - A dropped frame is not zero CPU.
@@ -82,6 +106,39 @@ the ones that encode a decision:
 - A PID recycled inside one frame must not delete the new process.
 
 Every one of those was a real bug caught by a test written to fail first.
+
+**Name a test as a full sentence stating the guarantee:**
+`fn exits_apply_before_changes_so_a_recycled_pid_survives()`. If the name
+cannot be written that way, the test probably does not assert anything worth
+keeping.
+
+**A green test is not evidence until you know what would make it fail.**
+Before you commit one, mutate the code it covers and watch it go red. Two
+tests in this repo were decorative until someone tried. Prefer one
+adversarial test — the wrong token, the recycled PID, the read scope trying
+to control — to five happy paths.
+
+**Shared fixtures** live behind `vitals-core`'s `fixtures` feature:
+`fixtures::system()`, `::process()`, `::keyframe()`. Do not hand-roll a
+thirty-field struct per crate.
+
+### The prover pattern
+
+Fixtures cannot show that a sampler's real output survives serialisation,
+storage and a client's parser. Each subsystem with an external boundary has
+an example that runs it against the actual machine and prints what it found:
+
+```powershell
+cargo run -p vitals-store  --example prove_store    # real frames → SQLite → back
+cargo run -p vitals-server --example prove_lan      # sample, serve, print what a phone gets
+cargo run -p vitals-win    --example prove_process_detail
+cargo run -p vitals-server --example serve_dev      # live API on :7332, token "dev"
+```
+
+Run the ones covering the code you touched. Add one when you add a boundary.
+Then open the thing you built and read the numbers — two of the defects
+found in one day were invisible to every test and obvious within ten
+seconds of looking at the page.
 
 ## Commits
 

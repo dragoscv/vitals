@@ -40,19 +40,19 @@ S4-07,S4,server,Serve mobile assets,Via AppHandle asset_resolver - do not embed 
 S4-08,S4,server,LAN interface enumeration,list_afinet_netifas with virtual-adapter filtering and user choice,D1,done,server crate + 11 socket tests + prove_lan live 2026-09-10
 S4-09,S4,server,mDNS advertisement,vitals.local so the QR URL survives a DHCP change,D22,done,mdns-sd 0.21.3; lifecycle test mutation-proven 2026-09-10
 S4-10,S4,server,Settings panel for the server,Off by default; port; interface; token lifecycle; QR,D3,done,server crate + 11 socket tests + prove_lan live 2026-09-10
-S4-11,S4,server,Named-pipe IPC for the CLI,interprocess - lets the CLI attach to a running app,D2,done,DECIDED loopback HTTP instead of a named pipe (askQuestions 2026-09-10); serve_on + loopback_scope 2026-09-10
+S4-11,S4,server,Named-pipe IPC for the CLI,interprocess - lets the CLI attach to a running app,D2,done,vitals-ipc::attach over interprocess local socket vitals-<user>; hello/subscribe/snapshot NDJSON; desktop ipc.rs gated on has_clients; 9 socket tests + 8 framing/fold tests; live: vitals info --source app attached 2026-09-11 (supersedes the 2026-09-10 loopback-only decision; loopback kept for --attach URL)
 S4-12,S4,server,TypeScript client SDK package,Typed client over REST and SSE generated from the protocol types,D2,done,@vitals/client, 30 tests, zero deps 2026-09-10
 S5-01,S5,cli,Implement vitals ps,Direct sampling via vitals-win; table and JSON,D4,done,ps: table+JSON, attached or direct 2026-09-10
 S5-02,S5,cli,Implement vitals top,Live refreshing view,D4,done,top: SSE fold, crossterm, NDJSON with --json 2026-09-10
 S5-03,S5,cli,Implement vitals info,Host information,D4,done,info: HostInfo + summary 2026-09-10
 S5-04,S5,cli,Implement vitals report,The why-is-my-PC-slow bundle,D4,done,report: JSON bundle host/alerts/samples 2026-09-10
 S5-05,S5,cli,Implement vitals serve,Headless LAN server with no GUI,D4,done,serve: headless vitals-server, token printed once 2026-09-10
-S5-06,S5,cli,Attach mode,Read the running app via the named pipe,D2,done,attach over loopback :7330, discovery file + pid check 2026-09-10
+S5-06,S5,cli,Attach mode,Read the running app via the named pipe,D2,done,--source auto|app|local; pipe first then loopback :7330 then direct with a dim stderr note; live vitals top --json --source app streamed frames 2026-09-11
 S6-01,S6,mobile,mobile.html entry,build.rolldownOptions.input; own component tree; never imports the desktop shell,D14,done,mobile.html entry + import-boundary test 2026-09-10
 S6-02,S6,mobile,Manifest and A2HS meta,No service worker - LAN is not a secure context,D14,done,inline manifest, viewport-fit, no SW 2026-09-10
 S6-03,S6,mobile,Mobile overview screen,CPU RAM GPU network disk temps with sparklines,D15,done,MachineCard w/ sparklines, live vs real server 2026-09-10
 S6-04,S6,mobile,Mobile processes list,Read-only by default,D15,done,virtualised 700+ rows, sort, search 2026-09-10
-S6-05,S6,mobile,Mobile alerts feed,Mirrors the desktop diagnosis,D15,todo,
+S6-05,S6,mobile,Mobile alerts feed,Mirrors the desktop diagnosis,D15,done,polled /api/v1/alerts per card; 29 mobile tests; live on :7332 2026-09-10
 S6-06,S6,mobile,Mobile process control,Separate token scope; off by default,D15,done,two-tap confirm, state-aware, 403 explained 2026-09-10
 S6-07,S6,mobile,Multi-machine support,One phone watching several PCs,D15,done,pairings accumulate; one card per PC 2026-09-10
 S6-08,S6,mobile,QR pairing UI,SVG rendered in Rust (qrcode crate) so the secret never crosses IPC twice,D1,done,server crate + 11 socket tests + prove_lan live 2026-09-10
@@ -80,19 +80,22 @@ S9-04,S9,metrics,Handle enumeration,vitals_win::handles::for_process; naming on 
 S9-05,S9,metrics,Module and DLL list,vitals_win::modules::for_process; LIST_MODULES_ALL; one retry on ERROR_PARTIAL_COPY; ModuleInfo in vitals-core; no Tauri command yet,D8,done,backend done; prover 8 modules incl ntdll; exited/recycled PID -> Err 2026-09-10
 S9-06,S9,metrics,Open file location and Properties,SHOpenFolderAndSelectItems and ShellExecuteEx with SEE_MASK_INVOKEIDLIST,D8,todo,
 S9-07,S9,metrics,Measured startup impact,CPU-ms and disk bytes in the boot window using our own sampling,D22,todo,
-S10-01,S10,docs,docs/architecture.md,The crate split and the two design principles,D22,todo,
-S10-02,S10,docs,docs/adr/,resolver 3 and edition 2024; dual TypeScript; NSIS perMachine; panic abort; ts-rs over specta; axum choice; no service worker,D22,todo,
-S10-03,S10,docs,docs/api.md plus OpenAPI,The LAN API contract,D22,todo,
-S10-04,S10,docs,Update README and CHANGELOG,Both are stale against the git log,D22,todo,
-S10-05,S10,ci,cargo-audit via taiki-e/install-action,Never rustsec/audit-check - it compiles from source,D22,todo,
-S10-06,S10,ci,pnpm audit in CI,,D22,todo,
-S10-07,S10,ci,Dependabot config,cargo npm and github-actions ecosystems,D22,todo,
-S10-08,S10,ci,Stop duplicate verification on release,Gate correctness behind the x64 matrix leg,D22,todo,
-S10-09,S10,ci,Add the bindings drift gate to release.yml,A tag can currently ship drifted generated types,D22,todo,
-S10-10,S10,ci,Remove the global RUSTFLAGS from release.yml,It busts the shared rust-cache,D22,todo,
-S10-11,S10,ci,Fix the ISSUE_TEMPLATE org,vitals-app/vitals should be dragoscv/vitals,D19,todo,
-S10-12,S10,ci,Verify the ARM64 leg builds,In the matrix but never proven,D22,todo,
-S10-13,S10,ci,Align setup-node versions,v6 in ci.yml and v5 in release.yml,D22,todo,
+S10-01,S10,docs,docs/architecture.md,The crate split and the two design principles,D22,done,written; crate list checked against Cargo.toml members 2026-09-11
+S10-02,S10,docs,docs/adr/,resolver 3 and edition 2024; dual TypeScript; NSIS perMachine; panic abort; ts-rs over specta; axum choice; no service worker,D22,done,29 MADR files (D1-D22 + 7 technical) + README index; each claim rg-verified 2026-09-11
+S10-03,S10,docs,docs/api.md plus OpenAPI,The LAN API contract,D22,done,already existed as docs/api/README.md + openapi.yaml (38aecf2); linked from README and architecture.md 2026-09-11
+S10-04,S10,docs,Update README and CHANGELOG,Both are stale against the git log,D22,done,README rewritten against rg-verified features; CHANGELOG Unreleased grouped by commit type over 7d9128c..HEAD 2026-09-11
+S10-05,S10,ci,cargo-audit via taiki-e/install-action,Never rustsec/audit-check - it compiles from source,D22,done,ci.yml audit job: taiki-e/install-action@v2 tool cargo-audit; cargo audit --deny warnings 2026-09-11
+S10-06,S10,ci,pnpm audit in CI,,D22,done,ci.yml audit job: pnpm audit --audit-level high 2026-09-11
+S10-07,S10,ci,Dependabot config,cargo npm and github-actions ecosystems,D22,done,.github/dependabot.yml weekly grouped 2026-09-11
+S10-08,S10,ci,Stop duplicate verification on release,Gate correctness behind the x64 matrix leg,D22,done,release.yml Verify/Bindings/Perf steps if: windows-x64 2026-09-11
+S10-09,S10,ci,Add the bindings drift gate to release.yml,A tag can currently ship drifted generated types,D22,done,release.yml Bindings drift step mirrors ci.yml bindings job 2026-09-11
+S10-10,S10,ci,Remove the global RUSTFLAGS from release.yml,It busts the shared rust-cache,D22,done,env RUSTFLAGS removed; clippy keeps -D warnings explicitly 2026-09-11
+S10-11,S10,ci,Fix the ISSUE_TEMPLATE org,vitals-app/vitals should be dragoscv/vitals,D19,done,3 URLs in config.yml; rg vitals-app now matches only the F17 finding and this row 2026-09-11
+S10-12,S10,ci,Verify the ARM64 leg builds,In the matrix but never proven,D22,blocked,needs a windows-11-arm runner run - agents never push (D19) so no run has been observed; ADR 0022 records it as unproven
+S10-13,S10,ci,Align setup-node versions,v6 in ci.yml and v5 in release.yml,D22,done,release.yml setup-node@v6 2026-09-11
+S10-14,S10,docs,SECURITY.md LAN threat model,off by default; bearer tokens; constant-time; read vs control; token in fragment; mDNS only while running,D3,done,each claim rg-verified in auth.rs/router.rs/lan.rs 2026-09-11
+S10-15,S10,docs,CONTRIBUTING.md,verify.ps1; check-drift.ps1; hook install; prover pattern; test naming rule,D22,done,example names checked against crates/*/examples 2026-09-11
+S10-16,S10,ci,Bundle size budget in the frontend job,check-size.ps1 -SkipInstaller after build:vite,D18,done,ci.yml frontend job 2026-09-11
 S9-90,S9,win,Idle process leaked into every frame,PID 0 was top CPU in any sorted list; filtered at frame boundary,D1,done,frame.rs test + phone session 2026-09-10
 S9-91,S9,core,GPU utilization Option<Percent>,Phantom adapters read 0% instead of unknown; type change rippled through 8 files,D1,done,prometheus test + typecheck 2026-09-10
 S10-90,S10,gates,check-drift.ps1 + pre-commit hook,serde/ts_rs casing; invoke vs command; locale parity; secrets; .only,D1,done,mutation-tested both checks; hook blocked a probe 2026-09-10

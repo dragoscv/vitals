@@ -7,6 +7,96 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Since the S1 upgrade commit (`7d9128c`)
+
+The session of 2026-09-10 turned a single-window monitor into a set of
+clients over one sampler. Grouped by Conventional Commit type; the hashes
+are the commits in `git log --oneline 7d9128c..HEAD`.
+
+#### Features
+
+- **LAN server** (`vitals-server`) — REST, SSE, WebSocket and Prometheus
+  `/metrics` over axum, hosted by the desktop app and off by default
+  (`76e2c4f`, `201fe3d`). Advertised as `_vitals._tcp` over mDNS only while
+  running (`cac19cd`). A loopback listener on `:7330` lets the CLI attach
+  without a token (`9570564`).
+- **Remote access UI** — pairing with a QR code rendered in Rust so the
+  secret reaches the webview once; read and control token scopes
+  (`201fe3d`).
+- **The phone app** — `mobile.html`, a lean PWA: machines, processes,
+  control with two-tap confirm, several PCs side by side (`2861e6f`), and an
+  alerts feed per machine card polled from `/api/v1/alerts` (`7c9fc20`).
+- **`@vitals/client`** — a typed TypeScript SDK over REST, SSE and WebSocket
+  (`9b69325`).
+- **CLI** — `vitals ps / top / info / report / serve`, attached to the app
+  over loopback or sampling directly when it is closed (`c214938`).
+- **History for real** — `vitals-store` gains SQLite, retention and a flight
+  recorder (`89f189a`).
+- **Alerts engine** in Rust with sustain, hysteresis and cooldown
+  (`6a4b4f6`), run on the sampler thread and fanned out to the dashboard,
+  tray, toasts and LAN (`3c5f946`).
+- **"Why is my PC slow?"** — a verdict, the culprits and a minute of chart
+  (`8e293b7`).
+- **Tray icon** showing CPU; the close button can mean hide (`f1d1112`).
+- **HUD** — an always-on-top transparent overlay, `Ctrl+Shift+H`
+  (`f8505d5`).
+- **Updater** — a real minisign key, a published `latest.json`, an honest UI
+  state (`c0486da`).
+- **Command palette**, keyboard shortcuts, route transitions and a motion
+  config on `motion/react-m` (`45371d1`).
+- **CSV/JSON export and URL-backed search** on every table (`50c1d01`).
+- **Shared `StatList` and `Toaster` primitives**, ultrawide breakpoints and
+  container queries, chart tests that assert the guarantee (`1a823a9`).
+- **Windows sampler** — storage-stack disk counters (Task Manager's Disk
+  column), efficiency mode, per-process handles and modules (`7f43315`).
+- **Processes** — efficiency mode, affinity presets, handles, modules and
+  file actions in the UI (`bba9c51`); set-efficiency-mode across the LAN
+  API, SDK and CLI (`1d53032`).
+
+#### Fixes
+
+- Settings that did nothing now do something, or are gone (`b19233b`).
+- The System Idle Process no longer ships in every frame — `PID 0 · 43 %`
+  was the first thing the phone showed (`d093acc`).
+- GPU utilisation is `Option`: `None` for an adapter with no counters, not
+  `0 %` beside a real GPU (`5b9ed32`). The phone showed the real GPU rather
+  than the virtual display enumerated first (`f08f1ff`).
+- The control route checks scope before parsing the body, so an
+  unauthorised caller cannot probe the schema (`2adcd8e`).
+- A route hidden and shown again stopped receiving frames — the disposed
+  flag was never reset (`9e65797`); the third copy of the same defect in
+  `useProcessSnapshot` (`b83ffb9`).
+- `ProcessKey` survives the trip through a JavaScript number (`c44faf8`).
+- Each entry point is budgeted from its real module graph; the filename
+  pattern was wrong in both directions (`8b00516`).
+
+#### Build and tooling
+
+- Contract-drift gate (`scripts/check-drift.ps1`) and a pre-commit hook
+  that refuses what shipped before: kebab-case serde against camelCase
+  bindings, `invoke()` with no command, locale parity, secrets, `.only`
+  (`6ba9f02`).
+
+#### Refactoring
+
+- Dashboard alerts render from the Rust engine; the TypeScript copy is
+  deleted (`acf1156`).
+
+#### Tests
+
+- Typed lint and typecheck satisfied in the LAN panel test (`217e5bc`);
+  a protocol assertion typed lint rejects dropped (`539f5f1`).
+
+#### Documentation
+
+- OpenAPI 3.1 document and integration guide with a route drift test
+  (`38aecf2`); Home Assistant package with a test that keeps the templates
+  honest (`739fa15`); `AGENTS.md` and two skills written from the day's
+  defects (`1d88d42`, `41cce6a`); tracker entries for S3–S9
+  (`8a30c37`, `32655b0`, `e3c0b45`, `bb8f2e7`, `95819b2`).
+
+### Before that
+
 Every section now works against live data — there are no placeholder screens
 left. There is still no release to install: the installer builds and runs,
 but nothing has been through a public beta.

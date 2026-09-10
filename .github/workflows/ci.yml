@@ -124,6 +124,43 @@ jobs:
       - name: Test
         run: pnpm test
 
+      # The bundle is the one input `check-size.ps1` needs; the installer is
+      # measured by the build job below, which is the only place it exists.
+      - name: Build frontend
+        run: pnpm --filter @vitals/desktop build:vite
+
+      - name: Size budget (bundle)
+        shell: pwsh
+        run: pwsh -NoProfile -File scripts/check-size.ps1 -SkipInstaller
+
+  audit:
+    name: Supply chain
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+
+      # A prebuilt binary, not `rustsec/audit-check`, which compiles
+      # cargo-audit from source on every run — measured at 189 s of a 190 s
+      # job elsewhere. This takes about ten seconds.
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
+
+      - name: cargo audit
+        run: cargo audit --deny warnings
+
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: pnpm audit
+        run: pnpm audit --audit-level high
+
   build:
     name: Build installer
     runs-on: windows-latest

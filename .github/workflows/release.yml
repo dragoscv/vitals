@@ -25,8 +25,10 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
-  # Fail fast on a warning rather than shipping one.
-  RUSTFLAGS: '-D warnings'
+  # No global RUSTFLAGS here. `-D warnings` changes the compilation
+  # fingerprint, so every artefact rust-cache restored from ci.yml would be
+  # rebuilt cold. Clippy below passes `-D warnings` explicitly, which is
+  # where the guarantee belongs.
 
 jobs:
   # Skip the nightly entirely when nothing has landed. A stream of identical
@@ -90,21 +92,35 @@ jobs:
 
       - uses: pnpm/action-setup@v4
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
 
-      # A release that fails its own quality gates should never be published.
+      # A release that fails its own quality gates should never be published —
+      # but correctness is architecture-independent, and ci.yml already proved
+      # it on this commit. Run the gates once, on x64; the ARM64 leg only has
+      # to build. Re-running fmt, clippy, tests and the perf budget on both
+      # legs doubled the cost of every release for no new information.
       - name: Verify
+        if: matrix.platform.name == 'windows-x64'
         run: |
           cargo fmt --all -- --check
           cargo clippy --workspace --all-targets -- -D warnings
           cargo test --workspace
 
+      # A tag can otherwise ship generated types that disagree with the Rust
+      # model. Same check as ci.yml's `bindings` job.
+      - name: Bindings drift
+        if: matrix.platform.name == 'windows-x64'
+        run: |
+          cargo test -p vitals-core --features ts
+          git diff --exit-code -- packages/protocol/src/generated
+
       - name: Performance budget
+        if: matrix.platform.name == 'windows-x64'
         run: cargo test -p vitals-win --release --test overhead -- --nocapture
 
       - name: Determine version
