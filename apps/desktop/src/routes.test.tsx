@@ -5,6 +5,7 @@ import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { initI18n } from '@vitals/i18n';
 
 import { RouteView } from './routes';
+import { Content } from './shell/Content';
 import type { RouteId } from './shell/navigation';
 
 beforeAll(async () => {
@@ -163,6 +164,73 @@ describe('RouteView keeps visited screens alive', () => {
     await act(async () => {});
 
     // State survived the round trip. An unmount would have reset this to ''.
+    expect(screen.getByTestId('probe-typed').textContent).toBe('user input');
+  });
+
+  it('switching route does not remount the screen being left, even inside Content', async () => {
+    // The route transition must animate the wrapper WITHOUT unmounting the
+    // routes — an `AnimatePresence` keyed on the route would do exactly that
+    // and silently undo the keep-alive. And `Content` used to `key` its
+    // wrapper on the route, which remounted `RouteView` itself on every
+    // navigation; the two tests above rendered `RouteView` bare and never
+    // noticed. This one goes through the same path `AppShell` does.
+    let mounts = 0;
+
+    function Counter() {
+      useEffect(() => {
+        mounts += 1;
+      }, []);
+      return <Probe label="probe" />;
+    }
+
+    function Harness() {
+      const [route, setRoute] = useState<RouteId>('dashboard');
+      return (
+        <>
+          <button
+            type="button"
+            data-testid="go-users"
+            onClick={() => {
+              setRoute('users');
+            }}
+          >
+            users
+          </button>
+          <button
+            type="button"
+            data-testid="go-dashboard"
+            onClick={() => {
+              setRoute('dashboard');
+            }}
+          >
+            dashboard
+          </button>
+          <Content routeKey={route}>
+            <Counter />
+            <RouteView route={route} />
+          </Content>
+        </>
+      );
+    }
+
+    render(<Harness />);
+    await act(async () => {});
+    act(() => {
+      screen.getByTestId('probe-type').click();
+    });
+    expect(mounts).toBe(1);
+
+    act(() => {
+      screen.getByTestId('go-users').click();
+    });
+    await act(async () => {});
+    act(() => {
+      screen.getByTestId('go-dashboard').click();
+    });
+    await act(async () => {});
+
+    // Neither the content wrapper nor anything inside it was rebuilt.
+    expect(mounts).toBe(1);
     expect(screen.getByTestId('probe-typed').textContent).toBe('user input');
   });
 });

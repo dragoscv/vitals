@@ -1,8 +1,9 @@
-import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { TooltipProvider } from '@vitals/ui';
 
+import { toggleHud } from '../lib/settingsSync';
 import { RouteView } from '../routes';
 import { useSettings } from '../settings/store';
 import { Content } from './Content';
@@ -10,7 +11,9 @@ import { ErrorBoundary } from './ErrorBoundary';
 import { navItems } from './navigation';
 import { RouteError } from './RouteError';
 import { Sidebar } from './Sidebar';
+import type { ShortcutActions } from './shortcuts';
 import { TitleBar } from './TitleBar';
+import { useShortcuts } from './useShortcuts';
 
 // Lazy: the dialog and its panels are 17 KB of the entry chunk for a surface
 // most sessions never open. It renders nothing until `open`, so there is no
@@ -18,6 +21,17 @@ import { TitleBar } from './TitleBar';
 // dialog's own open animation.
 const SettingsDialog = lazy(async () => ({
   default: (await import('../settings/SettingsDialog')).SettingsDialog,
+}));
+
+// Same reasoning: the palette and the shortcut sheet are keyboard-only
+// surfaces that most sessions never open, and both render nothing while
+// closed. Deferring them keeps Motion's and their own weight out of the first
+// paint.
+const CommandPalette = lazy(async () => ({
+  default: (await import('./CommandPalette')).CommandPalette,
+}));
+const ShortcutsHelp = lazy(async () => ({
+  default: (await import('./ShortcutsHelp')).ShortcutsHelp,
 }));
 
 /**
@@ -57,7 +71,10 @@ export function AppShell({ version }: AppShellProps) {
   const navigate = useSettings((state) => state.navigate);
   const collapsedSetting = useSettings((state) => state.settings.sidebarCollapsed);
   const toggleSidebar = useSettings((state) => state.toggleSidebar);
+  const patch = useSettings((state) => state.patch);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const settingsTrigger = useRef<HTMLElement | null>(null);
 
   /**
@@ -80,6 +97,30 @@ export function AppShell({ version }: AppShellProps) {
     }
     setSettingsOpen(open);
   }, []);
+
+  /**
+   * Flips the overlay from the palette.
+   *
+   * Goes through the same backend round trip as the Ctrl+Shift+H binding in
+   * `useHud` and writes back what the backend reports, so the settings switch
+   * cannot disagree with the window that is actually on screen.
+   */
+  const onToggleHud = useCallback(() => {
+    void toggleHud().then((actual) => {
+      if (actual !== null) patch({ hudVisible: actual });
+    });
+  }, [patch]);
+
+  const shortcutActions = useMemo<ShortcutActions>(
+    () => ({
+      openPalette: () => setPaletteOpen(true),
+      openHelp: () => setHelpOpen(true),
+      openSettings: () => onSettingsOpenChange(true),
+      navigate,
+    }),
+    [navigate, onSettingsOpenChange],
+  );
+  useShortcuts(shortcutActions);
 
   const narrow = useNarrowViewport();
   const collapsed = collapsedSetting || narrow;
@@ -144,6 +185,24 @@ export function AppShell({ version }: AppShellProps) {
             onOpenChange={onSettingsOpenChange}
             version={version}
           />
+        </Suspense>
+      )}
+
+      {paletteOpen && (
+        <Suspense fallback={null}>
+          <CommandPalette
+            open={paletteOpen}
+            onOpenChange={setPaletteOpen}
+            onNavigate={navigate}
+            onOpenSettings={() => onSettingsOpenChange(true)}
+            onToggleHud={onToggleHud}
+          />
+        </Suspense>
+      )}
+
+      {helpOpen && (
+        <Suspense fallback={null}>
+          <ShortcutsHelp open={helpOpen} onOpenChange={setHelpOpen} />
         </Suspense>
       )}
     </TooltipProvider>

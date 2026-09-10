@@ -125,6 +125,33 @@ const en = {
   },
 } as const;
 
+/** English half of the additions for the palette and the shortcut sheet. */
+const enShortcuts = {
+  palette: {
+    title: 'Search commands',
+    placeholder: 'Type a section or an action\u2026',
+    close: 'Close the command palette',
+    noResults: 'Nothing matches that.',
+    goTo: 'Go to this section',
+    openSettings: 'Open settings',
+    openSettingsHint: 'Appearance, notifications, remote access.',
+    diagnose: 'Why is my PC slow?',
+    diagnoseHint: 'Looks at what is using this computer right now.',
+    toggleHud: 'Toggle the overlay',
+    toggleHudHint: 'The small always-on-top panel.',
+  },
+  shortcuts: {
+    title: 'Keyboard shortcuts',
+    subtitle: 'These work whenever the Vitals window has focus and you are not typing in a box.',
+    close: 'Close the shortcut list',
+    palette: 'Search commands',
+    help: 'Show this list',
+    settings: 'Open settings',
+    sections: 'Jump to the first nine sections',
+    hud: 'Show or hide the overlay',
+  },
+} as const;
+
 const ro = {
   window: {
     minimise: 'Minimizează',
@@ -235,6 +262,34 @@ const ro = {
   },
 } as const;
 
+/** Romanian half. Kept beside the English so the two cannot drift. */
+const roShortcuts = {
+  palette: {
+    title: 'Caută comenzi',
+    placeholder: 'Scrie o secțiune sau o acțiune\u2026',
+    close: 'Închide paleta de comenzi',
+    noResults: 'Nimic nu se potrivește.',
+    goTo: 'Mergi la această secțiune',
+    openSettings: 'Deschide setările',
+    openSettingsHint: 'Aspect, notificări, acces de la distanță.',
+    diagnose: 'De ce merge greu calculatorul?',
+    diagnoseHint: 'Se uită la ce folosește acest calculator chiar acum.',
+    toggleHud: 'Comută suprapunerea',
+    toggleHudHint: 'Panoul mic, mereu deasupra.',
+  },
+  shortcuts: {
+    title: 'Scurtături de tastatură',
+    subtitle:
+      'Funcționează atunci când fereastra Vitals este activă și nu scrii într-un câmp de text.',
+    close: 'Închide lista de scurtături',
+    palette: 'Caută comenzi',
+    help: 'Afișează această listă',
+    settings: 'Deschide setările',
+    sections: 'Sari la primele nouă secțiuni',
+    hud: 'Afișează sau ascunde suprapunerea',
+  },
+} as const;
+
 /**
  * Registers the bundle.
  *
@@ -265,6 +320,6 @@ export function registerShellStrings(): void {
     );
   }
 
-  i18n.addResourceBundle('en', SHELL_NS, en, true, false);
-  i18n.addResourceBundle('ro', SHELL_NS, ro, true, false);
+  i18n.addResourceBundle('en', SHELL_NS, { ...en, ...enShortcuts }, true, false);
+  i18n.addResourceBundle('ro', SHELL_NS, { ...ro, ...roShortcuts }, true, false);
 }

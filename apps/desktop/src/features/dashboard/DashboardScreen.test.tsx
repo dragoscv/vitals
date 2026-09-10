@@ -4,6 +4,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { i18n, initI18n } from '@vitals/i18n';
 import type { Alert } from '@vitals/protocol';
 
+import { DIAGNOSE_EVENT } from '../../shell/navigation';
 import { createManualAlertSource } from '../alerts/useAlerts';
 import { DashboardScreen } from './DashboardScreen';
 import { HistoryCollector } from './history';
@@ -218,6 +219,20 @@ describe('DashboardScreen', () => {
       await vi.waitFor(() => {
         expect(backend.saved.at(-1)).toEqual(defaultLayout);
       });
+    });
+  });
+
+  describe('diagnosis', () => {
+    it('opens the verdict dialog when the command palette asks for it', async () => {
+      // The palette is a lazy shell module and cannot reach this state; the
+      // contract is a window event. If nobody listened, the palette entry
+      // would silently degrade to "go to dashboard".
+      await renderDashboard();
+      expect(screen.queryByRole('dialog')).toBeNull();
+
+      window.dispatchEvent(new CustomEvent(DIAGNOSE_EVENT));
+
+      await screen.findByRole('dialog', { name: 'Why is my PC slow?' });
     });
   });
 

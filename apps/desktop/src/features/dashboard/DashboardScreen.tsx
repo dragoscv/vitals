@@ -17,7 +17,7 @@
  */
 
 import { LayoutGrid, PlugZap, Plus, RotateCcw, Settings2, Stethoscope } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import type { Alert } from '@vitals/protocol';
@@ -33,7 +33,7 @@ import {
   Skeleton,
 } from '@vitals/ui';
 
-import type { RouteId } from '../../shell/navigation';
+import { DIAGNOSE_EVENT, type RouteId } from '../../shell/navigation';
 import { useAlerts, type AlertSource } from '../alerts/useAlerts';
 import { DiagnosisDialog } from '../diagnosis/DiagnosisDialog';
 import { createTauriDiagnosisSource, type DiagnosisSource } from '../diagnosis/source';
@@ -136,6 +136,19 @@ export function DashboardScreen({
   );
   const activeDiagnosis = diagnosisSource ?? diagnosisSourceFallback;
   const [asking, setAsking] = useState(false);
+
+  // The command palette lives in the shell and cannot reach this state; it
+  // navigates here and fires an event. A window event rather than a prop
+  // threaded through three layers for one action.
+  useEffect(() => {
+    const open = (): void => {
+      setAsking(true);
+    };
+    window.addEventListener(DIAGNOSE_EVENT, open);
+    return () => {
+      window.removeEventListener(DIAGNOSE_EVENT, open);
+    };
+  }, []);
 
   const navigate = (route: RouteId): void => {
     onNavigate?.(route);

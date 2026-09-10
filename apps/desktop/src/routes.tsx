@@ -1,6 +1,6 @@
-import { Activity, Suspense, lazy, useState } from 'react';
+import { Activity, Suspense, lazy, useEffect, useRef, useState, type ReactNode } from 'react';
 
-import { Skeleton } from '@vitals/ui';
+import { Skeleton, useReducedMotion } from '@vitals/ui';
 
 import { DashboardScreen } from './features/dashboard';
 import { type RouteId } from './shell/navigation';
@@ -67,6 +67,78 @@ const UsersScreen = lazy(async () => {
   m.registerUsersStrings();
   return { default: m.UsersScreen };
 });
+
+/**
+ * Fades and lifts the content area when the section changes.
+ *
+ * Short and small on purpose — 140 ms and four pixels. This is a window
+ * someone opens because their computer is misbehaving, and a section that
+ * slides in from across the panel puts animation between them and the number
+ * they came to read.
+ *
+ * Two constraints shaped this, and both rule out the obvious
+ * `AnimatePresence` keyed on the route:
+ *
+ * 1. Every visited screen stays mounted inside an `<Activity>` so its scroll
+ *    position, sort order and search text survive navigation.
+ *    `AnimatePresence` animates components in and out of the *tree*, so it
+ *    would unmount the screen being left and undo exactly the property this
+ *    file exists to provide. Here the wrapper is one plain `<div>` that never
+ *    changes identity; only its style moves.
+ * 2. The size budget. Measured on this build, gzip, in the entry chunk:
+ *    Motion's `m` component 7.7 KB, `useAnimationControls` a further 15 KB,
+ *    and even `motion/mini`'s `animate` loaded lazily still pulled 10 KB of
+ *    shared internals into the entry because the feature bundle chunk needs
+ *    the same modules — against 4.3 KB of headroom. The Web Animations API
+ *    does a one-property fade natively for nothing, and WebView2 has shipped
+ *    it for years. Motion stays for the things it is good at; this is not
+ *    one of them.
+ *
+ * Reduced motion collapses the duration to zero rather than shortening it:
+ * the point is that the content is simply there, not that it arrives faster.
+ * The hook reads the same `data-reduce-motion` override `MotionConfig` is fed
+ * from, so this and every `m.*` component agree.
+ */
+function RouteTransition({
+  route,
+  children,
+}: {
+  readonly route: RouteId;
+  readonly children: ReactNode;
+}) {
+  const element = useRef<HTMLDivElement | null>(null);
+  // The route this wrapper last animated to. The startup paint is not a
+  // transition — fading in the dashboard on launch would only delay the one
+  // screen whose appearance is the perceived start time.
+  const shown = useRef<RouteId | null>(null);
+  const reduced = useReducedMotion();
+
+  useEffect(() => {
+    const target = element.current;
+    if (shown.current === route || target === null) return;
+    const first = shown.current === null;
+    shown.current = route;
+    if (first || reduced) return;
+
+    const animation = target.animate(
+      [
+        { opacity: 0, transform: 'translateY(4px)' },
+        { opacity: 1, transform: 'none' },
+      ],
+      { duration: 140, easing: 'ease-out' },
+    );
+
+    return () => {
+      // A route change mid-fade: jump to the end rather than letting the old
+      // fade run on top of the new one. `finish`, not `cancel`: cancelling
+      // would be fine visually (no fill), but happy-dom rejects `finished`
+      // on cancel and every test would log an unhandled error.
+      animation.finish();
+    };
+  }, [route, reduced]);
+
+  return <div ref={element}>{children}</div>;
+}
 
 /**
  * Shown while a section's data is still arriving.
@@ -137,7 +209,7 @@ export function RouteView({
   }
 
   return (
-    <>
+    <RouteTransition route={route}>
       {[...visited].map((id) => (
         // Keyed per route, and each gets its own boundary: a section still
         // loading its chunk must not blank a sibling that is already up.
@@ -147,7 +219,7 @@ export function RouteView({
           </Suspense>
         </Activity>
       ))}
-    </>
+    </RouteTransition>
   );
 }
 

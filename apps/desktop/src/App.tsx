@@ -17,6 +17,7 @@ import { useSettings } from './settings/store';
 import { AppShell } from './shell/AppShell';
 import { SHELL_NS } from './shell/strings';
 import { hasTauriHost } from './shell/host';
+import { MotionProvider } from './theme/MotionProvider';
 import { ThemeProvider } from './theme/ThemeProvider';
 
 // Shell strings are registered in `main.tsx`, after `initI18n` has resolved.
@@ -277,7 +278,13 @@ export function App() {
       initial={settings.theme}
       onChange={setTheme}
     >
-      <AppShell version={version} />
+      {/* Reads the setting from the store rather than the theme context so
+          it is correct on the very first render, before the provider above
+          has had a chance to apply anything. Every change made through the
+          provider is written straight back to the store, so the two agree. */}
+      <MotionProvider reduceMotion={settings.theme.reduceMotion}>
+        <AppShell version={version} />
+      </MotionProvider>
     </ThemeProvider>
   );
 }

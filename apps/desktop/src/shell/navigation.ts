@@ -1,3 +1,12 @@
+/**
+ * Fired on `window` by the command palette after navigating to the dashboard;
+ * the dashboard opens the "Why is my PC slow?" dialog in response.
+ *
+ * Lives here rather than in the palette module because the dashboard is in
+ * the entry chunk and the palette is lazy — importing the palette from the
+ * dashboard would drag it into the initial load.
+ */
+export const DIAGNOSE_EVENT = 'vitals:diagnose';
 import {
   Activity,
   Boxes,
