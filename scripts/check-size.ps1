@@ -11,12 +11,19 @@
 
     Three separate numbers, because they fail for different reasons:
 
-    - INITIAL: what the webview parses before the first screen appears. This
-      is the one the user feels as startup latency. It grows when something
-      is imported eagerly that should have been lazy.
-    - SHIPPED: every JS and CSS asset. Grows when a dependency is added.
+        - INITIAL: what the main window parses before the first screen appears.
+            This is the one the user feels as startup latency. It grows when
+            something is imported eagerly that should have been lazy.
+        - SHIPPED: every JS and CSS asset. Grows when a dependency is added.
     - INSTALLER: what the user downloads. Grows when a non-code asset creeps
       into `dist` — sourcemaps did exactly this, at 3 MB.
+
+        Plus one budget per secondary entry point (`mobile.html`, `hud.html`),
+        measured as the transitive closure of that entry's module graph. Without
+        these, adding an entry inflates SHIPPED and looks like a regression in
+        the desktop app, while a real regression inside the phone app hides in
+        the same total. Each entry is a separate download for a separate device
+        and deserves its own ratchet.
 
     Run after a production build. `-Update` rewrites the budgets to the
     current sizes, for when a change is intended.
@@ -78,15 +85,69 @@ $assets = Get-ChildItem $distDir -File |
         }
     }
 
+# The transitive closure of one HTML entry's module graph.
+#
+# Rolldown's own per-file table understates a secondary entry: it attributes
+# a shared chunk to whichever entry it lists first. Walking the graph is the
+# only way to answer "what does someone opening hud.html actually download",
+# which is the question a budget should be asking.
+function Get-EntryClosure {
+    param([Parameter(Mandatory)][string]$Html)
+
+    $seen = [System.Collections.Generic.HashSet[string]]::new()
+    $queue = [System.Collections.Generic.Queue[string]]::new()
+
+    # `src=`, `href=` — which covers the stylesheet and, crucially, every
+    # `<link rel="modulepreload">`. Those are fetched before paint, so they
+    # are initial cost by definition; the old name-pattern missed them and
+    # under-reported the main window's startup by 26 kB.
+    foreach ($m in [regex]::Matches((Get-Content $Html -Raw), '/assets/([^"'']+\.(?:js|css))')) {
+        $queue.Enqueue($m.Groups[1].Value)
+    }
+
+    while ($queue.Count -gt 0) {
+        $name = $queue.Dequeue()
+        if (-not $seen.Add($name)) { continue }
+
+        $path = Join-Path $distDir $name
+        if (-not (Test-Path $path) -or $name -notlike '*.js') { continue }
+
+        # Static imports only: `import"./x.js"`, `from"./x.js"`. A dynamic
+        # `import("./x.js")` is a route chunk the entry does NOT pay for up
+        # front, which is the whole point of the split.
+        $code = Get-Content $path -Raw
+        foreach ($m in [regex]::Matches($code, '(?:^|[^(])\b(?:import|from)\s*["'']\./([^"'']+\.js)["'']')) {
+            $queue.Enqueue($m.Groups[1].Value)
+        }
+    }
+
+    $seen
+}
+
 # The entry chunk, the vendor chunk it statically imports, the module runtime
-# and the stylesheet: everything the window must have before it can paint.
+# and its stylesheet: everything the main window must have before it paints.
 # Route chunks are deliberately excluded — they are the point of the split.
-$eagerPattern = '^(index|react|src|rolldown-runtime)-|\.css$'
-$eager = $assets | Where-Object { $_.Name -match $eagerPattern }
+#
+# Derived from index.html rather than from a name pattern: the old pattern
+# ended in `|\.css$`, which swept in the phone's and the overlay's
+# stylesheets — assets the main window never loads — and reported them as
+# startup cost.
+$indexClosure = Get-EntryClosure (Join-Path $root 'apps/desktop/dist/index.html')
+$eager = $assets | Where-Object { $indexClosure.Contains($_.Name) }
 
 $measured = [ordered]@{
     initialGzipBytes = ($eager | Measure-Object Gzip -Sum).Sum
     shippedGzipBytes = ($assets | Measure-Object Gzip -Sum).Sum
+}
+
+# One budget per secondary entry. Named `<entry>GzipBytes` so adding an
+# entry adds a budget rather than silently inflating the total.
+foreach ($html in Get-ChildItem (Join-Path $root 'apps/desktop/dist') -Filter '*.html') {
+    $entry = [System.IO.Path]::GetFileNameWithoutExtension($html.Name)
+    if ($entry -eq 'index') { continue }
+    $closure = Get-EntryClosure $html.FullName
+    $sum = ($assets | Where-Object { $closure.Contains($_.Name) } | Measure-Object Gzip -Sum).Sum
+    $measured["${entry}GzipBytes"] = $sum
 }
 
 # Source maps must never reach `dist`: Tauri packages that directory whole,
@@ -116,6 +177,12 @@ if ($Update -or -not (Test-Path $budgetFile)) {
         } else { 3145728 }
     }
 
+    # Secondary entries, in whatever order the build produced them.
+    foreach ($key in $measured.Keys) {
+        if ($key -in 'initialGzipBytes', 'shippedGzipBytes', 'installerBytes') { continue }
+        $budget[$key] = [math]::Ceiling($measured[$key] * 1.05)
+    }
+
     $budget | ConvertTo-Json | Set-Content -Encoding utf8 $budgetFile
     Write-Host "Budgets written to $budgetFile (current + 5% headroom)." -ForegroundColor Yellow
     if (-not $Update) { Write-Host 'Re-run without -Update to check against them.' }
@@ -128,6 +195,18 @@ $checks = @(
     @{ Label = 'initial load (gzip)'; Key = 'initialGzipBytes' }
     @{ Label = 'all assets  (gzip)'; Key = 'shippedGzipBytes' }
 )
+
+# A secondary entry is only checked once it has a budget, so adding an entry
+# is a deliberate `-Update` rather than an instant red build.
+foreach ($key in $measured.Keys) {
+    if ($key -in 'initialGzipBytes', 'shippedGzipBytes', 'installerBytes') { continue }
+    if ($null -eq $budget.$key) {
+        Write-Host "  note: entry '$key' has no budget yet; run with -Update." -ForegroundColor Yellow
+        continue
+    }
+    $name = $key -replace 'GzipBytes$', ''
+    $checks += @{ Label = ('{0,-10} (gzip)' -f $name); Key = $key }
+}
 
 if (-not $SkipInstaller) {
     $checks += @{ Label = 'installer         '; Key = 'installerBytes' }
