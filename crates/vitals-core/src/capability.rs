@@ -15,7 +15,7 @@
     feature = "ts",
     ts(export, export_to = "core/", rename_all = "camelCase")
 )]
-#[serde(rename_all = "kebab-case")]
+#[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub enum Capability {
     // ---- Observation ----
@@ -105,7 +105,7 @@ impl Capability {
     feature = "ts",
     ts(export, export_to = "core/", rename_all = "camelCase")
 )]
-#[serde(rename_all = "kebab-case")]
+#[serde(rename_all = "camelCase")]
 pub enum Unavailable {
     /// The platform has no equivalent facility. Permanent — hide the feature.
     NotSupportedOnPlatform,
