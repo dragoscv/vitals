@@ -9,30 +9,30 @@ Single canonical narrative tracker. The machine-readable companion is
 
 ## Decisions taken (askQuestions, 2026-09-10)
 
-| #   | Question        | Decision                                                                                                                        |
-| --- | --------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| D1  | Phone access    | Embedded LAN HTTP server + lean mobile PWA. QR carries `http://<ip>:<port>/mobile.html#token=…`                                 |
-| D2  | Third-party API | REST JSON + SSE + WebSocket + Prometheus `/metrics` + named-pipe IPC + TypeScript client SDK                                    |
-| D3  | LAN security    | Off by default, bearer token in the QR fragment, plain HTTP, revocable, scoped                                                  |
-| D4  | CLI             | Samples directly via `vitals-win` (works with the app closed), JSON + table output                                              |
-| D5  | Upgrades        | Everything to latest **stable**, in verifiable slices with gates between                                                        |
-| D6  | Native testing  | **Constraint lifted** — may `tauri dev`/build and launch                                                                        |
-| D7  | Platforms       | Windows only; macOS/Linux stay honest trait stubs                                                                               |
-| D8  | Nice-to-haves   | All nine accepted (palette, tray, alerts, HUD, flight recorder, efficiency/affinity, export, updater, handle finder)            |
-| D9  | Tracker         | `docs/tracker.csv` + `docs/TRACKER.md`                                                                                          |
-| D10 | Commits         | Conventional Commits per slice, explicit paths, **no push**                                                                     |
-| D11 | Dead crates     | Implement `vitals-store` for real; **delete `vitals-plugin`**; keep `vitals-ipc` for the helper                                 |
-| D12 | `apps/helper`   | Stays stubbed. Remove the fake capability claims; get disk I/O from `DiskCounters` instead                                      |
-| D13 | Inert settings  | Wire what is wireable; **delete** `crashReports`, `usageData`, `reputationLookups`, `advancedEnabled`                           |
-| D14 | Mobile UI       | Separate lean `mobile.html` entry, own component tree, shares charts + protocol + tokens                                        |
-| D15 | Mobile scope    | Overview, processes, alerts, **process control** (separate token scope), **multi-machine**                                      |
-| D16 | Palette         | Build on Radix Dialog; remove `cmdk`                                                                                            |
-| D17 | Animation       | `motion/react-m` + `LazyMotion(domAnimation)` — 19.6 kB, not the 34 kB floor                                                    |
-| D18 | Size budget     | Raise deliberately, per-feature cost recorded, gate stays strict                                                                |
-| D19 | Git remote      | Add `origin` → `github.com/dragoscv/vitals`, **never push**                                                                     |
-| D20 | Updater keys    | Wire everything; pubkey stays a loud, documented TODO for the user to run once                                                  |
-| D21 | Slice order     | tooling → truth → server → mobile → UI → tray/HUD → metrics → docs/CI                                                           |
-| D22 | Extras          | All eleven accepted (mDNS, audits, typed lint, DiskCounters, ADRs, coverage, shortcuts, search, slow-report, dependabot, ARM64) |
+| #   | Question        | Decision                                                                                                                                                                               |
+| --- | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D1  | Phone access    | Embedded LAN HTTP server + lean mobile PWA. QR carries `http://<ip>:<port>/mobile.html#token=…`                                                                                        |
+| D2  | Third-party API | REST JSON + SSE + WebSocket + Prometheus `/metrics` + loopback HTTP on :7330 for the CLI (was: named pipe; changed 2026-09-10, one wire format instead of two) + TypeScript client SDK |
+| D3  | LAN security    | Off by default, bearer token in the QR fragment, plain HTTP, revocable, scoped                                                                                                         |
+| D4  | CLI             | Samples directly via `vitals-win` (works with the app closed), JSON + table output                                                                                                     |
+| D5  | Upgrades        | Everything to latest **stable**, in verifiable slices with gates between                                                                                                               |
+| D6  | Native testing  | **Constraint lifted** — may `tauri dev`/build and launch                                                                                                                               |
+| D7  | Platforms       | Windows only; macOS/Linux stay honest trait stubs                                                                                                                                      |
+| D8  | Nice-to-haves   | All nine accepted (palette, tray, alerts, HUD, flight recorder, efficiency/affinity, export, updater, handle finder)                                                                   |
+| D9  | Tracker         | `docs/tracker.csv` + `docs/TRACKER.md`                                                                                                                                                 |
+| D10 | Commits         | Conventional Commits per slice, explicit paths, **no push**                                                                                                                            |
+| D11 | Dead crates     | Implement `vitals-store` for real; **delete `vitals-plugin`**; keep `vitals-ipc` for the helper                                                                                        |
+| D12 | `apps/helper`   | Stays stubbed. Remove the fake capability claims; get disk I/O from `DiskCounters` instead                                                                                             |
+| D13 | Inert settings  | Wire what is wireable; **delete** `crashReports`, `usageData`, `reputationLookups`, `advancedEnabled`                                                                                  |
+| D14 | Mobile UI       | Separate lean `mobile.html` entry, own component tree, shares charts + protocol + tokens                                                                                               |
+| D15 | Mobile scope    | Overview, processes, alerts, **process control** (separate token scope), **multi-machine**                                                                                             |
+| D16 | Palette         | Build on Radix Dialog; remove `cmdk`                                                                                                                                                   |
+| D17 | Animation       | `motion/react-m` + `LazyMotion(domAnimation)` — 19.6 kB, not the 34 kB floor                                                                                                           |
+| D18 | Size budget     | Raise deliberately, per-feature cost recorded, gate stays strict                                                                                                                       |
+| D19 | Git remote      | Add `origin` → `github.com/dragoscv/vitals`, **never push**                                                                                                                            |
+| D20 | Updater keys    | Wire everything; pubkey stays a loud, documented TODO for the user to run once                                                                                                         |
+| D21 | Slice order     | tooling → truth → server → mobile → UI → tray/HUD → metrics → docs/CI                                                                                                                  |
+| D22 | Extras          | All eleven accepted (mDNS, audits, typed lint, DiskCounters, ADRs, coverage, shortcuts, search, slow-report, dependabot, ARM64)                                                        |
 
 ---
 
@@ -144,7 +144,7 @@ Status values: `todo`, `doing`, `done`, `blocked`, `dropped`.
 | S2    | Truth fixes — dead settings, false capabilities, dead crates         | done (S2-03 notifications, S2-09 persistence unify, S2-15 get_capabilities carried into S8/S7) |
 | S3    | `vitals-store` for real: SQLite history, retention, flight recorder  | done                                                                                           |
 | S4    | LAN server: REST, SSE, WebSocket, Prometheus, mDNS                   | done except S4-11 named-pipe IPC (deferred to S5, the CLI slice it serves)                     |
-| S5    | CLI that samples directly                                            | todo                                                                                           |
+| S5    | CLI that samples directly                                            | done (6/6; attaches to the app over :7330, samples directly otherwise)                         |
 | S6    | Mobile PWA and QR pairing                                            | done except S6-05 alerts feed (S8 engine now exposes GET /api/v1/alerts; phone UI pending)     |
 | S7    | UI polish: motion, palette, ultrawide, export, shortcuts             | todo                                                                                           |
 | S8    | Tray, HUD, alerts, notifications, updater                            | done (6/6; alerts engine in Rust feeds desktop, tray, toasts, LAN)                             |
@@ -162,6 +162,22 @@ Every claim of "done" needs a command and its output. Recorded here as work
 lands, newest first.
 
 ### 2026-09-10 — S11 HUD overlay window (uncommitted)
+
+### 2026-09-10 — S5 CLI + loopback API (commits 9570564, c214938)
+
+Decision (askQuestions): the CLI attaches over **loopback HTTP**, not a named
+pipe. One wire format for phone, CLI and scripts; nothing new in itals-ipc.
+
+```
+cargo test --workspace                     → 872 passed, 0 failed
+cargo clippy --workspace --all-targets -- -D warnings → 0
+cargo test -p vitals-cli                   → 28 passed
+cargo run -q -p vitals-cli -- ps --top 4   → source: sampling directly; 4 rows, em dash for unmeasured
+(subagent, attached) vitals info / ps --json (796 processes) / top --json / report --duration 3
+(subagent) vitals serve --port 7351 --token devtok → /snapshot 401 without token, keyframe with it
+Mutation checks: loopback grant peer.filter→peer.map turns 2 tests red;
+fold.rs exits/changes order swap fails the recycled-PID test.
+```
 
 ### 2026-09-10 — S8 shell: tray, alerts, HUD, updater, diagnosis (commits 6a4b4f6 … 8e293b7)
 

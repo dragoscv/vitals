@@ -40,14 +40,14 @@ S4-07,S4,server,Serve mobile assets,Via AppHandle asset_resolver - do not embed 
 S4-08,S4,server,LAN interface enumeration,list_afinet_netifas with virtual-adapter filtering and user choice,D1,done,server crate + 11 socket tests + prove_lan live 2026-09-10
 S4-09,S4,server,mDNS advertisement,vitals.local so the QR URL survives a DHCP change,D22,done,mdns-sd 0.21.3; lifecycle test mutation-proven 2026-09-10
 S4-10,S4,server,Settings panel for the server,Off by default; port; interface; token lifecycle; QR,D3,done,server crate + 11 socket tests + prove_lan live 2026-09-10
-S4-11,S4,server,Named-pipe IPC for the CLI,interprocess - lets the CLI attach to a running app,D2,todo,
+S4-11,S4,server,Named-pipe IPC for the CLI,interprocess - lets the CLI attach to a running app,D2,done,DECIDED loopback HTTP instead of a named pipe (askQuestions 2026-09-10); serve_on + loopback_scope 2026-09-10
 S4-12,S4,server,TypeScript client SDK package,Typed client over REST and SSE generated from the protocol types,D2,done,@vitals/client, 30 tests, zero deps 2026-09-10
-S5-01,S5,cli,Implement vitals ps,Direct sampling via vitals-win; table and JSON,D4,todo,
-S5-02,S5,cli,Implement vitals top,Live refreshing view,D4,todo,
-S5-03,S5,cli,Implement vitals info,Host information,D4,todo,
-S5-04,S5,cli,Implement vitals report,The why-is-my-PC-slow bundle,D4,todo,
-S5-05,S5,cli,Implement vitals serve,Headless LAN server with no GUI,D4,todo,
-S5-06,S5,cli,Attach mode,Read the running app via the named pipe,D2,todo,
+S5-01,S5,cli,Implement vitals ps,Direct sampling via vitals-win; table and JSON,D4,done,ps: table+JSON, attached or direct 2026-09-10
+S5-02,S5,cli,Implement vitals top,Live refreshing view,D4,done,top: SSE fold, crossterm, NDJSON with --json 2026-09-10
+S5-03,S5,cli,Implement vitals info,Host information,D4,done,info: HostInfo + summary 2026-09-10
+S5-04,S5,cli,Implement vitals report,The why-is-my-PC-slow bundle,D4,done,report: JSON bundle host/alerts/samples 2026-09-10
+S5-05,S5,cli,Implement vitals serve,Headless LAN server with no GUI,D4,done,serve: headless vitals-server, token printed once 2026-09-10
+S5-06,S5,cli,Attach mode,Read the running app via the named pipe,D2,done,attach over loopback :7330, discovery file + pid check 2026-09-10
 S6-01,S6,mobile,mobile.html entry,build.rolldownOptions.input; own component tree; never imports the desktop shell,D14,done,mobile.html entry + import-boundary test 2026-09-10
 S6-02,S6,mobile,Manifest and A2HS meta,No service worker - LAN is not a secure context,D14,done,inline manifest, viewport-fit, no SW 2026-09-10
 S6-03,S6,mobile,Mobile overview screen,CPU RAM GPU network disk temps with sparklines,D15,done,MachineCard w/ sparklines, live vs real server 2026-09-10
