@@ -93,6 +93,9 @@ const en = {
     none: 'Nothing needs your attention.',
     noneBody: 'Vitals is watching CPU, memory, disks, temperature, and network health.',
     investigate: 'Investigate',
+    // Appended to a toast title when a condition has gone away. Rendered in
+    // Rust, so it is pushed across with the titles rather than read here.
+    cleared: 'resolved',
     cpuSustained: {
       title: 'The processor has been busy for a while',
       cause:
@@ -252,6 +255,7 @@ const ro = {
     none: 'Nimic nu necesită atenția ta.',
     noneBody: 'Vitals urmărește procesorul, memoria, discurile, temperatura și starea rețelei.',
     investigate: 'Investighează',
+    cleared: 'rezolvat',
     cpuSustained: {
       title: 'Procesorul este solicitat de ceva timp',
       cause:

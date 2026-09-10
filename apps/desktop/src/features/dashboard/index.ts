@@ -8,4 +8,3 @@ export {
   type SystemSource,
 } from './useSystemSnapshot';
 export { defaultLayout, widgetCatalogue, type DashboardLayout, type WidgetId } from './widgets';
-export { evaluateAlerts, THRESHOLDS, type Alert } from './alerts';

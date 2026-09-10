@@ -2,8 +2,8 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { i18n, initI18n } from '@vitals/i18n';
 
-import { alertSeverities } from './alerts';
 import { bundles, DASHBOARD_NS, registerDashboardStrings } from './strings';
+import { ALERT_KINDS } from '../alerts/alertText';
 import { widgetCatalogue } from './widgets';
 
 /** Every leaf key path in an object, dot-joined. */
@@ -38,12 +38,15 @@ describe('dashboard translations', () => {
     }
   });
 
-  it('covers every severity with an icon-independent wording', () => {
-    // Guards against a severity being added to the union without the alert
-    // panel knowing how to describe it.
-    expect(alertSeverities.length).toBeGreaterThan(0);
-    for (const severity of alertSeverities) {
-      expect(['info', 'warning', 'critical']).toContain(severity);
+  it('has a title for every alert kind the Rust engine can emit', () => {
+    // The engine sends `alert.<kind>.title` as a key and never as prose, so a
+    // kind added in Rust without strings here reaches the user as its own key
+    // path — and reaches a toast as nothing at all, because Rust skips a kind
+    // it has no title for rather than falling back to English.
+    const paths = new Set(keyPaths(bundles.en));
+
+    for (const kind of ALERT_KINDS) {
+      expect(paths, `missing alert.${kind}.title`).toContain(`alert.${kind}.title`);
     }
   });
 });

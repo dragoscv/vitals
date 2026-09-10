@@ -2,7 +2,9 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { i18n, initI18n } from '@vitals/i18n';
+import type { Alert } from '@vitals/protocol';
 
+import { createManualAlertSource } from '../alerts/useAlerts';
 import { DashboardScreen } from './DashboardScreen';
 import { HistoryCollector } from './history';
 import { registerDashboardStrings } from './strings';
@@ -49,6 +51,7 @@ async function renderDashboard(
   options: {
     layout?: DashboardLayout;
     source?: ReturnType<typeof liveSource>;
+    alerts?: readonly Alert[];
     onNavigate?: (route: string) => void;
   } = {},
 ) {
@@ -57,6 +60,7 @@ async function renderDashboard(
   const view = render(
     <DashboardScreen
       source={options.source ?? liveSource()}
+      alertSource={createManualAlertSource(options.alerts ?? [])}
       layoutBackend={backend}
       historyCollector={collector}
       onNavigate={options.onNavigate as never}
@@ -218,6 +222,18 @@ describe('DashboardScreen', () => {
   });
 
   describe('alerts', () => {
+    /** As the Rust engine emits it: keys, not prose, plus rounded values. */
+    const overheating: Alert = {
+      kind: 'thermalCpu',
+      severity: 'critical',
+      subject: '',
+      title: 'alert.thermalCpu.title',
+      cause: 'alert.thermalCpu.cause',
+      values: { celsius: 99 },
+      route: 'performance',
+      sinceSample: 1,
+    };
+
     it('says explicitly that nothing is wrong', async () => {
       // The empty state is the widget's most common and most valuable output:
       // it redirects the user from guessing at hardware to a specific app.
@@ -228,7 +244,7 @@ describe('DashboardScreen', () => {
     it('explains the cause rather than restating the number', async () => {
       await renderDashboard({
         layout: [{ id: 'alerts', size: 'full' }],
-        source: liveSource({ cpu: { temperature: 99 } }),
+        alerts: [overheating],
       });
 
       expect(screen.getByText('The processor is overheating')).toBeTruthy();
@@ -239,7 +255,7 @@ describe('DashboardScreen', () => {
       const onNavigate = vi.fn();
       await renderDashboard({
         layout: [{ id: 'alerts', size: 'full' }],
-        source: liveSource({ cpu: { temperature: 99 } }),
+        alerts: [overheating],
         onNavigate,
       });
 

@@ -2,9 +2,10 @@
  * The dashboard.
  *
  * Composition only. The layout model is in `widgets.ts`, persistence in
- * `useLayout.ts`, the alert rules in `alerts.ts`, and history collection in
- * `history.ts` — each of which is exercised without a DOM, which is the reason
- * this file is wiring and a switch statement.
+ * `useLayout.ts`, and history collection in `history.ts` — each of which is
+ * exercised without a DOM, which is the reason this file is wiring and a
+ * switch statement. The alert rules are not here at all: they run in Rust, and
+ * `features/alerts` is only a subscription to their output.
  *
  * # One subscription, not one per widget
  *
@@ -19,6 +20,7 @@ import { LayoutGrid, PlugZap, Plus, RotateCcw, Settings2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import type { Alert } from '@vitals/protocol';
 import {
   Button,
   DropdownMenu,
@@ -32,7 +34,7 @@ import {
 } from '@vitals/ui';
 
 import type { RouteId } from '../../shell/navigation';
-import { evaluateAlerts } from './alerts';
+import { useAlerts, type AlertSource } from '../alerts/useAlerts';
 import { history as sharedHistory, type HistoryCollector } from './history';
 import { DASHBOARD_NS } from './strings';
 import { useHistory } from './useHistory';
@@ -72,6 +74,8 @@ import {
 export interface DashboardScreenProps {
   /** Injectable so tests and the sampler-less preview need no Tauri host. */
   readonly source?: SystemSource;
+  /** Injectable for the same reason as `source`: no Tauri host in tests. */
+  readonly alertSource?: AlertSource;
   readonly layoutBackend?: LayoutBackend;
   readonly historyCollector?: HistoryCollector;
   /**
@@ -84,6 +88,7 @@ export interface DashboardScreenProps {
 
 export function DashboardScreen({
   source,
+  alertSource,
   layoutBackend,
   historyCollector = sharedHistory,
   onNavigate,
@@ -119,10 +124,7 @@ export function DashboardScreen({
     [layoutController.layout, capabilities],
   );
 
-  const alerts = useMemo(
-    () => evaluateAlerts({ system: snapshot.system, history: historyState }),
-    [snapshot.system, historyState],
-  );
+  const alerts = useAlerts(alertSource);
 
   const navigate = (route: RouteId): void => {
     onNavigate?.(route);
@@ -283,7 +285,7 @@ function WidgetBody({
   readonly snapshot: ReturnType<typeof useSystemSnapshot>;
   readonly history: WidgetBodyProps['history'];
   readonly locale: string;
-  readonly alerts: ReturnType<typeof evaluateAlerts>;
+  readonly alerts: readonly Alert[];
   readonly onNavigate: (route: RouteId) => void;
 }): React.JSX.Element | null {
   const system = snapshot.system;

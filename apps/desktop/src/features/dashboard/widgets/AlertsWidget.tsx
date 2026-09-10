@@ -1,9 +1,10 @@
 /**
  * The attention panel.
  *
- * Renders what `alerts.ts` decided, and nothing more — no thresholds or
- * severity logic here, so the rules can be exercised over a synthetic history
- * without a DOM.
+ * Renders what the Rust engine decided, and nothing more — no thresholds or
+ * severity logic here. The rules live in `crates/vitals-core/src/alerts.rs`
+ * so that one evaluation feeds this panel, the tray, a Windows toast and the
+ * LAN API rather than four that can disagree.
  *
  * # Saying "nothing is wrong" is the point
  *
@@ -18,19 +19,20 @@
 import { AlertTriangle, CheckCircle2, Info, XCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
+import type { Alert, Severity } from '@vitals/protocol';
 import { Button, cn } from '@vitals/ui';
 
 import type { RouteId } from '../../../shell/navigation';
-import type { Alert, AlertSeverity } from '../alerts';
+import { alertCause, alertTitle } from '../../alerts/alertText';
 import { DASHBOARD_NS } from '../strings';
 
-const ICON: Readonly<Record<AlertSeverity, typeof Info>> = {
+const ICON: Readonly<Record<Severity, typeof Info>> = {
   critical: XCircle,
   warning: AlertTriangle,
   info: Info,
 };
 
-const TONE: Readonly<Record<AlertSeverity, string>> = {
+const TONE: Readonly<Record<Severity, string>> = {
   critical: 'text-[var(--color-danger-fg)]',
   warning: 'text-[var(--color-warning-fg)]',
   info: 'text-[var(--color-fg-muted)]',
@@ -69,17 +71,18 @@ export function AlertsWidget({ alerts, onNavigate }: AlertsWidgetProps): React.J
       {alerts.map((alert) => {
         const Icon = ICON[alert.severity];
         return (
-          <li key={alert.id} className="flex items-start gap-2.5">
+          // Keyed on kind *and* subject: two disks can be nearly full at once,
+          // and keying on kind alone would collapse them into one row that
+          // flickers between drive letters.
+          <li key={`${alert.kind}:${alert.subject}`} className="flex items-start gap-2.5">
             <Icon aria-hidden className={cn('mt-0.5 size-4 shrink-0', TONE[alert.severity])} />
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium">{t(alert.titleKey, alert.values)}</p>
+              <p className="text-sm font-medium">{alertTitle(alert, t)}</p>
               {/* The cause, not a restatement of the number above it. This is
                   the sentence that makes the alert actionable. */}
-              <p className="text-2xs text-[var(--color-fg-muted)]">
-                {t(alert.causeKey, alert.values)}
-              </p>
+              <p className="text-2xs text-[var(--color-fg-muted)]">{alertCause(alert, t)}</p>
             </div>
-            {alert.route !== undefined && (
+            {alert.route !== null && (
               <Button
                 variant="ghost"
                 size="sm"

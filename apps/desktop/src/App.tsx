@@ -1,10 +1,21 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
+import { syncAlertPrefs, syncAlertStrings } from './features/alerts/pushPrefs';
+import { DASHBOARD_NS } from './features/dashboard/strings';
 import { signalReady, wasAutostarted } from './lib/ready';
 import { effectiveRate, pushSampleRate } from './lib/sampleRate';
-import { pushHistoryEnabled, pushRetentionDays, reconcileAutostart } from './lib/settingsSync';
+import {
+  pushCloseToTray,
+  pushHistoryEnabled,
+  pushRetentionDays,
+  pushTrayStrings,
+  reconcileAutostart,
+} from './lib/settingsSync';
+import { useHud } from './lib/useHud';
 import { useSettings } from './settings/store';
 import { AppShell } from './shell/AppShell';
+import { SHELL_NS } from './shell/strings';
 import { hasTauriHost } from './shell/host';
 import { ThemeProvider } from './theme/ThemeProvider';
 
@@ -92,7 +103,7 @@ function useSettingsSync(
   settings: ReturnType<typeof useSettings.getState>['settings'],
   hydrated: boolean,
 ): void {
-  const { historyEnabled, retentionDays, startWithWindows } = settings;
+  const { historyEnabled, retentionDays, startWithWindows, closeToTray } = settings;
   const patch = useSettings((state) => state.patch);
 
   useEffect(() => {
@@ -107,6 +118,11 @@ function useSettingsSync(
 
   useEffect(() => {
     if (!hydrated) return;
+    void pushCloseToTray(closeToTray);
+  }, [hydrated, closeToTray]);
+
+  useEffect(() => {
+    if (!hydrated) return;
     void reconcileAutostart(startWithWindows).then((actual) => {
       // The OS is the source of truth. If it refused, or Task Manager had
       // already disabled the entry, the switch must show that rather than
@@ -116,6 +132,89 @@ function useSettingsSync(
       }
     });
   }, [hydrated, startWithWindows, patch]);
+}
+
+/**
+ * Keeps the Rust alert engine's notification switches in step with settings.
+ *
+ * Waits for hydration for the same reason as `useSettingsSync`: before it the
+ * values are the defaults, which are all off, and pushing those would silence
+ * notifications a user had enabled for as long as the settings file takes to
+ * read.
+ */
+function useAlertPrefsSync(
+  settings: ReturnType<typeof useSettings.getState>['settings'],
+  hydrated: boolean,
+): void {
+  const { notificationsEnabled, notifyHighCpu, notifyHighMemory, notifyThermal } = settings;
+
+  useEffect(() => {
+    if (!hydrated) return;
+    void syncAlertPrefs({
+      notificationsEnabled,
+      notifyHighCpu,
+      notifyHighMemory,
+      notifyThermal,
+    });
+  }, [hydrated, notificationsEnabled, notifyHighCpu, notifyHighMemory, notifyThermal]);
+}
+
+/**
+ * Hands the engine a toast title for every alert kind, in the current
+ * language.
+ *
+ * Toasts are rendered in Rust because they must fire while the window is
+ * hidden, so the strings have to be pushed rather than fetched. Re-pushed on
+ * a language change: without it, a user who switches to Romanian keeps
+ * receiving English notifications until the next restart, with nothing on
+ * screen to explain why.
+ */
+function useAlertStringsSync(): void {
+  const { t, i18n } = useTranslation(DASHBOARD_NS);
+
+  useEffect(() => {
+    const push = (): void => {
+      void syncAlertStrings(t);
+    };
+
+    push();
+    i18n.on('languageChanged', push);
+    return () => {
+      i18n.off('languageChanged', push);
+    };
+  }, [t, i18n]);
+}
+
+/**
+ * Hands the tray its menu labels and tooltip words.
+ *
+ * Identical argument to `useAlertStringsSync`, and re-pushed on a language
+ * change for the same reason: the tray menu is the only way to quit once the
+ * × hides the window, so leaving it in the wrong language is worse than a
+ * mislabelled toast.
+ */
+function useTrayStringsSync(): void {
+  const { t, i18n } = useTranslation(SHELL_NS);
+
+  useEffect(() => {
+    const push = (): void => {
+      void pushTrayStrings({
+        show: t('tray.show'),
+        pause: t('tray.pause'),
+        quit: t('tray.quit'),
+        cpu: t('tray.cpu'),
+        memory: t('tray.memory'),
+        gpu: t('tray.gpu'),
+        stillRunning: t('tray.stillRunning'),
+      });
+    };
+
+    push();
+    i18n.on('languageChanged', push);
+    return () => {
+      i18n.off('languageChanged', push);
+    };
+  }, [t, i18n]);
 }
 
 /**
@@ -136,6 +235,10 @@ export function App() {
 
   useSampleRate(settings);
   useSettingsSync(settings, hydrated);
+  useAlertPrefsSync(settings, hydrated);
+  useAlertStringsSync();
+  useTrayStringsSync();
+  useHud(hydrated);
 
   useEffect(() => {
     void hydrate();
