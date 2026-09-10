@@ -450,7 +450,7 @@ export function AdvancedPanel() {
        */}
       <p
         id="advanced-warning"
-        className="text-2xs rounded-[var(--radius-control)] border border-[var(--color-status-danger)] bg-[var(--color-bg-inset)] p-2.5 text-[var(--color-fg-default)]"
+        className="rounded-[var(--radius-control)] border border-[var(--color-status-danger)] bg-[var(--color-bg-inset)] p-2.5 text-2xs text-[var(--color-fg-default)]"
       >
         {t('settings.advanced.warning')}
       </p>
@@ -564,7 +564,7 @@ function HostFacts({ info }: { readonly info: HostInfo }) {
         {rows.map((row) => (
           <Fragment key={row.label}>
             <dt className="text-2xs text-[var(--color-fg-muted)]">{row.label}</dt>
-            <dd className="text-2xs truncate font-mono">{row.value}</dd>
+            <dd className="truncate font-mono text-2xs">{row.value}</dd>
           </Fragment>
         ))}
       </dl>

@@ -19,8 +19,8 @@ vi.mock('@vitals/ui', async () => {
   };
 });
 
-beforeEach(() => {
-  initI18n('en');
+beforeEach(async () => {
+  await initI18n('en');
   registerHistoryStrings();
 });
 

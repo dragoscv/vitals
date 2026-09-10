@@ -73,8 +73,8 @@ export function GpuPanel({
 
       {gpu.engines.length > 0 && (
         <div>
-          <p className="text-2xs mb-0.5 text-[var(--color-fg-muted)]">{t('gpu.engines')}</p>
-          <p className="text-2xs mb-2 text-[var(--color-fg-subtle)]">{t('gpu.enginesHint')}</p>
+          <p className="mb-0.5 text-2xs text-[var(--color-fg-muted)]">{t('gpu.engines')}</p>
+          <p className="mb-2 text-2xs text-[var(--color-fg-subtle)]">{t('gpu.enginesHint')}</p>
           <div className="flex flex-col gap-1.5">
             {gpu.engines.map((engine) => {
               // The backend sends a stable slug, not a display name. Falling
@@ -186,11 +186,11 @@ export function DiskPanel({
       </div>
 
       {disk.health?.failing === true && (
-        <div className="border-[var(--color-status-danger)]/40 bg-[var(--color-status-danger)]/10 rounded-md border p-2.5">
+        <div className="rounded-md border border-[var(--color-status-danger)]/40 bg-[var(--color-status-danger)]/10 p-2.5">
           <p className="text-sm font-medium text-[var(--color-status-danger)]">
             {t('disk.failing')}
           </p>
-          <p className="text-2xs mt-0.5 text-[var(--color-fg-muted)]">{t('disk.failingHint')}</p>
+          <p className="mt-0.5 text-2xs text-[var(--color-fg-muted)]">{t('disk.failingHint')}</p>
         </div>
       )}
 

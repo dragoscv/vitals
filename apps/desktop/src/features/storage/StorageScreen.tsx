@@ -144,7 +144,7 @@ export function StorageScreen({ source }: StorageScreenProps = {}): React.JSX.El
           value={depth}
           ariaLabel={t('scan.depthLabel')}
           onValueChange={(next) => {
-            setDepth(next as DepthId);
+            setDepth(next);
           }}
           options={DEPTHS.map((entry) => ({
             value: entry.id,
@@ -277,7 +277,7 @@ function Volumes({
                   empty drive are different facts, and a full-looking or
                   empty-looking bar asserts one of them without evidence. */}
               {percent === null ? (
-                <p className="text-2xs mt-1 text-[var(--color-fg-muted)]">
+                <p className="mt-1 text-2xs text-[var(--color-fg-muted)]">
                   {t('volumes.unknownCapacity')}
                 </p>
               ) : (
@@ -306,7 +306,7 @@ function Volumes({
           );
         })}
       </div>
-      <p className="text-2xs mt-1.5 text-[var(--color-fg-subtle)]">{t('volumes.scanHint')}</p>
+      <p className="mt-1.5 text-2xs text-[var(--color-fg-subtle)]">{t('volumes.scanHint')}</p>
     </section>
   );
 }
@@ -353,7 +353,7 @@ function ScanResult({
         </div>
 
         {needsQualifier(snapshot) && (
-          <div className="text-2xs flex flex-col gap-1 text-[var(--color-status-warn)]">
+          <div className="flex flex-col gap-1 text-2xs text-[var(--color-status-warn)]">
             {snapshot.cancelled && <p>{t('result.cancelled')}</p>}
             {snapshot.clusterBytes === null && <p>{t('result.noCluster')}</p>}
             {snapshot.skippedTotal > 0 && (
@@ -388,7 +388,7 @@ function ScanResult({
             value={sort}
             ariaLabel={t('sortLabel')}
             onValueChange={(next) => {
-              onSortChange(next as DirectorySort);
+              onSortChange(next);
             }}
             options={directorySorts.map((id) => ({ value: id, label: t(`sort.${id}`) }))}
           />
@@ -437,13 +437,13 @@ function ScanResult({
                         </Badge>
                       )}
                     </td>
-                    <td className="text-2xs tnum px-2.5 py-1.5 text-right font-mono">
+                    <td className="tnum px-2.5 py-1.5 text-right font-mono text-2xs">
                       {formatBytes(entry.allocated, locale)}
                     </td>
-                    <td className="text-2xs tnum px-2.5 py-1.5 text-right font-mono text-[var(--color-fg-subtle)]">
+                    <td className="tnum px-2.5 py-1.5 text-right font-mono text-2xs text-[var(--color-fg-subtle)]">
                       {formatBytes(entry.logical, locale)}
                     </td>
-                    <td className="text-2xs tnum px-2.5 py-1.5 text-right font-mono">
+                    <td className="tnum px-2.5 py-1.5 text-right font-mono text-2xs">
                       {formatCount(entry.files, locale)}
                     </td>
                   </tr>
@@ -528,7 +528,7 @@ function Cleanup({
             {groups.map((group) => (
               <section key={group.safety} aria-label={t(`safety.${group.safety}`)}>
                 <h4 className="text-sm font-medium">{t(`safety.${group.safety}`)}</h4>
-                <p className="text-2xs mb-1.5 text-[var(--color-fg-muted)]">
+                <p className="mb-1.5 text-2xs text-[var(--color-fg-muted)]">
                   {t(`safety.${group.safety}Body`)}
                 </p>
                 <ul className="flex flex-col gap-1.5">
@@ -559,16 +559,16 @@ function CandidateRow({
     <li className="flex flex-wrap items-start justify-between gap-2 rounded-md border border-[var(--color-border-subtle)] p-2">
       <div className="min-w-0 flex-1">
         <p className="text-sm">{t(`kindLabel.${candidate.kind}`)}</p>
-        <p className="text-2xs truncate font-mono text-[var(--color-fg-subtle)]">
+        <p className="truncate font-mono text-2xs text-[var(--color-fg-subtle)]">
           {candidate.path}
         </p>
-        <p className="text-2xs mt-0.5 text-[var(--color-fg-muted)]">
+        <p className="mt-0.5 text-2xs text-[var(--color-fg-muted)]">
           {t(`kindReason.${candidate.kind}`)}
         </p>
         {/* Which of the two causes applies, not merely that one does: without
             it the user has no idea whether elevating would help. */}
         {reason !== null && (
-          <p className="text-2xs mt-0.5 text-[var(--color-status-warn)]">
+          <p className="mt-0.5 text-2xs text-[var(--color-status-warn)]">
             {reason === 'needsElevation'
               ? t('cleanup.reasonNeedsElevation')
               : t('cleanup.reasonUnreadable')}
@@ -577,7 +577,7 @@ function CandidateRow({
       </div>
 
       <div className="flex items-center gap-2">
-        <span className="text-2xs tnum font-mono">
+        <span className="tnum font-mono text-2xs">
           {candidate.size === null ? t('cleanup.unknownSize') : formatBytes(candidate.size, locale)}
         </span>
         {candidate.needsElevation && <Badge tone="warn">{t('cleanup.needsElevation')}</Badge>}

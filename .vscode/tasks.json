@@ -1,0 +1,181 @@
+{
+  // Every task here maps to something a contributor actually runs. Nothing is
+  // duplicated between "pnpm X" and "turbo run X" — pick the one that works from
+  // the repo root. Keep this list short; a task nobody runs is noise.
+  "version": "2.0.0",
+  "options": {
+    "cwd": "${workspaceFolder}"
+  },
+  "presentation": {
+    "reveal": "always",
+    "panel": "dedicated",
+    "clear": true
+  },
+  "tasks": [
+    // ── Run ────────────────────────────────────────────────────────────────
+    {
+      "label": "dev: desktop (tauri)",
+      "detail": "Vite dev server + Tauri window with hot reload",
+      "type": "shell",
+      "command": "pnpm --filter @vitals/desktop tauri dev",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "tauri",
+        "pattern": { "regexp": "^(error)\\[.*\\]: (.*)$", "severity": 1, "message": 2 },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "Running BeforeDevCommand",
+          "endsPattern": "Finished .* target\\(s\\)"
+        }
+      },
+      "group": "build"
+    },
+    {
+      "label": "dev: web only (browser at :5273)",
+      "detail": "Vite dev server without Tauri — screens run against the no-host fallback",
+      "type": "shell",
+      "command": "pnpm --filter @vitals/desktop dev",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "vite",
+        "pattern": { "regexp": "^(error)\\s+(.*)$", "severity": 1, "message": 2 },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "VITE v",
+          "endsPattern": "ready in"
+        }
+      }
+    },
+    {
+      "label": "cli: vitals top",
+      "detail": "Run the CLI against live data",
+      "type": "shell",
+      "command": "cargo run -p vitals-cli -- top"
+    },
+
+    // ── Check ──────────────────────────────────────────────────────────────
+    {
+      "label": "check: typecheck",
+      "type": "shell",
+      "command": "pnpm typecheck",
+      "problemMatcher": "$tsc",
+      "group": "test"
+    },
+    {
+      "label": "check: lint (eslint)",
+      "type": "shell",
+      "command": "pnpm lint",
+      "problemMatcher": "$eslint-stylish",
+      "group": "test"
+    },
+    {
+      "label": "check: clippy",
+      "type": "shell",
+      "command": "cargo clippy --workspace --all-targets -- -D warnings",
+      "problemMatcher": "$rustc",
+      "group": "test"
+    },
+    {
+      "label": "check: format",
+      "detail": "Prettier + rustfmt, check only",
+      "type": "shell",
+      "command": "pnpm format:check; cargo fmt --all -- --check",
+      "group": "test"
+    },
+    {
+      "label": "check: protocol drift",
+      "detail": "Regenerate ts-rs bindings and fail if the committed output differs",
+      "type": "shell",
+      "command": "pnpm protocol:check",
+      "problemMatcher": []
+    },
+    {
+      "label": "check: size budget",
+      "detail": "Bundle and installer sizes against size-budget.json (needs a prior build)",
+      "type": "shell",
+      "command": "pwsh -NoProfile -File scripts/check-size.ps1",
+      "problemMatcher": []
+    },
+
+    // ── Test ───────────────────────────────────────────────────────────────
+    {
+      "label": "test: frontend (vitest)",
+      "type": "shell",
+      "command": "pnpm test",
+      "group": { "kind": "test", "isDefault": true }
+    },
+    {
+      "label": "test: rust (cargo)",
+      "type": "shell",
+      "command": "cargo test --workspace",
+      "problemMatcher": "$rustc",
+      "group": "test"
+    },
+    {
+      "label": "test: perf budget (release)",
+      "detail": "The 30 ms sample budget — needs an optimised build, slow from cold",
+      "type": "shell",
+      "command": "cargo test -p vitals-win --release --test overhead -- --nocapture",
+      "problemMatcher": "$rustc"
+    },
+    {
+      "label": "test: everything CI runs",
+      "detail": "scripts/verify.ps1 — all gates, exits non-zero on any failure",
+      "type": "shell",
+      "command": "pwsh -NoProfile -File scripts/verify.ps1",
+      "problemMatcher": [],
+      "group": "test"
+    },
+
+    // ── Fix ────────────────────────────────────────────────────────────────
+    {
+      "label": "fix: format all",
+      "type": "shell",
+      "command": "pnpm format; cargo fmt --all",
+      "problemMatcher": []
+    },
+    {
+      "label": "fix: regenerate protocol bindings",
+      "type": "shell",
+      "command": "pnpm protocol:generate",
+      "problemMatcher": []
+    },
+
+    // ── Build ──────────────────────────────────────────────────────────────
+    {
+      "label": "build: installer (nsis)",
+      "detail": "Release build + NSIS installer in target/release/bundle/nsis",
+      "type": "shell",
+      "command": "pnpm --filter @vitals/desktop tauri build",
+      "problemMatcher": "$rustc",
+      "group": { "kind": "build", "isDefault": true }
+    },
+    {
+      "label": "build: frontend only",
+      "type": "shell",
+      "command": "pnpm --filter @vitals/desktop build",
+      "problemMatcher": []
+    },
+
+    // ── Maintain ───────────────────────────────────────────────────────────
+    {
+      "label": "deps: outdated",
+      "detail": "pnpm outdated + cargo outdated (install cargo-outdated if missing)",
+      "type": "shell",
+      "command": "pnpm outdated -r; cargo outdated --workspace --root-deps-only",
+      "problemMatcher": []
+    },
+    {
+      "label": "deps: audit",
+      "type": "shell",
+      "command": "pnpm audit --prod; cargo audit",
+      "problemMatcher": []
+    },
+    {
+      "label": "clean: build artefacts",
+      "type": "shell",
+      "command": "pnpm --filter @vitals/desktop exec rimraf dist; cargo clean",
+      "problemMatcher": []
+    }
+  ]
+}

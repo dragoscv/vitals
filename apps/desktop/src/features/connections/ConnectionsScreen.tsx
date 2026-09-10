@@ -126,7 +126,7 @@ export function ConnectionsScreen({
           value={filter}
           ariaLabel={t('filterLabel')}
           onValueChange={(next) => {
-            setFilter(next as ConnectionFilter);
+            setFilter(next);
           }}
           options={connectionFilters.map((id) => ({ value: id, label: t(`filter.${id}`) }))}
         />
@@ -180,7 +180,7 @@ function GroupRow({
         <Chevron aria-hidden className="size-4 shrink-0 text-[var(--color-fg-muted)]" />
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm font-medium">{group.name}</span>
-          <span className="text-2xs flex flex-wrap gap-x-3 text-[var(--color-fg-muted)]">
+          <span className="flex flex-wrap gap-x-3 text-2xs text-[var(--color-fg-muted)]">
             <span>{t('summary.connections', { count: group.rows.length })}</span>
             {group.established > 0 && (
               <span>{t('summary.established', { count: group.established })}</span>
@@ -248,8 +248,8 @@ function SocketTable({ rows }: { readonly rows: readonly ConnectionRow[] }) {
         <tbody>
           {rows.map((row) => (
             <tr key={row.id} className="border-t border-[var(--color-border-subtle)]">
-              <td className="text-2xs px-2.5 py-1 font-mono uppercase">{row.protocol}</td>
-              <td className="text-2xs px-2.5 py-1 font-mono">
+              <td className="px-2.5 py-1 font-mono text-2xs uppercase">{row.protocol}</td>
+              <td className="px-2.5 py-1 font-mono text-2xs">
                 {row.localAddress}:{row.localPort}
                 {isPublicListener(row) && (
                   <Globe
@@ -260,14 +260,14 @@ function SocketTable({ rows }: { readonly rows: readonly ConnectionRow[] }) {
               </td>
               <td
                 className={cn(
-                  'text-2xs px-2.5 py-1 font-mono',
+                  'px-2.5 py-1 font-mono text-2xs',
                   isExternal(row.remoteAddress) && 'text-[var(--color-fg-default)]',
                 )}
               >
                 {row.remoteAddress === null ? '—' : `${row.remoteAddress}:${row.remotePort ?? ''}`}
               </td>
-              <td className="text-2xs px-2.5 py-1">{t(`state.${row.state}`)}</td>
-              <td className="text-2xs tnum px-2.5 py-1 font-mono">{row.ownerPid ?? '—'}</td>
+              <td className="px-2.5 py-1 text-2xs">{t(`state.${row.state}`)}</td>
+              <td className="tnum px-2.5 py-1 font-mono text-2xs">{row.ownerPid ?? '—'}</td>
             </tr>
           ))}
         </tbody>

@@ -99,7 +99,7 @@ export function SettingsDialog({ open, onOpenChange, version }: SettingsDialogPr
           activationMode="manual"
           className="flex h-full min-h-0 gap-4"
         >
-          <TabsList className="flex w-44 shrink-0 flex-col items-stretch gap-0.5 border-b-0 border-r border-[var(--color-border-subtle)] pr-2">
+          <TabsList className="flex w-44 shrink-0 flex-col items-stretch gap-0.5 border-r border-b-0 border-[var(--color-border-subtle)] pr-2">
             {tabIds.map((id) => {
               const Icon = tabIcons[id];
               return (

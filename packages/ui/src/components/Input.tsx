@@ -57,7 +57,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
       <div
         className={cn(
           'flex h-8 items-center gap-1.5 rounded-[var(--radius-control)] border bg-[var(--color-bg-inset)] px-2',
-          'duration-(--duration-fast) transition-colors',
+          'transition-colors duration-(--duration-fast)',
           error === undefined
             ? 'border-[var(--color-border-default)]'
             : 'border-[var(--color-status-danger)]',
@@ -85,7 +85,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
           aria-invalid={error === undefined ? undefined : true}
           aria-describedby={message === undefined ? undefined : messageId}
           className={cn(
-            'min-w-0 flex-1 select-text bg-transparent text-sm text-[var(--color-fg-default)] outline-none',
+            'min-w-0 flex-1 bg-transparent text-sm text-[var(--color-fg-default)] outline-none select-text',
             'placeholder:text-[var(--color-fg-subtle)]',
             disabledControl,
             inputClassName,

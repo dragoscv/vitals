@@ -44,8 +44,8 @@ export const Switch = forwardRef<ElementRef<typeof Radix.Root>, SwitchProps>(fun
       aria-label={label === undefined ? ariaLabel : undefined}
       aria-describedby={description === undefined ? undefined : descriptionId}
       className={cn(
-        'h-4.5 peer inline-flex w-8 shrink-0 cursor-pointer items-center rounded-full border border-transparent p-0.5',
-        'duration-(--duration-fast) ease-(--ease-out-quart) transition-colors',
+        'peer inline-flex h-4.5 w-8 shrink-0 cursor-pointer items-center rounded-full border border-transparent p-0.5',
+        'transition-colors duration-(--duration-fast) ease-(--ease-out-quart)',
         'bg-[var(--color-border-strong)] data-[state=checked]:bg-[var(--color-accent)]',
         focusRing,
         disabledData,
@@ -56,7 +56,7 @@ export const Switch = forwardRef<ElementRef<typeof Radix.Root>, SwitchProps>(fun
       <Radix.Thumb
         className={cn(
           'block size-3.5 rounded-full bg-[var(--color-bg-raised)] shadow-sm',
-          'duration-(--duration-fast) ease-(--ease-out-quart) transition-transform',
+          'transition-transform duration-(--duration-fast) ease-(--ease-out-quart)',
           'translate-x-0 data-[state=checked]:translate-x-3.5',
         )}
       />
@@ -78,7 +78,7 @@ export const Switch = forwardRef<ElementRef<typeof Radix.Root>, SwitchProps>(fun
           {label}
         </label>
         {description !== undefined && (
-          <p id={descriptionId} className="text-2xs mt-0.5 text-[var(--color-fg-muted)]">
+          <p id={descriptionId} className="mt-0.5 text-2xs text-[var(--color-fg-muted)]">
             {description}
           </p>
         )}

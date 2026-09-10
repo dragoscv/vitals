@@ -172,7 +172,7 @@ function RailButton({
         )}
       </span>
       {entry.detail !== null && (
-        <span className="text-2xs block truncate text-[var(--color-fg-subtle)]">
+        <span className="block truncate text-2xs text-[var(--color-fg-subtle)]">
           {entry.detail}
         </span>
       )}

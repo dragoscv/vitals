@@ -29,6 +29,7 @@ packages/protocol/src/generated/
 !.vscode/extensions.json
 !.vscode/settings.json
 !.vscode/launch.json
+!.vscode/tasks.json
 .idea/
 .DS_Store
 Thumbs.db
@@ -49,3 +50,6 @@ apps/desktop/src-tauri/target/
 *.pem
 *.key
 !**/tauri-updater.pub
+
+# Vitest 5 writes reporter output here
+.vitest/

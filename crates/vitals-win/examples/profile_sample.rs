@@ -6,6 +6,10 @@
 //! before measuring is how you spend an afternoon speeding up the part that
 //! was already fast.
 
+// A probe: a failure to sample IS the finding, so panicking with the
+// subsystem name is the right report.
+#![allow(clippy::expect_used)]
+
 use std::time::{Duration, Instant};
 
 use vitals_win::cpu::{CpuSampler, logical_core_count};

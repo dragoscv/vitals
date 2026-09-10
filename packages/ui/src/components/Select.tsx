@@ -143,14 +143,14 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
             className={cn(
               overlaySurface,
               overlayMotion,
-              'min-w-(--radix-select-trigger-width) max-h-72',
+              'max-h-72 min-w-(--radix-select-trigger-width)',
             )}
           >
             <Radix.Viewport className="p-1">
               {isGrouped(options)
                 ? options.map((group) => (
                     <Radix.Group key={group.label}>
-                      <Radix.Label className="text-2xs px-2 py-1 font-semibold text-[var(--color-fg-subtle)]">
+                      <Radix.Label className="px-2 py-1 text-2xs font-semibold text-[var(--color-fg-subtle)]">
                         {group.label}
                       </Radix.Label>
                       {group.options.map(renderOption)}

@@ -210,7 +210,10 @@ export class HistoryCollector {
    */
   markGap(): void {
     const { core } = this.state;
-    for (const buffer of Object.values(core)) buffer.pushGap();
+    // `Object.values` on an interface without an index signature resolves to
+    // the `any[]` overload, which silently disables type checking on the
+    // element. Naming the element type keeps this honest.
+    for (const buffer of Object.values<RingBuffer>(core)) buffer.pushGap();
     for (const map of [this.state.gpu, this.state.gpuMemory, this.state.diskActive]) {
       for (const buffer of map.values()) buffer.pushGap();
     }

@@ -291,7 +291,7 @@ function BenchmarkChoice({
         }}
       />
       {info.available ? (
-        <p className="text-2xs pl-6 text-[var(--color-fg-subtle)]">
+        <p className="pl-6 text-2xs text-[var(--color-fg-subtle)]">
           {t(`describe.${info.id}`)} {t('results.duration', { seconds: info.estimatedSeconds })}
         </p>
       ) : (
@@ -332,8 +332,8 @@ function StartPanel({
             <AlertTriangle aria-hidden className="size-4 text-[var(--color-status-warn)]" />
             {t('warning.title')}
           </p>
-          <p className="text-2xs mt-0.5 text-[var(--color-fg-muted)]">{t('warning.body')}</p>
-          <p className="text-2xs mt-0.5 text-[var(--color-fg-default)]">
+          <p className="mt-0.5 text-2xs text-[var(--color-fg-muted)]">{t('warning.body')}</p>
+          <p className="mt-0.5 text-2xs text-[var(--color-fg-default)]">
             {count === 0
               ? t('warning.nothingSelected')
               : t('warning.estimate', { count: Math.round(seconds) })}
@@ -418,9 +418,9 @@ function Result({
         </div>
 
         {!trusted && reasons.length > 0 && (
-          <div className="border-[var(--color-status-warn)]/40 bg-[var(--color-status-warn)]/10 rounded-md border p-2.5">
+          <div className="rounded-md border border-[var(--color-status-warn)]/40 bg-[var(--color-status-warn)]/10 p-2.5">
             <p className="text-2xs font-medium">{t('trust.badIntro')}</p>
-            <ul className="text-2xs mt-1 list-disc space-y-0.5 pl-4">
+            <ul className="mt-1 list-disc space-y-0.5 pl-4 text-2xs">
               {reasons.map((reason) => (
                 <li key={reason}>
                   {t(`trust.reason.${reason}`, {
@@ -442,13 +442,13 @@ function Result({
           <p className="text-2xs text-[var(--color-fg-muted)]">{t('results.runs')}</p>
           <ul className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5">
             {result.runs.map((run, index) => (
-              <li key={index} className="text-2xs tnum font-mono">
+              <li key={index} className="tnum font-mono text-2xs">
                 {value(run)}
               </li>
             ))}
           </ul>
           {spread !== null && (
-            <p className="text-2xs mt-0.5 text-[var(--color-fg-subtle)]">
+            <p className="mt-0.5 text-2xs text-[var(--color-fg-subtle)]">
               {t('results.spread', { best: value(spread.max), worst: value(spread.min) })}
             </p>
           )}
@@ -478,7 +478,7 @@ function Conditions({
   return (
     <div className="border-t border-[var(--color-border-subtle)] pt-2">
       <p className="text-2xs font-medium">{t('trust.conditions')}</p>
-      <ul className="text-2xs mt-0.5 space-y-0.5 text-[var(--color-fg-muted)]">
+      <ul className="mt-0.5 space-y-0.5 text-2xs text-[var(--color-fg-muted)]">
         <li>
           {conditions.powerPlan === null
             ? t('trust.powerPlanUnknown')

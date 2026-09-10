@@ -136,7 +136,7 @@ export function AppsScreen({
           value={sort}
           ariaLabel={t('sortLabel')}
           onValueChange={(next) => {
-            setSort(next as AppSort);
+            setSort(next);
           }}
           options={appSorts.map((id) => ({ value: id, label: t(`sort.${id}`) }))}
         />
@@ -172,7 +172,7 @@ export function AppsScreen({
             <p className="text-sm">{t('uninstall.body')}</p>
             {/* Stated plainly, because "uninstall" in a third-party tool
                 reasonably makes people wonder what is doing the removing. */}
-            <p className="text-2xs mt-1.5 text-[var(--color-fg-muted)]">
+            <p className="mt-1.5 text-2xs text-[var(--color-fg-muted)]">
               {t('uninstall.bodyDetail')}
             </p>
             <div className="mt-4 flex justify-end gap-2">
@@ -224,14 +224,14 @@ function Summary({
         })}
       </p>
       {totals.withoutSize > 0 && (
-        <p className="text-2xs mt-0.5 text-[var(--color-fg-muted)]">
+        <p className="mt-0.5 text-2xs text-[var(--color-fg-muted)]">
           {t('summary.noSize', { count: totals.withoutSize })} — {t('summary.sizeHint')}
         </p>
       )}
       {/* Without this a well-filtered scan and a broken one look identical:
           both produce a short list. The breakdown is what tells them apart. */}
       {snapshot.rejected > 0 && (
-        <p className="text-2xs mt-0.5 text-[var(--color-fg-subtle)]">
+        <p className="mt-0.5 text-2xs text-[var(--color-fg-subtle)]">
           {t('summary.filtered', {
             rejected: snapshot.rejected,
             examined: snapshot.examined,
@@ -287,7 +287,7 @@ function AppTable({
             <tr key={app.keyName} className="border-t border-[var(--color-border-subtle)]">
               <td className="px-2.5 py-1.5">
                 <span className="block truncate text-sm">{app.name}</span>
-                <span className="text-2xs block truncate text-[var(--color-fg-subtle)]">
+                <span className="block truncate text-2xs text-[var(--color-fg-subtle)]">
                   {app.publisher ?? t(`source.${app.source}`)}
                   {app.perUser && (
                     <Badge tone="neutral" className="ml-1.5">
@@ -296,15 +296,15 @@ function AppTable({
                   )}
                 </span>
               </td>
-              <td className="text-2xs px-2.5 py-1.5 font-mono">{app.version ?? '—'}</td>
-              <td className="text-2xs px-2.5 py-1.5">
+              <td className="px-2.5 py-1.5 font-mono text-2xs">{app.version ?? '—'}</td>
+              <td className="px-2.5 py-1.5 text-2xs">
                 {app.installDate === null
                   ? t('unknownDate')
                   : // Parsed as a local date. The registry records no time and
                     // no zone, so anything richer would invent precision.
                     dateFormat.format(new Date(`${app.installDate}T00:00:00`))}
               </td>
-              <td className="text-2xs tnum px-2.5 py-1.5 text-right font-mono">
+              <td className="tnum px-2.5 py-1.5 text-right font-mono text-2xs">
                 {app.estimatedSize === null
                   ? t('unknownSize')
                   : formatBytes(app.estimatedSize, locale)}

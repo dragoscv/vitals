@@ -22,7 +22,7 @@ function Bar({ orientation }: { readonly orientation: 'vertical' | 'horizontal' 
     <Radix.Scrollbar
       orientation={orientation}
       className={cn(
-        'duration-(--duration-fast) flex touch-none select-none p-0.5 transition-colors',
+        'flex touch-none p-0.5 transition-colors duration-(--duration-fast) select-none',
         orientation === 'vertical' ? 'w-2.5' : 'h-2.5 flex-col',
         'hover:bg-[var(--color-bg-inset)]',
       )}

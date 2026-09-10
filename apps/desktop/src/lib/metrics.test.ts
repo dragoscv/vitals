@@ -36,7 +36,7 @@ function makeProcess(pid: number, startTime: number, name: string): Process {
     handleCount: 10,
     user: null,
     uptimeSecs: 60,
-  } as Process;
+  };
 }
 
 /** Mirrors the delta application in `subscribeToMetrics`. */

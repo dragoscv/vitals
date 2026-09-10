@@ -64,16 +64,16 @@ export const DialogContent = forwardRef<ElementRef<typeof RadixDialog.Content>, 
       <RadixDialog.Portal>
         <RadixDialog.Overlay
           className={cn(
-            'bg-[var(--color-bg-inset)]/70 fixed inset-0 z-50 backdrop-blur-[2px]',
-            'duration-(--duration-fast) transition-opacity data-[state=closed]:opacity-0 data-[state=open]:opacity-100',
+            'fixed inset-0 z-50 bg-[var(--color-bg-inset)]/70 backdrop-blur-[2px]',
+            'transition-opacity duration-(--duration-fast) data-[state=closed]:opacity-0 data-[state=open]:opacity-100',
           )}
         />
         <RadixDialog.Content
           ref={ref}
           className={cn(
-            'fixed left-1/2 top-1/2 z-50 flex w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col',
+            'fixed top-1/2 left-1/2 z-50 flex w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col',
             'rounded-[var(--radius-widget)] border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] text-[var(--color-fg-default)] shadow-[var(--shadow-overlay)]',
-            'duration-(--duration-fast) transition-opacity data-[state=closed]:opacity-0 data-[state=open]:opacity-100',
+            'transition-opacity duration-(--duration-fast) data-[state=closed]:opacity-0 data-[state=open]:opacity-100',
             SIZES[size],
             className,
           )}
@@ -90,7 +90,7 @@ export const DialogContent = forwardRef<ElementRef<typeof RadixDialog.Content>, 
                 {title}
               </RadixDialog.Title>
               {description !== undefined && (
-                <RadixDialog.Description className="text-2xs mt-1 text-[var(--color-fg-muted)]">
+                <RadixDialog.Description className="mt-1 text-2xs text-[var(--color-fg-muted)]">
                   {description}
                 </RadixDialog.Description>
               )}

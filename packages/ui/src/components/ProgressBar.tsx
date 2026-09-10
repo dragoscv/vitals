@@ -90,7 +90,7 @@ export const ProgressBar = forwardRef<HTMLDivElement, ProgressBarProps>(
             // is exactly the kind of persistent movement the preference is for.
             reduced
               ? ''
-              : 'duration-(--duration-normal) ease-(--ease-out-quart) transition-[width]',
+              : 'transition-[width] duration-(--duration-normal) ease-(--ease-out-quart)',
             indeterminate && !reduced && 'w-1/3 animate-pulse',
             indeterminate && reduced && 'w-1/3 opacity-60',
           )}

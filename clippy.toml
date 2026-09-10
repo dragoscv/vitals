@@ -1,3 +1,11 @@
 # Sampling hot paths must not allocate casually; keep the bar high.
 too-many-arguments-threshold = 8
 type-complexity-threshold = 500
+
+# `unwrap_used`/`expect_used` are warnings for production code because a panic
+# in the sampler thread aborts the process (`panic = "abort"` in release). In a
+# test, a panic IS the failure mechanism — `.expect("…")` is the idiomatic way
+# to assert and produces a better message than `.unwrap()`.
+allow-expect-in-tests = true
+allow-unwrap-in-tests = true
+allow-panic-in-tests = true

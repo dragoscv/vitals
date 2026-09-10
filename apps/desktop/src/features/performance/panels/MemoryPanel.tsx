@@ -190,7 +190,7 @@ function Composition({
 
   return (
     <div>
-      <p className="text-2xs mb-1.5 text-[var(--color-fg-muted)]">{t('memory.composition')}</p>
+      <p className="mb-1.5 text-2xs text-[var(--color-fg-muted)]">{t('memory.composition')}</p>
       <div
         className="flex h-3 w-full overflow-hidden rounded-full bg-[var(--color-bg-inset)]"
         role="img"
@@ -206,7 +206,7 @@ function Composition({
           />
         ))}
       </div>
-      <ul className="text-2xs mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-[var(--color-fg-muted)]">
+      <ul className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-2xs text-[var(--color-fg-muted)]">
         {segments.map((segment) => (
           <li key={segment.key} className="flex items-center gap-1.5">
             <span aria-hidden className={`size-2 rounded-full ${segment.className}`} />

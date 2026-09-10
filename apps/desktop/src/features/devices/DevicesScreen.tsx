@@ -147,7 +147,7 @@ function Field({
           </span>
         )}
         {hint !== undefined && value !== null && (
-          <span className="text-2xs ml-1 text-[var(--color-fg-subtle)]">{hint}</span>
+          <span className="ml-1 text-2xs text-[var(--color-fg-subtle)]">{hint}</span>
         )}
       </dd>
     </div>
@@ -204,7 +204,7 @@ function PowerSection({ snapshot }: { readonly snapshot: SensorsSnapshot }) {
           )}
         </dl>
         {!power.hasBattery && (
-          <p className="text-2xs mt-2 text-[var(--color-fg-muted)]">{t('power.noBattery')}</p>
+          <p className="mt-2 text-2xs text-[var(--color-fg-muted)]">{t('power.noBattery')}</p>
         )}
       </CardBody>
     </Card>
@@ -230,7 +230,7 @@ function BatterySection({ snapshot }: { readonly snapshot: SensorsSnapshot }) {
             thing, and printing both is how a user concludes there are two. */}
         {snapshot.aggregateBattery !== null && !aggregateIsRedundant(snapshot) && (
           <div>
-            <p className="text-2xs mb-1 text-[var(--color-fg-muted)]">{t('battery.aggregate')}</p>
+            <p className="mb-1 text-2xs text-[var(--color-fg-muted)]">{t('battery.aggregate')}</p>
             <dl className="grid gap-3 sm:grid-cols-3">
               <Field
                 label={t('battery.remaining')}
@@ -321,7 +321,7 @@ function BatteryPack({ pack }: { readonly pack: Battery }) {
         />
       </dl>
       {pack.capacityIsRelative && (
-        <p className="text-2xs mt-1 text-[var(--color-fg-muted)]">
+        <p className="mt-1 text-2xs text-[var(--color-fg-muted)]">
           {t('battery.relativeCapacity')}
         </p>
       )}
@@ -361,19 +361,19 @@ function ThermalSection({ snapshot }: { readonly snapshot: SensorsSnapshot }) {
             <dl className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {snapshot.zones.map((zone) => (
                 <div key={zone.instance} className="min-w-0">
-                  <dt className="text-2xs truncate font-mono text-[var(--color-fg-muted)]">
+                  <dt className="truncate font-mono text-2xs text-[var(--color-fg-muted)]">
                     {zone.instance}
                   </dt>
                   <dd className="text-sm">
                     {formatTemperature(zone.celsius, i18n.language)}
                     {zone.criticalCelsius !== null && (
-                      <span className="text-2xs ml-1.5 text-[var(--color-fg-subtle)]">
+                      <span className="ml-1.5 text-2xs text-[var(--color-fg-subtle)]">
                         {t('thermal.critical')}{' '}
                         {formatTemperature(zone.criticalCelsius, i18n.language)}
                       </span>
                     )}
                     {zone.activeCooling !== null && (
-                      <span className="text-2xs ml-1.5 text-[var(--color-fg-subtle)]">
+                      <span className="ml-1.5 text-2xs text-[var(--color-fg-subtle)]">
                         {zone.activeCooling ? t('thermal.active') : t('thermal.passive')}
                       </span>
                     )}
@@ -381,7 +381,7 @@ function ThermalSection({ snapshot }: { readonly snapshot: SensorsSnapshot }) {
                 </div>
               ))}
             </dl>
-            <p className="text-2xs mt-2 text-[var(--color-fg-muted)]">{t('thermal.notZone')}</p>
+            <p className="mt-2 text-2xs text-[var(--color-fg-muted)]">{t('thermal.notZone')}</p>
           </>
         )}
       </CardBody>
@@ -447,8 +447,8 @@ function ReadingRow({ reading }: { readonly reading: SensorReading }) {
       <td className="px-2.5 py-1.5 text-sm tabular-nums">
         {formatReading(reading, i18n.language)}
       </td>
-      <td className="text-2xs px-2.5 py-1.5">{t(`source.${reading.source}`)}</td>
-      <td className="text-2xs px-2.5 py-1.5">
+      <td className="px-2.5 py-1.5 text-2xs">{t(`source.${reading.source}`)}</td>
+      <td className="px-2.5 py-1.5 text-2xs">
         {/* Provenance is not decoration. A derived figure and a measured one
             look identical once rendered, and users make hardware decisions on
             the difference — battery health is a ratio of two firmware
@@ -528,7 +528,7 @@ function GapGroup({
 
   return (
     <section>
-      <h4 className="text-2xs mb-1.5 font-semibold text-[var(--color-fg-muted)]">{heading}</h4>
+      <h4 className="mb-1.5 text-2xs font-semibold text-[var(--color-fg-muted)]">{heading}</h4>
       <ul className="flex flex-col gap-2.5">
         {groups.map(([capability, items]) =>
           items.map((gap) => (
@@ -540,7 +540,7 @@ function GapGroup({
                   {t(`reason.${gap.reason}`)}
                 </Badge>
               </div>
-              <p className="text-2xs mt-0.5 text-[var(--color-fg-muted)]">
+              <p className="mt-0.5 text-2xs text-[var(--color-fg-muted)]">
                 <span className="text-[var(--color-fg-subtle)]">{t('gaps.requirement')}: </span>
                 {gap.requirement}
               </p>

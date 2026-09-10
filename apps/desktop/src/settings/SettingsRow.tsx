@@ -32,7 +32,7 @@ export function SettingsRow({
           {label}
         </span>
         {description !== undefined && (
-          <p id={descriptionId} className="text-2xs mt-0.5 text-[var(--color-fg-muted)]">
+          <p id={descriptionId} className="mt-0.5 text-2xs text-[var(--color-fg-muted)]">
             {description}
           </p>
         )}
@@ -57,7 +57,7 @@ export function SettingsSection({
 }) {
   return (
     <section className="border-b border-[var(--color-border-subtle)] py-3 first:pt-0 last:border-b-0">
-      <h3 className="text-2xs mb-1 font-semibold uppercase tracking-wide text-[var(--color-fg-subtle)]">
+      <h3 className="mb-1 text-2xs font-semibold tracking-wide text-[var(--color-fg-subtle)] uppercase">
         {title}
       </h3>
       {children}

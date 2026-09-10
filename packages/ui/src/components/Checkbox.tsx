@@ -44,7 +44,7 @@ export const Checkbox = forwardRef<ElementRef<typeof Radix.Root>, CheckboxProps>
       aria-label={label === undefined ? ariaLabel : undefined}
       className={cn(
         'inline-flex size-4 shrink-0 items-center justify-center rounded-[4px] border border-[var(--color-border-strong)] bg-[var(--color-bg-raised)]',
-        'duration-(--duration-fast) transition-colors',
+        'transition-colors duration-(--duration-fast)',
         'data-[state=checked]:border-[var(--color-accent)] data-[state=checked]:bg-[var(--color-accent)] data-[state=checked]:text-[var(--color-fg-on-accent)]',
         'data-[state=indeterminate]:border-[var(--color-accent)] data-[state=indeterminate]:bg-[var(--color-accent)] data-[state=indeterminate]:text-[var(--color-fg-on-accent)]',
         focusRing,

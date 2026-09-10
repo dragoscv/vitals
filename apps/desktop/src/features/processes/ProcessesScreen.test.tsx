@@ -35,7 +35,7 @@ function memoryStorage(): Storage {
     key: (index: number) => [...map.keys()][index] ?? null,
     removeItem: (key: string) => map.delete(key),
     setItem: (key: string, value: string) => void map.set(key, value),
-  } as Storage;
+  };
 }
 
 function plan(overrides: Partial<ActionPlan> = {}): ActionPlan {

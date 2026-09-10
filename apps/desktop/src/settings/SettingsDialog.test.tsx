@@ -158,7 +158,7 @@ describe('SettingsDialog', () => {
 
     // Ten identically-shaped colour buttons in the tab order would sit between
     // the theme selector and every setting below it.
-    expect(swatches.filter((node) => (node as HTMLElement).tabIndex === 0)).toHaveLength(1);
+    expect(swatches.filter((node) => node.tabIndex === 0)).toHaveLength(1);
 
     const selected = swatches.find((node) => node.getAttribute('aria-checked') === 'true');
     fireEvent.keyDown(selected as HTMLElement, { key: 'ArrowRight' });

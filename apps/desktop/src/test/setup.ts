@@ -12,12 +12,12 @@ if (!('ResizeObserver' in globalThis)) {
     observe(): void {}
     unobserve(): void {}
     disconnect(): void {}
-  } as unknown as typeof ResizeObserver;
+  };
 }
 
 // matchMedia backs theme resolution and prefers-reduced-motion.
 if (!globalThis.matchMedia) {
-  globalThis.matchMedia = ((query: string) => ({
+  globalThis.matchMedia = (query: string) => ({
     matches: false,
     media: query,
     onchange: null,
@@ -26,5 +26,5 @@ if (!globalThis.matchMedia) {
     addListener: () => {},
     removeListener: () => {},
     dispatchEvent: () => false,
-  })) as unknown as typeof globalThis.matchMedia;
+  });
 }

@@ -23,7 +23,7 @@ export function Content({
     <main
       id="main-content"
       tabIndex={-1}
-      className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden outline-none"
+      className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto outline-none"
     >
       {/*
        * Content is capped and centred rather than filling the window.

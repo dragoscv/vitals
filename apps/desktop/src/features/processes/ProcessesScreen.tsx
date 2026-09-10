@@ -374,7 +374,7 @@ export function ProcessesScreen({
       />
 
       {failure !== null && (
-        <p role="alert" className="text-2xs px-3 py-1.5 text-[var(--color-status-danger)]">
+        <p role="alert" className="px-3 py-1.5 text-2xs text-[var(--color-status-danger)]">
           {t('process.error.failed', fallback('process.error.failed'), { message: failure })}
         </p>
       )}

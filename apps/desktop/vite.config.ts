@@ -51,17 +51,23 @@ export default defineConfig(({ command }) => ({
     // and still writes the files, which Tauri would still package. Set
     // VITALS_SOURCEMAPS=1 to get them back for a debugging build.
     sourcemap: command !== 'build' || process.env.VITALS_SOURCEMAPS === '1',
-    rollupOptions: {
+    rolldownOptions: {
       output: {
         // Split React into its own chunk so a UI-only change does not
         // invalidate the whole bundle for the updater's differential
-        // download. Expressed as a function because Vite 8 types
-        // `manualChunks` as a function when `output` is a single object.
-        manualChunks(id: string) {
-          if (id.includes('node_modules/react') || id.includes('node_modules/scheduler')) {
-            return 'react';
-          }
-          return undefined;
+        // download.
+        //
+        // `output.manualChunks` is deprecated in Rolldown (the object form is
+        // already removed); `codeSplitting.groups` is the supported successor.
+        // The `[\\/]` alternation is required because module ids on Windows
+        // contain backslashes and `node_modules/react` would never match.
+        advancedChunks: {
+          groups: [
+            {
+              name: 'react',
+              test: /[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/,
+            },
+          ],
         },
       },
     },
@@ -72,5 +78,14 @@ export default defineConfig(({ command }) => ({
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text-summary', 'lcov'],
+      include: ['src/**/*.{ts,tsx}'],
+      exclude: ['src/**/*.{test,spec}.{ts,tsx}', 'src/test/**', 'src/**/strings.ts'],
+      // A floor, not a target. Raise it when it is comfortably exceeded;
+      // never lower it to make a run pass.
+      thresholds: { statements: 70, branches: 70, functions: 70, lines: 70 },
+    },
   },
 }));

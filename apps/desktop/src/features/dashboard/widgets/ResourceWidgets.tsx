@@ -47,7 +47,7 @@ function Stats({
     <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5 sm:grid-cols-3">
       {items.map((item) => (
         <div key={item.key} className="min-w-0">
-          <dt className="text-2xs truncate text-[var(--color-fg-muted)]">{item.label}</dt>
+          <dt className="truncate text-2xs text-[var(--color-fg-muted)]">{item.label}</dt>
           <dd className="tnum truncate font-mono text-sm text-[var(--color-fg-default)]">
             {item.value}
           </dd>
@@ -137,7 +137,7 @@ function PerCore({
 
   return (
     <div>
-      <p className="text-2xs mb-1 text-[var(--color-fg-muted)]">{label}</p>
+      <p className="mb-1 text-2xs text-[var(--color-fg-muted)]">{label}</p>
       <div
         className="flex h-8 items-end gap-px"
         role="img"

@@ -177,7 +177,7 @@ function Summary({
           : t('counts.startup', { enabled: startup.enabled, total: startup.total })}
       </p>
       {shown.length > 0 && (
-        <p className="text-2xs mt-0.5 text-[var(--color-fg-muted)]">
+        <p className="mt-0.5 text-2xs text-[var(--color-fg-muted)]">
           {shown.join(' · ')} — {t('counts.undercountHint')}
         </p>
       )}
@@ -213,12 +213,12 @@ function StartupTable({ rows }: { readonly rows: readonly StartupEntry[] }) {
               <td className="px-2.5 py-1.5">
                 <span className="block truncate text-sm">{labelFor(entry)}</span>
                 {entry.command !== null && (
-                  <span className="text-2xs block truncate font-mono text-[var(--color-fg-subtle)]">
+                  <span className="block truncate font-mono text-2xs text-[var(--color-fg-subtle)]">
                     {entry.command}
                   </span>
                 )}
               </td>
-              <td className="text-2xs px-2.5 py-1.5">
+              <td className="px-2.5 py-1.5 text-2xs">
                 {t(`source.${entry.source}`)}
                 {isMachineWide(entry) && (
                   <Badge tone="neutral" title={t('allUsersHint')} className="ml-1.5">
@@ -226,7 +226,7 @@ function StartupTable({ rows }: { readonly rows: readonly StartupEntry[] }) {
                   </Badge>
                 )}
               </td>
-              <td className="text-2xs px-2.5 py-1.5">
+              <td className="px-2.5 py-1.5 text-2xs">
                 <Badge
                   tone={
                     entry.state === 'enabled'
@@ -271,11 +271,11 @@ function ServiceTable({ rows }: { readonly rows: readonly ServiceEntry[] }) {
             <tr key={service.name} className="border-t border-[var(--color-border-subtle)]">
               <td className="px-2.5 py-1.5">
                 <span className="block truncate text-sm">{labelFor(service)}</span>
-                <span className="text-2xs block truncate font-mono text-[var(--color-fg-subtle)]">
+                <span className="block truncate font-mono text-2xs text-[var(--color-fg-subtle)]">
                   {service.name}
                 </span>
               </td>
-              <td className="text-2xs px-2.5 py-1.5">
+              <td className="px-2.5 py-1.5 text-2xs">
                 <Badge tone={service.state === 'running' ? 'ok' : 'neutral'}>
                   {t(`serviceState.${service.state}`)}
                 </Badge>
@@ -289,7 +289,7 @@ function ServiceTable({ rows }: { readonly rows: readonly ServiceEntry[] }) {
                   </Badge>
                 )}
               </td>
-              <td className="text-2xs px-2.5 py-1.5">
+              <td className="px-2.5 py-1.5 text-2xs">
                 <span
                   className={
                     service.startType === 'unknown' ? 'text-[var(--color-status-warn)]' : undefined

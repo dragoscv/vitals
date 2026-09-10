@@ -33,6 +33,12 @@ vitals-win = { path = "crates/vitals-win" }
 vitals-linux = { path = "crates/vitals-linux" }
 vitals-macos = { path = "crates/vitals-macos" }
 
+# Only crates an existing member actually depends on belong here. A dependency
+# declared for a subsystem that does not exist yet misrepresents the
+# architecture — `rusqlite = { features = ["bundled"] }` sat here for months
+# implying a time-series store that had never been written. Add the entry in
+# the same commit as the code that uses it.
+#
 # Core
 serde = { version = "1.0.229", features = ["derive", "rc"] }
 serde_json = "1.0.151"
@@ -44,16 +50,26 @@ tracing-subscriber = { version = "0.3.23", features = ["env-filter", "fmt"] }
 # Async / concurrency
 tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "sync", "time", "io-util"] }
 parking_lot = "0.12.5"
-crossbeam-channel = "0.5.16"
-arc-swap = "1.9.2"
-dashmap = "6.2.1"
 
 # Data
-ahash = "0.8.12"
-smallvec = { version = "1.15.2", features = ["union", "const_generics"] }
-bincode = { version = "3.0.0", features = ["serde"] }
-rusqlite = { version = "0.40.2", features = ["bundled", "chrono"] }
-uuid = { version = "1.26.0", features = ["v4", "serde"] }
+rusqlite = { version = "0.40.2", features = ["bundled"] }
+
+# Local HTTP API (vitals-server)
+#
+# axum rather than actix-web because Tauri already runs a multi-thread tokio
+# runtime: axum adds no second executor, actix brings its own `System` that
+# would have to be babysat from a non-main thread. tiny_http is disqualified
+# outright — it has no WebSocket upgrade support.
+#
+# Default features are off: `tracing`, `form`, `matched-path` and
+# `original-uri` are dead weight for a handful of JSON routes on a LAN.
+axum = { version = "0.8.9", default-features = false, features = ["http1", "json", "tokio", "ws", "query"] }
+tower-http = { version = "0.7.1", default-features = false, features = ["set-header"] }
+tokio-stream = { version = "0.1.18", features = ["sync"] }
+futures-util = { version = "0.3.32", default-features = false, features = ["std"] }
+subtle = "2.6.1"
+local-ip-address = "0.6.13"
+qrcode = { version = "0.14.1", default-features = false, features = ["svg"] }
 
 # Type generation
 #
@@ -66,11 +82,9 @@ uuid = { version = "1.26.0", features = ["v4", "serde"] }
 ts-rs = { version = "12.0.1", features = ["serde-compat", "no-serde-warnings"] }
 
 # Platform
-sysinfo = "0.39.6"
-num_cpus = "1.17.0"
 
 # IPC
-interprocess = { version = "2.4.3", features = ["tokio"] }
+interprocess = { version = "2.4.4", features = ["tokio"] }
 
 [workspace.lints.rust]
 unsafe_op_in_unsafe_fn = "deny"
@@ -90,7 +104,10 @@ cast_possible_truncation = "allow"
 cast_sign_loss = "allow"
 # Hard bans for sampling hot paths.
 unwrap_used = "warn"
-expect_used = "allow"
+# `.expect()` panics identically to `.unwrap()`, and with `panic = "abort"` in
+# release one of them in the sampler thread takes the whole process down. It
+# was allowed here directly under a comment banning exactly this.
+expect_used = "warn"
 
 [profile.release]
 opt-level = 3

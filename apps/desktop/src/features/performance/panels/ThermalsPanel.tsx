@@ -82,7 +82,7 @@ export function ThermalsPanel({
 
       {fans.length > 0 && (
         <div>
-          <p className="text-2xs mb-1.5 text-[var(--color-fg-muted)]">{t('thermals.fanSpeed')}</p>
+          <p className="mb-1.5 text-2xs text-[var(--color-fg-muted)]">{t('thermals.fanSpeed')}</p>
           <dl className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {fans.map((fan) => (
               <div key={fan.key}>
@@ -197,8 +197,8 @@ function Gaps() {
   return (
     <details className="rounded-md border border-[var(--color-border-subtle)] p-2.5">
       <summary className="cursor-pointer text-sm font-medium">{t('thermals.gaps')}</summary>
-      <p className="text-2xs mt-1.5 text-[var(--color-fg-muted)]">{t('thermals.gapsHint')}</p>
-      <ul className="text-2xs mt-1.5 list-disc pl-4 text-[var(--color-fg-subtle)]">
+      <p className="mt-1.5 text-2xs text-[var(--color-fg-muted)]">{t('thermals.gapsHint')}</p>
+      <ul className="mt-1.5 list-disc pl-4 text-2xs text-[var(--color-fg-subtle)]">
         {GAPS.map((gap) => (
           <li key={gap}>{gap}</li>
         ))}

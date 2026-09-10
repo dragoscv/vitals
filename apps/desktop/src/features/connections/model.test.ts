@@ -28,7 +28,7 @@ function makeConnection(overrides: Partial<Connection> = {}): Connection {
     bytesSent: null,
     bytesReceived: null,
     ...overrides,
-  } as Connection;
+  };
 }
 
 function makeRow(overrides: Partial<Connection> = {}): ConnectionRow {

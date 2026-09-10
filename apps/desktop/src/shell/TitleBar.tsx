@@ -44,7 +44,7 @@ function CaptionButton({ label, onClick, children, danger = false }: CaptionButt
       className={cn(
         'inline-flex h-8 w-[46px] shrink-0 items-center justify-center',
         'text-[var(--color-fg-muted)]',
-        'duration-(--duration-instant) transition-colors',
+        'transition-colors duration-(--duration-instant)',
         danger
           ? 'hover:bg-[var(--color-status-danger)] hover:text-[var(--color-fg-on-accent)]'
           : 'hover:bg-[var(--color-bg-inset)] hover:text-[var(--color-fg-default)]',
@@ -143,7 +143,7 @@ export function TitleBar({ children, controls }: TitleBarProps) {
       <div data-tauri-drag-region className="absolute inset-0" />
 
       <div className="pointer-events-none relative flex h-full min-w-0 flex-1 items-center px-3">
-        <span className="text-2xs truncate font-medium text-[var(--color-fg-muted)]">
+        <span className="truncate text-2xs font-medium text-[var(--color-fg-muted)]">
           {children}
         </span>
       </div>

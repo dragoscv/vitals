@@ -75,7 +75,7 @@ export function Tooltip({
           className={cn(
             overlaySurface,
             overlayMotion,
-            'text-2xs max-w-64 px-2 py-1 text-[var(--color-fg-default)]',
+            'max-w-64 px-2 py-1 text-2xs text-[var(--color-fg-default)]',
             className,
           )}
         >

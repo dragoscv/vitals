@@ -20,6 +20,7 @@ use tauri::Manager;
 /// # Panics
 ///
 /// Panics if the Tauri runtime cannot start, which is unrecoverable.
+#[allow(clippy::expect_used)]
 pub fn run() {
     tracing_subscriber::fmt()
         .with_env_filter(

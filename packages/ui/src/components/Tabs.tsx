@@ -43,8 +43,8 @@ export const TabsTrigger = forwardRef<
     <Radix.Trigger
       ref={ref}
       className={cn(
-        'text-2xs relative -mb-px inline-flex h-8 items-center gap-1.5 whitespace-nowrap border-b-2 border-transparent px-3 font-medium text-[var(--color-fg-muted)]',
-        'duration-(--duration-fast) transition-colors',
+        'relative -mb-px inline-flex h-8 items-center gap-1.5 border-b-2 border-transparent px-3 text-2xs font-medium whitespace-nowrap text-[var(--color-fg-muted)]',
+        'transition-colors duration-(--duration-fast)',
         'hover:text-[var(--color-fg-default)]',
         // Colour is not the only cue: the active tab also gains a bottom
         // border and bolder weight, so the selection survives greyscale and

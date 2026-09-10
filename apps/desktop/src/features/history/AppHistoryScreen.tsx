@@ -141,7 +141,7 @@ export function AppHistoryScreen({
           value={sort}
           ariaLabel={t('sortLabel')}
           onValueChange={(next) => {
-            setSort(next as HistorySort);
+            setSort(next);
           }}
           options={historySorts.map((id) => ({ value: id, label: t(`sort.${id}`) }))}
         />
@@ -281,7 +281,7 @@ function HistoryTable({
               <td className="px-3 py-2">
                 <div className="flex flex-col">
                   <span className="font-medium">{record.name}</span>
-                  <span className="text-2xs max-w-md truncate text-[var(--color-fg-muted)]">
+                  <span className="max-w-md truncate text-2xs text-[var(--color-fg-muted)]">
                     {record.executable}
                   </span>
                 </div>
@@ -298,7 +298,7 @@ function HistoryTable({
               <td className="px-3 py-2 text-right tabular-nums">
                 {formatBytes(record.peakPrivateBytes, locale)}
               </td>
-              <td className="text-2xs px-3 py-2 text-right text-[var(--color-fg-muted)]">
+              <td className="px-3 py-2 text-right text-2xs text-[var(--color-fg-muted)]">
                 {new Date(record.lastSeen).toLocaleDateString(locale, {
                   month: 'short',
                   day: 'numeric',

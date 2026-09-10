@@ -53,6 +53,9 @@ pub fn spawn(app: AppHandle) -> SamplerHandle {
     let stop = Arc::new(AtomicBool::new(false));
     let thread_stop = Arc::clone(&stop);
 
+    // Startup, not the hot path: if the OS refuses a thread, aborting with a
+    // message is the right outcome — there is nothing to show without it.
+    #[allow(clippy::expect_used)]
     thread::Builder::new()
         .name("vitals-sampler".into())
         // 512 KiB: the default 2 MiB is wasteful for a thread whose deepest

@@ -95,7 +95,7 @@ export function ProcessToolbar(props: ProcessToolbarProps): React.JSX.Element {
             <span
               tabIndex={0}
               data-testid="order-held"
-              className="text-2xs rounded-full border border-[var(--color-border-default)] px-2 py-0.5 text-[var(--color-fg-subtle)]"
+              className="rounded-full border border-[var(--color-border-default)] px-2 py-0.5 text-2xs text-[var(--color-fg-subtle)]"
             >
               {t('process.order.paused', fallback('process.order.paused'))}
             </span>
@@ -103,7 +103,7 @@ export function ProcessToolbar(props: ProcessToolbarProps): React.JSX.Element {
         </TooltipProvider>
       )}
 
-      <span className="text-2xs tabular-nums text-[var(--color-fg-muted)]">
+      <span className="text-2xs text-[var(--color-fg-muted)] tabular-nums">
         {t('process.results', fallback('process.results'), {
           shown: props.shown,
           total: props.total,

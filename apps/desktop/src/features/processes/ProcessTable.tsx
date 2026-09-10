@@ -166,7 +166,7 @@ export function ProcessTable(props: ProcessTableProps): React.JSX.Element {
                       column: t(column.labelKey, fallback(column.labelKey as never)),
                     })}
                     className={cn(
-                      'text-2xs flex h-full w-full items-center gap-1 px-2 font-medium',
+                      'flex h-full w-full items-center gap-1 px-2 text-2xs font-medium',
                       column.align === 'end' && 'justify-end',
                       active ? 'text-[var(--color-fg-default)]' : 'text-[var(--color-fg-muted)]',
                       'hover:text-[var(--color-fg-default)] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-accent)]',
@@ -297,7 +297,7 @@ const Row = memo(
         }
         onFocus={() => onFocusRow(row.id)}
         className={cn(
-          'text-2xs absolute inset-x-0 grid items-center',
+          'absolute inset-x-0 grid items-center text-2xs',
           // Transitions are deliberately absent. An animated row move is the
           // opposite of what this screen needs: it extends the window in which
           // a click lands on the wrong process.
@@ -411,7 +411,7 @@ function ResizeHandle({
         globalThis.addEventListener('pointermove', onPointerMove);
         globalThis.addEventListener('pointerup', up);
       }}
-      className="hover:bg-[var(--color-accent)]/40 absolute inset-y-0 -right-1 w-2 cursor-col-resize focus-visible:bg-[var(--color-accent)]"
+      className="absolute inset-y-0 -right-1 w-2 cursor-col-resize hover:bg-[var(--color-accent)]/40 focus-visible:bg-[var(--color-accent)]"
     />
   );
 }

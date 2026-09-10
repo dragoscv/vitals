@@ -77,13 +77,13 @@ export function Sidebar({
   return (
     <nav
       aria-label={t('a11y.mainNavigation')}
-      className="surface-chrome duration-(--duration-normal) ease-(--ease-out-quart) flex shrink-0 flex-col border-r border-[var(--color-border-subtle)] transition-[width]"
+      className="surface-chrome flex shrink-0 flex-col border-r border-[var(--color-border-subtle)] transition-[width] duration-(--duration-normal) ease-(--ease-out-quart)"
       style={{ width: collapsed ? COLLAPSED_WIDTH : EXPANDED_WIDTH }}
     >
       <ul
         ref={listRef}
         onKeyDown={onKeyDown}
-        className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto overflow-x-hidden p-2"
+        className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-x-hidden overflow-y-auto p-2"
       >
         {navItems.map((item) => {
           const label = t(item.labelKey);
@@ -107,7 +107,7 @@ export function Sidebar({
               onClick={() => onNavigate(item.id)}
               className={cn(
                 'group flex h-9 w-full items-center gap-2.5 rounded-[var(--radius-control)] px-2.5 text-left',
-                'duration-(--duration-fast) transition-colors',
+                'transition-colors duration-(--duration-fast)',
                 collapsed && 'justify-center px-0',
                 isActive
                   ? 'bg-[var(--color-accent-subtle)] text-[var(--color-accent)]'
@@ -131,7 +131,7 @@ export function Sidebar({
               {isActive && (
                 <span
                   aria-hidden="true"
-                  className="absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-r-full bg-[var(--color-accent)]"
+                  className="absolute top-1/2 left-0 h-5 w-0.5 -translate-y-1/2 rounded-r-full bg-[var(--color-accent)]"
                 />
               )}
               {/* Collapsed, the icon is the only label there is, so the
@@ -201,7 +201,7 @@ function SidebarAction({
       onClick={onClick}
       className={cn(
         'flex h-8 items-center gap-2.5 rounded-[var(--radius-control)] text-[var(--color-fg-muted)]',
-        'duration-(--duration-fast) transition-colors',
+        'transition-colors duration-(--duration-fast)',
         'hover:bg-[var(--color-bg-inset)] hover:text-[var(--color-fg-default)]',
         showText ? 'flex-1 px-2.5' : 'w-8 justify-center',
         focusRing,

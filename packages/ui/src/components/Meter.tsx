@@ -66,7 +66,7 @@ export const Meter = forwardRef<HTMLDivElement, MeterProps>(function Meter(
 
   return (
     <div ref={ref} className={cn('flex flex-col gap-1', className)} {...rest}>
-      <div className="text-2xs flex items-baseline justify-between gap-2">
+      <div className="flex items-baseline justify-between gap-2 text-2xs">
         <span className="truncate text-[var(--color-fg-muted)]">{label}</span>
         <span
           className="tnum shrink-0 font-mono text-[var(--color-fg-default)]"
@@ -93,7 +93,7 @@ export const Meter = forwardRef<HTMLDivElement, MeterProps>(function Meter(
             FILL_TONE[tone],
             reduced
               ? ''
-              : 'duration-(--duration-normal) ease-(--ease-out-quart) transition-[width]',
+              : 'transition-[width] duration-(--duration-normal) ease-(--ease-out-quart)',
           )}
           style={{ width: `${(ratio * 100).toFixed(2)}%` }}
         />

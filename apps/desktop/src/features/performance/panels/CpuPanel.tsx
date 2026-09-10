@@ -132,7 +132,7 @@ function PerCoreGrid({
 
   return (
     <div>
-      <p className="text-2xs mb-1.5 text-[var(--color-fg-muted)]">
+      <p className="mb-1.5 text-2xs text-[var(--color-fg-muted)]">
         {t('cpu.perCore')} ({values.length})
       </p>
       <div
@@ -161,7 +161,7 @@ function PerCoreGrid({
                 style={{ height: `${Math.min(Math.max(value, 2), 100).toFixed(1)}%` }}
               />
             </div>
-            <p className="text-2xs tnum mt-0.5 text-center font-mono text-[var(--color-fg-subtle)]">
+            <p className="tnum mt-0.5 text-center font-mono text-2xs text-[var(--color-fg-subtle)]">
               {Math.round(value)}
             </p>
           </div>

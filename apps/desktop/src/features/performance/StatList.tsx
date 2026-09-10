@@ -64,7 +64,7 @@ export function StatList({
             {stat.extra}
           </dd>
           {stat.hint !== undefined && (
-            <dd className="text-2xs mt-0.5 text-[var(--color-fg-subtle)]">{stat.hint}</dd>
+            <dd className="mt-0.5 text-2xs text-[var(--color-fg-subtle)]">{stat.hint}</dd>
           )}
         </div>
       ))}

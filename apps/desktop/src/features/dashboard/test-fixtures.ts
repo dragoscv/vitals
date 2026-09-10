@@ -67,7 +67,7 @@ export function makeMemory(overrides: Deep<MemoryMetrics> = {}): MemoryMetrics {
     slotsTotal: 4,
     formFactor: 'DIMM',
     ...overrides,
-  } as MemoryMetrics;
+  };
 }
 
 export function makeDisk(overrides: Deep<DiskMetrics> = {}): DiskMetrics {
@@ -109,7 +109,7 @@ export function makeNetwork(overrides: Deep<NetworkMetrics> = {}): NetworkMetric
     ssid: null,
     errorsPerSec: 0,
     ...overrides,
-  } as NetworkMetrics;
+  };
 }
 
 export function makeGpu(overrides: Deep<GpuMetrics> = {}): GpuMetrics {
@@ -146,7 +146,7 @@ export function makeBattery(overrides: Deep<BatteryMetrics> = {}): BatteryMetric
     cycleCount: 140,
     temperature: 31,
     ...overrides,
-  } as BatteryMetrics;
+  };
 }
 
 export interface SystemOverrides {

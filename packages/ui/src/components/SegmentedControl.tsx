@@ -61,9 +61,9 @@ function SegmentedControlInner<T extends string>(
           disabled={option.disabled}
           aria-label={option.ariaLabel}
           className={cn(
-            'inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-[calc(var(--radius-control)-2px)] font-medium text-[var(--color-fg-muted)]',
-            'duration-(--duration-fast) transition-colors',
-            size === 'sm' ? 'text-2xs h-6 px-2' : 'text-2xs h-7 px-2.5',
+            'inline-flex items-center justify-center gap-1.5 rounded-[calc(var(--radius-control)-2px)] font-medium whitespace-nowrap text-[var(--color-fg-muted)]',
+            'transition-colors duration-(--duration-fast)',
+            size === 'sm' ? 'h-6 px-2 text-2xs' : 'h-7 px-2.5 text-2xs',
             'hover:text-[var(--color-fg-default)]',
             'data-[state=on]:bg-[var(--color-bg-raised)] data-[state=on]:text-[var(--color-fg-default)] data-[state=on]:shadow-[var(--shadow-widget)]',
             focusRing,

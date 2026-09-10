@@ -38,7 +38,7 @@ if (!('DOMRect' in globalThis)) {
     static fromRect(): DOMRect {
       return new globalThis.DOMRect();
     }
-  } as unknown as typeof DOMRect;
+  };
 }
 
 // Radix menus capture the pointer to keep press-drag-release working. happy-dom

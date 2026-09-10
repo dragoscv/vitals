@@ -34,7 +34,7 @@ function makeConnection(overrides: Partial<Connection> = {}): Connection {
     bytesSent: null,
     bytesReceived: null,
     ...overrides,
-  } as Connection;
+  };
 }
 
 /** A process source that resolves the PIDs used below to names. */

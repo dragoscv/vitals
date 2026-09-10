@@ -138,7 +138,7 @@ function Section({
 }): React.JSX.Element {
   return (
     <section className="space-y-1.5">
-      <h3 className="text-2xs font-medium uppercase tracking-wide text-[var(--color-fg-subtle)]">
+      <h3 className="text-2xs font-medium tracking-wide text-[var(--color-fg-subtle)] uppercase">
         {title}
       </h3>
       <dl className="space-y-1">{children}</dl>
@@ -157,9 +157,9 @@ function Field({
 }): React.JSX.Element | null {
   if (hidden) return null;
   return (
-    <div className="text-2xs flex items-baseline justify-between gap-2">
+    <div className="flex items-baseline justify-between gap-2 text-2xs">
       <dt className="text-[var(--color-fg-muted)]">{label}</dt>
-      <dd className="font-mono tabular-nums text-[var(--color-fg-default)]">{value}</dd>
+      <dd className="font-mono text-[var(--color-fg-default)] tabular-nums">{value}</dd>
     </div>
   );
 }

@@ -23,6 +23,10 @@
 //! Only serialising a real value and reading the keys finds it, which is what
 //! this file does.
 
+// Integration tests are not covered by clippy's `allow-expect-in-tests`,
+// which only recognises `#[cfg(test)]` modules.
+#![allow(clippy::expect_used)]
+
 use vitals_core::ids::{Pid, ProcessKey};
 use vitals_core::metrics::SystemMetrics;
 use vitals_core::process::{Process, ProcessFlags, ProcessKind, ProcessState, ProtectionLevel};

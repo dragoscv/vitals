@@ -207,7 +207,7 @@ function TopList({
             <span className="truncate text-sm">
               {entry.name}
               {entry.count > 1 && (
-                <span className="text-2xs ml-1.5 text-[var(--color-fg-muted)]">
+                <span className="ml-1.5 text-2xs text-[var(--color-fg-muted)]">
                   {t('top.processCount', { count: entry.count })}
                 </span>
               )}

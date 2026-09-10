@@ -40,7 +40,7 @@ export const EmptyState = forwardRef<HTMLDivElement, EmptyStateProps>(function E
       )}
       <p className="text-sm font-medium text-[var(--color-fg-default)]">{title}</p>
       {description !== undefined && (
-        <p className="text-2xs max-w-sm text-[var(--color-fg-muted)]">{description}</p>
+        <p className="max-w-sm text-2xs text-[var(--color-fg-muted)]">{description}</p>
       )}
       {action !== undefined && <div className="mt-2">{action}</div>}
     </div>
