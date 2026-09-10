@@ -90,6 +90,13 @@
       "problemMatcher": []
     },
     {
+      "label": "check: contract drift",
+      "detail": "serde casing vs ts_rs, invoke() vs #[tauri::command], locale parity — two seconds",
+      "type": "shell",
+      "command": "pwsh -NoProfile -File scripts/check-drift.ps1",
+      "problemMatcher": []
+    },
+    {
       "label": "check: size budget",
       "detail": "Bundle and installer sizes against size-budget.json (needs a prior build)",
       "type": "shell",
@@ -138,6 +145,27 @@
       "label": "fix: regenerate protocol bindings",
       "type": "shell",
       "command": "pnpm protocol:generate",
+      "problemMatcher": []
+    },
+    {
+      "label": "prove: LAN server against this machine",
+      "detail": "Samples for real, serves it over a socket, prints what a phone would receive",
+      "type": "shell",
+      "command": "cargo run -p vitals-server --example prove_lan",
+      "problemMatcher": []
+    },
+    {
+      "label": "prove: history store against this machine",
+      "detail": "Writes real frames to SQLite, reads them back, prints row counts and sizes",
+      "type": "shell",
+      "command": "cargo run -p vitals-store --example prove_store",
+      "problemMatcher": []
+    },
+    {
+      "label": "setup: install git hooks",
+      "detail": "Run once after cloning — installs the pre-commit gate",
+      "type": "shell",
+      "command": "pwsh -NoProfile -File scripts/hooks/install.ps1",
       "problemMatcher": []
     },
 

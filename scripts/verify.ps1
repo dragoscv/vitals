@@ -69,6 +69,13 @@ $passed = ($testOutput |
         Measure-Object -Sum).Sum
 if ($passed) { Write-Host "  $passed Rust tests passed" -ForegroundColor DarkGray }
 
+# Cheap and catches the class of bug the compilers cannot see, so it runs
+# early: no point compiling for four minutes to then discover the webview
+# calls a command that does not exist.
+Invoke-Gate 'contracts: no drift' {
+    pwsh -NoProfile -File scripts/check-drift.ps1
+} | Out-Null
+
 Invoke-Gate 'bindings: no drift' {
     cargo test -p vitals-core --features ts --quiet | Out-Null
     git diff --exit-code -- packages/protocol/src/generated

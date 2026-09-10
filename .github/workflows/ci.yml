@@ -45,6 +45,15 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
+      # First, because it takes two seconds and catches contract drift that
+      # a four-minute compile never would: serde casing that disagrees with
+      # the generated TypeScript, an invoke() with no command behind it, a
+      # locale key present in one language only.
+      - name: Contract drift
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: pwsh -NoProfile -File scripts/check-drift.ps1
+
       - name: Check formatting
         run: cargo fmt --all -- --check
 
