@@ -82,6 +82,7 @@ async fn start() -> Harness {
                 .then(|| (b"<!doctype html>ok".to_vec(), "text/html; charset=utf-8"))
         })),
         host: Arc::new(|| None),
+        alerts: Arc::new(Vec::new),
         version: "0.0.0-test".into(),
     };
 
@@ -271,6 +272,22 @@ async fn a_read_token_is_refused_before_the_body_is_even_parsed() {
     .await;
     assert_eq!(status, 403, "scope must be checked before the body");
     assert_eq!(h.controller.calls.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
+async fn alerts_are_an_array_and_empty_means_healthy() {
+    // Not 204: "nothing wrong" is a value a client renders as a green tick,
+    // not an absence it has to special-case.
+    let h = start().await;
+    let (status, body) = request(&h.base, "GET", "/api/v1/alerts", Some(READ_TOKEN), None).await;
+    assert_eq!(status, 200);
+    assert_eq!(body.trim(), "[]");
+
+    let (status, _) = request(&h.base, "GET", "/api/v1/alerts", None, None).await;
+    assert_eq!(
+        status, 401,
+        "alerts are behind the same auth as everything else"
+    );
 }
 
 #[tokio::test]

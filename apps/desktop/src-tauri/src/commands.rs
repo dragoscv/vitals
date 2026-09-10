@@ -79,6 +79,71 @@ pub fn get_capabilities(state: State<'_, AppState>) -> Capabilities {
     state.capabilities()
 }
 
+/// The alerts currently raised, most serious first.
+///
+/// Request/response for the initial list; changes arrive as
+/// `vitals://alerts` events. Splitting the two means a window that opens
+/// mid-episode sees the alert immediately instead of waiting for the next
+/// transition.
+#[tauri::command]
+#[allow(clippy::needless_pass_by_value)]
+pub fn get_alerts(alerts: State<'_, crate::alerts::Alerts>) -> Vec<vitals_core::alerts::Alert> {
+    alerts.active()
+}
+
+/// The Notifications panel's switches, pushed whenever they change.
+#[tauri::command]
+#[allow(clippy::needless_pass_by_value)]
+pub fn set_alert_prefs(alerts: State<'_, crate::alerts::Alerts>, prefs: crate::alerts::AlertPrefs) {
+    alerts.set_prefs(prefs);
+}
+
+/// Localised toast titles, pushed at start and on a language change.
+///
+/// Toasts render in Rust because they must fire while the window is hidden;
+/// the strings live in the webview because that is where i18n is. So the
+/// webview hands them over once.
+#[tauri::command]
+#[allow(clippy::needless_pass_by_value)]
+pub fn set_alert_strings(
+    alerts: State<'_, crate::alerts::Alerts>,
+    strings: crate::alerts::NotificationStrings,
+) {
+    alerts.set_strings(strings);
+}
+
+/// Whether the title-bar × hides Vitals instead of quitting it.
+///
+/// Pushed from the webview whenever the setting changes, and once after
+/// hydration, because the decision is made in Rust — the window event fires
+/// before the frontend hears about it, so asking the webview then would be
+/// too late.
+#[tauri::command]
+#[allow(clippy::needless_pass_by_value)]
+pub fn set_close_to_tray(tray: State<'_, crate::tray::Tray>, enabled: bool) {
+    tray.set_close_to_tray(enabled);
+}
+
+/// Localised tray menu labels and tooltip words.
+///
+/// Same argument as [`set_alert_strings`]: the tray renders in Rust so it
+/// works with the window hidden, but i18n lives in the webview.
+#[tauri::command]
+#[allow(clippy::needless_pass_by_value)]
+pub fn set_tray_strings(tray: State<'_, crate::tray::Tray>, strings: crate::tray::TrayStrings) {
+    tray.set_strings(&strings);
+}
+
+/// Exits the process.
+///
+/// With `closeToTray` on, the × no longer quits, so there has to be something
+/// that does. Invoked by the tray's Quit item and available to the UI.
+#[tauri::command]
+#[allow(clippy::needless_pass_by_value)]
+pub fn quit_app(app: tauri::AppHandle) {
+    app.exit(0);
+}
+
 /// Adjusts the sampling cadence.
 ///
 /// Called by the frontend on window visibility and focus changes so a hidden

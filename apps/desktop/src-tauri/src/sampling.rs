@@ -144,6 +144,16 @@ fn run(app: &AppHandle, stop: &AtomicBool) {
                 {
                     server.publish(std::sync::Arc::new(frame.clone()));
                 }
+                // Alerts run here, on the sampler thread, so they keep
+                // working with the window hidden and cost one evaluation per
+                // tick regardless of how many consumers read them.
+                if let Some(alerts) = app.try_state::<crate::alerts::Alerts>() {
+                    alerts.observe(app, frame.system());
+                }
+                // The tray, for the same reason: it must keep showing load
+                // while the window is hidden. Both the icon and the tooltip
+                // are guarded on a change, so a steady machine costs nothing.
+                crate::tray::observe(app, frame.system());
                 if app.emit(FRAME_EVENT, &frame).is_err() {
                     // The window is gone. Nothing to sample for.
                     break;

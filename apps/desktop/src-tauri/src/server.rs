@@ -253,6 +253,14 @@ pub async fn start_lan_server(
         controller: Arc::clone(&server.controller),
         assets: Some(embedded_assets(app.clone())),
         host: Arc::new(host_info),
+        alerts: {
+            let app = app.clone();
+            Arc::new(move || {
+                tauri::Manager::try_state::<crate::alerts::Alerts>(&app)
+                    .map(|a| a.active())
+                    .unwrap_or_default()
+            })
+        },
         version: app.package_info().version.to_string(),
     };
 

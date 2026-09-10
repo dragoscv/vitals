@@ -91,6 +91,7 @@ pub fn router(state: ApiState) -> Router {
         .route("/api/v1/stream", get(stream))
         .route("/api/v1/ws", get(websocket))
         .route("/api/v1/host", get(host))
+        .route("/api/v1/alerts", get(alerts))
         .route("/api/v1/control", axum::routing::post(control))
         .route("/metrics", get(metrics))
         .route_layer(middleware::from_fn_with_state(state.clone(), authorise));
@@ -197,6 +198,12 @@ async fn snapshot(State(state): State<ApiState>) -> Response {
         Some(frame) => Json(&*frame).into_response(),
         None => StatusCode::NO_CONTENT.into_response(),
     }
+}
+
+/// Alerts currently raised, most serious first. An empty array is the
+/// healthy answer, not 204: "nothing wrong" is a value.
+async fn alerts(State(state): State<ApiState>) -> Response {
+    Json((state.alerts)()).into_response()
 }
 
 async fn host(State(state): State<ApiState>) -> Response {

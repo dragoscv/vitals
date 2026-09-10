@@ -172,6 +172,10 @@ pub struct ApiState {
     pub controller: Arc<dyn Controller>,
     pub assets: Option<StaticAssets>,
     pub host: Arc<dyn Fn() -> Option<HostInfo> + Send + Sync>,
+    /// The alert engine's current list. A closure like `host` so the server
+    /// crate does not own the engine; the desktop runs it on the sampler
+    /// thread and the server only reads.
+    pub alerts: Arc<dyn Fn() -> Vec<vitals_core::alerts::Alert> + Send + Sync>,
     /// Shown at `/api/v1/health` so a client can tell which build it is
     /// talking to before trusting the shape of anything else.
     pub version: String,

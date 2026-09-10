@@ -156,6 +156,48 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorised'
 
+  /api/v1/alerts:
+    get:
+      tags: [metrics]
+      summary: What is currently wrong, in one sentence each.
+      description: |
+        The alert engine's active list, most serious first. Alerts are
+        **sustained** (a condition must hold for fifteen seconds before it is
+        raised) and **sticky** (it clears only after ten seconds of being
+        false), so a poller at any interval sees a stable list rather than a
+        reading flickering at a threshold.
+
+        `title` and `cause` are i18n keys, not prose — render them in the
+        user's language. `values` carries the numbers, already rounded.
+
+        An empty array is the healthy answer, not `204`: "nothing wrong" is a
+        value a client shows as a green tick.
+      operationId: alerts
+      responses:
+        '200':
+          description: The active list. `[]` when nothing is wrong.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Alert'
+              examples:
+                healthy:
+                  value: []
+                diskFailing:
+                  value:
+                    - kind: diskHealth
+                      severity: critical
+                      subject: 'C:'
+                      title: alert.diskHealth.title
+                      cause: alert.diskHealth.cause
+                      values: { disk: 'C:' }
+                      route: storage
+                      sinceSample: 1842
+        '401':
+          $ref: '#/components/responses/Unauthorised'
+
   /api/v1/stream:
     get:
       tags: [metrics]
@@ -1125,7 +1167,72 @@ components:
           type: integer
           minimum: 0
 
-    # ── Host ───────────────────────────────────────────────────────────
+        # ── Host ───────────────────────────────────────────────────────────
+        # ── Alerts ─────────────────────────────────────────────────────────
+        AlertKind:
+          type: string
+          enum:
+            - cpuSustained
+            - cpuThrottled
+            - memoryPressure
+            - memoryCommit
+            - diskSaturated
+            - diskLatency
+            - diskSpace
+            - diskHealth
+            - gpuThrottled
+            - thermalCpu
+            - networkErrors
+            - batteryLow
+            - batteryHealth
+
+        Severity:
+          type: string
+          enum: [info, warning, critical]
+
+        AlertRoute:
+          type: string
+          description: Where in the app the user should go to act on this.
+          enum: [performance, processes, storage, network, devices]
+
+        Alert:
+          type: object
+          required: [kind, severity, subject, title, cause, values, route, sinceSample]
+          properties:
+            kind:
+              $ref: '#/components/schemas/AlertKind'
+            severity:
+              $ref: '#/components/schemas/Severity'
+            subject:
+              type: string
+              description: >-
+                The thing the alert is about — a disk mount, a GPU name, an
+                adapter. Empty for machine-wide alerts. Part of the alert's
+                identity: two failing disks are two alerts.
+            title:
+              type: string
+              description: i18n key, `dashboard.alert.<kind>.title`.
+            cause:
+              type: string
+              description: i18n key for the "why", `dashboard.alert.<kind>.<cause>`.
+            values:
+              type: object
+              additionalProperties:
+                oneOf:
+                  - type: number
+                  - type: string
+              description: Interpolation values, already rounded for display.
+            route:
+              oneOf:
+                - $ref: '#/components/schemas/AlertRoute'
+                - type: 'null'
+            sinceSample:
+              type: integer
+              description: >-
+                Sample index at which the alert was raised. Subtract from the
+                current sample count (one per second at the default rate) for
+                "for 4 minutes".
+
     CoreClass:
       type: string
       enum: [performance, efficiency, lowPower, standard]

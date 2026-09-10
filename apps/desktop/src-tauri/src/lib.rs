@@ -5,14 +5,17 @@
 //! prepared frames, because a task manager whose own UI thread is busy
 //! aggregating numbers will misreport the machine it is measuring.
 
+pub mod alerts;
 pub mod benchmarks;
 pub mod commands;
 pub mod history;
+pub mod hud;
 pub mod inventory;
 pub mod sampling;
 pub mod server;
 pub mod state;
 pub mod store;
+pub mod tray;
 pub mod users;
 
 use tauri::Manager;
@@ -61,15 +64,12 @@ pub fn run() {
         )
         .manage(state::AppState::new())
         .manage(server::LanServer::new())
+        .manage(alerts::Alerts::new())
         // The sampler starts with the app and stops when the handle drops at
         // shutdown. Managed so it stays alive for the process lifetime —
         // dropping the handle would silently stop all sampling.
-        .setup(|app| {
-            let handle = sampling::spawn(app.handle().clone());
-            app.manage(handle);
-            arm_reveal_safety_net(app.handle().clone());
-            Ok(())
-        })
+        .setup(setup)
+        .on_window_event(on_window_event)
         .invoke_handler(tauri::generate_handler![
             commands::get_host_info,
             commands::get_capabilities,
@@ -141,9 +141,45 @@ pub fn run() {
             server::revoke_pairing,
             server::revoke_all_pairings,
             users::get_users,
+            commands::get_alerts,
+            commands::set_alert_prefs,
+            commands::set_alert_strings,
+            commands::set_close_to_tray,
+            commands::set_tray_strings,
+            commands::quit_app,
+            // The overlay. `toggle_hud` is what the Ctrl+Shift+H shortcut
+            // calls; `set_hud_visible` is what the settings switch and the
+            // restore-on-launch path call, because a toggle would close an
+            // overlay that a race had already opened.
+            hud::toggle_hud,
+            hud::set_hud_visible,
         ])
         .run(tauri::generate_context!())
         .expect("failed to start the Vitals application");
+}
+
+/// Starts the sampler and installs the tray.
+///
+/// The tray goes up before the reveal safety net is armed: both that net and
+/// the × button assume there is already a way back to a hidden window.
+fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
+    let handle = sampling::spawn(app.handle().clone());
+    app.manage(handle);
+    tray::install(app.handle())?;
+    arm_reveal_safety_net(app.handle().clone());
+    Ok(())
+}
+
+/// The × button hides rather than closes while `closeToTray` is on.
+///
+/// A system monitor that stops monitoring because a window was closed by
+/// reflex is the failure this prevents; Quit lives in the tray menu.
+fn on_window_event(window: &tauri::Window, event: &tauri::WindowEvent) {
+    if let tauri::WindowEvent::CloseRequested { api, .. } = event
+        && tray::hide_instead_of_closing(window.app_handle(), window)
+    {
+        api.prevent_close();
+    }
 }
 
 /// Safety net for a window that is created hidden.
@@ -155,7 +191,8 @@ pub fn run() {
 /// a process they can only find in Task Manager.
 ///
 /// Not armed for an autostarted launch: hidden is then the intended state,
-/// and the tray is how the user reaches it.
+/// and the tray — installed in `setup`, before this is armed — is how the
+/// user reaches it.
 fn arm_reveal_safety_net(app: tauri::AppHandle) {
     if commands::launched_minimised() {
         return;

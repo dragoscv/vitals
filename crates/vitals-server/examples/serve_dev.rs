@@ -40,6 +40,7 @@ async fn main() {
                 .map(|bytes| (bytes, vitals_server::router::mime_for(path)))
         })),
         host: Arc::new(|| None),
+        alerts: Arc::new(Vec::new),
         version: "dev".into(),
     };
 

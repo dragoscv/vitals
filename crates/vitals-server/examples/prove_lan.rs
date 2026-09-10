@@ -33,6 +33,7 @@ async fn main() {
         controller: Arc::new(vitals_server::control::NoControl),
         assets: None,
         host: Arc::new(|| None),
+        alerts: Arc::new(Vec::new),
         version: "prove".into(),
     };
 
