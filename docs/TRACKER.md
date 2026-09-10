@@ -138,18 +138,18 @@ in repo memory. This audit found the ninth through the eighteenth.
 
 Status values: `todo`, `doing`, `done`, `blocked`, `dropped`.
 
-| Slice | Theme                                                                | Status                                                                                         |
-| ----- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| S1    | Dependency upgrades, tooling, VS Code tasks                          | done                                                                                           |
-| S2    | Truth fixes — dead settings, false capabilities, dead crates         | done (S2-03 notifications, S2-09 persistence unify, S2-15 get_capabilities carried into S8/S7) |
-| S3    | `vitals-store` for real: SQLite history, retention, flight recorder  | done                                                                                           |
-| S4    | LAN server: REST, SSE, WebSocket, Prometheus, mDNS                   | done except S4-11 named-pipe IPC (deferred to S5, the CLI slice it serves)                     |
-| S5    | CLI that samples directly                                            | done (6/6; attaches to the app over :7330, samples directly otherwise)                         |
-| S6    | Mobile PWA and QR pairing                                            | done except S6-05 alerts feed (S8 engine now exposes GET /api/v1/alerts; phone UI pending)     |
-| S7    | UI polish: motion, palette, ultrawide, export, shortcuts             | todo                                                                                           |
-| S8    | Tray, HUD, alerts, notifications, updater                            | done (6/6; alerts engine in Rust feeds desktop, tray, toasts, LAN)                             |
-| S9    | New Windows metrics: DiskCounters, efficiency mode, handles, modules | todo                                                                                           |
-| S10   | Docs, ADRs, CI, supply-chain audits                                  | todo                                                                                           |
+| Slice | Theme                                                                | Status                                                                                           |
+| ----- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| S1    | Dependency upgrades, tooling, VS Code tasks                          | done                                                                                             |
+| S2    | Truth fixes — dead settings, false capabilities, dead crates         | done (S2-03 notifications, S2-09 persistence unify, S2-15 get_capabilities carried into S8/S7)   |
+| S3    | `vitals-store` for real: SQLite history, retention, flight recorder  | done                                                                                             |
+| S4    | LAN server: REST, SSE, WebSocket, Prometheus, mDNS                   | done except S4-11 named-pipe IPC (deferred to S5, the CLI slice it serves)                       |
+| S5    | CLI that samples directly                                            | done (6/6; attaches to the app over :7330, samples directly otherwise)                           |
+| S6    | Mobile PWA and QR pairing                                            | done except S6-05 alerts feed (S8 engine now exposes GET /api/v1/alerts; phone UI pending)       |
+| S7    | UI polish: motion, palette, ultrawide, export, shortcuts             | done (10/10)                                                                                     |
+| S8    | Tray, HUD, alerts, notifications, updater                            | done (6/6; alerts engine in Rust feeds desktop, tray, toasts, LAN)                               |
+| S9    | New Windows metrics: DiskCounters, efficiency mode, handles, modules | backend done for 01/02/04/05 (vitals-win + vitals-core); 03/06/07 and the Tauri commands pending |
+| S10   | Docs, ADRs, CI, supply-chain audits                                  | todo                                                                                             |
 
 Per-item status lives in `tracker.csv`. This file records the reasoning; the
 CSV records the state.
@@ -161,7 +161,186 @@ CSV records the state.
 Every claim of "done" needs a command and its output. Recorded here as work
 lands, newest first.
 
-### 2026-09-10 — S11 HUD overlay window (uncommitted)
+### 2026-09-10 — S7-01/02/03/06 palette, shortcuts, transitions, motion (commit 45371d1) + toasts mounted
+
+```
+tsc 0 · eslint 0 · vitest 80 files / 821 desktop tests · drift 0 failures
+check-size: initial 180,2 KB / 181,6 (99,3%) — sonner is a lazy 9,8 KB chunk at @vitals/ui/toast
+live (CDP): Ctrl+K → 15 commands; 'proc' → Processes; Enter navigates; '?' → help sheet
+live (CDP): 'slow' + Enter → verdict dialog (after deferring the event one frame — it was being
+            dismissed inside the palette's own teardown; test updated to assert the deferral)
+live (CDP): emit vitals://sampler-error → toast 'A reading failed … probe: GPU counters unavailable'
+live (CDP): lastRoute=processes + reload → 'No readings are arriving' with the dashboard NOT mounted
+            → third copy of the disposed-flag defect in useProcessSnapshot (b83ffb9); re-verified clean
+```
+
+### 2026-09-10 — S7-08/09/10/04 shared primitives, toasts, tests, ultrawide (commit 1a823a9)
+
+**S7-08 — StatList promoted, not copied.** The label/value grid moved from
+`features/performance/StatList.tsx` into `@vitals/ui`, and the perf file is
+now a wrapper. The shared default renders an absent value as an em dash with
+an accessible name; the perf wrapper passes `omitNull`, which drops the row
+instead. Both behaviours are needed and the choice is the caller's: a panel
+with a dozen optional sensors would otherwise show a column of dashes that
+reads as a failure to load, while a four-row card that silently loses a row
+reads as a missing feature. `Skeleton` was already shared and already tested;
+the remaining duplication is nine per-feature `*Skeleton()` compositions,
+which are page-specific shapes rather than a repeated primitive — the exact
+replacements for the three genuine duplicates are listed in the handoff.
+
+**S7-09 — toasts exist but nothing mounts them yet.** No `<Toaster>` was
+mounted anywhere in the repo, so `sonner` was a dependency that shipped
+nothing. `@vitals/ui` now exports one, dressed entirely in `var(--color-*)`
+with `richColors` off: the theme has three independent axes (mode, accent,
+surface translucency) and a literal colour opts out of all three. It reads
+the resolved mode from the `.dark` class on the root rather than sonner's
+`theme="system"`, because a user can pin dark on a light system and the
+media query would leave the toast the only light surface on the screen.
+Both user-visible strings are props — the package has no i18n runtime, and
+the overlay window never initialises one — so a Romanian UI does not get
+"Notifications" and "Close toast". `AppShell.tsx` is another agent's; the
+one-line mount is in the handoff.
+
+**S7-10 — canvas tests assert the guarantee, not pixels.** happy-dom returns
+`null` from `getContext('2d')`, so a naive chart test passes while every draw
+is skipped. `test/canvas-mock.ts` records the path calls instead, which lets
+the tests state what the component promises: it repaints when `revision`
+changes and _not_ when the parent re-renders with the same revision (the
+whole reason the prop exists — the buffers are mutable and live outside
+React, so object identity means nothing), a `pushGap()` produces two separate
+paths rather than one line dropping to the axis, and a fixed scale is
+honoured rather than autoscaled.
+
+**S7-04 — infrastructure, since the grids are not ours.** `--breakpoint-3xl/
+4xl/5xl` at 120/160/240rem, matching `--container-*` so the same names work as
+`@3xl/main:` container variants, and `@container/main` on the content wrapper
+so a feature can respond to the width it actually gets rather than the window
+(they differ by the sidebar). `--content-max` was 1600px, which capped a 4K
+window at under half its width; it is now 240rem for grids, with a separate
+`--reading-max: 90rem` for prose. The shared `StatList` gains a column at 3xl
+and another at 4xl. The dashboard grid is another agent's.
+
+**Mutation check — seven mutants, all red.** `StatList` null-as-dash and
+`omitNull`; `Toaster` translated region label and resolved-mode following;
+`TimeSeriesChart` redrawing on every render (`}, [draw, revision])` → `})`);
+the renderer bridging gaps (`isGap = false`); and `--breakpoint-3xl` set to
+100rem. Each broke its test and was restored; `rg` confirmed the sources are
+unchanged afterwards.
+
+```text
+pnpm typecheck                → 6 successful, 6 total
+pnpm test                     → 6 successful; desktop 815, ui 97, charts 34
+npx eslint .                  → 1 pre-existing error in packages/protocol
+                                (select.test.ts:7, committed, not ours)
+pnpm format:check             → All matched files use Prettier code style!
+scripts/check-drift.ps1       → 0 failures, 3 pre-existing warnings, 2 locales
+scripts/check-size.ps1        → within budget: initial 179.8/181.6 KB (99.0%),
+                                all assets 346.5/350.4 KB (98.9%)
+rg -o "@container main \([^)]*\)" dist/assets/index-*.css
+                              → @container main (width>=120rem)
+rg -o "@media \([^)]*120rem\)" dist/assets/index-*.css
+                              → @media (width>=120rem)
+```
+
+**Size delta.** Initial load 177.3 → 179.8 KB gz (+2.5), all assets 314.1 →
+346.5 KB gz (+32.4). Only ~0.2 KB of that is the stylesheet growth from the
+ultrawide utilities; `sonner` itself does not appear in any chunk yet,
+because nothing imports `Toaster` until the shell mounts it — the rest of the
+delta is another agent's concurrent work in the same tree. Both figures are
+inside the budget, but the initial-load headroom is now 1.8 KB: mounting the
+Toaster will consume part of it, so measure again after the mount lands.
+
+### 2026-09-10 — S7-05 export + S7-07 search with URL state (commit 50c1d01)
+
+**Scope decision.** "Every table" was read literally: a `<table>` element.
+In scope: Processes, Startup, Services, App history, Network (flat socket
+export of the grouped view), Storage scan results, Installed apps, and the
+sensor readings table on Devices. Out of scope, with the reason: Users
+(card list, no table; kept its existing `Input` search untouched),
+Benchmarks (result cards, no tabular rows), Performance (charts). Dashboard,
+Diagnosis and Alerts belong to another agent.
+
+**Export writes raw values.** `ExportColumn.value` returns the underlying
+number (`0.0723`, bytes, seconds, epoch as ISO), never the formatted cell;
+`null` is an empty CSV cell and a JSON `null`, never `0` and never the em
+dash. CSV is RFC 4180 with a UTF-8 BOM (Excel reads a BOM-less UTF-8 file
+as ANSI and mangles every Romanian diacritic) and CRLF. The header row is
+the translated label; the JSON keys are stable ids, so a program reading
+the file does not break when the user switches locale.
+
+**Save path.** A Blob + anchor download. `dialog:allow-save` is granted so
+the picker would open today, but no Rust command exists to write arbitrary
+content to the chosen path and `src-tauri/**` is another agent's. The exact
+change needed is documented on `saveExport()` in `lib/export.ts`; the
+preferred option adds no capability string at all (a `write_export`
+command, like `write_flight_recording`).
+
+**URL state.** `#<route>?q=…&sort=…`, `history.replaceState` only, 150 ms
+debounce, inert (no fragment) for a default view, parsers reject anything
+outside the screen's closed union. Processes' sort/direction/kind already
+persist in `localStorage`; the URL mirrors them and wins when a link names
+them. A pending write is flushed on unmount so `<Activity>` hiding the
+screen 50 ms after a keystroke loses nothing.
+
+**Mutation check.** Removing the `""` doubling in `csvField` turned two
+tests red (`csvField … doubles embedded quotes`, `toCsv … raw values`);
+restored.
+
+```
+pnpm -C apps/desktop exec tsc --noEmit          → exit 0
+pnpm -C apps/desktop exec eslint src            → exit 0
+pnpm -C apps/desktop exec vitest run            → Test Files 78 passed · Tests 812 passed (812)
+pwsh scripts/check-drift.ps1                    → 0 failures, 3 pre-existing warnings, 2 locales
+pnpm -C apps/desktop build:vite                 → export-SqT0Y6kl.js 0.85 kB │ gzip 0.54 kB (lazy chunk)
+pwsh scripts/check-size.ps1 -SkipInstaller
+  initial load (gzip)  179,6 KB of 181,6 KB budget (98,9%)   baseline 177,3 KB
+  all assets  (gzip)   346,1 KB of 350,4 KB budget (98,8%)   baseline 314,1 KB (S7-01 Motion chunk landed between)
+  Within budget.
+```
+
+### 2026-09-10 — S11 HUD overlay window (commit f8505d5)
+
+### 2026-09-10 — S9 Windows sampler: disk counters, efficiency mode, handles, modules (commit 7f43315)
+
+**S9-01 finding that changed the design.** `SystemFullProcessInformation`
+(class 148, the one carrying `PROCESS_DISK_COUNTERS`) is not a build question
+but a privilege one: measured on this machine it returns
+`STATUS_ACCESS_DENIED` (0xC0000022) unelevated while classes 5 and 57
+succeed. Task Manager can show its Disk column because it holds
+`SeDebugPrivilege`. The enumerator therefore tries 148 first and falls back
+to 5 **permanently** for the run (a mid-run switch would emit one huge bogus
+delta), and `RawProcess::storage_read_bytes` is `Option<u64>` so the
+fallback is visible, never a zero. Elevated runs get the honest figure.
+
+**S9-04 hang mitigation.** Names are read on a dedicated worker thread with
+a 750 ms budget; on expiry the thread is abandoned, not terminated —
+`TerminateThread` on a thread wedged in a driver leaks its stack and can
+corrupt the loader lock. The worker owns a `DuplicateHandle`d process
+handle so it can outlive the caller safely.
+
+```
+cargo run -q -p vitals-win --example prove_process_detail
+  == S9-01 == 856 processes · source: AllIo
+    the full class was refused (STATUS_ACCESS_DENIED without SeDebugPrivilege)
+  == S9-04 == 64 handles in 307 ms · 20 named
+    14 File · 7 Event · 6 WaitCompletionPacket · 4 Key …
+    58 File \Device\HarddiskVolume3\gh\remi · 4c Directory \KnownDlls
+  == S9-05 == 8 modules: prove_process_detail.exe, ntdll.dll 2460 KiB, KERNEL32.DLL …
+  == S9-02 == before Some(false) · set on Some(true) · cleared Some(false) · System (pid 4): None
+cargo test -p vitals-win -p vitals-core        → 564 + 112 + 6 + 4 + 1 passed, 0 failed
+cargo clippy --workspace --all-targets -- -D warnings → exit 0
+cargo test -p vitals-core --features ts        → HandleInfo, ModuleInfo, ProcessDetail.efficiencyMode in index.ts
+pwsh scripts/check-drift.ps1                   → 0 failures (3 pre-existing warnings, other agents' commands)
+New adversarial tests: exited PID → Err (handles, modules, efficiency); recycled
+start time → NotFound; PID 4 → None/Err, never an empty list or Some(false);
+extension reader refuses to read past NextEntryOffset; naming completes < 4×budget.
+```
+
+Not done here (out of my files): Tauri commands for `efficiency_mode` /
+`set_efficiency_mode` / `handles::for_process` / `modules::for_process`, the
+LAN control route, the SDK methods, the UI, both locales, and `ProcessDetail`
+producers filling `efficiency_mode` (it defaults to `None`, which is correct
+until they do).
 
 ### 2026-09-10 — S5 CLI + loopback API (commits 9570564, c214938)
 

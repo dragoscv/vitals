@@ -57,27 +57,27 @@ S6-06,S6,mobile,Mobile process control,Separate token scope; off by default,D15,
 S6-07,S6,mobile,Multi-machine support,One phone watching several PCs,D15,done,pairings accumulate; one card per PC 2026-09-10
 S6-08,S6,mobile,QR pairing UI,SVG rendered in Rust (qrcode crate) so the secret never crosses IPC twice,D1,done,server crate + 11 socket tests + prove_lan live 2026-09-10
 S6-09,S6,mobile,Native-feel mobile shell,Bottom tabs safe-area insets touch targets pull-to-refresh,D14,done,bottom tabs, safe-area, 44px targets, sheet motion 2026-09-10
-S7-01,S7,ui,Motion via LazyMotion domAnimation,MotionConfig reducedMotion mapped to the existing 3-state setting,D17,todo,
-S7-02,S7,ui,Route transitions,AnimatePresence mode=wait keyed on route,D17,todo,
-S7-03,S7,ui,Command palette,Radix Dialog plus own listbox with correct aria-activedescendant,D16,todo,
-S7-04,S7,ui,Ultrawide layout,Container queries; 3xl/4xl/5xl breakpoints; auto-fit grids,D22,todo,
-S7-05,S7,ui,Export CSV and JSON from every table,Shared utility plus a UI affordance,D8,todo,
-S7-06,S7,ui,Keyboard shortcuts and a help sheet,Global shortcut registration finally justified,D22,todo,
-S7-07,S7,ui,Search and filter on every table with URL state,Consistent across screens,D22,todo,
-S7-08,S7,ui,Shared Skeleton and StatList primitives,Remove the duplication across ten feature folders,D8,todo,
-S7-09,S7,ui,Toasts via sonner,Themed through CSS variables not classNames,D8,todo,
-S7-10,S7,ui,Tests for the 11 untested ui components and TimeSeriesChart,,D22,todo,
+S7-01,S7,ui,Motion via LazyMotion domAnimation,MotionConfig reducedMotion mapped to the existing 3-state setting,D17,done,"LazyMotion+MotionConfig lazy-mounted (11.6 KB eager was over budget); useReducedMotion reads the same attribute 2026-09-10"
+S7-02,S7,ui,Route transitions,AnimatePresence mode=wait keyed on route,D17,done,"140 ms WAAPI fade on a stable wrapper, not AnimatePresence (routes are kept alive by Activity); fixed Content remounting every route 2026-09-10"
+S7-03,S7,ui,Command palette,Radix Dialog plus own listbox with correct aria-activedescendant,D16,done,"Ctrl+K, real listbox + aria-activedescendant, 15 commands; live-driven over CDP 2026-09-10"
+S7-04,S7,ui,Ultrawide layout,Container queries; 3xl/4xl/5xl breakpoints; auto-fit grids,D22,done,built CSS carries @media (width>=120rem/240rem) and @container main 2026-09-10
+S7-05,S7,ui,Export CSV and JSON from every table,Shared utility plus a UI affordance,D8,done,"lib/export.ts + components/ExportButton on 8 tables; 812 vitest pass, size 98.8% of budget 2026-09-10"
+S7-06,S7,ui,Keyboard shortcuts and a help sheet,Global shortcut registration finally justified,D22,done,"shortcuts.ts registry drives handlers and the ? help sheet; test asserts parity 2026-09-10"
+S7-07,S7,ui,Search and filter on every table with URL state,Consistent across screens,D22,done,"lib/useUrlState.ts (hash, replaceState, 150 ms debounce) on 7 screens; round-trip + no-pushState tests 2026-09-10"
+S7-08,S7,ui,Shared Skeleton and StatList primitives,StatList promoted to @vitals/ui; perf re-exports it with omitNull,D8,done,ui 97 tests green 2026-09-10
+S7-09,S7,ui,Toasts via sonner,Themed through CSS variables; lazy-mounted in AppShell at @vitals/ui/toast; sampler errors surface as one deduped toast,D8,done,"live: emitted vitals://sampler-error, toast rendered; initial load unchanged at 180 KB 2026-09-10"
+S7-10,S7,ui,Tests for the 11 untested ui components and TimeSeriesChart,,D22,done,charts lines 36.1%->98.2%; ui 92.3%->93.6% 2026-09-10
 S8-01,S8,shell,System tray with a live sparkline,Rust-side Image::new_owned at the DPI-correct slot size; skip unchanged buffers,D8,done,CPU bar, redraw skipped when unchanged, 7 tests 2026-09-10
 S8-02,S8,shell,Tray menu and minimise-to-tray,Justifies the existing setting,D8,done,menu + closeToTray default on; strands-window defect closed 2026-09-10
 S8-03,S8,shell,Always-on-top HUD window,Hash route on index.html; own narrow capability; click-through toggle,D8,done,third Vite entry, own capability, 46 kB gz 2026-09-10
 S8-04,S8,shell,Alerts and rules engine wired to notifications,Hysteresis and cooldown to prevent toast storms,D8,done,Rust engine: sustain/hysteresis/cooldown, 17 tests 2026-09-10
 S8-05,S8,shell,Updater flow,check download install plus a settings panel; loud failure while the pubkey is a placeholder,D20,done,real key, latest.json in release.yml, unconfigured state 2026-09-10
 S8-06,S8,shell,Why is my PC slow report,One click correlating the subsystems,D22,done,diagnosis.rs 11 tests + DiagnosisDialog 7 tests; live-driven via CDP 2026-09-10
-S9-01,S9,metrics,Per-process Disk column from DiskCounters,SYSTEM_PROCESS_INFORMATION_EXTENSION - matches Task Manager,D22,todo,
-S9-02,S9,metrics,Efficiency mode,SetProcessInformation ProcessPowerThrottling plus IDLE_PRIORITY_CLASS; read back with GetProcessInformation,D8,todo,
+S9-01,S9,metrics,Per-process Disk column from DiskCounters,SystemFullProcessInformation (148) with PROCESS_DISK_COUNTERS; needs SeDebugPrivilege so unelevated falls back to all-I/O permanently; RawProcess::storage_*_bytes Option,D22,done,backend done; prover shows fallback unelevated (STATUS_ACCESS_DENIED measured); 5 new tests 2026-09-10
+S9-02,S9,metrics,Efficiency mode,actions::efficiency_mode -> Option<bool> and set_efficiency_mode (throttle + IDLE class like Task Manager); ProcessDetail.efficiency_mode; no Tauri command yet,D8,done,backend done; prover round-trips Some(false)->Some(true)->Some(false) on own child; System = None 2026-09-10
 S9-03,S9,metrics,Affinity presets,Primitive already exists; add the preset UI layer,D8,todo,
-S9-04,S9,metrics,Handle enumeration,SystemExtendedHandleInformation 64; named-pipe hang mitigations; on demand only,D8,todo,
-S9-05,S9,metrics,Module and DLL list,EnumProcessModulesEx with a retry on ERROR_PARTIAL_COPY,D8,todo,
+S9-04,S9,metrics,Handle enumeration,vitals_win::handles::for_process; naming on an abandoned worker thread with 750 ms budget; HandleInfo in vitals-core; no Tauri command yet,D8,done,backend done; prover 64 handles 307 ms 20 named; exited/recycled PID -> Err 2026-09-10
+S9-05,S9,metrics,Module and DLL list,vitals_win::modules::for_process; LIST_MODULES_ALL; one retry on ERROR_PARTIAL_COPY; ModuleInfo in vitals-core; no Tauri command yet,D8,done,backend done; prover 8 modules incl ntdll; exited/recycled PID -> Err 2026-09-10
 S9-06,S9,metrics,Open file location and Properties,SHOpenFolderAndSelectItems and ShellExecuteEx with SEE_MASK_INVOKEIDLIST,D8,todo,
 S9-07,S9,metrics,Measured startup impact,CPU-ms and disk bytes in the boot window using our own sampling,D22,todo,
 S10-01,S10,docs,docs/architecture.md,The crate split and the two design principles,D22,todo,
@@ -101,3 +101,4 @@ S11-10,S11,ui,HUD overlay window,"Second Tauri window (hud.html) with CPU/memory
 S9-92,S9,mobile,Phone card showed a phantom GPU adapter,gpus[0] is a virtual display here; shared selectors in @vitals/protocol,D1,done,live check GPU 7% 2026-09-10
 S10-92,S10,gates,Per-entry size budgets from the module graph,Filename pattern was wrong in both directions; real initial load 172.9 kB,D1,done,check-size.ps1 2026-09-10
 S9-93,S9,dashboard,Hidden route stopped receiving frames,disposed flag never reset on resubscribe (Activity/StrictMode); alerts source had the same defect,D1,done,2 regression tests mutation-checked; live dashboard recovered 2026-09-10
+S9-94,S9,dashboard,Processes source had the same resubscribe defect,third copy of the disposed flag; found live with lastRoute=processes,D1,done,useProcessSnapshot.test.ts mutation-checked 2026-09-10
