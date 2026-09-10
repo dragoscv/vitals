@@ -168,4 +168,38 @@ describe('createTauriSystemSource', () => {
     expect(source.current().error).toBeNull();
     expect(source.current().pending).toBe(false);
   });
+
+  it('keeps listening after the last subscriber leaves and a new one arrives', async () => {
+    // `<Activity mode="hidden">` unmounts a route's effects and remounts them
+    // when the user comes back; StrictMode does the same on purpose in dev.
+    // The second subscription used to inherit `disposed = true` from the
+    // first and unlisten itself the moment `subscribeToMetrics` resolved, so
+    // frames kept arriving over IPC while the dashboard reported that none
+    // were. Found live, not by a test — hence this one.
+    hasHost.value = true;
+    const stops: Array<ReturnType<typeof vi.fn>> = [];
+    let listener: { onSnapshot(snapshot: unknown): void } | undefined;
+    subscribeToMetrics.mockImplementation((candidate: typeof listener) => {
+      listener = candidate;
+      const stop = vi.fn();
+      stops.push(stop);
+      return Promise.resolve(stop);
+    });
+
+    const source = createTauriSystemSource();
+    const unsubscribe = source.subscribe(() => undefined);
+    await vi.advanceTimersByTimeAsync(0);
+    unsubscribe();
+    expect(stops[0]).toHaveBeenCalledTimes(1);
+
+    source.subscribe(() => undefined);
+    await vi.advanceTimersByTimeAsync(0);
+    // The fresh subscription must be alive, not torn down on arrival.
+    expect(stops).toHaveLength(2);
+    expect(stops[1]).not.toHaveBeenCalled();
+
+    listener?.onSnapshot({ system: {}, processes: new Map(), seq: 7, timestampMs: 7000 });
+    expect(source.current().seq).toBe(7);
+    expect(source.current().error).toBeNull();
+  });
 });

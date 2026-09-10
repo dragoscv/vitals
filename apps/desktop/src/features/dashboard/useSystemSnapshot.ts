@@ -92,6 +92,13 @@ export function createTauriSystemSource(onFrame?: (snapshot: Snapshot) => void):
   };
 
   const start = (): void => {
+    // A restart, not a first start. `<Activity>` hides a route by unmounting
+    // its effects and remounting them when it becomes visible again, and
+    // StrictMode does the same on purpose in development. Leaving `disposed`
+    // set from the previous stop made the *new* subscription throw itself
+    // away the moment it resolved — frames kept arriving over IPC and the
+    // dashboard sat on "No readings are arriving" for good.
+    disposed = false;
     // Without a host there is no IPC to listen on, and `listen()` dereferences
     // an internals global that does not exist — throwing
     // "Cannot read properties of undefined (reading 'transformCallback')"

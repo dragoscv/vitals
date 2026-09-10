@@ -164,6 +164,26 @@ describe('createTauriAlertSource', () => {
     expect(unlisten).toHaveBeenCalled();
   });
 
+  it('reopens the channel when a subscriber returns after the last one left', async () => {
+    // The metrics source had this exact defect and it cost an afternoon: a
+    // stale `disposed` made the second subscription unlisten itself the
+    // moment it resolved, so alerts silently froze after a route was hidden
+    // and shown again.
+    const source = createTauriAlertSource();
+    const stop = source.subscribe(() => undefined);
+    await flush();
+    stop();
+    unlisten.mockClear();
+
+    source.subscribe(() => undefined);
+    await flush();
+    expect(unlisten).not.toHaveBeenCalled();
+
+    const raised = alert({ kind: 'thermalCpu', subject: '' });
+    emit?.({ payload: [raised] });
+    expect(source.current()).toEqual([raised]);
+  });
+
   it('keeps the same array identity while nothing changes', () => {
     // `useSyncExternalStore` compares by identity: a fresh `[]` per read is an
     // infinite render loop, not a wasted allocation.

@@ -56,6 +56,11 @@ export function createTauriAlertSource(): AlertSource {
   let seenEvent = false;
 
   const start = (): void => {
+    // A restart after the last subscriber left (route hidden by `<Activity>`,
+    // StrictMode's deliberate double-mount). Same defect as the metrics
+    // source: a stale `disposed` made the new listener drop itself.
+    disposed = false;
+    seenEvent = false;
     // Without a host there is no IPC: `listen()` dereferences an internals
     // global that does not exist and throws from inside a promise nobody
     // awaits. In a browser the honest answer is "nothing is wrong", which is
