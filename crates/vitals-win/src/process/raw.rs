@@ -26,12 +26,38 @@ pub const SYSTEM_PROCESS_INFORMATION: i32 = 5;
 /// `SystemExtendedProcessInformation`
 pub const SYSTEM_EXTENDED_PROCESS_INFORMATION: i32 = 57;
 
+/// `SystemFullProcessInformation`
+///
+/// The same entries as [`SYSTEM_EXTENDED_PROCESS_INFORMATION`] — extended
+/// thread records — with a [`SystemProcessInformationExtension`] appended
+/// after each process's thread array. That extension carries the
+/// `PROCESS_DISK_COUNTERS` block Task Manager's Disk column is built from.
+///
+/// **Requires `SeDebugPrivilege`.** Measured on this machine: the kernel
+/// returns `STATUS_ACCESS_DENIED` (0xC0000022) for it from an ordinary
+/// unelevated session, while classes 5 and 57 succeed. That is why Task
+/// Manager — which holds the privilege — can show a Disk column that this
+/// app cannot reproduce unelevated, and why the fallback below is a normal
+/// operating state rather than an error path for antique builds.
+pub const SYSTEM_FULL_PROCESS_INFORMATION: i32 = 148;
+
+/// `STATUS_ACCESS_DENIED`
+pub const STATUS_ACCESS_DENIED: i32 = 0xC000_0022_u32.cast_signed();
+
 /// `STATUS_INFO_LENGTH_MISMATCH` — the buffer was too small.
 ///
 /// NTSTATUS is a signed 32-bit value where the top bit marks an error, so
 /// every failure code reinterprets as negative. That is the encoding, not an
 /// accident, which is why the sign flip here is explicit.
 pub const STATUS_INFO_LENGTH_MISMATCH: i32 = 0xC000_0004_u32.cast_signed();
+
+/// `STATUS_BUFFER_OVERFLOW` — a warning, not an error: the call succeeded
+/// but the output was truncated. `NtQueryObject` returns it for a name that
+/// did not fit, so it has to be treated as "grow and retry" too.
+pub const STATUS_BUFFER_OVERFLOW: i32 = 0x8000_0005_u32.cast_signed();
+
+/// `STATUS_BUFFER_TOO_SMALL`
+pub const STATUS_BUFFER_TOO_SMALL: i32 = 0xC000_0023_u32.cast_signed();
 
 /// A counted UTF-16 string. `Length` is in **bytes**, not characters.
 #[repr(C)]
@@ -88,6 +114,55 @@ pub struct SystemThreadInformation {
 pub struct ClientId {
     pub UniqueProcess: isize,
     pub UniqueThread: isize,
+}
+
+/// Per-thread information in the *extended* and *full* classes.
+///
+/// Same leading fields as [`SystemThreadInformation`], then seven pointers
+/// of stack and TEB data we do not read. Declared only so its size is
+/// pinned: the disk-counter extension lives *after* the thread array, so a
+/// wrong stride here reads plausible nonsense out of the next thread.
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
+pub struct SystemExtendedThreadInformation {
+    pub ThreadInfo: SystemThreadInformation,
+    pub StackBase: *mut c_void,
+    pub StackLimit: *mut c_void,
+    pub Win32StartAddress: *mut c_void,
+    pub TebBase: *mut c_void,
+    pub Reserved2: usize,
+    pub Reserved3: usize,
+    pub Reserved4: usize,
+}
+
+/// Storage-stack I/O counters, as kept by the kernel per process.
+///
+/// These count bytes that reached a disk driver. The `ReadTransferCount` /
+/// `WriteTransferCount` pair on [`SystemProcessInformation`] counts every
+/// `NtReadFile`/`NtWriteFile` — named pipes, sockets, the console — so a
+/// chatty IPC client shows tens of MB/s of "disk" there while touching no
+/// disk at all. Task Manager's Disk column reads this block for that reason.
+#[repr(C)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ProcessDiskCounters {
+    pub BytesRead: u64,
+    pub BytesWritten: u64,
+    pub ReadOperationCount: u64,
+    pub WriteOperationCount: u64,
+    pub FlushOperationCount: u64,
+}
+
+/// The block that follows each process's thread array in the *full* class.
+///
+/// Only the leading disk counters are read. The remainder has grown across
+/// releases (energy values, package name offsets, sequence numbers) and is
+/// declared here purely so the whole prefix we depend on is spelled out;
+/// nothing reads past `ContextSwitches`.
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
+pub struct SystemProcessInformationExtension {
+    pub DiskCounters: ProcessDiskCounters,
+    pub ContextSwitches: u64,
 }
 
 /// One process entry.
@@ -172,6 +247,22 @@ mod tests {
     fn thread_information_has_the_expected_size() {
         #[cfg(target_pointer_width = "64")]
         assert_eq!(size_of::<SystemThreadInformation>(), 0x50);
+    }
+
+    #[test]
+    fn extended_thread_information_stride_matches_the_kernel_layout() {
+        // 0x50 of the base record plus seven pointer-sized fields. The disk
+        // counter extension is located by multiplying this by the thread
+        // count, so an error here does not fail — it silently attributes
+        // some thread's stack limit to the process as bytes written.
+        #[cfg(target_pointer_width = "64")]
+        assert_eq!(size_of::<SystemExtendedThreadInformation>(), 0x88);
+    }
+
+    #[test]
+    fn disk_counters_are_five_unpadded_u64s() {
+        assert_eq!(size_of::<ProcessDiskCounters>(), 40);
+        assert_eq!(size_of::<SystemProcessInformationExtension>(), 48);
     }
 
     #[test]

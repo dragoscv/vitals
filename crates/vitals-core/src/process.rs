@@ -247,6 +247,76 @@ pub struct ProcessDetail {
     pub services: Vec<String>,
     /// Container or WSL distro name when containerised.
     pub container: Option<String>,
+    /// Whether the OS is throttling this process's execution speed
+    /// ("efficiency mode" in Task Manager's vocabulary).
+    ///
+    /// `None` is load-bearing and is not the same as `Some(false)`. Reading
+    /// this needs a handle on the target, and a protected or
+    /// higher-integrity process denies us one — so "we were not allowed to
+    /// look" and "the process is running at full speed" are different facts.
+    /// Reporting the first as the second would let the UI offer to turn off
+    /// a throttle it cannot see and cannot change.
+    ///
+    /// It lives on the detail struct rather than [`Process`] because there
+    /// is no bulk source for it: `NtQuerySystemInformation` does not carry
+    /// the power-throttling state, so a value on every row would cost an
+    /// open/query/close per process per tick — the exact cost this crate's
+    /// enumeration exists to avoid.
+    pub efficiency_mode: Option<bool>,
+}
+
+/// One open kernel handle held by a process.
+///
+/// Enumerated on demand only. The system handle table is megabytes on a
+/// busy machine, so nothing samples this on a timer.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(
+    feature = "ts",
+    ts(export, export_to = "core/", rename_all = "camelCase")
+)]
+#[serde(rename_all = "camelCase")]
+pub struct HandleInfo {
+    /// The process that holds the handle.
+    pub pid: Pid,
+    /// The handle value as seen inside that process.
+    #[cfg_attr(feature = "ts", ts(type = "number"))]
+    pub value: u64,
+    /// Object type — `File`, `Key`, `Event`, `Mutant`, and so on.
+    ///
+    /// `None` when the object could not be interrogated. A handle we cannot
+    /// classify is still a handle worth showing; inventing a type for it is
+    /// not.
+    pub kind: Option<String>,
+    /// Object name, where one exists and could be read without blocking.
+    ///
+    /// Frequently `None` even on success: unnamed objects genuinely have no
+    /// name, and naming a handle to a synchronous pipe can block forever, so
+    /// those are deliberately left unread.
+    pub name: Option<String>,
+    /// The access mask the handle was granted.
+    pub granted_access: u32,
+}
+
+/// One module (executable or DLL) mapped into a process.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(
+    feature = "ts",
+    ts(export, export_to = "core/", rename_all = "camelCase")
+)]
+#[serde(rename_all = "camelCase")]
+pub struct ModuleInfo {
+    /// File name only (`ntdll.dll`).
+    pub name: String,
+    /// Full path on disk, when it could be resolved.
+    pub path: Option<String>,
+    /// Load address in the target process.
+    #[cfg_attr(feature = "ts", ts(type = "number"))]
+    pub base_address: u64,
+    /// Mapped size in bytes.
+    #[cfg_attr(feature = "ts", ts(type = "number"))]
+    pub size: u64,
 }
 
 #[cfg(test)]

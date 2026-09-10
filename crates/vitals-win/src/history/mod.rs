@@ -38,11 +38,11 @@ impl ProcessSample for RawProcess {
     }
 
     fn disk_read_bytes(&self) -> u64 {
-        self.read_bytes
+        self.disk_read_bytes().0
     }
 
     fn disk_write_bytes(&self) -> u64 {
-        self.write_bytes
+        self.disk_write_bytes().0
     }
 
     fn private_bytes(&self) -> u64 {
@@ -273,6 +273,8 @@ mod tests {
             other_bytes: 0,
             read_ops: 1,
             write_ops: 1,
+            storage_read_bytes: None,
+            storage_write_bytes: None,
         }
     }
 

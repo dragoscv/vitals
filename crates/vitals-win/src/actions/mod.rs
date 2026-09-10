@@ -11,7 +11,7 @@ pub mod process;
 pub mod safety;
 
 pub use process::{
-    ActionPlan, Priority, plan_suspend, plan_terminate, resume, set_affinity, set_priority,
-    suspend, terminate,
+    ActionPlan, Priority, efficiency_mode, plan_suspend, plan_terminate, resume, set_affinity,
+    set_efficiency_mode, set_priority, suspend, terminate,
 };
 pub use safety::{ProcessFacts, Risk, assess_suspension, assess_termination, consequence_key};

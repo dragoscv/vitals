@@ -29,6 +29,10 @@ use crate::process::{ProcessEnumerator, RawProcess};
 #[derive(Debug, Clone, Copy)]
 struct ProcessBaseline {
     cpu_time: u64,
+    /// Disk bytes from whichever counter `RawProcess::disk_read_bytes`
+    /// selected — storage-stack where the kernel provides it, all-I/O
+    /// otherwise. The enumerator fixes the source once per run, so a
+    /// baseline and its successor always come from the same counter.
     read_bytes: u64,
     write_bytes: u64,
 }
@@ -282,11 +286,14 @@ impl SystemSampler {
                 None => (BytesPerSec::ZERO, BytesPerSec::ZERO),
                 Some(prev) => (
                     BytesPerSec(per_second(
-                        process.read_bytes.saturating_sub(prev.read_bytes),
+                        process.disk_read_bytes().0.saturating_sub(prev.read_bytes),
                         elapsed_ms,
                     )),
                     BytesPerSec(per_second(
-                        process.write_bytes.saturating_sub(prev.write_bytes),
+                        process
+                            .disk_write_bytes()
+                            .0
+                            .saturating_sub(prev.write_bytes),
                         elapsed_ms,
                     )),
                 ),
@@ -296,8 +303,8 @@ impl SystemSampler {
                 process.key,
                 ProcessBaseline {
                     cpu_time: process.cpu_time(),
-                    read_bytes: process.read_bytes,
-                    write_bytes: process.write_bytes,
+                    read_bytes: process.disk_read_bytes().0,
+                    write_bytes: process.disk_write_bytes().0,
                 },
             );
             seen.push(process.key);

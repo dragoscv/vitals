@@ -4,9 +4,12 @@ use windows_sys::Win32::Foundation::{
     CloseHandle, ERROR_ACCESS_DENIED, ERROR_INVALID_PARAMETER, FALSE, HANDLE, INVALID_HANDLE_VALUE,
 };
 use windows_sys::Win32::System::Threading::{
-    GetCurrentProcessId, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SET_INFORMATION,
-    PROCESS_SUSPEND_RESUME, PROCESS_TERMINATE, SetPriorityClass, SetProcessAffinityMask,
-    TerminateProcess,
+    GetCurrentProcessId, GetProcessInformation, IDLE_PRIORITY_CLASS, NORMAL_PRIORITY_CLASS,
+    OpenProcess, PROCESS_POWER_THROTTLING_CURRENT_VERSION,
+    PROCESS_POWER_THROTTLING_EXECUTION_SPEED, PROCESS_POWER_THROTTLING_STATE,
+    PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SET_INFORMATION, PROCESS_SUSPEND_RESUME,
+    PROCESS_TERMINATE, ProcessPowerThrottling, SetPriorityClass, SetProcessAffinityMask,
+    SetProcessInformation, TerminateProcess,
 };
 
 use vitals_core::error::{Error, Result};
@@ -31,11 +34,11 @@ unsafe extern "system" {
 /// which then shows up in our own process list. A monitoring tool creating
 /// the artefacts it displays is not acceptable.
 #[derive(Debug)]
-struct ProcessHandle(HANDLE);
+pub(crate) struct ProcessHandle(HANDLE);
 
 impl ProcessHandle {
     /// Opens a process with the given access rights.
-    fn open(pid: Pid, access: u32) -> Result<Self> {
+    pub(crate) fn open(pid: Pid, access: u32) -> Result<Self> {
         // SAFETY: `OpenProcess` validates its own arguments and returns null
         // on failure.
         let handle = unsafe { OpenProcess(access, FALSE, pid.get()) };
@@ -62,7 +65,7 @@ impl ProcessHandle {
         Ok(Self(handle))
     }
 
-    const fn raw(&self) -> HANDLE {
+    pub(crate) const fn raw(&self) -> HANDLE {
         self.0
     }
 }
@@ -81,7 +84,7 @@ impl Drop for ProcessHandle {
 /// process that happened to inherit the number — a real, reported failure
 /// mode in other tools, and precisely why [`ProcessKey`] carries a start
 /// time.
-fn verify_identity(handle: &ProcessHandle, expected: ProcessKey) -> Result<()> {
+pub(crate) fn verify_identity(handle: &ProcessHandle, expected: ProcessKey) -> Result<()> {
     let mut creation: i64 = 0;
     let mut exit: i64 = 0;
     let mut kernel: i64 = 0;
@@ -408,6 +411,168 @@ pub fn set_affinity(key: ProcessKey, mask: u64) -> Result<()> {
     Ok(())
 }
 
+/// Reads whether a process is in efficiency mode.
+///
+/// "Efficiency mode" is Task Manager's name for `EcoQoS`: the process's
+/// execution speed is throttled (`PROCESS_POWER_THROTTLING_EXECUTION_SPEED`)
+/// so the scheduler prefers efficient cores and lower clocks for it.
+///
+/// Returns `Ok(None)` — not `Ok(Some(false))` — when the state cannot be
+/// read: the build predates the API, or the process denies us a handle.
+/// "We could not look" and "it is not throttled" are different facts, and the
+/// UI must not offer to switch off a throttle it cannot see.
+///
+/// # Errors
+///
+/// - [`Error::NotFound`] when the process has exited or its PID was reused.
+///
+/// Access denied is deliberately *not* an error here: it is the expected
+/// outcome for every protected and higher-integrity process on the machine,
+/// and a per-row query that errors on half the process list is useless.
+pub fn efficiency_mode(key: ProcessKey) -> Result<Option<bool>> {
+    let handle = match ProcessHandle::open(key.pid, PROCESS_QUERY_LIMITED_INFORMATION) {
+        Ok(handle) => handle,
+        Err(Error::AccessDenied { .. }) => return Ok(None),
+        Err(other) => return Err(other),
+    };
+
+    verify_identity(&handle, key)?;
+
+    let mut state = PROCESS_POWER_THROTTLING_STATE {
+        Version: PROCESS_POWER_THROTTLING_CURRENT_VERSION,
+        ControlMask: 0,
+        StateMask: 0,
+    };
+
+    // SAFETY: the handle is valid, `state` is a live, correctly sized
+    // PROCESS_POWER_THROTTLING_STATE, and the size passed is its true size.
+    let ok = unsafe {
+        GetProcessInformation(
+            handle.raw(),
+            ProcessPowerThrottling,
+            (&raw mut state).cast(),
+            u32::try_from(std::mem::size_of::<PROCESS_POWER_THROTTLING_STATE>()).unwrap_or(12),
+        )
+    };
+
+    if ok == FALSE {
+        // Pre-1709 kernels reject the class; a process we could open but not
+        // query says the same thing. Neither is "off".
+        return Ok(None);
+    }
+
+    // The bit is only meaningful when the process has opted into controlling
+    // it. A process with the control bit clear follows the system default,
+    // which for a foreground process is "not throttled".
+    let controlled = state.ControlMask & PROCESS_POWER_THROTTLING_EXECUTION_SPEED != 0;
+    let throttled = state.StateMask & PROCESS_POWER_THROTTLING_EXECUTION_SPEED != 0;
+    Ok(Some(controlled && throttled))
+}
+
+/// Switches a process's efficiency mode on or off.
+///
+/// Does what Task Manager does, which is **two** things: sets the power
+/// throttling state *and* moves the priority class to Idle (or back to
+/// Normal). The throttle alone changes which cores and clocks the process
+/// gets but not its place in the run queue, so on its own it barely shows
+/// in a busy machine's responsiveness — the priority drop is what makes the
+/// feature do what users expect. Restoring to `Normal` rather than the
+/// process's previous class mirrors Task Manager exactly; a process that was
+/// `High` before being put in efficiency mode comes back as `Normal`.
+///
+/// Refuses to throttle our own process: a sampler running at idle priority
+/// on a busy machine falls behind its own tick, and there is no UI to undo
+/// it once the UI itself is starved.
+///
+/// # Errors
+///
+/// - [`Error::AccessDenied`] when the caller lacks rights.
+/// - [`Error::NotFound`] when the process has exited or its PID was reused.
+/// - [`Error::Refused`] for our own process.
+/// - [`Error::Os`] when the kernel rejects the throttling class — the build
+///   is too old for it, and elevation would not help.
+pub fn set_efficiency_mode(key: ProcessKey, enabled: bool) -> Result<()> {
+    // SAFETY: no preconditions.
+    if enabled && key.pid.get() == unsafe { GetCurrentProcessId() } {
+        return Err(Error::Refused(
+            "throttling our own process would starve the sampler and the UI that could undo it"
+                .into(),
+        ));
+    }
+
+    let handle = ProcessHandle::open(
+        key.pid,
+        PROCESS_SET_INFORMATION | PROCESS_QUERY_LIMITED_INFORMATION,
+    )?;
+
+    verify_identity(&handle, key)?;
+
+    let state = PROCESS_POWER_THROTTLING_STATE {
+        Version: PROCESS_POWER_THROTTLING_CURRENT_VERSION,
+        ControlMask: PROCESS_POWER_THROTTLING_EXECUTION_SPEED,
+        StateMask: if enabled {
+            PROCESS_POWER_THROTTLING_EXECUTION_SPEED
+        } else {
+            0
+        },
+    };
+
+    // SAFETY: the handle is valid and opened with PROCESS_SET_INFORMATION;
+    // `state` is a live struct of the size passed.
+    let ok = unsafe {
+        SetProcessInformation(
+            handle.raw(),
+            ProcessPowerThrottling,
+            (&raw const state).cast(),
+            u32::try_from(std::mem::size_of::<PROCESS_POWER_THROTTLING_STATE>()).unwrap_or(12),
+        )
+    };
+
+    if ok == FALSE {
+        return Err(last_error(
+            format!("set efficiency mode on process {}", key.pid.get()),
+            format!(
+                "SetProcessInformation(ProcessPowerThrottling, {})",
+                key.pid.get()
+            ),
+        ));
+    }
+
+    // The priority half. Done second so a build that rejects the throttling
+    // class fails before anything has changed, rather than leaving the
+    // process at idle priority with no throttle.
+    let class = if enabled {
+        IDLE_PRIORITY_CLASS
+    } else {
+        NORMAL_PRIORITY_CLASS
+    };
+
+    // SAFETY: as above.
+    let ok = unsafe { SetPriorityClass(handle.raw(), class) };
+
+    if ok == FALSE {
+        return Err(last_error(
+            format!("set priority on process {}", key.pid.get()),
+            format!("SetPriorityClass({})", key.pid.get()),
+        ));
+    }
+
+    Ok(())
+}
+
+/// Maps the thread's last Win32 error onto the crate's taxonomy.
+fn last_error(operation: String, context: String) -> Error {
+    // SAFETY: no preconditions.
+    let code = unsafe { windows_sys::Win32::Foundation::GetLastError() };
+    match code {
+        ERROR_ACCESS_DENIED => Error::AccessDenied { operation },
+        other => Error::Os {
+            context,
+            code: other.cast_signed(),
+        },
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -645,5 +810,81 @@ mod tests {
 
         child.kill().expect("cleanup");
         child.wait().expect("cleanup");
+    }
+
+    #[test]
+    fn efficiency_mode_round_trips_on_a_process_we_own_and_reads_back_what_was_set() {
+        // Unelevated on purpose: that is how the app runs. A child we spawned
+        // is ours to throttle without any privilege.
+        let mut child = spawn_victim();
+        let key = key_for(child.id());
+
+        let before = efficiency_mode(key).expect("read initial state");
+        assert_eq!(
+            before,
+            Some(false),
+            "a freshly spawned cmd is not throttled and we can see that"
+        );
+
+        set_efficiency_mode(key, true).expect("enable");
+        assert_eq!(efficiency_mode(key).expect("read"), Some(true));
+
+        // Task Manager's second half: the priority class must have moved too,
+        // or the feature is cosmetic.
+        let handle = ProcessHandle::open(key.pid, PROCESS_QUERY_LIMITED_INFORMATION).expect("open");
+        // SAFETY: valid handle.
+        let class =
+            unsafe { windows_sys::Win32::System::Threading::GetPriorityClass(handle.raw()) };
+        assert_eq!(class, IDLE_PRIORITY_CLASS, "priority class was not lowered");
+        drop(handle);
+
+        set_efficiency_mode(key, false).expect("disable");
+        assert_eq!(efficiency_mode(key).expect("read"), Some(false));
+
+        child.kill().expect("cleanup");
+        child.wait().expect("cleanup");
+    }
+
+    #[test]
+    fn efficiency_mode_of_the_system_process_is_unknown_not_off() {
+        // PID 4 refuses PROCESS_QUERY_LIMITED_INFORMATION to an unelevated
+        // caller on most builds; elevated it may succeed. Either way the
+        // answer must never be a fabricated `Some(false)` from a failed open.
+        let key = key_for(4);
+        match efficiency_mode(key) {
+            Ok(None) => {}
+            Ok(Some(value)) => {
+                // Elevated run: we genuinely read it. Only acceptable if a
+                // handle actually opened, which is what `Ok(Some)` implies.
+                let _ = value;
+            }
+            Err(error) => panic!("access denied must map to None, got {error}"),
+        }
+    }
+
+    #[test]
+    fn efficiency_mode_of_an_exited_process_is_not_found_rather_than_a_value() {
+        let mut child = spawn_victim();
+        let key = key_for(child.id());
+        child.kill().expect("kill");
+        child.wait().expect("wait");
+
+        // A freed PID can be reused within milliseconds; the start-time check
+        // must reject the newcomer as well as the corpse.
+        let result = efficiency_mode(key);
+        assert!(
+            matches!(result, Err(Error::NotFound(_))),
+            "expected NotFound, got {result:?}"
+        );
+    }
+
+    #[test]
+    fn throttling_ourselves_is_refused_before_anything_happens() {
+        // SAFETY: no preconditions.
+        let key = key_for(unsafe { GetCurrentProcessId() });
+        assert!(matches!(
+            set_efficiency_mode(key, true),
+            Err(Error::Refused(_))
+        ));
     }
 }

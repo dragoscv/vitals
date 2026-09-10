@@ -6,9 +6,26 @@ use vitals_core::error::{Error, Result};
 use vitals_core::ids::{Pid, ProcessKey};
 
 use super::raw::{
-    NtQuerySystemInformation, STATUS_INFO_LENGTH_MISMATCH, SYSTEM_PROCESS_INFORMATION,
-    SystemProcessInformation,
+    NtQuerySystemInformation, STATUS_INFO_LENGTH_MISMATCH, SYSTEM_FULL_PROCESS_INFORMATION,
+    SYSTEM_PROCESS_INFORMATION, SystemExtendedThreadInformation, SystemProcessInformation,
+    SystemProcessInformationExtension,
 };
+
+/// Which kernel counter produced a process's disk figures.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DiskCounterSource {
+    /// `PROCESS_DISK_COUNTERS` from the `SystemFullProcessInformation`
+    /// extension: bytes that reached a storage driver. What Task Manager's
+    /// Disk column shows. Needs `SeDebugPrivilege`, so in practice this
+    /// means the app is running elevated.
+    StorageStack,
+    /// `ReadTransferCount`/`WriteTransferCount` from the base record: every
+    /// `NtReadFile`/`NtWriteFile`, including pipes, sockets and the console.
+    /// Over-reports for IPC-heavy processes. Used whenever the kernel
+    /// refuses the full class — unelevated, which is the common case, or a
+    /// build that predates it.
+    AllIo,
+}
 
 /// A process as read from the kernel, before any rate computation.
 ///
@@ -36,11 +53,20 @@ pub struct RawProcess {
     pub page_faults: u32,
     /// Faults that hit the disk. The real memory-pressure signal.
     pub hard_faults: u32,
+    /// All-I/O transfer counts from the base record. Always present.
+    ///
+    /// These are *not* disk figures — see [`Self::disk_read_bytes`] — but
+    /// they are the only per-process I/O number every supported build has.
     pub read_bytes: u64,
     pub write_bytes: u64,
     pub other_bytes: u64,
     pub read_ops: u64,
     pub write_ops: u64,
+    /// Storage-stack bytes read, when the kernel exposed the disk-counter
+    /// extension. `None` on builds without `SystemFullProcessInformation`;
+    /// never a zero standing in for "not reported".
+    pub storage_read_bytes: Option<u64>,
+    pub storage_write_bytes: Option<u64>,
 }
 
 impl RawProcess {
@@ -48,6 +74,29 @@ impl RawProcess {
     #[must_use]
     pub const fn cpu_time(&self) -> u64 {
         self.kernel_time.saturating_add(self.user_time)
+    }
+
+    /// Cumulative bytes read from disk, and which counter said so.
+    ///
+    /// Prefers the storage-stack counter; falls back to the all-I/O figure
+    /// only when the kernel did not report one. Callers differencing this
+    /// across ticks get a consistent source for a given machine, because the
+    /// enumerator settles on one information class and keeps it.
+    #[must_use]
+    pub const fn disk_read_bytes(&self) -> (u64, DiskCounterSource) {
+        match self.storage_read_bytes {
+            Some(bytes) => (bytes, DiskCounterSource::StorageStack),
+            None => (self.read_bytes, DiskCounterSource::AllIo),
+        }
+    }
+
+    /// Cumulative bytes written to disk, and which counter said so.
+    #[must_use]
+    pub const fn disk_write_bytes(&self) -> (u64, DiskCounterSource) {
+        match self.storage_write_bytes {
+            Some(bytes) => (bytes, DiskCounterSource::StorageStack),
+            None => (self.write_bytes, DiskCounterSource::AllIo),
+        }
     }
 
     /// Whether this is the System Idle Process.
@@ -69,6 +118,14 @@ impl RawProcess {
 #[derive(Debug)]
 pub struct ProcessEnumerator {
     buffer: Vec<u8>,
+    /// The information class the kernel accepted.
+    ///
+    /// Starts at the full class and drops to the base class permanently if
+    /// the kernel rejects it. Decided once rather than per call so the disk
+    /// counters a caller differences across ticks always come from the same
+    /// source — flipping between them would produce one enormous bogus
+    /// delta at the switch.
+    class: i32,
 }
 
 impl Default for ProcessEnumerator {
@@ -93,6 +150,20 @@ impl ProcessEnumerator {
     pub fn new() -> Self {
         Self {
             buffer: vec![0_u8; Self::INITIAL_CAPACITY],
+            class: SYSTEM_FULL_PROCESS_INFORMATION,
+        }
+    }
+
+    /// Which disk counter this enumerator's processes will carry.
+    ///
+    /// Meaningful after the first successful [`Self::enumerate`]; before
+    /// that it reports the optimistic default.
+    #[must_use]
+    pub const fn disk_counter_source(&self) -> DiskCounterSource {
+        if self.class == SYSTEM_FULL_PROCESS_INFORMATION {
+            DiskCounterSource::StorageStack
+        } else {
+            DiskCounterSource::AllIo
         }
     }
 
@@ -114,11 +185,14 @@ impl ProcessEnumerator {
     pub fn enumerate(&mut self) -> Result<Vec<RawProcess>> {
         self.fill_buffer()?;
 
+        let with_extension = self.class == SYSTEM_FULL_PROCESS_INFORMATION;
+
         // SAFETY: `fill_buffer` returned Ok, so the kernel has written a
         // valid, self-consistent chain of SYSTEM_PROCESS_INFORMATION entries
         // into `self.buffer`, and `walk` bounds every read by the buffer
-        // length as it follows NextEntryOffset.
-        Ok(unsafe { walk(&self.buffer) })
+        // length as it follows NextEntryOffset. `with_extension` is true
+        // only when the class the kernel actually filled was the full one.
+        Ok(unsafe { walk(&self.buffer, with_extension) })
     }
 
     /// Fills the buffer, growing until the kernel stops complaining.
@@ -132,7 +206,7 @@ impl ProcessEnumerator {
             // the true size so it cannot overrun.
             let status = unsafe {
                 NtQuerySystemInformation(
-                    SYSTEM_PROCESS_INFORMATION,
+                    self.class,
                     self.buffer.as_mut_ptr().cast(),
                     capacity,
                     &raw mut returned,
@@ -144,6 +218,16 @@ impl ProcessEnumerator {
             }
 
             if status != STATUS_INFO_LENGTH_MISMATCH {
+                // Anything other than "buffer too small" from the full class
+                // means this session cannot have it: STATUS_ACCESS_DENIED
+                // without SeDebugPrivilege (measured — the ordinary case), or
+                // STATUS_INVALID_INFO_CLASS on a build that predates it. Fall
+                // back to the class every NT release serves to everyone, and
+                // stay there so a caller's rate baselines keep one source.
+                if self.class == SYSTEM_FULL_PROCESS_INFORMATION {
+                    self.class = SYSTEM_PROCESS_INFORMATION;
+                    continue;
+                }
                 return Err(Error::Os {
                     context: "NtQuerySystemInformation(SystemProcessInformation)".into(),
                     code: status,
@@ -174,11 +258,15 @@ impl ProcessEnumerator {
 
 /// Walks the kernel's linked entries, copying each into an owned struct.
 ///
+/// `with_extension` says the buffer was filled by the full class, so each
+/// entry is followed by extended thread records and then a
+/// [`SystemProcessInformationExtension`].
+///
 /// # Safety
 ///
 /// `buffer` must contain a valid chain of `SYSTEM_PROCESS_INFORMATION`
 /// entries as written by `NtQuerySystemInformation`.
-unsafe fn walk(buffer: &[u8]) -> Vec<RawProcess> {
+unsafe fn walk(buffer: &[u8], with_extension: bool) -> Vec<RawProcess> {
     // Typical machines run 200-500 processes; pre-sizing avoids a handful of
     // reallocations on every single tick.
     let mut out = Vec::with_capacity(512);
@@ -212,6 +300,14 @@ unsafe fn walk(buffer: &[u8]) -> Vec<RawProcess> {
         // this call, and `Length` is the kernel's own byte count.
         let name = unsafe { entry.ImageName.to_string_lossy() };
 
+        // SAFETY: the extension offset is bounds-checked inside against both
+        // the buffer and this entry's own extent.
+        let disk = if with_extension {
+            unsafe { read_extension(buffer, offset, &entry) }
+        } else {
+            None
+        };
+
         out.push(RawProcess {
             key: ProcessKey::new(Pid(pid), entry.CreateTime as u64),
             // PID 0 as a parent means "no parent" — the kernel uses it for
@@ -239,6 +335,8 @@ unsafe fn walk(buffer: &[u8]) -> Vec<RawProcess> {
             other_bytes: entry.OtherTransferCount as u64,
             read_ops: entry.ReadOperationCount as u64,
             write_ops: entry.WriteOperationCount as u64,
+            storage_read_bytes: disk.map(|d| d.DiskCounters.BytesRead),
+            storage_write_bytes: disk.map(|d| d.DiskCounters.BytesWritten),
         });
 
         // Zero terminates the list. Anything that would not advance the
@@ -257,6 +355,50 @@ unsafe fn walk(buffer: &[u8]) -> Vec<RawProcess> {
     }
 
     out
+}
+
+/// Reads the disk-counter extension that follows an entry's thread array.
+///
+/// Returns `None` rather than guessing when the extension would not fit
+/// inside the entry's own extent (`NextEntryOffset`) or the buffer. That
+/// can only happen if the layout assumptions here are wrong for this
+/// kernel, and the honest answer then is "not measured", not a number read
+/// from the neighbouring process.
+///
+/// # Safety
+///
+/// `entry` must have been read from `buffer` at `entry_offset` by the full
+/// information class.
+unsafe fn read_extension(
+    buffer: &[u8],
+    entry_offset: usize,
+    entry: &SystemProcessInformation,
+) -> Option<SystemProcessInformationExtension> {
+    let threads = (entry.NumberOfThreads as usize)
+        .checked_mul(size_of::<SystemExtendedThreadInformation>())?;
+    let start = entry_offset
+        .checked_add(size_of::<SystemProcessInformation>())?
+        .checked_add(threads)?;
+    let end = start.checked_add(size_of::<SystemProcessInformationExtension>())?;
+
+    // The last entry has NextEntryOffset 0, so its extent is the buffer.
+    let entry_end = match entry.NextEntryOffset {
+        0 => buffer.len(),
+        next => entry_offset.checked_add(next as usize)?.min(buffer.len()),
+    };
+    if end > entry_end {
+        return None;
+    }
+
+    // SAFETY: `start..end` lies inside `buffer` per the checks above. Unaligned
+    // for the same reason the entry read is.
+    Some(unsafe {
+        buffer
+            .as_ptr()
+            .add(start)
+            .cast::<SystemProcessInformationExtension>()
+            .read_unaligned()
+    })
 }
 
 #[cfg(test)]
@@ -414,5 +556,122 @@ mod tests {
         for p in &processes {
             assert_eq!(p.cpu_time(), p.kernel_time + p.user_time);
         }
+    }
+
+    #[test]
+    fn storage_counters_are_present_on_every_row_or_on_none_never_a_mixture() {
+        // The extension is served per call, not per process. A row with
+        // `None` beside rows with `Some` would mean the extension offset
+        // arithmetic ran off the end of some entries and not others — a
+        // layout bug, not a per-process fact.
+        let mut e = ProcessEnumerator::new();
+        let processes = e.enumerate().expect("enumerate");
+
+        let with = processes
+            .iter()
+            .filter(|p| p.storage_read_bytes.is_some())
+            .count();
+        assert!(
+            with == 0 || with == processes.len(),
+            "{with} of {} rows carried storage counters",
+            processes.len()
+        );
+
+        // And the enumerator's declared source must match the data it gave.
+        let declared = e.disk_counter_source();
+        let observed = if with == 0 {
+            DiskCounterSource::AllIo
+        } else {
+            DiskCounterSource::StorageStack
+        };
+        assert_eq!(declared, observed);
+    }
+
+    #[test]
+    fn a_refused_full_class_falls_back_without_erroring_and_stays_fallen_back() {
+        // Unelevated, the kernel refuses class 148 with STATUS_ACCESS_DENIED.
+        // That is the common case for this app, so it must be silent — and
+        // sticky, because flipping sources between ticks would produce one
+        // enormous bogus delta.
+        let mut e = ProcessEnumerator::new();
+        e.enumerate()
+            .expect("first enumeration must not fail over the class");
+        let first = e.disk_counter_source();
+        e.enumerate().expect("second");
+        assert_eq!(e.disk_counter_source(), first);
+    }
+
+    #[test]
+    fn disk_bytes_prefer_the_storage_counter_and_say_so() {
+        // The accessor is the single place the choice is made; the sampler
+        // and the history both call it. If it silently picked the all-I/O
+        // number while storage was present, the Disk column would overstate
+        // exactly as before with nothing failing.
+        let mut p = super::super::enumerate::RawProcess {
+            key: ProcessKey::new(Pid(1), 1),
+            parent: None,
+            name: None,
+            session_id: 0,
+            base_priority: 8,
+            thread_count: 1,
+            handle_count: 0,
+            kernel_time: 0,
+            user_time: 0,
+            create_time: 0,
+            private_bytes: 0,
+            working_set: 0,
+            peak_working_set: 0,
+            virtual_size: 0,
+            page_faults: 0,
+            hard_faults: 0,
+            read_bytes: 1_000,
+            write_bytes: 2_000,
+            other_bytes: 0,
+            read_ops: 0,
+            write_ops: 0,
+            storage_read_bytes: None,
+            storage_write_bytes: None,
+        };
+        assert_eq!(p.disk_read_bytes(), (1_000, DiskCounterSource::AllIo));
+        assert_eq!(p.disk_write_bytes(), (2_000, DiskCounterSource::AllIo));
+
+        p.storage_read_bytes = Some(10);
+        p.storage_write_bytes = Some(20);
+        assert_eq!(p.disk_read_bytes(), (10, DiskCounterSource::StorageStack));
+        assert_eq!(p.disk_write_bytes(), (20, DiskCounterSource::StorageStack));
+    }
+
+    #[test]
+    fn the_extension_reader_refuses_to_read_past_an_entrys_own_extent() {
+        // An entry whose NextEntryOffset leaves no room for the extension
+        // must yield None, not the bytes of the following process.
+        let mut buffer = vec![0_u8; 4096];
+        let mut entry: SystemProcessInformation =
+            // SAFETY: an all-zero SYSTEM_PROCESS_INFORMATION is a valid value
+            // of every field (integers and null pointers).
+            unsafe { std::mem::zeroed() };
+        entry.NumberOfThreads = 1;
+        // Exactly one extended thread and no room for the extension.
+        entry.NextEntryOffset = u32::try_from(
+            size_of::<SystemProcessInformation>() + size_of::<SystemExtendedThreadInformation>(),
+        )
+        .expect("fits");
+
+        // SAFETY: writing a POD struct into a buffer we own, in bounds.
+        unsafe {
+            buffer
+                .as_mut_ptr()
+                .cast::<SystemProcessInformation>()
+                .write_unaligned(entry);
+        }
+
+        // SAFETY: `entry` was read from `buffer` at 0 by construction.
+        assert!(unsafe { read_extension(&buffer, 0, &entry) }.is_none());
+
+        // Widen the extent and it becomes readable.
+        entry.NextEntryOffset +=
+            u32::try_from(size_of::<SystemProcessInformationExtension>()).expect("fits");
+        // SAFETY: as above.
+        assert!(unsafe { read_extension(&buffer, 0, &entry) }.is_some());
     }
 }

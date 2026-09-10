@@ -3,4 +3,4 @@
 pub mod enumerate;
 pub mod raw;
 
-pub use enumerate::{ProcessEnumerator, RawProcess};
+pub use enumerate::{DiskCounterSource, ProcessEnumerator, RawProcess};
