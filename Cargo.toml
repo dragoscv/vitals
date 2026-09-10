@@ -88,6 +88,17 @@ mdns-sd = { version = "0.21.3", default-features = false }
 # cleaner output.
 ts-rs = { version = "12.0.1", features = ["serde-compat", "no-serde-warnings"] }
 
+# CLI (apps/cli)
+#
+# ureq rather than reqwest: the CLI talks to a loopback socket and must not
+# drag a second tokio runtime and TLS stack into a 3 MB binary for that.
+# Its blocking body reader is what makes reading `/api/v1/stream` a loop over
+# lines rather than an async stream. `serve` alone needs tokio, because the
+# server crate is axum.
+ureq = { version = "3.4.1", default-features = false, features = ["json"] }
+comfy-table = { version = "8.0.0", default-features = false }
+crossterm = "0.29.0"
+
 # Platform
 
 # IPC

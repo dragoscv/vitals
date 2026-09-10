@@ -48,9 +48,22 @@
     },
     {
       "label": "cli: vitals top",
-      "detail": "Run the CLI against live data",
+      "detail": "Live top — attaches to the running desktop app, else samples directly (q quits)",
       "type": "shell",
       "command": "cargo run -p vitals-cli -- top"
+    },
+    {
+      "label": "cli: vitals ps --top 10",
+      "detail": "One-shot process list; add --json to pipe it",
+      "type": "shell",
+      "command": "cargo run -p vitals-cli -- ps --top 10"
+    },
+    {
+      "label": "cli: vitals serve (headless LAN server)",
+      "detail": "LAN server without the desktop, on :7331 with a generated token printed once",
+      "type": "shell",
+      "command": "cargo run -p vitals-cli -- serve",
+      "isBackground": true
     },
 
     // ── Check ──────────────────────────────────────────────────────────────
