@@ -16,8 +16,9 @@ target/
 # Turborepo
 .turbo/
 
-# Generated protocol bindings (regenerated from Rust on build)
-packages/protocol/src/generated/
+# Generated protocol bindings ARE committed: CI diffs them against a fresh
+# cargo test -p vitals-core --features ts to catch Rust/TS drift, and a fresh
+# clone must typecheck without a Rust toolchain. Regenerate, never hand-edit.
 
 # Env
 .env
