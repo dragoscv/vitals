@@ -19,6 +19,7 @@ tauri-build = { version = "2.6.3", features = [] }
 
 [dependencies]
 vitals-core = { workspace = true }
+vitals-ipc = { workspace = true }
 vitals-store = { workspace = true }
 vitals-server = { workspace = true }
 vitals-bench = { workspace = true }

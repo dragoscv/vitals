@@ -11,6 +11,7 @@ pub mod commands;
 pub mod history;
 pub mod hud;
 pub mod inventory;
+pub mod ipc;
 pub mod sampling;
 pub mod server;
 pub mod state;
@@ -189,6 +190,9 @@ fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
 /// The tray goes up before the reveal safety net is armed: both that net and
 /// the × button assume there is already a way back to a hidden window.
 fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
+    // Before the sampler, so the first tick can already see whether a CLI
+    // is waiting (it is managed state the sampler looks up per tick).
+    ipc::start(app.handle());
     let handle = sampling::spawn(app.handle().clone());
     app.manage(handle);
     tray::install(app.handle())?;
@@ -208,6 +212,7 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 fn on_run_event(app: &tauri::AppHandle, event: tauri::RunEvent) {
     if matches!(event, tauri::RunEvent::Exit) {
         server::stop_local_api(app);
+        ipc::stop(app);
     }
 }
 

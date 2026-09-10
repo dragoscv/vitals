@@ -8,8 +8,33 @@ Remote access in the desktop app, and it listens on your LAN only, over plain
 HTTP. Read the `info.description` in the OpenAPI document for the threat model
 before exposing it any further than that.
 
-The one exception is the **local API** below, which the `vitals` CLI uses and
-which is reachable only from the machine itself.
+The one exception is the **local API** below, which scripts on the same
+machine can use and which is reachable only from the machine itself.
+
+## Attach pipe (CLI only, local only)
+
+The `vitals` CLI does not normally use HTTP at all. While the desktop app runs
+it listens on a per-user **named pipe** — `\\.\pipe\vitals-<username>` on
+Windows, a Unix socket of the same name elsewhere — and `vitals top`, `ps`,
+`info` and `report` read the app's frames from it, so one machine runs one
+sampler. It speaks newline-delimited JSON:
+
+```
+→ {"op":"hello"}      ← {"status":"ok","version":"0.1.0","modelVersion":1}
+→ {"op":"snapshot"}   ← one Frame (a complete keyframe), then the app hangs up
+→ {"op":"subscribe"}  ← a complete keyframe, then every frame as it is sampled
+```
+
+It is **not a network surface**: a named pipe has no address, is created with
+the calling user's default security descriptor, and cannot be reached from
+another machine or another user's session. That is why it needs no token and
+never appears in Settings. It is read-only — the three requests above are the
+whole protocol; process actions go through the local API or the platform.
+The frames are the same `Frame` objects the LAN stream carries.
+
+`vitals --source app` fails rather than falling back when the app is not
+running; `--source local` never attaches; the default `auto` tries the pipe,
+then the local API below, then samples directly and says so on stderr.
 
 ## Local API (loopback)
 

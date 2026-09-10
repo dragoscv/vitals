@@ -1,10 +1,16 @@
-//! Where the numbers come from: the running desktop app, or our own sampler.
+//! Where the numbers come from: the running desktop app (over its named pipe
+//! or its loopback HTTP API), or our own sampler.
 //!
 //! Attaching is preferred when the app is up. It is already paying for the
 //! sampler, its rates have a baseline (a fresh sampler's first tick reads 0 %
 //! for everything), and it owns the alert state — a second engine in the CLI
 //! would disagree with the one on screen. Direct sampling is the fallback for
 //! a machine where the app is not running, and the only mode for `serve`.
+//!
+//! Of the two ways to attach, the pipe is tried first: it needs no discovery
+//! file, no port, no HTTP, and cannot be reached from another machine. The
+//! loopback API remains for `--attach <url>` and for a desktop build that
+//! predates the pipe.
 
 use std::time::Duration;
 
@@ -13,6 +19,7 @@ use vitals_core::alerts::Alert;
 use vitals_core::ids::ProcessKey;
 use vitals_core::provider::HostInfo;
 use vitals_core::sample::Frame;
+use vitals_ipc::attach::{AttachClient, FrameStream};
 use vitals_server::ControlRequest;
 
 use crate::client::Client;
@@ -23,13 +30,32 @@ use crate::sse::Events;
 /// How the caller asked to connect.
 #[derive(Debug, Clone, Default)]
 pub enum Preference {
-    /// Attach if the desktop is found, else sample directly.
+    /// Attach if the desktop is found (pipe, then loopback API), else sample
+    /// directly.
     #[default]
     Auto,
+    /// Attach to the running app over its pipe, or fail.
+    App,
     /// Attach to exactly this base URL, or fail.
     Attach(String),
     /// Never attach.
     Direct,
+}
+
+/// A connection to the desktop over its per-user named pipe.
+pub struct Piped {
+    pipe: String,
+    version: String,
+    /// Opened on first use by [`Source::next_frame`]; one connection per
+    /// `top` session.
+    frames: Option<FrameStream>,
+    view: View,
+    /// The pipe carries frames only. Alerts are re-derived here from the
+    /// same system metrics the app evaluates, with the same engine, so the
+    /// count `top` shows matches the app's once both have seen the same
+    /// history. Not identical from the first tick — the app has been
+    /// watching longer — but honest about what it has seen.
+    engine: vitals_core::alerts::Engine,
 }
 
 /// A connection to the desktop's loopback API.
@@ -46,6 +72,7 @@ pub struct Attached {
 /// sampler is several kilobytes of baselines; the enum is passed around by
 /// value and should stay a pointer.
 pub enum Source {
+    Piped(Box<Piped>),
     Attached(Box<Attached>),
     Direct(Box<Direct>),
 }
@@ -53,6 +80,11 @@ pub enum Source {
 impl std::fmt::Debug for Source {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::Piped(p) => f
+                .debug_struct("Piped")
+                .field("pipe", &p.pipe)
+                .field("version", &p.version)
+                .finish_non_exhaustive(),
             Self::Attached(a) => f
                 .debug_struct("Attached")
                 .field("base", &a.client.base())
@@ -67,23 +99,47 @@ impl Source {
     /// Resolves the preference against the machine.
     ///
     /// # Errors
-    /// An explicit `--attach` that does not answer `/health`; or direct mode
+    /// An explicit `--source app` with no app listening, an explicit
+    /// `--attach` that does not answer `/health`; or direct mode
     /// on a platform with no sampler.
     pub fn discover(preference: &Preference) -> Result<Self> {
         match preference {
+            Preference::App => Self::attach_pipe(&vitals_ipc::attach::default_pipe_name())
+                .context("Vitals is not running (no attach pipe for this user)"),
             Preference::Attach(base) => Self::attach(&Client::new(base))
                 .with_context(|| format!("no Vitals local API at {base}")),
             Preference::Direct => Direct::new().map(|d| Self::Direct(Box::new(d))),
             Preference::Auto => {
+                if let Ok(source) = Self::attach_pipe(&vitals_ipc::attach::default_pipe_name()) {
+                    return Ok(source);
+                }
                 let found = discovery::read(&discovery::discovery_path())
                     .map(|d| Client::new(&format!("http://127.0.0.1:{}", d.port)))
                     .and_then(|client| Self::attach(&client).ok());
-                match found {
-                    Some(source) => Ok(source),
-                    None => Direct::new().map(|d| Self::Direct(Box::new(d))),
+                if let Some(source) = found {
+                    return Ok(source);
                 }
+                // Dim, on stderr, once: the numbers are still right, but they
+                // come from a cold sampler and the user should know why the
+                // first tick reads 0 %.
+                eprintln!("\x1b[2m(sampling directly — Vitals is not running)\x1b[0m");
+                Direct::new().map(|d| Self::Direct(Box::new(d)))
             }
         }
+    }
+
+    fn attach_pipe(name: &str) -> Result<Self> {
+        let (_client, hello) = AttachClient::connect(name)?;
+        // The handshake connection is dropped here on purpose: `snapshot`
+        // and `subscribe` each consume a connection, and holding one open
+        // that we may never use would keep the app cloning frames for us.
+        Ok(Self::Piped(Box::new(Piped {
+            pipe: name.to_owned(),
+            version: hello.version,
+            frames: None,
+            view: View::default(),
+            engine: vitals_core::alerts::Engine::new(),
+        })))
     }
 
     fn attach(client: &Client) -> Result<Self> {
@@ -108,6 +164,7 @@ impl Source {
     #[must_use]
     pub fn describe(&self) -> String {
         match self {
+            Self::Piped(p) => format!("source: attached to Vitals {} over {}", p.version, p.pipe),
             Self::Attached(a) => {
                 let port = a
                     .client
@@ -124,7 +181,7 @@ impl Source {
     #[must_use]
     pub const fn kind(&self) -> &'static str {
         match self {
-            Self::Attached(_) => "attached",
+            Self::Piped(_) | Self::Attached(_) => "attached",
             Self::Direct(_) => "direct",
         }
     }
@@ -136,6 +193,16 @@ impl Source {
     /// failed.
     pub fn snapshot(&mut self) -> Result<View> {
         match self {
+            Self::Piped(p) => {
+                let (client, _) = AttachClient::connect(&p.pipe)?;
+                let frame = client
+                    .snapshot()
+                    .context("Vitals is running but had no complete frame to give")?;
+                p.engine.poll(frame.system());
+                let mut view = View::default();
+                view.apply(&frame);
+                Ok(view)
+            }
             Self::Attached(a) => {
                 let frame = a
                     .client
@@ -159,6 +226,33 @@ impl Source {
     /// Stream closed or unparseable; sampler failure.
     pub fn next_frame(&mut self, interval: Duration) -> Result<Option<&View>> {
         match self {
+            Self::Piped(p) => {
+                let Piped {
+                    pipe,
+                    frames,
+                    view,
+                    engine,
+                    ..
+                } = p.as_mut();
+                if frames.is_none() {
+                    let (client, _) = AttachClient::connect(pipe)?;
+                    *frames = Some(client.subscribe()?);
+                }
+                let Some(stream) = frames.as_mut() else {
+                    return Ok(None);
+                };
+                loop {
+                    let Some(frame) = stream.next() else {
+                        return Ok(None);
+                    };
+                    let frame = frame.context("reading the attach pipe")?;
+                    engine.poll(frame.system());
+                    if view.apply(&frame) {
+                        return Ok(Some(view));
+                    }
+                    // A delta before the keyframe: keep reading.
+                }
+            }
             Self::Attached(a) => {
                 let Attached {
                     client,
@@ -195,6 +289,9 @@ impl Source {
     /// Connection failure.
     pub fn host(&mut self) -> Result<Option<HostInfo>> {
         match self {
+            // Same machine: the platform answers directly, as it does in
+            // direct mode. The pipe does not carry host info.
+            Self::Piped(_) => Ok(Direct::local_host()),
             Self::Attached(a) => a.client.host(),
             Self::Direct(direct) => Ok(direct.host()),
         }
@@ -204,20 +301,24 @@ impl Source {
     /// Connection failure.
     pub fn alerts(&mut self) -> Result<Vec<Alert>> {
         match self {
+            Self::Piped(p) => Ok(p.engine.active()),
             Self::Attached(a) => a.client.alerts(),
             Self::Direct(direct) => Ok(direct.alerts()),
         }
     }
 
-    /// Acts on a process: through the desktop's controller when attached, so
-    /// the app's own risk checks apply; through the platform actions directly
-    /// otherwise.
+    /// Acts on a process: through the desktop's controller when attached over
+    /// HTTP, so the app's own risk checks apply; through the platform actions
+    /// directly otherwise. The pipe is read-only by design — it carries
+    /// frames out and nothing in beyond the three requests — so a piped
+    /// source acts locally, exactly as direct mode does on the same machine.
     ///
     /// # Errors
     /// The host refused (read-only scope, protected process, PID recycled),
     /// or this platform has no process backend.
     pub fn control(&mut self, request: ControlRequest) -> Result<()> {
         match self {
+            Self::Piped(_) => Direct::local_control(request),
             Self::Attached(a) => a.client.control(&request),
             Self::Direct(direct) => direct.control(request),
         }
@@ -234,7 +335,7 @@ impl Source {
                 let base = a.client.base();
                 base.contains("127.0.0.1") || base.contains("localhost") || base.contains("[::1]")
             }
-            Self::Direct(_) => true,
+            Self::Piped(_) | Self::Direct(_) => true,
         }
     }
 
@@ -304,6 +405,11 @@ impl Direct {
 
     #[allow(clippy::unnecessary_wraps, clippy::unused_self)]
     fn host(&self) -> Option<HostInfo> {
+        Self::local_host()
+    }
+
+    #[allow(clippy::unnecessary_wraps)]
+    fn local_host() -> Option<HostInfo> {
         Some(vitals_win::hostinfo::read())
     }
 
@@ -319,6 +425,10 @@ impl Direct {
 
     #[allow(clippy::unused_self)]
     fn control(&self, request: ControlRequest) -> Result<()> {
+        Self::local_control(request)
+    }
+
+    fn local_control(request: ControlRequest) -> Result<()> {
         use vitals_win::actions;
         match request {
             ControlRequest::SetEfficiencyMode { key, enabled } => {
@@ -364,6 +474,10 @@ impl Direct {
         None
     }
 
+    fn local_host() -> Option<HostInfo> {
+        None
+    }
+
     #[allow(clippy::unused_self)]
     fn alerts(&self) -> Vec<Alert> {
         Vec::new()
@@ -371,6 +485,11 @@ impl Direct {
 
     #[allow(clippy::unused_self, clippy::needless_pass_by_value)]
     fn control(&self, _request: ControlRequest) -> Result<()> {
+        anyhow::bail!("no process backend on this platform")
+    }
+
+    #[allow(clippy::needless_pass_by_value)]
+    fn local_control(_request: ControlRequest) -> Result<()> {
         anyhow::bail!("no process backend on this platform")
     }
 

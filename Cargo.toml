@@ -101,8 +101,13 @@ crossterm = "0.29.0"
 
 # Platform
 
-# IPC
-interprocess = { version = "2.4.4", features = ["tokio"] }
+# IPC — the attach pipe in vitals-ipc: the CLI reads the desktop's frames over
+# a per-user named pipe. `interprocess` rather than raw `CreateNamedPipeW`
+# because it also gives the Linux/macOS backends a Unix-socket transport with
+# the same API, and its default named-pipe DACL is the calling user's — which
+# is exactly the boundary we want. Default features off: the tokio flavour
+# would be a second async runtime in the CLI, which is synchronous by design.
+interprocess = { version = "2.4.4", default-features = false }
 
 [workspace.lints.rust]
 unsafe_op_in_unsafe_fn = "deny"

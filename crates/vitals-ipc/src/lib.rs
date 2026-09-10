@@ -12,8 +12,10 @@
 //! - **Commands** (UI → helper) are low-volume, must not be lost, and must be
 //!   authenticated. They go over a named pipe with a request/response shape.
 
+pub mod attach;
 pub mod frame_buffer;
 pub mod protocol;
 
+pub use attach::{AttachClient, AttachServer, FrameStream};
 pub use frame_buffer::{FrameBuffer, FrameReader, FrameWriter};
 pub use protocol::{Command, CommandResult, Handshake};

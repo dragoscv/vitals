@@ -4,10 +4,11 @@
 //! `--json`, because the primary consumer of a CLI in this space is a script,
 //! not a human reading a table.
 //!
-//! When the desktop app is running the CLI **attaches** to its loopback API
-//! and shows the same numbers the window does; otherwise it samples the
-//! machine itself. Which one happened is printed on stderr, so stdout stays
-//! clean for `--json | ConvertFrom-Json`.
+//! When the desktop app is running the CLI **attaches** to it — over its
+//! per-user named pipe, or failing that its loopback API — and shows the same
+//! numbers the window does; otherwise it samples the machine itself. Which
+//! one happened is printed on stderr, so stdout stays clean for
+//! `--json | ConvertFrom-Json`.
 
 // A CLI's job is to print. The lint exists for library crates.
 #![allow(clippy::print_stdout, clippy::print_stderr)]
@@ -23,9 +24,21 @@ mod sse;
 use std::time::Duration;
 
 use anyhow::Result;
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 
 use crate::source::{Preference, Source};
+
+/// Where `--source` says the numbers should come from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, ValueEnum)]
+enum SourceArg {
+    /// Attach to the running app if there is one, else sample directly.
+    #[default]
+    Auto,
+    /// Attach to the running app over its pipe, or fail.
+    App,
+    /// Always sample directly, even when the app is running.
+    Local,
+}
 
 #[derive(Parser, Debug)]
 #[command(
@@ -39,12 +52,18 @@ struct Cli {
     #[arg(long, global = true)]
     json: bool,
 
+    /// Where to read from: the running app (`app`), this process's own
+    /// sampler (`local`), or whichever is available (`auto`).
+    #[arg(long, global = true, value_enum, default_value_t = SourceArg::Auto, conflicts_with_all = ["attach", "no_attach"])]
+    source: SourceArg,
+
     /// Attach to a Vitals local API at this address (e.g. `http://127.0.0.1:7330`)
     /// instead of discovering the running app.
     #[arg(long, global = true, value_name = "URL", conflicts_with = "no_attach")]
     attach: Option<String>,
 
-    /// Never attach to a running app; always sample directly.
+    /// Never attach to a running app; always sample directly. Same as
+    /// `--source local`.
     #[arg(long, global = true)]
     no_attach: bool,
 
@@ -54,8 +73,10 @@ struct Cli {
 
 impl Cli {
     fn preference(&self) -> Preference {
-        if self.no_attach {
+        if self.no_attach || self.source == SourceArg::Local {
             Preference::Direct
+        } else if self.source == SourceArg::App {
+            Preference::App
         } else if let Some(url) = &self.attach {
             Preference::Attach(url.clone())
         } else {
@@ -233,6 +254,18 @@ mod tests {
         assert!(matches!(cli.preference(), Preference::Direct));
         let cli = Cli::try_parse_from(["vitals", "--attach", "http://x:1", "ps"]).unwrap();
         assert!(matches!(cli.preference(), Preference::Attach(u) if u == "http://x:1"));
+    }
+
+    #[test]
+    fn source_flag_selects_the_preference_and_excludes_the_older_flags() {
+        let cli = Cli::try_parse_from(["vitals", "ps", "--source", "local"]).unwrap();
+        assert!(matches!(cli.preference(), Preference::Direct));
+        let cli = Cli::try_parse_from(["vitals", "--source", "app", "top"]).unwrap();
+        assert!(matches!(cli.preference(), Preference::App));
+        let cli = Cli::try_parse_from(["vitals", "ps"]).unwrap();
+        assert!(matches!(cli.preference(), Preference::Auto));
+        assert!(Cli::try_parse_from(["vitals", "ps", "--source", "app", "--no-attach"]).is_err());
+        assert!(Cli::try_parse_from(["vitals", "ps", "--source", "pipe"]).is_err());
     }
 
     #[test]

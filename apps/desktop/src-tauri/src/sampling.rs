@@ -114,6 +114,15 @@ fn run(app: &AppHandle, stop: &AtomicBool) {
         };
         let started = Instant::now();
 
+        // A CLI that has just attached has no keyframe to fold deltas onto
+        // (frames are not forwarded while nobody is attached, so the pipe's
+        // view is empty). Force one so its first frame is complete.
+        if let Some(pipe) = app.try_state::<crate::ipc::AttachPipe>()
+            && pipe.wants_keyframe()
+        {
+            backend.request_keyframe();
+        }
+
         match backend.next_frame() {
             Ok(frame) => {
                 consecutive_failures = 0;
@@ -147,6 +156,13 @@ fn run(app: &AppHandle, stop: &AtomicBool) {
                     && server.is_running()
                 {
                     server.publish(std::sync::Arc::new(frame.clone()));
+                }
+                // The attach pipe, on the same terms: the clone and the fold
+                // only happen while a CLI is actually connected.
+                if let Some(pipe) = app.try_state::<crate::ipc::AttachPipe>()
+                    && pipe.has_clients()
+                {
+                    pipe.publish(&std::sync::Arc::new(frame.clone()));
                 }
                 // Alerts run here, on the sampler thread, so they keep
                 // working with the window hidden and cost one evaluation per
@@ -322,6 +338,10 @@ impl Backend {
         std::mem::take(&mut self.rollup)
     }
 
+    fn request_keyframe(&mut self) {
+        self.frames.request_keyframe();
+    }
+
     fn disk_counter_source(&self) -> vitals_core::process::DiskCounterSource {
         self.sampler.disk_counter_source()
     }
@@ -346,6 +366,8 @@ impl Backend {
             "no sampling backend for this platform yet".into(),
         ))
     }
+
+    const fn request_keyframe(&mut self) {}
 }
 
 #[cfg(test)]
