@@ -127,6 +127,7 @@
       "enable": "Record history",
       "enableHint": "Stored only on this computer. Off by default.",
       "retention": "Keep data for",
+      "diskUsageLabel": "On disk",
       "diskUsage": "Currently using {{size}}",
       "clear": "Delete all history"
     },

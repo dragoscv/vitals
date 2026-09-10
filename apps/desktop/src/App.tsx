@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 
 import { signalReady, wasAutostarted } from './lib/ready';
 import { effectiveRate, pushSampleRate } from './lib/sampleRate';
-import { pushHistoryEnabled, reconcileAutostart } from './lib/settingsSync';
+import { pushHistoryEnabled, pushRetentionDays, reconcileAutostart } from './lib/settingsSync';
 import { useSettings } from './settings/store';
 import { AppShell } from './shell/AppShell';
 import { hasTauriHost } from './shell/host';
@@ -92,13 +92,18 @@ function useSettingsSync(
   settings: ReturnType<typeof useSettings.getState>['settings'],
   hydrated: boolean,
 ): void {
-  const { historyEnabled, startWithWindows } = settings;
+  const { historyEnabled, retentionDays, startWithWindows } = settings;
   const patch = useSettings((state) => state.patch);
 
   useEffect(() => {
     if (!hydrated) return;
     void pushHistoryEnabled(historyEnabled);
   }, [hydrated, historyEnabled]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    void pushRetentionDays(retentionDays);
+  }, [hydrated, retentionDays]);
 
   useEffect(() => {
     if (!hydrated) return;

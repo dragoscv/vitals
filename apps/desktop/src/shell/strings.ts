@@ -53,6 +53,16 @@ const en = {
     history: {
       retentionDays_one: '{{count}} day',
       retentionDays_other: '{{count}} days',
+      diskUsageHint: 'Recorded on this computer only. Deleting it is immediate.',
+      noData: 'Nothing recorded',
+      clearHint: 'Deletes both the per-app totals and the recorded charts.',
+    },
+    flight: {
+      title: 'Flight recorder',
+      export: 'Save a recording',
+      hint: 'The last two minutes of everything Vitals measured, plus what this computer is. Attach it to a bug report so the problem can be seen rather than described.',
+      save: 'Save\u2026',
+      exporting: 'Saving\u2026',
     },
   },
   placeholder: {
@@ -104,6 +114,16 @@ const ro = {
       retentionDays_one: '{{count}} zi',
       retentionDays_few: '{{count}} zile',
       retentionDays_other: '{{count}} de zile',
+      diskUsageHint: 'Înregistrat doar pe acest calculator. Ștergerea este imediată.',
+      noData: 'Nimic înregistrat',
+      clearHint: 'Șterge atât totalurile per aplicație, cât și graficele înregistrate.',
+    },
+    flight: {
+      title: 'Înregistrare de diagnostic',
+      export: 'Salvează o înregistrare',
+      hint: 'Ultimele două minute din tot ce a măsurat Vitals, plus ce este acest calculator. Atașeaz-o unui raport de problemă ca să poată fi văzută, nu doar descrisă.',
+      save: 'Salvează\u2026',
+      exporting: 'Se salvează\u2026',
     },
   },
   placeholder: {

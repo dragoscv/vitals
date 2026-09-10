@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "license": "MIT",
-  "packageManager": "pnpm@10.11.0",
+  "packageManager": "pnpm@12.3.4",
   "engines": {
     "node": ">=22"
   },
@@ -20,13 +20,14 @@
     "rust:fmt": "cargo fmt --all",
     "rust:lint": "cargo clippy --workspace --all-targets -- -D warnings",
     "rust:test": "cargo test --workspace",
-    "protocol:generate": "cargo test -p vitals-core --features ts export_bindings",
+    "protocol:generate": "cargo test -p vitals-core --features ts",
     "protocol:check": "pnpm protocol:generate && git diff --exit-code -- packages/protocol/src/generated",
     "tauri": "pnpm --filter @vitals/desktop tauri"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/node": "24.10.1",
+    "@typescript/native": "npm:typescript@7.0.2",
     "eslint": "catalog:",
     "eslint-config-prettier": "10.1.8",
     "eslint-plugin-react-hooks": "catalog:",
@@ -35,7 +36,6 @@
     "prettier-plugin-tailwindcss": "0.8.1",
     "rimraf": "6.1.3",
     "turbo": "2.10.12",
-    "@typescript/native": "npm:typescript@7.0.2",
     "typescript": "npm:@typescript/typescript6@6.0.2",
     "typescript-eslint": "catalog:"
   }

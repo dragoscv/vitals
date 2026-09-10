@@ -11,6 +11,7 @@ pub mod history;
 pub mod inventory;
 pub mod sampling;
 pub mod state;
+pub mod store;
 pub mod users;
 
 use tauri::Manager;
@@ -64,37 +65,7 @@ pub fn run() {
         .setup(|app| {
             let handle = sampling::spawn(app.handle().clone());
             app.manage(handle);
-
-            // Safety net for a window that is created hidden.
-            //
-            // The frontend calls `show_main_window` after first paint. If it
-            // never gets that far — a JavaScript error, a failed asset, a
-            // webview that will not start — nothing else would ever show the
-            // window, and the app would run invisibly with no way to reach
-            // it. A blank window the user can close beats a process they can
-            // only find in Task Manager.
-            //
-            // Not armed for an autostarted launch: hidden is then the
-            // intended state, and the tray is how the user reaches it.
-            let reveal = app.handle().clone();
-            if !commands::launched_minimised() {
-                std::thread::spawn(move || {
-                std::thread::sleep(std::time::Duration::from_secs(5));
-
-                if let Some(window) = reveal.get_webview_window("main") {
-                    // Already shown by the frontend: nothing to do.
-                    if window.is_visible().unwrap_or(false) {
-                        return;
-                    }
-
-                    tracing::warn!(
-                        "frontend did not signal readiness within 5s; showing the window anyway"
-                    );
-                    let _ = window.show();
-                }
-                });
-            }
-
+            arm_reveal_safety_net(app.handle().clone());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -156,8 +127,44 @@ pub fn run() {
             history::get_app_history,
             history::clear_app_history,
             history::set_history_enabled,
+            store::set_retention_days,
+            store::query_machine_history,
+            store::get_history_usage,
+            store::export_flight_recording,
+            store::write_flight_recording,
             users::get_users,
         ])
         .run(tauri::generate_context!())
         .expect("failed to start the Vitals application");
+}
+
+/// Safety net for a window that is created hidden.
+///
+/// The frontend calls `show_main_window` after first paint. If it never gets
+/// that far — a JavaScript error, a failed asset, a webview that will not
+/// start — nothing else would ever show the window, and the app would run
+/// invisibly with no way to reach it. A blank window the user can close beats
+/// a process they can only find in Task Manager.
+///
+/// Not armed for an autostarted launch: hidden is then the intended state,
+/// and the tray is how the user reaches it.
+fn arm_reveal_safety_net(app: tauri::AppHandle) {
+    if commands::launched_minimised() {
+        return;
+    }
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_secs(5));
+
+        if let Some(window) = app.get_webview_window("main") {
+            // Already shown by the frontend: nothing to do.
+            if window.is_visible().unwrap_or(false) {
+                return;
+            }
+
+            tracing::warn!(
+                "frontend did not signal readiness within 5s; showing the window anyway"
+            );
+            let _ = window.show();
+        }
+    });
 }

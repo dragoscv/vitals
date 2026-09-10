@@ -33,6 +33,29 @@ pub struct AppState {
     /// snapshot of their own. Empty until the first tick lands.
     #[cfg(windows)]
     latest_processes: RwLock<std::sync::Arc<Vec<vitals_win::users::ProcessSample>>>,
+    /// What the sampler's recorder should be doing. The sampler reads this
+    /// every tick and reconciles; commands only ever write it. The SQLite
+    /// connection itself never crosses a thread — readers open their own.
+    recording: RwLock<RecordingSettings>,
+}
+
+/// Recorder configuration as the user has set it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RecordingSettings {
+    pub history_enabled: bool,
+    pub retention_days: u32,
+    /// Bumped by `clear`; the sampler clears the store when it sees a change.
+    pub clear_generation: u64,
+}
+
+impl Default for RecordingSettings {
+    fn default() -> Self {
+        Self {
+            history_enabled: false,
+            retention_days: 7,
+            clear_generation: 0,
+        }
+    }
 }
 
 impl AppState {
@@ -47,7 +70,21 @@ impl AppState {
             history_enabled: std::sync::atomic::AtomicBool::new(false),
             #[cfg(windows)]
             latest_processes: RwLock::new(std::sync::Arc::new(Vec::new())),
+            recording: RwLock::new(RecordingSettings::default()),
         }
+    }
+
+    pub fn recording(&self) -> RecordingSettings {
+        *self.recording.read()
+    }
+
+    pub fn set_retention_days(&self, days: u32) {
+        self.recording.write().retention_days = days;
+    }
+
+    /// Asks the sampler to wipe the time-series store on its next tick.
+    pub fn request_store_clear(&self) {
+        self.recording.write().clear_generation += 1;
     }
 
     pub fn sample_rate(&self) -> SampleRate {
@@ -94,16 +131,20 @@ impl AppState {
         *self.history.write() = Some(history);
     }
 
-    /// Applies the "record history" setting.
-    #[cfg(windows)]
+    /// Applies the "record history" setting to both stores: the per-app
+    /// tally and the machine-wide time series.
     pub fn set_history_enabled(&self, enabled: bool) {
-        self.history_enabled
-            .store(enabled, std::sync::atomic::Ordering::Relaxed);
-        if let Some(history) = self.history.read().as_ref() {
-            history.set_enabled(enabled);
-            if !enabled {
-                // Turning it off is a good moment to make what exists durable.
-                let _ = history.save(&history_path());
+        self.recording.write().history_enabled = enabled;
+        #[cfg(windows)]
+        {
+            self.history_enabled
+                .store(enabled, std::sync::atomic::Ordering::Relaxed);
+            if let Some(history) = self.history.read().as_ref() {
+                history.set_enabled(enabled);
+                if !enabled {
+                    // Turning it off is a good moment to make what exists durable.
+                    let _ = history.save(&history_path());
+                }
             }
         }
     }
@@ -126,11 +167,12 @@ impl AppState {
     /// Written through immediately: the user asked for the history to be gone,
     /// and leaving the old file to be reloaded at next start would quietly
     /// undo that.
-    #[cfg(windows)]
     pub fn clear_history(&self) {
+        #[cfg(windows)]
         if let Some(history) = self.history.read().as_ref() {
             history.clear_and_save(&history_path());
         }
+        self.request_store_clear();
     }
 
     /// Persists the history, best effort.
@@ -145,20 +187,30 @@ impl AppState {
     }
 }
 
-/// Where the accumulated history is kept.
+/// The directory every local data file lives in.
 ///
 /// Local app data rather than roaming: the history describes what ran on this
 /// machine, so following the user to another one would be actively wrong.
+#[must_use]
+pub fn data_dir() -> std::path::PathBuf {
+    std::env::var_os("LOCALAPPDATA")
+        .or_else(|| std::env::var_os("XDG_DATA_HOME"))
+        .map_or_else(
+            || std::path::PathBuf::from("."),
+            |base| std::path::Path::new(&base).join("Vitals"),
+        )
+}
+
+/// Where the accumulated per-app history is kept.
 #[cfg(windows)]
 fn history_path() -> std::path::PathBuf {
-    std::env::var_os("LOCALAPPDATA").map_or_else(
-        || std::path::PathBuf::from("vitals-history.json"),
-        |base| {
-            std::path::Path::new(&base)
-                .join("Vitals")
-                .join("app-history.json")
-        },
-    )
+    data_dir().join("app-history.json")
+}
+
+/// Where the machine-wide time series and flight recorder live.
+#[must_use]
+pub fn store_path() -> std::path::PathBuf {
+    data_dir().join("history.sqlite")
 }
 
 impl Default for AppState {

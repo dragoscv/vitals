@@ -20,6 +20,17 @@ export async function pushHistoryEnabled(enabled: boolean): Promise<void> {
   }
 }
 
+/** Tells the store how long to keep recorded history. */
+export async function pushRetentionDays(days: number): Promise<void> {
+  if (!hasTauriHost()) return;
+  try {
+    const { invoke } = await import('@tauri-apps/api/core');
+    await invoke('set_retention_days', { days });
+  } catch {
+    // Intentionally ignored; see module doc.
+  }
+}
+
 /**
  * Reconciles the OS autostart entry with the setting.
  *

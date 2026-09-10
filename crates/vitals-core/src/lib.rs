@@ -22,6 +22,7 @@
 
 pub mod capability;
 pub mod error;
+pub mod history;
 pub mod ids;
 #[macro_use]
 mod macros;
@@ -34,6 +35,7 @@ pub mod units;
 
 pub use capability::{Capabilities, Capability};
 pub use error::{Error, Result};
+pub use history::MachineSample;
 pub use ids::{DiskId, GpuId, NicId, Pid, SensorId, Tid};
 pub use process::{
     IntegrityLevel, Process, ProcessFlags, ProcessKind, ProcessState, ProtectionLevel,

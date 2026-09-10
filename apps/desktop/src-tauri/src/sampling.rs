@@ -79,6 +79,19 @@ fn run(app: &AppHandle, stop: &AtomicBool) {
         state.attach_history(backend.history());
     }
 
+    // The time-series store and flight recorder. Opened here so the SQLite
+    // connection lives on the one thread that writes it. A failure to open
+    // (read-only profile, corrupt file) disables recording and says so once;
+    // it must never stop sampling.
+    let mut recorder = match vitals_store::Recorder::open(&crate::state::store_path()) {
+        Ok(r) => Some(r),
+        Err(error) => {
+            tracing::warn!(%error, "history store unavailable; recording disabled");
+            None
+        }
+    };
+    let mut applied = crate::state::RecordingSettings::default();
+
     // Backoff so a persistent failure does not spam the UI with a toast per
     // tick. Resets on the first success.
     let mut consecutive_failures = 0_u32;
@@ -107,6 +120,21 @@ fn run(app: &AppHandle, stop: &AtomicBool) {
                 #[cfg(windows)]
                 if let Some(state) = app.try_state::<AppState>() {
                     state.publish_processes(backend.take_rollup_sample());
+                }
+                if let Some(rec) = recorder.as_mut() {
+                    reconcile_recorder(app, rec, &mut applied);
+                    // Serialised once here and once by `emit`. The duplicate
+                    // is deliberate: the flight recorder must hold exactly
+                    // the bytes the UI received, and `emit` gives us no
+                    // access to them.
+                    match serde_json::to_vec(&frame) {
+                        Ok(bytes) => {
+                            if let Err(error) = rec.observe(&frame, &bytes) {
+                                tracing::warn!(%error, "recorder write failed");
+                            }
+                        }
+                        Err(error) => tracing::warn!(%error, "frame did not serialise"),
+                    }
                 }
                 if app.emit(FRAME_EVENT, &frame).is_err() {
                     // The window is gone. Nothing to sample for.
@@ -154,6 +182,36 @@ fn run(app: &AppHandle, stop: &AtomicBool) {
     if let Some(state) = app.try_state::<AppState>() {
         state.save_history();
     }
+    if let Some(rec) = recorder.as_mut() {
+        let _ = rec.flush();
+    }
+}
+
+/// Applies any settings change to the recorder. Cheap when nothing changed.
+fn reconcile_recorder(
+    app: &AppHandle,
+    rec: &mut vitals_store::Recorder,
+    applied: &mut crate::state::RecordingSettings,
+) {
+    let Some(state) = app.try_state::<AppState>() else {
+        return;
+    };
+    let wanted = state.recording();
+    if wanted == *applied {
+        return;
+    }
+    if wanted.history_enabled != applied.history_enabled {
+        rec.set_history_enabled(wanted.history_enabled);
+    }
+    if wanted.retention_days != applied.retention_days {
+        rec.set_retention_days(wanted.retention_days);
+    }
+    if wanted.clear_generation != applied.clear_generation
+        && let Err(error) = rec.clear()
+    {
+        tracing::warn!(%error, "failed to clear the history store");
+    }
+    *applied = wanted;
 }
 
 /// How often the accumulated history is written while running.

@@ -31,13 +31,14 @@ fn writes_barrel_index() {
     let root = generated_root();
     let core = root.join("core");
 
-    if !core.is_dir() {
-        // The export tests populate this directory. When the whole suite runs
-        // they may not have finished yet, and on a filtered run they may not
-        // have run at all; either way this is not a failure.
-        eprintln!("skipping: {} not present yet", core.display());
-        return;
-    }
+    assert!(
+        core.is_dir(),
+        "{} is missing — the ts-rs export tests must run before the barrel. \
+         Run `pnpm protocol:generate`, which runs the whole crate's tests \
+         rather than filtering to `export_bindings` (filtering used to skip \
+         this test, so a newly exported type was never added to index.ts).",
+        core.display()
+    );
 
     let modules = collect_modules(&core);
     assert!(

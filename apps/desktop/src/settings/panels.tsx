@@ -1,4 +1,4 @@
-import { Fragment, useMemo } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { locales, type Locale } from '@vitals/i18n';
@@ -19,9 +19,11 @@ import { hasTauriHost } from '../shell/host';
 import { useTheme } from '../theme/ThemeProvider';
 import { accents, densities, surfaces, themeModes, type Accent } from '../theme/types';
 import { SettingsRow, SettingsSection } from './SettingsRow';
+import { clearHistory, exportFlightRecording } from './historyActions';
 import { retentionDayOptions, samplingRates } from './schema';
 import { useSettings } from './store';
 import { useHostInfo } from './useHostInfo';
+import { useHistoryUsage } from './useHistoryUsage';
 
 /**
  * Locale names are written in their own language, not translated.
@@ -277,6 +279,10 @@ export function SamplingPanel() {
   const { t: ts } = useTranslation(SHELL_NS);
   const settings = useSettings((state) => state.settings);
   const patch = useSettings((state) => state.patch);
+  const [usageRevision, setUsageRevision] = useState(0);
+  const [clearing, setClearing] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const { usage, pending } = useHistoryUsage(usageRevision);
 
   const rateLabels = {
     fast: ts('settings.sampling.rateFast'),
@@ -345,6 +351,67 @@ export function SamplingPanel() {
                 label: ts('settings.history.retentionDays', { count: days }),
               }))}
             />
+          )}
+        </SettingsRow>
+
+        <SettingsRow
+          label={t('settings.history.diskUsageLabel')}
+          description={ts('settings.history.diskUsageHint')}
+        >
+          {() =>
+            pending ? (
+              <Skeleton className="h-4 w-24" />
+            ) : (
+              <span className="text-sm tabular-nums">
+                {usage === null
+                  ? ts('settings.history.noData')
+                  : t('settings.history.diskUsage', { size: formatBytes(usage.bytes) })}
+              </span>
+            )
+          }
+        </SettingsRow>
+
+        <SettingsRow
+          label={t('settings.history.clear')}
+          description={ts('settings.history.clearHint')}
+        >
+          {({ labelId }) => (
+            <Button
+              aria-labelledby={labelId}
+              variant="danger"
+              disabled={clearing || usage === null || usage.bytes === 0}
+              onClick={() => {
+                setClearing(true);
+                void clearHistory().finally(() => {
+                  setClearing(false);
+                  // Bumping the revision is what refreshes the figure above;
+                  // a stale "12 MB" beside a button that just deleted it
+                  // reads as the button having failed.
+                  setUsageRevision((n) => n + 1);
+                });
+              }}
+            >
+              {t('settings.history.clear')}
+            </Button>
+          )}
+        </SettingsRow>
+      </SettingsSection>
+
+      <SettingsSection title={ts('settings.flight.title')}>
+        <SettingsRow label={ts('settings.flight.export')} description={ts('settings.flight.hint')}>
+          {({ labelId }) => (
+            <Button
+              aria-labelledby={labelId}
+              disabled={exporting}
+              onClick={() => {
+                setExporting(true);
+                void exportFlightRecording().finally(() => {
+                  setExporting(false);
+                });
+              }}
+            >
+              {exporting ? ts('settings.flight.exporting') : ts('settings.flight.save')}
+            </Button>
           )}
         </SettingsRow>
       </SettingsSection>
