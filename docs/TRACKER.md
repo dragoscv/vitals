@@ -142,8 +142,8 @@ Status values: `todo`, `doing`, `done`, `blocked`, `dropped`.
 | ----- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
 | S1    | Dependency upgrades, tooling, VS Code tasks                          | done                                                                                           |
 | S2    | Truth fixes — dead settings, false capabilities, dead crates         | done (S2-03 notifications, S2-09 persistence unify, S2-15 get_capabilities carried into S8/S7) |
-| S3    | `vitals-store` for real: SQLite history, retention, flight recorder  | todo                                                                                           |
-| S4    | LAN server: REST, SSE, WebSocket, Prometheus, mDNS                   | todo                                                                                           |
+| S3    | `vitals-store` for real: SQLite history, retention, flight recorder  | done                                                                                           |
+| S4    | LAN server: REST, SSE, WebSocket, Prometheus, mDNS                   | doing (10/12 done; mDNS, named-pipe IPC and TS SDK remain)                                     |
 | S5    | CLI that samples directly                                            | todo                                                                                           |
 | S6    | Mobile PWA and QR pairing                                            | todo                                                                                           |
 | S7    | UI polish: motion, palette, ultrawide, export, shortcuts             | todo                                                                                           |
@@ -160,6 +160,35 @@ CSV records the state.
 
 Every claim of "done" needs a command and its output. Recorded here as work
 lands, newest first.
+
+### 2026-09-10 — S4 LAN server (commits 76e2c4f, 201fe3d, 217e5bc)
+
+- `cargo test -p vitals-server` → 31 unit + 11 socket tests pass. Half the
+  socket tests are adversarial: anonymous request to every data route → 401;
+  wrong token byte-identical to missing; read-scope token attempting control
+  → 403 and the controller is never called; `..` traversal refused.
+- `cargo run -p vitals-server --example prove_lan` against the LIVE sampler:
+  `/health` 200 unauthenticated; `/snapshot` 401 without token; with token
+  `seq=5 kind=keyframe cpu.total=84.37 processes=648`; `/metrics` 174 series.
+- `cargo clippy --workspace --all-targets -- -D warnings` → exit 0.
+- `pnpm typecheck` · `eslint .` · `format:check` → clean; `pnpm test` → 60
+  desktop files (6 new for the Remote access panel).
+- **Two defects found by the prover, not by inspection:**
+  1. `ProcessKey` serialised `start-time` (kebab-case) while the TS binding
+     said `startTime`. `wire_format.rs` only checked `_`; it now checks `-`
+     and fails with the bug reintroduced (verified by stash/pop).
+  2. A client joining mid-stream received the newest frame — a delta — so
+     `processes=0`. Serving the last keyframe was stale (≤30 s; the first
+     always reads 0 % CPU). `FrameSource` now materialises deltas onto the
+     keyframe, exits before changes (same rule as `metrics.ts`).
+- Decisions: hand-written Prometheus exposition rather than
+  `prometheus-client` (one snapshot, no mutable registry to keep in step);
+  QR rendered in Rust so the secret is returned to the webview exactly once;
+  `getrandom` crate over a hand-declared `ProcessPrng` (LNK1181:
+  `bcryptprimitives.lib` is not in the default MSVC link set).
+- Process note: commit 201fe3d landed in the same shell command as its gates
+  and two test-typing errors slipped through → 217e5bc. Gates and commit are
+  now separate commands.
 
 ### 2026-09-10 — S2 truth fixes (commit follows)
 

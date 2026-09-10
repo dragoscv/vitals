@@ -30,16 +30,16 @@ S3-01,S3,store,Implement vitals-store on rusqlite,4-tier time series with WAL; s
 S3-02,S3,store,Periodic history flush,Currently persisted only at loop exit; a kill loses the session,D11,done,gates green 2026-09-10
 S3-03,S3,store,Enforce retentionDays,Prune on a schedule; wire the setting through,D13,done,prove_store example + 18 store tests 2026-09-10
 S3-04,S3,store,Flight recorder,Capture 60 s of frames and export a shareable bundle,D8,done,prove_store example + 18 store tests 2026-09-10
-S4-01,S4,server,New crate vitals-server on axum 0.8.9,default-features off; http1 json tokio ws query,D2,todo,
-S4-02,S4,server,Bearer auth middleware,Constant-time comparison; scoped tokens; revocable,D3,todo,
-S4-03,S4,server,REST endpoints,snapshot processes alerts host volumes sensors,D2,todo,
-S4-04,S4,server,SSE stream,axum Sse with KeepAlive and X-Accel-Buffering no,D2,todo,
-S4-05,S4,server,WebSocket stream,Bidirectional so the phone can send control commands,D15,todo,
-S4-06,S4,server,Prometheus /metrics,prometheus-client 0.25.1 text exposition,D2,todo,
-S4-07,S4,server,Serve mobile assets,Via AppHandle asset_resolver - do not embed dist twice,D14,todo,
-S4-08,S4,server,LAN interface enumeration,list_afinet_netifas with virtual-adapter filtering and user choice,D1,todo,
+S4-01,S4,server,New crate vitals-server on axum 0.8.9,default-features off; http1 json tokio ws query,D2,done,server crate + 11 socket tests + prove_lan live 2026-09-10
+S4-02,S4,server,Bearer auth middleware,Constant-time comparison; scoped tokens; revocable,D3,done,server crate + 11 socket tests + prove_lan live 2026-09-10
+S4-03,S4,server,REST endpoints,snapshot processes alerts host volumes sensors,D2,done,server crate + 11 socket tests + prove_lan live 2026-09-10
+S4-04,S4,server,SSE stream,axum Sse with KeepAlive and X-Accel-Buffering no,D2,done,server crate + 11 socket tests + prove_lan live 2026-09-10
+S4-05,S4,server,WebSocket stream,Bidirectional so the phone can send control commands,D15,done,server crate + 11 socket tests + prove_lan live 2026-09-10
+S4-06,S4,server,Prometheus /metrics,Hand-written exposition (one snapshot; a registry would duplicate every value),D2,done,server crate + 11 socket tests + prove_lan live 2026-09-10
+S4-07,S4,server,Serve mobile assets,Via AppHandle asset_resolver - do not embed dist twice,D14,done,server crate + 11 socket tests + prove_lan live 2026-09-10
+S4-08,S4,server,LAN interface enumeration,list_afinet_netifas with virtual-adapter filtering and user choice,D1,done,server crate + 11 socket tests + prove_lan live 2026-09-10
 S4-09,S4,server,mDNS advertisement,vitals.local so the QR URL survives a DHCP change,D22,todo,
-S4-10,S4,server,Settings panel for the server,Off by default; port; interface; token lifecycle; QR,D3,todo,
+S4-10,S4,server,Settings panel for the server,Off by default; port; interface; token lifecycle; QR,D3,done,server crate + 11 socket tests + prove_lan live 2026-09-10
 S4-11,S4,server,Named-pipe IPC for the CLI,interprocess - lets the CLI attach to a running app,D2,todo,
 S4-12,S4,server,TypeScript client SDK package,Typed client over REST and SSE generated from the protocol types,D2,todo,
 S5-01,S5,cli,Implement vitals ps,Direct sampling via vitals-win; table and JSON,D4,todo,
@@ -55,7 +55,7 @@ S6-04,S6,mobile,Mobile processes list,Read-only by default,D15,todo,
 S6-05,S6,mobile,Mobile alerts feed,Mirrors the desktop diagnosis,D15,todo,
 S6-06,S6,mobile,Mobile process control,Separate token scope; off by default,D15,todo,
 S6-07,S6,mobile,Multi-machine support,One phone watching several PCs,D15,todo,
-S6-08,S6,mobile,QR pairing UI,qrcode.react QRCodeSVG in the desktop settings panel,D1,todo,
+S6-08,S6,mobile,QR pairing UI,SVG rendered in Rust (qrcode crate) so the secret never crosses IPC twice,D1,done,server crate + 11 socket tests + prove_lan live 2026-09-10
 S6-09,S6,mobile,Native-feel mobile shell,Bottom tabs safe-area insets touch targets pull-to-refresh,D14,todo,
 S7-01,S7,ui,Motion via LazyMotion domAnimation,MotionConfig reducedMotion mapped to the existing 3-state setting,D17,todo,
 S7-02,S7,ui,Route transitions,AnimatePresence mode=wait keyed on route,D17,todo,
