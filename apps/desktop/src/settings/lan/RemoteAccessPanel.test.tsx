@@ -67,7 +67,7 @@ describe('RemoteAccessPanel', () => {
 
   it('defaults a new pairing to read-only', async () => {
     // A phone left on a desk must not be a remote kill switch by default.
-    const pair = vi.fn(() => Promise.resolve(PAIRING));
+    const pair = vi.fn<LanApi['pair']>(() => Promise.resolve(PAIRING));
     render(<RemoteAccessPanel api={fakeApi({ pair }, RUNNING)} />);
 
     const control = await screen.findByRole('switch', {
@@ -116,9 +116,7 @@ describe('RemoteAccessPanel', () => {
 
     (await screen.findByRole('switch', { name: /allow devices on this network/i })).click();
 
-    expect(await screen.findByRole('alert')).toHaveProperty(
-      'textContent',
-      expect.stringContaining('already in use') as unknown as string,
-    );
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain('already in use');
   });
 });
