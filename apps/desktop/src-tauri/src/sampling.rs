@@ -120,6 +120,10 @@ fn run(app: &AppHandle, stop: &AtomicBool) {
                 #[cfg(windows)]
                 if let Some(state) = app.try_state::<AppState>() {
                     state.publish_processes(backend.take_rollup_sample());
+                    // Which counter the Disk column is showing. Only knowable
+                    // after a real enumeration, because the enumerator learns
+                    // it from what the kernel agreed to serve.
+                    state.publish_disk_counter_source(backend.disk_counter_source());
                 }
                 if let Some(rec) = recorder.as_mut() {
                     reconcile_recorder(app, rec, &mut applied);
@@ -316,6 +320,10 @@ impl Backend {
 
     fn take_rollup_sample(&mut self) -> Vec<vitals_win::users::ProcessSample> {
         std::mem::take(&mut self.rollup)
+    }
+
+    fn disk_counter_source(&self) -> vitals_core::process::DiskCounterSource {
+        self.sampler.disk_counter_source()
     }
 }
 

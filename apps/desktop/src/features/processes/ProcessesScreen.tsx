@@ -33,7 +33,8 @@ import { ProcessDetails } from './ProcessDetails';
 import { ProcessTable } from './ProcessTable';
 import { ProcessToolbar } from './ProcessToolbar';
 import { RiskDialog, type RiskAction, type RiskRequest } from './RiskDialog';
-import { fallback } from './strings';
+import { PROCESSES_NS, fallback } from './strings';
+import { useHostFacts, type HostFactsReader } from './useHostFacts';
 import {
   createTauriSnapshotSource,
   NO_SAMPLER,
@@ -53,16 +54,21 @@ export interface ProcessesScreenProps {
   readonly actions?: ProcessActionsApi;
   /** Overrides persistence in tests; defaults to `localStorage`. */
   readonly storage?: Storage;
+  /** Host info + capability report; injectable so tests need no Tauri host. */
+  readonly hostFacts?: HostFactsReader;
 }
 
 export function ProcessesScreen({
   source,
   actions = tauriProcessActions,
   storage,
+  hostFacts,
 }: ProcessesScreenProps = {}): React.JSX.Element {
   const { t, i18n } = useTranslation();
+  const { t: tp } = useTranslation(PROCESSES_NS);
   const locale = i18n.language;
   const confirmEndTask = useSettings((state) => state.settings.confirmEndTask);
+  const facts = useHostFacts(hostFacts);
 
   // A lazy state initialiser rather than a ref written during render: the
   // source must be created exactly once, and a ref read during render is a
@@ -176,6 +182,33 @@ export function ProcessesScreen({
   }, [built.byId]);
 
   const focusedRow = focusedId === null ? null : (built.byId.get(focusedId) ?? null);
+
+  // The executable path for the focused row. Read once per process identity,
+  // not per tick: the sampler carries only the file name because the path
+  // costs a handle per process, and this is the one place that cost is paid.
+  // `undefined` while unknown so the menu can disable the shell actions
+  // rather than offering them and failing.
+  const [paths, setPaths] = useState<ReadonlyMap<string, string | null>>(() => new Map());
+  const focusedKey = focusedRow === null ? null : focusedRow.id;
+  useEffect(() => {
+    if (focusedKey === null || paths.has(focusedKey)) return;
+    // Through the ref, not `focusedRow`: the snapshot replaces every row
+    // object each tick, and depending on it would cancel this read every
+    // second before it could resolve.
+    const row = rowsById.current.get(focusedKey);
+    if (row === undefined) return;
+    let live = true;
+    void actions
+      .getExecutablePath(row.process)
+      .catch(() => null)
+      .then((path) => {
+        if (live) setPaths((current) => new Map(current).set(focusedKey, path));
+      });
+    return () => {
+      live = false;
+    };
+  }, [focusedKey, paths, actions]);
+  const pathOf = useCallback((id: string): string | null => paths.get(id) ?? null, [paths]);
 
   const onSort = useCallback((column: ColumnId) => {
     setPreferences((current) => ({
@@ -379,6 +412,7 @@ export function ProcessesScreen({
     (row: ProcessRow) => ({
       process: row.process,
       descendantCount: row.descendantCount,
+      executablePath: pathOf(row.id),
       onTerminate: () => void beginAction('terminate', row),
       onTerminateTree: () => void beginAction('terminate-tree', row),
       onSuspend: () => void beginAction('suspend', row),
@@ -398,6 +432,24 @@ export function ProcessesScreen({
           .setPriority(row.process, priority)
           .catch((error: unknown) => setFailure(errorMessage(error)));
       },
+      onOpenFileLocation: () => {
+        const path = pathOf(row.id);
+        if (path === null) return;
+        void actions
+          .openFileLocation(path)
+          .catch((error: unknown) =>
+            setFailure(tp('detail.file.openFailed', { message: errorMessage(error) })),
+          );
+      },
+      onShowProperties: () => {
+        const path = pathOf(row.id);
+        if (path === null) return;
+        void actions
+          .showFileProperties(path)
+          .catch((error: unknown) =>
+            setFailure(tp('detail.file.propertiesFailed', { message: errorMessage(error) })),
+          );
+      },
       onSearchOnline: () => {
         globalThis.open?.(
           `https://duckduckgo.com/?q=${encodeURIComponent(row.process.name)}`,
@@ -411,10 +463,20 @@ export function ProcessesScreen({
         );
       },
     }),
-    [actions, beginAction],
+    [actions, beginAction, pathOf, tp],
   );
 
   const total = snapshot.processes.size;
+
+  // Which counter feeds the Disk column. `null` before the first sample has
+  // told us; the tooltip then says so rather than picking a label.
+  const diskTitle = useMemo(() => {
+    const source = facts.capabilities?.diskCounterSource ?? null;
+    if (source === 'storageStack') return tp('disk.storageStack');
+    if (source === 'allIo') return tp('disk.allIo');
+    return tp('disk.unknown');
+  }, [facts.capabilities, tp]);
+  const columnTitles = useMemo(() => ({ disk: diskTitle }), [diskTitle]);
 
   // Raw units: CPU as a fraction of the machine, bytes, bytes per second,
   // seconds. The rolled-up figures are what the row displays, so a collapsed
@@ -529,10 +591,18 @@ export function ProcessesScreen({
             onMenuOpenChange={setMenuOpen}
             menuProps={menuProps}
             locale={locale}
+            columnTitles={columnTitles}
           />
         )}
 
-        <ProcessDetails row={focusedRow} locale={locale} />
+        <ProcessDetails
+          row={focusedRow}
+          locale={locale}
+          actions={actions}
+          host={facts.host}
+          executablePath={focusedRow === null ? null : pathOf(focusedRow.id)}
+          onFailure={setFailure}
+        />
       </div>
 
       <RiskDialog

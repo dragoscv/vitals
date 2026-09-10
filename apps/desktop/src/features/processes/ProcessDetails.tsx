@@ -7,11 +7,14 @@
  * detail that makes people stop trusting a monitor.
  */
 
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import {
   Badge,
+  Button,
   EmptyState,
+  Switch,
   formatBytes,
   formatCount,
   formatPercent,
@@ -19,16 +22,47 @@ import {
   formatUptime,
 } from '@vitals/ui';
 
+import type { HandleInfo, HostInfo, ModuleInfo, Process } from '@vitals/protocol';
+
+import { errorMessage, type ProcessActionsApi } from './actions';
+import { affinityPresets, type AffinityPreset } from './affinity';
 import { UNKNOWN } from './constants';
 import { flagKeys, type ProcessRow } from './model';
-import { fallback } from './strings';
+import { PROCESSES_NS, fallback } from './strings';
+
+/**
+ * The most rows either lazy list will render.
+ *
+ * A browser holds several thousand handles. The list is not virtualised
+ * because the panel is a 288 px sidebar with its own scroll, and a
+ * virtualiser inside a virtualised table's sibling fights it for the wheel.
+ * A hard cap with an honest "showing N of M" is the smaller design.
+ */
+export const LAZY_LIST_CAP = 200;
 
 export interface ProcessDetailsProps {
   readonly row: ProcessRow | null;
   readonly locale: string;
+  readonly actions: ProcessActionsApi;
+  /**
+   * Static machine facts, for the affinity presets. `null` while loading or
+   * on a platform with no backend — presets that need the topology are then
+   * omitted rather than guessed.
+   */
+  readonly host: HostInfo | null;
+  /** Full executable path, when the detail fetch has provided one. */
+  readonly executablePath: string | null;
+  readonly onFailure: (message: string) => void;
 }
 
-export function ProcessDetails({ row, locale }: ProcessDetailsProps): React.JSX.Element {
+export function ProcessDetails({
+  row,
+  locale,
+  actions,
+  host,
+  executablePath,
+  onFailure,
+}: ProcessDetailsProps): React.JSX.Element {
   const { t } = useTranslation();
 
   if (row === null) {
@@ -111,6 +145,48 @@ export function ProcessDetails({ row, locale }: ProcessDetailsProps): React.JSX.
         />
       </Section>
 
+      <EfficiencySection process={p} actions={actions} onFailure={onFailure} />
+
+      <AffinitySection process={p} actions={actions} host={host} onFailure={onFailure} />
+
+      <FileSection path={executablePath} actions={actions} onFailure={onFailure} />
+
+      {/* Keyed on the process so an expanded Handles list for chrome.exe is
+          not shown, stale, under the next row the user clicks. */}
+      <LazyList
+        key={`handles-${row.id}`}
+        kind="handles"
+        process={p}
+        fetch={(target) => actions.getHandles(target)}
+        render={(handle: HandleInfo) => (
+          <>
+            <span className="text-[var(--color-fg-muted)]">
+              {handle.kind ?? t(`${PROCESSES_NS}:detail.handles.untyped`)}
+            </span>{' '}
+            <span className="break-all">
+              {handle.name ?? t(`${PROCESSES_NS}:detail.handles.unnamed`)}
+            </span>
+          </>
+        )}
+        keyOf={(handle: HandleInfo) => handle.value}
+        locale={locale}
+      />
+
+      <LazyList
+        key={`modules-${row.id}`}
+        kind="modules"
+        process={p}
+        fetch={(target) => actions.getModules(target)}
+        render={(module: ModuleInfo) => (
+          <>
+            <span title={module.path ?? undefined}>{module.name}</span>{' '}
+            <span className="text-[var(--color-fg-muted)]">{formatBytes(module.size, locale)}</span>
+          </>
+        )}
+        keyOf={(module: ModuleInfo) => module.baseAddress}
+        locale={locale}
+      />
+
       {flags.length > 0 && (
         <Section title={t('process.detail.flags', fallback('process.detail.flags'))}>
           <div className="flex flex-wrap gap-1">
@@ -126,6 +202,300 @@ export function ProcessDetails({ row, locale }: ProcessDetailsProps): React.JSX.
         </Section>
       )}
     </aside>
+  );
+}
+
+/**
+ * The efficiency-mode switch.
+ *
+ * Three states, not two. `null` — the backend could not read it, because the
+ * process denied us a handle — renders as the unavailable label with a
+ * disabled switch. Rendering it as "off" would offer to turn on a throttle
+ * the same denial will refuse to set, and a switch that fails every time it
+ * is touched teaches the user the whole panel is decorative.
+ */
+function EfficiencySection({
+  process,
+  actions,
+  onFailure,
+}: {
+  readonly process: Process;
+  readonly actions: ProcessActionsApi;
+  readonly onFailure: (message: string) => void;
+}): React.JSX.Element {
+  const { t } = useTranslation(PROCESSES_NS);
+  // `undefined` = not yet asked; `null` = asked, unreadable.
+  const [mode, setMode] = useState<boolean | null | undefined>(undefined);
+  const [busy, setBusy] = useState(false);
+
+  // The live snapshot replaces every row object each tick. The read below
+  // must fire once per *process*, not once per tick — a handle open per
+  // second for the selected row is the churn the sampler exists to avoid —
+  // so the effect depends on the identity fields, and reads the current
+  // object through a ref written after render.
+  const latest = useRef(process);
+  useEffect(() => {
+    latest.current = process;
+  }, [process]);
+
+  const { pid, startTime } = process.key;
+  useEffect(() => {
+    let live = true;
+    void actions
+      .getEfficiencyMode(latest.current)
+      .then((value) => {
+        if (live) setMode(value);
+      })
+      .catch(() => {
+        // A vanished process or a platform without the backend: both are
+        // "unknown", and unknown is what the switch already renders.
+        if (live) setMode(null);
+      });
+    return () => {
+      live = false;
+    };
+  }, [pid, startTime, actions]);
+
+  const unreadable = mode === null;
+  const pending = mode === undefined;
+
+  const toggle = (enabled: boolean): void => {
+    setBusy(true);
+    void actions
+      .setEfficiencyMode(process, enabled)
+      .then(() => actions.getEfficiencyMode(process))
+      .then((value) => setMode(value))
+      .catch((error: unknown) => {
+        onFailure(t('detail.efficiency.failed', { message: errorMessage(error) }));
+      })
+      .finally(() => setBusy(false));
+  };
+
+  return (
+    <Section title={t('detail.efficiency.label')}>
+      <Switch
+        label={
+          <span className="text-2xs">
+            {unreadable || pending
+              ? unreadable
+                ? t('detail.efficiency.unavailable')
+                : UNKNOWN
+              : mode
+                ? t('detail.efficiency.on')
+                : t('detail.efficiency.off')}
+          </span>
+        }
+        description={t('detail.efficiency.description')}
+        checked={mode === true}
+        disabled={unreadable || pending || busy}
+        onCheckedChange={toggle}
+        data-testid="efficiency-switch"
+      />
+    </Section>
+  );
+}
+
+/**
+ * Affinity presets, only when the machine can express them.
+ *
+ * Nothing is rendered without host info: the presets need the logical core
+ * count at minimum, and the interesting ones need the topology. A section
+ * that says "Run on" and offers nothing is a broken-looking section.
+ */
+function AffinitySection({
+  process,
+  actions,
+  host,
+  onFailure,
+}: {
+  readonly process: Process;
+  readonly actions: ProcessActionsApi;
+  readonly host: HostInfo | null;
+  readonly onFailure: (message: string) => void;
+}): React.JSX.Element | null {
+  const { t } = useTranslation(PROCESSES_NS);
+  const presets = affinityPresets(host);
+  if (presets.length === 0) return null;
+
+  const apply = (preset: AffinityPreset): void => {
+    void actions.setAffinity(process, preset.mask).catch((error: unknown) => {
+      onFailure(t('detail.affinity.failed', { name: process.name, message: errorMessage(error) }));
+    });
+  };
+
+  return (
+    <Section title={t('detail.affinity.title')}>
+      <p className="text-2xs text-[var(--color-fg-muted)]">{t('detail.affinity.hint')}</p>
+      <div className="flex flex-wrap gap-1" data-testid="affinity-presets">
+        {presets.map((preset) => (
+          <Button key={preset.id} size="sm" variant="secondary" onClick={() => apply(preset)}>
+            {t(`detail.affinity.preset.${preset.id}`, { cores: preset.cores })}
+          </Button>
+        ))}
+      </div>
+    </Section>
+  );
+}
+
+/**
+ * "Open file location" and "Properties".
+ *
+ * Enabled only when the path is known. The backend refuses a path that does
+ * not exist, but the reason to disable here is different: an enabled button
+ * that always fails for protected processes would make the user try it
+ * three times before concluding it is broken. Disabled with a reason is
+ * honest on the first look.
+ */
+function FileSection({
+  path,
+  actions,
+  onFailure,
+}: {
+  readonly path: string | null;
+  readonly actions: ProcessActionsApi;
+  readonly onFailure: (message: string) => void;
+}): React.JSX.Element {
+  const { t } = useTranslation();
+  const { t: tp } = useTranslation(PROCESSES_NS);
+  const known = path !== null;
+  const reason = known ? undefined : tp('detail.file.unknownPath');
+
+  return (
+    <Section title={t('process.action.openLocation')}>
+      <div className="flex flex-wrap gap-1">
+        <Button
+          size="sm"
+          variant="secondary"
+          disabled={!known}
+          {...(reason !== undefined && { title: reason })}
+          onClick={() => {
+            if (path === null) return;
+            void actions.openFileLocation(path).catch((error: unknown) => {
+              onFailure(tp('detail.file.openFailed', { message: errorMessage(error) }));
+            });
+          }}
+        >
+          {t('process.action.openLocation')}
+        </Button>
+        <Button
+          size="sm"
+          variant="secondary"
+          disabled={!known}
+          {...(reason !== undefined && { title: reason })}
+          onClick={() => {
+            if (path === null) return;
+            void actions.showFileProperties(path).catch((error: unknown) => {
+              onFailure(tp('detail.file.propertiesFailed', { message: errorMessage(error) }));
+            });
+          }}
+        >
+          {t('process.action.properties')}
+        </Button>
+      </div>
+    </Section>
+  );
+}
+
+type LazyState<T> =
+  | { readonly status: 'collapsed' }
+  | { readonly status: 'loading' }
+  | { readonly status: 'loaded'; readonly items: readonly T[] }
+  | { readonly status: 'failed'; readonly message: string };
+
+/**
+ * A section that fetches its contents the first time it is expanded.
+ *
+ * On demand, never eagerly: the handle backend walks the whole system handle
+ * table — megabytes on a busy machine, hundreds of milliseconds to name the
+ * objects — and the module backend probes the target's address space. Doing
+ * either for every row the user arrows past would make the detail panel the
+ * most expensive thing on the screen. The fetch runs once per expansion and
+ * the result is held until the row changes (the parent keys this component
+ * on the row id).
+ */
+function LazyList<T>({
+  kind,
+  process,
+  fetch,
+  render,
+  keyOf,
+  locale,
+}: {
+  readonly kind: 'handles' | 'modules';
+  readonly process: Process;
+  readonly fetch: (process: Process) => Promise<readonly T[]>;
+  readonly render: (item: T) => React.ReactNode;
+  readonly keyOf: (item: T) => string | number;
+  readonly locale: string;
+}): React.JSX.Element {
+  const { t } = useTranslation(PROCESSES_NS);
+  const [state, setState] = useState<LazyState<T>>({ status: 'collapsed' });
+
+  const expanded = state.status !== 'collapsed';
+
+  const toggle = (): void => {
+    if (expanded) {
+      setState({ status: 'collapsed' });
+      return;
+    }
+    setState({ status: 'loading' });
+    void fetch(process)
+      .then((items) => setState({ status: 'loaded', items }))
+      .catch((error: unknown) => setState({ status: 'failed', message: errorMessage(error) }));
+  };
+
+  const count = state.status === 'loaded' ? formatCount(state.items.length, locale) : null;
+  const title =
+    count === null ? t(`detail.${kind}.title`) : `${t(`detail.${kind}.title`)} · ${count}`;
+
+  return (
+    <section className="space-y-1.5">
+      <h3 className="text-2xs font-medium tracking-wide text-[var(--color-fg-subtle)] uppercase">
+        <button
+          type="button"
+          className="flex w-full items-center justify-between text-left hover:text-[var(--color-fg-default)]"
+          aria-expanded={expanded}
+          aria-label={t(`detail.${kind}.${expanded ? 'collapse' : 'expand'}`)}
+          onClick={toggle}
+          data-testid={`${kind}-toggle`}
+        >
+          <span>{title}</span>
+          <span aria-hidden="true">{expanded ? '▾' : '▸'}</span>
+        </button>
+      </h3>
+      {state.status === 'loading' && (
+        <p className="text-2xs text-[var(--color-fg-muted)]" role="status">
+          {t(`detail.${kind}.loading`)}
+        </p>
+      )}
+      {state.status === 'failed' && (
+        <p className="text-2xs text-[var(--color-status-danger)]" role="alert">
+          {state.message}
+        </p>
+      )}
+      {state.status === 'loaded' &&
+        (state.items.length === 0 ? (
+          <p className="text-2xs text-[var(--color-fg-muted)]">{t(`detail.${kind}.empty`)}</p>
+        ) : (
+          <>
+            <ul className="max-h-64 space-y-0.5 overflow-auto font-mono text-2xs">
+              {state.items.slice(0, LAZY_LIST_CAP).map((item) => (
+                <li key={keyOf(item)} className="truncate">
+                  {render(item)}
+                </li>
+              ))}
+            </ul>
+            {state.items.length > LAZY_LIST_CAP && (
+              <p className="text-2xs text-[var(--color-fg-muted)]">
+                {t(`detail.${kind}.capped`, {
+                  shown: formatCount(LAZY_LIST_CAP, locale),
+                  total: formatCount(state.items.length, locale),
+                })}
+              </p>
+            )}
+          </>
+        ))}
+    </section>
   );
 }
 

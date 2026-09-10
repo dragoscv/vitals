@@ -103,6 +103,20 @@ fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
         commands::set_process_priority,
         #[cfg(windows)]
         commands::set_process_affinity,
+        // Per-process detail the sampler deliberately does not carry:
+        // efficiency mode needs a handle per process, and handles and
+        // modules cost megabytes. All four are asked for one row at a time,
+        // when the user opens that row.
+        commands::get_efficiency_mode,
+        commands::set_efficiency_mode,
+        commands::get_process_handles,
+        commands::get_process_modules,
+        commands::get_executable_path,
+        // Shell integrations. No `cfg`: the non-Windows builds answer
+        // `Unsupported`, which the UI can render, rather than Tauri
+        // reporting a command that does not exist.
+        commands::open_file_location,
+        commands::show_file_properties,
         // On-demand inventories. Request/response rather than pushed:
         // slow to gather, rarely changing, and only wanted while their
         // own screen is open. See `inventory` for the full argument.

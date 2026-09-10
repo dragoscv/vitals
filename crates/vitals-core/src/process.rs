@@ -319,6 +319,39 @@ pub struct ModuleInfo {
     pub size: u64,
 }
 
+/// Which kernel counter produced the per-process disk figures.
+///
+/// Reported to the UI rather than kept inside the platform backend because
+/// the two counters measure genuinely different things, and a Disk column
+/// that silently switches between them is a column nobody can reason about.
+/// The user is told which one they are looking at, and what it would take to
+/// get the other.
+///
+/// Mirrors `vitals_win::DiskCounterSource`; kept here so the wire contract
+/// does not change shape when a platform backend does, and so a non-Windows
+/// backend can report its own answer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(
+    feature = "ts",
+    ts(export, export_to = "core/", rename_all = "camelCase")
+)]
+// camelCase on the wire, unlike the older enums' kebab-case: ts_rs only
+// renames the generated TypeScript, so a kebab-case wire value against a
+// camelCase union means `source === 'allIo'` is never true and the tooltip
+// silently falls through to "not yet known". The drift check only guards
+// structs; verified live before this was changed.
+#[serde(rename_all = "camelCase")]
+pub enum DiskCounterSource {
+    /// Bytes that reached a storage driver — what Task Manager's Disk column
+    /// shows. Needs `SeDebugPrivilege`, so in practice it means elevated.
+    StorageStack,
+    /// Every read and write the process issued, including pipes, sockets and
+    /// the console. Over-reports for IPC-heavy processes, and is what an
+    /// unelevated session gets.
+    AllIo,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

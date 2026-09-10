@@ -71,12 +71,37 @@ pub fn get_host_info() -> CommandResult<HostInfo> {
     }
 }
 
+/// What the backend can currently do, plus the runtime facts that change
+/// how a reading should be *labelled* rather than whether it exists.
+///
+/// A DTO rather than returning [`Capabilities`] bare: the disk counter
+/// source is not a capability — the Disk column works either way — but it is
+/// the same kind of thing, a privilege-dependent runtime fact the UI must
+/// know before it can describe what it is showing. Bolting it onto this one
+/// response means the screen makes one call, not two.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CapabilityReport {
+    #[serde(flatten)]
+    pub capabilities: Capabilities,
+    /// Which kernel counter produced the per-process disk figures.
+    ///
+    /// `None` before the first sample has landed. Not defaulted to either
+    /// variant: labelling the column "storage I/O" when we have not yet
+    /// learnt whether the kernel granted us that class would be a claim
+    /// about a measurement nobody has taken.
+    pub disk_counter_source: Option<vitals_core::process::DiskCounterSource>,
+}
+
 /// What the backend can currently do, given privileges and installed parts.
 #[tauri::command]
 // Tauri's command macro requires `State` by value; it cannot be borrowed.
 #[allow(clippy::needless_pass_by_value)]
-pub fn get_capabilities(state: State<'_, AppState>) -> Capabilities {
-    state.capabilities()
+pub fn get_capabilities(state: State<'_, AppState>) -> CapabilityReport {
+    CapabilityReport {
+        capabilities: state.capabilities(),
+        disk_counter_source: state.disk_counter_source(),
+    }
 }
 
 /// The alerts currently raised, most serious first.
@@ -404,6 +429,233 @@ pub fn set_process_affinity(pid: u32, start_time: u64, mask: u64) -> CommandResu
 
     vitals_win::actions::set_affinity(ProcessKey::new(Pid(pid), start_time), mask)?;
     Ok(())
+}
+
+/// Whether a process is currently throttled ("efficiency mode").
+///
+/// `None` means the state could not be read, which is **not** the same as
+/// off: a protected or higher-integrity process denies us the handle, and a
+/// UI told "off" would offer to turn on a throttle it cannot set. The
+/// frontend renders the difference.
+#[tauri::command]
+#[cfg(windows)]
+pub fn get_efficiency_mode(pid: u32, start_time: u64) -> CommandResult<Option<bool>> {
+    use vitals_core::ids::Pid;
+
+    Ok(vitals_win::actions::efficiency_mode(ProcessKey::new(
+        Pid(pid),
+        start_time,
+    ))?)
+}
+
+/// Switches a process's efficiency mode on or off.
+///
+/// Deliberately desktop-only: unlike terminate and priority it is not in
+/// `ControlRequest`, because throttling a process from a phone is a change
+/// whose effect the person holding the phone cannot see.
+#[tauri::command]
+#[cfg(windows)]
+pub fn set_efficiency_mode(pid: u32, start_time: u64, enabled: bool) -> CommandResult<()> {
+    use vitals_core::ids::Pid;
+
+    vitals_win::actions::set_efficiency_mode(ProcessKey::new(Pid(pid), start_time), enabled)?;
+    Ok(())
+}
+
+/// Lists the kernel handles a process holds.
+///
+/// `async` + `spawn_blocking`: the system handle table is megabytes on a
+/// busy machine and naming the objects can take hundreds of milliseconds, so
+/// running it inline would block every other command behind it. Called only
+/// when the user expands the Handles section, never on a timer.
+#[tauri::command]
+#[cfg(windows)]
+pub async fn get_process_handles(
+    pid: u32,
+    start_time: u64,
+) -> CommandResult<Vec<vitals_core::process::HandleInfo>> {
+    use vitals_core::ids::Pid;
+
+    let key = ProcessKey::new(Pid(pid), start_time);
+    let handle =
+        tauri::async_runtime::spawn_blocking(move || vitals_win::handles::for_process(key));
+
+    handle
+        .await
+        .map_err(|err| CommandError::Internal {
+            message: format!("the handle enumeration thread did not finish: {err}"),
+        })?
+        .map_err(CommandError::from)
+}
+
+/// Lists the modules mapped into a process.
+///
+/// Same argument as [`get_process_handles`]: several hundred modules for a
+/// browser, each needing a path resolved out of the target's address space.
+#[tauri::command]
+#[cfg(windows)]
+pub async fn get_process_modules(
+    pid: u32,
+    start_time: u64,
+) -> CommandResult<Vec<vitals_core::process::ModuleInfo>> {
+    use vitals_core::ids::Pid;
+
+    let key = ProcessKey::new(Pid(pid), start_time);
+    let handle =
+        tauri::async_runtime::spawn_blocking(move || vitals_win::modules::for_process(key));
+
+    handle
+        .await
+        .map_err(|err| CommandError::Internal {
+            message: format!("the module enumeration thread did not finish: {err}"),
+        })?
+        .map_err(CommandError::from)
+}
+
+/// The full executable path of a process, when it lets us read it.
+///
+/// `None` for a process that denies the handle. The two shell actions are
+/// disabled in the UI on `None`, which is the right answer: an enabled button
+/// that always fails for `csrss.exe` teaches the user the panel is broken.
+#[tauri::command]
+#[cfg(windows)]
+pub fn get_executable_path(pid: u32, start_time: u64) -> CommandResult<Option<String>> {
+    use vitals_core::ids::Pid;
+
+    Ok(vitals_win::actions::executable_path(ProcessKey::new(
+        Pid(pid),
+        start_time,
+    ))?)
+}
+
+/// Opens Explorer with a file selected.
+///
+/// Takes the path rather than a `ProcessKey`: the caller already holds the
+/// executable path from the process detail, and re-deriving it here would
+/// open a second handle for a value we were just given.
+#[tauri::command]
+#[cfg(windows)]
+#[allow(clippy::needless_pass_by_value)]
+pub fn open_file_location(path: String) -> CommandResult<()> {
+    vitals_win::actions::open_file_location(std::path::Path::new(&path))?;
+    Ok(())
+}
+
+/// Shows the shell's Properties dialog for a file.
+#[tauri::command]
+#[cfg(windows)]
+#[allow(clippy::needless_pass_by_value)]
+pub fn show_file_properties(path: String) -> CommandResult<()> {
+    vitals_win::actions::show_file_properties(std::path::Path::new(&path))?;
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Non-Windows stubs
+//
+// Present rather than absent so `invoke` fails with a reason the UI can
+// render, instead of Tauri's "command not found" — which reads as a bug in
+// Vitals rather than a platform that has no backend yet.
+// ---------------------------------------------------------------------------
+
+/// See the Windows implementation.
+///
+/// # Errors
+///
+/// Always: no non-Windows backend exists yet.
+#[tauri::command]
+#[cfg(not(windows))]
+pub fn get_efficiency_mode(pid: u32, start_time: u64) -> CommandResult<Option<bool>> {
+    let _ = (pid, start_time);
+    Err(unsupported("efficiency mode"))
+}
+
+/// See the Windows implementation.
+///
+/// # Errors
+///
+/// Always: no non-Windows backend exists yet.
+#[tauri::command]
+#[cfg(not(windows))]
+pub fn set_efficiency_mode(pid: u32, start_time: u64, enabled: bool) -> CommandResult<()> {
+    let _ = (pid, start_time, enabled);
+    Err(unsupported("efficiency mode"))
+}
+
+/// See the Windows implementation.
+///
+/// # Errors
+///
+/// Always: no non-Windows backend exists yet.
+#[tauri::command]
+#[cfg(not(windows))]
+pub fn get_process_handles(
+    pid: u32,
+    start_time: u64,
+) -> CommandResult<Vec<vitals_core::process::HandleInfo>> {
+    let _ = (pid, start_time);
+    Err(unsupported("handle enumeration"))
+}
+
+/// See the Windows implementation.
+///
+/// # Errors
+///
+/// Always: no non-Windows backend exists yet.
+#[tauri::command]
+#[cfg(not(windows))]
+pub fn get_process_modules(
+    pid: u32,
+    start_time: u64,
+) -> CommandResult<Vec<vitals_core::process::ModuleInfo>> {
+    let _ = (pid, start_time);
+    Err(unsupported("module enumeration"))
+}
+
+/// See the Windows implementation.
+///
+/// # Errors
+///
+/// Always: no non-Windows backend exists yet.
+#[tauri::command]
+#[cfg(not(windows))]
+pub fn get_executable_path(pid: u32, start_time: u64) -> CommandResult<Option<String>> {
+    let _ = (pid, start_time);
+    Err(unsupported("the executable path"))
+}
+
+/// See the Windows implementation.
+///
+/// # Errors
+///
+/// Always: no non-Windows backend exists yet.
+#[tauri::command]
+#[cfg(not(windows))]
+#[allow(clippy::needless_pass_by_value)]
+pub fn open_file_location(path: String) -> CommandResult<()> {
+    let _ = path;
+    Err(unsupported("revealing a file"))
+}
+
+/// See the Windows implementation.
+///
+/// # Errors
+///
+/// Always: no non-Windows backend exists yet.
+#[tauri::command]
+#[cfg(not(windows))]
+#[allow(clippy::needless_pass_by_value)]
+pub fn show_file_properties(path: String) -> CommandResult<()> {
+    let _ = path;
+    Err(unsupported("the file properties dialog"))
+}
+
+/// The one place the non-Windows refusal is worded.
+#[cfg(not(windows))]
+fn unsupported(what: &str) -> CommandError {
+    CommandError::Unsupported {
+        message: format!("{what} needs a platform backend, and only Windows has one"),
+    }
 }
 
 #[cfg(test)]

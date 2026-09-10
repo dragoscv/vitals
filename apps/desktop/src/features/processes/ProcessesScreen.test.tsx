@@ -16,10 +16,12 @@ import { initI18n } from '@vitals/i18n';
 import type { ActionPlan, ProcessActionsApi } from './actions';
 import { ProcessesScreen } from './ProcessesScreen';
 import { makeMap, makeProcess } from './test-fixtures';
+import { registerProcessesStrings } from './strings';
 import { createManualSnapshotSource, INITIAL_SNAPSHOT, NO_SAMPLER } from './useProcessSnapshot';
 
 beforeAll(async () => {
   await initI18n('en');
+  registerProcessesStrings();
 });
 
 afterEach(cleanup);
@@ -57,6 +59,13 @@ function stubActions(overrides: Partial<ProcessActionsApi> = {}): ProcessActions
     resume: vi.fn(async () => undefined),
     setPriority: vi.fn(async () => undefined),
     setAffinity: vi.fn(async () => undefined),
+    getEfficiencyMode: vi.fn(async () => null),
+    setEfficiencyMode: vi.fn(async () => undefined),
+    getHandles: vi.fn(async () => []),
+    getModules: vi.fn(async () => []),
+    getExecutablePath: vi.fn(async () => null),
+    openFileLocation: vi.fn(async () => undefined),
+    showFileProperties: vi.fn(async () => undefined),
     ...overrides,
   };
 }
@@ -488,13 +497,33 @@ describe('sort stability in the mounted table', () => {
   });
 });
 
-describe('unimplemented actions', () => {
-  it('shows affinity and file location disabled rather than faking them', async () => {
-    mountScreen();
+describe('shell actions', () => {
+  it('disables file location and properties when the path is unknown', async () => {
+    // A protected process never yields its path. An enabled item that fails
+    // every time reads as broken; disabled with a reason reads as honest.
+    mountScreen(stubActions({ getExecutablePath: vi.fn(async () => null) }));
     await openMenuFor(300);
-    const affinity = screen.getByRole('menuitem', { name: 'Set affinity' });
-    expect(affinity.getAttribute('data-disabled')).not.toBeNull();
     const location = screen.getByRole('menuitem', { name: 'Open file location' });
     expect(location.getAttribute('data-disabled')).not.toBeNull();
+    const properties = screen.getByRole('menuitem', { name: 'Properties' });
+    expect(properties.getAttribute('data-disabled')).not.toBeNull();
+  });
+
+  it('opens the file location with the resolved path once it is known', async () => {
+    const actions = stubActions({
+      getExecutablePath: vi.fn(async () => 'C:\\Apps\\chrome.exe'),
+    });
+    mountScreen(actions);
+    // Focus the row first so the path is read; the menu alone does not focus.
+    const row = await screen.findByTestId('process-row-300');
+    fireEvent.pointerDown(row);
+    await waitFor(() => expect(actions.getExecutablePath).toHaveBeenCalledOnce());
+    await openMenuFor(300);
+    const location = await screen.findByRole('menuitem', { name: 'Open file location' });
+    await waitFor(() => expect(location.getAttribute('data-disabled')).toBeNull());
+    fireEvent.click(location);
+    await waitFor(() =>
+      expect(actions.openFileLocation).toHaveBeenCalledWith('C:\\Apps\\chrome.exe'),
+    );
   });
 });

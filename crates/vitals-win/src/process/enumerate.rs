@@ -12,20 +12,18 @@ use super::raw::{
 };
 
 /// Which kernel counter produced a process's disk figures.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DiskCounterSource {
-    /// `PROCESS_DISK_COUNTERS` from the `SystemFullProcessInformation`
-    /// extension: bytes that reached a storage driver. What Task Manager's
-    /// Disk column shows. Needs `SeDebugPrivilege`, so in practice this
-    /// means the app is running elevated.
-    StorageStack,
-    /// `ReadTransferCount`/`WriteTransferCount` from the base record: every
-    /// `NtReadFile`/`NtWriteFile`, including pipes, sockets and the console.
-    /// Over-reports for IPC-heavy processes. Used whenever the kernel
-    /// refuses the full class — unelevated, which is the common case, or a
-    /// build that predates it.
-    AllIo,
-}
+///
+/// Re-exported from `vitals-core` rather than defined here: the UI has to
+/// label the Disk column with this, so it crosses the IPC boundary, and two
+/// enums with the same variants and a mapping function between them is one
+/// more thing to forget to update.
+///
+/// - `StorageStack` is `PROCESS_DISK_COUNTERS` from the
+///   `SystemFullProcessInformation` extension — bytes that reached a storage
+///   driver, which needs `SeDebugPrivilege`.
+/// - `AllIo` is `ReadTransferCount`/`WriteTransferCount` from the base
+///   record: every `NtReadFile`/`NtWriteFile`, pipes and console included.
+pub use vitals_core::process::DiskCounterSource;
 
 /// A process as read from the kernel, before any rate computation.
 ///

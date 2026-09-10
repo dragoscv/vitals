@@ -50,6 +50,7 @@ const PerformanceScreen = lazy(async () => {
 });
 const ProcessesScreen = lazy(async () => {
   const m = await import('./features/processes');
+  m.registerProcessesStrings();
   return { default: m.ProcessesScreen };
 });
 const StartupScreen = lazy(async () => {

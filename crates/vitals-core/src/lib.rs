@@ -42,8 +42,8 @@ pub use error::{Error, Result};
 pub use history::MachineSample;
 pub use ids::{DiskId, GpuId, NicId, Pid, SensorId, Tid};
 pub use process::{
-    HandleInfo, IntegrityLevel, ModuleInfo, Process, ProcessDetail, ProcessFlags, ProcessKind,
-    ProcessState, ProtectionLevel,
+    DiskCounterSource, HandleInfo, IntegrityLevel, ModuleInfo, Process, ProcessDetail,
+    ProcessFlags, ProcessKind, ProcessState, ProtectionLevel,
 };
 pub use provider::{
     HostProvider, NetworkProvider, PowerProvider, ProcessProvider, SensorProvider, StorageProvider,

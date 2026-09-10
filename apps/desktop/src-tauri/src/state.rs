@@ -33,6 +33,13 @@ pub struct AppState {
     /// snapshot of their own. Empty until the first tick lands.
     #[cfg(windows)]
     latest_processes: RwLock<std::sync::Arc<Vec<vitals_win::users::ProcessSample>>>,
+    /// Which kernel counter the per-process disk figures came from.
+    ///
+    /// `None` until the first tick, and that is the honest answer: the
+    /// enumerator only learns which class the kernel will serve by asking
+    /// for it. The UI renders the unknown state rather than guessing, for
+    /// the same reason every other unmeasured value here is an `Option`.
+    disk_counter_source: RwLock<Option<vitals_core::process::DiskCounterSource>>,
     /// What the sampler's recorder should be doing. The sampler reads this
     /// every tick and reconciles; commands only ever write it. The SQLite
     /// connection itself never crosses a thread — readers open their own.
@@ -70,6 +77,7 @@ impl AppState {
             history_enabled: std::sync::atomic::AtomicBool::new(false),
             #[cfg(windows)]
             latest_processes: RwLock::new(std::sync::Arc::new(Vec::new())),
+            disk_counter_source: RwLock::new(None),
             recording: RwLock::new(RecordingSettings::default()),
         }
     }
@@ -105,6 +113,20 @@ impl AppState {
     #[cfg(windows)]
     pub fn latest_processes(&self) -> std::sync::Arc<Vec<vitals_win::users::ProcessSample>> {
         std::sync::Arc::clone(&self.latest_processes.read())
+    }
+
+    /// Records which disk counter the enumerator settled on. Sampler thread.
+    ///
+    /// Written every tick rather than once: the value is sticky within a run,
+    /// but writing it unconditionally means there is no ordering question
+    /// about which tick was the first.
+    pub fn publish_disk_counter_source(&self, source: vitals_core::process::DiskCounterSource) {
+        *self.disk_counter_source.write() = Some(source);
+    }
+
+    /// Which disk counter the Disk column is currently showing.
+    pub fn disk_counter_source(&self) -> Option<vitals_core::process::DiskCounterSource> {
+        *self.disk_counter_source.read()
     }
 
     pub fn capabilities(&self) -> Capabilities {

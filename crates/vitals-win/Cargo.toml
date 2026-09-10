@@ -43,6 +43,13 @@ windows-sys = { version = "0.61.2", features = [
 	"Win32_System_Threading",
 	"Win32_System_SystemInformation",
 	"Win32_Storage_FileSystem",
+	# Explorer reveal and the Properties dialog. `Win32_System_Registry` is
+	# not used directly: SHELLEXECUTEINFOW carries an HKEY field, so the
+	# struct only exists when that feature is on.
+	"Win32_UI_Shell",
+	"Win32_UI_Shell_Common",
+	"Win32_UI_WindowsAndMessaging",
+	"Win32_System_Registry",
 ] }
 
 [lints]

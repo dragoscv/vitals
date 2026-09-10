@@ -146,6 +146,17 @@ impl SystemSampler {
         self.history.clone()
     }
 
+    /// Which kernel counter this sampler's disk figures came from.
+    ///
+    /// Surfaced so the UI can label the Disk column truthfully. The two
+    /// counters measure different things — see [`DiskCounterSource`] — and a
+    /// number whose meaning depends on an invisible privilege check is worse
+    /// than no number.
+    #[must_use]
+    pub const fn disk_counter_source(&self) -> crate::process::DiskCounterSource {
+        self.processes.disk_counter_source()
+    }
+
     /// Discards every baseline.
     ///
     /// Call after a pause. Without it the first sample after resuming covers

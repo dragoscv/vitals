@@ -22,13 +22,8 @@ import {
 
 import type { Process } from '@vitals/protocol';
 
-import {
-  UNIMPLEMENTED_ACTIONS,
-  priorities,
-  type ProcessPriority,
-  type UnimplementedAction,
-} from './actions';
-import { fallback } from './strings';
+import { priorities, type ProcessPriority } from './actions';
+import { PROCESSES_NS, fallback } from './strings';
 
 /**
  * Highest first, which is the reverse of the wire order.
@@ -63,15 +58,26 @@ export interface ProcessMenuProps {
   readonly onSuspend: () => void;
   readonly onResume: () => void;
   readonly onSetPriority: (priority: ProcessPriority) => void;
+  /**
+   * The executable path, when known. Both shell actions are disabled without
+   * one — with the reason in the tooltip — because a protected process never
+   * yields its path and a menu item that fails every time reads as broken.
+   */
+  readonly executablePath: string | null;
+  readonly onOpenFileLocation: () => void;
+  readonly onShowProperties: () => void;
   readonly onSearchOnline: () => void;
   readonly onCopyDetails: () => void;
 }
 
 export function ProcessMenu(props: ProcessMenuProps): React.JSX.Element {
   const { t } = useTranslation();
+  const { t: tp } = useTranslation(PROCESSES_NS);
   const { process, descendantCount } = props;
 
   const suspended = process.state === 'suspended';
+  const hasPath = props.executablePath !== null;
+  const noPath = hasPath ? undefined : tp('detail.file.unknownPath');
 
   return (
     <ContextMenuContent className="min-w-56">
@@ -117,15 +123,23 @@ export function ProcessMenu(props: ProcessMenuProps): React.JSX.Element {
         </ContextMenuSubContent>
       </ContextMenuSub>
 
-      {/* File location and properties still have no backend command. Shown
-          disabled with the reason rather than hidden: a task manager missing
-          them reads as unfinished, and one that fakes them would be worse
-          than either. */}
-      {UNIMPLEMENTED_ACTIONS.map((action) => (
-        <ContextMenuItem key={action} disabled title={unavailable(t)}>
-          {t(`process.action.${action satisfies UnimplementedAction}`)}
-        </ContextMenuItem>
-      ))}
+      {/* Affinity is not here: it lives in the detail panel as a set of
+          presets computed from the core topology, which a flat menu cannot
+          show. Selecting the row is what reveals them. */}
+      <ContextMenuItem
+        disabled={!hasPath}
+        {...(noPath !== undefined && { title: noPath })}
+        onSelect={props.onOpenFileLocation}
+      >
+        {t('process.action.openLocation')}
+      </ContextMenuItem>
+      <ContextMenuItem
+        disabled={!hasPath}
+        {...(noPath !== undefined && { title: noPath })}
+        onSelect={props.onShowProperties}
+      >
+        {t('process.action.properties')}
+      </ContextMenuItem>
 
       <ContextMenuSeparator />
 
@@ -137,8 +151,4 @@ export function ProcessMenu(props: ProcessMenuProps): React.JSX.Element {
       </ContextMenuItem>
     </ContextMenuContent>
   );
-}
-
-function unavailable(t: (key: string, defaultValue: string) => string): string {
-  return t('process.action.notImplemented', fallback('process.action.notImplemented'));
 }

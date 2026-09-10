@@ -55,6 +55,12 @@ export interface ProcessTableProps {
   readonly onMenuOpenChange: (open: boolean) => void;
   readonly menuProps: (row: ProcessRow) => React.ComponentProps<typeof ProcessMenu>;
   readonly locale: string;
+  /**
+   * Native tooltips for column headers, by column. Used to say which counter
+   * feeds a column when the label alone cannot — "Disk" means two different
+   * things depending on privilege.
+   */
+  readonly columnTitles?: Readonly<Partial<Record<ColumnId, string>>>;
 }
 
 export function ProcessTable(props: ProcessTableProps): React.JSX.Element {
@@ -164,6 +170,9 @@ export function ProcessTable(props: ProcessTableProps): React.JSX.Element {
                     onClick={() => props.onSort(column.id)}
                     aria-label={t('a11y.sortBy', {
                       column: t(column.labelKey, fallback(column.labelKey as never)),
+                    })}
+                    {...(props.columnTitles?.[column.id] !== undefined && {
+                      title: props.columnTitles[column.id],
                     })}
                     className={cn(
                       'flex h-full w-full items-center gap-1 px-2 text-2xs font-medium',

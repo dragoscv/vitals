@@ -62,14 +62,21 @@ impl WindowsHost {
             .with(Capability::SuspendProcess)
             .with(Capability::SetProcessPriority)
             .with(Capability::SetProcessAffinity)
+            // Both reachable as of the Tauri commands that expose them
+            // (`get_process_handles`/`get_process_modules` and
+            // `get_efficiency_mode`/`set_efficiency_mode`). They sat in the
+            // NotImplemented list below while the backend existed, which is
+            // the mirror image of the older bug where they were advertised
+            // with no code at all — a capability must track what the UI can
+            // actually reach, in both directions.
+            .with(Capability::HandleEnumeration)
+            .with(Capability::SetEfficiencyMode)
             .with(Capability::PerProcessGpu)
             .with(Capability::UninstallApplications);
 
         // Possible without privilege, not yet written. Each moves up to the
         // list above in the commit that implements it.
         for cap in [
-            Capability::HandleEnumeration,
-            Capability::SetEfficiencyMode,
             Capability::TrimWorkingSet,
             Capability::ManageStartupItems,
             Capability::ErrorReports,

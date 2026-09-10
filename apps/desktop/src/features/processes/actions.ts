@@ -10,7 +10,13 @@
 
 import { invoke } from '@tauri-apps/api/core';
 
-import type { Process } from '@vitals/protocol';
+import type {
+  Capabilities,
+  DiskCounterSource,
+  HandleInfo,
+  ModuleInfo,
+  Process,
+} from '@vitals/protocol';
 
 import { ProcessFlag, hasFlag } from './constants';
 
@@ -60,12 +66,38 @@ export interface ProcessActionsApi {
   /**
    * Pins a process to a set of logical processors.
    *
-   * The backend command is wired; what is missing is a core picker to choose
-   * the mask. Until that lands the menu item is listed under
-   * [`UNIMPLEMENTED_ACTIONS`] as "needs a picker", which is the honest state:
-   * not "the backend cannot", but "the UI cannot yet ask you which cores".
+   * The detail panel offers presets computed from the machine's core
+   * topology rather than a free-form core picker: "performance cores only"
+   * is a thing people want, and a 24-checkbox grid is a thing they get wrong.
    */
   setAffinity(process: Process, mask: bigint): Promise<void>;
+  /**
+   * Whether the OS is throttling this process.
+   *
+   * `null` means the state could not be read — a protected process denies
+   * the handle — and is deliberately distinct from `false`. The UI must not
+   * offer to switch off a throttle it cannot see.
+   */
+  getEfficiencyMode(process: Process): Promise<boolean | null>;
+  setEfficiencyMode(process: Process, enabled: boolean): Promise<void>;
+  /**
+   * The kernel handles this process holds.
+   *
+   * On demand only. The backend walks the whole system handle table, which
+   * is megabytes on a busy machine, so this is called when the user expands
+   * the section and never on a timer.
+   */
+  getHandles(process: Process): Promise<readonly HandleInfo[]>;
+  /** The modules mapped into this process. On demand, same reason. */
+  getModules(process: Process): Promise<readonly ModuleInfo[]>;
+  /**
+   * The full executable path, or `null` when the process denies us a handle.
+   * The sampler carries only the file name, so this is read once per
+   * selected row and gates the two shell actions below.
+   */
+  getExecutablePath(process: Process): Promise<string | null>;
+  openFileLocation(path: string): Promise<void>;
+  showFileProperties(path: string): Promise<void>;
 }
 
 /**
@@ -138,19 +170,53 @@ export const tauriProcessActions: ProcessActionsApi = {
       // to do about it first.
       mask: Number(mask),
     }),
+
+  getEfficiencyMode: (process) =>
+    invoke<boolean | null>('get_efficiency_mode', {
+      pid: process.key.pid,
+      startTime: process.key.startTime,
+    }),
+
+  setEfficiencyMode: (process, enabled) =>
+    invoke<void>('set_efficiency_mode', {
+      pid: process.key.pid,
+      startTime: process.key.startTime,
+      enabled,
+    }),
+
+  getHandles: (process) =>
+    invoke<HandleInfo[]>('get_process_handles', {
+      pid: process.key.pid,
+      startTime: process.key.startTime,
+    }),
+
+  getModules: (process) =>
+    invoke<ModuleInfo[]>('get_process_modules', {
+      pid: process.key.pid,
+      startTime: process.key.startTime,
+    }),
+
+  getExecutablePath: (process) =>
+    invoke<string | null>('get_executable_path', {
+      pid: process.key.pid,
+      startTime: process.key.startTime,
+    }),
+
+  openFileLocation: (path) => invoke<void>('open_file_location', { path }),
+
+  showFileProperties: (path) => invoke<void>('show_file_properties', { path }),
 };
 
 /**
- * Actions the UI shows but the backend cannot yet perform.
+ * What `get_capabilities` answers.
  *
- * Listed explicitly rather than quietly omitted: a task manager missing
- * "Open file location" reads as unfinished, whereas one that shows it
- * disabled with a reason reads as honest. Nothing here is faked — the menu
- * items are inert and say why.
+ * `diskCounterSource` is not a capability — the Disk column works either way
+ * — but it decides how the column must be *labelled*, and it is only knowable
+ * after the first sample. `null` before then, and rendered as such.
  */
-export const UNIMPLEMENTED_ACTIONS = ['affinity', 'openLocation', 'properties'] as const;
-
-export type UnimplementedAction = (typeof UNIMPLEMENTED_ACTIONS)[number];
+export interface CapabilityReport extends Capabilities {
+  readonly diskCounterSource: DiskCounterSource | null;
+}
 
 /** The error shape `CommandError` serialises to. */
 export interface CommandErrorShape {
