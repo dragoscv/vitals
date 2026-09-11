@@ -160,7 +160,6 @@ fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
         store::set_retention_days,
         store::query_machine_history,
         store::get_history_usage,
-        store::export_flight_recording,
         store::write_flight_recording,
         server::get_lan_status,
         server::start_lan_server,

@@ -49,6 +49,25 @@ const en = {
     uptime: { title: 'System', description: 'Uptime, processes, threads, and handles.' },
     storage: { title: 'Storage', description: 'Free space on every drive.' },
     alerts: { title: 'Attention', description: 'Anything that looks wrong, and why.' },
+    history: { title: 'History', description: 'CPU, memory and GPU over the last hours or days.' },
+  },
+
+  history: {
+    rangeLabel: 'Time range',
+    range: { h1: '1 h', h6: '6 h', h24: '24 h', d7: '7 d' },
+    cpu: 'CPU',
+    memory: 'Memory',
+    gpu: 'GPU',
+    off: {
+      title: 'History recording is off',
+      body: 'Vitals only keeps a record of your computer over time when you ask it to. Turn it on in Settings and this chart fills in from then on.',
+      action: 'Open Settings',
+    },
+    empty: {
+      title: 'No history yet',
+      body: 'Recording is on, but nothing has been written for this range yet. Check back in a minute.',
+    },
+    failed: 'Could not read the history: {{reason}}',
   },
 
   cpu: {
@@ -241,6 +260,28 @@ const ro = {
     uptime: { title: 'Sistem', description: 'Timp de funcționare, procese, fire și descriptori.' },
     storage: { title: 'Stocare', description: 'Spațiul liber pe fiecare unitate.' },
     alerts: { title: 'Atenție', description: 'Ce pare în neregulă și de ce.' },
+    history: {
+      title: 'Istoric',
+      description: 'Procesor, memorie și GPU în ultimele ore sau zile.',
+    },
+  },
+
+  history: {
+    rangeLabel: 'Interval de timp',
+    range: { h1: '1 h', h6: '6 h', h24: '24 h', d7: '7 z' },
+    cpu: 'Procesor',
+    memory: 'Memorie',
+    gpu: 'GPU',
+    off: {
+      title: 'Înregistrarea istoricului este oprită',
+      body: 'Vitals păstrează o evidență a calculatorului în timp doar dacă îi ceri. Activează-o din Setări și graficul se completează de atunci încolo.',
+      action: 'Deschide Setările',
+    },
+    empty: {
+      title: 'Încă nu există istoric',
+      body: 'Înregistrarea este pornită, dar nu s-a scris nimic pentru acest interval. Revino peste un minut.',
+    },
+    failed: 'Istoricul nu a putut fi citit: {{reason}}',
   },
 
   cpu: {

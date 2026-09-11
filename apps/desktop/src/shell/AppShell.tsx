@@ -8,7 +8,7 @@ import { RouteView } from '../routes';
 import { useSettings } from '../settings/store';
 import { Content } from './Content';
 import { ErrorBoundary } from './ErrorBoundary';
-import { navItems } from './navigation';
+import { navItems, OPEN_SETTINGS_EVENT } from './navigation';
 import { RouteError } from './RouteError';
 import { Sidebar } from './Sidebar';
 import type { ShortcutActions } from './shortcuts';
@@ -130,6 +130,16 @@ export function AppShell({ version }: AppShellProps) {
   );
   useShortcuts(shortcutActions);
   useSamplerToasts();
+
+  useEffect(() => {
+    const open = (): void => {
+      onSettingsOpenChange(true);
+    };
+    window.addEventListener(OPEN_SETTINGS_EVENT, open);
+    return () => {
+      window.removeEventListener(OPEN_SETTINGS_EVENT, open);
+    };
+  }, [onSettingsOpenChange]);
 
   const narrow = useNarrowViewport();
   const collapsed = collapsedSetting || narrow;

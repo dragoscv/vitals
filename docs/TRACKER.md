@@ -138,18 +138,18 @@ in repo memory. This audit found the ninth through the eighteenth.
 
 Status values: `todo`, `doing`, `done`, `blocked`, `dropped`.
 
-| Slice | Theme                                                                | Status                                                                                           |
-| ----- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| S1    | Dependency upgrades, tooling, VS Code tasks                          | done                                                                                             |
-| S2    | Truth fixes — dead settings, false capabilities, dead crates         | done (S2-03 notifications, S2-09 persistence unify, S2-15 get_capabilities carried into S8/S7)   |
-| S3    | `vitals-store` for real: SQLite history, retention, flight recorder  | done                                                                                             |
-| S4    | LAN server: REST, SSE, WebSocket, Prometheus, mDNS                   | done (S4-11 named-pipe IPC landed 2026-09-11 with the CLI attach path)                           |
-| S5    | CLI that samples directly                                            | done (6/6; attaches to the app over its named pipe, then :7330, samples directly otherwise)      |
-| S6    | Mobile PWA and QR pairing                                            | done except S6-05 alerts feed (S8 engine now exposes GET /api/v1/alerts; phone UI pending)       |
-| S7    | UI polish: motion, palette, ultrawide, export, shortcuts             | done (10/10)                                                                                     |
-| S8    | Tray, HUD, alerts, notifications, updater                            | done (6/6; alerts engine in Rust feeds desktop, tray, toasts, LAN)                               |
-| S9    | New Windows metrics: DiskCounters, efficiency mode, handles, modules | backend done for 01/02/04/05 (vitals-win + vitals-core); 03/06/07 and the Tauri commands pending |
-| S10   | Docs, ADRs, CI, supply-chain audits                                  | done except S10-12 (ARM64 leg unproven — needs a run on `windows-11-arm`, and agents never push) |
+| Slice | Theme                                                                | Status                                                                                             |
+| ----- | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| S1    | Dependency upgrades, tooling, VS Code tasks                          | done                                                                                               |
+| S2    | Truth fixes — dead settings, false capabilities, dead crates         | done (S2-15 closed 2026-09-11: get_capabilities via useHostFacts, query_machine_history via S3-05) |
+| S3    | `vitals-store` for real: SQLite history, retention, flight recorder  | done (S3-05 History widget added 2026-09-11 — the store finally has a reader in the UI)            |
+| S4    | LAN server: REST, SSE, WebSocket, Prometheus, mDNS                   | done (S4-11 named-pipe IPC landed 2026-09-11 with the CLI attach path)                             |
+| S5    | CLI that samples directly                                            | done (6/6; attaches to the app over its named pipe, then :7330, samples directly otherwise)        |
+| S6    | Mobile PWA and QR pairing                                            | done except S6-05 alerts feed (S8 engine now exposes GET /api/v1/alerts; phone UI pending)         |
+| S7    | UI polish: motion, palette, ultrawide, export, shortcuts             | done (10/10)                                                                                       |
+| S8    | Tray, HUD, alerts, notifications, updater                            | done (6/6; alerts engine in Rust feeds desktop, tray, toasts, LAN)                                 |
+| S9    | New Windows metrics: DiskCounters, efficiency mode, handles, modules | backend done for 01/02/04/05 (vitals-win + vitals-core); 03/06/07 and the Tauri commands pending   |
+| S10   | Docs, ADRs, CI, supply-chain audits                                  | done except S10-12 (ARM64 leg unproven — needs a run on `windows-11-arm`, and agents never push)   |
 
 Per-item status lives in `tracker.csv`. This file records the reasoning; the
 CSV records the state.
@@ -160,6 +160,42 @@ CSV records the state.
 
 Every claim of "done" needs a command and its output. Recorded here as work
 lands, newest first.
+
+### 2026-09-11 — S3-05 History widget / S2-15 closed (no commit yet)
+
+**Why.** `query_machine_history` was registered and answered correctly, and
+nothing in the webview called it — `check-drift.ps1` had warned about it since
+the store landed. Another "built but unfed" instance: a SQLite time series
+written every second that no screen ever read. The widget is opt-in (added via
+Edit layout, not in the default layout), `full` width, and reads the store on
+mount and every 60 s **only while rendered** — the timer is owned by the
+effect, so removing the widget stops the reads.
+
+**Shape.** `widgets/useMachineHistory.ts` holds the one `invoke` spelling
+behind an injectable `HistorySource`, and `seriesFromSamples` builds three
+`RingBuffer`s (CPU %, memory % of total, GPU %). A `null` `gpuPercent` becomes
+`pushGap()`, never 0 — the store carries "unknown" through rollup and the chart
+must not turn it into an idle GPU. States: recording off → EmptyState with an
+"Open Settings" button (fires `OPEN_SETTINGS_EVENT`, handled in `AppShell`,
+same pattern as `DIAGNOSE_EVENT`); zero samples → "No history yet"; invoke
+failure → inline `role="alert"` line, never a blank canvas. The widget is a
+`lazy()` chunk (1.89 KB gz) so the entry does not pay for it.
+
+**Gates.**
+
+```
+pnpm -C apps/desktop exec tsc --noEmit                      → exit 0
+npx eslint apps/desktop/src/features/dashboard …             → exit 0
+pnpm -C apps/desktop exec vitest run src/features/dashboard  → Test Files 7 passed, Tests 92 passed
+  mutants: gpu.pushGap()→push(0)  → 1 failed;  drop clearInterval → 1 failed
+pnpm format:check                                            → All matched files use Prettier code style!
+pwsh scripts/check-drift.ps1   → drift: 0 failure(s), 0 warning(s) — 53 invokes, 53 commands
+pnpm -C apps/desktop build:vite → dist/assets/HistoryWidget-*.js 4.11 kB │ gzip: 1.89 kB
+pwsh scripts/check-size.ps1 -SkipInstaller
+  initial 181.0 KB of 181.6 KB (99.7%) — unchanged budget
+  shipped 366.3 KB of 366.3 KB — budget raised 372808 → 375129 B (+2321 B: the
+  lazy chunk plus strings/catalogue entry), deliberately to the measured value
+```
 
 ### 2026-09-11 — S4-11 / S5-06 attach pipe: one sampler per machine (no commit yet)
 

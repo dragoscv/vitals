@@ -106,10 +106,11 @@ pub struct FlightRecording {
 ///
 /// The frames are the exact bytes the sampler emitted, so a reproduction from
 /// this bundle shows what the reporter saw rather than a re-serialisation.
-#[tauri::command]
-// Tauri injects the handle by value.
-#[allow(clippy::needless_pass_by_value)]
-pub fn export_flight_recording(app: tauri::AppHandle) -> CommandResult<FlightRecording> {
+///
+/// Not a command: the webview never wants a two-minute recording as a JSON
+/// value, only written to a file, so it was registered for weeks and
+/// unreachable. `write_flight_recording` is the one entry point.
+fn export_flight_recording(app: &tauri::AppHandle) -> CommandResult<FlightRecording> {
     let frames = if store_path().exists() {
         open_reader()?
             .flight_frames()
@@ -150,7 +151,7 @@ pub fn export_flight_recording(app: tauri::AppHandle) -> CommandResult<FlightRec
 #[tauri::command]
 #[allow(clippy::needless_pass_by_value)]
 pub fn write_flight_recording(app: tauri::AppHandle, path: String) -> CommandResult<()> {
-    let recording = export_flight_recording(app)?;
+    let recording = export_flight_recording(&app)?;
     let json = serde_json::to_vec_pretty(&recording).map_err(|e| CommandError::Internal {
         message: format!("serialising the recording: {e}"),
     })?;

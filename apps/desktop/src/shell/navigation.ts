@@ -7,6 +7,14 @@
  * dashboard would drag it into the initial load.
  */
 export const DIAGNOSE_EVENT = 'vitals:diagnose';
+
+/**
+ * Fired on `window` by a screen that needs the Settings dialog open — the
+ * History widget, when recording is off. The dialog is owned by the shell,
+ * and threading an opener through the route tree for one button is more
+ * plumbing than the event it replaces.
+ */
+export const OPEN_SETTINGS_EVENT = 'vitals:open-settings';
 import {
   Activity,
   Boxes,

@@ -24,12 +24,13 @@ S2-11,S2,truth,Remove false capability claims,HandleEnumeration and SetEfficienc
 S2-12,S2,truth,Delete vitals-plugin,No consumer and no plan,D11,done,gates green 2026-09-10
 S2-13,S2,truth,Remove unused workspace Cargo deps,14 of 20 referenced by nobody,D11,done,gates green 2026-09-10
 S2-14,S2,truth,Remove unused npm deps,cmdk date-fns @tanstack/react-table and unused tauri plugins; recharts from the catalog,D16,done,gates green 2026-09-10
-S2-15,S2,truth,Wire or delete get_capabilities,Frontend derives from the frame; decide and act,D12,todo,
+S2-15,S2,truth,Wire or delete get_capabilities,Frontend derives from the frame; decide and act,D12,done,get_capabilities is wired via useHostFacts; query_machine_history wired into the History widget — check-drift 0 warnings 2026-09-11
 S2-16,S2,truth,Remove unused global-shortcut permission,Granted for nothing until S7 registers a palette shortcut,D13,done,gates green 2026-09-10
 S3-01,S3,store,Implement vitals-store on rusqlite,4-tier time series with WAL; schema migrations,D11,done,prove_store example + 18 store tests 2026-09-10
 S3-02,S3,store,Periodic history flush,Currently persisted only at loop exit; a kill loses the session,D11,done,gates green 2026-09-10
 S3-03,S3,store,Enforce retentionDays,Prune on a schedule; wire the setting through,D13,done,prove_store example + 18 store tests 2026-09-10
 S3-04,S3,store,Flight recorder,Capture 60 s of frames and export a shareable bundle,D8,done,prove_store example + 18 store tests 2026-09-10
+S3-05,S3,store,History widget on the dashboard,Opt-in full-width widget reading query_machine_history: CPU/memory/GPU over 1 h–7 d with recording-off / empty / error states; null GPU is a gap,D11,done,tsc + eslint + 92 dashboard vitest (6 new; two mutants killed) + check-drift 0 warnings + size budget 2026-09-11
 S4-01,S4,server,New crate vitals-server on axum 0.8.9,default-features off; http1 json tokio ws query,D2,done,server crate + 11 socket tests + prove_lan live 2026-09-10
 S4-02,S4,server,Bearer auth middleware,Constant-time comparison; scoped tokens; revocable,D3,done,server crate + 11 socket tests + prove_lan live 2026-09-10
 S4-03,S4,server,REST endpoints,snapshot processes alerts host volumes sensors,D2,done,server crate + 11 socket tests + prove_lan live 2026-09-10

@@ -39,6 +39,7 @@ export const widgetIds = [
   'uptime',
   'storage',
   'alerts',
+  'history',
 ] as const;
 
 export type WidgetId = (typeof widgetIds)[number];
@@ -161,6 +162,17 @@ export const widgetCatalogue: readonly WidgetDefinition[] = [
     id: 'alerts',
     titleKey: 'widget.alerts.title',
     descriptionKey: 'widget.alerts.description',
+    requires: 'always',
+    defaultSize: 'full',
+    essential: false,
+  },
+  {
+    id: 'history',
+    titleKey: 'widget.history.title',
+    descriptionKey: 'widget.history.description',
+    // 'always', not gated on the setting: when recording is off the widget
+    // explains how to turn it on, which is more useful than vanishing from
+    // the picker with no hint that the feature exists.
     requires: 'always',
     defaultSize: 'full',
     essential: false,

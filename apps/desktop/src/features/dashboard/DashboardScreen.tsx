@@ -17,7 +17,7 @@
  */
 
 import { LayoutGrid, PlugZap, Plus, RotateCcw, Settings2, Stethoscope } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import type { Alert } from '@vitals/protocol';
@@ -33,7 +33,8 @@ import {
   Skeleton,
 } from '@vitals/ui';
 
-import { DIAGNOSE_EVENT, type RouteId } from '../../shell/navigation';
+import { DIAGNOSE_EVENT, OPEN_SETTINGS_EVENT, type RouteId } from '../../shell/navigation';
+import { useSettings } from '../../settings/store';
 import { useAlerts, type AlertSource } from '../alerts/useAlerts';
 import { DiagnosisDialog } from '../diagnosis/DiagnosisDialog';
 import { createTauriDiagnosisSource, type DiagnosisSource } from '../diagnosis/source';
@@ -64,6 +65,7 @@ import {
   NetworkWidget,
   type WidgetBodyProps,
 } from './widgets/ResourceWidgets';
+import type { HistorySource } from './widgets/useMachineHistory';
 import { WidgetFrame } from './WidgetFrame';
 import {
   availableToAdd,
@@ -73,6 +75,17 @@ import {
   type WidgetId,
 } from './widgets';
 
+/**
+ * Lazy because the dashboard is in the entry chunk and this widget is opt-in:
+ * most sessions never add it, and its hook and chart wiring should not be paid
+ * for on every launch. The fallback is card-shaped so the grid does not jump
+ * when the chunk lands.
+ */
+const HistoryWidget = lazy(async () => {
+  const module = await import('./widgets/HistoryWidget');
+  return { default: module.HistoryWidget };
+});
+
 export interface DashboardScreenProps {
   /** Injectable so tests and the sampler-less preview need no Tauri host. */
   readonly source?: SystemSource;
@@ -80,6 +93,8 @@ export interface DashboardScreenProps {
   readonly alertSource?: AlertSource;
   /** The "Why is my PC slow?" backend; injectable for the same reason. */
   readonly diagnosisSource?: DiagnosisSource;
+  /** The recorded-history store behind the History widget; injectable for tests. */
+  readonly historySource?: HistorySource;
   readonly layoutBackend?: LayoutBackend;
   readonly historyCollector?: HistoryCollector;
   /**
@@ -94,6 +109,7 @@ export function DashboardScreen({
   source,
   alertSource,
   diagnosisSource,
+  historySource,
   layoutBackend,
   historyCollector = sharedHistory,
   onNavigate,
@@ -130,6 +146,7 @@ export function DashboardScreen({
   );
 
   const alerts = useAlerts(alertSource);
+  const recording = useSettings((state) => state.settings.historyEnabled);
 
   const [diagnosisSourceFallback] = useState<DiagnosisSource | null>(() =>
     diagnosisSource === undefined ? createTauriDiagnosisSource() : null,
@@ -292,6 +309,8 @@ export function DashboardScreen({
                   history={historyState}
                   locale={locale}
                   alerts={alerts}
+                  recording={recording}
+                  historySource={historySource}
                   onNavigate={navigate}
                 />
               </WidgetFrame>
@@ -328,6 +347,8 @@ function WidgetBody({
   history,
   locale,
   alerts,
+  recording,
+  historySource,
   onNavigate,
 }: {
   readonly id: WidgetId;
@@ -335,11 +356,28 @@ function WidgetBody({
   readonly history: WidgetBodyProps['history'];
   readonly locale: string;
   readonly alerts: readonly Alert[];
+  readonly recording: boolean;
+  readonly historySource: HistorySource | undefined;
   readonly onNavigate: (route: RouteId) => void;
 }): React.JSX.Element | null {
   const system = snapshot.system;
 
   if (id === 'alerts') return <AlertsWidget alerts={alerts} onNavigate={onNavigate} />;
+  // Reads the store, not the live frame, so it renders before the sampler
+  // has reported and keeps rendering if it never does.
+  if (id === 'history') {
+    return (
+      <Suspense fallback={<Skeleton className="h-32 w-full" />}>
+        <HistoryWidget
+          recording={recording}
+          onOpenSettings={() => {
+            window.dispatchEvent(new Event(OPEN_SETTINGS_EVENT));
+          }}
+          {...(historySource !== undefined && { source: historySource })}
+        />
+      </Suspense>
+    );
+  }
   // Every other widget needs a frame. Rendering them against `null` would mean
   // twelve independent null checks, each of which is a chance to display a
   // zero that was never measured.
