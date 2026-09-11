@@ -54,6 +54,35 @@ connecting address; a request from the network still needs a token.
 - **No authentication for `/api/v1/health`**, which returns only that the
   server is up.
 
+## Replacing Task Manager (opt-in, writes `HKLM`)
+
+Settings → General → **Replace Task Manager** uses the mechanism Process
+Explorer has used for twenty years: the `Debugger` value under
+`HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution
+Options\taskmgr.exe`, pointed at `vitals-desktop.exe`. Windows then launches
+Vitals wherever it would have launched Task Manager.
+
+- **Off by default.** Nothing is written until you turn the switch on.
+- **Elevation is a separate, short-lived process.** The UI never gains
+  privileges. Turning the switch on or off starts a second copy of Vitals
+  under UAC with the argument `--set-taskmgr-replacement on|off`; it writes
+  one registry value, exits, and the un-elevated instance re-reads the key
+  to confirm the write actually landed. A declined prompt is a "no", not an
+  error.
+- **It will not displace another tool.** If the value already names a
+  different program (Process Explorer, System Informer), the switch is
+  disabled and says so; Vitals never overwrites or deletes a hook it did
+  not set.
+- **The real Task Manager stays reachable.** "Open Windows Task Manager" in
+  the tray and in Settings starts `taskmgr.exe` as a debuggee, the documented
+  way to bypass the hook. Task Manager then relaunches itself elevated, and
+  that launch is redirected to Vitals too — an _elevated_ Vitals started with
+  Task Manager's command line therefore hands straight back to the real
+  program and exits, without showing a window or touching the sampler.
+- **Uninstalling does not yet remove the value.** Turn the switch off before
+  uninstalling, or delete the `Debugger` value by hand; a dangling value makes
+  `Ctrl+Shift+Esc` fail with "file not found" until it is removed.
+
 ## The elevated helper (planned, not shipped)
 
 `apps/helper` is a planned SYSTEM-level service for readings that need

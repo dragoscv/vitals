@@ -161,6 +161,77 @@ CSV records the state.
 Every claim of "done" needs a command and its output. Recorded here as work
 lands, newest first.
 
+### 2026-09-11 — S11-11 Replace Task Manager with Vitals (no commit yet)
+
+**Why.** The user asked for Vitals in the taskbar's right-click menu, above
+Task Manager. Windows has no API for adding an entry there; the only
+supported mechanism — the one Process Explorer has used for twenty years —
+is the Image File Execution Options `Debugger` value on `taskmgr.exe`, which
+redirects _every_ route to Task Manager (taskbar menu, `Ctrl+Shift+Esc`,
+`Ctrl+Alt+Del`, `Win+X`, typing "taskmgr") to us.
+
+**Shape.** `vitals-win::actions::taskmgr` owns the key. Three guards, each
+for a real hazard: it is `HKLM`, so a denied write re-launches Vitals
+elevated with `--set-taskmgr-replacement on|off` and then **re-reads the key**
+(an elevated child exiting 0 is not evidence); it is shared, so a hook owned
+by another tool is reported as `ReplacedByOther` and refused, never
+clobbered; and it intercepts our own launches, so the real Task Manager is
+started as a debuggee (`DEBUG_ONLY_THIS_PROCESS`, drain the initial events,
+`DebugSetProcessKillOnExit(FALSE)`, detach). The switch is not an
+`AppSettings` field on purpose — the truth is machine-wide and can change
+while Vitals is closed, so it is read from the registry on open and after
+every change.
+
+**The bug that made this hard.** `taskmgr.exe` always starts unelevated and
+immediately re-launches _itself_ elevated via AppInfo. The debuggee
+exemption covers only the process we create; the elevation hop is an ordinary
+`CreateProcess`, so IFEO caught it and turned it into a second Vitals. The
+real Task Manager lived about 400 ms and vanished, while the command
+returned `Ok`. My first hypothesis — check whether the parent is
+`taskmgr.exe` — was wrong, and the prover said so: the hop arrives with
+**parent `None`**, because AppInfo spawns it and the first Task Manager has
+already exited. The discriminator that works is the **token**: a person's
+shortcut is never elevated, the hop always is. So an elevated launch carrying
+Task Manager's command line hands straight back to the real program and
+exits without creating a window. Documented limitation: a user whose whole
+shell is elevated gets the real Task Manager from the hotkey.
+
+**Ripple.** Settings → General gains the switch (disabled, with the owner's
+name, when another tool holds the hook) and an "Open Windows Task Manager"
+button; the tray menu gains the same item, enabled only on Windows. EN + RO.
+The NSIS `PREUNINSTALL` hook now deletes the `Debugger` value **only when it
+names Vitals** — without it, uninstalling leaves `Ctrl+Shift+Esc` pointing at
+a deleted file. Not added to the CLI, SDK or Prometheus: this is a
+desktop-shell setting, not a reading, and none of them has a surface for it.
+
+**Gates.**
+
+```
+cargo fmt --all -- --check                                → exit 0
+cargo clippy -p vitals-win -p vitals-desktop --all-targets -- -D warnings → exit 0
+cargo test -p vitals-win --lib taskmgr                    → 7 passed
+pnpm -C apps/desktop exec vitest run                      → 88 files, 874 tests passed
+pnpm typecheck                                            → exit 0
+pnpm exec eslint apps/desktop/src packages/protocol/src   → exit 0
+pwsh scripts/check-drift.ps1                              → 0 failure(s), 0 warning(s), 56 invokes / 56 commands
+pwsh scripts/check-size.ps1                               → within budget (shipped raised 1467 B to measured 376596)
+```
+
+**Live** (dev binary, `StartTime 09:12` after the edit; hook pointed at
+`target\debug\vitals-desktop.exe`):
+
+```
+get_taskmgr_replacement (hook = prover) → {"enabled":false,"replacedBy":"...prove_taskmgr_parent.exe"}
+set_taskmgr_replacement(true) on that   → refused: "... is currently registered ... remove it in that application"
+set_taskmgr_replacement(true)           → {"enabled":true,"path":"E:\\gh\\remi\\target\\debug\\vitals-desktop.exe"}
+launch_real_taskmgr, hook ON            → Taskmgr(65756) → vitals(60380) → Taskmgr(72920) ALIVE, title "Task Manager"
+Start-Process taskmgr.exe, window minimised → vitals-desktop launched with "C:\WINDOWS\system32\Taskmgr.exe",
+                                             minimised:False, foreground:True, taskmgr count 0, vitals instances 1
+```
+
+The middle line is the whole feature: the hop through Vitals is invisible,
+and the real Task Manager survives it.
+
 ### 2026-09-11 — S9-07 Measured startup impact (no commit yet)
 
 **Why.** The Startup screen listed what runs at logon but had no cost figure;

@@ -41,6 +41,13 @@ const en = {
         'A small always-on-top panel with CPU, memory and GPU. Ctrl+Shift+H shows or hides it.',
       confirmEndTask: 'Ask before ending a task',
       confirmEndTaskHint: 'Critical system processes always ask, whatever this is set to.',
+      replaceTaskManager: 'Replace Task Manager',
+      replaceTaskManagerHint:
+        'Ctrl+Shift+Esc and the taskbar\u2019s \u201cTask Manager\u201d open Vitals instead. Windows will ask for permission to change this.',
+      replaceTaskManagerOwned:
+        '{{debugger}} is already set up as the Task Manager replacement. Turn it off there first.',
+      openTaskManager: 'Open Windows Task Manager',
+      openTaskManagerHint: 'The built-in one, even while Vitals has replaced it.',
       quit: 'Quit Vitals',
       quitHint: 'Stops monitoring and closes the app completely.',
     },
@@ -109,6 +116,7 @@ const en = {
   tray: {
     show: 'Show Vitals',
     pause: 'Pause sampling',
+    taskManager: 'Open Windows Task Manager',
     quit: 'Quit',
     cpu: 'CPU',
     memory: 'Memory',
@@ -183,6 +191,13 @@ const ro = {
       confirmEndTask: 'Cere confirmare înainte de a opri un proces',
       confirmEndTaskHint:
         'Procesele critice de sistem cer întotdeauna confirmare, indiferent de această setare.',
+      replaceTaskManager: 'Înlocuiește Task Manager',
+      replaceTaskManagerHint:
+        'Ctrl+Shift+Esc și opțiunea „Task Manager” din bara de activități deschid Vitals. Windows va cere permisiunea pentru această schimbare.',
+      replaceTaskManagerOwned:
+        '{{debugger}} este deja configurat ca înlocuitor pentru Task Manager. Dezactivează-l mai întâi de acolo.',
+      openTaskManager: 'Deschide Task Manager-ul din Windows',
+      openTaskManagerHint: 'Cel încorporat în Windows, chiar dacă Vitals l-a înlocuit.',
       quit: 'Închide Vitals',
       quitHint: 'Oprește monitorizarea și închide aplicația complet.',
     },
@@ -250,6 +265,7 @@ const ro = {
   tray: {
     show: 'Afișează Vitals',
     pause: 'Suspendă măsurarea',
+    taskManager: 'Deschide Task Manager-ul din Windows',
     quit: 'Închide',
     cpu: 'CPU',
     memory: 'Memorie',

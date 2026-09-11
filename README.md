@@ -82,6 +82,10 @@ Vitals is an attempt at all of it in one place, fast, and readable.
 ### Around the edges
 
 - **Tray icon** with live CPU; closing the window hides it there if you ask.
+- **Replace Task Manager** — opt-in, in Settings → General. `Ctrl+Shift+Esc`,
+  the taskbar's right-click menu and `Win+X` open Vitals instead. Windows asks
+  for permission once to set it, and the tray keeps an "Open Windows Task
+  Manager" entry so the built-in one is always a click away.
 - **HUD** — an always-on-top, transparent, click-through overlay for CPU,
   memory and GPU. `Ctrl+Shift+H`.
 - **Updater** — checks a minisign signature before installing anything; an

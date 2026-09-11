@@ -56,6 +56,10 @@ const NO_PERCENT: u16 = u16::MAX;
 pub struct TrayStrings {
     pub show: String,
     pub pause: String,
+    /// "Open Windows Task Manager". Lives in the tray because, once Vitals
+    /// has replaced Task Manager, the tray is the one place that is always
+    /// reachable and is not itself Task Manager.
+    pub task_manager: String,
     pub quit: String,
     pub cpu: String,
     pub memory: String,
@@ -69,6 +73,7 @@ impl Default for TrayStrings {
         Self {
             show: "Show Vitals".into(),
             pause: "Pause sampling".into(),
+            task_manager: "Open Windows Task Manager".into(),
             quit: "Quit".into(),
             cpu: "CPU".into(),
             memory: "Memory".into(),
@@ -98,6 +103,7 @@ pub struct Tray {
 struct MenuHandles {
     show: MenuItem<Wry>,
     pause: CheckMenuItem<Wry>,
+    task_manager: MenuItem<Wry>,
     quit: MenuItem<Wry>,
     /// Last value written to the pause checkbox, so the common case (no
     /// change) touches no OS state.
@@ -152,6 +158,7 @@ impl Tray {
         if let Some(handles) = self.menu.lock().as_ref() {
             let _ = handles.show.set_text(&strings.show);
             let _ = handles.pause.set_text(&strings.pause);
+            let _ = handles.task_manager.set_text(&strings.task_manager);
             let _ = handles.quit.set_text(&strings.quit);
         }
         // Force the next observe to rewrite the tooltip in the new language.
@@ -197,11 +204,21 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
         None::<&str>,
     )?;
     let quit = MenuItem::with_id(app, "quit", &strings.quit, true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&show, &pause, &quit])?;
+    // Only offered where there is a real Task Manager to open. On other
+    // platforms the item would be a button that does nothing.
+    let task_manager = MenuItem::with_id(
+        app,
+        "task_manager",
+        &strings.task_manager,
+        cfg!(windows),
+        None::<&str>,
+    )?;
+    let menu = Menu::with_items(app, &[&show, &pause, &task_manager, &quit])?;
 
     *tray.menu.lock() = Some(MenuHandles {
         show,
         pause,
+        task_manager,
         quit,
         paused: is_paused(app),
     });
@@ -247,10 +264,25 @@ fn on_menu_event(app: &AppHandle, event: &MenuEvent) {
     match event.id.as_ref() {
         "show" => reveal(app),
         "pause" => toggle_pause(app),
+        "task_manager" => open_real_task_manager(),
         "quit" => app.exit(0),
         _ => {}
     }
 }
+
+/// Starts the built-in Task Manager, bypassing our own IFEO hook if it is on.
+///
+/// Failure is logged, not surfaced: the tray has no UI to show an error in,
+/// and the user can see for themselves that nothing opened.
+#[cfg(windows)]
+fn open_real_task_manager() {
+    if let Err(error) = vitals_win::actions::launch_real_task_manager() {
+        tracing::warn!(%error, "could not open Windows Task Manager");
+    }
+}
+
+#[cfg(not(windows))]
+fn open_real_task_manager() {}
 
 fn is_paused(app: &AppHandle) -> bool {
     app.try_state::<AppState>()

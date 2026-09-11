@@ -202,6 +202,7 @@ function useTrayStringsSync(): void {
       void pushTrayStrings({
         show: t('tray.show'),
         pause: t('tray.pause'),
+        taskManager: t('tray.taskManager'),
         quit: t('tray.quit'),
         cpu: t('tray.cpu'),
         memory: t('tray.memory'),

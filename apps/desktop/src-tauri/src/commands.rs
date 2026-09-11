@@ -31,6 +31,11 @@ pub enum CommandError {
     NotFound { message: String },
     #[error("{message}")]
     Unsupported { message: String },
+    /// The backend declined on purpose: the user dismissed a UAC prompt, or
+    /// the action would have trampled something that is not ours. Not a
+    /// fault, so the UI should state it and not offer a retry-as-admin.
+    #[error("{message}")]
+    Refused { message: String },
     #[error("{message}")]
     Internal { message: String },
 }
@@ -43,6 +48,7 @@ impl From<vitals_core::Error> for CommandError {
             | vitals_core::Error::HelperUnavailable { .. } => Self::AccessDenied { message },
             vitals_core::Error::NotFound(_) => Self::NotFound { message },
             vitals_core::Error::Unsupported(_) => Self::Unsupported { message },
+            vitals_core::Error::Refused(_) => Self::Refused { message },
             _ => Self::Internal { message },
         }
     }
@@ -550,6 +556,85 @@ pub fn show_file_properties(path: String) -> CommandResult<()> {
     Ok(())
 }
 
+/// Who Ctrl+Shift+Esc currently opens, as the Settings switch sees it.
+///
+/// A DTO rather than serialising `vitals_win::ReplacementStatus` directly:
+/// the switch needs one boolean and, when it is disabled, the name of the
+/// tool that owns the hook — not a platform enum.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TaskManagerReplacement {
+    /// Vitals is what the taskbar menu and Ctrl+Shift+Esc launch.
+    pub enabled: bool,
+    /// Another program owns the hook, so the switch must be disabled and
+    /// say why. `None` when the hook is ours or absent.
+    pub replaced_by: Option<String>,
+    /// The executable the hook points at when `enabled`, for display.
+    pub path: Option<String>,
+}
+
+/// Reads the Task Manager replacement state from the registry.
+///
+/// Uncached: the value can be changed by another tool while Vitals is open,
+/// and the Settings panel asks once when it mounts.
+#[tauri::command]
+#[cfg(windows)]
+pub fn get_taskmgr_replacement() -> CommandResult<TaskManagerReplacement> {
+    use vitals_win::actions::ReplacementStatus;
+
+    Ok(match vitals_win::actions::replacement_status()? {
+        ReplacementStatus::NotReplaced => TaskManagerReplacement {
+            enabled: false,
+            replaced_by: None,
+            path: None,
+        },
+        ReplacementStatus::ReplacedByUs { path } => TaskManagerReplacement {
+            enabled: true,
+            replaced_by: None,
+            path: Some(path),
+        },
+        ReplacementStatus::ReplacedByOther { debugger } => TaskManagerReplacement {
+            enabled: false,
+            replaced_by: Some(debugger),
+            path: None,
+        },
+    })
+}
+
+/// Makes Vitals — or stops it being — what Ctrl+Shift+Esc opens.
+///
+/// Writes `HKLM`, so this triggers a UAC prompt on the first change. A
+/// declined prompt comes back as [`CommandError::Refused`], and so does an
+/// attempt to displace another tool's hook. `async` because the elevated
+/// child is waited on, and the wait must not block the command thread that
+/// the rest of the UI is invoking on.
+#[tauri::command]
+#[cfg(windows)]
+pub async fn set_taskmgr_replacement(enabled: bool) -> CommandResult<TaskManagerReplacement> {
+    let exe = std::env::current_exe().map_err(vitals_core::Error::from)?;
+
+    tauri::async_runtime::spawn_blocking(move || {
+        vitals_win::actions::set_replacement(enabled, &exe)
+    })
+    .await
+    .map_err(|err| CommandError::Internal {
+        message: format!("the registry write was abandoned: {err}"),
+    })??;
+
+    get_taskmgr_replacement()
+}
+
+/// Opens the real Windows Task Manager even while Vitals has replaced it.
+///
+/// The tray menu's "Open Windows Task Manager" needs this: with the hook
+/// on, a plain `taskmgr.exe` launch would start a second Vitals instead.
+#[tauri::command]
+#[cfg(windows)]
+pub fn launch_real_taskmgr() -> CommandResult<()> {
+    vitals_win::actions::launch_real_task_manager()?;
+    Ok(())
+}
+
 // ---------------------------------------------------------------------------
 // Non-Windows stubs
 //
@@ -648,6 +733,40 @@ pub fn open_file_location(path: String) -> CommandResult<()> {
 pub fn show_file_properties(path: String) -> CommandResult<()> {
     let _ = path;
     Err(unsupported("the file properties dialog"))
+}
+
+/// See the Windows implementation.
+///
+/// # Errors
+///
+/// Always: Image File Execution Options is a Windows mechanism.
+#[tauri::command]
+#[cfg(not(windows))]
+pub fn get_taskmgr_replacement() -> CommandResult<()> {
+    Err(unsupported("replacing Task Manager"))
+}
+
+/// See the Windows implementation.
+///
+/// # Errors
+///
+/// Always: Image File Execution Options is a Windows mechanism.
+#[tauri::command]
+#[cfg(not(windows))]
+pub fn set_taskmgr_replacement(enabled: bool) -> CommandResult<()> {
+    let _ = enabled;
+    Err(unsupported("replacing Task Manager"))
+}
+
+/// See the Windows implementation.
+///
+/// # Errors
+///
+/// Always: there is no Task Manager to launch.
+#[tauri::command]
+#[cfg(not(windows))]
+pub fn launch_real_taskmgr() -> CommandResult<()> {
+    Err(unsupported("launching Task Manager"))
 }
 
 /// The one place the non-Windows refusal is worded.

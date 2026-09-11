@@ -50,6 +50,12 @@ windows-sys = { version = "0.61.2", features = [
 	"Win32_UI_Shell_Common",
 	"Win32_UI_WindowsAndMessaging",
 	"Win32_System_Registry",
+	# Task Manager replacement: the real taskmgr is started as a debuggee to
+	# bypass the IFEO hook that would otherwise relaunch us.
+	"Win32_System_Diagnostics_Debug",
+	# `RegCreateKeyExW` and `CreateProcessW` take SECURITY_ATTRIBUTES, which
+	# only exists when this is on.
+	"Win32_Security",
 ] }
 
 [lints]

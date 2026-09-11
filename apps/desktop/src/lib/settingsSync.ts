@@ -87,6 +87,7 @@ export async function pushCloseToTray(enabled: boolean): Promise<void> {
 export async function pushTrayStrings(strings: {
   show: string;
   pause: string;
+  taskManager: string;
   quit: string;
   cpu: string;
   memory: string;
@@ -100,6 +101,21 @@ export async function pushTrayStrings(strings: {
   } catch {
     // Intentionally ignored; see module doc.
   }
+}
+
+/**
+ * Opens the real Windows Task Manager.
+ *
+ * Goes through the backend rather than a shell `taskmgr` launch: while
+ * Vitals is registered as the Task Manager replacement, launching
+ * `taskmgr.exe` normally would start a second Vitals, and the user who
+ * pressed this button wanted the other program. Not swallowed for the same
+ * reason as `quitApp`.
+ */
+export async function openWindowsTaskManager(): Promise<void> {
+  if (!hasTauriHost()) return;
+  const { invoke } = await import('@tauri-apps/api/core');
+  await invoke('launch_real_taskmgr');
 }
 
 /**

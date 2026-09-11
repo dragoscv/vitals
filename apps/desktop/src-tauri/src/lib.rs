@@ -12,6 +12,7 @@ pub mod history;
 pub mod hud;
 pub mod inventory;
 pub mod ipc;
+pub mod launch;
 pub mod sampling;
 pub mod server;
 pub mod startup_impact;
@@ -35,6 +36,35 @@ pub fn run() {
                 .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
         )
         .init();
+
+    // Decided before the builder exists: two of these modes must never
+    // create a window, and one of them is the elevated child that a running
+    // instance is waiting on right now.
+    let mode = launch::classify(std::env::args().skip(1));
+    tracing::debug!(?mode, args = ?std::env::args().collect::<Vec<_>>(), "launch classified");
+    match mode {
+        launch::LaunchMode::SetReplacement { .. } | launch::LaunchMode::LaunchRealTaskManager => {
+            std::process::exit(launch::run_headless(&mode));
+        }
+        launch::LaunchMode::AsTaskManager => {
+            // Two very different callers arrive with the same command line.
+            // The taskbar menu and Ctrl+Shift+Esc mean "the user wants a
+            // task manager", and Vitals is it. But `taskmgr.exe` also
+            // re-launches *itself* elevated on every start, and the hook
+            // redirects that launch here too — so when we arrive elevated
+            // (a person's shortcut never is), the user (or Vitals, via
+            // "Open Windows Task Manager") asked for the real one, and
+            // showing a window would hijack that request. Being elevated is
+            // exactly what the real Task Manager needed, so hand it on.
+            if launch::handed_off_from_task_manager() {
+                std::process::exit(launch::run_headless(
+                    &launch::LaunchMode::LaunchRealTaskManager,
+                ));
+            }
+            tracing::info!("launched in place of Task Manager");
+        }
+        launch::LaunchMode::Normal => {}
+    }
 
     tauri::Builder::default()
         // Single instance must be registered first so a second launch is
@@ -120,6 +150,12 @@ fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
         // reporting a command that does not exist.
         commands::open_file_location,
         commands::show_file_properties,
+        // Task Manager replacement (IFEO). Same no-`cfg` argument: the
+        // non-Windows stubs answer `Unsupported`. Desktop-only on purpose —
+        // a phone must not be able to rewrite HKLM on a paired PC.
+        commands::get_taskmgr_replacement,
+        commands::set_taskmgr_replacement,
+        commands::launch_real_taskmgr,
         // On-demand inventories. Request/response rather than pushed:
         // slow to gather, rarely changing, and only wanted while their
         // own screen is open. See `inventory` for the full argument.

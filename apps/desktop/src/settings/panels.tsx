@@ -16,7 +16,7 @@ import {
 
 import { SHELL_NS } from '../shell/strings';
 import { hasTauriHost } from '../shell/host';
-import { quitApp } from '../lib/settingsSync';
+import { openWindowsTaskManager, quitApp } from '../lib/settingsSync';
 import { useTheme } from '../theme/ThemeProvider';
 import { accents, densities, surfaces, themeModes, type Accent } from '../theme/types';
 import { SettingsRow, SettingsSection } from './SettingsRow';
@@ -25,6 +25,7 @@ import { retentionDayOptions, samplingRates } from './schema';
 import { useSettings } from './store';
 import { useHostInfo } from './useHostInfo';
 import { useHistoryUsage } from './useHistoryUsage';
+import { useTaskManagerReplacement } from './useTaskManagerReplacement';
 import { UpdateSection } from './UpdatePanel';
 
 /**
@@ -43,6 +44,19 @@ export function GeneralPanel() {
   const { t } = useTranslation(SHELL_NS);
   const settings = useSettings((state) => state.settings);
   const patch = useSettings((state) => state.patch);
+  const taskManager = useTaskManagerReplacement();
+
+  // Three reasons the switch cannot move, each shown rather than implied:
+  // the registry has not answered yet, a write is in flight, or another
+  // tool owns the hook and we refuse to take it from them.
+  const taskManagerLocked =
+    taskManager.status === null || taskManager.busy || taskManager.status.replacedBy !== null;
+  const taskManagerHint =
+    taskManager.status?.replacedBy !== null && taskManager.status?.replacedBy !== undefined
+      ? t('settings.general.replaceTaskManagerOwned', {
+          debugger: taskManager.status.replacedBy,
+        })
+      : t('settings.general.replaceTaskManagerHint');
 
   return (
     <SettingsSection title={t('settings.general.title')}>
@@ -113,6 +127,40 @@ export function GeneralPanel() {
             checked={settings.confirmEndTask}
             onCheckedChange={(value) => patch({ confirmEndTask: value })}
           />
+        )}
+      </SettingsRow>
+
+      <SettingsRow
+        label={t('settings.general.replaceTaskManager')}
+        description={taskManager.error ?? taskManagerHint}
+      >
+        {({ labelId, describedBy }) => (
+          <Switch
+            aria-labelledby={labelId}
+            aria-describedby={describedBy}
+            aria-invalid={taskManager.error !== null || undefined}
+            checked={taskManager.status?.enabled ?? false}
+            disabled={taskManagerLocked}
+            onCheckedChange={(value) => taskManager.set(value)}
+          />
+        )}
+      </SettingsRow>
+
+      <SettingsRow
+        label={t('settings.general.openTaskManager')}
+        description={t('settings.general.openTaskManagerHint')}
+      >
+        {({ labelId }) => (
+          <Button
+            aria-labelledby={labelId}
+            variant="secondary"
+            disabled={!hasTauriHost()}
+            onClick={() => {
+              void openWindowsTaskManager();
+            }}
+          >
+            {t('settings.general.openTaskManager')}
+          </Button>
         )}
       </SettingsRow>
 

@@ -150,7 +150,7 @@ impl WindowsHost {
 /// Returns `false` on any failure. Wrongly claiming elevation would offer the
 /// user actions that then fail; wrongly denying it greys out something that
 /// would have worked, which is the safer direction to be wrong in.
-fn is_elevated() -> bool {
+pub(crate) fn is_elevated() -> bool {
     use windows::Win32::Foundation::{CloseHandle, HANDLE};
     use windows::Win32::Security::{
         GetTokenInformation, TOKEN_ELEVATION, TOKEN_QUERY, TokenElevation,

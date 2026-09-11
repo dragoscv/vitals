@@ -10,6 +10,7 @@
  * siblings, never inside `generated/`.
  */
 
+export * from './commands';
 export * from './generated';
 export * from './guards';
 export * from './select';
