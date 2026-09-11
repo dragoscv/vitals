@@ -123,9 +123,14 @@ fn run(app: &AppHandle, stop: &AtomicBool) {
             backend.request_keyframe();
         }
 
+        #[cfg(windows)]
+        arm_startup_impact(app, &mut backend);
+
         match backend.next_frame() {
             Ok(frame) => {
                 consecutive_failures = 0;
+                #[cfg(windows)]
+                feed_startup_impact(app, &mut backend, &frame);
                 #[cfg(windows)]
                 if let Some(state) = app.try_state::<AppState>() {
                     state.publish_processes(backend.take_rollup_sample());
@@ -225,6 +230,32 @@ fn run(app: &AppHandle, stop: &AtomicBool) {
     }
 }
 
+/// Decides, before sampling, whether this tick still falls inside the boot
+/// window, so the backend only builds per-process observations (one
+/// allocation per process) while somebody will consume them.
+#[cfg(windows)]
+fn arm_startup_impact(app: &AppHandle, backend: &mut Backend) {
+    let wants = app
+        .try_state::<crate::startup_impact::StartupImpactStore>()
+        .is_some_and(|store| store.is_measuring(backend.last_uptime_secs().unwrap_or(0)));
+    backend.set_wants_impact(wants);
+}
+
+/// Folds the tick into the startup-impact accumulator.
+///
+/// Every tick, not only measured ones: the call that lands outside the
+/// window is the one that finalises and persists the measurement.
+#[cfg(windows)]
+fn feed_startup_impact(app: &AppHandle, backend: &mut Backend, frame: &vitals_core::sample::Frame) {
+    if let Some(store) = app.try_state::<crate::startup_impact::StartupImpactStore>() {
+        store.observe(
+            frame.system().cpu.uptime_secs,
+            frame.elapsed_ms,
+            &backend.take_impact_observations(),
+        );
+    }
+}
+
 /// Applies any settings change to the recorder. Cheap when nothing changed.
 fn reconcile_recorder(
     app: &AppHandle,
@@ -303,6 +334,14 @@ struct Backend {
     /// The per-session reduction of the last sample, taken before the sample
     /// is consumed by the frame builder.
     rollup: Vec<vitals_win::users::ProcessSample>,
+    /// Per-process observations for the startup-impact accumulator, built
+    /// only while `wants_impact` is set — the boot window is two minutes and
+    /// the sampler runs for hours, so this is empty almost always.
+    impact: Vec<vitals_win::startup::Observation>,
+    wants_impact: bool,
+    /// Uptime from the last sample, so the loop can ask whether the window
+    /// is still open before the next sample is taken.
+    last_uptime_secs: Option<u64>,
 }
 
 #[cfg(windows)]
@@ -312,6 +351,12 @@ impl Backend {
             sampler: vitals_win::SystemSampler::new(),
             frames: vitals_win::FrameBuilder::new(),
             rollup: Vec::new(),
+            impact: Vec::new(),
+            // True until the first sample says otherwise: the first tick is
+            // the one most likely to be inside the window, and skipping it
+            // because uptime was not yet known would lose a second of boot.
+            wants_impact: true,
+            last_uptime_secs: None,
         }
     }
 
@@ -331,11 +376,27 @@ impl Backend {
                 private_bytes: p.raw.private_bytes,
             })
             .collect();
+        self.last_uptime_secs = Some(sample.system.cpu.uptime_secs);
+        if self.wants_impact {
+            self.impact = crate::startup_impact::observations(&sample.processes);
+        }
         Ok(self.frames.build(sample))
     }
 
     fn take_rollup_sample(&mut self) -> Vec<vitals_win::users::ProcessSample> {
         std::mem::take(&mut self.rollup)
+    }
+
+    fn set_wants_impact(&mut self, wants: bool) {
+        self.wants_impact = wants;
+    }
+
+    fn last_uptime_secs(&self) -> Option<u64> {
+        self.last_uptime_secs
+    }
+
+    fn take_impact_observations(&mut self) -> Vec<vitals_win::startup::Observation> {
+        std::mem::take(&mut self.impact)
     }
 
     fn request_keyframe(&mut self) {

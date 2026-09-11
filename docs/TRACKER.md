@@ -161,6 +161,54 @@ CSV records the state.
 Every claim of "done" needs a command and its output. Recorded here as work
 lands, newest first.
 
+### 2026-09-11 — S9-07 Measured startup impact (no commit yet)
+
+**Why.** The Startup screen listed what runs at logon but had no cost figure;
+`startup/mod.rs` explained that Task Manager's rating comes from an OS boot
+trace and refused to fake one from image size. This measures instead: during
+the first 120 s of **uptime** (not of the app's life) the sampler's own
+per-process CPU % and disk rates are folded, per executable, into CPU-ms and
+bytes using the _measured_ `elapsed_ms`. Anchoring on `uptime_secs` is the
+point — a Vitals launched ten minutes into a session yields `None`, never a
+window of zeroes. The finished window is written to
+`%LOCALAPPDATA%\Vitals\startup-impact.json` (same best-effort pattern as
+`lan-tokens.json`) and reloaded at start so the screen shows _last_ boot's
+figures with the date they were measured.
+
+**Shape.** `vitals-win::startup::impact` is pure (no syscalls); the desktop's
+`startup_impact.rs` owns the store, the file, and the `executable_path` resolve
+closure — paid once per process and only inside the window; the sampler skips
+building observations at all once it closes. Matching is by normalised image
+path (case-folded, `/`→`\`, quotes stripped) with file-name fallback for
+processes that deny the handle. `vitals-core::StartupImpact` (three `Option`
+fields, `number | null` bindings) rides on `StartupEntryDto.impact`; the
+snapshot carries `impactMeasuredAtMs` for the caption. Column renders
+`formatCpuSeconds` + `formatBytes`, em dash for `null`. Desktop-only: not
+added to Prometheus, the SDK or the CLI — none of them exposes the startup
+inventory today, so there is no sibling surface to keep in step.
+
+**Gates.**
+
+```
+cargo fmt --all -- --check                                   → exit 0
+cargo clippy --workspace --all-targets -- -D warnings        → exit 0
+cargo test -p vitals-win -p vitals-core -p vitals-desktop    → 143 + 36 + 579 passed
+  (impact.rs: 11 tests incl. C:\A\b.EXE ≡ c:\a\b.exe, outside-window
+   not counted, uptime>120 at first sample → None, boundary tick clipped,
+   path resolved once per process)
+cargo test -p vitals-core --features ts                      → StartupImpact.ts generated, in index.ts
+pnpm typecheck                                               → exit 0
+npx eslint apps/desktop/src                                  → exit 0
+pnpm -C apps/desktop exec vitest run src/features/startup    → 4 files, 52 tests passed
+pwsh scripts/check-drift.ps1                                 → 0 failure(s), 0 warning(s)
+curl.exe -s http://127.0.0.1:7330/api/v1/health              → {"ok":true,"version":"0.1.0","modelVersion":1}
+```
+
+Live: dev binary relaunched after the edit (StartTime 06:50 > edit 06:34).
+This machine's uptime was 5688 s, so no `startup-impact.json` was written and
+the column shows em dashes under "Startup cost has not been measured yet" —
+the honest state; the first boot with Vitals in the Run key fills it in.
+
 ### 2026-09-11 — S3-05 History widget / S2-15 closed (no commit yet)
 
 **Why.** `query_machine_history` was registered and answered correctly, and

@@ -23,6 +23,8 @@
  * expected to say how many it could not read.
  */
 
+import type { StartupImpact } from '@vitals/protocol';
+
 export type StartupSourceKey =
   | 'machineRun'
   | 'machineRun32'
@@ -49,6 +51,15 @@ export type ServiceStateKey =
 
 export type StartTypeKey = 'boot' | 'system' | 'automatic' | 'manual' | 'disabled' | 'unknown';
 
+/**
+ * What an entry measurably cost at boot — see `impact.rs`.
+ *
+ * `null` on the entry means nothing was measured for it: Vitals was not
+ * running during the first two minutes after boot, or the executable did not
+ * run while it was. Neither is a zero, and the column must not print one.
+ */
+export type { StartupImpact };
+
 export interface StartupEntry {
   readonly name: string;
   readonly displayName: string | null;
@@ -58,6 +69,7 @@ export interface StartupEntry {
   readonly source: StartupSourceKey;
   readonly state: StartupStateKey;
   readonly pid: number | null;
+  readonly impact: StartupImpact | null;
 }
 
 export interface ServiceEntry {
@@ -74,6 +86,27 @@ export interface StartupSnapshot {
   readonly entries: readonly StartupEntry[];
   readonly services: readonly ServiceEntry[];
   readonly unreadableTasks: number;
+  /**
+   * When the boot window behind every `impact` closed, or `null` when no
+   * window has ever been measured on this machine.
+   */
+  readonly impactMeasuredAtMs: number | null;
+}
+
+/**
+ * CPU milliseconds as seconds with one decimal, or an em dash.
+ *
+ * Seconds rather than milliseconds because the question is "is this worth
+ * disabling", and "4.2 s" answers it where "4213 ms" makes the reader do
+ * arithmetic. `null` is the em dash every other unmeasured number uses.
+ */
+export function formatCpuSeconds(cpuMs: number | null, locale?: string): string {
+  if (cpuMs === null || !Number.isFinite(cpuMs)) return '—';
+  const seconds = cpuMs / 1000;
+  return `${new Intl.NumberFormat(locale, {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  }).format(seconds)} s`;
 }
 
 /**

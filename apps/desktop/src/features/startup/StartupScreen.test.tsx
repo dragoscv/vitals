@@ -26,6 +26,7 @@ function entry(overrides: Partial<StartupEntry> = {}): StartupEntry {
     source: 'userRun',
     state: 'enabled',
     pid: null,
+    impact: null,
     ...overrides,
   };
 }
@@ -44,7 +45,13 @@ function service(overrides: Partial<ServiceEntry> = {}): ServiceEntry {
 }
 
 function snapshot(overrides: Partial<StartupSnapshot> = {}): StartupSnapshot {
-  return { entries: [entry()], services: [service()], unreadableTasks: 0, ...overrides };
+  return {
+    entries: [entry()],
+    services: [service()],
+    unreadableTasks: 0,
+    impactMeasuredAtMs: null,
+    ...overrides,
+  };
 }
 
 async function mount(mode: 'startup' | 'services', data = snapshot()) {
@@ -111,6 +118,34 @@ describe('StartupScreen', () => {
       expect(screen.getByText(/1 of 2 will run at sign-in/)).toBeTruthy();
       expect(screen.getByText(/whose state could not be read/)).toBeTruthy();
       expect(screen.getByText(/a floor, not a total/)).toBeTruthy();
+    });
+
+    it('shows an em dash for an entry whose startup cost was not measured, never a zero', async () => {
+      // Vitals launched ten minutes into the session has nothing to say
+      // about boot. "0.0 s" would tell the user this item is free to keep.
+      await mount('startup', snapshot({ entries: [entry({ impact: null })] }));
+      const cell = screen.getByTestId('startup-impact');
+      expect(cell.textContent).toBe('——');
+      expect(cell.textContent).not.toMatch(/0/);
+      expect(screen.getByText(/has not been measured yet/)).toBeTruthy();
+    });
+
+    it('shows measured CPU seconds and disk bytes with the boot they describe', async () => {
+      await mount(
+        'startup',
+        snapshot({
+          entries: [
+            entry({
+              impact: { cpuMs: 4213, diskBytes: 15_728_640, measuredAtMs: 1_700_000_000_000 },
+            }),
+          ],
+          impactMeasuredAtMs: 1_700_000_000_000,
+        }),
+      );
+      const cell = screen.getByTestId('startup-impact');
+      expect(cell.textContent).toContain('4.2 s');
+      expect(cell.textContent).toContain('15.0 MB');
+      expect(screen.getByText(/measured over the first 2 minutes after boot on/)).toBeTruthy();
     });
 
     it('reports unreadable scheduled tasks', async () => {

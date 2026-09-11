@@ -35,6 +35,7 @@ pub mod process;
 pub mod provider;
 pub mod sample;
 pub mod sensor;
+pub mod startup;
 pub mod units;
 
 pub use capability::{Capabilities, Capability};
@@ -51,6 +52,7 @@ pub use provider::{
 };
 pub use sample::{Frame, FrameSeq, SampleRate};
 pub use sensor::{Sensor, SensorKind, SensorReading};
+pub use startup::StartupImpact;
 pub use units::{Bytes, BytesPerSec, Celsius, Hertz, Percent, Volts, Watts};
 
 /// The wire/schema version of the domain model.

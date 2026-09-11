@@ -98,11 +98,22 @@ const en = {
     state: 'Status',
     startType: 'Start type',
     command: 'Command',
+    impact: 'Startup cost',
+    impactCpu: 'CPU at startup',
+    impactDisk: 'Disk at startup',
     // Export-only columns; the table does not draw them.
     pid: 'PID',
     path: 'Path',
     serviceName: 'Service name',
     sharedGroup: 'Shared process group',
+  },
+
+  impact: {
+    hint: 'Processor time and disk traffic this item used in the first two minutes after Windows started, measured by Vitals.',
+    measured: 'Startup cost measured over the first 2 minutes after boot on {{date}}.',
+    unmeasured:
+      'Startup cost has not been measured yet. Vitals needs to be running during the first two minutes after Windows starts; the next boot with Vitals in your startup items will fill this in.',
+    notSeen: 'Not seen running during the measured window',
   },
 
   allUsers: 'All users',
@@ -213,10 +224,21 @@ const ro = {
     state: 'Stare',
     startType: 'Tip de pornire',
     command: 'Comandă',
+    impact: 'Cost la pornire',
+    impactCpu: 'Procesor la pornire',
+    impactDisk: 'Disc la pornire',
     pid: 'PID',
     path: 'Cale',
     serviceName: 'Numele serviciului',
     sharedGroup: 'Grup de proces partajat',
+  },
+
+  impact: {
+    hint: 'Timpul de procesor și traficul pe disc folosite de acest element în primele două minute după pornirea Windows, măsurate de Vitals.',
+    measured: 'Costul la pornire a fost măsurat în primele 2 minute după boot, pe {{date}}.',
+    unmeasured:
+      'Costul la pornire nu a fost măsurat încă. Vitals trebuie să ruleze în primele două minute după pornirea Windows; următorul boot cu Vitals printre elementele de pornire va completa această coloană.',
+    notSeen: 'Nu a fost văzut rulând în fereastra măsurată',
   },
 
   allUsers: 'Toți utilizatorii',

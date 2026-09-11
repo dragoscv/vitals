@@ -21,13 +21,15 @@
 //!
 //! ## Honesty about what was not measured
 //!
-//! Two figures Task Manager displays are deliberately absent:
+//! Two figures Task Manager displays are not read from Windows:
 //!
 //! - **Startup impact** ("High"/"Medium"/"Low"). That rating comes from a
-//!   boot trace the OS collects; it cannot be derived at enumeration time.
-//!   Rather than compute a plausible-looking substitute from image size, this
-//!   module reports nothing and the boot-trace work is left to a later
-//!   milestone.
+//!   boot trace the OS collects; it cannot be derived at enumeration time,
+//!   and computing a plausible-looking substitute from image size would be a
+//!   guess presented as a measurement. Instead [`impact`] measures it with
+//!   our own sampler — CPU-ms and disk bytes per executable during the first
+//!   two minutes after boot — and reports `None`, not zero, for any run that
+//!   started too late to have seen the window.
 //! - **Publisher.** Requires Authenticode verification per image, which
 //!   belongs to the signature module. [`StartupEntry::publisher`] exists in
 //!   the shape and is honestly `None` until then.
@@ -38,6 +40,7 @@
 pub mod approved;
 pub mod classify;
 pub mod entry;
+pub mod impact;
 pub mod registry;
 pub mod run_keys;
 pub mod services;
@@ -47,6 +50,7 @@ pub mod tasks;
 pub use approved::ApprovalIndex;
 pub use classify::{DisableRisk, EntryFacts, assess_disable, assess_entry, extract_image_path};
 pub use entry::{StartupEntry, StartupSource, StartupState};
+pub use impact::{BOOT_WINDOW_SECS, ImpactAccumulator, MeasuredWindow, Observation};
 pub use run_keys::{scan_run_keys, scan_startup_folders};
 pub use services::{ServiceInfo, ServiceState, StartType, enumerate_services};
 pub use tasks::{TaskInfo, TaskScan, TaskTrigger, scan_tasks};

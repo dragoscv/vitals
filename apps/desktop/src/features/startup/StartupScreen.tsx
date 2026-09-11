@@ -20,7 +20,16 @@ import { RefreshCw, ShieldAlert } from 'lucide-react';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { Badge, Button, EmptyState, SearchInput, SegmentedControl, Skeleton, cn } from '@vitals/ui';
+import {
+  Badge,
+  Button,
+  EmptyState,
+  SearchInput,
+  SegmentedControl,
+  Skeleton,
+  cn,
+  formatBytes,
+} from '@vitals/ui';
 
 import { ExportButton } from '../../components/ExportButton';
 import type { ExportColumn } from '../../lib/export';
@@ -30,6 +39,7 @@ import {
   countStartup,
   filterServices,
   filterStartup,
+  formatCpuSeconds,
   isMachineWide,
   labelFor,
   serviceFilters,
@@ -52,7 +62,8 @@ export interface StartupScreenProps {
 }
 
 export function StartupScreen({ mode, reader }: StartupScreenProps): React.JSX.Element {
-  const { t } = useTranslation(STARTUP_NS);
+  const { t, i18n } = useTranslation(STARTUP_NS);
+  const locale = i18n.language;
   const state = useStartup(mode === 'services', reader);
 
   // One component, two routes, so the fragment is keyed on the mode: a query
@@ -93,6 +104,18 @@ export function StartupScreen({ mode, reader }: StartupScreenProps): React.JSX.E
       { id: 'command', header: t('column.command'), value: (entry) => entry.command },
       { id: 'imagePath', header: t('column.path'), value: (entry) => entry.imagePath },
       { id: 'pid', header: t('column.pid'), value: (entry) => entry.pid },
+      // Raw units in the export, formatted ones on screen: a spreadsheet
+      // sorts 4213 correctly and "4.2 s" not at all.
+      {
+        id: 'impactCpuMs',
+        header: t('column.impactCpu'),
+        value: (entry) => entry.impact?.cpuMs ?? null,
+      },
+      {
+        id: 'impactDiskBytes',
+        header: t('column.impactDisk'),
+        value: (entry) => entry.impact?.diskBytes ?? null,
+      },
     ],
     [t],
   );
@@ -184,10 +207,36 @@ export function StartupScreen({ mode, reader }: StartupScreenProps): React.JSX.E
       ) : isServices ? (
         <ServiceTable rows={serviceRows} />
       ) : (
-        <StartupTable rows={startupRows} />
+        <StartupTable rows={startupRows} locale={locale} />
+      )}
+
+      {!isServices && snapshot !== null && (
+        <ImpactCaption measuredAtMs={snapshot.impactMeasuredAtMs} locale={locale} />
       )}
     </div>
   );
+}
+
+/**
+ * Says which boot the Startup cost column describes, or that none has been
+ * measured. A column of dashes with no explanation reads as broken; a column
+ * of dashes with "Vitals was not running at boot" reads as true.
+ */
+function ImpactCaption({
+  measuredAtMs,
+  locale,
+}: {
+  readonly measuredAtMs: number | null;
+  readonly locale: string;
+}) {
+  const { t } = useTranslation(STARTUP_NS);
+  if (measuredAtMs === null) {
+    return <p className="text-2xs text-[var(--color-fg-muted)]">{t('impact.unmeasured')}</p>;
+  }
+  const date = new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(
+    new Date(measuredAtMs),
+  );
+  return <p className="text-2xs text-[var(--color-fg-muted)]">{t('impact.measured', { date })}</p>;
 }
 
 function Summary({
@@ -238,7 +287,13 @@ function Summary({
   );
 }
 
-function StartupTable({ rows }: { readonly rows: readonly StartupEntry[] }) {
+function StartupTable({
+  rows,
+  locale,
+}: {
+  readonly rows: readonly StartupEntry[];
+  readonly locale: string;
+}) {
   const { t } = useTranslation(STARTUP_NS);
 
   return (
@@ -254,6 +309,13 @@ function StartupTable({ rows }: { readonly rows: readonly StartupEntry[] }) {
             </th>
             <th scope="col" className="px-2.5 py-1.5 font-normal">
               {t('column.state')}
+            </th>
+            <th
+              scope="col"
+              className="px-2.5 py-1.5 text-right font-normal"
+              title={t('impact.hint')}
+            >
+              {t('column.impact')}
             </th>
           </tr>
         </thead>
@@ -291,6 +353,20 @@ function StartupTable({ rows }: { readonly rows: readonly StartupEntry[] }) {
                 >
                   {t(`state.${entry.state}`)}
                 </Badge>
+              </td>
+              <td
+                className="px-2.5 py-1.5 text-right font-mono text-2xs tabular-nums"
+                data-testid="startup-impact"
+                {...(entry.impact === null && { title: t('impact.notSeen') })}
+              >
+                {/* Two figures, both honest: a null impact is an em dash in
+                    each, never a zero. */}
+                <span className="block">
+                  {formatCpuSeconds(entry.impact?.cpuMs ?? null, locale)}
+                </span>
+                <span className="block text-[var(--color-fg-subtle)]">
+                  {formatBytes(entry.impact?.diskBytes ?? null, locale)}
+                </span>
               </td>
             </tr>
           ))}

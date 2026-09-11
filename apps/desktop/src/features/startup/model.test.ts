@@ -5,6 +5,7 @@ import {
   countStartup,
   filterServices,
   filterStartup,
+  formatCpuSeconds,
   isMachineWide,
   labelFor,
   sortServices,
@@ -23,6 +24,7 @@ function entry(overrides: Partial<StartupEntry> = {}): StartupEntry {
     source: 'userRun',
     state: 'enabled',
     pid: null,
+    impact: null,
     ...overrides,
   };
 }
@@ -39,6 +41,20 @@ function service(overrides: Partial<ServiceEntry> = {}): ServiceEntry {
     ...overrides,
   };
 }
+
+describe('formatCpuSeconds', () => {
+  it('renders an unmeasured value as an em dash, never as zero seconds', () => {
+    // The distinction the whole feature rests on: "0.0 s" claims the item
+    // cost nothing at boot; "—" says it was not measured.
+    expect(formatCpuSeconds(null, 'en')).toBe('—');
+    expect(formatCpuSeconds(0, 'en')).toBe('0.0 s');
+  });
+
+  it('shows milliseconds as seconds with one decimal in the locale', () => {
+    expect(formatCpuSeconds(4213, 'en')).toBe('4.2 s');
+    expect(formatCpuSeconds(4213, 'ro')).toBe('4,2 s');
+  });
+});
 
 describe('labelFor', () => {
   it('prefers the friendly name', () => {

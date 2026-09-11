@@ -18,7 +18,7 @@ S2-05,S2,truth,Delete crashReports usageData reputationLookups advancedEnabled,N
 S2-06,S2,truth,Fix untranslated density labels,panels.tsx maps enum values straight to labels,D13,done,gates green 2026-09-10
 S2-07,S2,truth,Fix backendRef write during render,useLayout.ts - move to useEffect,D13,done,gates green 2026-09-10
 S2-08,S2,truth,Remove affinity from UNIMPLEMENTED_ACTIONS,set_process_affinity is wired,D13,done,gates green 2026-09-10
-S2-09,S2,truth,Unify the two persistence layers,settings/persistence.ts and useLayout.ts duplicate ~40 lines,D13,todo,
+S2-09,S2,truth,Unify the two persistence layers,settings/persistence.ts and useLayout.ts duplicate ~40 lines,D13,done,lib/storeBackend.ts shared by settings+layout; commit 1297a06
 S2-10,S2,truth,Feed get_users rollups,rollup_by_session exists with 7 tests,D12,done,gates green 2026-09-10
 S2-11,S2,truth,Remove false capability claims,HandleEnumeration and SetEfficiencyMode until implemented in S9,D12,done,gates green 2026-09-10
 S2-12,S2,truth,Delete vitals-plugin,No consumer and no plan,D11,done,gates green 2026-09-10
@@ -76,11 +76,11 @@ S8-05,S8,shell,Updater flow,check download install plus a settings panel; loud f
 S8-06,S8,shell,Why is my PC slow report,One click correlating the subsystems,D22,done,diagnosis.rs 11 tests + DiagnosisDialog 7 tests; live-driven via CDP 2026-09-10
 S9-01,S9,metrics,Per-process Disk column from DiskCounters,SystemFullProcessInformation (148) with PROCESS_DISK_COUNTERS; needs SeDebugPrivilege so unelevated falls back to all-I/O permanently; RawProcess::storage_*_bytes Option,D22,done,backend done; prover shows fallback unelevated (STATUS_ACCESS_DENIED measured); 5 new tests 2026-09-10
 S9-02,S9,metrics,Efficiency mode,actions::efficiency_mode -> Option<bool> and set_efficiency_mode (throttle + IDLE class like Task Manager); ProcessDetail.efficiency_mode; no Tauri command yet,D8,done,backend done; prover round-trips Some(false)->Some(true)->Some(false) on own child; System = None 2026-09-10
-S9-03,S9,metrics,Affinity presets,Primitive already exists; add the preset UI layer,D8,todo,
+S9-03,S9,metrics,Affinity presets,Primitive already exists; add the preset UI layer,D8,done,affinity.ts presets from coreTopology; live CDP 5 presets; commit bba9c51
 S9-04,S9,metrics,Handle enumeration,vitals_win::handles::for_process; naming on an abandoned worker thread with 750 ms budget; HandleInfo in vitals-core; no Tauri command yet,D8,done,backend done; prover 64 handles 307 ms 20 named; exited/recycled PID -> Err 2026-09-10
 S9-05,S9,metrics,Module and DLL list,vitals_win::modules::for_process; LIST_MODULES_ALL; one retry on ERROR_PARTIAL_COPY; ModuleInfo in vitals-core; no Tauri command yet,D8,done,backend done; prover 8 modules incl ntdll; exited/recycled PID -> Err 2026-09-10
-S9-06,S9,metrics,Open file location and Properties,SHOpenFolderAndSelectItems and ShellExecuteEx with SEE_MASK_INVOKEIDLIST,D8,todo,
-S9-07,S9,metrics,Measured startup impact,CPU-ms and disk bytes in the boot window using our own sampling,D22,todo,
+S9-06,S9,metrics,Open file location and Properties,SHOpenFolderAndSelectItems and ShellExecuteEx with SEE_MASK_INVOKEIDLIST,D8,done,open_file_location + show_file_properties; commit bba9c51
+S9-07,S9,metrics,Measured startup impact,CPU-ms and disk bytes in the boot window using our own sampling,D22,done,startup/impact.rs accumulator (10 tests) + StartupImpactStore persisted to startup-impact.json; Startup cost column em dash when unmeasured; gates green 2026-09-11
 S10-01,S10,docs,docs/architecture.md,The crate split and the two design principles,D22,done,written; crate list checked against Cargo.toml members 2026-09-11
 S10-02,S10,docs,docs/adr/,resolver 3 and edition 2024; dual TypeScript; NSIS perMachine; panic abort; ts-rs over specta; axum choice; no service worker,D22,done,29 MADR files (D1-D22 + 7 technical) + README index; each claim rg-verified 2026-09-11
 S10-03,S10,docs,docs/api.md plus OpenAPI,The LAN API contract,D22,done,already existed as docs/api/README.md + openapi.yaml (38aecf2); linked from README and architecture.md 2026-09-11

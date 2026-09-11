@@ -14,6 +14,7 @@ pub mod inventory;
 pub mod ipc;
 pub mod sampling;
 pub mod server;
+pub mod startup_impact;
 pub mod state;
 pub mod store;
 pub mod tray;
@@ -66,6 +67,7 @@ pub fn run() {
         .manage(state::AppState::new())
         .manage(server::LanServer::new())
         .manage(alerts::Alerts::new())
+        .manage(startup_impact::StartupImpactStore::new())
         // The sampler starts with the app and stops when the handle drops at
         // shutdown. Managed so it stays alive for the process lifetime —
         // dropping the handle would silently stop all sampling.

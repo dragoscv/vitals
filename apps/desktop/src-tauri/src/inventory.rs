@@ -190,6 +190,11 @@ pub struct StartupEntryDto {
     pub source: &'static str,
     pub state: &'static str,
     pub pid: Option<u32>,
+    /// What this item measurably cost during the boot window, from our own
+    /// sampler. `None` when nothing was measured for it — the app was not
+    /// running in the first two minutes after boot, or the executable never
+    /// ran while it was. Never a zero standing in for either.
+    pub impact: Option<vitals_core::startup::StartupImpact>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -221,6 +226,11 @@ pub struct StartupSnapshot {
     /// presenting a partial list as complete — unelevated, some definitions
     /// under `\Microsoft\Windows` are ACL'd to SYSTEM.
     pub unreadable_tasks: usize,
+    /// When the boot window whose figures fill `impact` closed, in Unix
+    /// milliseconds. `None` when no window has ever been measured on this
+    /// machine, so the screen can say so instead of showing a column of
+    /// dashes with no explanation.
+    pub impact_measured_at_ms: Option<u64>,
 }
 
 /// Collects startup entries and services.
@@ -231,7 +241,13 @@ pub struct StartupSnapshot {
 /// screen asks for it only when the user opens the Services tab.
 #[tauri::command]
 #[cfg(windows)]
-pub fn get_startup(with_service_config: bool) -> CommandResult<StartupSnapshot> {
+// Tauri injects `State` by value; a borrow cannot be expressed in a command
+// signature, so clippy's suggestion is not available here.
+#[allow(clippy::needless_pass_by_value)]
+pub fn get_startup(
+    with_service_config: bool,
+    impact: tauri::State<'_, crate::startup_impact::StartupImpactStore>,
+) -> CommandResult<StartupSnapshot> {
     use vitals_win::startup;
 
     let inventory = startup::collect(with_service_config)?;
@@ -240,18 +256,27 @@ pub fn get_startup(with_service_config: bool) -> CommandResult<StartupSnapshot> 
         entries: inventory
             .entries
             .iter()
-            .map(|entry| StartupEntryDto {
-                name: entry.name.clone(),
-                display_name: entry.display_name.clone(),
-                command: entry.command.clone(),
-                image_path: entry
+            .map(|entry| {
+                let image_path = entry
                     .image_path
                     .as_ref()
-                    .map(|path| path.display().to_string()),
-                publisher: entry.publisher.clone(),
-                source: startup_source(entry.source),
-                state: startup_state(entry.state),
-                pid: entry.pid,
+                    .map(|path| path.display().to_string());
+                // Keyed on the resolved image only. The raw command carries
+                // arguments, and an entry whose image could not be extracted
+                // from it has no reliable executable to match — guessing one
+                // would attach another program's figures to this row.
+                let impact = image_path.as_deref().and_then(|key| impact.lookup(key));
+                StartupEntryDto {
+                    name: entry.name.clone(),
+                    display_name: entry.display_name.clone(),
+                    command: entry.command.clone(),
+                    image_path,
+                    publisher: entry.publisher.clone(),
+                    source: startup_source(entry.source),
+                    state: startup_state(entry.state),
+                    pid: entry.pid,
+                    impact,
+                }
             })
             .collect(),
         services: inventory
@@ -268,6 +293,7 @@ pub fn get_startup(with_service_config: bool) -> CommandResult<StartupSnapshot> 
             })
             .collect(),
         unreadable_tasks: inventory.unreadable_tasks,
+        impact_measured_at_ms: impact.measured_at_ms(),
     })
 }
 

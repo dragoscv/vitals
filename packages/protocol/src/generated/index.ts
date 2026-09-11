@@ -64,6 +64,7 @@ export type * from './core/SensorKind';
 export type * from './core/SensorReading';
 export type * from './core/SensorSource';
 export type * from './core/Severity';
+export type * from './core/StartupImpact';
 export type * from './core/Subsystem';
 export type * from './core/SystemMetrics';
 export type * from './core/ThrottleReason';

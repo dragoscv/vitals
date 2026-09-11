@@ -23,6 +23,7 @@ function snapshot(entryCount: number): StartupSnapshot {
     })),
     services: [],
     unreadableTasks: 0,
+    impactMeasuredAtMs: null,
   } as unknown as StartupSnapshot;
 }
 
