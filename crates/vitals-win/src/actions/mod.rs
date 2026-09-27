@@ -7,11 +7,13 @@
 //! precisely how someone ends up bugchecking their machine from a process
 //! list.
 
+pub mod elevated;
 pub mod process;
 pub mod safety;
 pub mod shell;
 pub mod taskmgr;
 
+pub use elevated::{ElevatedAction, PROCESS_ACTION_ARG, run_as_admin};
 pub use process::{
     ActionPlan, Priority, efficiency_mode, plan_suspend, plan_terminate, resume, set_affinity,
     set_efficiency_mode, set_priority, suspend, terminate,

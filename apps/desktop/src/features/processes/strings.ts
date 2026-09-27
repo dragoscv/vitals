@@ -73,6 +73,9 @@ const en = {
     allIo: 'All I/O including pipes and sockets. Run as administrator for storage-only figures.',
     unknown: 'Which counter feeds this column is not yet known.',
   },
+  elevation: {
+    declined: 'Administrator approval was declined, so nothing was changed.',
+  },
 } as const;
 
 const ro = {
@@ -128,6 +131,9 @@ const ro = {
     allIo:
       'Tot I/O-ul, inclusiv pipe-uri și socket-uri. Rulează ca administrator pentru cifre doar de stocare.',
     unknown: 'Nu se știe încă ce contor alimentează această coloană.',
+  },
+  elevation: {
+    declined: 'Aprobarea de administrator a fost refuzată, deci nu s-a schimbat nimic.',
   },
 } as const;
 
@@ -201,6 +207,8 @@ export const MISSING_KEYS = {
   'process.confirm.proceedSuspend': 'Suspend',
   'process.confirm.blocked': 'This cannot be done',
   'process.confirm.elevate': 'Retry as administrator',
+  'process.confirm.denied':
+    'Windows refused: this process belongs to another account or to the system. Retrying as administrator asks for approval once, for this action only.',
   'process.risk.safe': 'Safe',
   'process.risk.disruptive': 'Disruptive',
   'process.risk.critical': 'Critical',

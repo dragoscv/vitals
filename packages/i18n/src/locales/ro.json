@@ -67,7 +67,9 @@
       "safe": "Lucrările nesalvate din această aplicație se vor pierde.",
       "disruptive": "Aceasta va închide desktopul și ferestrele deschise. De obicei repornește singur.",
       "critical": "Sistemul depinde de acest proces. Închiderea lui va bloca Windows imediat și vei pierde lucrările nesalvate din toate aplicațiile.",
-      "forbidden": "Windows protejează acest proces. Nu poate fi închis, nici măcar ca administrator."
+      "forbidden": "Windows protejează acest proces. Nu poate fi închis, nici măcar ca administrator.",
+      "elevate": "Reîncearcă ca administrator",
+      "denied": "Windows a refuzat: procesul aparține altui cont sau sistemului. Reîncercarea ca administrator cere aprobare o singură dată, doar pentru această acțiune."
     }
   },
   "capability": {

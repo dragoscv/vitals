@@ -40,6 +40,12 @@ beforeAll(async () => {
   // the default route — so its namespace is part of this component's
   // environment, exactly as it is in `main.tsx`.
   registerDashboardStrings();
+  // Warm the lazy settings chunk. `React.lazy` then resolves from the module
+  // cache, so "opens settings" measures focus handling rather than how long
+  // vite takes to transform the dialog and its panels cold. That transform
+  // is what crossed 8 s and then 12 s in full runs at 87-91 % CPU
+  // (2026-09-27) while the file alone passed in under a second.
+  await import('../settings/SettingsDialog');
 });
 
 beforeEach(async () => {
@@ -112,9 +118,9 @@ describe('AppShell', () => {
     // The dialog is a lazy chunk: this waits for a real module import, not a
     // state change, and on a loaded machine that takes longer than the 1 s
     // default. Fails on unmodified HEAD under concurrent builds (2026-09-27).
-    // 12 s: 8 s ran out in a full run at 87 % CPU on 2026-09-27 while the
-    // file alone passed in under a second. Stays below testTimeout (15 s).
-    const dialog = await screen.findByRole('dialog', {}, { timeout: 12_000 });
+    // The chunk is pre-loaded in `beforeAll`, so this waits on a render, not
+    // an import; the margin covers a loaded machine, below testTimeout.
+    const dialog = await screen.findByRole('dialog', {}, { timeout: 8000 });
     expect(within(dialog).getByRole('tab', { name: 'Appearance' })).toBeTruthy();
 
     fireEvent.keyDown(dialog, { key: 'Escape' });

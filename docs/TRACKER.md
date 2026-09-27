@@ -164,6 +164,56 @@ CSV records the state.
 Every claim of "done" needs a command and its output. Recorded here as work
 lands, newest first.
 
+### 2026-09-28 — S12-14 "Retry as administrator" performs the action, one UAC prompt each
+
+The risk dialog has shown the button since it was written; `RiskDialog`
+never received an `onElevate`, so a process owned by SYSTEM or another
+account (230 of 717 here) could be neither ended nor paused. Chosen with the
+user: one UAC prompt per action, not an elevated app.
+
+- `vitals-win::actions::elevated` — `run_as_admin` relaunches the exe under
+  `runas` with `--elevated-process-action <terminate|suspend|resume> <pid> <start>`
+  and maps the child's exit code back to `NotFound` / `AccessDenied` /
+  `Refused` / `Os`. The child re-verifies identity (a PID can be recycled
+  while the prompt is up) and re-assesses risk, refusing `forbidden` so it
+  cannot bypass the dialog. The UAC relaunch was extracted from the Task
+  Manager switch into `taskmgr::run_elevated`, so both share one path.
+- Found live: the first version reported "access denied, even as
+  administrator" on a SYSTEM `ping.exe`. An elevated token holds
+  `SeDebugPrivilege` disabled; the child now enables it, only for itself.
+- `launch.rs` routes the argument before Tauri builds, and never falls
+  through to a window even when malformed — the parent is blocked on it.
+- `process_action_as_admin` command (async, `spawn_blocking`), registered.
+  Desktop-only: a paired phone must never raise a UAC prompt.
+- UI: a denial on a single process reopens the dialog marked denied, with
+  the retry as the primary action and the plain confirm removed. A
+  dismissed prompt reads "approval was declined, so nothing was changed",
+  not an error. Resume (no dialog) goes straight to the prompt on denial.
+  EN + RO strings.
+
+```text
+live: SYSTEM-owned PING.EXE 29080 (schtasks /RU SYSTEM), unelevated Vitals
+  invoke terminate_process      → {"kind":"access-denied",…}
+  Delete key → dialog "…Windows refused: this process belongs to another account
+               or to the system… Cancel | Retry as administrator"
+  Retry → UAC approved → dialog closed, no alert → Get-Process 29080: gone
+  (before the SeDebugPrivilege fix: "access denied: act on process 29080, even as administrator")
+cargo test -q -p vitals-win --lib → 601 passed (elevated: 5 new)
+cargo test -q -p vitals-desktop --lib -- launch → 9 passed (1 new)
+cargo clippy -p vitals-win -p vitals-desktop --all-targets -D warnings → clean
+vitest processes + lib → 140 passed; mutation: onElevate no-op → retry test FAILED; restored
+pnpm typecheck 6/6 · pnpm lint 6/6 · pnpm test → green
+scripts/check-drift.ps1 → 0 failure(s), 0 warning(s); 57 invokes, 57 commands, 2 locales
+```
+
+`AppShell.test > opens settings` now imports the lazy SettingsDialog in
+`beforeAll`: the cold vite transform, not the behaviour, was crossing 8 s
+then 12 s at 87-91 % CPU. With the chunk warm the test takes 889 ms.
+
+Not done, with reason: a tree kill that hits a denial reports it rather than
+prompting once per descendant; priority/affinity/efficiency have no elevated
+path (reversible, rarely denied on processes users care about).
+
 ### 2026-09-27 — S12-13 process actions: Suspended state measured; readable errors everywhere
 
 **What the user saw.** "Killing processes and other actions from other
@@ -210,12 +260,9 @@ The settings-dialog wait in `AppShell.test` (a lazy chunk) ran out at 8 s in
 one full run at 87 % CPU and passed alone; raised to 12 s, under the 15 s
 test limit.
 
-Not changed, with reason: the "Retry as administrator" button in the risk
-dialog is never wired (`RiskDialog` gets no `onElevate`), so a denied action
-on another account's process explains itself but cannot be retried
-elevated. That needs a UAC relaunch like the Task Manager switch — new
-scope, not claimed here. LAN control, SDK, CLI: untouched — no wire shape
-changed; `state` was already in the protocol and now carries a real value.
+Not changed here: LAN control, SDK, CLI — no wire shape changed; `state` was
+already in the protocol and now carries a real value. The unwired
+"Retry as administrator" button is S12-14, below.
 
 ### 2026-09-27 — S12-12 screens fill the window; only regions inside them scroll
 

@@ -43,7 +43,9 @@ pub fn run() {
     let mode = launch::classify(std::env::args().skip(1));
     tracing::debug!(?mode, args = ?std::env::args().collect::<Vec<_>>(), "launch classified");
     match mode {
-        launch::LaunchMode::SetReplacement { .. } | launch::LaunchMode::LaunchRealTaskManager => {
+        launch::LaunchMode::SetReplacement { .. }
+        | launch::LaunchMode::LaunchRealTaskManager
+        | launch::LaunchMode::ElevatedProcessAction { .. } => {
             std::process::exit(launch::run_headless(&mode));
         }
         launch::LaunchMode::AsTaskManager => {
@@ -132,6 +134,7 @@ fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
         commands::suspend_process,
         #[cfg(windows)]
         commands::resume_process,
+        commands::process_action_as_admin,
         #[cfg(windows)]
         commands::set_process_priority,
         #[cfg(windows)]

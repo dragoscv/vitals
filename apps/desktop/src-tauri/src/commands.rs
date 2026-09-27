@@ -369,6 +369,52 @@ pub fn resume_process(pid: u32, start_time: u64) -> CommandResult<()> {
     Ok(())
 }
 
+/// What the webview may ask to do as administrator.
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ElevatedActionDto {
+    Terminate,
+    Suspend,
+    Resume,
+}
+
+/// Retries one denied process action as administrator, behind a UAC prompt.
+///
+/// The risk dialog's "Retry as administrator" had no handler: a process
+/// owned by SYSTEM or another account could be neither ended nor paused.
+/// This re-launches Vitals elevated for exactly one action (see
+/// `vitals_win::actions::elevated`); the UI itself never runs elevated.
+///
+/// `async` + `spawn_blocking`: the call waits for as long as the prompt is
+/// on screen, which must not hold the IPC thread.
+///
+/// Desktop-only, deliberately not in LAN control: a phone must never be able
+/// to raise a UAC prompt on the machine it is watching.
+#[tauri::command]
+#[cfg(windows)]
+pub async fn process_action_as_admin(
+    action: ElevatedActionDto,
+    pid: u32,
+    start_time: u64,
+) -> CommandResult<()> {
+    use vitals_core::ids::Pid;
+    use vitals_win::actions::ElevatedAction;
+
+    let action = match action {
+        ElevatedActionDto::Terminate => ElevatedAction::Terminate,
+        ElevatedActionDto::Suspend => ElevatedAction::Suspend,
+        ElevatedActionDto::Resume => ElevatedAction::Resume,
+    };
+    let key = ProcessKey::new(Pid(pid), start_time);
+
+    tauri::async_runtime::spawn_blocking(move || vitals_win::actions::run_as_admin(action, key))
+        .await
+        .map_err(|err| CommandError::Internal {
+            message: format!("the elevated action was abandoned: {err}"),
+        })??;
+    Ok(())
+}
+
 /// Scheduling priority, as the webview names it.
 ///
 /// A DTO rather than deriving `Serialize` onto `vitals_win::Priority`: the
@@ -707,6 +753,22 @@ pub fn get_process_modules(
 pub fn get_executable_path(pid: u32, start_time: u64) -> CommandResult<Option<String>> {
     let _ = (pid, start_time);
     Err(unsupported("the executable path"))
+}
+
+/// See the Windows implementation.
+///
+/// # Errors
+///
+/// Always: UAC is a Windows mechanism.
+#[tauri::command]
+#[cfg(not(windows))]
+pub fn process_action_as_admin(
+    action: ElevatedActionDto,
+    pid: u32,
+    start_time: u64,
+) -> CommandResult<()> {
+    let _ = (action, pid, start_time);
+    Err(unsupported("retrying as administrator"))
 }
 
 /// See the Windows implementation.

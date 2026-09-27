@@ -66,6 +66,7 @@ function stubActions(overrides: Partial<ProcessActionsApi> = {}): ProcessActions
     getExecutablePath: vi.fn(async () => null),
     openFileLocation: vi.fn(async () => undefined),
     showFileProperties: vi.fn(async () => undefined),
+    runAsAdmin: vi.fn(async () => undefined),
     ...overrides,
   };
 }
@@ -191,6 +192,72 @@ describe('search and filters', () => {
 });
 
 describe('the confirmation flow', () => {
+  it('turns an access denial into a one-click retry as administrator, for that process only', async () => {
+    // The button existed for months with no handler: a SYSTEM-owned process
+    // could be neither ended nor paused, and the only feedback was an error
+    // line. Now the denial reopens the dialog with the retry as the action.
+    const denied = { kind: 'access-denied', message: 'open process 300 requires elevation' };
+    const actions = stubActions({
+      planTerminate: vi.fn(async () => plan({ needsConfirmation: false })),
+      terminate: vi.fn(async () => {
+        throw denied;
+      }),
+    });
+    mountScreen(actions);
+    await openMenuFor(300);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'End task' }));
+
+    const dialog = await screen.findByTestId('risk-dialog');
+    expect(within(dialog).getByText(/belongs to another account or to the system/i)).toBeTruthy();
+    // The plain confirm would only fail again, so it is gone.
+    expect(screen.queryByTestId('risk-confirm')).toBeNull();
+
+    fireEvent.click(screen.getByTestId('risk-elevate'));
+    await waitFor(() => expect(actions.runAsAdmin).toHaveBeenCalledOnce());
+    expect(actions.runAsAdmin).toHaveBeenCalledWith(
+      'terminate',
+      expect.objectContaining({ name: 'chrome.exe' }),
+    );
+    await waitFor(() => expect(screen.queryByTestId('risk-dialog')).toBeNull());
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('reports a dismissed UAC prompt as the answer it is, not as a failure', async () => {
+    const actions = stubActions({
+      planTerminate: vi.fn(async () => plan({ needsConfirmation: false })),
+      terminate: vi.fn(async () => {
+        throw { kind: 'access-denied', message: 'denied' };
+      }),
+      runAsAdmin: vi.fn(async () => {
+        throw { kind: 'refused', message: 'declined' };
+      }),
+    });
+    mountScreen(actions);
+    await openMenuFor(300);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'End task' }));
+    fireEvent.click(await screen.findByTestId('risk-elevate'));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toMatch(/approval was declined, so nothing was changed/i);
+    expect(alert.textContent).not.toMatch(/object Object/);
+  });
+
+  it('never raises a UAC prompt the user did not ask for', async () => {
+    // The denial offers the retry; it must not perform it. An elevation
+    // prompt appearing unprompted is how people learn to click Yes blindly.
+    const actions = stubActions({
+      planTerminate: vi.fn(async () => plan({ needsConfirmation: false })),
+      terminate: vi.fn(async () => {
+        throw { kind: 'access-denied', message: 'denied' };
+      }),
+    });
+    mountScreen(actions);
+    await openMenuFor(300);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'End task' }));
+    await screen.findByTestId('risk-elevate');
+    expect(actions.runAsAdmin).not.toHaveBeenCalled();
+  });
+
   it('plans before it acts, and does not act until confirmed', async () => {
     const actions = stubActions();
     mountScreen(actions);
@@ -319,6 +386,21 @@ describe('the confirmation flow', () => {
     const actions = stubActions({
       planTerminate: vi.fn(async () => plan({ needsConfirmation: false })),
       terminate: vi.fn(async () => {
+        throw { kind: 'internal', message: 'TerminateProcess failed: 87' };
+      }),
+    });
+    mountScreen(actions);
+    await openMenuFor(300);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'End task' }));
+    expect((await screen.findByRole('alert')).textContent).toContain('TerminateProcess failed');
+  });
+
+  it('surfaces a denial where elevation cannot help as an error, with no retry', async () => {
+    const actions = stubActions({
+      planTerminate: vi.fn(async () =>
+        plan({ needsConfirmation: false, elevationMightHelp: false }),
+      ),
+      terminate: vi.fn(async () => {
         throw { kind: 'access-denied', message: 'denied' };
       }),
     });
@@ -326,6 +408,7 @@ describe('the confirmation flow', () => {
     await openMenuFor(300);
     fireEvent.click(screen.getByRole('menuitem', { name: 'End task' }));
     expect((await screen.findByRole('alert')).textContent).toContain('denied');
+    expect(screen.queryByTestId('risk-elevate')).toBeNull();
   });
 
   it('suspending uses the suspend planner, not the terminate one', async () => {

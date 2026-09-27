@@ -98,7 +98,18 @@ export interface ProcessActionsApi {
   getExecutablePath(process: Process): Promise<string | null>;
   openFileLocation(path: string): Promise<void>;
   showFileProperties(path: string): Promise<void>;
+  /**
+   * Performs one action as administrator, behind a UAC prompt.
+   *
+   * For a process the unelevated app was refused — SYSTEM's or another
+   * account's. Rejects with `refused` when the prompt is dismissed, which
+   * the screen treats as the user's answer rather than a failure.
+   */
+  runAsAdmin(action: ElevatedAction, process: Process): Promise<void>;
 }
+
+/** What can be retried as administrator. Mirrors `ElevatedActionDto`. */
+export type ElevatedAction = 'terminate' | 'suspend' | 'resume';
 
 /**
  * Whether the OS actively protects this process.
@@ -205,6 +216,13 @@ export const tauriProcessActions: ProcessActionsApi = {
   openFileLocation: (path) => invoke<void>('open_file_location', { path }),
 
   showFileProperties: (path) => invoke<void>('show_file_properties', { path }),
+
+  runAsAdmin: (action, process) =>
+    invoke<void>('process_action_as_admin', {
+      action,
+      pid: process.key.pid,
+      startTime: process.key.startTime,
+    }),
 };
 
 /**

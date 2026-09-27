@@ -23,6 +23,12 @@ export interface RiskRequest {
   readonly processName: string;
   /** Descendants that will also be ended. Zero for a single-process action. */
   readonly childCount: number;
+  /**
+   * The action was already attempted and Windows refused it for lack of
+   * rights. The plain confirm would only fail again, so it is replaced by
+   * the administrator retry.
+   */
+  readonly denied?: boolean;
 }
 
 export interface RiskDialogProps {
@@ -53,6 +59,7 @@ export function RiskDialog({
   const open = request !== null;
   const risk = request?.plan.risk ?? 'safe';
   const blocked = risk === 'forbidden';
+  const denied = request?.denied === true;
 
   // Elevation is offered only when the backend says it could help. For a
   // protected process it cannot, and Task Manager's "try again as
@@ -96,11 +103,16 @@ export function RiskDialog({
               {blocked ? t('common.close') : t('common.cancel')}
             </Button>
             {canElevate && (
-              <Button variant="secondary" onClick={onElevate}>
+              <Button
+                variant={denied ? 'danger' : 'secondary'}
+                onClick={onElevate}
+                {...(denied && { loading: busy, loadingLabel: t('common.loading') })}
+                data-testid="risk-elevate"
+              >
                 {t('process.confirm.elevate', fallback('process.confirm.elevate'))}
               </Button>
             )}
-            {!blocked && (
+            {!blocked && !denied && (
               <Button
                 variant="danger"
                 loading={busy}
@@ -128,6 +140,11 @@ export function RiskDialog({
           <p className="text-sm text-[var(--color-fg-default)]">
             {request === null ? '' : t(request.plan.consequence)}
           </p>
+          {denied && (
+            <p role="status" className="text-sm text-[var(--color-status-warn)]">
+              {t('process.confirm.denied', fallback('process.confirm.denied'))}
+            </p>
+          )}
         </div>
       </DialogContent>
     </DialogRoot>

@@ -42,6 +42,7 @@ function stubActions(overrides: Partial<ProcessActionsApi> = {}): ProcessActions
     getExecutablePath: vi.fn(async () => null),
     openFileLocation: vi.fn(async () => undefined),
     showFileProperties: vi.fn(async () => undefined),
+    runAsAdmin: vi.fn(async () => undefined),
     ...overrides,
   };
 }

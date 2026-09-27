@@ -59,7 +59,7 @@ use windows_sys::Win32::System::Threading::{
 use windows_sys::Win32::UI::Shell::{
     SEE_MASK_NOASYNC, SEE_MASK_NOCLOSEPROCESS, SHELLEXECUTEINFOW, ShellExecuteExW,
 };
-use windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
+use windows_sys::Win32::UI::WindowsAndMessaging::SW_HIDE;
 
 /// The key Windows consults before launching `taskmgr.exe`.
 const IFEO_TASKMGR: &str =
@@ -244,12 +244,38 @@ fn confirm(enabled: bool, our_exe: &Path) -> Result<()> {
 }
 
 /// Re-launches this executable elevated to do the write.
+fn elevate(enabled: bool) -> Result<()> {
+    let args = format!(
+        "{SET_REPLACEMENT_ARG} {}",
+        if enabled { "on" } else { "off" }
+    );
+    match run_elevated(&args, "the Task Manager replacement was left unchanged")? {
+        0 => Ok(()),
+        code => Err(Error::Os {
+            context: "the elevated instance could not write the registry value".to_owned(),
+            code: code.cast_signed(),
+        }),
+    }
+}
+
+/// Runs this executable elevated with `args`, waits for it, and returns its
+/// exit code.
+///
+/// Shared by every "do this one thing as administrator" path, so the UAC
+/// handling — a dismissed prompt is a decision, not a fault — is written
+/// once. `declined` finishes the sentence "administrator approval was
+/// declined, so …" for the caller's context.
 ///
 /// `SEE_MASK_NOCLOSEPROCESS` is what makes the wait possible at all: without
 /// it `ShellExecuteExW` returns no handle and there is nothing to wait on,
-/// so the caller would re-read the key before the child had written it and
-/// conclude the write failed.
-fn elevate(enabled: bool) -> Result<()> {
+/// so the caller would read the result before the child had produced it.
+///
+/// # Errors
+///
+/// - [`Error::Refused`] when the user dismissed the UAC prompt.
+/// - [`Error::Os`] when the shell could not start the elevated instance or
+///   its exit code could not be read.
+pub fn run_elevated(args: &str, declined: &str) -> Result<u32> {
     let exe = std::env::current_exe()?;
     let exe_w = wide(exe.to_str().ok_or_else(|| Error::Os {
         context: format!("{} is not representable as UTF-8", exe.display()),
@@ -257,10 +283,7 @@ fn elevate(enabled: bool) -> Result<()> {
     })?);
 
     let verb = wide("runas");
-    let args = wide(&format!(
-        "{SET_REPLACEMENT_ARG} {}",
-        if enabled { "on" } else { "off" }
-    ));
+    let args_w = wide(args);
 
     let mut info: SHELLEXECUTEINFOW = SHELLEXECUTEINFOW {
         cbSize: u32::try_from(size_of::<SHELLEXECUTEINFOW>()).unwrap_or(0),
@@ -269,8 +292,9 @@ fn elevate(enabled: bool) -> Result<()> {
         fMask: SEE_MASK_NOCLOSEPROCESS | SEE_MASK_NOASYNC,
         lpVerb: verb.as_ptr(),
         lpFile: exe_w.as_ptr(),
-        lpParameters: args.as_ptr(),
-        nShow: SW_SHOWNORMAL,
+        lpParameters: args_w.as_ptr(),
+        // The elevated child never builds a window; nothing to show.
+        nShow: SW_HIDE,
         // SAFETY: every remaining field is a pointer, handle or integer for
         // which all-zero is the documented "not supplied" value.
         ..unsafe { std::mem::zeroed() }
@@ -288,15 +312,13 @@ fn elevate(enabled: bool) -> Result<()> {
         // a fault, and rendering it as an error dialog would tell the user
         // something went wrong when nothing did.
         if code == ERROR_CANCELLED {
-            return Err(Error::Refused(
-                "administrator approval was declined, so the Task Manager \
-                 replacement was left unchanged"
-                    .to_owned(),
-            ));
+            return Err(Error::Refused(format!(
+                "administrator approval was declined, so {declined}"
+            )));
         }
 
         return Err(Error::Os {
-            context: "ShellExecuteExW(runas, vitals --set-taskmgr-replacement)".to_owned(),
+            context: format!("ShellExecuteExW(runas, vitals {args})"),
             code: code.cast_signed(),
         });
     }
@@ -304,8 +326,8 @@ fn elevate(enabled: bool) -> Result<()> {
     wait_for(info.hProcess)
 }
 
-/// Waits for the elevated child and maps its exit code.
-fn wait_for(process: HANDLE) -> Result<()> {
+/// Waits for the elevated child and returns its exit code.
+fn wait_for(process: HANDLE) -> Result<u32> {
     if process.is_null() {
         return Err(Error::Os {
             context: "the elevated instance started but returned no handle to wait on".to_owned(),
@@ -314,9 +336,9 @@ fn wait_for(process: HANDLE) -> Result<()> {
     }
 
     // SAFETY: `process` is a live handle from ShellExecuteExW, closed below
-    // on every path out. The write is a single registry value, so there is
-    // no plausible hang to bound with a timeout — and a timeout here would
-    // mean reading the key while the child was still writing it.
+    // on every path out. Every elevated pass is one bounded operation (a
+    // registry value, one process action), so there is no plausible hang to
+    // bound — and a timeout would mean reading a result not yet produced.
     unsafe { WaitForSingleObject(process, INFINITE) };
 
     let mut code: u32 = 0;
@@ -332,14 +354,7 @@ fn wait_for(process: HANDLE) -> Result<()> {
         });
     }
 
-    if code == 0 {
-        Ok(())
-    } else {
-        Err(Error::Os {
-            context: "the elevated instance could not write the registry value".to_owned(),
-            code: code.cast_signed(),
-        })
-    }
+    Ok(code)
 }
 
 /// Starts the real Task Manager, bypassing our own hook.

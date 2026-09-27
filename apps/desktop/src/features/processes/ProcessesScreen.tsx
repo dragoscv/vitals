@@ -15,8 +15,10 @@ import type { ExportColumn } from '../../lib/export';
 import { oneOf, parseHash, useUrlState } from '../../lib/useUrlState';
 import {
   errorMessage,
+  isCommandError,
   tauriProcessActions,
   type ActionPlan,
+  type ElevatedAction,
   type ProcessActionsApi,
   type ProcessPriority,
 } from './actions';
@@ -139,7 +141,11 @@ export function ProcessesScreen({
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
 
-  const pendingRef = useRef<{ action: RiskAction; ids: readonly string[] } | null>(null);
+  const pendingRef = useRef<{
+    action: RiskAction;
+    ids: readonly string[];
+    plan: ActionPlan | null;
+  } | null>(null);
 
   const built = useMemo(
     () =>
@@ -281,6 +287,7 @@ export function ProcessesScreen({
     const pending = pendingRef.current;
     if (pending === null) return;
     setBusy(true);
+    let keepOpen = false;
     try {
       // Children first: ending a parent can orphan a child that then
       // re-parents to the session manager and survives the tree kill.
@@ -292,19 +299,72 @@ export function ProcessesScreen({
         else await actions.terminate(row.process);
       }
     } catch (error) {
-      setFailure(errorMessage(error));
+      // A denial on a single process is the one failure with a next step:
+      // reopen the dialog, marked as denied, so "Retry as administrator" is
+      // one click away instead of a dead-end error line. Trees stay a plain
+      // failure — one prompt per descendant is not an offer worth making.
+      const row = rowsById.current.get(pending.ids[0] ?? '');
+      if (
+        isCommandError(error) &&
+        error.kind === 'access-denied' &&
+        pending.ids.length === 1 &&
+        row !== undefined &&
+        pending.plan !== null &&
+        pending.plan.elevationMightHelp
+      ) {
+        keepOpen = true;
+        setRequest({
+          action: pending.action,
+          plan: pending.plan,
+          processName: row.process.name,
+          childCount: 0,
+          denied: true,
+        });
+      } else {
+        setFailure(errorMessage(error));
+      }
+    } finally {
+      setBusy(false);
+      if (!keepOpen) {
+        setRequest(null);
+        pendingRef.current = null;
+      }
+    }
+  }, [actions]);
+
+  /**
+   * Performs the pending action as administrator.
+   *
+   * One UAC prompt, one process. A dismissed prompt comes back `refused`
+   * and is shown as the answer it is, not as an error.
+   */
+  const runElevated = useCallback(async () => {
+    const pending = pendingRef.current;
+    if (pending === null) return;
+    const row = rowsById.current.get(pending.ids[0] ?? '');
+    if (row === undefined || pending.ids.length !== 1) return;
+    const action: ElevatedAction = pending.action === 'suspend' ? 'suspend' : 'terminate';
+    setBusy(true);
+    try {
+      await actions.runAsAdmin(action, row.process);
+    } catch (error) {
+      if (isCommandError(error) && error.kind === 'refused') {
+        setFailure(tp('elevation.declined'));
+      } else {
+        setFailure(errorMessage(error));
+      }
     } finally {
       setBusy(false);
       setRequest(null);
       pendingRef.current = null;
     }
-  }, [actions]);
+  }, [actions, tp]);
 
   const beginAction = useCallback(
     async (action: RiskAction, row: ProcessRow) => {
       setFailure(null);
       const ids = action === 'terminate-tree' ? collectSubtree(built.byId, row.id) : [row.id];
-      pendingRef.current = { action, ids };
+      pendingRef.current = { action, ids, plan: null };
 
       let plan: ActionPlan;
       try {
@@ -317,6 +377,7 @@ export function ProcessesScreen({
         pendingRef.current = null;
         return;
       }
+      pendingRef.current = { action, ids, plan };
 
       // A `forbidden` plan is still shown, and deliberately so: silently
       // doing nothing would look like a broken menu item, and the user
@@ -417,7 +478,25 @@ export function ProcessesScreen({
       onTerminateTree: () => void beginAction('terminate-tree', row),
       onSuspend: () => void beginAction('suspend', row),
       onResume: () => {
-        void actions.resume(row.process).catch((error: unknown) => setFailure(errorMessage(error)));
+        void actions.resume(row.process).catch(async (error: unknown) => {
+          // Resume has no confirmation dialog, so a denial goes straight to
+          // the prompt: the user already asked, and a paused service they
+          // cannot un-pause is worse than one UAC dialog.
+          if (isCommandError(error) && error.kind === 'access-denied') {
+            try {
+              await actions.runAsAdmin('resume', row.process);
+              return;
+            } catch (elevated) {
+              setFailure(
+                isCommandError(elevated) && elevated.kind === 'refused'
+                  ? tp('elevation.declined')
+                  : errorMessage(elevated),
+              );
+              return;
+            }
+          }
+          setFailure(errorMessage(error));
+        });
       },
       // No confirmation. Priority is reversible, takes effect immediately and
       // is undone by choosing another — the plan-then-confirm path exists for
@@ -614,6 +693,9 @@ export function ProcessesScreen({
         }}
         onConfirm={() => {
           void runPending();
+        }}
+        onElevate={() => {
+          void runElevated();
         }}
       />
     </div>

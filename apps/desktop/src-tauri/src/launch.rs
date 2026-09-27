@@ -10,6 +10,9 @@
 //! - `--launch-real-taskmgr` — start the real Task Manager, bypassing our
 //!   own hook, and exit. Exists so a shortcut or script can still reach
 //!   `taskmgr.exe` while the replacement is on.
+//! - `--elevated-process-action <action> <pid> <start>` — we are the
+//!   **elevated child** a running instance spawned under UAC to end, pause
+//!   or resume one process it was refused. Do that, exit with the result.
 //! - `<anything ending in taskmgr.exe>` as the first argument — Windows
 //!   launched us **as the debugger for Task Manager** because the hook is
 //!   on. This is the taskbar menu or Ctrl+Shift+Esc; proceed to normal
@@ -34,6 +37,12 @@ pub enum LaunchMode {
     SetReplacement { enabled: bool },
     /// Start the real `taskmgr.exe` and exit.
     LaunchRealTaskManager,
+    /// Perform one process action as administrator and exit.
+    ///
+    /// The arguments are kept raw and parsed by `vitals-win`, which owns
+    /// their format; a malformed set is reported by the child's exit code
+    /// rather than falling through to a UI launch.
+    ElevatedProcessAction { args: Vec<String> },
 }
 
 /// Classifies the arguments this process was started with.
@@ -69,6 +78,15 @@ where
         return LaunchMode::LaunchRealTaskManager;
     }
 
+    // Never falls through to a window, even when malformed: this is only
+    // ever passed by our own parent, which is blocked waiting on the exit
+    // code, and a UI appearing instead would hang it.
+    if first == vitals_win_arg::PROCESS_ACTION {
+        return LaunchMode::ElevatedProcessAction {
+            args: args.map(|arg| arg.as_ref().to_owned()).collect(),
+        };
+    }
+
     // The loader passes the original command line — typically
     // `C:\WINDOWS\system32\taskmgr.exe` or, for the taskbar, the same path
     // with `/4` or `/7` after it — so only the first token is inspected,
@@ -99,6 +117,10 @@ mod vitals_win_arg {
     pub const SET_REPLACEMENT: &str = vitals_win::actions::SET_REPLACEMENT_ARG;
     #[cfg(not(windows))]
     pub const SET_REPLACEMENT: &str = "--set-taskmgr-replacement";
+    #[cfg(windows)]
+    pub const PROCESS_ACTION: &str = vitals_win::actions::PROCESS_ACTION_ARG;
+    #[cfg(not(windows))]
+    pub const PROCESS_ACTION: &str = "--elevated-process-action";
 }
 
 /// Runs a non-UI launch mode to completion.
@@ -112,6 +134,7 @@ pub fn run_headless(mode: &LaunchMode) -> i32 {
     match mode {
         LaunchMode::SetReplacement { enabled } => set_replacement(*enabled),
         LaunchMode::LaunchRealTaskManager => launch_real_taskmgr(),
+        LaunchMode::ElevatedProcessAction { args } => elevated_process_action(args),
         LaunchMode::Normal | LaunchMode::AsTaskManager => {
             tracing::error!("run_headless called for a UI launch mode");
             2
@@ -155,6 +178,19 @@ fn launch_real_taskmgr() -> i32 {
     }
 }
 
+#[cfg(windows)]
+fn elevated_process_action(args: &[String]) -> i32 {
+    let code = vitals_win::actions::elevated::perform(args);
+    tracing::info!(?args, code, "elevated process action finished");
+    i32::try_from(code).unwrap_or(i32::MAX)
+}
+
+#[cfg(not(windows))]
+fn elevated_process_action(_args: &[String]) -> i32 {
+    tracing::error!("elevated process actions are a Windows mechanism");
+    1
+}
+
 /// Whether this `AsTaskManager` launch is Task Manager's own elevation hop.
 ///
 /// Not part of [`classify`] because it depends on the process token, not
@@ -191,6 +227,22 @@ mod tests {
     #[test]
     fn no_arguments_is_a_normal_launch() {
         assert_eq!(classify(Vec::<&str>::new()), LaunchMode::Normal);
+    }
+
+    #[test]
+    fn an_elevated_process_action_never_becomes_a_window_even_when_malformed() {
+        // The parent is blocked on this child's exit code; a UI launch here
+        // would hang it behind a UAC prompt the user already accepted.
+        assert_eq!(
+            classify([vitals_win_arg::PROCESS_ACTION, "terminate", "12", "34"]),
+            LaunchMode::ElevatedProcessAction {
+                args: vec!["terminate".into(), "12".into(), "34".into()]
+            }
+        );
+        assert_eq!(
+            classify([vitals_win_arg::PROCESS_ACTION]),
+            LaunchMode::ElevatedProcessAction { args: vec![] }
+        );
     }
 
     #[test]
