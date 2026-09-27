@@ -234,7 +234,7 @@ function TopList({
         <button
           type="button"
           onClick={onSelect}
-          className="text-2xs text-[var(--color-accent-fg)] underline-offset-2 hover:underline"
+          className="text-2xs text-[var(--color-accent)] underline-offset-2 hover:underline"
         >
           {t('top.viewAll')}
         </button>

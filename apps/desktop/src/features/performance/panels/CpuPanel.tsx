@@ -41,7 +41,7 @@ export function CpuPanel({
         </div>
         <TimeSeriesChart
           series={[
-            { buffer: history.core.cpu, color: colors.accent, fillOpacity: 0.18 },
+            { buffer: history.core.cpu, color: colors.accent, fillOpacity: 0.18, headDot: true },
             // Kernel drawn under the total, not beside it: the useful reading
             // is what share of a busy CPU is the OS rather than the user's
             // programs, and two separate lines make that a subtraction the
@@ -156,7 +156,7 @@ function PerCoreGrid({
               <div
                 className={cn(
                   'w-full rounded-[1px]',
-                  value > 90 ? 'bg-[var(--color-status-warn)]' : 'bg-[var(--color-accent-solid)]',
+                  value > 90 ? 'bg-[var(--color-status-warn)]' : 'bg-[var(--color-accent)]',
                 )}
                 style={{ height: `${Math.min(Math.max(value, 2), 100).toFixed(1)}%` }}
               />

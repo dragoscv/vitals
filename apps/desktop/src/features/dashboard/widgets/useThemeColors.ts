@@ -3,7 +3,7 @@
  *
  * # Why this is needed at all
  *
- * Canvas has no cascade. `ctx.strokeStyle = 'var(--color-accent-solid)'` is
+ * Canvas has no cascade. `ctx.strokeStyle = 'var(--color-accent)'` is
  * silently ignored — not an error, just a stroke that never appears — so a
  * chart drawn with a CSS custom property renders in the previous colour, or
  * black. The only way to get the theme onto a canvas is to read the computed

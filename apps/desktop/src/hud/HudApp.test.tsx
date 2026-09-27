@@ -126,14 +126,14 @@ describe('HudApp', () => {
     const { container } = render(<HudApp source={oneFrame(system())} window={win} />);
     const panel = container.firstElementChild;
 
-    expect(panel?.className).not.toContain('--color-accent-9)]');
+    expect(panel?.className).not.toContain('--color-accent)]');
     fireEvent.click(screen.getByRole('button', { name: 'Click-through' }));
 
     expect(win.calls).toContain('ignore:true');
     // Without the border a window that ignores the cursor is indistinguishable
     // from one that does not, and the user has no way to work out why their
     // clicks are landing somewhere else.
-    expect(container.firstElementChild?.className).toContain('border-[var(--color-accent-9)]');
+    expect(container.firstElementChild?.className).toContain('border-[var(--color-accent)]');
   });
 
   it('unpins and repins through the window', () => {

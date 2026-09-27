@@ -59,7 +59,7 @@ export function GpuPanel({
         </div>
         {buffer !== undefined && (
           <TimeSeriesChart
-            series={[{ buffer, color: colors.accent, fillOpacity: 0.18 }]}
+            series={[{ buffer, color: colors.accent, fillOpacity: 0.18, headDot: true }]}
             revision={history.revision}
             scale={{ min: 0, max: 100 }}
             grid={{ horizontalLines: 4 }}
@@ -175,7 +175,7 @@ export function DiskPanel({
         </div>
         {buffer !== undefined && (
           <TimeSeriesChart
-            series={[{ buffer, color: colors.accent, fillOpacity: 0.18 }]}
+            series={[{ buffer, color: colors.accent, fillOpacity: 0.18, headDot: true }]}
             revision={history.revision}
             scale={{ min: 0, max: 100 }}
             grid={{ horizontalLines: 4 }}
@@ -301,7 +301,7 @@ export function NetworkPanel({
          */}
         <TimeSeriesChart
           series={[
-            { buffer: history.core.netRx, color: colors.accent, fillOpacity: 0.15 },
+            { buffer: history.core.netRx, color: colors.accent, fillOpacity: 0.15, headDot: true },
             { buffer: history.core.netTx, color: colors.warning, fillOpacity: 0.15 },
           ]}
           revision={history.revision}

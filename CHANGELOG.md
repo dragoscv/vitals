@@ -7,6 +7,50 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### 2026-09-27 — redesign and the truths it exposed
+
+#### Features
+
+- **Fluent depth** — cards are lit from above with a gradient surface, an
+  edge highlight and a layered shadow; the accent is used as light on the
+  active nav item, the primary button and the selected rail entry; two
+  static pools of the accent hue sit behind the content. Tokens in
+  `theme.css`, both modes (ADR 0030).
+- **Navigation morphs** — section changes run as a View Transition: the old
+  screen blurs out, the new one rises, the page title morphs between its
+  boxes, and the chrome stays put. A single sidebar indicator springs
+  between items. Skipped entirely under reduced motion.
+- **Numbers roll** — every meter's reading tweens to its new value inside
+  the formatter's own string; dashboard cards stagger in; skeletons
+  shimmer; charts fade their fill and mark the live edge with a glowing dot.
+- **GPU memory** — dedicated VRAM per adapter from DXGI, shown where a
+  dash used to be.
+
+#### Fixes
+
+- Disk read/write throughput, active time and response time were `0` on
+  every volume: the rate arithmetic had no caller. Counters are now read
+  per volume every tick, without administrator rights.
+- Drive kind read "Unknown type" for every fixed disk; now NVMe / SSD / HDD
+  / Removable from the device itself, on the Storage screen and the
+  dashboard alike.
+- A GPU the driver would not name showed as `Display adapter 0x00033f83`;
+  DXGI names it, and an indirect display that borrows its render card's
+  name is marked `(virtual display)`.
+- The Processes User column was empty on every row; it now shows the
+  account for every process the current user may open.
+- Eleven CSS tokens (`--color-accent-solid`, `--color-chart-1`, …) were
+  referenced but never defined, leaving per-core bars, alert icons and HUD
+  sparklines colourless.
+- `AnimatedValue` and the sidebar indicator honour the app's own
+  reduce-motion setting, not only the operating system's.
+
+#### Build and tooling
+
+- Size budget raised to the measured 188 880 B initial / 382 460 B shipped
+  (gzip) for the above; HUD and mobile unchanged.
+- `prove_devices` and `cost_probe` examples in `vitals-win`.
+
 ### Since the S1 upgrade commit (`7d9128c`)
 
 The session of 2026-09-10 turned a single-window monitor into a set of

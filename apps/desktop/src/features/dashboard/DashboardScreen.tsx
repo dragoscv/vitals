@@ -279,7 +279,10 @@ export function DashboardScreen({
           // Column count comes from the viewport, never from saved state, so a
           // layout stored on an ultrawide is still correct on a laptop. See
           // the note in `widgets.ts` on why placements are a list, not a grid.
-          className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3"
+          // `vitals-stagger` lifts each card in 40 ms after the previous one
+          // (theme.css). Only on mount: a widget moved in edit mode keeps its
+          // key, so it is not re-animated.
+          className="vitals-stagger grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3"
         >
           {placements.map((placement, index) => {
             const definition = widgetById.get(placement.id);
@@ -288,6 +291,7 @@ export function DashboardScreen({
             return (
               <WidgetFrame
                 key={placement.id}
+                index={index}
                 definition={definition}
                 size={placement.size}
                 editing={editing}

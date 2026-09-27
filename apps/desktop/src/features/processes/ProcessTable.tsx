@@ -136,7 +136,9 @@ export function ProcessTable(props: ProcessTableProps): React.JSX.Element {
     >
       <div
         ref={scrollRef}
-        className="min-h-0 flex-1 overflow-auto"
+        // The same surface as every card, so the table reads as one object on
+        // the page rather than a spreadsheet pasted into it.
+        className="min-h-0 flex-1 overflow-auto rounded-[var(--radius-widget)] border border-[var(--color-border-subtle)] bg-[var(--color-bg-raised)] shadow-[var(--shadow-card)]"
         role="grid"
         aria-label={t('process.table.label', fallback('process.table.label'))}
         aria-rowcount={props.rows.length + 1}
@@ -150,7 +152,9 @@ export function ProcessTable(props: ProcessTableProps): React.JSX.Element {
           <div
             role="row"
             aria-rowindex={1}
-            className="sticky top-0 z-10 grid border-b border-[var(--color-border-default)] bg-[var(--color-bg-raised)]"
+            // Frosted, not opaque: rows scrolling under the header are faintly
+            // visible, which is what tells the eye the header is pinned.
+            className="sticky top-0 z-10 grid border-b border-[var(--color-border-default)] bg-[var(--color-bg-raised)]/85 backdrop-blur-md"
             style={{ gridTemplateColumns: gridTemplate }}
           >
             {columns.map((column, index) => {
@@ -311,8 +315,10 @@ const Row = memo(
           // opposite of what this screen needs: it extends the window in which
           // a click lands on the wrong process.
           selected
-            ? 'bg-[var(--color-accent-subtle)] text-[var(--color-fg-default)]'
-            : 'hover:bg-[var(--color-bg-subtle)]',
+            ? // The leading bar is the shape that marks selection for anyone
+              // who cannot see the tint — same device as the sidebar.
+              'bg-[var(--color-accent-subtle)] text-[var(--color-fg-default)] shadow-[inset_3px_0_0_var(--color-accent)]'
+            : 'hover:bg-[var(--color-bg-inset)]/60',
           focused && 'outline-2 -outline-offset-2 outline-[var(--color-accent)]',
         )}
         style={{

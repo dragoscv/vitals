@@ -69,17 +69,17 @@ export function HudApp({ source, window: win = hudWindow, locale = 'en' }: HudAp
       // overlay earns its keep.
       className={cn(
         'flex h-full w-full flex-col justify-center gap-1.5 rounded-xl px-3 py-2',
-        'group bg-[rgb(20_20_24/0.82)] text-[var(--color-text-primary)]',
+        'group bg-[rgb(20_20_24/0.82)] text-[var(--color-fg-default)]',
         clickThrough
           ? // A window that ignores the cursor looks identical to one that
             // does not. The border is the only signal the user has that their
             // clicks are landing on whatever is behind it.
-            'border border-[var(--color-accent-9)]'
+            'border border-[var(--color-accent)]'
           : 'border border-[rgb(255_255_255/0.08)]',
       )}
     >
       <div className="flex items-center justify-between">
-        <span className="text-[10px] leading-none font-semibold tracking-wide text-[var(--color-text-muted)]">
+        <span className="text-[10px] leading-none font-semibold tracking-wide text-[var(--color-fg-muted)]">
           {t('hud.title')}
         </span>
         <div
@@ -125,7 +125,7 @@ export function HudApp({ source, window: win = hudWindow, locale = 'en' }: HudAp
         label={t('metric.cpu')}
         percent={cpu?.total ?? null}
         history={state.cpuHistory}
-        stroke="var(--color-chart-1)"
+        stroke="var(--color-chart-cpu)"
         locale={locale}
         temperature={cpu?.temperature ?? null}
       />
@@ -133,14 +133,14 @@ export function HudApp({ source, window: win = hudWindow, locale = 'en' }: HudAp
         label={t('metric.memory')}
         percent={system === null ? null : memoryPercent(system)}
         history={state.memoryHistory}
-        stroke="var(--color-chart-2)"
+        stroke="var(--color-chart-memory)"
         locale={locale}
       />
       <HudRow
         label={t('metric.gpu')}
         percent={system === null ? null : gpuPercent(system)}
         history={state.gpuHistory}
-        stroke="var(--color-chart-3)"
+        stroke="var(--color-chart-gpu)"
         locale={locale}
       />
     </div>
@@ -168,9 +168,9 @@ function ToolbarButton({
       {...(pressed !== undefined && { 'aria-pressed': pressed })}
       onClick={onClick}
       className={cn(
-        'grid size-5 place-items-center rounded text-[var(--color-text-muted)]',
-        'hover:bg-[rgb(255_255_255/0.1)] hover:text-[var(--color-text-primary)]',
-        'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--color-accent-9)]',
+        'grid size-5 place-items-center rounded text-[var(--color-fg-muted)]',
+        'hover:bg-[rgb(255_255_255/0.1)] hover:text-[var(--color-fg-default)]',
+        'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--color-accent)]',
       )}
     >
       {children}

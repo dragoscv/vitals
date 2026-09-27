@@ -70,3 +70,84 @@
     transition: none !important;
   }
 }
+
+/*
+ * ---- Atmosphere --------------------------------------------------------
+ *
+ * Two soft pools of the accent behind the content column, fixed to the
+ * window so they do not scroll with the page. Static by design: moving
+ * colour behind live numbers would compete with them. `--ambient-*` follow
+ * the accent and the mode (theme.css), so a pink theme gets pink light.
+ */
+#main-content {
+  background:
+    radial-gradient(60rem 40rem at 85% -10%, var(--ambient-a), transparent 70%),
+    radial-gradient(50rem 36rem at -10% 110%, var(--ambient-b), transparent 70%),
+    var(--color-bg-base);
+  background-attachment: fixed;
+}
+
+/*
+ * ---- Page titles -------------------------------------------------------
+ *
+ * Every section heads itself with `<h2 class="text-lg font-semibold">`; this
+ * is the single place that turns that into display type, rather than editing
+ * the same class string in ten screens.
+ *
+ * The title is also the named element that morphs between sections (see
+ * `RouteView` in routes.tsx, which sets `view-transition-name` on the visible
+ * route's wrapper). It is NOT named from here: every visited screen stays in
+ * the DOM under `<Activity mode="hidden">`, whose wrapper is `display: none`
+ * with no `hidden` attribute, so a selector cannot tell the live title from
+ * the ten parked ones — and two elements with one name abort the transition
+ * with `InvalidStateError: Snapshot capture failed` (seen live 2026-09-27).
+ */
+main h2.text-lg {
+  font-size: 1.5rem;
+  line-height: 2rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  background: linear-gradient(
+    100deg,
+    var(--color-fg-default) 30%,
+    color-mix(in oklch, var(--color-accent) 70%, var(--color-fg-default))
+  );
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  width: fit-content;
+}
+
+main h2.text-lg + p {
+  font-size: 0.8125rem;
+  margin-top: 0.125rem;
+}
+
+/*
+ * The chrome keeps its own snapshot so it does not fade with the content.
+ * Matched on the chrome class, not `nav[aria-label]`: the Performance screen
+ * has its own `<nav>` rail, and two elements named `sidebar` abort the
+ * transition.
+ */
+nav.surface-chrome {
+  view-transition-name: sidebar;
+}
+header.surface-chrome {
+  view-transition-name: titlebar;
+}
+::view-transition-group(sidebar),
+::view-transition-group(titlebar) {
+  animation: none;
+}
+
+/* The visible route's wrapper; its title morphs, the rest cross-fades. */
+[data-route-visible] h2.text-lg {
+  view-transition-name: page-title;
+}
+
+@media (prefers-contrast: more) {
+  main h2.text-lg {
+    background: none;
+    color: var(--color-fg-default);
+  }
+}

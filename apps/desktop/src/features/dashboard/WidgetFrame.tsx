@@ -24,6 +24,8 @@ import type { WidgetDefinition, WidgetSize } from './widgets';
 
 export interface WidgetFrameProps {
   readonly definition: WidgetDefinition;
+  /** Position in the grid, for the staggered entrance delay. */
+  readonly index?: number;
   readonly size: WidgetSize;
   readonly editing: boolean;
   /** False for the first and last widget respectively, to disable the arrows. */
@@ -39,6 +41,7 @@ export interface WidgetFrameProps {
 
 export function WidgetFrame({
   definition,
+  index = 0,
   size,
   editing,
   canMoveUp,
@@ -59,6 +62,7 @@ export function WidgetFrame({
       // has no way to tell CPU from GPU without reading the contents of each.
       regionLabel={title}
       data-widget={definition.id}
+      style={{ '--i': index } as React.CSSProperties}
       className={cn(
         'flex min-w-0 flex-col',
         // Grid placement is a class, not inline style, so the same layout works

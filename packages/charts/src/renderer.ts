@@ -29,6 +29,14 @@ export interface Series {
   readonly lineWidth?: number;
   /** Render as a dashed line — used for limits and thresholds. */
   readonly dashed?: boolean;
+  /**
+   * Mark the newest sample with a glowing dot.
+   *
+   * Makes "this is live" legible at a glance and anchors the eye at the
+   * right edge, which is the only tense a live chart has. Off for secondary
+   * series so a two-line chart has one point of focus, not two.
+   */
+  readonly headDot?: boolean;
 }
 
 export interface ScaleOptions {
@@ -182,7 +190,14 @@ function drawSeries(
   series: Series,
   bounds: Bounds,
 ): void {
-  const { buffer, color, fillOpacity = 0, lineWidth = 1.5, dashed = false } = series;
+  const {
+    buffer,
+    color,
+    fillOpacity = 0,
+    lineWidth = 1.5,
+    dashed = false,
+    headDot = false,
+  } = series;
   const count = buffer.size;
   if (count < 2) return;
 
@@ -200,6 +215,17 @@ function drawSeries(
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
   if (dashed) ctx.setLineDash([4, 4]);
+
+  // A vertical gradient rather than a flat wash: dense at the line, gone at
+  // the baseline. A flat fill reads as a solid block and hides the grid; a
+  // fading one reads as volume under the curve.
+  let fill: CanvasGradient | string = color;
+  if (fillOpacity > 0 && typeof ctx.createLinearGradient === 'function') {
+    const gradient = ctx.createLinearGradient(0, 0, 0, height);
+    gradient.addColorStop(0, color);
+    gradient.addColorStop(1, 'transparent');
+    fill = gradient;
+  }
 
   // Segments are tracked so a gap breaks the line rather than drawing a
   // straight cliff through missing data.
@@ -243,11 +269,26 @@ function drawSeries(
       ctx.lineTo(endX, height);
       ctx.lineTo(startX, height);
       ctx.closePath();
-      ctx.globalAlpha = fillOpacity;
-      ctx.fillStyle = color;
+      // The gradient's top stop is the full colour, so the opacity budget is
+      // doubled to keep the same visual weight as the old flat fill.
+      ctx.globalAlpha = Math.min(fillOpacity * 2, 1);
+      ctx.fillStyle = fill;
       ctx.fill();
       ctx.globalAlpha = 1;
     }
+  }
+
+  const last = buffer.at(count - 1);
+  if (headDot && last !== undefined && !Number.isNaN(last)) {
+    const x = offsetX + (count - 1) * stepX - lineWidth;
+    const y = Math.min(Math.max(toY(last), lineWidth * 2), height - lineWidth * 2);
+    ctx.setLineDash([]);
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 8;
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(x, y, 2.5, 0, Math.PI * 2);
+    ctx.fill();
   }
 
   ctx.restore();

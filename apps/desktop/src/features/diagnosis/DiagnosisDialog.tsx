@@ -35,8 +35,8 @@ const ICON: Readonly<Record<Severity, typeof Info>> = {
 };
 
 const TONE: Readonly<Record<Severity, string>> = {
-  critical: 'text-[var(--color-danger-fg)]',
-  warning: 'text-[var(--color-warning-fg)]',
+  critical: 'text-[var(--color-status-danger)]',
+  warning: 'text-[var(--color-status-warn)]',
   info: 'text-[var(--color-fg-muted)]',
 };
 
@@ -224,7 +224,7 @@ function Verdict({
         <div className="flex items-start gap-3">
           <CheckCircle2
             aria-hidden
-            className="mt-0.5 size-5 shrink-0 text-[var(--color-success-fg)]"
+            className="mt-0.5 size-5 shrink-0 text-[var(--color-status-ok)]"
           />
           <div>
             <p className="text-base font-semibold">{t('diagnosis.healthy.title')}</p>
@@ -299,7 +299,7 @@ function Verdict({
             {t('diagnosis.lastMinute')}
           </h3>
           <TimeSeriesChart
-            series={[{ buffer: series, color: colors.accent, fillOpacity: 0.18 }]}
+            series={[{ buffer: series, color: colors.accent, fillOpacity: 0.18, headDot: true }]}
             revision={history.revision}
             {...(scale !== undefined && { scale })}
             className="h-24 w-full"

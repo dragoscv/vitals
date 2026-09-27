@@ -50,7 +50,14 @@ export function MemoryPanel({
           <span className="tnum font-mono text-2xl">{formatPercent(usedPercent, locale, 0)}</span>
         </div>
         <TimeSeriesChart
-          series={[{ buffer: history.core.memoryPercent, color: colors.accent, fillOpacity: 0.18 }]}
+          series={[
+            {
+              buffer: history.core.memoryPercent,
+              color: colors.accent,
+              fillOpacity: 0.18,
+              headDot: true,
+            },
+          ]}
           revision={history.revision}
           scale={{ min: 0, max: 100 }}
           grid={{ horizontalLines: 4 }}
@@ -172,13 +179,13 @@ function Composition({
       key: 'active',
       label: t('memory.inUse'),
       value: active,
-      className: 'bg-[var(--color-accent-solid)]',
+      className: 'bg-[var(--color-accent)]',
     },
     {
       key: 'cached',
       label: t('memory.cached'),
       value: cached,
-      className: 'bg-[var(--color-accent-solid)]/40',
+      className: 'bg-[var(--color-accent)]/40',
     },
     {
       key: 'free',

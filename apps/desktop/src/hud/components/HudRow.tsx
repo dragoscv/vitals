@@ -24,7 +24,7 @@ export function HudRow({
 }: HudRowProps) {
   return (
     <div className="flex items-center gap-2">
-      <span className="w-10 shrink-0 text-[10px] leading-none font-medium tracking-wide text-[var(--color-text-muted)] uppercase">
+      <span className="w-10 shrink-0 text-[10px] leading-none font-medium tracking-wide text-[var(--color-fg-muted)] uppercase">
         {label}
       </span>
       <span
@@ -35,7 +35,7 @@ export function HudRow({
       >
         {formatPercent(percent, locale, 0)}
       </span>
-      <span className="w-9 shrink-0 text-right font-mono text-[10px] leading-none text-[var(--color-text-muted)] tabular-nums">
+      <span className="w-9 shrink-0 text-right font-mono text-[10px] leading-none text-[var(--color-fg-muted)] tabular-nums">
         {temperature === null ? '' : formatTemperature(temperature, locale)}
       </span>
       <Sparkline values={history} stroke={stroke} className="h-4 min-w-0 flex-1" />

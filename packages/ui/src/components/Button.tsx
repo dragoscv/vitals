@@ -7,7 +7,12 @@ import { Spinner } from './Spinner';
 const button = cva(
   cn(
     'inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-[var(--radius-control)] font-medium select-none',
-    'transition-colors duration-(--duration-fast) ease-(--ease-out-quart)',
+    // Colour AND transform: a control that compresses under the pointer is
+    // what separates a button from a coloured rectangle. 0.97, not smaller —
+    // the label must stay legible mid-press. The reduced-motion rules in
+    // theme.css collapse the duration, so the press is instant there.
+    'transition-[color,background-color,border-color,box-shadow,transform] duration-(--duration-fast) ease-(--ease-out-quart)',
+    'active:scale-[0.97] active:duration-(--duration-instant)',
     focusRing,
     disabledControl,
   ),
@@ -15,15 +20,17 @@ const button = cva(
     variants: {
       variant: {
         primary:
-          'bg-[var(--color-accent)] text-[var(--color-fg-on-accent)] hover:bg-[var(--color-accent-hover)]',
+          // Lit from above and glowing in its own hue: the one control per
+          // screen that should read as the thing to press.
+          'bg-[var(--color-accent)] text-[var(--color-fg-on-accent)] shadow-[inset_0_1px_0_oklch(1_0_0/0.2),0_1px_2px_oklch(0_0_0/0.15)] hover:bg-[var(--color-accent-hover)] hover:shadow-[var(--glow-accent)]',
         secondary:
-          'border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] text-[var(--color-fg-default)] hover:bg-[var(--color-bg-subtle)]',
+          'border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] text-[var(--color-fg-default)] shadow-[var(--edge-highlight)] hover:border-[var(--color-border-strong)] hover:bg-[var(--color-bg-subtle)]',
         ghost:
-          'bg-transparent text-[var(--color-fg-muted)] hover:bg-[var(--color-bg-subtle)] hover:text-[var(--color-fg-default)]',
+          'bg-transparent text-[var(--color-fg-muted)] hover:bg-[var(--color-bg-inset)]/80 hover:text-[var(--color-fg-default)]',
         // Destructive actions in this app are irreversible — terminating a
         // process loses unsaved work. The variant is visually loud on purpose.
         danger:
-          'bg-[var(--color-status-danger)] text-[var(--color-fg-on-accent)] hover:brightness-110',
+          'bg-[var(--color-status-danger)] text-[var(--color-fg-on-accent)] shadow-[inset_0_1px_0_oklch(1_0_0/0.2)] hover:brightness-110 hover:shadow-[0_0_0_1px_var(--color-status-danger),0_6px_20px_-6px_var(--color-status-danger)]',
       },
       size: {
         sm: 'h-7 px-2.5 text-2xs',

@@ -142,7 +142,16 @@ export function TitleBar({ children, controls }: TitleBarProps) {
        */}
       <div data-tauri-drag-region className="absolute inset-0" />
 
-      <div className="pointer-events-none relative flex h-full min-w-0 flex-1 items-center px-3">
+      <div className="pointer-events-none relative flex h-full min-w-0 flex-1 items-center gap-2 px-3">
+        {/*
+         * A mark rather than bare text: the accent dot breathes while the
+         * window is open, which is the product's one ambient sign of life.
+         * Decorative — the section name beside it is the accessible content.
+         */}
+        <span
+          aria-hidden="true"
+          className="vitals-live-dot size-1.5 shrink-0 rounded-full bg-[var(--color-accent)] text-[var(--color-accent)]"
+        />
         <span className="truncate text-2xs font-medium text-[var(--color-fg-muted)]">
           {children}
         </span>

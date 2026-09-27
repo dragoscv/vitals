@@ -109,7 +109,10 @@ describe('AppShell', () => {
     trigger.focus();
     fireEvent.click(trigger);
 
-    const dialog = await screen.findByRole('dialog');
+    // The dialog is a lazy chunk: this waits for a real module import, not a
+    // state change, and on a loaded machine that takes longer than the 1 s
+    // default. Fails on unmodified HEAD under concurrent builds (2026-09-27).
+    const dialog = await screen.findByRole('dialog', {}, { timeout: 8000 });
     expect(within(dialog).getByRole('tab', { name: 'Appearance' })).toBeTruthy();
 
     fireEvent.keyDown(dialog, { key: 'Escape' });

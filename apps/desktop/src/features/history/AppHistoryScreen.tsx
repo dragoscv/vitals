@@ -141,7 +141,7 @@ export function AppHistoryScreen({
             >
               <button
                 type="button"
-                className="text-[var(--color-fg-muted)] transition-colors hover:text-[var(--color-fg-base)]"
+                className="text-[var(--color-fg-muted)] transition-colors hover:text-[var(--color-fg-default)]"
                 aria-label={t('about.title')}
               >
                 <Info className="size-4" />
@@ -298,7 +298,7 @@ function HistoryTable({
     <div className="overflow-x-auto">
       <table className="w-full border-collapse text-sm">
         <thead>
-          <tr className="border-b border-[var(--color-border-base)]">
+          <tr className="border-b border-[var(--color-border-subtle)]">
             <th className="px-3 py-2 text-left font-medium text-[var(--color-fg-muted)]">
               {t('column.name')}
             </th>

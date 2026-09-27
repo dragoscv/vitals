@@ -1,6 +1,7 @@
 import { forwardRef, type ReactNode } from 'react';
 import { cn } from '../lib/cn';
 import { useReducedMotion } from '../lib/useReducedMotion';
+import { AnimatedValue } from './AnimatedValue';
 import type { ProgressTone } from './ProgressBar';
 
 const FILL_TONE: Record<ProgressTone, string> = {
@@ -68,13 +69,10 @@ export const Meter = forwardRef<HTMLDivElement, MeterProps>(function Meter(
     <div ref={ref} className={cn('flex flex-col gap-1', className)} {...rest}>
       <div className="flex items-baseline justify-between gap-2 text-2xs">
         <span className="truncate text-[var(--color-fg-muted)]">{label}</span>
-        <span
-          className="tnum shrink-0 font-mono text-[var(--color-fg-default)]"
-          // Polite, never assertive: an assertive region interrupts whatever
-          // the user is currently reading, and no metric is worth that.
-          aria-live={live ? 'polite' : undefined}
-        >
-          {valueText}
+        <span className="tnum shrink-0 font-mono text-[var(--color-fg-default)]">
+          {/* Polite, never assertive: an assertive region interrupts whatever
+              the user is currently reading, and no metric is worth that. */}
+          <AnimatedValue value={valueText} live={live} />
         </span>
       </div>
       <div
@@ -84,16 +82,16 @@ export const Meter = forwardRef<HTMLDivElement, MeterProps>(function Meter(
         aria-valuemax={max}
         aria-valuenow={value}
         aria-valuetext={valueText}
-        className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--color-bg-inset)]"
+        className="h-2 w-full overflow-hidden rounded-full bg-[var(--color-bg-inset)] shadow-[inset_0_1px_2px_oklch(0_0_0/0.15)]"
       >
         <div
           data-testid="meter-fill"
           className={cn(
-            'h-full rounded-full',
+            // A light top edge and a soft glow in the fill's own colour: a
+            // flat bar reads as a form control, a lit one as a gauge.
+            'h-full rounded-full shadow-[inset_0_1px_0_oklch(1_0_0/0.25),0_0_10px_-2px_currentColor]',
             FILL_TONE[tone],
-            reduced
-              ? ''
-              : 'transition-[width] duration-(--duration-normal) ease-(--ease-out-quart)',
+            reduced ? '' : 'transition-[width] duration-(--duration-slow) ease-(--ease-out-quart)',
           )}
           style={{ width: `${(ratio * 100).toFixed(2)}%` }}
         />

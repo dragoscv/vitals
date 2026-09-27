@@ -32,7 +32,12 @@ export const Skeleton = forwardRef<HTMLDivElement, SkeletonProps>(function Skele
       aria-hidden="true"
       className={cn(
         'bg-[var(--color-bg-inset)]',
-        reduced ? '' : 'animate-pulse',
+        // A sweep rather than a pulse: a pulse reads as "waiting", a sweep as
+        // "arriving", and it is the same cost — one background-position
+        // animation on the compositor.
+        reduced
+          ? ''
+          : '[animation:vitals-shimmer_1.6s_linear_infinite] bg-[linear-gradient(90deg,var(--color-bg-inset)_0%,var(--color-bg-subtle)_50%,var(--color-bg-inset)_100%)] bg-[length:200%_100%]',
         shape === 'text' && 'h-3 rounded-sm',
         shape === 'block' && 'rounded-[var(--radius-control)]',
         shape === 'circle' && 'rounded-full',

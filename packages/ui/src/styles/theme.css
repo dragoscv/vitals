@@ -115,6 +115,34 @@
   --shadow-widget: 0 1px 2px oklch(0 0 0 / 0.04), 0 4px 12px oklch(0 0 0 / 0.06);
   --shadow-overlay: 0 2px 4px oklch(0 0 0 / 0.06), 0 12px 32px oklch(0 0 0 / 0.12);
 
+  /* ---- Depth ---------------------------------------------------------- */
+  /*
+   * A card is lit from above: a one-pixel highlight on its top edge and a
+   * faint vertical wash. That is the whole trick behind "modern" surfaces —
+   * flat fills with a border read as a spreadsheet, the same fill with a top
+   * light reads as an object.
+   */
+  --surface-card: linear-gradient(
+    180deg,
+    color-mix(in oklch, var(--color-bg-raised) 100%, white 0%) 0%,
+    color-mix(in oklch, var(--color-bg-raised) 96%, var(--color-bg-inset)) 100%
+  );
+  --edge-highlight: inset 0 1px 0 oklch(1 0 0 / 0.7);
+  --shadow-card:
+    var(--edge-highlight), 0 1px 2px oklch(0.2 0.02 260 / 0.05),
+    0 8px 24px -8px oklch(0.2 0.02 260 / 0.12);
+  --shadow-card-hover:
+    var(--edge-highlight), 0 2px 4px oklch(0.2 0.02 260 / 0.06),
+    0 16px 40px -12px oklch(0.2 0.02 260 / 0.2);
+  /* The accent as light rather than paint: rings, active items, live charts. */
+  --glow-accent:
+    0 0 0 1px var(--color-accent-border),
+    0 6px 24px -6px oklch(0.6 var(--accent-chroma) var(--accent-hue) / 0.35);
+  /* Ambient backdrop behind the content column: two soft pools of the accent
+   * and its neighbour hue. Static — it is atmosphere, not an animation. */
+  --ambient-a: oklch(0.85 0.08 var(--accent-hue) / 0.35);
+  --ambient-b: oklch(0.88 0.06 calc(var(--accent-hue) + 60) / 0.25);
+
   color-scheme: light;
 }
 
@@ -148,6 +176,23 @@
 
   --shadow-widget: 0 1px 2px oklch(0 0 0 / 0.3), 0 4px 12px oklch(0 0 0 / 0.35);
   --shadow-overlay: 0 2px 4px oklch(0 0 0 / 0.4), 0 12px 32px oklch(0 0 0 / 0.5);
+
+  --surface-card: linear-gradient(
+    180deg,
+    color-mix(in oklch, var(--color-bg-raised) 92%, white 8%) 0%,
+    var(--color-bg-raised) 38%,
+    color-mix(in oklch, var(--color-bg-raised) 88%, var(--color-bg-inset)) 100%
+  );
+  --edge-highlight: inset 0 1px 0 oklch(1 0 0 / 0.07);
+  --shadow-card:
+    var(--edge-highlight), 0 1px 2px oklch(0 0 0 / 0.35), 0 10px 30px -10px oklch(0 0 0 / 0.55);
+  --shadow-card-hover:
+    var(--edge-highlight), 0 2px 4px oklch(0 0 0 / 0.4), 0 20px 48px -14px oklch(0 0 0 / 0.65);
+  --glow-accent:
+    0 0 0 1px var(--color-accent-border),
+    0 8px 32px -6px oklch(0.65 var(--accent-chroma) var(--accent-hue) / 0.45);
+  --ambient-a: oklch(0.45 0.12 var(--accent-hue) / 0.22);
+  --ambient-b: oklch(0.42 0.1 calc(var(--accent-hue) + 60) / 0.16);
 
   color-scheme: dark;
 }
@@ -243,6 +288,106 @@
 .vitals-toaster-still [data-sonner-toast] * {
   animation-duration: 0.01ms !important;
   transition-duration: 0.01ms !important;
+}
+
+/*
+ * The app-level reduced-motion override. `data-reduce-motion` is set on the
+ * root by ThemeProvider from the user's own setting, which the media query
+ * above cannot see. Same collapse, same reasoning.
+ */
+[data-reduce-motion='true'] *,
+[data-reduce-motion='true'] *::before,
+[data-reduce-motion='true'] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}
+[data-reduce-motion='true']::view-transition-group(*),
+[data-reduce-motion='true']::view-transition-old(*),
+[data-reduce-motion='true']::view-transition-new(*) {
+  animation: none !important;
+}
+
+/* ---- Motion vocabulary ------------------------------------------------ */
+/*
+ * Entrance: content rises 6px and sharpens from a 4px blur. The blur is what
+ * makes it read as focus arriving rather than a box sliding; 6px is enough to
+ * be felt and too little to be watched.
+ */
+@keyframes vitals-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.995);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+
+@keyframes vitals-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@keyframes vitals-pulse-dot {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in oklch, currentColor 45%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 4px color-mix(in oklch, currentColor 0%, transparent);
+  }
+}
+
+/*
+ * Staggered entrance for a grid of cards. The delay comes from `--i`, set per
+ * child, and is capped at eight steps so a thirty-row grid does not take a
+ * second to finish arriving — the last card must land inside 400 ms.
+ */
+.vitals-stagger > * {
+  animation: vitals-rise var(--duration-slow) var(--ease-out-quart) both;
+  animation-delay: calc(min(var(--i, 0), 8) * 40ms);
+}
+
+.vitals-rise {
+  animation: vitals-rise var(--duration-slow) var(--ease-out-quart) both;
+}
+
+/* A live indicator: a dot that breathes, so "updating" is visible at a glance. */
+.vitals-live-dot {
+  animation: vitals-pulse-dot 2s var(--ease-in-out-quart) infinite;
+}
+
+/*
+ * Cross-fade morph between sections, driven by the View Transitions API.
+ * The old view blurs out as the new one sharpens in; the sidebar indicator
+ * and the page title are named elements, so they morph between positions
+ * rather than fading.
+ */
+::view-transition-old(root) {
+  animation: 160ms var(--ease-out-quart) both vitals-fade-out;
+}
+::view-transition-new(root) {
+  animation: 280ms var(--ease-out-quart) both vitals-rise;
+}
+::view-transition-group(nav-indicator),
+::view-transition-group(page-title) {
+  animation-duration: 320ms;
+  animation-timing-function: var(--ease-spring);
+}
+
+@keyframes vitals-fade-out {
+  to {
+    opacity: 0;
+    filter: blur(2px);
+  }
 }
 
 @media (prefers-contrast: more) {

@@ -19,6 +19,7 @@ import { useTranslation } from 'react-i18next';
 import { TimeSeriesChart, type Series } from '@vitals/charts';
 import type { SystemMetrics } from '@vitals/protocol';
 import {
+  AnimatedValue,
   formatBytes,
   formatCount,
   formatFrequency,
@@ -49,7 +50,7 @@ function Stats({
         <div key={item.key} className="min-w-0">
           <dt className="truncate text-2xs text-[var(--color-fg-muted)]">{item.label}</dt>
           <dd className="tnum truncate font-mono text-sm text-[var(--color-fg-default)]">
-            {item.value}
+            <AnimatedValue value={item.value} />
           </dd>
         </div>
       ))}
@@ -63,7 +64,7 @@ export function CpuWidget({ system, history, locale }: WidgetBodyProps): React.J
   const { cpu } = system;
 
   const series: readonly Series[] = [
-    { buffer: history.core.cpu, color: colors.accent, fillOpacity: 0.18 },
+    { buffer: history.core.cpu, color: colors.accent, fillOpacity: 0.18, headDot: true },
     // Kernel time is drawn under the total rather than beside it: the useful
     // reading is what share of a busy CPU is the OS rather than the user's
     // programs, and two independent lines make that a subtraction the reader
@@ -149,14 +150,15 @@ function PerCore({
         {values.map((value, index) => (
           <div
             key={index}
-            className="min-w-0 flex-1 rounded-t-[1px] bg-[var(--color-bg-inset)]"
-            style={{ height: '100%' }}
+            className="flex min-w-0 flex-1 flex-col justify-end rounded-t-[2px] bg-[var(--color-bg-inset)]"
           >
             <div
-              className="w-full rounded-t-[1px] bg-[var(--color-accent-solid)]"
+              // The fill was never at the bottom: `marginTop: auto` does
+              // nothing outside a flex column, so every bar hung from the
+              // top. The column above is what makes it grow upwards.
+              className="w-full rounded-t-[2px] bg-gradient-to-t from-[var(--color-accent)] to-[color-mix(in_oklch,var(--color-accent)_60%,white)] transition-[height] duration-(--duration-slow) ease-(--ease-out-quart)"
               style={{
                 height: `${Math.min(Math.max(value, 0), 100).toFixed(1)}%`,
-                marginTop: 'auto',
               }}
             />
           </div>
@@ -176,7 +178,14 @@ export function MemoryWidget({ system, history, locale }: WidgetBodyProps): Reac
   return (
     <>
       <TimeSeriesChart
-        series={[{ buffer: history.core.memoryPercent, color: colors.accent, fillOpacity: 0.18 }]}
+        series={[
+          {
+            buffer: history.core.memoryPercent,
+            color: colors.accent,
+            fillOpacity: 0.18,
+            headDot: true,
+          },
+        ]}
         revision={history.revision}
         scale={{ min: 0, max: 100 }}
         className="h-24 w-full"
@@ -228,7 +237,7 @@ export function DiskWidget({ system, history, locale }: WidgetBodyProps): React.
     <>
       <TimeSeriesChart
         series={[
-          { buffer: history.core.diskRead, color: colors.accent, fillOpacity: 0.15 },
+          { buffer: history.core.diskRead, color: colors.accent, fillOpacity: 0.15, headDot: true },
           { buffer: history.core.diskWrite, color: colors.warning, fillOpacity: 0.15 },
         ]}
         revision={history.revision}
@@ -271,7 +280,7 @@ export function NetworkWidget({ system, history, locale }: WidgetBodyProps): Rea
     <>
       <TimeSeriesChart
         series={[
-          { buffer: history.core.netRx, color: colors.accent, fillOpacity: 0.15 },
+          { buffer: history.core.netRx, color: colors.accent, fillOpacity: 0.15, headDot: true },
           { buffer: history.core.netTx, color: colors.warning, fillOpacity: 0.15 },
         ]}
         revision={history.revision}

@@ -34,15 +34,24 @@ describe('Meter', () => {
 
   it('stays silent by default, so a 1 Hz metric does not narrate forever', () => {
     render(<Meter label="CPU" accessibleLabel="CPU usage" value={12} valueText="12%" />);
+    // The value renders twice: a rolling copy hidden from assistive
+    // technology and the accessible one. Only the accessible copy may ever
+    // be a live region.
     expect(
-      screen.getByText('12%').getAttribute('aria-live'),
+      screen.getByText('12%', { ignore: '[aria-hidden]' }).getAttribute('aria-live'),
       'a continuously sampled meter must not be a live region',
     ).toBeNull();
   });
 
   it('announces politely when the caller opts in', () => {
     render(<Meter label="CPU" accessibleLabel="CPU usage" value={12} valueText="12%" live />);
-    expect(screen.getByText('12%').getAttribute('aria-live')).toBe('polite');
+    expect(screen.getByText('12%', { ignore: '[aria-hidden]' }).getAttribute('aria-live')).toBe(
+      'polite',
+    );
+    expect(
+      screen.getByText('12%', { ignore: '.sr-only' }).getAttribute('aria-live'),
+      'the rolling copy must never announce — it changes every frame',
+    ).toBeNull();
   });
 });
 

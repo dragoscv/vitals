@@ -120,13 +120,18 @@ function RouteTransition({
     const first = shown.current === null;
     shown.current = route;
     if (first || reduced) return;
+    // The shell navigates inside a View Transition where the platform has
+    // one; the browser already cross-fades the whole view, and a second fade
+    // on top would make the new screen arrive twice. This path remains for
+    // a WebView without the API and for tests.
+    if ('startViewTransition' in document) return;
 
     const animation = target.animate(
       [
-        { opacity: 0, transform: 'translateY(4px)' },
-        { opacity: 1, transform: 'none' },
+        { opacity: 0, transform: 'translateY(6px)', filter: 'blur(3px)' },
+        { opacity: 1, transform: 'none', filter: 'none' },
       ],
-      { duration: 140, easing: 'ease-out' },
+      { duration: 220, easing: 'cubic-bezier(0.25, 1, 0.5, 1)' },
     );
 
     return () => {
@@ -215,9 +220,17 @@ export function RouteView({
         // Keyed per route, and each gets its own boundary: a section still
         // loading its chunk must not blank a sibling that is already up.
         <Activity key={id} mode={id === route ? 'visible' : 'hidden'}>
-          <Suspense fallback={<RouteSkeleton />}>
-            <RouteContent route={id} {...(onNavigate && { onNavigate })} />
-          </Suspense>
+          {/*
+           * `data-route-visible` marks the one route on screen; styles.css
+           * gives only its title a `view-transition-name`. Hidden routes are
+           * still in the DOM, and two elements sharing a name abort the
+           * whole transition — the CSS cannot tell them apart, React can.
+           */}
+          <div {...(id === route && { 'data-route-visible': '' })}>
+            <Suspense fallback={<RouteSkeleton />}>
+              <RouteContent route={id} {...(onNavigate && { onNavigate })} />
+            </Suspense>
+          </div>
         </Activity>
       ))}
     </RouteTransition>

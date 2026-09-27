@@ -33,6 +33,7 @@ Single canonical narrative tracker. The machine-readable companion is
 | D20 | Updater keys    | Wire everything; pubkey stays a loud, documented TODO for the user to run once                                                                                                         |
 | D21 | Slice order     | tooling → truth → server → mobile → UI → tray/HUD → metrics → docs/CI                                                                                                                  |
 | D22 | Extras          | All eleven accepted (mDNS, audits, typed lint, DiskCounters, ADRs, coverage, shortcuts, search, slow-report, dependabot, ARM64)                                                        |
+| D30 | Visual redesign | Fluent depth + glow (not glassmorphism, not monochrome); Motion permitted and the size budget raised to measured — asked 2026-09-27, ADR 0030                                          |
 
 ---
 
@@ -150,6 +151,8 @@ Status values: `todo`, `doing`, `done`, `blocked`, `dropped`.
 | S8    | Tray, HUD, alerts, notifications, updater                            | done (6/6; alerts engine in Rust feeds desktop, tray, toasts, LAN)                                 |
 | S9    | New Windows metrics: DiskCounters, efficiency mode, handles, modules | backend done for 01/02/04/05 (vitals-win + vitals-core); 03/06/07 and the Tauri commands pending   |
 | S10   | Docs, ADRs, CI, supply-chain audits                                  | done except S10-12 (ARM64 leg unproven — needs a run on `windows-11-arm`, and agents never push)   |
+| S11   | Task Manager replacement, HUD overlay                                | done                                                                                               |
+| S12   | Look-and-feel redesign + the four backend truths it exposed          | done except S12-11 (30 ms overhead budget cannot be measured while the machine is at 100 % CPU)    |
 
 Per-item status lives in `tracker.csv`. This file records the reasoning; the
 CSV records the state.
@@ -160,6 +163,87 @@ CSV records the state.
 
 Every claim of "done" needs a command and its output. Recorded here as work
 lands, newest first.
+
+### 2026-09-27 — S12 redesign: depth, morphing nav, View Transitions, rolling numbers; disk/GPU/drive-kind/owner fixes
+
+**What the user saw.** "The desktop app is ugly and some pages do not
+work." A CDP walk over all twelve sections found no crash — Devices and
+Benchmarks simply load slower than the first probe waited — but four
+numbers were wrong on screen: Disk read/write were `0 B/s` on the dashboard
+and every Performance drive at `0 %` (the rate maths in `disk/rate.rs` had
+no caller); the Performance rail listed `Display adapter 0x00033f83` beside
+the real card; Storage said `Unknown type` for every drive; the Processes
+User column was an em dash on every row. Separately, eleven CSS custom
+properties were referenced and never defined, so the per-core bars, alert
+icons and HUD sparklines had no colour.
+
+**Backend, fixed at the source so every client benefits.**
+`disk/device.rs` opens `\\.\X:` with zero access rights (no elevation) and
+asks `IOCTL_DISK_PERFORMANCE` every tick and `IOCTL_STORAGE_QUERY_PROPERTY`
+once for bus type and seek penalty — applied inside `enumerate_volumes`,
+so the Storage screen and the sampler cannot disagree. `gpu/adapters.rs`
+falls back to DXGI's description and dedicated VRAM, joined by LUID; an
+indirect display that borrows its render GPU's name is labelled
+`(virtual display)` and does not double-count memory. `process/owner.rs`
+reads the token SID once per process lifetime and resolves each SID once,
+pruned with the live set; other-account processes stay `None` without
+elevation rather than a guessed "SYSTEM".
+
+**Frontend.** Tokens for depth (`--surface-card`, `--edge-highlight`,
+`--shadow-card`, `--glow-accent`, `--ambient-a/b`) in both modes; `Card`,
+`Button`, `Meter`, the process grid and the Performance rail restyled;
+two static accent pools behind the content. Navigation is a View Transition
+(`AppShell.navigate`, `flushSync`), the page title morphs, the chrome is
+pinned. One absolutely positioned sidebar pill on a spring — not a shared
+`layoutId`. `AnimatedValue` rolls the number inside an already formatted
+string. Dashboard cards stagger in; skeletons shimmer; charts get a
+gradient fill and a glowing head dot.
+
+**Found live, fixed, tested.** (1) The pill sat on Dashboard whatever was
+active: each `<li>` is positioned, so `offsetTop` was 0 — now measured by
+bounding rect, with a layout-stubbed test. (2) Every transition aborted
+with `InvalidStateError: Snapshot capture failed`: `page-title` was on all
+ten parked titles under `<Activity>` and `sidebar` matched the Performance
+rail's `<nav>` too — now `data-route-visible` marks the one visible route
+and the chrome is matched by class. (3) `AnimatedValue`'s separator parser
+read `1,351` as a decimal — rule rewritten, eleven cases.
+
+**Not a regression, verified on HEAD.** `AppShell.test > opens settings`
+failed on the unmodified tree in a clean worktree under three concurrent
+builds; its `findByRole('dialog')` waits on a lazy chunk. Timeout raised to
+8 s. The 30 ms overhead budget failed at 143 ms — and at 98 ms on HEAD
+under the same 100 % CPU; the two new per-tick operations cost 0.019 ms
+(disk counters, 4 volumes) and 0.035 ms (owners, 705 processes, warm).
+S12-11 stays `blocked` until the machine is idle.
+
+```text
+cargo test -q -p vitals-win --lib                 → 594 passed (before the last two disk/owner tests)
+cargo test --workspace --exclude vitals-win       → every crate ok
+cargo clippy --workspace --all-targets -D warnings → Finished (0 warnings)
+cargo fmt --all -- --check                        → clean
+scripts/check-drift.ps1                           → 0 failure(s), 0 warning(s); 12 ts_rs, 56 invokes, 56 commands, 2 locales
+run-build.ps1 pnpm typecheck                      → 6/6 tasks
+run-build.ps1 pnpm lint                           → 6/6 tasks
+run-build.ps1 pnpm test                           → ui 104, desktop 874 (+ Sidebar indicator, AnimatedValue 11)
+prettier --check                                  → All matched files use Prettier code style!
+scripts/check-size.ps1                            → initial 184.5 KB / 184.5 KB, shipped 373.5 / 373.5, hud 96.6 %, mobile 99.2 %
+cargo run --release --example prove_devices       → C: Nvme 16345302 B/s read 12.2 % 0.19 ms; D: Ssd; E: Nvme; H: Removable
+                                                    GPU NVIDIA GeForce RTX 3060 Ti (virtual display) vram -
+                                                    GPU NVIDIA GeForce RTX 3060 Ti util 29.2 % vram 8.4 GB
+cargo run --release --example cost_probe          → disk counters x4: 0.019 ms; owners x705: cold 3.945 ms, warm 0.035 ms
+node .copilot-tmp/ui-audit.mjs (12 sections, CDP) → 0 console errors after the transition fix (3 InvalidStateError before)
+live probe                                        → indicator translateY(84px), active row top 116 == indicator top 116
+live text                                         → "DISK Read 13.7 MB/s" · "NVIDIA GeForce RTX 3060 Ti (virtual display)" ·
+                                                    "C: Windows NVMe SSD … H: External Removable" · "explorer.exe 2188 Running vladu"
+```
+
+Not updated, with reason: `packages/client` SDK and `openapi.yaml` — no
+field changed shape, only values that were `0`/`None`/hex are now real, so
+the wire contract and generated bindings are untouched (drift gate green).
+Locales — no new user-facing string; "(virtual display)" is an adapter name
+from the backend, in line with every other hardware name. CLI — reads the
+same `SystemMetrics`, so `vitals top` gains disk rates and owners for free;
+not re-driven live this session. Installer budget — not built.
 
 ### 2026-09-11 — S11-11 Replace Task Manager with Vitals (no commit yet)
 

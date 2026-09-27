@@ -60,7 +60,7 @@ export function HistoryWidget({
   }
 
   const series: readonly Series[] = [
-    { buffer: history.series.cpu, color: colors.accent, fillOpacity: 0.12 },
+    { buffer: history.series.cpu, color: colors.accent, fillOpacity: 0.12, headDot: true },
     { buffer: history.series.memory, color: colors.warning, lineWidth: 1 },
     { buffer: history.series.gpu, color: colors.danger, lineWidth: 1 },
   ];
@@ -85,7 +85,7 @@ export function HistoryWidget({
       </div>
 
       {history.error !== null && (
-        <p role="alert" className="text-2xs text-[var(--color-danger-fg)]">
+        <p role="alert" className="text-2xs text-[var(--color-status-danger)]">
           {t('history.failed', { reason: history.error })}
         </p>
       )}

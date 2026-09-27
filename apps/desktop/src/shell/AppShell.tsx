@@ -1,7 +1,8 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 
-import { TooltipProvider } from '@vitals/ui';
+import { TooltipProvider, useReducedMotion } from '@vitals/ui';
 
 import { toggleHud } from '../lib/settingsSync';
 import { RouteView } from '../routes';
@@ -9,6 +10,7 @@ import { useSettings } from '../settings/store';
 import { Content } from './Content';
 import { ErrorBoundary } from './ErrorBoundary';
 import { navItems, OPEN_SETTINGS_EVENT } from './navigation';
+import type { RouteId } from './navigation';
 import { RouteError } from './RouteError';
 import { Sidebar } from './Sidebar';
 import type { ShortcutActions } from './shortcuts';
@@ -76,7 +78,45 @@ export interface AppShellProps {
 export function AppShell({ version }: AppShellProps) {
   const { t } = useTranslation();
   const route = useSettings((state) => state.route);
-  const navigate = useSettings((state) => state.navigate);
+  const commitRoute = useSettings((state) => state.navigate);
+  const reduced = useReducedMotion();
+
+  /**
+   * Navigation as a View Transition.
+   *
+   * The browser snapshots the outgoing screen, React commits the new one
+   * synchronously inside the callback, and the two cross-fade with a blur
+   * (keyframes in theme.css). Named elements — the page title — morph from
+   * their old box to their new one instead of fading.
+   *
+   * `flushSync` is what makes it correct: the callback must return with the
+   * new DOM in place, and a normal React update would land a frame later,
+   * after the snapshot, animating the old screen into itself.
+   *
+   * Skipped when the API is missing, under reduced motion, and for a click on
+   * the section already shown — a transition to the same view is a flash.
+   */
+  const navigate = useCallback(
+    (next: RouteId) => {
+      const doc = document as Document & {
+        startViewTransition?: (update: () => void) => unknown;
+      };
+      if (
+        typeof doc.startViewTransition !== 'function' ||
+        reduced ||
+        next === useSettings.getState().route
+      ) {
+        commitRoute(next);
+        return;
+      }
+      doc.startViewTransition(() => {
+        flushSync(() => {
+          commitRoute(next);
+        });
+      });
+    },
+    [commitRoute, reduced],
+  );
   const collapsedSetting = useSettings((state) => state.settings.sidebarCollapsed);
   const toggleSidebar = useSettings((state) => state.toggleSidebar);
   const patch = useSettings((state) => state.patch);

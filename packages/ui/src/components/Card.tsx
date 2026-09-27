@@ -30,7 +30,14 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(function Card(
       ref={ref}
       {...(regionLabel !== undefined && { role: 'region', 'aria-label': regionLabel })}
       className={cn(
-        'rounded-[var(--radius-widget)] border border-[var(--color-border-subtle)] bg-[var(--color-bg-raised)] text-[var(--color-fg-default)] shadow-[var(--shadow-widget)]',
+        'relative rounded-[var(--radius-widget)] border border-[var(--color-border-subtle)] text-[var(--color-fg-default)]',
+        // Gradient surface and a lit top edge (tokens in theme.css). The
+        // hover lift is shadow and border only — never a transform, because
+        // a card that moves under the cursor makes the numbers in it harder
+        // to read at exactly the moment someone is pointing at them.
+        'bg-[var(--color-bg-raised)] bg-[image:var(--surface-card)] shadow-[var(--shadow-card)]',
+        'transition-[box-shadow,border-color] duration-(--duration-normal) ease-(--ease-out-quart)',
+        'hover:border-[var(--color-border-default)] hover:shadow-[var(--shadow-card-hover)]',
         className,
       )}
       {...rest}
@@ -54,10 +61,7 @@ export const CardHeader = forwardRef<HTMLDivElement, CardHeaderProps>(function C
   return (
     <div
       ref={ref}
-      className={cn(
-        'flex min-h-9 items-center justify-between gap-2 border-b border-[var(--color-border-subtle)] px-3 py-2',
-        className,
-      )}
+      className={cn('flex min-h-10 items-center justify-between gap-2 px-4 pt-3 pb-1', className)}
       {...rest}
     >
       <div className="min-w-0 flex-1">{children}</div>
@@ -85,7 +89,10 @@ export const CardTitle = forwardRef<HTMLHeadingElement, CardTitleProps>(function
   return (
     <Heading
       ref={ref}
-      className={cn('truncate text-sm font-semibold text-[var(--color-fg-default)]', className)}
+      className={cn(
+        'truncate text-2xs font-semibold tracking-[0.06em] text-[var(--color-fg-muted)] uppercase',
+        className,
+      )}
       {...rest}
     >
       {children}
@@ -103,7 +110,7 @@ export const CardBody = forwardRef<HTMLDivElement, CardBodyProps>(function CardB
   ref,
 ) {
   return (
-    <div ref={ref} className={cn('p-3', className)} {...rest}>
+    <div ref={ref} className={cn('px-4 pt-2 pb-4', className)} {...rest}>
       {children}
     </div>
   );

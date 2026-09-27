@@ -153,10 +153,11 @@ function RailButton({
       onClick={onSelect}
       aria-current={selected ? 'true' : undefined}
       className={cn(
-        'w-full rounded-md border px-2.5 py-2 text-left',
+        'w-full rounded-[var(--radius-control)] border px-2.5 py-2 text-left',
+        'transition-[background-color,border-color,box-shadow] duration-(--duration-fast) ease-(--ease-out-quart)',
         selected
-          ? 'border-[var(--color-accent-border)] bg-[var(--color-accent-subtle)]'
-          : 'border-transparent hover:bg-[var(--color-bg-subtle)]',
+          ? 'border-[var(--color-accent-border)] bg-[var(--color-accent-subtle)] shadow-[var(--glow-accent)]'
+          : 'border-transparent hover:border-[var(--color-border-subtle)] hover:bg-[var(--color-bg-inset)]/60',
       )}
     >
       <span className="flex items-baseline justify-between gap-2">

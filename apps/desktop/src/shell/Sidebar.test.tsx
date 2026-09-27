@@ -41,6 +41,33 @@ function navButtons(): HTMLButtonElement[] {
 }
 
 describe('Sidebar', () => {
+  it('places the single indicator on the active item, not the first one', () => {
+    // happy-dom has no layout, so give every nav button a real box: 36 px
+    // rows starting 8 px below the list top. Measuring with `offsetTop`
+    // reported 0 for every button (each <li> is positioned) and the pill
+    // stayed on Dashboard whatever was active — seen live 2026-09-27.
+    const listTop = 100;
+    const original = HTMLElement.prototype.getBoundingClientRect;
+    HTMLElement.prototype.getBoundingClientRect = function rect(this: HTMLElement) {
+      if (this.tagName === 'UL') return { top: listTop, height: 500 } as DOMRect;
+      const id = this.dataset['navItem'];
+      if (id !== undefined) {
+        const index = navItems.findIndex((item) => item.id === id);
+        return { top: listTop + 8 + index * 36, height: 36 } as DOMRect;
+      }
+      return original.call(this);
+    };
+    try {
+      renderSidebar({ active: 'processes' });
+      const indicator = document.querySelector<HTMLElement>('[data-nav-indicator]');
+      const index = navItems.findIndex((item) => item.id === 'processes');
+      expect(indicator?.style.transform).toBe(`translateY(${8 + index * 36}px)`);
+      expect(indicator?.style.height).toBe('36px');
+    } finally {
+      HTMLElement.prototype.getBoundingClientRect = original;
+    }
+  });
+
   it('names the navigation landmark', () => {
     renderSidebar();
     expect(screen.getByRole('navigation', { name: 'Main navigation' })).toBeTruthy();

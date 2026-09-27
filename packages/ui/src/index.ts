@@ -20,6 +20,7 @@ export {
 } from './lib/styles';
 
 export { Badge, type BadgeProps } from './components/Badge';
+export { AnimatedValue } from './components/AnimatedValue';
 export { Button, type ButtonProps } from './components/Button';
 export {
   Card,

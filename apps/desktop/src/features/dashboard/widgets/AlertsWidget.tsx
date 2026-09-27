@@ -33,8 +33,8 @@ const ICON: Readonly<Record<Severity, typeof Info>> = {
 };
 
 const TONE: Readonly<Record<Severity, string>> = {
-  critical: 'text-[var(--color-danger-fg)]',
-  warning: 'text-[var(--color-warning-fg)]',
+  critical: 'text-[var(--color-status-danger)]',
+  warning: 'text-[var(--color-status-warn)]',
   info: 'text-[var(--color-fg-muted)]',
 };
 
@@ -51,7 +51,7 @@ export function AlertsWidget({ alerts, onNavigate }: AlertsWidgetProps): React.J
       <div className="flex items-start gap-2.5">
         <CheckCircle2
           aria-hidden
-          className="mt-0.5 size-4 shrink-0 text-[var(--color-success-fg)]"
+          className="mt-0.5 size-4 shrink-0 text-[var(--color-status-ok)]"
         />
         <div>
           <p className="text-sm font-medium">{t('alert.none')}</p>
