@@ -153,21 +153,34 @@ pub fn enumerate_adapters() -> Vec<GpuAdapter> {
     // written, which is far smaller than the capacity.
     let count = (descriptor.count as usize).min(capacity);
     let mut out = Vec::with_capacity(count);
+    let dxgi = dxgi_descriptions();
+    // Adapters named by DXGI rather than the registry, resolved after the
+    // loop once every registry name is known.
+    let mut borrowed = Vec::new();
 
     for info in raw.iter().take(count) {
         // Closes when it drops, so an early continue below cannot leak.
         let handle = AdapterHandle(info.handle);
 
         let luid = (u64::from(info.luid.high.cast_unsigned()) << 32) | u64::from(info.luid.low);
+        let described = dxgi.iter().find(|d| d.luid == luid);
 
         // Not every adapter has a registry name. Measured on this machine:
         // of three adapters the kernel reports, only the physical NVIDIA GPU
         // answers the query; the other two — a Parsec virtual display and a
         // render-only device — return OBJECT_NAME_NOT_FOUND.
         //
-        // Skipping them would hide real adapters, so they get a synthetic
-        // label instead. A GPU present but unnamed is still a GPU.
-        let name = query_name(handle.0)
+        // DXGI names those too, keyed by the same LUID. The hex label is the
+        // last resort for an adapter neither API will describe: skipping it
+        // would hide a real device, and a GPU present but unnamed is still a
+        // GPU. It used to be the only fallback, which is how the Performance
+        // page came to list "Display adapter 0x00033f83" beside a real card.
+        let registry = query_name(handle.0);
+        if registry.is_none() && described.is_some() {
+            borrowed.push(out.len());
+        }
+        let name = registry
+            .or_else(|| described.map(|d| d.name.clone()))
             .unwrap_or_else(|| format!("Display adapter {:#010x}", info.luid.low));
 
         out.push(GpuAdapter {
@@ -175,13 +188,77 @@ pub fn enumerate_adapters() -> Vec<GpuAdapter> {
             name,
             luid,
             display_outputs: info.num_sources,
-            // Memory needs a segment query per adapter, which is a separate
-            // call; absent rather than guessed.
-            dedicated_memory: None,
+            // Absent rather than zero when DXGI does not know the adapter:
+            // an integrated GPU genuinely has no dedicated memory, and that
+            // is reported as a real zero by DXGI itself.
+            dedicated_memory: described.map(|d| d.dedicated_memory),
             engines: Vec::new(),
         });
     }
 
+    // An indirect display (Parsec, a Miracast sink, a VR compositor) has no
+    // registry name, and DXGI describes it with the name of the GPU that
+    // renders for it. Measured here: two adapters both called "NVIDIA GeForce
+    // RTX 3060 Ti", one with 4 outputs and the other with Parsec's 16. Two
+    // identical rows read as two cards; the second is marked for what it is,
+    // and does not repeat the card's memory, which would count it twice.
+    for index in borrowed {
+        let clash = out
+            .iter()
+            .enumerate()
+            .any(|(other, a)| other != index && a.name == out[index].name);
+        if clash {
+            let adapter = &mut out[index];
+            adapter.name = format!("{} (virtual display)", adapter.name);
+            adapter.dedicated_memory = None;
+        }
+    }
+
+    out
+}
+
+/// One adapter as DXGI describes it.
+struct DxgiDescription {
+    luid: u64,
+    name: String,
+    dedicated_memory: Bytes,
+}
+
+/// Every adapter DXGI will enumerate. Empty when DXGI is unavailable.
+///
+/// Asked once per enumeration rather than per adapter: the factory walks every
+/// adapter anyway, and the LUID is the join key back to D3DKMT.
+fn dxgi_descriptions() -> Vec<DxgiDescription> {
+    use windows::Win32::Graphics::Dxgi::{CreateDXGIFactory1, IDXGIFactory1};
+
+    // SAFETY: no preconditions; failure is returned, not undefined.
+    let Ok(factory) = (unsafe { CreateDXGIFactory1::<IDXGIFactory1>() }) else {
+        return Vec::new();
+    };
+
+    let mut out = Vec::new();
+    // Bounded: DXGI_ERROR_NOT_FOUND ends the walk, and the cap guards a
+    // driver that never returns it.
+    for index in 0..u32::try_from(MAX_ADAPTERS).unwrap_or(64) {
+        // SAFETY: the factory is live; an out-of-range index is an error.
+        let Ok(adapter) = (unsafe { factory.EnumAdapters1(index) }) else {
+            break;
+        };
+        // SAFETY: the adapter is live.
+        let Ok(desc) = (unsafe { adapter.GetDesc1() }) else {
+            continue;
+        };
+        let Some(name) = wide_to_string(&desc.Description) else {
+            continue;
+        };
+        let luid = (u64::from(desc.AdapterLuid.HighPart.cast_unsigned()) << 32)
+            | u64::from(desc.AdapterLuid.LowPart);
+        out.push(DxgiDescription {
+            luid,
+            name,
+            dedicated_memory: Bytes(u64::try_from(desc.DedicatedVideoMemory).unwrap_or(0)),
+        });
+    }
     out
 }
 
@@ -407,6 +484,35 @@ mod tests {
                 adapter.luid
             );
         }
+    }
+
+    #[test]
+    fn an_adapter_dxgi_can_name_never_gets_the_hex_fallback() {
+        // The Performance page listed "Display adapter 0x00033f83" beside a
+        // named card because the registry query was the only name source.
+        let named: Vec<_> = dxgi_descriptions().into_iter().map(|d| d.luid).collect();
+        for adapter in enumerate_adapters() {
+            if named.contains(&adapter.luid) {
+                assert!(
+                    !adapter.name.starts_with("Display adapter 0x"),
+                    "{:#x} is known to DXGI but fell back to {}",
+                    adapter.luid,
+                    adapter.name
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn no_two_adapters_share_a_name() {
+        // An indirect display borrows its render GPU's DXGI description; two
+        // identical rows would read as two physical cards.
+        let adapters = enumerate_adapters();
+        let mut names: Vec<_> = adapters.iter().map(|a| a.name.as_str()).collect();
+        let total = names.len();
+        names.sort_unstable();
+        names.dedup();
+        assert_eq!(names.len(), total, "duplicate adapter names: {adapters:?}");
     }
 
     #[test]

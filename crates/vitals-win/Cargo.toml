@@ -31,6 +31,9 @@ windows = { version = "0.62.2", features = [
 	"Win32_System_Com",
 	"Win32_System_Ole",
 	"Win32_System_Variant",
+	# Adapter names and dedicated VRAM for devices the D3DKMT registry query
+	# does not name (virtual displays, render-only adapters).
+	"Win32_Graphics_Dxgi",
 	"Wdk_System_SystemInformation",
 	"Wdk_System_SystemServices",
 	"Wdk_System_Threading",
@@ -43,6 +46,10 @@ windows-sys = { version = "0.61.2", features = [
 	"Win32_System_Threading",
 	"Win32_System_SystemInformation",
 	"Win32_Storage_FileSystem",
+	# Volume activity counters and media kind: DeviceIoControl lives in
+	# System_IO, the DISK_PERFORMANCE / STORAGE_* structs in System_Ioctl.
+	"Win32_System_IO",
+	"Win32_System_Ioctl",
 	# Explorer reveal and the Properties dialog. `Win32_System_Registry` is
 	# not used directly: SHELLEXECUTEINFOW carries an HKEY field, so the
 	# struct only exists when that feature is on.

@@ -247,9 +247,9 @@ fn convert(sampled: SampledProcess) -> Process {
         gpu_memory: None,
         thread_count: raw.thread_count,
         handle_count: Some(raw.handle_count),
-        // Resolving a SID to a username costs an LSA lookup per process.
-        // Cached and filled in by the detail query.
-        user: None,
+        // Resolved by the sampler's owner cache: one LSA lookup per account,
+        // one token read per process lifetime.
+        user: sampled.owner,
         uptime_secs: uptime_from_filetime(raw.create_time),
     }
 }

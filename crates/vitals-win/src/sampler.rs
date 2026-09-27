@@ -11,7 +11,7 @@ use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
 use vitals_core::error::Result;
-use vitals_core::ids::ProcessKey;
+use vitals_core::ids::{DiskId, ProcessKey};
 use vitals_core::metrics::{
     BatteryMetrics, CpuMetrics, DiskMetrics, GpuEngine, GpuMetrics, GpuVendor, NetworkMetrics,
     SystemMetrics,
@@ -19,11 +19,12 @@ use vitals_core::metrics::{
 use vitals_core::units::{Bytes, BytesPerSec, Percent};
 
 use crate::cpu::{CpuSampler, logical_core_count, process_cpu_percent};
-use crate::disk::enumerate_volumes;
+use crate::disk::rate::compute_rates as compute_disk_rates;
+use crate::disk::{DiskCounters, enumerate_volumes, volume_counters};
 use crate::gpu::adapters::GpuSampler;
 use crate::memory::MemorySampler;
 use crate::network::{NetworkCounters, compute_rates as compute_net_rates, enumerate_adapters};
-use crate::process::{ProcessEnumerator, RawProcess};
+use crate::process::{OwnerCache, ProcessEnumerator, RawProcess};
 
 /// Per-process state carried between ticks, so rates can be differenced.
 #[derive(Debug, Clone, Copy)]
@@ -73,6 +74,8 @@ pub struct SampledProcess {
     /// would claim the process used no GPU, which is a different statement
     /// from not having measured.
     pub gpu: Option<Percent>,
+    /// The account the process runs as; `None` when its token is denied.
+    pub owner: Option<String>,
 }
 
 /// Samples every subsystem on a shared clock.
@@ -96,6 +99,8 @@ pub struct SystemSampler {
     /// Cached volume list, refreshed on [`VOLUME_REFRESH_INTERVAL`].
     volumes: Vec<DiskMetrics>,
     volumes_read_at: Option<Instant>,
+    /// Previous activity counters per volume, for throughput.
+    disk_baseline: HashMap<DiskId, DiskCounters>,
 
     /// Accumulated per-application usage.
     ///
@@ -113,6 +118,9 @@ pub struct SystemSampler {
     /// Holds an open PDH query, so it is constructed once and reused. Opening
     /// it costs ~285 ms; a tick costs ~1.1 ms.
     gpu: GpuSampler,
+
+    /// Process owners, resolved once per process lifetime.
+    owners: OwnerCache,
 }
 
 impl Default for SystemSampler {
@@ -135,8 +143,10 @@ impl SystemSampler {
             last_tick: None,
             volumes: Vec::new(),
             volumes_read_at: None,
+            disk_baseline: HashMap::with_capacity(8),
             history: crate::history::SharedHistory::default(),
             gpu: GpuSampler::new(),
+            owners: OwnerCache::new(),
         }
     }
 
@@ -171,6 +181,7 @@ impl SystemSampler {
         // or a share disconnects.
         self.volumes.clear();
         self.volumes_read_at = None;
+        self.disk_baseline.clear();
         // PDH holds its own baseline, so this reopens the query rather than
         // clearing a map. Without it the first sample after a resume covers
         // the whole paused interval.
@@ -216,7 +227,7 @@ impl SystemSampler {
         let (gpus, gpu_by_process) = self.build_gpu_metrics(elapsed);
 
         let processes = self.resolve_process_rates(raw_processes, elapsed, &gpu_by_process);
-        let disks = self.volumes(now);
+        let disks = self.volumes(now, elapsed);
         let networks = self.build_network_metrics(elapsed);
 
         Ok(Sample {
@@ -242,7 +253,7 @@ impl SystemSampler {
     /// Clones rather than borrowing so the caller is not holding a borrow of
     /// `self` while the rest of the sample runs. A handful of volumes makes
     /// this immaterial next to the syscalls it avoids.
-    fn volumes(&mut self, now: Instant) -> Vec<DiskMetrics> {
+    fn volumes(&mut self, now: Instant, elapsed_ms: u32) -> Vec<DiskMetrics> {
         let stale = self
             .volumes_read_at
             .is_none_or(|read_at| now.duration_since(read_at) >= VOLUME_REFRESH_INTERVAL);
@@ -252,7 +263,27 @@ impl SystemSampler {
             self.volumes_read_at = Some(now);
         }
 
-        self.volumes.clone()
+        // Capacity is cached; activity is not. The counters are cumulative,
+        // so every tick must read them or the next delta spans two ticks.
+        let elapsed_ticks = u64::from(elapsed_ms) * 10_000;
+        let mut out = self.volumes.clone();
+        for disk in &mut out {
+            let Some(letter) = disk.mount.as_deref().and_then(|m| m.chars().next()) else {
+                continue;
+            };
+            let Some(current) = volume_counters(letter) else {
+                self.disk_baseline.remove(&disk.id);
+                continue;
+            };
+            if let Some(previous) = self.disk_baseline.insert(disk.id, current) {
+                let rates = compute_disk_rates(previous, current, elapsed_ticks);
+                disk.read = rates.read;
+                disk.write = rates.write;
+                disk.active_time = rates.active_time;
+                disk.response_ms = rates.response_ms;
+            }
+        }
+        out
     }
 
     /// Differences per-process counters against the previous tick.
@@ -324,6 +355,7 @@ impl SystemSampler {
             // the list meant ~550 heap allocations per tick purely to hand
             // the same data onwards.
             out.push(SampledProcess {
+                owner: self.owners.owner(process.key),
                 // Looked up before the move, since `process` is consumed
                 // below. `None` means no GPU counters exist on this machine;
                 // `Some(0)` means they do and this process did no GPU work.
@@ -346,6 +378,8 @@ impl SystemSampler {
         // Evict processes that have exited, or the map grows without bound
         // on a machine that churns processes (any build server).
         if self.process_baseline.len() != seen.len() {
+            let live: std::collections::HashSet<ProcessKey> = seen.iter().copied().collect();
+            self.owners.retain_live(&live);
             seen.sort_unstable_by_key(|k| (k.pid.get(), k.start_time));
             self.process_baseline.retain(|key, _| {
                 seen.binary_search_by_key(&(key.pid.get(), key.start_time), |k| {
@@ -572,9 +606,11 @@ fn build_cpu_metrics(per_core: &[crate::cpu::CpuUsage], processes: &[RawProcess]
 
 /// Builds volume metrics.
 ///
-/// Throughput is absent until the physical-disk layer lands: capacity comes
-/// from the volume, activity from the physical device, and the two are not
-/// the same object.
+/// Capacity only. Throughput is filled per tick in `SystemSampler::volumes`
+/// from the volume's own counters, which the partition manager keeps per
+/// volume — so a disk with two partitions reports each one's share, and the
+/// dashboard's sum is the physical total. The media kind arrives already
+/// refined from the enumerator, on the two-second cadence of this cache.
 fn build_disk_metrics() -> Vec<DiskMetrics> {
     enumerate_volumes()
         .into_iter()

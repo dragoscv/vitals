@@ -10,8 +10,10 @@
 //!
 //! Capacity comes from the volume; activity comes from the physical disk.
 
+pub mod device;
 pub mod rate;
 pub mod volumes;
 
+pub use device::{refine_kind, volume_counters};
 pub use rate::{DiskCounters, DiskRates};
 pub use volumes::{VolumeInfo, enumerate_volumes};

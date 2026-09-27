@@ -93,9 +93,11 @@ fn query_volume(letter: char, id: DiskId) -> Option<VolumeInfo> {
         DRIVE_REMOTE => DiskKind::Network,
         DRIVE_CDROM => DiskKind::Optical,
         // A fixed disk could be an HDD, SSD or NVMe; the drive type does not
-        // say. The physical-disk layer refines this later via a seek-penalty
-        // query. A RAM disk is likewise indistinguishable here.
-        DRIVE_FIXED | DRIVE_RAMDISK => DiskKind::Unknown,
+        // say, so the device itself is asked (bus type, then seek penalty).
+        // Done here rather than in the sampler so the Storage screen, which
+        // lists volumes directly, does not show "Unknown type" beside a drive
+        // the dashboard calls NVMe — which is exactly what it did.
+        DRIVE_FIXED | DRIVE_RAMDISK => super::device::refine_kind(letter, DiskKind::Unknown),
         // DRIVE_UNKNOWN / DRIVE_NO_ROOT_DIR: an empty card reader or a
         // stale mapping. Skipping keeps them out of the UI entirely, which
         // is better than a row reading "0 B of 0 B".
@@ -223,6 +225,15 @@ mod tests {
         let volumes = enumerate_volumes();
         let c = volumes.iter().find(|v| v.mount == "C:").expect("C:");
         assert!(c.file_system.is_some(), "C: reported no file system");
+    }
+
+    #[test]
+    fn the_system_drive_is_not_left_unknown() {
+        // The Storage screen showed "Unknown type" for every drive because
+        // only the sampler refined the kind; the volume list must carry it.
+        let volumes = enumerate_volumes();
+        let c = volumes.iter().find(|v| v.mount == "C:").expect("C:");
+        assert_ne!(c.kind, DiskKind::Unknown, "C: kind was not refined");
     }
 
     #[test]
