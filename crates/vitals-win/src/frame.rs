@@ -223,7 +223,13 @@ fn convert(sampled: SampledProcess) -> Process {
         } else {
             ProcessKind::Background
         },
-        state: ProcessState::Running,
+        // Suspended is read from the thread records. The other states need a
+        // per-process query (window hung-ness, exit status) and stay Running.
+        state: if raw.is_suspended() {
+            ProcessState::Suspended
+        } else {
+            ProcessState::Running
+        },
         // Signing, elevation, WOW64 and window ownership each need a handle
         // open per process. Left empty here and filled in by the detail
         // query when a row is selected.

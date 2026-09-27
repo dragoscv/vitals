@@ -48,6 +48,7 @@ import {
   type InstalledApp,
 } from './model';
 import { NO_HOST, runUninstaller, useApps, type AppsReader, type Uninstaller } from './useApps';
+import { errorMessage } from '../../lib/commandError';
 
 export interface AppsScreenProps {
   /** Injectable so tests and the sampler-less preview need no Tauri host. */
@@ -122,7 +123,7 @@ export function AppsScreen({
       .catch((cause: unknown) => {
         setNotice(
           t('uninstall.failed', {
-            message: cause instanceof Error ? cause.message : String(cause),
+            message: errorMessage(cause),
           }),
         );
       });

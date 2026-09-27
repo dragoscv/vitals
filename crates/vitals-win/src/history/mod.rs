@@ -275,6 +275,7 @@ mod tests {
             write_ops: 1,
             storage_read_bytes: None,
             storage_write_bytes: None,
+            suspended: None,
         }
     }
 

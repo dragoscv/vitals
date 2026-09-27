@@ -892,4 +892,43 @@ mod tests {
             Err(Error::Refused(_))
         ));
     }
+
+    fn is_suspended_now(pid: u32) -> bool {
+        let mut enumerator = crate::process::ProcessEnumerator::new();
+        match enumerator
+            .enumerate()
+            .expect("enumerate")
+            .into_iter()
+            .find(|p| p.key.pid.get() == pid)
+        {
+            Some(process) => process.is_suspended(),
+            None => panic!("process {pid} not found"),
+        }
+    }
+
+    #[test]
+    fn a_suspended_process_is_reported_suspended_so_the_menu_can_offer_resume() {
+        // The state used to be a constant `Running`: after Suspend the row
+        // still said Running, the menu offered Suspend again, and the process
+        // could not be resumed from Vitals at all.
+        let mut child = spawn_victim();
+        let key = key_for(child.id());
+        assert!(
+            !is_suspended_now(child.id()),
+            "a fresh process is not suspended"
+        );
+
+        suspend(key).expect("suspend our own child");
+        let after_suspend = is_suspended_now(child.id());
+        resume(key).expect("resume our own child");
+        let after_resume = is_suspended_now(child.id());
+
+        child.kill().expect("kill");
+        child.wait().expect("wait");
+        assert!(after_suspend, "a paused process must read as suspended");
+        assert!(
+            !after_resume,
+            "a resumed process must read as running again"
+        );
+    }
 }

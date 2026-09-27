@@ -164,6 +164,59 @@ CSV records the state.
 Every claim of "done" needs a command and its output. Recorded here as work
 lands, newest first.
 
+### 2026-09-27 — S12-13 process actions: Suspended state measured; readable errors everywhere
+
+**What the user saw.** "Killing processes and other actions from other
+menus and tabs aren't working." Every process command was driven through
+the real IPC first, and all twelve worked — End task, Suspend, Resume,
+priority, affinity, efficiency mode, handles, modules, path — so the backend
+was not the failure. Driving the menus themselves over CDP found two:
+
+1. **Resume was unreachable.** `frame.rs` set `state: ProcessState::Running`
+   for every process, unconditionally. Suspend worked (OS: 6/6 threads
+   suspended) but the row still said Running, so the menu offered Suspend
+   again and never Resume. A process paused from Vitals could not be
+   resumed from it. Now read from the thread records that already follow
+   each `SYSTEM_PROCESS_INFORMATION` entry — no extra syscall. The rule was
+   measured, not assumed: on a suspended `cmd`, three threads report wait
+   reason `Suspended` and the fourth stays in a kernel `Executive` wait (the
+   console read the suspend APC cannot interrupt), so "every thread says
+   Suspended" — the first hypothesis — missed it and the new test failed.
+   Rule: every thread waiting; each `Suspended`/`WrSuspended` or `Executive`;
+   at least one suspended.
+2. **Errors on other tabs said `[object Object]`.** Commands reject with a
+   `{ kind, message }` object; ten hooks/screens did
+   `cause instanceof Error ? cause.message : String(cause)`. Processes had a
+   correct reader of its own; it moved to `lib/commandError.ts` and every
+   screen uses it. The TS kind union also lacked `refused`, which the backend
+   sends.
+
+```text
+IPC probe (ping.exe, 12 commands)     → all OK
+live UI over CDP, ping.exe:
+  Suspend         → OS 6/6 threads suspended, row "PING.EXE 58036 Suspended"
+  Resume          → OS 0/6,                   row "PING.EXE 58036 Running"
+  Priority ▸ High → PriorityClass High
+  End task        → process gone;  disruptive name → confirm dialog → ended
+  SYSTEM process  → "Could not complete the action: access denied: … requires elevation"
+cargo test -q -p vitals-win --lib     → 596 passed
+  mutation: read_suspended → Some(false) → "a paused process must read as suspended" FAILED; restored
+cargo clippy -p vitals-win --all-targets -D warnings → clean · cargo fmt --check → clean
+pnpm typecheck 6/6 · pnpm lint 6/6 · pnpm test → green (desktop 89 files)
+scripts/check-drift.ps1 → 0 failure(s), 0 warning(s)
+```
+
+The settings-dialog wait in `AppShell.test` (a lazy chunk) ran out at 8 s in
+one full run at 87 % CPU and passed alone; raised to 12 s, under the 15 s
+test limit.
+
+Not changed, with reason: the "Retry as administrator" button in the risk
+dialog is never wired (`RiskDialog` gets no `onElevate`), so a denied action
+on another account's process explains itself but cannot be retried
+elevated. That needs a UAC relaunch like the Task Manager switch — new
+scope, not claimed here. LAN control, SDK, CLI: untouched — no wire shape
+changed; `state` was already in the protocol and now carries a real value.
+
 ### 2026-09-27 — S12-12 screens fill the window; only regions inside them scroll
 
 **What the user saw.** "Content does not size correctly — grids and tables

@@ -18,6 +18,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { hasTauriHost } from '../../shell/host';
 import type { UsersSnapshot } from './model';
+import { errorMessage } from '../../lib/commandError';
 
 /** Reported when there is no Tauri host, so the screen can explain itself. */
 export const NO_HOST = 'no-host';
@@ -67,7 +68,7 @@ export function useUsers(reader?: UsersReader): UsersState {
       if (!mounted.current) return;
       // The previous snapshot survives. A failed refresh should not blank a
       // list the user is reading; the error line says the data is stale.
-      setError(cause instanceof Error ? cause.message : String(cause));
+      setError(errorMessage(cause));
     } finally {
       inFlight.current = false;
       if (mounted.current) setPending(false);

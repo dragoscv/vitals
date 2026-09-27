@@ -30,6 +30,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Connection } from '@vitals/protocol';
 
 import { hasTauriHost } from '../../shell/host';
+import { errorMessage } from '../../lib/commandError';
 
 /** Refresh cadence. Sockets are not a high-frequency phenomenon. */
 export const POLL_INTERVAL_MS = 2000;
@@ -105,7 +106,7 @@ export function useConnections(reader?: ConnectionsReader): ConnectionsState {
       if (!mounted.current) return;
       // The previous snapshot is kept. A transient failure should not blank a
       // list the user is reading; the error line says the data is stale.
-      setError(cause instanceof Error ? cause.message : String(cause));
+      setError(errorMessage(cause));
     } finally {
       inFlight.current = false;
       if (mounted.current) setPending(false);

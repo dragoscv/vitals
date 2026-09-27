@@ -12,6 +12,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { hasTauriHost } from '../../shell/host';
 import type { AppsSnapshot } from './model';
+import { errorMessage } from '../../lib/commandError';
 
 /** Reported when there is no Tauri host, so the screen can explain itself. */
 export const NO_HOST = 'no-host';
@@ -65,7 +66,7 @@ export function useApps(reader?: AppsReader): AppsState {
     } catch (cause: unknown) {
       if (!mounted.current) return;
       // The previous list survives a failed refresh; the error line says so.
-      setError(cause instanceof Error ? cause.message : String(cause));
+      setError(errorMessage(cause));
     } finally {
       inFlight.current = false;
       if (mounted.current) setPending(false);

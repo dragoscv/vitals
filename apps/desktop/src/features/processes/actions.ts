@@ -218,20 +218,5 @@ export interface CapabilityReport extends Capabilities {
   readonly diskCounterSource: DiskCounterSource | null;
 }
 
-/** The error shape `CommandError` serialises to. */
-export interface CommandErrorShape {
-  readonly kind: 'access-denied' | 'not-found' | 'unsupported' | 'internal';
-  readonly message: string;
-}
-
-export function isCommandError(value: unknown): value is CommandErrorShape {
-  if (typeof value !== 'object' || value === null) return false;
-  const candidate = value as { kind?: unknown; message?: unknown };
-  return typeof candidate.kind === 'string' && typeof candidate.message === 'string';
-}
-
-export function errorMessage(error: unknown): string {
-  if (isCommandError(error)) return error.message;
-  if (error instanceof Error) return error.message;
-  return String(error);
-}
+// Shared with every screen, so a command error reads the same everywhere.
+export { errorMessage, isCommandError, type CommandErrorShape } from '../../lib/commandError';

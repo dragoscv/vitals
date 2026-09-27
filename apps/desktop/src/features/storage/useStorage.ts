@@ -20,6 +20,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { hasTauriHost } from '../../shell/host';
 import type { CleanupCandidate, ScanSnapshot, Volume } from './model';
+import { errorMessage } from '../../lib/commandError';
 
 /** Reported when there is no Tauri host, so the screen can explain itself. */
 export const NO_HOST = 'no-host';
@@ -109,7 +110,7 @@ export function useStorage(source?: StorageSource): StorageState {
     } catch (cause: unknown) {
       if (!mounted.current) return;
       // The previous list survives a failed refresh; the error line says so.
-      setVolumeError(cause instanceof Error ? cause.message : String(cause));
+      setVolumeError(errorMessage(cause));
     } finally {
       if (mounted.current) setPending(false);
     }
@@ -135,7 +136,7 @@ export function useStorage(source?: StorageSource): StorageState {
         if (!mounted.current) return;
         // The previous snapshot is deliberately left in place. A failed
         // rescan should not blank a result the user was reading.
-        setScanError(cause instanceof Error ? cause.message : String(cause));
+        setScanError(errorMessage(cause));
       })
       .finally(() => {
         scanInFlight.current = false;
@@ -151,7 +152,7 @@ export function useStorage(source?: StorageSource): StorageState {
     // here would show a complete-looking screen while the walk continues.
     void sourceRef.current.cancelScan().catch((cause: unknown) => {
       if (!mounted.current) return;
-      setScanError(cause instanceof Error ? cause.message : String(cause));
+      setScanError(errorMessage(cause));
     });
   }, []);
 
@@ -170,7 +171,7 @@ export function useStorage(source?: StorageSource): StorageState {
       })
       .catch((cause: unknown) => {
         if (!mounted.current) return;
-        setCleanupError(cause instanceof Error ? cause.message : String(cause));
+        setCleanupError(errorMessage(cause));
       })
       .finally(() => {
         cleanupInFlight.current = false;

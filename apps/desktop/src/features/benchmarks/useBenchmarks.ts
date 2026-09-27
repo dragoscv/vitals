@@ -20,6 +20,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { hasTauriHost } from '../../shell/host';
 import type { BenchmarkId, BenchmarkInfo, BenchmarkSuiteDto } from './model';
+import { errorMessage } from '../../lib/commandError';
 
 /** Reported when there is no Tauri host, so the screen can explain itself. */
 export const NO_HOST = 'no-host';
@@ -85,7 +86,7 @@ export function useBenchmarks(source?: BenchmarksSource): BenchmarksState {
       setListError(null);
     } catch (cause: unknown) {
       if (!mounted.current) return;
-      setListError(cause instanceof Error ? cause.message : String(cause));
+      setListError(errorMessage(cause));
     } finally {
       if (mounted.current) setPending(false);
     }
@@ -112,7 +113,7 @@ export function useBenchmarks(source?: BenchmarksSource): BenchmarksState {
         if (!mounted.current) return;
         // The previous suite stays on screen. A failed re-run should not
         // discard numbers the user was in the middle of reading.
-        setRunError(cause instanceof Error ? cause.message : String(cause));
+        setRunError(errorMessage(cause));
       })
       .finally(() => {
         runInFlight.current = false;

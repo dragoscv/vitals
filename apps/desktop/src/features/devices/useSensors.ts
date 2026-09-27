@@ -30,6 +30,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { hasTauriHost } from '../../shell/host';
 import type { SensorsSnapshot } from './model';
+import { errorMessage } from '../../lib/commandError';
 
 /** Reported when there is no Tauri host, so the screen can explain itself. */
 export const NO_HOST = 'no-host';
@@ -99,7 +100,7 @@ export function useSensors(reader?: SensorsReader): SensorsState {
     } catch (cause: unknown) {
       if (!mounted.current) return;
       // The previous snapshot is kept; the error line says it is stale.
-      setError(cause instanceof Error ? cause.message : String(cause));
+      setError(errorMessage(cause));
     } finally {
       inFlight.current = false;
       // Cleared on both paths. A `pending` flag that survives a failure makes

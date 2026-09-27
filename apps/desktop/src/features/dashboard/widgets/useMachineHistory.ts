@@ -22,6 +22,7 @@ import { RingBuffer } from '@vitals/charts';
 import type { MachineSample } from '@vitals/protocol';
 
 import { hasTauriHost } from '../../../shell/host';
+import { errorMessage } from '../../../lib/commandError';
 
 export const historyRanges = ['h1', 'h6', 'h24', 'd7'] as const;
 export type HistoryRange = (typeof historyRanges)[number];
@@ -149,7 +150,7 @@ export function useMachineHistory(
         })
         .catch((cause: unknown) => {
           if (cancelled) return;
-          setError(cause instanceof Error ? cause.message : String(cause));
+          setError(errorMessage(cause));
           setAnswered({ range });
         });
     };

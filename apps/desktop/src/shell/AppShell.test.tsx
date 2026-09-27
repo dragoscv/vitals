@@ -112,7 +112,9 @@ describe('AppShell', () => {
     // The dialog is a lazy chunk: this waits for a real module import, not a
     // state change, and on a loaded machine that takes longer than the 1 s
     // default. Fails on unmodified HEAD under concurrent builds (2026-09-27).
-    const dialog = await screen.findByRole('dialog', {}, { timeout: 8000 });
+    // 12 s: 8 s ran out in a full run at 87 % CPU on 2026-09-27 while the
+    // file alone passed in under a second. Stays below testTimeout (15 s).
+    const dialog = await screen.findByRole('dialog', {}, { timeout: 12_000 });
     expect(within(dialog).getByRole('tab', { name: 'Appearance' })).toBeTruthy();
 
     fireEvent.keyDown(dialog, { key: 'Escape' });

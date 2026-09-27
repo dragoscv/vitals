@@ -8,7 +8,7 @@ use vitals_core::ids::{Pid, ProcessKey};
 use super::raw::{
     NtQuerySystemInformation, STATUS_INFO_LENGTH_MISMATCH, SYSTEM_FULL_PROCESS_INFORMATION,
     SYSTEM_PROCESS_INFORMATION, SystemExtendedThreadInformation, SystemProcessInformation,
-    SystemProcessInformationExtension,
+    SystemProcessInformationExtension, SystemThreadInformation,
 };
 
 /// Which kernel counter produced a process's disk figures.
@@ -65,6 +65,11 @@ pub struct RawProcess {
     /// never a zero standing in for "not reported".
     pub storage_read_bytes: Option<u64>,
     pub storage_write_bytes: Option<u64>,
+    /// Whether the process is suspended, read from the thread records that
+    /// follow each entry (see `read_suspended` for the rule). `None` when
+    /// those records did not fit inside the entry, so "unknown" is never
+    /// read as "running".
+    pub suspended: Option<bool>,
 }
 
 impl RawProcess {
@@ -105,6 +110,15 @@ impl RawProcess {
     #[must_use]
     pub const fn is_idle_process(&self) -> bool {
         self.key.pid.get() == 0
+    }
+
+    /// Whether the process is paused — what Task Manager shows as
+    /// "Suspended", and what our own Suspend action produces. Unknown reads
+    /// as not suspended: offering Suspend on a paused process is harmless,
+    /// offering Resume on a running one is a lie.
+    #[must_use]
+    pub const fn is_suspended(&self) -> bool {
+        matches!(self.suspended, Some(true))
     }
 }
 
@@ -306,6 +320,10 @@ unsafe fn walk(buffer: &[u8], with_extension: bool) -> Vec<RawProcess> {
             None
         };
 
+        // SAFETY: bounds-checked inside against the buffer and this entry's
+        // own extent, like the extension.
+        let suspended = unsafe { read_suspended(buffer, offset, &entry, with_extension) };
+
         out.push(RawProcess {
             key: ProcessKey::new(Pid(pid), entry.CreateTime as u64),
             // PID 0 as a parent means "no parent" — the kernel uses it for
@@ -335,6 +353,7 @@ unsafe fn walk(buffer: &[u8], with_extension: bool) -> Vec<RawProcess> {
             write_ops: entry.WriteOperationCount as u64,
             storage_read_bytes: disk.map(|d| d.DiskCounters.BytesRead),
             storage_write_bytes: disk.map(|d| d.DiskCounters.BytesWritten),
+            suspended,
         });
 
         // Zero terminates the list. Anything that would not advance the
@@ -353,6 +372,89 @@ unsafe fn walk(buffer: &[u8], with_extension: bool) -> Vec<RawProcess> {
     }
 
     out
+}
+
+/// `KTHREAD_STATE::Waiting`.
+const THREAD_WAITING: u32 = 5;
+/// `KWAIT_REASON::Executive` — a kernel-mode wait that a suspend APC cannot
+/// interrupt, so the thread keeps this reason while the process is paused.
+const WAIT_EXECUTIVE: u32 = 0;
+/// `KWAIT_REASON::Suspended` — a user-mode `SuspendThread`/`NtSuspendProcess`.
+const WAIT_SUSPENDED: u32 = 5;
+/// `KWAIT_REASON::WrSuspended` — the kernel-initiated form, which is what a
+/// UWP app parked by the Process Lifetime Manager reports.
+const WAIT_WR_SUSPENDED: u32 = 12;
+
+/// Whether the entry's process is suspended, read from its thread records.
+///
+/// Without this every process was reported `Running` — the field was a
+/// constant — so after Suspend the row still said Running and the context
+/// menu offered Suspend again instead of Resume: the process could be paused
+/// from Vitals and never resumed from it (found live 2026-09-27).
+///
+/// The rule is measured, not assumed. After `NtSuspendProcess` on an idle
+/// `cmd`, three of its four threads report wait reason `Suspended`; the
+/// fourth sits in a kernel `Executive` wait (a console read) and keeps that
+/// reason, because the suspend APC is only delivered when the wait ends.
+/// "Every thread says Suspended" therefore missed a genuinely paused
+/// process. So: every thread is waiting, each is either suspended or in an
+/// uninterruptible `Executive` wait, and at least one is actually suspended.
+/// Before the suspend the same threads read `WrQueue`, which fails the rule.
+///
+/// The records follow the entry directly; their stride depends on the class
+/// (`with_extension` = full class = extended records). `None` rather than a
+/// guess when the array would run past the entry or the buffer.
+///
+/// # Safety
+///
+/// `entry` must have been read from `buffer` at `entry_offset`, by the class
+/// `with_extension` describes.
+unsafe fn read_suspended(
+    buffer: &[u8],
+    entry_offset: usize,
+    entry: &SystemProcessInformation,
+    with_extension: bool,
+) -> Option<bool> {
+    let stride = if with_extension {
+        size_of::<SystemExtendedThreadInformation>()
+    } else {
+        size_of::<SystemThreadInformation>()
+    };
+    let count = entry.NumberOfThreads as usize;
+    let start = entry_offset.checked_add(size_of::<SystemProcessInformation>())?;
+    let end = start.checked_add(count.checked_mul(stride)?)?;
+    let entry_end = match entry.NextEntryOffset {
+        0 => buffer.len(),
+        next => entry_offset.checked_add(next as usize)?.min(buffer.len()),
+    };
+    if end > entry_end {
+        return None;
+    }
+
+    let mut any_suspended = false;
+    for index in 0..count {
+        // SAFETY: `start + index * stride` plus one record lies inside
+        // `start..end`, which the check above keeps inside the buffer. Every
+        // record, extended or not, begins with a `SystemThreadInformation`.
+        let thread = unsafe {
+            buffer
+                .as_ptr()
+                .add(start + index * stride)
+                .cast::<SystemThreadInformation>()
+                .read_unaligned()
+        };
+        if thread.ThreadState != THREAD_WAITING {
+            // Running, ready or standby: something here can execute.
+            return Some(false);
+        }
+        match thread.WaitReason {
+            WAIT_SUSPENDED | WAIT_WR_SUSPENDED => any_suspended = true,
+            WAIT_EXECUTIVE => {}
+            // Waiting on something it will wake from by itself.
+            _ => return Some(false),
+        }
+    }
+    Some(any_suspended)
 }
 
 /// Reads the disk-counter extension that follows an entry's thread array.
@@ -629,6 +731,7 @@ mod tests {
             write_ops: 0,
             storage_read_bytes: None,
             storage_write_bytes: None,
+            suspended: None,
         };
         assert_eq!(p.disk_read_bytes(), (1_000, DiskCounterSource::AllIo));
         assert_eq!(p.disk_write_bytes(), (2_000, DiskCounterSource::AllIo));

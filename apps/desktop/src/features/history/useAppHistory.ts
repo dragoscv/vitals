@@ -10,6 +10,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { hasTauriHost } from '../../shell/host';
 import type { AppHistorySnapshot } from './model';
+import { errorMessage } from '../../lib/commandError';
 
 /** Reported when there is no Tauri host, so the screen can explain itself. */
 export const NO_HOST = 'no-host';
@@ -64,7 +65,7 @@ export function useAppHistory(reader?: HistoryReader, clearer?: HistoryClearer):
     } catch (cause: unknown) {
       if (!mounted.current) return;
       // The previous snapshot survives a failed refresh; the error line says so.
-      setError(cause instanceof Error ? cause.message : String(cause));
+      setError(errorMessage(cause));
     } finally {
       inFlight.current = false;
       if (mounted.current) setPending(false);
@@ -81,7 +82,7 @@ export function useAppHistory(reader?: HistoryReader, clearer?: HistoryClearer):
       // Reload immediately after clearing so the UI reflects the empty state.
       void load();
     } catch (cause: unknown) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      setError(errorMessage(cause));
     }
   }, [load]);
 
