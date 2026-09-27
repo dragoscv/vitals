@@ -34,7 +34,13 @@ fn main() {
     );
 
     let mut enumerator = ProcessEnumerator::new();
-    let processes = enumerator.enumerate().expect("enumerate");
+    let processes = match enumerator.enumerate() {
+        Ok(processes) => processes,
+        Err(error) => {
+            eprintln!("enumerate failed: {error}");
+            return;
+        }
+    };
     let mut cache = OwnerCache::new();
 
     let start = Instant::now();

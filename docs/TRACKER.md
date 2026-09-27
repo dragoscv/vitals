@@ -152,7 +152,7 @@ Status values: `todo`, `doing`, `done`, `blocked`, `dropped`.
 | S9    | New Windows metrics: DiskCounters, efficiency mode, handles, modules | backend done for 01/02/04/05 (vitals-win + vitals-core); 03/06/07 and the Tauri commands pending   |
 | S10   | Docs, ADRs, CI, supply-chain audits                                  | done except S10-12 (ARM64 leg unproven — needs a run on `windows-11-arm`, and agents never push)   |
 | S11   | Task Manager replacement, HUD overlay                                | done                                                                                               |
-| S12   | Look-and-feel redesign + the four backend truths it exposed          | done except S12-11 (30 ms overhead budget cannot be measured while the machine is at 100 % CPU)    |
+| S12   | Look-and-feel redesign + the four backend truths it exposed          | done (S12-11 measured in CPU cycles: 23–24 ms on S12, 22–25 ms on the commit before it)            |
 
 Per-item status lives in `tracker.csv`. This file records the reasoning; the
 CSV records the state.
@@ -214,7 +214,23 @@ builds; its `findByRole('dialog')` waits on a lazy chunk. Timeout raised to
 8 s. The 30 ms overhead budget failed at 143 ms — and at 98 ms on HEAD
 under the same 100 % CPU; the two new per-tick operations cost 0.019 ms
 (disk counters, 4 volumes) and 0.035 ms (owners, 705 processes, warm).
-S12-11 stays `blocked` until the machine is idle.
+
+**The budget, measured where load cannot reach it.** The gate is
+wall-clock, and the machine did not drop below 74 % for the twenty minutes
+a watcher waited. `examples/cpu_cost.rs` counts the process's own cycles
+across one `sample()` (`QueryProcessCycleTime`; `GetProcessTimes` ticks
+every 15.6 ms and cannot resolve 30 ms) at the nominal 3187 MHz. Three runs
+each on S12 and on `cb8a0d8` in a clean worktree, same load:
+
+```text
+S12     CPU median 23.87 / 24.18 / 23.34 ms   wall median 29.9 / 30.4 / 28.8 ms
+cb8a0d8 CPU median 25.36 / 22.58 / 22.23 ms   wall median 113.8 / 33.9 / 30.7 ms
+```
+
+Within noise of each other and under 30 ms; the nominal-frequency
+conversion overestimates on a boosting chip, so the true figure is lower.
+The wall-clock gate itself still needs an idle machine and was not made
+green here.
 
 ```text
 cargo test -q -p vitals-win --lib                 → 594 passed (before the last two disk/owner tests)
