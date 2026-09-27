@@ -143,7 +143,13 @@ function RouteTransition({
     };
   }, [route, reduced]);
 
-  return <div ref={element}>{children}</div>;
+  // A flex column, like every wrapper between `<main>` and a screen: see
+  // Content.tsx for why the height has to reach the screen root.
+  return (
+    <div ref={element} className="flex min-h-0 flex-1 flex-col">
+      {children}
+    </div>
+  );
 }
 
 /**
@@ -226,7 +232,10 @@ export function RouteView({
            * still in the DOM, and two elements sharing a name abort the
            * whole transition — the CSS cannot tell them apart, React can.
            */}
-          <div {...(id === route && { 'data-route-visible': '' })}>
+          <div
+            className="flex min-h-0 flex-1 flex-col"
+            {...(id === route && { 'data-route-visible': '' })}
+          >
             <Suspense fallback={<RouteSkeleton />}>
               <RouteContent route={id} {...(onNavigate && { onNavigate })} />
             </Suspense>

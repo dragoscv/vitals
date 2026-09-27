@@ -172,7 +172,7 @@ export function DashboardScreen({
   };
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="screen">
       <header className="flex flex-wrap items-center justify-between gap-2">
         <div className="min-w-0">
           <h2 className="text-lg font-semibold">{t('title')}</h2>
@@ -240,7 +240,9 @@ export function DashboardScreen({
       </header>
 
       {!layoutController.hydrated || snapshot.pending ? (
-        <DashboardSkeleton />
+        <div className="screen-scroll">
+          <DashboardSkeleton />
+        </div>
       ) : snapshot.system === null ? (
         /*
          * No frame ever arrived. Distinct from the skeleton state, which is
@@ -275,51 +277,57 @@ export function DashboardScreen({
           }
         />
       ) : (
-        <div
-          // Column count comes from the viewport, never from saved state, so a
-          // layout stored on an ultrawide is still correct on a laptop. See
-          // the note in `widgets.ts` on why placements are a list, not a grid.
-          // `vitals-stagger` lifts each card in 40 ms after the previous one
-          // (theme.css). Only on mount: a widget moved in edit mode keeps its
-          // key, so it is not re-animated.
-          className="vitals-stagger grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3"
-        >
-          {placements.map((placement, index) => {
-            const definition = widgetById.get(placement.id);
-            if (definition === undefined) return null;
+        <div className="screen-scroll">
+          <div
+            // Column count comes from the width the content column actually
+            // gets (container query, not the window: the sidebar takes 56 or
+            // 224 px of it), never from saved state, so a layout stored on an
+            // ultrawide is still correct on a laptop. The thresholds keep a
+            // card at ~300 px or wider — the old viewport ones put three
+            // 250 px cards beside an expanded sidebar at 1280. See the note
+            // in `widgets.ts` on why placements are a list, not a grid.
+            // `vitals-stagger` lifts each card in 40 ms after the previous one
+            // (theme.css). Only on mount: a widget moved in edit mode keeps its
+            // key, so it is not re-animated.
+            className="vitals-stagger grid grid-cols-1 gap-4 @2xl/main:grid-cols-2 @[110rem]/main:grid-cols-4 @[150rem]/main:grid-cols-5 @5xl/main:grid-cols-3"
+          >
+            {placements.map((placement, index) => {
+              const definition = widgetById.get(placement.id);
+              if (definition === undefined) return null;
 
-            return (
-              <WidgetFrame
-                key={placement.id}
-                index={index}
-                definition={definition}
-                size={placement.size}
-                editing={editing}
-                canMoveUp={index > 0}
-                canMoveDown={index < placements.length - 1}
-                onMove={(direction) => {
-                  layoutController.move(placement.id, direction);
-                }}
-                onResize={(size) => {
-                  layoutController.resize(placement.id, size);
-                }}
-                onRemove={() => {
-                  layoutController.remove(placement.id);
-                }}
-              >
-                <WidgetBody
-                  id={placement.id}
-                  snapshot={snapshot}
-                  history={historyState}
-                  locale={locale}
-                  alerts={alerts}
-                  recording={recording}
-                  historySource={historySource}
-                  onNavigate={navigate}
-                />
-              </WidgetFrame>
-            );
-          })}
+              return (
+                <WidgetFrame
+                  key={placement.id}
+                  index={index}
+                  definition={definition}
+                  size={placement.size}
+                  editing={editing}
+                  canMoveUp={index > 0}
+                  canMoveDown={index < placements.length - 1}
+                  onMove={(direction) => {
+                    layoutController.move(placement.id, direction);
+                  }}
+                  onResize={(size) => {
+                    layoutController.resize(placement.id, size);
+                  }}
+                  onRemove={() => {
+                    layoutController.remove(placement.id);
+                  }}
+                >
+                  <WidgetBody
+                    id={placement.id}
+                    snapshot={snapshot}
+                    history={historyState}
+                    locale={locale}
+                    alerts={alerts}
+                    recording={recording}
+                    historySource={historySource}
+                    onNavigate={navigate}
+                  />
+                </WidgetFrame>
+              );
+            })}
+          </div>
         </div>
       )}
 

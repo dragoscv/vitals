@@ -87,15 +87,22 @@ export function PerformanceScreen({
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="screen">
       <header>
         <h2 className="text-lg font-semibold">{t('title')}</h2>
         <p className="text-2xs text-[var(--color-fg-muted)]">{t('subtitle')}</p>
       </header>
 
-      <div className="flex min-h-0 flex-col gap-4 lg:flex-row">
-        <nav aria-label={t('rail.label')} className="shrink-0 lg:w-56">
-          <ScrollArea className="max-h-[60vh]">
+      {/*
+       * Rail and detail scroll independently, each within the window: a long
+       * rail (thirty network adapters) no longer pushes the chart below the
+       * fold, and scrolling the detail keeps the rail — the way back — in
+       * view. Below `lg` the rail is a horizontal strip, so it scrolls
+       * sideways instead; before, its overflow was simply clipped.
+       */}
+      <div className="flex min-h-0 flex-1 flex-col gap-4 lg:flex-row">
+        <nav aria-label={t('rail.label')} className="flex shrink-0 flex-col lg:min-h-0 lg:w-56">
+          <ScrollArea orientation="both" className="lg:min-h-0 lg:flex-1">
             <ul className="flex gap-1.5 lg:flex-col">
               {entries.map((entry) => (
                 <li key={entry.id} className="min-w-40 flex-1 lg:min-w-0">
@@ -123,7 +130,7 @@ export function PerformanceScreen({
           </label>
         </nav>
 
-        <section className="min-w-0 flex-1" aria-live="off">
+        <section className="screen-scroll min-w-0" aria-live="off">
           {selected === null ? null : (
             <Detail entry={selected} snapshot={snapshot} history={history} locale={locale} />
           )}

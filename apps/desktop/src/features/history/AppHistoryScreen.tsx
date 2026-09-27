@@ -124,7 +124,7 @@ export function AppHistoryScreen({
   };
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="screen">
       <header className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
@@ -295,11 +295,11 @@ function HistoryTable({
   const { t } = useTranslation(HISTORY_NS);
 
   return (
-    <div className="overflow-x-auto">
+    <div className="table-scroll">
       <table className="w-full border-collapse text-sm">
         <thead>
           <tr className="border-b border-[var(--color-border-subtle)]">
-            <th className="px-3 py-2 text-left font-medium text-[var(--color-fg-muted)]">
+            <th className="cell-fill px-3 py-2 text-left font-medium text-[var(--color-fg-muted)]">
               {t('column.name')}
             </th>
             <th className="px-3 py-2 text-right font-medium text-[var(--color-fg-muted)]">
@@ -328,10 +328,13 @@ function HistoryTable({
               key={record.executable}
               className="border-b border-[var(--color-border-subtle)] transition-colors hover:bg-[var(--color-bg-subtle)]"
             >
-              <td className="px-3 py-2">
-                <div className="flex flex-col">
-                  <span className="font-medium">{record.name}</span>
-                  <span className="max-w-md truncate text-2xs text-[var(--color-fg-muted)]">
+              <td className="cell-fill px-3 py-2">
+                <div className="flex min-w-0 flex-col">
+                  <span className="truncate font-medium">{record.name}</span>
+                  <span
+                    className="truncate text-2xs text-[var(--color-fg-muted)]"
+                    title={record.executable}
+                  >
                     {record.executable}
                   </span>
                 </div>

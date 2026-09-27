@@ -52,9 +52,12 @@ export function ProcessToolbar(props: ProcessToolbarProps): React.JSX.Element {
   ];
 
   return (
-    <div className="flex shrink-0 items-center gap-2 border-b border-[var(--color-border-subtle)] px-3 py-2">
+    // Wraps rather than overflowing: at the 720 px window minimum the one-line
+    // toolbar was 141 px wider than the content column and dragged the whole
+    // page sideways with it.
+    <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-[var(--color-border-subtle)] px-3 py-2">
       <SearchInput
-        className="w-64"
+        className="w-64 max-w-full min-w-40 flex-initial"
         value={props.query}
         onValueChange={props.onQueryChange}
         placeholder={t('process.search.placeholder', fallback('process.search.placeholder'))}

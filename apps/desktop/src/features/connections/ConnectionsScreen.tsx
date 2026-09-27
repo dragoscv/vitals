@@ -127,7 +127,7 @@ export function ConnectionsScreen({
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="screen">
       <header className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <h2 className="text-lg font-semibold">{t('title')}</h2>
@@ -171,23 +171,25 @@ export function ConnectionsScreen({
       {visible.length === 0 ? (
         <EmptyState title={t('empty.title')} description={t('empty.body')} />
       ) : (
-        <ul className="flex flex-col gap-1.5">
-          {visible.map((group) => (
-            <GroupRow
-              key={group.name}
-              group={group}
-              expanded={expanded.has(group.name)}
-              onToggle={() => {
-                setExpanded((current) => {
-                  const next = new Set(current);
-                  if (next.has(group.name)) next.delete(group.name);
-                  else next.add(group.name);
-                  return next;
-                });
-              }}
-            />
-          ))}
-        </ul>
+        <div className="screen-scroll">
+          <ul className="flex flex-col gap-1.5">
+            {visible.map((group) => (
+              <GroupRow
+                key={group.name}
+                group={group}
+                expanded={expanded.has(group.name)}
+                onToggle={() => {
+                  setExpanded((current) => {
+                    const next = new Set(current);
+                    if (next.has(group.name)) next.delete(group.name);
+                    else next.add(group.name);
+                    return next;
+                  });
+                }}
+              />
+            ))}
+          </ul>
+        </div>
       )}
     </div>
   );

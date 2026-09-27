@@ -89,6 +89,14 @@ export default defineConfig(({ command }) => ({
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    // 15 s, not vitest's 5 s. The shell tests render AppShell and resolve
+    // real lazy chunks; on this machine, shared with other agents' builds at
+    // 90 % CPU, a DIFFERENT one of them crossed 5 s on each full run
+    // (2026-09-27: "opens settings", then "names the window" and main.test
+    // "reports a failure") while every one passes alone in under a second.
+    // A test that truly hangs still fails; one that is slow under load no
+    // longer does.
+    testTimeout: 15_000,
     coverage: {
       provider: 'v8',
       reporter: ['text-summary', 'lcov'],

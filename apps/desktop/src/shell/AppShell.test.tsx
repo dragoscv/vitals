@@ -123,6 +123,8 @@ describe('AppShell', () => {
       expect(screen.queryByRole('dialog')).toBeNull();
       expect(document.activeElement).toBe(trigger);
     });
+    // The 8 s wait above only works because the suite's testTimeout (15 s,
+    // vite.config.ts) exceeds it; vitest's 5 s default fired first.
   });
 
   it('forces the sidebar to icons only below the narrow breakpoint', async () => {
@@ -150,6 +152,26 @@ describe('AppShell', () => {
     const column = screen.getByRole('main').firstElementChild as HTMLElement;
     expect(column.className).toContain('max-w-[var(--content-max)]');
     expect(column.className).toContain('mx-auto');
+  });
+
+  it('passes a definite height from main down to the screen so only regions inside it scroll', async () => {
+    // happy-dom does no layout, so this checks the chain rather than pixels
+    // (the pixels were measured live over CDP). Drop `h-full` or `flex-1`
+    // from any link and the screen's `flex-1` table resolves to auto height,
+    // the page grows to its content and `<main>` scrolls the toolbar away.
+    await renderShell();
+    const column = screen.getByRole('main').firstElementChild as HTMLElement;
+    expect(column.className).toMatch(/\bflex\b.*\bh-full\b|\bh-full\b.*\bflex\b/);
+    expect(column.className).toContain('flex-col');
+
+    const route = document.querySelector('[data-route-visible]');
+    let link = route as HTMLElement | null;
+    while (link !== null && link !== column) {
+      expect(link.className, `wrapper <${link.tagName}> breaks the chain`).toContain('flex-1');
+      expect(link.className).toContain('min-h-0');
+      link = link.parentElement;
+    }
+    expect(link).toBe(column);
   });
 
   it('translates the whole shell when the locale changes', async () => {

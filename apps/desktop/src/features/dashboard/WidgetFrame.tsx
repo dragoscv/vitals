@@ -66,8 +66,9 @@ export function WidgetFrame({
       className={cn(
         'flex min-w-0 flex-col',
         // Grid placement is a class, not inline style, so the same layout works
-        // at every breakpoint without JavaScript measuring the window.
-        size === 'full' ? 'sm:col-span-2 xl:col-span-3' : '',
+        // at every breakpoint without JavaScript measuring the window. Full
+        // spans every track, whatever the grid's column count is at this width.
+        size === 'full' ? 'col-span-full' : '',
         editing && 'ring-1 ring-[var(--color-border-strong)]',
       )}
     >

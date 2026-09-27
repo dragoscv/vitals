@@ -127,7 +127,7 @@ export function StorageScreen({ source }: StorageScreenProps = {}): React.JSX.El
   const activeDepth = DEPTHS.find((entry) => entry.id === depth)?.depth ?? null;
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="screen">
       <header className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <h2 className="text-lg font-semibold">{t('title')}</h2>
@@ -148,92 +148,101 @@ export function StorageScreen({ source }: StorageScreenProps = {}): React.JSX.El
         </p>
       )}
 
-      <Volumes volumes={volumes} activeMount={activeMount} locale={locale} onSelect={setSelected} />
-
-      <div className="flex flex-wrap items-center gap-2">
-        <SegmentedControl
-          value={depth}
-          ariaLabel={t('scan.depthLabel')}
-          onValueChange={(next) => {
-            setDepth(next);
-          }}
-          options={DEPTHS.map((entry) => ({
-            value: entry.id,
-            label: t(`scan.depth.${entry.id}`),
-          }))}
+      {/* Drives, scan and cleanup are three cards the user reads in turn, not
+          one list, so the page body scrolls as a unit under a fixed title. */}
+      <div className="screen-scroll flex flex-col gap-4">
+        <Volumes
+          volumes={volumes}
+          activeMount={activeMount}
+          locale={locale}
+          onSelect={setSelected}
         />
-        {state.scanning ? (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              state.cancelScan();
-            }}
-          >
-            <X aria-hidden className="size-4" />
-            {t('scan.cancel')}
-          </Button>
-        ) : (
-          <Button
-            size="sm"
-            disabled={activeMount === null}
-            onClick={() => {
-              if (activeMount !== null) state.scan(activeMount, activeDepth);
-            }}
-          >
-            {state.snapshot === null ? t('scan.start') : t('scan.rescan')}
-          </Button>
-        )}
-      </div>
 
-      {state.scanError !== null && (
-        <p role="alert" className="text-2xs text-[var(--color-status-danger)]">
-          {/* Phrased as "the last completed scan" when one survives, because
+        <div className="flex flex-wrap items-center gap-2">
+          <SegmentedControl
+            value={depth}
+            ariaLabel={t('scan.depthLabel')}
+            onValueChange={(next) => {
+              setDepth(next);
+            }}
+            options={DEPTHS.map((entry) => ({
+              value: entry.id,
+              label: t(`scan.depth.${entry.id}`),
+            }))}
+          />
+          {state.scanning ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                state.cancelScan();
+              }}
+            >
+              <X aria-hidden className="size-4" />
+              {t('scan.cancel')}
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              disabled={activeMount === null}
+              onClick={() => {
+                if (activeMount !== null) state.scan(activeMount, activeDepth);
+              }}
+            >
+              {state.snapshot === null ? t('scan.start') : t('scan.rescan')}
+            </Button>
+          )}
+        </div>
+
+        {state.scanError !== null && (
+          <p role="alert" className="text-2xs text-[var(--color-status-danger)]">
+            {/* Phrased as "the last completed scan" when one survives, because
               the previous snapshot is deliberately still on screen. */}
-          {state.snapshot === null
-            ? t('scan.failed', { message: state.scanError })
-            : t('scan.stale', { message: state.scanError })}
-        </p>
-      )}
+            {state.snapshot === null
+              ? t('scan.failed', { message: state.scanError })
+              : t('scan.stale', { message: state.scanError })}
+          </p>
+        )}
 
-      {state.scanning && (
-        <div role="status" className="flex flex-col gap-1.5">
-          <p className="text-sm">{t('scan.running', { root: state.scanRoot ?? '' })}</p>
-          <p className="text-2xs text-[var(--color-fg-muted)]">{t('scan.runningDetail')}</p>
-          {/* Indeterminate on purpose: the scanner reports files seen, not a
+        {state.scanning && (
+          <div role="status" className="flex flex-col gap-1.5">
+            <p className="text-sm">{t('scan.running', { root: state.scanRoot ?? '' })}</p>
+            <p className="text-2xs text-[var(--color-fg-muted)]">{t('scan.runningDetail')}</p>
+            {/* Indeterminate on purpose: the scanner reports files seen, not a
               fraction of a total it cannot know before walking. A percentage
               here would be invented. */}
-          <ProgressBar indeterminate label={t('scan.running', { root: state.scanRoot ?? '' })} />
-        </div>
-      )}
+            <ProgressBar indeterminate label={t('scan.running', { root: state.scanRoot ?? '' })} />
+          </div>
+        )}
 
-      {state.snapshot === null ? (
-        !state.scanning && (
-          <EmptyState title={t('scan.idleTitle')} description={t('scan.idleBody')} />
-        )
-      ) : (
-        <ScanResult
-          snapshot={state.snapshot}
+        {state.snapshot === null ? (
+          !state.scanning && (
+            <EmptyState title={t('scan.idleTitle')} description={t('scan.idleBody')} />
+          )
+        ) : (
+          <ScanResult
+            snapshot={state.snapshot}
+            locale={locale}
+            query={query}
+            onQueryChange={(q) => {
+              patchView({ q });
+            }}
+            sort={sort}
+            onSortChange={(next) => {
+              patchView({ sort: next });
+            }}
+            rows={rows}
+          />
+        )}
+
+        <Cleanup
+          candidates={state.candidates}
+          running={state.cleanupRunning}
+          error={state.cleanupError}
           locale={locale}
-          query={query}
-          onQueryChange={(q) => {
-            patchView({ q });
-          }}
-          sort={sort}
-          onSortChange={(next) => {
-            patchView({ sort: next });
-          }}
-          rows={rows}
+          onScan={state.findCleanup}
         />
-      )}
-
-      <Cleanup
-        candidates={state.candidates}
-        running={state.cleanupRunning}
-        error={state.cleanupError}
-        locale={locale}
-        onScan={state.findCleanup}
-      />
+      </div>
     </div>
   );
 }
@@ -434,7 +443,7 @@ function ScanResult({
             <table className="w-full text-left">
               <thead>
                 <tr className="text-2xs text-[var(--color-fg-muted)]">
-                  <th scope="col" className="px-2.5 py-1.5 font-normal">
+                  <th scope="col" className="cell-fill px-2.5 py-1.5 font-normal">
                     {t('column.path')}
                   </th>
                   <th scope="col" className="px-2.5 py-1.5 text-right font-normal">
@@ -451,8 +460,10 @@ function ScanResult({
               <tbody>
                 {rows.map((entry) => (
                   <tr key={entry.path} className="border-t border-[var(--color-border-subtle)]">
-                    <td className="px-2.5 py-1.5">
-                      <span className="block truncate text-sm">{entry.path}</span>
+                    <td className="cell-fill px-2.5 py-1.5">
+                      <span className="block truncate text-sm" title={entry.path}>
+                        {entry.path}
+                      </span>
                       {/* Per-row, not just in the header count: the summary
                           cannot tell the user WHICH figure is a floor. */}
                       {entry.incomplete !== null && (

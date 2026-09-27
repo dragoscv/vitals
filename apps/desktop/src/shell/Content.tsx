@@ -53,8 +53,16 @@ export function Content({
        * `@container/main` names this element as a container query root so
        * features can respond to the width they actually get (`@3xl/main:`)
        * rather than to the window, which differs from it by the sidebar.
+       *
+       * A flex column with a definite height, and every wrapper below it down
+       * to the screen root is one too (routes.tsx). That is what lets a screen
+       * give its table or card stack `flex-1` and scroll THAT region, leaving
+       * its title and toolbar in place. Without a height anywhere in the
+       * chain, `h-full` on a screen resolved to auto, the whole page grew to
+       * its content and this `<main>` scrolled instead — 14 765 px of it on
+       * Installed apps, with the search box scrolled away.
        */}
-      <div className="@container/main mx-auto w-full max-w-[var(--content-max)] px-4 py-4 sm:px-6 sm:py-5">
+      <div className="@container/main mx-auto flex h-full min-h-0 w-full max-w-[var(--content-max)] flex-col px-4 py-4 sm:px-6 sm:py-5">
         {children}
       </div>
     </main>

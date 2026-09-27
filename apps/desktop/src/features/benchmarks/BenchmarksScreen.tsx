@@ -108,7 +108,7 @@ export function BenchmarksScreen({ source }: BenchmarksScreenProps = {}): React.
   const runningName = state.runningIds[0];
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="screen">
       <header className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <h2 className="text-lg font-semibold">{t('title')}</h2>
@@ -126,71 +126,73 @@ export function BenchmarksScreen({ source }: BenchmarksScreenProps = {}): React.
         </p>
       )}
 
-      <Selection
-        infos={state.infos}
-        selected={selected}
-        disabled={state.running}
-        onToggle={toggle}
-        onSelectAll={() => {
-          setDeselected(new Set());
-        }}
-        onSelectNone={() => {
-          setDeselected(new Set(runnable));
-        }}
-      />
+      <div className="screen-scroll flex flex-col gap-4">
+        <Selection
+          infos={state.infos}
+          selected={selected}
+          disabled={state.running}
+          onToggle={toggle}
+          onSelectAll={() => {
+            setDeselected(new Set());
+          }}
+          onSelectNone={() => {
+            setDeselected(new Set(runnable));
+          }}
+        />
 
-      <StartPanel
-        seconds={totalSeconds}
-        count={selected.size}
-        running={state.running}
-        hasResults={state.suite !== null}
-        onRun={() => {
-          state.run([...selected]);
-        }}
-      />
+        <StartPanel
+          seconds={totalSeconds}
+          count={selected.size}
+          running={state.running}
+          hasResults={state.suite !== null}
+          onRun={() => {
+            state.run([...selected]);
+          }}
+        />
 
-      {state.runError !== null && (
-        <p role="alert" className="text-2xs text-[var(--color-status-danger)]">
-          {/* Phrased as "the last completed run" when one survives, because
+        {state.runError !== null && (
+          <p role="alert" className="text-2xs text-[var(--color-status-danger)]">
+            {/* Phrased as "the last completed run" when one survives, because
               the previous suite is deliberately still on screen below. */}
-          {state.suite === null
-            ? t('error.failed', { message: state.runError })
-            : t('error.stale', { message: state.runError })}
-        </p>
-      )}
-
-      {state.running && runningName !== undefined && (
-        // Polite, and never assertive: an assertive region interrupts whatever
-        // the user is reading, and a progress announcement is not worth that.
-        // Named, because the busy button contributes a second `status` and two
-        // unnamed live regions are indistinguishable to a screen reader.
-        <div role="status" aria-label={t('running.region')} className="flex flex-col gap-1.5">
-          <p className="text-sm">{t('running.title', { name: t(`name.${runningName}`) })}</p>
-          <p className="text-2xs text-[var(--color-fg-muted)]">{t('running.body')}</p>
-          <p className="text-2xs text-[var(--color-fg-subtle)]">
-            {t('running.remaining', { count: state.runningIds.length })}
+            {state.suite === null
+              ? t('error.failed', { message: state.runError })
+              : t('error.stale', { message: state.runError })}
           </p>
-          {/* Indeterminate on purpose: the backend reports no fraction while a
+        )}
+
+        {state.running && runningName !== undefined && (
+          // Polite, and never assertive: an assertive region interrupts whatever
+          // the user is reading, and a progress announcement is not worth that.
+          // Named, because the busy button contributes a second `status` and two
+          // unnamed live regions are indistinguishable to a screen reader.
+          <div role="status" aria-label={t('running.region')} className="flex flex-col gap-1.5">
+            <p className="text-sm">{t('running.title', { name: t(`name.${runningName}`) })}</p>
+            <p className="text-2xs text-[var(--color-fg-muted)]">{t('running.body')}</p>
+            <p className="text-2xs text-[var(--color-fg-subtle)]">
+              {t('running.remaining', { count: state.runningIds.length })}
+            </p>
+            {/* Indeterminate on purpose: the backend reports no fraction while a
               measurement loop is running, and a percentage here would be
               invented rather than measured. */}
-          <ProgressBar indeterminate label={t('action.busy')} />
-        </div>
-      )}
+            <ProgressBar indeterminate label={t('action.busy')} />
+          </div>
+        )}
 
-      {state.suite === null
-        ? !state.running && <EmptyState title={t('idle.title')} description={t('idle.body')} />
-        : state.suite.results.map((result) => (
-            <Result key={result.id} result={result} locale={locale} />
-          ))}
+        {state.suite === null
+          ? !state.running && <EmptyState title={t('idle.title')} description={t('idle.body')} />
+          : state.suite.results.map((result) => (
+              <Result key={result.id} result={result} locale={locale} />
+            ))}
 
-      {state.suite !== null && (
-        <p className="text-2xs text-[var(--color-fg-subtle)]">
-          {t('results.total', {
-            seconds: formatCount(Math.round(state.suite.totalDurationMs / 1000), locale),
-          })}{' '}
-          {t('results.medianWhy')}
-        </p>
-      )}
+        {state.suite !== null && (
+          <p className="text-2xs text-[var(--color-fg-subtle)]">
+            {t('results.total', {
+              seconds: formatCount(Math.round(state.suite.totalDurationMs / 1000), locale),
+            })}{' '}
+            {t('results.medianWhy')}
+          </p>
+        )}
+      </div>
     </div>
   );
 }

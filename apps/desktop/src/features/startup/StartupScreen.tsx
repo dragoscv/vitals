@@ -148,7 +148,7 @@ export function StartupScreen({ mode, reader }: StartupScreenProps): React.JSX.E
   const rows = isServices ? serviceRows : startupRows;
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="screen">
       <header className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <h2 className="text-lg font-semibold">{t(`${mode}.title`)}</h2>
@@ -297,11 +297,11 @@ function StartupTable({
   const { t } = useTranslation(STARTUP_NS);
 
   return (
-    <div className="overflow-x-auto rounded-md border border-[var(--color-border-subtle)]">
+    <div className="table-scroll">
       <table className="w-full text-left">
         <thead>
           <tr className="text-2xs text-[var(--color-fg-muted)]">
-            <th scope="col" className="px-2.5 py-1.5 font-normal">
+            <th scope="col" className="cell-fill px-2.5 py-1.5 font-normal">
               {t('column.name')}
             </th>
             <th scope="col" className="px-2.5 py-1.5 font-normal">
@@ -325,10 +325,13 @@ function StartupTable({
               key={`${entry.source}:${entry.name}`}
               className="border-t border-[var(--color-border-subtle)]"
             >
-              <td className="px-2.5 py-1.5">
+              <td className="cell-fill px-2.5 py-1.5">
                 <span className="block truncate text-sm">{labelFor(entry)}</span>
                 {entry.command !== null && (
-                  <span className="block truncate font-mono text-2xs text-[var(--color-fg-subtle)]">
+                  <span
+                    className="block truncate font-mono text-2xs text-[var(--color-fg-subtle)]"
+                    title={entry.command}
+                  >
                     {entry.command}
                   </span>
                 )}
@@ -380,11 +383,11 @@ function ServiceTable({ rows }: { readonly rows: readonly ServiceEntry[] }) {
   const { t } = useTranslation(STARTUP_NS);
 
   return (
-    <div className="overflow-x-auto rounded-md border border-[var(--color-border-subtle)]">
+    <div className="table-scroll">
       <table className="w-full text-left">
         <thead>
           <tr className="text-2xs text-[var(--color-fg-muted)]">
-            <th scope="col" className="px-2.5 py-1.5 font-normal">
+            <th scope="col" className="cell-fill px-2.5 py-1.5 font-normal">
               {t('column.name')}
             </th>
             <th scope="col" className="px-2.5 py-1.5 font-normal">
@@ -398,7 +401,7 @@ function ServiceTable({ rows }: { readonly rows: readonly ServiceEntry[] }) {
         <tbody>
           {rows.map((service) => (
             <tr key={service.name} className="border-t border-[var(--color-border-subtle)]">
-              <td className="px-2.5 py-1.5">
+              <td className="cell-fill px-2.5 py-1.5">
                 <span className="block truncate text-sm">{labelFor(service)}</span>
                 <span className="block truncate font-mono text-2xs text-[var(--color-fg-subtle)]">
                   {service.name}

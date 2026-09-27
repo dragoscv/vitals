@@ -130,7 +130,10 @@ export function ProcessTable(props: ProcessTableProps): React.JSX.Element {
 
   return (
     <div
-      className="flex min-h-0 flex-1 flex-col"
+      // `min-w-0`: the grid's own `minWidth` is the sum of the column widths,
+      // and without this the flex item refuses to shrink below it, so the
+      // horizontal overflow escaped to the page (306 px of it at 1280).
+      className="flex min-h-0 min-w-0 flex-1 flex-col"
       onPointerEnter={() => props.onHoverChange(true)}
       onPointerLeave={() => props.onHoverChange(false)}
     >

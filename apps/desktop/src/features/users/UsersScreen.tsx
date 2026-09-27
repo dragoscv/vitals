@@ -79,7 +79,7 @@ export function UsersScreen({ reader }: UsersScreenProps): React.JSX.Element {
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="screen">
       <header className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <h2 className="text-lg font-semibold">{t('title')}</h2>
@@ -118,7 +118,7 @@ export function UsersScreen({ reader }: UsersScreenProps): React.JSX.Element {
         {t('counts.interactive', { count: interactiveCount })}
       </p>
 
-      <div className="flex flex-col gap-3">
+      <div className="screen-scroll flex flex-col gap-3">
         {filteredSessions.map((session) => (
           <SessionCard
             key={session.sessionId}

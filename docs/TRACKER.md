@@ -164,6 +164,75 @@ CSV records the state.
 Every claim of "done" needs a command and its output. Recorded here as work
 lands, newest first.
 
+### 2026-09-27 — S12-12 screens fill the window; only regions inside them scroll
+
+**What the user saw.** "Content does not size correctly — grids and tables
+should be responsive, fill the viewport height, no scroll on the body, only
+inside components." Measured over CDP before touching anything (1280×820):
+`<main>` scrolled on six sections — Installed apps 14 765 px, Startup
+5 691 px, Network 740 px, Devices 410 px — with the title and the search box
+scrolling away; Startup's table was 1 903 px wide in a 1 280 px window;
+Processes pushed `<main>` 306 px sideways; App history and Services filled
+32 % and 46 % of the height.
+
+**Root cause.** Nothing between `<main>` and a screen had a height: the
+content column, `RouteTransition`'s wrapper and the `<Activity>` wrapper were
+plain blocks, so `h-full` on Processes resolved to auto (its virtualiser only
+worked through the 640 px fallback) and every other screen grew to its
+content. Separately, `truncate` in an auto-layout table does nothing — the
+cell grows to the longest command line.
+
+**Fix.** The chain is a flex column end to end (`Content.tsx`, `routes.tsx`).
+`styles.css` adds `.screen` (fills the column), `.screen-scroll` (the part
+that grows scrolls; padded so card shadows and focus rings are not clipped),
+`.table-scroll` (own scroll box, sticky header cells, card surface) and
+`.cell-fill` (the free-text column takes the slack and truncates; short
+columns never wrap). Tables: Startup, Services, Installed apps, App history,
+Storage paths (full text in `title`). Card stacks: Network, Users, Devices,
+Storage, Benchmarks, Dashboard. Performance: rail and detail scroll
+independently; below `lg` the rail scrolls sideways instead of clipping.
+Processes: `min-w-0` keeps its wide grid scrolling inside itself; the toolbar
+wraps at 720 px. Dashboard columns come from a container query on the width
+the content actually gets — 1/2/3/4/5 at 0/42/64/110/150 rem — and a `full`
+widget is `col-span-full` at any count.
+
+**Tests.** `AppShell.test > passes a definite height from main down to the
+screen` walks every wrapper from the visible route to the column; with
+`flex-1` removed from the Activity wrapper it failed ("wrapper <DIV> breaks
+the chain"), restored it passes. The desktop suite's `testTimeout` is 15 s:
+at 90 % machine CPU a different AppShell/main test crossed vitest's 5 s
+default on each of two full runs, each passing alone — and the 8 s
+`findByRole` from S12 could never be reached under a 5 s test limit.
+
+```text
+node .copilot-tmp/layout-audit.mjs 720x520,1024x700,1920x1080,3440x1440 + native 1280x820
+  12 sections × 5 sizes → docScroll 0, docScrollX 0, mainScroll 0, mainScrollX 0 on all 60
+  route fills main: 92 % (720x520) · 94 % · 95 % · 96 % · 97 % (3440x1440) — rest is padding
+  e.g. installedApps 1280x820: table box h=546 scrollHeight=15309 (was: main scrolled 14765)
+run-build.ps1 pnpm typecheck → 6/6 · pnpm lint → 6/6 · pnpm test → all 88 desktop files, ui 13, charts 4
+prettier --check (changed files) → All matched files use Prettier code style!
+scripts/check-drift.ps1 → 0 failure(s), 0 warning(s)
+scripts/check-size.ps1 (after raise) → initial 185.3/185.3 KB, shipped 375.3/375.3 KB, hud 96.9 %, mobile 99.5 %,
+                                       installer 4318.2/4318.2 KB — Within budget.
+```
+
+Size budget raised to the measured bytes, not +5 %: initial 188 880 → 189 708
+(+828 B gz), shipped 382 460 → 384 311 (+1 851 B), for the four layout rules
+(1 298 B raw) and the container-query grid — after removing the redundant
+`whitespace-nowrap` classes the `.table-scroll` rule already covers. The
+installer budget 4 409 993 → 4 421 851 B: the first installer measured since
+S12, so it carries S12's backend (disk IOCTLs, DXGI fallback, owner SIDs) as
+well as this frontend. Reason recorded in `size-budget.json`.
+
+Not updated, with reason: locales — no new string (the `title` attributes
+carry data, not copy); mobile and HUD — separate entries with their own
+layouts, untouched; SDK/CLI/OpenAPI — no wire change.
+
+**Still open from S12-11.** The wall-clock overhead gate was re-run this
+session: 34.9 ms median at 91 % machine CPU (other agents' builds), with the
+cycle counter reading 27.0 ms CPU in the same minute. It stays unproven on an
+idle machine.
+
 ### 2026-09-27 — S12 redesign: depth, morphing nav, View Transitions, rolling numbers; disk/GPU/drive-kind/owner fixes
 
 **What the user saw.** "The desktop app is ugly and some pages do not

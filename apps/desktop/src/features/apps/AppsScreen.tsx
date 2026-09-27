@@ -129,7 +129,7 @@ export function AppsScreen({
   };
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="screen">
       <header className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <h2 className="text-lg font-semibold">{t('title')}</h2>
@@ -294,11 +294,11 @@ function AppTable({
   );
 
   return (
-    <div className="overflow-x-auto rounded-md border border-[var(--color-border-subtle)]">
+    <div className="table-scroll">
       <table className="w-full text-left">
         <thead>
           <tr className="text-2xs text-[var(--color-fg-muted)]">
-            <th scope="col" className="px-2.5 py-1.5 font-normal">
+            <th scope="col" className="cell-fill px-2.5 py-1.5 font-normal">
               {t('column.name')}
             </th>
             <th scope="col" className="px-2.5 py-1.5 font-normal">
@@ -318,7 +318,7 @@ function AppTable({
         <tbody>
           {apps.map((app) => (
             <tr key={app.keyName} className="border-t border-[var(--color-border-subtle)]">
-              <td className="px-2.5 py-1.5">
+              <td className="cell-fill px-2.5 py-1.5">
                 <span className="block truncate text-sm">{app.name}</span>
                 <span className="block truncate text-2xs text-[var(--color-fg-subtle)]">
                   {app.publisher ?? t(`source.${app.source}`)}
