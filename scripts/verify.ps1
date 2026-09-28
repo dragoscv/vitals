@@ -77,6 +77,9 @@ $checks = @(
     @{ Name = 'rust: format'; Script = 'cargo fmt --all -- --check' }
     @{ Name = 'contracts: no drift'; Script = 'pwsh -NoProfile -File scripts/check-drift.ps1' }
     @{ Name = 'ts: format'; Script = 'pnpm format:check' }
+    # CI's supply-chain job runs this; without it here a new crate passed
+    # every local gate and failed on GitHub (S12-36, 2026-09-28).
+    @{ Name = 'notices: current'; Script = 'pwsh -NoProfile -File scripts/third-party-notices.ps1 -Check' }
 )
 
 $rust = @(

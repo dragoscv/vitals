@@ -2,7 +2,7 @@
   "comment": "Budgets in bytes. Raise deliberately, never to make CI pass.",
   "initialGzipBytes": 199864.0,
   "shippedGzipBytes": 405407.0,
-  "installerBytes": 4660039.0,
+  "installerBytes": 5100964.0,
   "hudGzipBytes": 122637.0,
   "mobileGzipBytes": 153047.0
 }

@@ -16,7 +16,7 @@ The standard texts: [MIT](https://opensource.org/license/mit),
 Microsoft Edge WebView2 is a component of Windows, installed and licensed by
 Microsoft; Vitals does not redistribute it.
 
-## Rust crates (387)
+## Rust crates (388)
 
 | Component | Version | Licence |
 | --- | --- | --- |
@@ -381,6 +381,7 @@ Microsoft; Vitals does not redistribute it.
 | [windows-registry](https://github.com/microsoft/windows-rs) | 0.6.1 | MIT OR Apache-2.0 |
 | [windows-result](https://github.com/microsoft/windows-rs) | 0.3.4 | MIT OR Apache-2.0 |
 | [windows-result](https://github.com/microsoft/windows-rs) | 0.4.1 | MIT OR Apache-2.0 |
+| [windows-service](https://github.com/mullvad/windows-service-rs) | 0.8.1 | MIT OR Apache-2.0 |
 | [windows-strings](https://github.com/microsoft/windows-rs) | 0.4.2 | MIT OR Apache-2.0 |
 | [windows-strings](https://github.com/microsoft/windows-rs) | 0.5.1 | MIT OR Apache-2.0 |
 | [windows-sys](https://github.com/microsoft/windows-rs) | 0.59.0 | MIT OR Apache-2.0 |

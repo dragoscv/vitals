@@ -199,6 +199,23 @@ Conflicts were resolved in favour of origin:
   The test now warms `MotionRuntime` in `beforeAll`. Confirmed both ways:
   with the fix, origin/main 948/948 and this branch 985/985 at the same load.
 
+**CI on f70442f (run 36455204409) was red in three jobs that no local gate covers:**
+
+- Rust (linux): 11 dead-code errors. The `hardware` and `watchdog`
+  commands are Windows-only, so off Windows their helpers had no caller.
+  Both modules now carry `#![cfg_attr(not(windows), allow(dead_code))]`:
+  the helpers stay compiled on Linux, where their tests still run. Checked
+  in WSL Ubuntu 24.04 with CI's exact command (`cargo clippy --workspace
+--lib --bins --tests --benches --exclude vitals-win -- -D warnings`,
+  exit 0), and `cargo test` passed with the same selection.
+- Supply chain: `THIRD_PARTY_NOTICES.md` was stale (`windows-service`
+  0.8.1, brought in by vitals-sensors). Regenerated: 388 crates. `verify.ps1`
+  now runs `third-party-notices.ps1 -Check`, so this is caught locally.
+- Build installer: 4,744.2 KB against a 4,550.8 KB budget. The growth is
+  intended: the installer now ships `vitals-sensors.exe` and
+  `vitals-watchdog.exe` (636 KB staged). The budget is CI's measurement
+  plus 5 %, which is what `check-size.ps1 -Update` writes: 5,100,964 bytes.
+
 **Verification (2026-09-28).**
 
 ```text

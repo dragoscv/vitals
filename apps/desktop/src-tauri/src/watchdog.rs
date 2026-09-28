@@ -9,6 +9,11 @@
 //! the app; the first launch after install registers and starts it, so a
 //! fresh install is protected without anyone opening Settings.
 
+// The commands and `ensure_default` are Windows-only, so off Windows the
+// config helpers have no caller. They stay compiled everywhere because their
+// tests pin the file format the watchdog parses; CI's Linux clippy caught it.
+#![cfg_attr(not(windows), allow(dead_code))]
+
 use serde::{Deserialize, Serialize};
 
 use crate::commands::CommandError;

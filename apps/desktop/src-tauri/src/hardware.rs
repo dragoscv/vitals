@@ -10,6 +10,10 @@
 //! last four characters here, before they reach the webview at all — enough
 //! to tell two identical sticks apart, not enough to identify the part.
 
+// Both commands are Windows-only; `serial_tail` and the result alias stay
+// compiled everywhere so the serial-redaction tests run on Linux CI too.
+#![cfg_attr(not(windows), allow(dead_code))]
+
 use serde::Serialize;
 
 use crate::commands::CommandError;
