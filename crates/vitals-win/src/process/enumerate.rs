@@ -310,7 +310,7 @@ unsafe fn walk(buffer: &[u8], with_extension: bool) -> Vec<RawProcess> {
 
         // SAFETY: `ImageName.Buffer` points into `buffer`, which outlives
         // this call, and `Length` is the kernel's own byte count.
-        let name = unsafe { entry.ImageName.to_string_lossy() };
+        let name = unsafe { entry.ImageName.to_string_lossy() }.map(image_file_name);
 
         // SAFETY: the extension offset is bounds-checked inside against both
         // the buffer and this entry's own extent.
@@ -384,6 +384,22 @@ const WAIT_SUSPENDED: u32 = 5;
 /// `KWAIT_REASON::WrSuspended` — the kernel-initiated form, which is what a
 /// UWP app parked by the Process Lifetime Manager reports.
 const WAIT_WR_SUSPENDED: u32 = 12;
+
+/// The executable's file name from `ImageName`.
+///
+/// Usually the kernel reports just `notepad.exe`, but for some processes —
+/// observed on the GitHub Actions image for a binary started from a mapped
+/// path — it reports the full NT device path,
+/// `\Device\HarddiskVolume5\...\vitals_win.exe`. Every name in the UI, the
+/// grouping by app and the risk model's "is this csrss.exe" checks compare
+/// bare file names, so a device path silently broke all three for that
+/// process.
+fn image_file_name(raw: String) -> String {
+    match raw.rfind('\\') {
+        Some(i) if i + 1 < raw.len() => raw[i + 1..].to_owned(),
+        _ => raw,
+    }
+}
 
 /// Whether the entry's process is suspended, read from its thread records.
 ///
@@ -536,6 +552,18 @@ mod tests {
         let mut e = ProcessEnumerator::new();
         let processes = e.enumerate().expect("enumerate");
         assert!(processes.iter().any(RawProcess::is_idle_process));
+    }
+
+    #[test]
+    fn a_device_path_image_name_is_reduced_to_the_file_name() {
+        assert_eq!(
+            image_file_name(r"\Device\HarddiskVolume5\a\target\vitals_win.exe".into()),
+            "vitals_win.exe"
+        );
+        assert_eq!(image_file_name("csrss.exe".into()), "csrss.exe");
+        // A trailing separator has no file name; keep what we were given
+        // rather than reporting an empty string.
+        assert_eq!(image_file_name(r"\Device\".into()), r"\Device\");
     }
 
     #[test]

@@ -231,6 +231,10 @@ mod tests {
     fn the_system_drive_is_not_left_unknown() {
         // The Storage screen showed "Unknown type" for every drive because
         // only the sampler refined the kind; the volume list must carry it.
+        // Not on a virtual disk, which truthfully has no kind to report.
+        if super::super::device::is_virtual_bus('C') {
+            return;
+        }
         let volumes = enumerate_volumes();
         let c = volumes.iter().find(|v| v.mount == "C:").expect("C:");
         assert_ne!(c.kind, DiskKind::Unknown, "C: kind was not refined");

@@ -9,8 +9,8 @@
 
 use windows_sys::Win32::Foundation::{CloseHandle, FALSE, HANDLE, INVALID_HANDLE_VALUE};
 use windows_sys::Win32::Storage::FileSystem::{
-    BusTypeNvme, BusTypeSd, BusTypeUsb, CreateFileW, FILE_SHARE_READ, FILE_SHARE_WRITE,
-    OPEN_EXISTING,
+    BusTypeFileBackedVirtual, BusTypeNvme, BusTypeSd, BusTypeSpaces, BusTypeUsb, BusTypeVirtual,
+    CreateFileW, FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING,
 };
 use windows_sys::Win32::System::IO::DeviceIoControl;
 use windows_sys::Win32::System::Ioctl::{
@@ -152,6 +152,27 @@ pub fn refine_kind(letter: char, fallback: DiskKind) -> DiskKind {
         })
 }
 
+/// Whether the volume sits on a virtual, file-backed or Storage Spaces bus —
+/// the devices that answer neither classification query, so `Unknown` is
+/// the truthful kind for them rather than a failure to look.
+#[must_use]
+pub fn is_virtual_bus(letter: char) -> bool {
+    let Some(handle) = VolumeHandle::open(letter) else {
+        return false;
+    };
+    let query = STORAGE_PROPERTY_QUERY {
+        PropertyId: StorageDeviceProperty,
+        QueryType: PropertyStandardQuery,
+        AdditionalParameters: [0],
+    };
+    handle
+        .query::<_, STORAGE_DEVICE_DESCRIPTOR>(IOCTL_STORAGE_QUERY_PROPERTY, Some(&query))
+        .is_some_and(|d| {
+            let bus = d.BusType;
+            bus == BusTypeVirtual || bus == BusTypeFileBackedVirtual || bus == BusTypeSpaces
+        })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -169,6 +190,11 @@ mod tests {
 
     #[test]
     fn the_system_volume_is_classified_rather_than_left_unknown() {
+        // A hypervisor's virtual disk (CI runners, most VMs) truthfully
+        // answers neither query; the guarantee is about physical media.
+        if is_virtual_bus('C') {
+            return;
+        }
         let kind = refine_kind('C', DiskKind::Unknown);
         assert_ne!(
             kind,
