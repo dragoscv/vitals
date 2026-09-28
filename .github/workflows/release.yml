@@ -126,6 +126,13 @@ jobs:
     needs: plan
     if: needs.plan.outputs.is_release == 'true'
     runs-on: windows-latest
+    # Identical to ci.yml's top-level env. rust-cache hashes every CARGO_* and
+    # RUST* variable into its key, so any difference here and the tag would
+    # miss the warm `windows-test` cache main keeps and compile cold.
+    env:
+      RUST_BACKTRACE: 1
+      CARGO_INCREMENTAL: 0
+      CARGO_PROFILE_DEV_DEBUG: 0
     steps:
       - uses: actions/checkout@v5
 
@@ -155,9 +162,11 @@ jobs:
         with:
           components: rustfmt, clippy
 
+      # Restore-only: main's CI owns this entry; a tag must not overwrite it.
       - uses: Swatinem/rust-cache@v2
         with:
-          key: verify
+          shared-key: windows-test
+          save-if: false
 
       - uses: pnpm/action-setup@v4
 
@@ -281,6 +290,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.platform.target }}
+          cache-on-failure: true
 
       - name: Install Linux system dependencies
         if: matrix.platform.os == 'linux'

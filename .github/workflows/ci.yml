@@ -6,28 +6,71 @@ on:
   pull_request:
     branches: [main, dev]
 
+permissions:
+  contents: read
+  # dorny/paths-filter lists a pull request's files through the API.
+  pull-requests: read
+
 concurrency:
-  # A newer push makes an in-flight run irrelevant. Cancelling keeps queue
-  # times short, which is what keeps people actually reading CI results.
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Only pull requests cancel. On main, a newer push used to kill the run in
+  # flight — and rust-cache saves only when a job finishes, so with pushes
+  # landing every few minutes the Windows cache was never written and every
+  # run compiled cold (measured: no Windows cache entry after a dozen runs).
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
+  # CI builds from a restored cache, never incrementally from yesterday's
+  # tree; incremental state only inflates the cache and slows the compile.
+  CARGO_INCREMENTAL: 0
+  # Debug info is the single largest part of a Windows debug build: PDBs to
+  # write and link for every test binary. Backtraces still name functions.
+  # Release builds are untouched — this is the dev/test profile only.
+  CARGO_PROFILE_DEV_DEBUG: 0
 
 jobs:
-  rust:
-    name: Rust (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        # Windows is the shipping target; Linux runs to keep the OS-agnostic
-        # core honest. A core crate that only compiles on Windows means the
-        # trait boundary has leaked, and we want to know immediately.
-        os: [windows-latest, ubuntu-latest]
+  # Decides whether anything compiled can have changed. A push that touches
+  # only the website, the ADRs or prose skips twenty-odd minutes of Rust.
+  # The filter lists what is *excluded*, so a new directory is covered by
+  # default — a gate that forgets a path fails open, so this errs the other way.
+  # docs/api and docs/integrations are deliberately NOT excluded: the
+  # vitals-server tests include_str! openapi.yaml, its README and the Home
+  # Assistant package. Prose is still format-checked by Frontend, which
+  # always runs.
+  changes:
+    name: Changes
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dorny/paths-filter@v4
+        id: filter
+        with:
+          predicate-quantifier: every
+          filters: |
+            code:
+              - '**'
+              - '!apps/site/**'
+              - '!docs/adr/**'
+              - '!docs/*.md'
+              - '!docs/tracker.csv'
+              - '!*.md'
+              - '!.github/ISSUE_TEMPLATE/**'
+              - '!.github/DISCUSSION_TEMPLATE/**'
+              - '!.github/workflows/pages.yml'
 
+  # The Windows legs are split three ways and run side by side. As one job
+  # they took 2321 s end to end (clippy 622, test 719, release tests 771),
+  # because each step compiled the workspace again under a different profile
+  # and none of it could overlap.
+  rust-lint-windows:
+    name: Rust lint (windows)
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v5
 
@@ -35,28 +78,27 @@ jobs:
         with:
           components: rustfmt, clippy
 
+      # Each job owns one cache: clippy's check metadata, a test build and a
+      # release build share almost no artefacts, and one key for all three
+      # meant whichever finished last overwrote the rest. Saved from main
+      # only, so pull requests restore without evicting main's entries from
+      # the 10 GB repository cap. `cache-on-failure` because a red run has
+      # still compiled every dependency.
       - uses: Swatinem/rust-cache@v2
         with:
-          key: ${{ matrix.os }}
-
-      - name: Install Linux system dependencies
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+          shared-key: windows-clippy
+          cache-on-failure: true
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       # First, because it takes two seconds and catches contract drift that
-      # a four-minute compile never would: serde casing that disagrees with
-      # the generated TypeScript, an invoke() with no command behind it, a
-      # locale key present in one language only.
-      # GitHub's runners do not ship ripgrep; the drift script needs it.
+      # a compile never would: serde casing that disagrees with the generated
+      # TypeScript, an invoke() with no command behind it, a locale key
+      # present in one language only. Runners do not ship ripgrep.
       - uses: taiki-e/install-action@v2
-        if: runner.os == 'Windows'
         with:
           tool: ripgrep
 
       - name: Contract drift
-        if: runner.os == 'Windows'
         shell: pwsh
         run: pwsh -NoProfile -File scripts/check-drift.ps1
 
@@ -64,60 +106,120 @@ jobs:
       # disagreement is visible here long before release.yml's
       # `version.ps1 -Check <tag>` refuses the tag over it.
       - name: Versions
-        if: runner.os == 'Windows'
         shell: pwsh
         run: pwsh -NoProfile -File scripts/version.ps1
 
+      # Formatting is the same on every OS; checked once, here.
       - name: Check formatting
         run: cargo fmt --all -- --check
 
       - name: Clippy
-        if: runner.os == 'Windows'
         run: cargo clippy --workspace --all-targets -- -D warnings
 
-      # vitals-win is `#![cfg(windows)]`: on Linux its library is empty and
-      # its twenty probe examples, which exist to be run against a real
-      # Windows machine, cannot compile. This leg's job is to prove every
-      # OTHER crate — the OS-agnostic core above all — builds without
-      # Windows, so it checks everything but those examples; the Windows
-      # leg above covers them.
-      - name: Clippy (without Windows-only examples)
-        if: runner.os != 'Windows'
-        run: cargo clippy --workspace --lib --bins --tests --benches --exclude vitals-win -- -D warnings
-
-      - name: Test
-        if: runner.os == 'Windows'
-        run: cargo test --workspace
-
-      - name: Test (without Windows-only examples)
-        if: runner.os != 'Windows'
-        run: cargo test --workspace --lib --bins --tests --exclude vitals-win
-
-      # A release build is required: the debug build is several times slower
-      # and would measure the compiler's lack of optimisation rather than
-      # our own code. Windows only, since the budget covers the Windows
-      # sampler.
-      - name: Performance budget
-        if: runner.os == 'Windows'
-        run: cargo test -p vitals-win --release --test overhead -- --nocapture
-
-      # Tests marked `#[ignore]` are the ones too expensive to run on every
-      # `cargo test` — they allocate the real 512 MB working set and assert
-      # that a dependent load actually reaches DRAM. They still have to run
-      # somewhere, or the assertion they carry is decorative. Release, because
-      # the figures only mean anything in an optimised build.
-      - name: Expensive tests
-        if: runner.os == 'Windows'
-        run: cargo test --workspace --release -- --ignored
-
-  bindings:
-    name: Generated bindings are current
+  rust-test-windows:
+    name: Rust test (windows)
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
 
+      # release.yml's verify job restores this same key on a tag, so the
+      # env block above must stay identical there: rust-cache hashes every
+      # CARGO_* and RUST* variable into the key.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: windows-test
+          cache-on-failure: true
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Test
+        run: cargo test --workspace
+
+  rust-perf-windows:
+    name: Performance (windows, release)
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: windows-perf
+          cache-on-failure: true
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      # A release build is required: the debug build is several times slower
+      # and would measure the compiler's lack of optimisation rather than
+      # our own code. The shipping profile (fat LTO) on purpose — a cheaper
+      # profile would pass a budget the shipped binary misses.
+      - name: Performance budget
+        run: cargo test -p vitals-win --release --test overhead -- --nocapture
+
+      # `#[ignore]`d tests are the ones too expensive for every `cargo test`
+      # — they allocate the real 512 MB working set and assert that a
+      # dependent load reaches DRAM. They run here, scoped to the crate that
+      # has them: `--workspace --release` spent 704 s building the desktop
+      # app with fat LTO to run two tests that do not touch it. The guard
+      # below keeps the scope honest — an ignored test anywhere else would
+      # otherwise never run at all.
+      - name: Ignored tests live only where this job runs them
+        shell: pwsh
+        run: |
+          $files = git ls-files '*.rs' | Where-Object { $_ -notlike 'crates/vitals-bench/*' }
+          $stray = Select-String -Path $files -Pattern '^\s*#\[ignore' -List | ForEach-Object { $_.Path }
+          if ($stray) {
+            throw "#[ignore] outside crates/vitals-bench — add its crate to 'Expensive tests' in ci.yml: $($stray -join ', ')"
+          }
+
+      - name: Expensive tests
+        run: cargo test -p vitals-bench --release -- --ignored
+
+  # Windows is the shipping target; Linux runs to keep the OS-agnostic core
+  # honest. A core crate that only compiles on Windows means the trait
+  # boundary has leaked, and we want to know immediately.
+  rust-linux:
+    name: Rust (linux)
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: linux
+          cache-on-failure: true
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      # Removing man-db's trigger skips rebuilding the manual-page index
+      # after every package — a large share of the install time on hosted
+      # runners, for pages nobody here will read.
+      - name: Install Linux system dependencies
+        run: |
+          sudo rm -f /var/lib/man-db/auto-update
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      # vitals-win is `#![cfg(windows)]`: on Linux its library is empty and
+      # its twenty probe examples, which exist to be run against a real
+      # Windows machine, cannot compile. This leg proves every OTHER crate
+      # builds without Windows; the Windows legs cover the examples.
+      - name: Clippy (without Windows-only examples)
+        run: cargo clippy --workspace --lib --bins --tests --benches --exclude vitals-win -- -D warnings
+
+      - name: Test (without Windows-only examples)
+        run: cargo test --workspace --lib --bins --tests --exclude vitals-win
+
+      # ts-rs output does not depend on the OS, so the check runs on the
+      # cheapest runner, reusing this job's compiled dependencies.
       - name: Regenerate TypeScript bindings
         run: cargo test -p vitals-core --features ts
 
@@ -141,6 +243,15 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
+
+      # turbo replays typecheck, lint and test for every package whose inputs
+      # did not change. Keyed by commit so each run saves its own entry and
+      # the next restores the newest.
+      - uses: actions/cache@v4
+        with:
+          path: .turbo/cache
+          key: turbo-${{ runner.os }}-${{ github.sha }}
+          restore-keys: turbo-${{ runner.os }}-
 
       - name: Typecheck
         run: pnpm typecheck
@@ -198,14 +309,23 @@ jobs:
         shell: pwsh
         run: pwsh -NoProfile -File scripts/third-party-notices.ps1 -Check
 
+  # Runs alongside the tests rather than after them. Waiting bought nothing
+  # but wall-clock time: the installer build proves something the tests do
+  # not (it bundles, it fits the budget), and on a red run the other jobs
+  # already say so.
   build:
     name: Build installer
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: windows-latest
-    needs: [rust, frontend]
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: windows-installer
+          cache-on-failure: true
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v6
         with:
@@ -228,9 +348,7 @@ jobs:
         with:
           name: vitals-installer
           # The workspace target directory is at the repo root, not under
-          # src-tauri — a Cargo workspace shares one. The old path here never
-          # existed, and `if-no-files-found: error` meant this step could
-          # only ever fail.
+          # src-tauri — a Cargo workspace shares one.
           path: target/release/bundle/nsis/*.exe
           if-no-files-found: error
           retention-days: 14
