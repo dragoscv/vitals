@@ -1,0 +1,165 @@
+{
+  "seq": 3,
+  "timestampMs": 1700000002000,
+  "elapsedMs": 997,
+  "payload": {
+    "kind": "delta",
+    "system": {
+      "cpu": {
+        "total": 33.5,
+        "perCore": [
+          30.0,
+          37.0
+        ],
+        "kernel": 4.25,
+        "effectiveClock": 5200000000,
+        "maxClock": 6000000000,
+        "temperature": 81.5,
+        "power": 169.2,
+        "throttled": "powerLimit",
+        "processCount": 287,
+        "threadCount": 3914,
+        "handleCount": 120000,
+        "uptimeSecs": 7265,
+        "contextSwitches": 90000,
+        "interrupts": 40000
+      },
+      "memory": {
+        "total": 17179869184,
+        "used": 9663676416,
+        "available": 7516192768,
+        "cached": 3221225472,
+        "pagedPool": 536870912,
+        "nonPagedPool": 268435456,
+        "committed": 11811160064,
+        "commitLimit": 25769803776,
+        "swapTotal": 8589934592,
+        "swapUsed": 1073741824,
+        "hardwareReserved": 134217728,
+        "pageFaultsPerSec": 1200,
+        "speed": 5200000000,
+        "slotsUsed": 4,
+        "slotsTotal": 4,
+        "formFactor": "DIMM"
+      },
+      "disks": [
+        {
+          "id": 0,
+          "name": "C:",
+          "model": "Samsung SSD 990 PRO",
+          "mount": "C:",
+          "kind": "nvme",
+          "total": 2199023255552,
+          "free": 751619276800,
+          "read": 1048576,
+          "write": 524288,
+          "activeTime": 12.5,
+          "responseMs": 0.4,
+          "queueDepth": 1.5,
+          "temperature": 40.0,
+          "health": {
+            "lifeRemaining": 97.0,
+            "powerOnHours": 4000,
+            "totalWritten": 50000000000000,
+            "reallocatedSectors": 0,
+            "failing": false
+          }
+        }
+      ],
+      "networks": [
+        {
+          "id": 0,
+          "name": "Ethernet",
+          "adapter": "Intel I225-V",
+          "kind": "ethernet",
+          "rx": 131072,
+          "tx": 65536,
+          "rxTotal": 9000000,
+          "txTotal": 4000000,
+          "linkSpeed": 2500000000,
+          "ipv4": "192.168.1.20",
+          "ipv6": "fe80::1",
+          "mac": "AA-BB-CC-DD-EE-FF",
+          "connected": true,
+          "signal": 80.0,
+          "ssid": "home",
+          "errorsPerSec": 0
+        }
+      ],
+      "gpus": [
+        {
+          "id": 0,
+          "name": "NVIDIA GeForce RTX 3060 Ti",
+          "vendor": "nvidia",
+          "engines": [
+            {
+              "name": "3D",
+              "utilization": 16.0
+            }
+          ],
+          "utilization": 16.0,
+          "memoryUsed": 2000000000,
+          "memoryTotal": 8000000000,
+          "sharedMemoryUsed": 100000000,
+          "coreClock": 1800000000,
+          "memoryClock": 7000000000,
+          "temperature": 46.0,
+          "hotspotTemperature": 55.0,
+          "power": 64.3,
+          "powerLimit": 200.0,
+          "fanPercent": 80.0,
+          "fanRpm": 1500,
+          "throttled": "thermal",
+          "driverVersion": "581.29"
+        }
+      ],
+      "powerDraw": 320.0,
+      "battery": {
+        "charge": 64.0,
+        "charging": true,
+        "timeRemainingSecs": 3600,
+        "power": -12.0,
+        "health": 91.0,
+        "cycleCount": 210,
+        "temperature": 31.0
+      },
+      "fans": [
+        {
+          "name": "Fan 1",
+          "rpm": 1467
+        }
+      ]
+    },
+    "changed": [
+      {
+        "key": {
+          "pid": 4242,
+          "startTime": 133700000000000000
+        },
+        "parent": 1000,
+        "name": "chrome.exe",
+        "kind": "app",
+        "state": "notResponding",
+        "flags": 65,
+        "integrity": "medium",
+        "protection": "light",
+        "cpu": 12.5,
+        "memoryPrivate": 268435456,
+        "memoryWorkingSet": 402653184,
+        "diskRead": 4096,
+        "diskWrite": 2048,
+        "netRx": 1000,
+        "netTx": 500,
+        "gpu": 3.0,
+        "gpuMemory": 300000000,
+        "threadCount": 42,
+        "handleCount": 900,
+        "user": "VITALS\\dev",
+        "uptimeSecs": 900
+      }
+    ],
+    "exited": [
+      7
+    ]
+  }
+}

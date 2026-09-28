@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The LAN API is plain HTTP by design (ADR-0003). A network security config
+  can only name domains, not IP ranges, so cleartext is permitted here and
+  LanAddress.isPrivate refuses every pairing and discovered PC that is not
+  on a private network before a request is ever made.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

@@ -1,0 +1,15 @@
+[
+  {
+    "kind": "thermalCpu",
+    "severity": "critical",
+    "subject": "",
+    "title": "dashboard.alert.thermalCpu.title",
+    "cause": "dashboard.alert.thermalCpu.hot",
+    "values": {
+      "name": "C:",
+      "percent": 97.0
+    },
+    "route": "performance",
+    "sinceSample": 42
+  }
+]

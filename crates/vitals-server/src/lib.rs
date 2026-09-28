@@ -5,6 +5,9 @@
 //! | Path                 | What                                             |
 //! |----------------------|--------------------------------------------------|
 //! | `GET /api/v1/snapshot` | The latest full frame as JSON                  |
+//! | `GET /api/v1/summary`  | System metrics + top N processes (~3 KB)       |
+//! | `GET /api/v1/history`  | Machine-wide history from the host's store     |
+//! | `GET /api/v1/sensors`  | Every sensor reading, flattened                |
 //! | `GET /api/v1/stream`   | Server-sent events, one per frame              |
 //! | `GET /api/v1/ws`       | WebSocket: frames out, control commands in     |
 //! | `GET /api/v1/host`     | Host facts                                      |

@@ -1284,6 +1284,47 @@ const fn sensor_quality(quality: vitals_win::sensors::Quality) -> &'static str {
     }
 }
 
+/// Every sensor reading, for `/api/v1/sensors`.
+///
+/// Cached for [`LAN_SENSOR_TTL`]: one read is a WMI round trip plus the
+/// sensors pipe (48 ms measured), and a watch or a phone polling on its own
+/// schedule must not turn that into a steady cost on the sampled machine.
+/// Two clients polling at once share one read.
+#[cfg(windows)]
+#[must_use]
+pub fn lan_sensor_lines() -> Vec<vitals_core::remote::SensorLine> {
+    use std::sync::Mutex;
+    use std::time::Instant;
+
+    static CACHE: Mutex<Option<(Instant, Vec<vitals_core::remote::SensorLine>)>> = Mutex::new(None);
+
+    let mut guard = CACHE
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    if let Some((at, lines)) = guard.as_ref()
+        && at.elapsed() < LAN_SENSOR_TTL
+    {
+        return lines.clone();
+    }
+    let lines: Vec<_> = vitals_win::sensors::read_all()
+        .readings
+        .iter()
+        .map(vitals_win::sensors::SensorReading::to_line)
+        .collect();
+    *guard = Some((Instant::now(), lines.clone()));
+    lines
+}
+
+#[cfg(not(windows))]
+#[must_use]
+pub fn lan_sensor_lines() -> Vec<vitals_core::remote::SensorLine> {
+    Vec::new()
+}
+
+/// How long a LAN sensor read is reused.
+#[cfg(windows)]
+const LAN_SENSOR_TTL: std::time::Duration = std::time::Duration::from_secs(5);
+
 #[cfg(windows)]
 const fn capability_key(capability: vitals_core::capability::Capability) -> &'static str {
     use vitals_core::capability::Capability as C;

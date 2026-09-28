@@ -92,6 +92,10 @@ pub fn run(options: &Options) -> Result<()> {
             let alerts = Arc::clone(&alerts);
             Arc::new(move || alerts.read().clone())
         },
+        // The headless server keeps no store and reads no sensors; both
+        // answer with an empty list, which clients render as "not recorded".
+        history: Arc::new(|_| Vec::new()),
+        sensors: Arc::new(Vec::new),
         version: env!("CARGO_PKG_VERSION").to_owned(),
         loopback_scope: None,
     };

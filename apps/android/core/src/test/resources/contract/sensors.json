@@ -1,0 +1,10 @@
+[
+  {
+    "key": "cpu.package",
+    "label": "CPU package",
+    "value": 81.0,
+    "unit": "temperature",
+    "source": "kernelDriver",
+    "quality": "measured"
+  }
+]

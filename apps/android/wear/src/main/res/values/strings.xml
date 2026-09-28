@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Vitals</string>
+    <string name="tile_label">Vitals: PC at a glance</string>
+    <string name="complication_cpu">PC processor use</string>
+    <string name="complication_temp">PC processor temperature</string>
+
+    <string name="channel_alerts">PC alerts</string>
+    <string name="channel_alerts_description">When a paired PC is overheating, running out of memory or struggling</string>
+
+    <string name="loading">Loading…</string>
+    <string name="empty_title">No PCs yet</string>
+    <string name="empty_body">Pair a PC in the Vitals app on your phone. It appears here on its own.</string>
+    <string name="waiting_for_data">Waiting for the first reading</string>
+    <string name="last_seen">Last seen %1$s</string>
+    <string name="unreachable_title">Cannot reach this PC</string>
+
+    <string name="age_now">just now</string>
+    <string name="age_seconds">%1$d s ago</string>
+    <string name="age_minutes">%1$d min ago</string>
+    <string name="age_hours">%1$d h ago</string>
+    <string name="age_days">%1$d d ago</string>
+
+    <string name="ram_value">Memory %1$s</string>
+    <string name="temp_value">Heat %1$s</string>
+    <string name="cpu_short">CPU</string>
+    <string name="ram_short">RAM</string>
+    <string name="temp_short">Temp</string>
+    <string name="hero_description">Processor %1$s, memory %2$s, graphics %3$s, processor temperature %4$s</string>
+
+    <string name="section_cpu">Processor</string>
+    <string name="section_memory">Memory</string>
+    <string name="section_io">Disk and network</string>
+    <string name="section_fans">Fans</string>
+    <string name="usage">Busy</string>
+    <string name="clock">Speed</string>
+    <string name="power">Power</string>
+    <string name="temperature">Temperature</string>
+    <string name="in_use">In use</string>
+    <string name="of_total">%1$s of %2$s</string>
+    <string name="disk_read">Disk reading</string>
+    <string name="disk_write">Disk writing</string>
+    <string name="net_down">Downloading</string>
+    <string name="net_up">Uploading</string>
+
+    <string name="sensors">Sensors</string>
+    <string name="group_temperatures">Temperatures</string>
+    <string name="group_fans">Fans</string>
+    <string name="group_power">Power</string>
+    <string name="group_voltages">Voltages</string>
+    <string name="group_other">Other</string>
+    <string name="group_count">%1$s · %2$d</string>
+    <string name="no_sensors_title">No sensors</string>
+    <string name="no_sensors_body">This PC does not report any sensor readings.</string>
+    <string name="source_acpi">Motherboard zone</string>
+    <string name="source_battery">Battery</string>
+    <string name="source_os_power">Windows power status</string>
+    <string name="source_vendor">Graphics driver</string>
+    <string name="source_kernel">Sensor driver</string>
+    <string name="source_drive">The drive itself</string>
+    <string name="quality_derived">%1$s · calculated</string>
+    <string name="quality_nameplate">%1$s · fixed value</string>
+
+    <string name="top_processes">Busiest apps</string>
+    <plurals name="process_count">
+        <item quantity="one">%1$d app running</item>
+        <item quantity="other">%1$d apps running</item>
+    </plurals>
+    <string name="process_line">%1$s · %2$s</string>
+    <string name="no_processes_title">Nothing to show</string>
+    <string name="no_processes_body">The PC has not reported its apps yet.</string>
+    <string name="read_only_note">This pairing can only watch. Pair again on the PC with control to end apps from here.</string>
+    <string name="end_task_title">End %1$s?</string>
+    <string name="end_task_body">Anything unsaved in it will be lost.</string>
+    <string name="ending">Ending %1$s…</string>
+    <string name="end_task_done">Ended</string>
+    <string name="fail_read_only">Not allowed</string>
+    <string name="fail_access_denied">Windows refused</string>
+    <string name="fail_gone">Already closed</string>
+    <string name="fail_unreachable">PC not reachable</string>
+    <string name="fail_unknown">Did not work</string>
+
+    <string name="tile_empty">Pair a PC in the phone app</string>
+    <string name="open">Open</string>
+    <string name="this_watch">This watch</string>
+    <string name="cpu_value">Processor %1$s</string>
+    <string name="cpu_estimate_short">Estimated from core speed: Wear OS hides exact CPU use.</string>
+    <string name="battery">Battery</string>
+    <string name="level">Charge</string>
+    <string name="current">Current</string>
+    <string name="voltage">Voltage</string>
+    <string name="state">State</string>
+    <string name="charging">Charging</string>
+    <string name="full">Full</string>
+    <string name="on_battery">On battery</string>
+    <string name="storage">Storage</string>
+    <string name="sensor_count">%1$d sensors on this watch</string>
+</resources>

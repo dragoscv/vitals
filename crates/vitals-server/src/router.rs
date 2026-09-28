@@ -2,6 +2,7 @@
 
 use std::convert::Infallible;
 use std::net::SocketAddr;
+use std::sync::Arc;
 use std::time::Duration;
 
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
@@ -25,6 +26,14 @@ use crate::state::ApiState;
 
 /// How many processes appear in `/metrics`.
 const PROMETHEUS_TOP_N: usize = 20;
+
+/// `/summary` without `top`: what a watch face or a widget shows.
+const SUMMARY_DEFAULT_TOP: usize = 5;
+/// The most a `/summary` caller can ask for. Beyond this a client wants the
+/// process list, and should open the stream.
+const SUMMARY_MAX_TOP: usize = 25;
+/// The longest `/history` span: the store's five-minute tier covers a week.
+const HISTORY_MAX_SECONDS: u32 = 7 * 24 * 3600;
 
 /// A running server. Dropping it does **not** stop the server — call
 /// [`ServeHandle::stop`]. Made explicit because a silent shutdown on drop
@@ -123,6 +132,9 @@ fn router_with_closing(state: ApiState, closing: watch::Receiver<bool>) -> Route
 
     let guarded = Router::new()
         .route("/api/v1/snapshot", get(snapshot))
+        .route("/api/v1/summary", get(summary))
+        .route("/api/v1/history", get(history))
+        .route("/api/v1/sensors", get(sensors))
         .route("/api/v1/stream", get(stream))
         .route("/api/v1/ws", get(websocket))
         .route("/api/v1/host", get(host))
@@ -356,6 +368,60 @@ async fn host(State(state): State<ApiState>) -> Response {
     match (state.host)() {
         Some(info) => Json(info).into_response(),
         None => StatusCode::NO_CONTENT.into_response(),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct SummaryQuery {
+    top: Option<usize>,
+}
+
+/// The machine now plus its busiest processes: about 3 KB against a
+/// keyframe's 250 KB. For the watch, widgets and tiles (ADR-0033).
+///
+/// `top` is clamped, not rejected: a widget asking for 50 gets 25 and
+/// renders, where a 422 would leave a blank tile on someone's home screen.
+async fn summary(State(state): State<ApiState>, Query(q): Query<SummaryQuery>) -> Response {
+    let top = q.top.unwrap_or(SUMMARY_DEFAULT_TOP).min(SUMMARY_MAX_TOP);
+    match state.frames.summary(top) {
+        Some(summary) => Json(summary).into_response(),
+        None => StatusCode::NO_CONTENT.into_response(),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct HistoryQuery {
+    seconds: Option<u32>,
+}
+
+/// Machine-wide samples for the last `seconds` (default an hour, at most a
+/// week), at whatever resolution the store keeps for that span.
+///
+/// Off the async runtime: the desktop's provider opens SQLite and reads a
+/// few thousand rows, which would stall every stream on that worker.
+async fn history(State(state): State<ApiState>, Query(q): Query<HistoryQuery>) -> Response {
+    let seconds = q.seconds.unwrap_or(3600).clamp(60, HISTORY_MAX_SECONDS);
+    let provider = Arc::clone(&state.history);
+    match tokio::task::spawn_blocking(move || provider(seconds)).await {
+        Ok(rows) => Json(rows).into_response(),
+        Err(error) => {
+            tracing::warn!(%error, "history provider panicked");
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+    }
+}
+
+/// Every sensor reading the host can make. An empty list means none are
+/// measurable on this machine, never "all zero".
+async fn sensors(State(state): State<ApiState>) -> Response {
+    state.frames.touch();
+    let provider = Arc::clone(&state.sensors);
+    match tokio::task::spawn_blocking(move || provider()).await {
+        Ok(lines) => Json(lines).into_response(),
+        Err(error) => {
+            tracing::warn!(%error, "sensor provider panicked");
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
     }
 }
 
@@ -692,6 +758,8 @@ mod tests {
             assets: None,
             host: Arc::new(|| None),
             alerts: Arc::new(Vec::new),
+            history: Arc::new(|_| Vec::new()),
+            sensors: Arc::new(Vec::new),
             version: "test".into(),
             loopback_scope,
         }

@@ -514,9 +514,83 @@ jobs:
           path: sbom/*
           if-no-files-found: error
 
+  # Phone and watch apps (ADR-0033). Signed with the upload key from secrets;
+  # APKs go on the GitHub release for Obtainium, AABs are kept for Play.
+  android:
+    name: Build (android)
+    needs: plan
+    if: needs.plan.outputs.should_build == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    defaults:
+      run:
+        working-directory: apps/android
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: microsoft
+          java-version: '21'
+
+      - uses: gradle/actions/setup-gradle@v5
+
+      - name: Contract and unit tests
+        run: ./gradlew :core:testDebugUnitTest :device:testDebugUnitTest :shared-ui:testDebugUnitTest --console=plain
+
+      - name: Upload key
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+        run: |
+          echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/upload.jks"
+          echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/upload.jks" >> "$GITHUB_ENV"
+
+      - name: Build signed APKs and bundles
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          VITALS_VERSION: ${{ needs.plan.outputs.version }}
+          # Monotonic across tags and nightlies; Play and Obtainium both
+          # refuse an update whose versionCode is not higher.
+          VITALS_VERSION_CODE: ${{ github.run_number }}
+        run: ./gradlew :app:assembleRelease :wear:assembleRelease :app:bundleRelease :wear:bundleRelease --console=plain
+
+      - name: Collect
+        env:
+          VITALS_VERSION: ${{ needs.plan.outputs.version }}
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/dist/android"
+          cp app/build/outputs/apk/release/app-release.apk "$GITHUB_WORKSPACE/dist/android/Vitals_${VITALS_VERSION}_android.apk"
+          cp wear/build/outputs/apk/release/wear-release.apk "$GITHUB_WORKSPACE/dist/android/Vitals_${VITALS_VERSION}_wear.apk"
+          mkdir -p "$GITHUB_WORKSPACE/play"
+          cp app/build/outputs/bundle/release/app-release.aab "$GITHUB_WORKSPACE/play/vitals-android.aab"
+          cp wear/build/outputs/bundle/release/wear-release.aab "$GITHUB_WORKSPACE/play/vitals-wear.aab"
+          rm -f "$RUNNER_TEMP/upload.jks"
+
+      - uses: actions/attest-build-provenance@v3
+        with:
+          subject-path: dist/android/*
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vitals-android
+          path: dist/android/*
+          if-no-files-found: error
+
+      # Bundles are not release assets: Play is the only consumer.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: play-bundles
+          path: play/*
+          if-no-files-found: error
+
   publish:
     name: Publish
-    needs: [plan, build, sbom]
+    needs: [plan, build, sbom, android]
     # `build` reports success even when an unpublished platform's leg failed
     # (continue-on-error), so this gate is exactly "everything we publish
     # built". The assemble step then refuses a missing published artefact.
@@ -524,7 +598,8 @@ jobs:
       !cancelled() &&
       needs.plan.outputs.publish == 'true' &&
       needs.build.result == 'success' &&
-      needs.sbom.result == 'success'
+      needs.sbom.result == 'success' &&
+      needs.android.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -550,7 +625,7 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path publish | Out-Null
-          $legs = @('vitals-windows-x64', 'vitals-windows-arm64', 'vitals-sbom')
+          $legs = @('vitals-windows-x64', 'vitals-windows-arm64', 'vitals-sbom', 'vitals-android')
           if ($env:PUBLISH_MACOS -eq 'true') { $legs += 'vitals-macos-universal' }
           if ($env:PUBLISH_LINUX -eq 'true') { $legs += 'vitals-linux-x64' }
           foreach ($leg in $legs) {

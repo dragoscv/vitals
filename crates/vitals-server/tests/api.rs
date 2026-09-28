@@ -88,6 +88,22 @@ fn state_with(
         })),
         host: Arc::new(|| None),
         alerts: Arc::new(Vec::new),
+        history: Arc::new(|seconds| {
+            vec![vitals_core::MachineSample::from_metrics(
+                i64::from(seconds),
+                &fixtures::system(),
+            )]
+        }),
+        sensors: Arc::new(|| {
+            vec![vitals_core::remote::SensorLine {
+                key: "cpu.package".into(),
+                label: "CPU package".into(),
+                value: 81.0,
+                unit: "temperature".into(),
+                source: "kernelDriver".into(),
+                quality: "measured".into(),
+            }]
+        }),
         version: "0.0.0-test".into(),
         loopback_scope,
     }
@@ -176,6 +192,9 @@ async fn every_data_route_refuses_an_anonymous_request() {
 
     for path in [
         "/api/v1/snapshot",
+        "/api/v1/summary",
+        "/api/v1/history",
+        "/api/v1/sensors",
         "/api/v1/stream",
         "/api/v1/host",
         "/metrics",
@@ -811,4 +830,113 @@ async fn serve_on_binds_exactly_the_address_it_is_given() {
     assert!(handle.addr.ip().is_loopback(), "{}", handle.addr);
     assert_ne!(handle.addr.port(), 0);
     handle.stop();
+}
+
+#[tokio::test]
+async fn a_summary_carries_the_busiest_processes_and_the_true_count_in_a_fraction_of_a_keyframe() {
+    let h = start().await;
+    let processes: Vec<_> = (0..200)
+        .map(|i| fixtures::process(&format!("p{i}.exe"), 1000 + i, (i % 50) as f32))
+        .collect();
+    h.frames.publish(Arc::new(fixtures::keyframe(3, processes)));
+
+    let (status, body) = request(
+        &h.base,
+        "GET",
+        "/api/v1/summary?top=3",
+        Some(READ_TOKEN),
+        None,
+    )
+    .await;
+    assert_eq!(status, 200, "{body}");
+    let summary: vitals_core::remote::Summary = serde_json::from_str(&body).expect("summary json");
+    assert_eq!(summary.process_count, 200);
+    assert_eq!(summary.top.len(), 3);
+    assert!(
+        summary
+            .top
+            .iter()
+            .all(|p| (p.cpu.get() - 49.0).abs() < f32::EPSILON),
+        "{body}"
+    );
+
+    let (_, snapshot) = request(&h.base, "GET", "/api/v1/snapshot", Some(READ_TOKEN), None).await;
+    assert!(
+        body.len() * 20 < snapshot.len(),
+        "summary {} vs keyframe {}",
+        body.len(),
+        snapshot.len()
+    );
+}
+
+#[tokio::test]
+async fn a_greedy_summary_is_clamped_rather_than_refused() {
+    let h = start().await;
+    let processes: Vec<_> = (0..40)
+        .map(|i| fixtures::process("x.exe", 10 + i, 1.0))
+        .collect();
+    h.frames.publish(Arc::new(fixtures::keyframe(1, processes)));
+    let (status, body) = request(
+        &h.base,
+        "GET",
+        "/api/v1/summary?top=500",
+        Some(READ_TOKEN),
+        None,
+    )
+    .await;
+    assert_eq!(status, 200);
+    let summary: vitals_core::remote::Summary = serde_json::from_str(&body).unwrap();
+    assert_eq!(summary.top.len(), 25);
+}
+
+#[tokio::test]
+async fn a_summary_before_the_first_sample_is_no_content_not_an_empty_machine() {
+    let h = start().await;
+    let (status, _) = request(&h.base, "GET", "/api/v1/summary", Some(READ_TOKEN), None).await;
+    assert_eq!(status, 204);
+}
+
+#[tokio::test]
+async fn history_passes_the_clamped_span_to_the_host() {
+    let h = start().await;
+    // The fixture provider echoes the span it was asked for as `ts`.
+    let (status, body) = request(
+        &h.base,
+        "GET",
+        "/api/v1/history?seconds=99999999",
+        Some(READ_TOKEN),
+        None,
+    )
+    .await;
+    assert_eq!(status, 200, "{body}");
+    let rows: Vec<vitals_core::MachineSample> = serde_json::from_str(&body).unwrap();
+    assert_eq!(rows[0].ts, 7 * 24 * 3600);
+    let (_, body) = request(
+        &h.base,
+        "GET",
+        "/api/v1/history?seconds=1",
+        Some(READ_TOKEN),
+        None,
+    )
+    .await;
+    let rows: Vec<vitals_core::MachineSample> = serde_json::from_str(&body).unwrap();
+    assert_eq!(rows[0].ts, 60);
+}
+
+#[tokio::test]
+async fn sensors_are_served_as_the_host_reads_them() {
+    let h = start().await;
+    let (status, body) = request(&h.base, "GET", "/api/v1/sensors", Some(READ_TOKEN), None).await;
+    assert_eq!(status, 200, "{body}");
+    assert!(body.contains(r#""unit":"temperature""#), "{body}");
+    assert!(body.contains(r#""key":"cpu.package""#), "{body}");
+}
+
+#[tokio::test]
+async fn a_poll_counts_as_a_viewer_so_the_desktop_samples_live() {
+    let h = start().await;
+    h.frames.publish(Arc::new(frame(1)));
+    assert!(!h.frames.has_viewers(), "nobody has asked yet");
+    let _ = request(&h.base, "GET", "/api/v1/summary", Some(READ_TOKEN), None).await;
+    assert!(h.frames.has_viewers());
 }

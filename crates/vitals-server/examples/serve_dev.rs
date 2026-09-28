@@ -19,11 +19,15 @@ use vitals_server::{ApiState, FrameSource, Scope, Token, TokenSet};
 #[tokio::main]
 async fn main() {
     let frames = FrameSource::new();
+    // `dev` is convenient for curl, but the Android app validates the shape
+    // of a real token (43 base64url characters) before it will pair, so a
+    // native client needs a real-looking one: set VITALS_DEV_TOKEN.
+    let secret = std::env::var("VITALS_DEV_TOKEN").unwrap_or_else(|_| "dev".into());
 
     let state = ApiState {
         frames: frames.clone(),
         tokens: Arc::new(ServerLock::new(TokenSet {
-            tokens: vec![Token::new("dev", Scope::Control, "dev", 0)],
+            tokens: vec![Token::new(&secret, Scope::Control, "dev", 0)],
         })),
         controller: Arc::new(vitals_server::control::NoControl),
         assets: Some(Arc::new(|path: &str| {
@@ -36,14 +40,32 @@ async fn main() {
         })),
         host: Arc::new(|| None),
         alerts: Arc::new(Vec::new),
+        history: Arc::new(|_| Vec::new()),
+        // Real readings on Windows so the phone and watch sensor screens can
+        // be developed against this machine rather than a fixture.
+        sensors: Arc::new(|| {
+            #[cfg(windows)]
+            {
+                vitals_win::sensors::read_all()
+                    .readings
+                    .iter()
+                    .map(vitals_win::sensors::SensorReading::to_line)
+                    .collect()
+            }
+            #[cfg(not(windows))]
+            {
+                Vec::new()
+            }
+        }),
         version: "dev".into(),
         loopback_scope: None,
     };
 
     let handle = vitals_server::serve(state, 7332).await.expect("bind 7332");
     println!(
-        "dev server on http://127.0.0.1:{}  token=dev",
-        handle.addr.port()
+        "dev server on http://127.0.0.1:{}  token={}...",
+        handle.addr.port(),
+        secret.chars().take(8).collect::<String>()
     );
 
     #[cfg(windows)]

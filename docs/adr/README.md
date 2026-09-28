@@ -40,7 +40,9 @@ D-numbers refer to the decision table in [`../TRACKER.md`](../TRACKER.md).
 | [0030](0030-fluent-depth-redesign-and-view-transitions.md) | Fluent depth redesign; View Transitions for navigation  | S12     |
 | [0031](0031-public-release-and-distribution.md)            | Public beta from a public repository; channels          | S13     |
 | [0032](0032-lag-watchdog.md)                               | A lag watchdog that proposes, never ends on its own     | S12-32  |
+| [0033](0033-native-android-and-wear-os.md)                 | Native Android and Wear OS apps beside the PWA          | S15     |
 | [0034](0034-cpu-sensors-service.md)                        | CPU sensors through an optional PawnIO service          | S12-31  |
+| [0035](0035-on-device-monitor.md)                          | The phone and the watch monitor themselves              | S15-04  |
 
 ## Writing a new one
 

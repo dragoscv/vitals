@@ -27,6 +27,19 @@ pub enum SensorValue {
 }
 
 impl SensorValue {
+    /// Translation key for the unit, as sent to every client.
+    #[must_use]
+    pub const fn wire_key(self) -> &'static str {
+        match self {
+            Self::Temperature(_) => "temperature",
+            Self::Power(_) => "power",
+            Self::Voltage(_) => "voltage",
+            Self::FanSpeed(_) => "fanSpeed",
+            Self::Charge(_) => "charge",
+            Self::Percent(_) => "percent",
+        }
+    }
+
     /// The unit suffix, for a UI that formats readings generically.
     #[must_use]
     pub const fn unit(self) -> &'static str {
@@ -82,6 +95,19 @@ pub enum SensorSource {
 }
 
 impl SensorSource {
+    /// Translation key for the provenance, as sent to every client.
+    #[must_use]
+    pub const fn wire_key(self) -> &'static str {
+        match self {
+            Self::AcpiThermalZone => "acpiThermalZone",
+            Self::BatteryMiniport => "batteryMiniport",
+            Self::SystemPowerStatus => "systemPowerStatus",
+            Self::VendorLibrary => "vendorLibrary",
+            Self::KernelDriver => "kernelDriver",
+            Self::StorageDevice => "storageDevice",
+        }
+    }
+
     /// A short human label for the provenance column.
     #[must_use]
     pub const fn label(self) -> &'static str {
@@ -115,6 +141,18 @@ pub enum Quality {
     Nameplate,
 }
 
+impl Quality {
+    /// Translation key, as sent to every client.
+    #[must_use]
+    pub const fn wire_key(self) -> &'static str {
+        match self {
+            Self::Measured => "measured",
+            Self::Derived => "derived",
+            Self::Nameplate => "nameplate",
+        }
+    }
+}
+
 /// One reading from one sensor.
 #[derive(Debug, Clone, PartialEq)]
 pub struct SensorReading {
@@ -131,6 +169,22 @@ pub struct SensorReading {
 }
 
 impl SensorReading {
+    /// The reading as a LAN client receives it (`/api/v1/sensors`).
+    ///
+    /// The keys are the ones the desktop's Devices screen translates, so
+    /// the phone, the watch and the desktop label a reading identically.
+    #[must_use]
+    pub fn to_line(&self) -> vitals_core::remote::SensorLine {
+        vitals_core::remote::SensorLine {
+            key: self.key.clone(),
+            label: self.label.clone(),
+            value: self.value.magnitude(),
+            unit: self.value.wire_key().to_owned(),
+            source: self.source.wire_key().to_owned(),
+            quality: self.quality.wire_key().to_owned(),
+        }
+    }
+
     /// Constructs a reading.
     #[must_use]
     pub fn new(

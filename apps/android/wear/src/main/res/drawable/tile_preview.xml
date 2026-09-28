@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- What the tile picker shows: three rings, CPU, memory and temperature, in their metric colours. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="192dp"
+    android:height="192dp"
+    android:viewportWidth="192"
+    android:viewportHeight="192">
+    <path android:fillColor="#FF000000" android:pathData="M96,0a96,96 0,1 1,0 192a96,96 0,1 1,0 -192z" />
+    <path android:fillColor="#00000000" android:strokeColor="#330088F2" android:strokeWidth="6"
+        android:pathData="M48,96a18,18 0,1 1,0 0.01" />
+    <path android:fillColor="#00000000" android:strokeColor="#FF0088F2" android:strokeWidth="6" android:strokeLineCap="round"
+        android:pathData="M48,78a18,18 0,0 1,18 18" />
+    <path android:fillColor="#00000000" android:strokeColor="#3300B667" android:strokeWidth="6"
+        android:pathData="M96,96a18,18 0,1 1,0 0.01" />
+    <path android:fillColor="#00000000" android:strokeColor="#FF00B667" android:strokeWidth="6" android:strokeLineCap="round"
+        android:pathData="M96,78a18,18 0,1 1,-18 18" />
+    <path android:fillColor="#00000000" android:strokeColor="#33F6722B" android:strokeWidth="6"
+        android:pathData="M144,96a18,18 0,1 1,0 0.01" />
+    <path android:fillColor="#00000000" android:strokeColor="#FFF6722B" android:strokeWidth="6" android:strokeLineCap="round"
+        android:pathData="M144,78a18,18 0,1 1,-12.7 30.7" />
+    <path android:fillColor="#00000000" android:strokeColor="#FFE4E8EF" android:strokeWidth="4" android:strokeLineCap="round"
+        android:pathData="M70,52h52" />
+    <path android:fillColor="#FF0072DA" android:pathData="M60,140h72a14,14 0,0 1,0 28h-72a14,14 0,0 1,0 -28z" />
+</vector>

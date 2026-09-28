@@ -33,6 +33,7 @@ mod macros;
 pub mod metrics;
 pub mod process;
 pub mod provider;
+pub mod remote;
 pub mod sample;
 pub mod sensor;
 pub mod startup;

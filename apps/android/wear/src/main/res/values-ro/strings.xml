@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Vitals</string>
+    <string name="tile_label">Vitals: PC-ul dintr-o privire</string>
+    <string name="complication_cpu">Utilizarea procesorului PC-ului</string>
+    <string name="complication_temp">Temperatura procesorului PC-ului</string>
+
+    <string name="channel_alerts">Alerte PC</string>
+    <string name="channel_alerts_description">Când un PC asociat se supraîncălzește, rămâne fără memorie sau se chinuie</string>
+
+    <string name="loading">Se încarcă…</string>
+    <string name="empty_title">Niciun PC încă</string>
+    <string name="empty_body">Asociază un PC în aplicația Vitals de pe telefon. Apare aici singur.</string>
+    <string name="waiting_for_data">Se așteaptă prima citire</string>
+    <string name="last_seen">Văzut ultima dată %1$s</string>
+    <string name="unreachable_title">PC-ul nu poate fi contactat</string>
+
+    <string name="age_now">chiar acum</string>
+    <string name="age_seconds">acum %1$d s</string>
+    <string name="age_minutes">acum %1$d min</string>
+    <string name="age_hours">acum %1$d h</string>
+    <string name="age_days">acum %1$d zile</string>
+
+    <string name="ram_value">Memorie %1$s</string>
+    <string name="temp_value">Căldură %1$s</string>
+    <string name="cpu_short">CPU</string>
+    <string name="ram_short">RAM</string>
+    <string name="temp_short">Temp.</string>
+    <string name="hero_description">Procesor %1$s, memorie %2$s, placă video %3$s, temperatura procesorului %4$s</string>
+
+    <string name="section_cpu">Procesor</string>
+    <string name="section_memory">Memorie</string>
+    <string name="section_io">Disc și rețea</string>
+    <string name="section_fans">Ventilatoare</string>
+    <string name="usage">Ocupat</string>
+    <string name="clock">Viteză</string>
+    <string name="power">Putere</string>
+    <string name="temperature">Temperatură</string>
+    <string name="in_use">Folosită</string>
+    <string name="of_total">%1$s din %2$s</string>
+    <string name="disk_read">Citire disc</string>
+    <string name="disk_write">Scriere disc</string>
+    <string name="net_down">Descărcare</string>
+    <string name="net_up">Încărcare</string>
+
+    <string name="sensors">Senzori</string>
+    <string name="group_temperatures">Temperaturi</string>
+    <string name="group_fans">Ventilatoare</string>
+    <string name="group_power">Putere</string>
+    <string name="group_voltages">Tensiuni</string>
+    <string name="group_other">Altele</string>
+    <string name="group_count">%1$s · %2$d</string>
+    <string name="no_sensors_title">Niciun senzor</string>
+    <string name="no_sensors_body">Acest PC nu raportează nicio citire de senzor.</string>
+    <string name="source_acpi">Zonă a plăcii de bază</string>
+    <string name="source_battery">Baterie</string>
+    <string name="source_os_power">Starea alimentării Windows</string>
+    <string name="source_vendor">Driverul plăcii video</string>
+    <string name="source_kernel">Driver de senzori</string>
+    <string name="source_drive">Unitatea de stocare</string>
+    <string name="quality_derived">%1$s · calculat</string>
+    <string name="quality_nameplate">%1$s · valoare fixă</string>
+
+    <string name="top_processes">Cele mai ocupate aplicații</string>
+    <plurals name="process_count">
+        <item quantity="one">%1$d aplicație pornită</item>
+        <item quantity="few">%1$d aplicații pornite</item>
+        <item quantity="other">%1$d de aplicații pornite</item>
+    </plurals>
+    <string name="process_line">%1$s · %2$s</string>
+    <string name="no_processes_title">Nimic de arătat</string>
+    <string name="no_processes_body">PC-ul nu și-a raportat încă aplicațiile.</string>
+    <string name="read_only_note">Această asociere poate doar urmări. Asociază din nou pe PC cu control ca să închizi aplicații de aici.</string>
+    <string name="end_task_title">Închizi %1$s?</string>
+    <string name="end_task_body">Tot ce nu e salvat în ea se pierde.</string>
+    <string name="ending">Se închide %1$s…</string>
+    <string name="end_task_done">Închisă</string>
+    <string name="fail_read_only">Nu e permis</string>
+    <string name="fail_access_denied">Windows a refuzat</string>
+    <string name="fail_gone">Deja închisă</string>
+    <string name="fail_unreachable">PC-ul nu răspunde</string>
+    <string name="fail_unknown">Nu a mers</string>
+
+    <string name="tile_empty">Asociază un PC în aplicația de pe telefon</string>
+    <string name="open">Deschide</string>
+    <string name="this_watch">Ceasul</string>
+    <string name="cpu_value">Procesor %1$s</string>
+    <string name="cpu_estimate_short">Estimat după viteza nucleelor: Wear OS ascunde utilizarea exactă.</string>
+    <string name="battery">Baterie</string>
+    <string name="level">Nivel</string>
+    <string name="current">Curent</string>
+    <string name="voltage">Tensiune</string>
+    <string name="state">Stare</string>
+    <string name="charging">Se încarcă</string>
+    <string name="full">Încărcată</string>
+    <string name="on_battery">Pe baterie</string>
+    <string name="storage">Stocare</string>
+    <string name="sensor_count">%1$d senzori pe acest ceas</string>
+</resources>

@@ -152,6 +152,91 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorised'
 
+  /api/v1/summary:
+    get:
+      tags: [metrics]
+      summary: The machine now and its busiest processes, in about 3 KB.
+      description: |
+        For clients that cannot afford a keyframe (about 250 KB): a watch,
+        a home-screen widget, a tile. `system` is complete; `top` is the
+        busiest processes by CPU, ties broken by private memory so an idle
+        machine does not shuffle. `processCount` counts every process.
+
+        Polling this, or `/sensors`, keeps the desktop sampling at no less
+        than 1 Hz for 45 seconds, even with its window hidden.
+      operationId: summary
+      parameters:
+        - name: top
+          in: query
+          required: false
+          description: How many processes. Default 5; values above 25 are clamped to 25.
+          schema:
+            type: integer
+            minimum: 0
+      responses:
+        '200':
+          description: The summary.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Summary'
+        '204':
+          description: Nothing has been sampled yet.
+        '401':
+          $ref: '#/components/responses/Unauthorised'
+
+  /api/v1/history:
+    get:
+      tags: [metrics]
+      summary: Machine-wide history from the desktop's store.
+      description: |
+        One row per point at whatever resolution the store keeps for that
+        span: seconds for the last hour, then five-minute and hourly
+        rollups. An empty array means history recording is off, or the host
+        keeps none (`vitals serve`).
+      operationId: history
+      parameters:
+        - name: seconds
+          in: query
+          required: false
+          description: Span to cover, ending now. Default 3600; clamped to 60–604800.
+          schema:
+            type: integer
+            minimum: 0
+      responses:
+        '200':
+          description: Oldest first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MachineSample'
+        '401':
+          $ref: '#/components/responses/Unauthorised'
+
+  /api/v1/sensors:
+    get:
+      tags: [metrics]
+      summary: Every sensor reading the host can make now.
+      description: |
+        Thermal zones, CPU package and cores, fans, GPU, drives, batteries —
+        the same list the desktop's Devices screen shows. Cached by the host
+        for five seconds. An empty array means nothing is measurable, never
+        that everything reads zero.
+      operationId: sensors
+      responses:
+        '200':
+          description: The readings.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SensorLine'
+        '401':
+          $ref: '#/components/responses/Unauthorised'
+
   /api/v1/host:
     get:
       tags: [metrics]
@@ -1254,6 +1339,94 @@ components:
     CoreClass:
       type: string
       enum: [performance, efficiency, lowPower, standard]
+
+    Summary:
+      type: object
+      required: [seq, timestampMs, system, top, processCount]
+      properties:
+        seq:
+          type: integer
+        timestampMs:
+          type: integer
+        system:
+          $ref: '#/components/schemas/SystemMetrics'
+        top:
+          type: array
+          items:
+            $ref: '#/components/schemas/Process'
+        processCount:
+          type: integer
+
+    MachineSample:
+      type: object
+      required:
+        [
+          ts,
+          cpuPercent,
+          cpuKernelPercent,
+          memoryUsed,
+          memoryTotal,
+          diskReadBps,
+          diskWriteBps,
+          netRxBps,
+          netTxBps,
+        ]
+      properties:
+        ts:
+          type: integer
+          description: Unix time in seconds.
+        cpuPercent:
+          type: number
+        cpuKernelPercent:
+          type: number
+        memoryUsed:
+          type: integer
+        memoryTotal:
+          type: integer
+        diskReadBps:
+          type: integer
+        diskWriteBps:
+          type: integer
+        netRxBps:
+          type: integer
+        netTxBps:
+          type: integer
+        gpuPercent:
+          type: [number, 'null']
+        cpuTempC:
+          type: [number, 'null']
+        powerDrawW:
+          type: [number, 'null']
+
+    SensorLine:
+      type: object
+      required: [key, label, value, unit, source, quality]
+      properties:
+        key:
+          type: string
+          description: Stable across requests, e.g. `cpu.package`.
+        label:
+          type: string
+          description: English label from the backend.
+        value:
+          type: number
+        unit:
+          type: string
+          enum: [temperature, power, voltage, fanSpeed, charge, percent]
+        source:
+          type: string
+          enum:
+            [
+              acpiThermalZone,
+              batteryMiniport,
+              systemPowerStatus,
+              vendorLibrary,
+              kernelDriver,
+              storageDevice,
+            ]
+        quality:
+          type: string
+          enum: [measured, derived, nameplate]
 
     HostInfo:
       type: object

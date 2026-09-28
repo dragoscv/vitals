@@ -35,6 +35,12 @@ pub struct FrameSource {
     /// that is both complete and current.
     current: Arc<RwLock<Option<Materialised>>>,
     tx: broadcast::Sender<Arc<Frame>>,
+    /// When a client last polled `/summary` or `/sensors`, as an
+    /// `Instant`. A stream holds a broadcast receiver and so counts itself;
+    /// a watch that polls every thirty seconds holds nothing between polls,
+    /// and without this it would read numbers up to twenty seconds old
+    /// whenever the desktop window was hidden.
+    last_poll: Arc<RwLock<Option<std::time::Instant>>>,
 }
 
 /// The reconstructed present.
@@ -65,6 +71,17 @@ impl Materialised {
             },
         }
     }
+
+    fn to_summary(&self, top: usize) -> vitals_core::remote::Summary {
+        let processes: Vec<_> = self.processes.values().cloned().collect();
+        vitals_core::remote::Summary::from_parts(
+            self.seq.0,
+            self.timestamp_ms,
+            self.system.clone(),
+            &processes,
+            top,
+        )
+    }
 }
 
 impl Default for FrameSource {
@@ -85,6 +102,7 @@ impl FrameSource {
             latest: Arc::new(RwLock::new(None)),
             current: Arc::new(RwLock::new(None)),
             tx,
+            last_poll: Arc::new(RwLock::new(None)),
         }
     }
 
@@ -154,7 +172,39 @@ impl FrameSource {
     pub fn subscribe(&self) -> broadcast::Receiver<Arc<Frame>> {
         self.tx.subscribe()
     }
+
+    /// The machine now and its `top` busiest processes. Counts as a poll.
+    #[must_use]
+    pub fn summary(&self, top: usize) -> Option<vitals_core::remote::Summary> {
+        self.touch();
+        self.current.read().as_ref().map(|v| v.to_summary(top))
+    }
+
+    /// Records that a remote client asked for data just now.
+    pub fn touch(&self) {
+        *self.last_poll.write() = Some(std::time::Instant::now());
+    }
+
+    /// Whether a remote client is watching: a stream is open, or something
+    /// polled within the last [`POLL_WINDOW`].
+    ///
+    /// The desktop raises its sample rate while this is true (ADR-0033).
+    #[must_use]
+    pub fn has_viewers(&self) -> bool {
+        self.tx.receiver_count() > 0
+            || self
+                .last_poll
+                .read()
+                .is_some_and(|at| at.elapsed() < POLL_WINDOW)
+    }
 }
+
+/// How long a single poll keeps the sampler at live rate.
+///
+/// Twice the phone's 5 s poll plus slack, and long enough to cover a
+/// watch's 30 s tile refresh only if it polls again — a tile that refreshes
+/// once and goes away must not keep someone's PC sampling at 1 Hz forever.
+pub const POLL_WINDOW: std::time::Duration = std::time::Duration::from_secs(45);
 
 /// The static files served to a phone.
 ///
@@ -176,6 +226,13 @@ pub struct ApiState {
     /// crate does not own the engine; the desktop runs it on the sampler
     /// thread and the server only reads.
     pub alerts: Arc<dyn Fn() -> Vec<vitals_core::alerts::Alert> + Send + Sync>,
+    /// Machine-wide history covering the last N seconds, from the host's
+    /// store. A host without one (the headless CLI) returns an empty list,
+    /// which is also the answer when history recording is off.
+    pub history: Arc<dyn Fn(u32) -> Vec<vitals_core::MachineSample> + Send + Sync>,
+    /// Every sensor reading the host can make now. The host is responsible
+    /// for caching: on Windows a read is a WMI round trip.
+    pub sensors: Arc<dyn Fn() -> Vec<vitals_core::remote::SensorLine> + Send + Sync>,
     /// Shown at `/api/v1/health` so a client can tell which build it is
     /// talking to before trusting the shape of anything else.
     pub version: String,

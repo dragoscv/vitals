@@ -1,0 +1,20 @@
+{
+  "hostname": "DESKTOP-VITALS",
+  "osName": "Windows 11 Pro",
+  "osVersion": "10.0.26200",
+  "kernelVersion": "26200.6584",
+  "architecture": "x86_64",
+  "cpuModel": "Intel(R) Core(TM) i9-14900K",
+  "cpuVendor": "GenuineIntel",
+  "physicalCores": 24,
+  "logicalCores": 32,
+  "coreTopology": [
+    "performance",
+    "efficiency"
+  ],
+  "totalMemory": 206158430208,
+  "bootTimeMs": 1700000000000,
+  "isVirtualMachine": false,
+  "motherboard": "Z790 AORUS ELITE AX",
+  "biosVersion": "FM"
+}

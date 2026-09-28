@@ -20,6 +20,8 @@ build/
 packages/protocol/src/generated/
 THIRD_PARTY_NOTICES.md
 apps/site/.astro/
+# Written by crates/vitals-server/tests/android_contract.rs from real frames
+apps/android/core/src/test/resources/contract/
 
 # Lockfiles
 pnpm-lock.yaml

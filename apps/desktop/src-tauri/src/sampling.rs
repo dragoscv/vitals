@@ -347,8 +347,29 @@ fn current_interval(app: &AppHandle) -> Option<Duration> {
         .map_or(vitals_core::sample::SampleRate::Normal, |state| {
             state.sample_rate()
         });
+    let watched = app
+        .try_state::<crate::server::LanServer>()
+        .is_some_and(|server| server.has_viewers());
 
-    rate.interval_ms().map(u64::from).map(Duration::from_millis)
+    effective_interval(rate, watched)
+        .map(u64::from)
+        .map(Duration::from_millis)
+}
+
+/// The interval to sample at, given the window's rate and whether a remote
+/// client is watching.
+///
+/// A hidden window drops to one frame every 20 s, which is right for the
+/// desktop and wrong for a phone streaming the machine: its numbers froze
+/// for twenty seconds at a time. A watcher raises the rate to at least 1 Hz.
+/// A pause is still a pause — it is the user's explicit instruction, and a
+/// phone must not be able to override it (ADR-0033).
+fn effective_interval(rate: vitals_core::sample::SampleRate, watched: bool) -> Option<u32> {
+    let own = rate.interval_ms()?;
+    let live = vitals_core::sample::SampleRate::Normal
+        .interval_ms()
+        .unwrap_or(own);
+    Some(if watched { own.min(live) } else { own })
 }
 
 /// The platform backend: samples, then encodes to a wire frame.
@@ -487,6 +508,27 @@ impl Backend {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_watching_phone_lifts_a_hidden_window_to_live_rate() {
+        use vitals_core::sample::SampleRate;
+        assert_eq!(
+            effective_interval(SampleRate::Background, false),
+            Some(20_000)
+        );
+        assert_eq!(
+            effective_interval(SampleRate::Background, true),
+            Some(1_000)
+        );
+        // Never slows a faster rate the window asked for.
+        assert_eq!(effective_interval(SampleRate::High, true), Some(500));
+    }
+
+    #[test]
+    fn a_watching_phone_cannot_undo_a_pause() {
+        use vitals_core::sample::SampleRate;
+        assert_eq!(effective_interval(SampleRate::Paused, true), None);
+    }
 
     #[test]
     fn stopping_is_observable_by_the_loop() {

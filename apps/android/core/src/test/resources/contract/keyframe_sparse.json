@@ -1,0 +1,122 @@
+{
+  "seq": 1,
+  "timestampMs": 1700000000000,
+  "elapsedMs": 1000,
+  "payload": {
+    "kind": "keyframe",
+    "system": {
+      "cpu": {
+        "total": 33.5,
+        "perCore": [
+          30.0,
+          37.0
+        ],
+        "kernel": 4.25,
+        "effectiveClock": null,
+        "maxClock": null,
+        "temperature": null,
+        "power": null,
+        "throttled": null,
+        "processCount": 287,
+        "threadCount": 3914,
+        "handleCount": null,
+        "uptimeSecs": 7265,
+        "contextSwitches": null,
+        "interrupts": null
+      },
+      "memory": {
+        "total": 17179869184,
+        "used": 9663676416,
+        "available": 7516192768,
+        "cached": 3221225472,
+        "pagedPool": 536870912,
+        "nonPagedPool": 268435456,
+        "committed": 11811160064,
+        "commitLimit": 25769803776,
+        "swapTotal": 8589934592,
+        "swapUsed": null,
+        "hardwareReserved": 134217728,
+        "pageFaultsPerSec": null,
+        "speed": null,
+        "slotsUsed": null,
+        "slotsTotal": null,
+        "formFactor": null
+      },
+      "disks": [
+        {
+          "id": 0,
+          "name": "C:",
+          "model": "Samsung SSD 990 PRO",
+          "mount": "C:",
+          "kind": "nvme",
+          "total": 2199023255552,
+          "free": 751619276800,
+          "read": 1048576,
+          "write": 524288,
+          "activeTime": 12.5,
+          "responseMs": null,
+          "queueDepth": null,
+          "temperature": null,
+          "health": null
+        }
+      ],
+      "networks": [
+        {
+          "id": 0,
+          "name": "Ethernet",
+          "adapter": "Intel I225-V",
+          "kind": "ethernet",
+          "rx": 131072,
+          "tx": 65536,
+          "rxTotal": 9000000,
+          "txTotal": 4000000,
+          "linkSpeed": 2500000000,
+          "ipv4": "192.168.1.20",
+          "ipv6": null,
+          "mac": null,
+          "connected": true,
+          "signal": null,
+          "ssid": null,
+          "errorsPerSec": null
+        }
+      ],
+      "gpus": [],
+      "powerDraw": null,
+      "battery": null,
+      "fans": [
+        {
+          "name": "Fan 1",
+          "rpm": 1467
+        }
+      ]
+    },
+    "processes": [
+      {
+        "key": {
+          "pid": 7,
+          "startTime": 133700000000000000
+        },
+        "parent": null,
+        "name": "idle.exe",
+        "kind": "app",
+        "state": "running",
+        "flags": 0,
+        "integrity": null,
+        "protection": "none",
+        "cpu": 0.0,
+        "memoryPrivate": 268435456,
+        "memoryWorkingSet": 402653184,
+        "diskRead": 4096,
+        "diskWrite": 2048,
+        "netRx": null,
+        "netTx": null,
+        "gpu": null,
+        "gpuMemory": null,
+        "threadCount": 42,
+        "handleCount": 900,
+        "user": "VITALS\\dev",
+        "uptimeSecs": 900
+      }
+    ]
+  }
+}

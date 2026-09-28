@@ -30,6 +30,8 @@ async fn main() {
         assets: None,
         host: Arc::new(|| None),
         alerts: Arc::new(Vec::new),
+        history: Arc::new(|_| Vec::new()),
+        sensors: Arc::new(Vec::new),
         version: "prove".into(),
         loopback_scope: None,
     };

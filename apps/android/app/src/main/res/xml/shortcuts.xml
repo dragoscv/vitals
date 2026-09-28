@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_processes"
+        android:shortcutId="processes"
+        android:shortcutLongLabel="@string/shortcut_processes_long"
+        android:shortcutShortLabel="@string/shortcut_processes">
+        <intent
+            android:action="app.vitals.action.PROCESSES"
+            android:targetClass="app.vitals.phone.MainActivity"
+            android:targetPackage="app.vitals" />
+    </shortcut>
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_scan"
+        android:shortcutId="scan"
+        android:shortcutLongLabel="@string/shortcut_scan_long"
+        android:shortcutShortLabel="@string/shortcut_scan">
+        <intent
+            android:action="app.vitals.action.SCAN"
+            android:targetClass="app.vitals.phone.MainActivity"
+            android:targetPackage="app.vitals" />
+    </shortcut>
+</shortcuts>

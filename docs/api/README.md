@@ -129,6 +129,31 @@ curl.exe -s -H "Authorization: Bearer $T" "$V/api/v1/snapshot"
 curl.exe -s -H "Authorization: Bearer $T" "$V/api/v1/host"
 ```
 
+**A small summary** — every system reading plus the five busiest processes,
+about 3 KB instead of a keyframe's 250 KB. What the watch and widgets use.
+`?top=N` asks for up to 25.
+
+```powershell
+curl.exe -s -H "Authorization: Bearer $T" "$V/api/v1/summary?top=5"
+```
+
+**History** from the desktop's store, oldest first. `?seconds=` defaults to
+an hour and is clamped to a week. `[]` means history is off.
+
+```powershell
+curl.exe -s -H "Authorization: Bearer $T" "$V/api/v1/history?seconds=86400"
+```
+
+**Sensors** — every temperature, fan, power and voltage reading the Devices
+screen shows, cached for five seconds on the PC.
+
+```powershell
+curl.exe -s -H "Authorization: Bearer $T" "$V/api/v1/sensors"
+```
+
+Polling `/summary` or `/sensors`, or holding a stream open, keeps the desktop
+sampling at least once a second for 45 seconds, even with its window hidden.
+
 **Live frames as server-sent events.** `-N` turns off curl's output buffering
 so you see each frame as it arrives. The first event is the current keyframe;
 the rest are usually deltas (`"kind":"delta"`) carrying only the processes

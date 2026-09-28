@@ -111,6 +111,14 @@ impl LanServer {
         self.running.lock().is_some() || self.local.lock().is_some()
     }
 
+    /// Whether a client is streaming or has polled recently. The sampler
+    /// keeps at least 1 Hz while this holds, so a phone does not watch
+    /// numbers frozen by a hidden window.
+    #[must_use]
+    pub fn has_viewers(&self) -> bool {
+        self.is_running() && self.frames.has_viewers()
+    }
+
     /// The LAN listener's port only. The local API is deliberately excluded:
     /// Settings shows this as "what your phone connects to".
     fn port(&self) -> Option<u16> {
@@ -146,6 +154,13 @@ impl LanServer {
                         .unwrap_or_default()
                 })
             },
+            history: Arc::new(|seconds| {
+                crate::store::query_machine_history(seconds).unwrap_or_else(|error| {
+                    tracing::warn!(?error, "history for a LAN client failed");
+                    Vec::new()
+                })
+            }),
+            sensors: Arc::new(crate::inventory::lan_sensor_lines),
             version: app.package_info().version.to_string(),
             loopback_scope,
         }
@@ -735,6 +750,8 @@ mod tests {
                 assets: None,
                 host: Arc::new(|| None),
                 alerts: Arc::new(Vec::new),
+                history: Arc::new(|_| Vec::new()),
+                sensors: Arc::new(Vec::new),
                 version: "test".into(),
                 loopback_scope: Some(Scope::Control),
             };

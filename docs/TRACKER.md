@@ -154,6 +154,7 @@ Status values: `todo`, `doing`, `done`, `blocked`, `dropped`.
 | S11   | Task Manager replacement, HUD overlay                                | done                                                                                               |
 | S12   | Look-and-feel redesign + the four backend truths it exposed          | done (S12-11 measured in CPU cycles: 23–24 ms on S12, 22–25 ms on the commit before it)            |
 | S14   | Storage: fast complete scans, navigation, cleanup, Turbo, extras     | doing (S14-01 engine, S14-02 explore done; 03 recycle next)                                        |
+| S15   | Android phone, Wear OS watch, TV: native apps + on-device monitor    | doing (01-05 done; release pipeline, Play, Google TV, Tizen open)                                  |
 
 Per-item status lives in `tracker.csv`. This file records the reasoning; the
 CSV records the state.
@@ -380,6 +381,63 @@ check-drift: 0 failure(s), 0 warning(s) - 12 ts_rs files, 67 invokes, 67 command
 
 Every claim of "done" needs a command and its output. Recorded here as work
 lands, newest first.
+
+### 2026-09-29 — S15-04/05 The phone and the watch monitor themselves
+
+**Ask.** The phone app is first a monitor for the phone, the PC a bonus; the
+watch the same. Everything the desktop does, adapted to Android, not just
+remote data. Official APIs only (decided with the owner).
+
+**What.** New `:device` module (ADR-0035) behind a `DeviceMonitor` interface,
+used by both apps. Phone opens on _This phone_ (Now, Battery, Storage, Apps,
+Sensors, History, About); PCs moved to the second tab. Watch has a _This
+watch_ card and screen. History and alerts run through WorkManager every 15
+minutes.
+
+**Found by looking at it** — every one invisible to the unit tests:
+
+- Battery current: the first sampler read anything under 20 000 as mA, so the
+  S25's µA trickle showed as thousands of mA. A second cutoff (10 000) failed at
+  5 468 µA. Fixed by following the documented µA contract; magnitude now agrees
+  with `dumpsys battery`, individual readings do not (see evidence).
+- Samsung broadcasts `cycle_count:0` on a used battery → unreported, not "new".
+- GPU clock: Mali on the A51 reports kHz (1 053 000), Adreno MHz (1200); the
+  A51 showed "0.0 GHz" top speed.
+- Two-cluster naming: the S25's 3.5 GHz Oryon cores were labelled
+  "efficiency". A frequency ratio cannot separate the A51 (75 %) from the S25
+  (79 %); a 2.2 GHz little-core cap can.
+- Storage: `queryStatsForUser` includes shared storage, so "Apps 334 GB" on a
+  287 GB used disk. Subtracting the external total gives 230 GB (Settings'
+  diskstats: 202 GB). The overlap can make "System" negative → unknown.
+- Sensors tab showed "0 sensors" for 20 s on the A51: one-shot reads waited
+  600 ms each, in turn. Now parallel.
+- Idle CPU: the Now tab kept one A51 core at 50–70 %. Three guesses measured
+  and reverted (shorter tween alone, plain InfoRow alone, graphicsLayer on
+  the mesh). Frame counting proved it: all live animation off = 10 frames per
+  10 s, springs = ~200. Kept: 200 ms tweens read in the draw phase, plain
+  numbers inside lists.
+
+**Evidence.**
+
+```text
+:device unit tests      ParseTest 15/15, AlertRulesTest 6/6
+lint (all modules)      0 errors
+S25 held at 85 % on USB. Before the fix the app showed 2343 and -10156 'mA'.
+  After, bracketed by dumpsys: dumpsys -4687 µA both sides | app 2.3, 2.3, 7.8 mA.
+  Same magnitude (unit fixed); sign and value differ reading by reading, because
+  dumpsys 'current now' is Samsung's broadcast field and the app reads
+  BATTERY_PROPERTY_CURRENT_NOW, sampled separately. NOT a match: open question.
+S25 Storage             287 GB of 477 GB, Apps 230 GB, Photos 3.7, Videos 10.0, Audio 34.2
+S25 folder scan         138551 files, 90.8 GB; Download 41.9 GB, Sounds & Loops 21.7 GB
+S25 Apps (24 h)         Microsoft Launcher 7h 8m 86 opens; TikTok 3h 1m 609 MB data
+Watch 7                 CPU 50 %, 1.3 of 1.7 GB, 100 % 42 °C 4.36 V Full, 38 sensors
+A51 release, Now tab    frames/10 s 190-216 -> 116-128; process CPU 497-690 -> 302-375 ticks/10 s
+A51 background          0 ticks in 10 s
+A51 cold start          536-1013 ms (first launch after install 2988 ms)
+```
+
+**Not done here.** Play listing and upload (S15-07), the release workflow run
+(S15-06), Google TV (S15-08) and Tizen (S15-09).
 
 ### 2026-09-28 — S12-37 Startup and Services row actions
 
