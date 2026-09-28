@@ -164,6 +164,48 @@ CSV records the state.
 Every claim of "done" needs a command and its output. Recorded here as work
 lands, newest first.
 
+### 2026-09-28 — S12-30 Devices shows this machine's temperatures; its fact cards never scroll
+
+**Ask.** The first two cards on Devices & sensors should be separate and not
+scroll; the computer's temperatures and other sensors were missing.
+
+**Cause.** Unelevated, `MSAcpi_ThermalZoneTemperature` answers
+`WBEM_E_ACCESS_DENIED` and nothing else was tried, so a normal user saw
+"needs administrator" and eight gaps. Two sources need no privilege:
+
+- The **Thermal Zone Information** performance counter publishes the same
+  ACPI zones to any user (`sensors::zone_counters`: _High Precision
+  Temperature_ in tenths of a kelvin, and _% Passive Limit_, surfaced when a
+  zone throttles). Used when WMI yields no zones; it carries no trip points,
+  so those stay `None`.
+- **NVIDIA's `nvml.dll`**, installed in `System32` by the driver
+  (`sensors::nvml`): GPU temperature, fan % and board power. Loaded with
+  `LOAD_LIBRARY_SEARCH_SYSTEM32` only, so a planted DLL is never used; no
+  NVIDIA driver means an empty list. The GPU temperature and board power
+  gaps are dropped once measured; AMD/Intel keep them.
+
+A fan duty cycle has its own `SensorValue::Percent` rather than
+`Charge`, so an export never calls a fan "charge".
+
+**Layout.** Power, Thermal zones and (when present) Battery are separate
+cards in a top row at their own height (`.devices-facts`); stacked in one
+scrolling column the zones were cut off. Readings and gaps share the rest
+and scroll inside themselves. Code: `5c9e6c3`.
+
+```text
+sensors_probe (unelevated): TZ00 27.85 °C · TZ10 16.85 °C · RTX 3060 Ti 46 °C, fan 80 %, 64.3 W
+  cross-check nvidia-smi 47 °C, 83 %, 59.6 W · Get-Counter High Precision Temperature 3010 / 2900
+live get_sensors: thermal available, 5 readings (was 0), 6 gaps (was 8)
+page-scroll-audit devices: page=0 at 720x560 1024x640 1280x800 1920x1080
+cargo test vitals-win 615 · desktop 50 · cli 35 · clippy -D warnings clean
+mutations: facts in pane-stack → RED · source label → RED · NVML 0 °C → RED · no decikelvin band → RED
+pnpm lint · typecheck · format:check · pnpm test · check-drift 0 · check-size within budget
+```
+
+**Still not measurable, and listed:** CPU core temperature, board and VRM
+temperatures, fan RPM, CPU package power, rail voltages (ring 0), and drive
+temperature (administrator).
+
 ### 2026-09-28 — S12-29 show-hidden switch above the rail, explanation behind (i)
 
 **Ask.** Put "Show hidden devices" above the list, and its description in a

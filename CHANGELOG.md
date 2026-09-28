@@ -7,6 +7,21 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### 2026-09-28 — real temperatures on Devices & sensors
+
+#### Features
+
+- **Temperatures without administrator rights** — the machine's thermal
+  zones are read through Windows' performance counters when the usual query
+  is refused, and NVIDIA graphics cards report temperature, fan speed and
+  power through their own driver.
+
+#### Changed
+
+- **Devices & sensors** — Power and Thermal zones are separate cards that
+  never scroll; the readings table and the list of what cannot be measured
+  scroll on their own.
+
 ### 2026-09-28 — "show hidden devices" at the top of the list
 
 #### Changed
