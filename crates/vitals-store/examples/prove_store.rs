@@ -32,9 +32,9 @@ fn main() {
         let started = Instant::now();
         for i in 0..5 {
             let sample = sampler.sample().expect("sample");
-            let frame = frames.build(sample);
+            let mut frame = frames.build(sample);
             let bytes = serde_json::to_vec(&frame).expect("encode");
-            rec.observe(&frame, &bytes).expect("observe");
+            rec.observe(&mut frame).expect("observe");
             println!("  frame {i}: seq={} bytes={}", frame.seq.0, bytes.len());
             std::thread::sleep(Duration::from_millis(200));
         }

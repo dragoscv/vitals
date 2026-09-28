@@ -28,9 +28,11 @@ pub struct Options {
     pub control: bool,
 }
 
-/// Builds the token set. Generated secrets are the caller's to print.
+/// Builds the token set, and returns the secret beside it: the set keeps only
+/// a hash, so this is the one place the caller can still read it to print.
+/// The second value is `Some` only when the secret was generated.
 #[must_use]
-pub fn tokens(options: &Options) -> (TokenSet, Option<String>) {
+pub fn tokens(options: &Options) -> (TokenSet, String, Option<String>) {
     let generated = options
         .token
         .is_none()
@@ -41,18 +43,18 @@ pub fn tokens(options: &Options) -> (TokenSet, Option<String>) {
         .or_else(|| generated.clone())
         .unwrap_or_default();
     let set = TokenSet {
-        tokens: vec![Token {
-            secret,
-            scope: if options.control {
+        tokens: vec![Token::new(
+            &secret,
+            if options.control {
                 Scope::Control
             } else {
                 Scope::Read
             },
-            label: "vitals serve".into(),
-            created: unix_now(),
-        }],
+            "vitals serve",
+            unix_now(),
+        )],
     };
-    (set, generated)
+    (set, secret, generated)
 }
 
 fn unix_now() -> i64 {
@@ -70,12 +72,7 @@ pub fn run(options: &Options) -> Result<()> {
     // real sampler is built on its own thread below: `SystemSampler` holds a
     // PDH query with raw pointers and is not `Send`.
     Direct::new()?;
-    let (token_set, generated) = tokens(options);
-    let secret = token_set
-        .tokens
-        .first()
-        .map(|t| t.secret.clone())
-        .unwrap_or_default();
+    let (token_set, secret, generated) = tokens(options);
 
     let frames = FrameSource::new();
     let alerts: Arc<ServerLock<Vec<Alert>>> = Arc::new(ServerLock::new(Vec::new()));
@@ -203,18 +200,19 @@ mod tests {
 
     #[test]
     fn a_given_token_is_used_verbatim_and_nothing_is_generated() {
-        let (set, generated) = tokens(&Options {
+        let (set, secret, generated) = tokens(&Options {
             port: 0,
             token: Some("abc".into()),
             control: false,
         });
         assert_eq!(generated, None);
+        assert_eq!(secret, "abc");
         assert_eq!(set.scope_for("abc"), Some(Scope::Read));
     }
 
     #[test]
     fn without_a_token_one_is_generated_and_control_only_when_asked() {
-        let (set, generated) = tokens(&Options {
+        let (set, _, generated) = tokens(&Options {
             port: 0,
             token: None,
             control: true,

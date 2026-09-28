@@ -177,3 +177,17 @@ export async function restartIntoUpdate(): Promise<UpdateState | null> {
     return { kind: 'error', message: messageOf(error) };
   }
 }
+
+/**
+ * The version the background updater has downloaded and verified, waiting
+ * to install when the app quits. `null` when there is none, or no host.
+ */
+export async function pendingBackgroundUpdate(): Promise<string | null> {
+  if (!updatesAvailableInThisBuild()) return null;
+  try {
+    const { invoke } = await import('@tauri-apps/api/core');
+    return await invoke<string | null>('get_pending_update');
+  } catch {
+    return null;
+  }
+}

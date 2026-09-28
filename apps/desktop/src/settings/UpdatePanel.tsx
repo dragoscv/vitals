@@ -7,7 +7,7 @@
  * so the UI just renders its answer.
  */
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { Button, ProgressBar } from '@vitals/ui';
@@ -15,6 +15,7 @@ import { Button, ProgressBar } from '@vitals/ui';
 import {
   checkForUpdate,
   downloadAndInstall,
+  pendingBackgroundUpdate,
   restartIntoUpdate,
   type UpdateState,
 } from '../lib/updater';
@@ -30,6 +31,20 @@ export function UpdateSection() {
   // `useState` would re-render the panel on every progress tick for a value
   // no element reads.
   const pending = useRef<PendingUpdate>(null);
+  // What the background updater already downloaded. Shown instead of the
+  // idle sentence, so "Check for updates" is not offered for a version that
+  // is sitting on disk waiting for the user to quit.
+  const [background, setBackground] = useState<string | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    void pendingBackgroundUpdate().then((version) => {
+      if (live) setBackground(version);
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
 
   const busy = state.kind === 'checking' || state.kind === 'installing';
 
@@ -63,7 +78,11 @@ export function UpdateSection() {
   return (
     <div className="space-y-2 py-2" data-testid="update-section">
       <p className="text-sm font-medium">{t('settings.about.update.title')}</p>
-      <UpdateMessage state={state} />
+      {background !== null && state.kind === 'idle' ? (
+        <p className="text-2xs">{t('settings.about.update.pending', { version: background })}</p>
+      ) : (
+        <UpdateMessage state={state} />
+      )}
       <UpdateControls
         state={state}
         busy={busy}

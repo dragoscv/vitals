@@ -39,6 +39,9 @@ export interface AppSettings {
   readonly historyEnabled: boolean;
   readonly retentionDays: number;
 
+  /** Check GitHub for a new version after launch, install it on quit. */
+  readonly autoUpdate: boolean;
+
   /** Shell layout. Persisted so the window reopens the way it was left. */
   readonly sidebarCollapsed: boolean;
   readonly lastRoute: RouteId;
@@ -82,6 +85,13 @@ export const defaultSettings: AppSettings = {
 
   historyEnabled: false,
   retentionDays: 7,
+
+  // On, the one switch here that makes a network request by default. The
+  // request goes to GitHub, carries no data about the machine beyond what any
+  // download does (address, app version), and an installed monitor that never
+  // receives its security fixes is the worse failure. The privacy policy says
+  // so, and the switch is in Settings → About.
+  autoUpdate: true,
 
   sidebarCollapsed: false,
   lastRoute: defaultRoute,
@@ -170,6 +180,7 @@ export function parseSettings(raw: unknown): AppSettings {
     notifyThermal: bool(record['notifyThermal'], defaultSettings.notifyThermal),
 
     historyEnabled: bool(record['historyEnabled'], defaultSettings.historyEnabled),
+    autoUpdate: bool(record['autoUpdate'], defaultSettings.autoUpdate),
     retentionDays: (retentionDayOptions as readonly number[]).includes(retention as number)
       ? (retention as number)
       : defaultSettings.retentionDays,

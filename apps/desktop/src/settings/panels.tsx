@@ -29,6 +29,14 @@ import { useHistoryUsage } from './useHistoryUsage';
 import { useTaskManagerReplacement } from './useTaskManagerReplacement';
 import { UpdateSection } from './UpdatePanel';
 
+/** The public documents. One place, so the app and the site cannot disagree. */
+const SITE = 'https://vitals.dragoscatalin.ro';
+const legalLinks = {
+  privacyPolicy: `${SITE}/privacy/`,
+  terms: `${SITE}/terms/`,
+  licenses: 'https://github.com/dragoscv/vitals/blob/main/THIRD_PARTY_NOTICES.md',
+} as const;
+
 /**
  * Locale names are written in their own language, not translated.
  *
@@ -540,10 +548,10 @@ export function NotificationsPanel() {
 export function PrivacyPanel() {
   const { t } = useTranslation();
 
-  // No switches. Vitals has no telemetry, no crash reporting and no online
-  // reputation lookups, so there is nothing to opt out of. The earlier panel
-  // showed three switches that read nothing and sent nothing — a control that
-  // does nothing is worse than an honest sentence.
+  // No switches here. Vitals has no telemetry, no crash reporting and no
+  // online reputation lookups, so there is nothing to opt out of. The one
+  // automatic request — the update check — has its switch beside the update
+  // controls in About, and this panel says so.
   return (
     <SettingsSection title={t('settings.privacy.title')}>
       <div className="space-y-2 py-2 text-sm">
@@ -552,8 +560,17 @@ export function PrivacyPanel() {
           <li>{t('settings.privacy.localOnly')}</li>
           <li>{t('settings.privacy.noCrashReports')}</li>
           <li>{t('settings.privacy.noLookups')}</li>
+          <li>{t('settings.privacy.updates')}</li>
           <li>{t('settings.privacy.lanServer')}</li>
         </ul>
+        <Button
+          variant="ghost"
+          onClick={() =>
+            void reportFailure(openExternal(legalLinks.privacyPolicy), t('settings.privacy.policy'))
+          }
+        >
+          {t('settings.privacy.policy')}
+        </Button>
       </div>
     </SettingsSection>
   );
@@ -562,6 +579,8 @@ export function PrivacyPanel() {
 export function AboutPanel({ version }: { readonly version: string }) {
   const { t } = useTranslation();
   const { info, pending } = useHostInfo();
+  const autoUpdate = useSettings((state) => state.settings.autoUpdate);
+  const patch = useSettings((state) => state.patch);
 
   return (
     <SettingsSection title={t('settings.about.title')}>
@@ -579,6 +598,20 @@ export function AboutPanel({ version }: { readonly version: string }) {
         )}
 
         <UpdateSection />
+
+        <SettingsRow
+          label={t('settings.about.update.auto')}
+          description={t('settings.about.update.autoHint')}
+        >
+          {({ labelId, describedBy }) => (
+            <Switch
+              aria-labelledby={labelId}
+              aria-describedby={describedBy}
+              checked={autoUpdate}
+              onCheckedChange={(value) => patch({ autoUpdate: value })}
+            />
+          )}
+        </SettingsRow>
 
         <p className="text-sm">{t('settings.about.contribute')}</p>
         <p className="text-2xs text-[var(--color-fg-muted)]">
@@ -606,6 +639,21 @@ export function AboutPanel({ version }: { readonly version: string }) {
           >
             {t('settings.about.viewSource')}
           </Button>
+        </div>
+
+        <p className="pt-2 text-sm font-medium">{t('settings.about.legal')}</p>
+        <div className="flex flex-wrap gap-2">
+          {(Object.keys(legalLinks) as (keyof typeof legalLinks)[]).map((key) => (
+            <Button
+              key={key}
+              variant="ghost"
+              onClick={() =>
+                void reportFailure(openExternal(legalLinks[key]), t(`settings.about.${key}`))
+              }
+            >
+              {t(`settings.about.${key}`)}
+            </Button>
+          ))}
         </div>
       </div>
     </SettingsSection>

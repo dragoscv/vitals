@@ -7,8 +7,10 @@
 //!   charts. Off by default; the user turns it on in Settings.
 //! - **flight recorder** — the last N raw frames, always on while the app
 //!   runs, exported on request for a bug report. Its cost is bounded by N
-//!   and its lifetime by the process; nothing about it is a "recording" in
-//!   the privacy sense, which is why it needs no opt-in.
+//!   and its lifetime by the process. It keeps process names and resource
+//!   use, and deliberately **not** the owning user account or adapter MAC
+//!   addresses: those identify a person and a device, a bug report does not
+//!   need them, and this table is written without the user asking.
 
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -84,13 +86,20 @@ impl Recorder {
 
     /// Records one frame. Cheap when history is off: a single bounded
     /// `INSERT` into the flight table.
-    pub fn observe(&mut self, frame: &Frame, encoded: &[u8]) -> Result<()> {
+    ///
+    /// Serialises the frame itself, with identifiers removed (see the module
+    /// docs). The frame is borrowed mutably only for the length of that
+    /// serialisation and is returned exactly as it came in.
+    pub fn observe(&mut self, frame: &mut Frame) -> Result<()> {
         let ts = i64::try_from(frame.timestamp_ms / 1_000).unwrap_or(0);
+        let encoded = frame
+            .with_identifiers_removed(serde_json::to_vec)
+            .map_err(crate::db::StoreError::from)?;
 
         self.store.record_frame(
             i64::try_from(frame.seq.0).unwrap_or(0),
             ts,
-            encoded,
+            &encoded,
             FLIGHT_FRAMES,
         )?;
 
@@ -191,5 +200,40 @@ mod tests {
         r.set_retention_days(1);
         assert_eq!(r.store.policy().tiers[1], (Resolution::Minute, 86_400));
         assert_eq!(r.store.policy().tiers[2], (Resolution::FiveMinutes, 86_400));
+    }
+
+    #[test]
+    fn the_flight_recorder_never_stores_who_was_signed_in_or_a_mac_address() {
+        let mut r = Recorder {
+            store: Store::in_memory(RetentionPolicy::default()).unwrap(),
+            path: PathBuf::new(),
+            history_enabled: false,
+            last_maintain: Instant::now(),
+        };
+        let mut frame = vitals_core::fixtures::keyframe(
+            1,
+            vec![vitals_core::fixtures::process("notepad.exe", 42, 1.0)],
+        );
+        if let FramePayload::Keyframe { system, .. } = &mut frame.payload {
+            system.networks[0].mac = Some("AA-BB-CC-DD-EE-FF".into());
+        }
+
+        r.observe(&mut frame).unwrap();
+
+        let stored = r.store.flight_frames().unwrap();
+        let text = String::from_utf8(stored[0].2.clone()).unwrap();
+        assert!(
+            text.contains("notepad.exe"),
+            "the frame itself is kept: {text}"
+        );
+        assert!(!text.contains("VITALS\\\\dev"), "owner leaked: {text}");
+        assert!(!text.contains("AA-BB-CC-DD-EE-FF"), "MAC leaked: {text}");
+
+        // And the live frame the UI and the LAN receive is untouched.
+        let FramePayload::Keyframe { system, processes } = &frame.payload else {
+            unreachable!()
+        };
+        assert_eq!(processes[0].user.as_deref(), Some("VITALS\\dev"));
+        assert_eq!(system.networks[0].mac.as_deref(), Some("AA-BB-CC-DD-EE-FF"));
     }
 }

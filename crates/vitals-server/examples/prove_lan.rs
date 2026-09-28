@@ -23,12 +23,7 @@ async fn main() {
     let state = ApiState {
         frames: frames.clone(),
         tokens: Arc::new(ServerLock::new(TokenSet {
-            tokens: vec![Token {
-                secret: secret.clone(),
-                scope: Scope::Read,
-                label: "prover".into(),
-                created: 0,
-            }],
+            tokens: vec![Token::new(&secret, Scope::Read, "prover", 0)],
         })),
         controller: Arc::new(vitals_server::control::NoControl),
         assets: None,

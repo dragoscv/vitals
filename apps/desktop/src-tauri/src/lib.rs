@@ -8,6 +8,7 @@
 pub mod alerts;
 pub mod benchmarks;
 pub mod commands;
+pub mod crashlog;
 pub mod history;
 pub mod hud;
 pub mod inventory;
@@ -19,6 +20,7 @@ pub mod startup_impact;
 pub mod state;
 pub mod store;
 pub mod tray;
+pub mod updates;
 pub mod users;
 
 use tauri::Manager;
@@ -30,12 +32,7 @@ use tauri::Manager;
 /// Panics if the Tauri runtime cannot start, which is unrecoverable.
 #[allow(clippy::expect_used)]
 pub fn run() {
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_env("VITALS_LOG")
-                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
-        )
-        .init();
+    init_logging();
 
     // Decided before the builder exists: two of these modes must never
     // create a window, and one of them is the elevated child that a running
@@ -100,6 +97,7 @@ pub fn run() {
         .manage(server::LanServer::new())
         .manage(alerts::Alerts::new())
         .manage(startup_impact::StartupImpactStore::new())
+        .manage(updates::PendingInstall::default())
         // The sampler starts with the app and stops when the handle drops at
         // shutdown. Managed so it stays alive for the process lifetime —
         // dropping the handle would silently stop all sampling.
@@ -109,6 +107,28 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("failed to start the Vitals application")
         .run(on_run_event);
+}
+
+/// stderr for a developer, plus a capped file for everyone else — a release
+/// build has no console, so without the file a warning logged in the field
+/// was written to nowhere. The panic hook goes in first so even a panic
+/// during setup leaves `crash.txt`.
+fn init_logging() {
+    use tracing_subscriber::prelude::*;
+
+    let dir = crashlog::log_dir();
+    crashlog::install_panic_hook(dir.clone());
+    let filter = tracing_subscriber::EnvFilter::try_from_env("VITALS_LOG")
+        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
+    tracing_subscriber::registry()
+        .with(filter)
+        .with(tracing_subscriber::fmt::layer())
+        .with(
+            tracing_subscriber::fmt::layer()
+                .with_ansi(false)
+                .with_writer(crashlog::CappedLog::new(crashlog::open_log(&dir))),
+        )
+        .init();
 }
 
 /// Every command the webview may call.
@@ -215,6 +235,8 @@ fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
         commands::set_alert_strings,
         commands::diagnose,
         commands::set_close_to_tray,
+        updates::set_auto_update,
+        updates::get_pending_update,
         commands::set_tray_strings,
         commands::quit_app,
         // The overlay. `toggle_hud` is what the Ctrl+Shift+H shortcut
@@ -239,6 +261,7 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     tray::install(app.handle())?;
     server::start_local_api(app.handle());
     arm_reveal_safety_net(app.handle().clone());
+    updates::spawn(app.handle());
     Ok(())
 }
 
@@ -259,6 +282,9 @@ fn on_run_event(app: &tauri::AppHandle, event: tauri::RunEvent) {
         }
         server::stop_local_api(app);
         ipc::stop(app);
+        // Last: on Windows this hands over to the installer, which replaces
+        // this binary, so everything above must already have finished.
+        updates::install_on_exit(app);
     }
 }
 

@@ -146,10 +146,19 @@ pub fn list_benchmarks() -> Vec<BenchmarkInfoDto> {
 /// [`CommandError::Unsupported`] for one that is listed but cannot run here.
 #[tauri::command]
 #[cfg(windows)]
-// Tauri deserialises command arguments into owned values; it cannot hand us
-// a borrow of something it has not constructed yet.
-#[allow(clippy::needless_pass_by_value)]
-pub fn run_benchmarks(ids: Vec<String>) -> CommandResult<BenchmarkSuiteDto> {
+pub async fn run_benchmarks(ids: Vec<String>) -> CommandResult<BenchmarkSuiteDto> {
+    // A synchronous command runs on the main thread, and a suite takes
+    // seconds: the window froze — no repaint, no cancel, "Not responding" in
+    // the title bar — for the whole run. On a blocking thread instead.
+    tauri::async_runtime::spawn_blocking(move || run_benchmarks_blocking(&ids))
+        .await
+        .map_err(|err| CommandError::Internal {
+            message: format!("the benchmark run was abandoned: {err}"),
+        })?
+}
+
+#[cfg(windows)]
+fn run_benchmarks_blocking(ids: &[String]) -> CommandResult<BenchmarkSuiteDto> {
     // Resolved before anything runs. Validating lazily would burn several
     // seconds of the user's CPU on the valid ids before refusing the request
     // as a whole.
@@ -238,14 +247,14 @@ mod tests {
 
     #[test]
     fn an_unknown_id_is_not_found() {
-        let err = run_benchmarks(vec!["cpuSingleThreadd".into()])
+        let err = run_benchmarks_blocking(&["cpuSingleThreadd".into()])
             .expect_err("a typo must not silently run something else");
         assert!(matches!(err, CommandError::NotFound { .. }));
     }
 
     #[test]
     fn an_unavailable_id_is_refused_with_the_mechanism_named() {
-        let err = run_benchmarks(vec!["diskSequentialWrite".into()])
+        let err = run_benchmarks_blocking(&["diskSequentialWrite".into()])
             .expect_err("disk benchmarks need consent");
 
         match err {
@@ -260,14 +269,14 @@ mod tests {
     #[test]
     fn an_empty_request_is_refused() {
         assert!(matches!(
-            run_benchmarks(Vec::new()),
+            run_benchmarks_blocking(&[]),
             Err(CommandError::NotFound { .. })
         ));
     }
 
     #[test]
     fn a_cpu_suite_serialises_with_the_shape_the_frontend_expects() {
-        let suite = run_benchmarks(vec!["cpuSingleThread".into()]).expect("CPU is available");
+        let suite = run_benchmarks_blocking(&["cpuSingleThread".into()]).expect("CPU is available");
         assert_eq!(suite.results.len(), 1);
         assert!(suite.total_duration_ms > 0);
 

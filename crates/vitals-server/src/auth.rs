@@ -13,10 +13,17 @@
 //! The token travels in the URL fragment of the QR code, which browsers do
 //! not send to the server, so it never appears in a request line or a log.
 //! The phone reads it from `location.hash` and puts it in `Authorization`.
+//!
+//! **Only a hash is kept.** A token set is persisted to disk, and a file that
+//! holds live secrets turns any backup, sync folder or other local program
+//! that can read the profile into a way to pair with the machine. The secret
+//! exists in full exactly once — in the QR code — and afterwards the server
+//! can recognise it but not reproduce it.
 
 use std::fmt;
 
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use subtle::ConstantTimeEq;
 
 /// What a token may do.
@@ -40,11 +47,21 @@ impl Scope {
     }
 }
 
-/// A single credential.
+/// How many leading characters of a secret are kept in the clear, to tell
+/// two pairings apart in a list and to revoke one. Eight base64url
+/// characters are 48 bits: plenty to identify, far too few to use.
+pub const PREFIX_CHARS: usize = 8;
+
+/// A single credential, as the server remembers it.
 #[derive(Clone, Serialize, Deserialize)]
+#[serde(from = "StoredToken")]
 pub struct Token {
-    /// The secret. 32 bytes, base64url, no padding.
-    pub secret: String,
+    /// SHA-256 of the secret, lowercase hex. A plain hash rather than a
+    /// password KDF because the secret is 256 random bits: there is no
+    /// dictionary to slow down, and a KDF would add latency to every request.
+    pub hash: String,
+    /// The first [`PREFIX_CHARS`] characters of the secret.
+    pub prefix: String,
     pub scope: Scope,
     /// What the user called this pairing, so revoking the right one is
     /// possible ("Pixel 9", "Grafana").
@@ -53,21 +70,70 @@ pub struct Token {
     pub created: i64,
 }
 
-// The `secret` field is deliberately redacted, which clippy reads as
-// "missing". That is the point.
+impl Token {
+    /// Remembers `secret` without keeping it.
+    #[must_use]
+    pub fn new(secret: &str, scope: Scope, label: impl Into<String>, created: i64) -> Self {
+        Self {
+            hash: hash_secret(secret),
+            prefix: secret.chars().take(PREFIX_CHARS).collect(),
+            scope,
+            label: label.into(),
+            created,
+        }
+    }
+}
+
+/// What `lan-tokens.json` may contain. Files written before hashing hold the
+/// secret itself; they are read, hashed, and never written back that way.
+#[derive(Deserialize)]
+struct StoredToken {
+    #[serde(default)]
+    secret: Option<String>,
+    #[serde(default)]
+    hash: Option<String>,
+    #[serde(default)]
+    prefix: Option<String>,
+    scope: Scope,
+    label: String,
+    created: i64,
+}
+
+impl From<StoredToken> for Token {
+    fn from(stored: StoredToken) -> Self {
+        match stored.secret {
+            Some(secret) => Self::new(&secret, stored.scope, stored.label, stored.created),
+            None => Self {
+                hash: stored.hash.unwrap_or_default(),
+                prefix: stored.prefix.unwrap_or_default(),
+                scope: stored.scope,
+                label: stored.label,
+                created: stored.created,
+            },
+        }
+    }
+}
+
+/// SHA-256, lowercase hex.
+#[must_use]
+pub fn hash_secret(secret: &str) -> String {
+    use std::fmt::Write as _;
+    let digest = Sha256::digest(secret.as_bytes());
+    let mut out = String::with_capacity(64);
+    for byte in digest {
+        let _ = write!(out, "{byte:02x}");
+    }
+    out
+}
+
+// The hash is deliberately left out, which clippy reads as "missing". It is
+// not secret, but it is 64 characters of noise in every log line.
 #[allow(clippy::missing_fields_in_debug)]
 impl fmt::Debug for Token {
-    /// Never prints the secret.
-    ///
-    /// Terminal output and tracing spans are persisted; a token that leaks
-    /// into a log is a token that has to be rotated. Only the prefix, which
-    /// is enough to correlate two log lines.
+    /// The prefix only: enough to correlate two log lines.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Token")
-            .field(
-                "secret",
-                &format_args!("{}…", &self.secret[..self.secret.len().min(6)]),
-            )
+            .field("prefix", &format_args!("{}…", self.prefix))
             .field("scope", &self.scope)
             .field("label", &self.label)
             .finish()
@@ -89,10 +155,16 @@ impl TokenSet {
     /// is one boolean.
     #[must_use]
     pub fn scope_for(&self, presented: &str) -> Option<Scope> {
+        // An empty token hashes like any other string; refusing it outright
+        // keeps a stored entry with a lost hash from matching a bare header.
+        if presented.is_empty() {
+            return None;
+        }
+        let presented = hash_secret(presented);
         let mut found = None;
         for token in &self.tokens {
             let hit: bool = token
-                .secret
+                .hash
                 .as_bytes()
                 .ct_eq(presented.as_bytes())
                 .unwrap_u8()
@@ -110,7 +182,8 @@ impl TokenSet {
     }
 
     pub fn revoke(&mut self, secret: &str) {
-        self.tokens.retain(|t| t.secret != secret);
+        let hash = hash_secret(secret);
+        self.tokens.retain(|t| t.hash != hash);
     }
 
     pub fn revoke_all(&mut self) {
@@ -161,12 +234,7 @@ mod tests {
     use super::*;
 
     fn token(secret: &str, scope: Scope) -> Token {
-        Token {
-            secret: secret.to_owned(),
-            scope,
-            label: "test".into(),
-            created: 0,
-        }
+        Token::new(secret, scope, "test", 0)
     }
 
     #[test]
@@ -233,7 +301,52 @@ mod tests {
         let t = token("supersecretvalue-do-not-log", Scope::Read);
         let shown = format!("{t:?}");
         assert!(!shown.contains("supersecretvalue"), "{shown}");
-        assert!(shown.contains("supers"), "prefix is useful for correlation");
+        assert!(
+            shown.contains("supersec"),
+            "prefix is useful for correlation"
+        );
+    }
+
+    #[test]
+    fn a_saved_token_set_never_contains_the_secret() {
+        let secret = generate_secret();
+        let set = TokenSet {
+            tokens: vec![Token::new(&secret, Scope::Control, "Pixel", 1)],
+        };
+        let json = serde_json::to_string(&set).unwrap_or_default();
+        assert!(!json.contains(&secret), "{json}");
+        assert!(!json.contains("\"secret\""), "{json}");
+
+        let back: TokenSet = serde_json::from_str(&json).unwrap_or_default();
+        assert_eq!(back.scope_for(&secret), Some(Scope::Control));
+    }
+
+    #[test]
+    fn a_plaintext_file_from_an_older_version_still_pairs_and_is_rewritten_hashed() {
+        let old = r#"{"tokens":[{"secret":"legacy-secret-value","scope":"read","label":"Old phone","created":5}]}"#;
+        let set: TokenSet = serde_json::from_str(old).unwrap_or_default();
+        assert_eq!(set.scope_for("legacy-secret-value"), Some(Scope::Read));
+        assert_eq!(
+            set.tokens.first().map(|t| t.prefix.as_str()),
+            Some("legacy-s")
+        );
+
+        let rewritten = serde_json::to_string(&set).unwrap_or_default();
+        assert!(!rewritten.contains("legacy-secret-value"), "{rewritten}");
+    }
+
+    #[test]
+    fn an_empty_presented_token_never_matches_even_a_damaged_entry() {
+        let set = TokenSet {
+            tokens: vec![Token {
+                hash: String::new(),
+                prefix: String::new(),
+                scope: Scope::Control,
+                label: "damaged".into(),
+                created: 0,
+            }],
+        };
+        assert_eq!(set.scope_for(""), None);
     }
 
     #[test]

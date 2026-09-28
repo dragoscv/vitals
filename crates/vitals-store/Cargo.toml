@@ -11,11 +11,12 @@ description = "Local SQLite time-series store with downsampling and retention."
 [dependencies]
 vitals-core = { workspace = true }
 serde = { workspace = true }
+serde_json = { workspace = true }
 rusqlite = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
-serde_json = { workspace = true }
+vitals-core = { workspace = true, features = ["fixtures"] }
 
 [target.'cfg(windows)'.dev-dependencies]
 vitals-win = { workspace = true }

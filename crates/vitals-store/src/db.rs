@@ -21,6 +21,8 @@ pub enum StoreError {
     Sqlite(#[from] rusqlite::Error),
     #[error("schema version {found} is newer than this build understands ({supported})")]
     SchemaTooNew { found: i64, supported: i64 },
+    #[error("frame did not serialise: {0}")]
+    Encode(#[from] serde_json::Error),
 }
 
 pub type Result<T> = std::result::Result<T, StoreError>;

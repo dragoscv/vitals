@@ -143,11 +143,13 @@
     },
     "privacy": {
       "title": "Privacy",
-      "noTelemetry": "Vitals sends nothing anywhere.",
+      "noTelemetry": "Vitals collects nothing about you and sends it nowhere.",
       "localOnly": "Everything it measures stays on this computer. History, if you turn it on, is a local file you can delete.",
-      "noCrashReports": "There is no crash reporting and no usage analytics — not opt-in, not opt-out, none.",
+      "noCrashReports": "There is no crash reporting and no usage analytics. If Vitals crashes, it writes crash.txt in its own folder for you to attach to a bug report — it never sends it.",
       "noLookups": "No file is ever hashed or looked up online.",
-      "lanServer": "The only network feature is the optional LAN server for your phone and other tools. It is off until you turn it on, and it only ever talks to devices on your own network."
+      "lanServer": "The LAN server for your phone and other tools is off until you turn it on, and only answers devices on your own network. A local-only connection on 127.0.0.1 is always open so the vitals command-line tool can reach the app.",
+      "updates": "The only request Vitals makes by itself is an update check to GitHub, about 20 seconds after launch. GitHub sees your IP address and the app version, as with any download. Turn it off under About.",
+      "policy": "Read the privacy policy"
     },
     "about": {
       "title": "About",
@@ -187,8 +189,16 @@
         "error": "The update check failed: {{message}}",
         "retry": "Try again",
         "unconfigured": "Updates are not configured for this build.",
-        "unconfiguredHint": "Development and unsigned builds cannot verify an update. Download the latest release from GitHub instead."
-      }
+        "unconfiguredHint": "Development and unsigned builds cannot verify an update. Download the latest release from GitHub instead.",
+        "auto": "Install updates automatically",
+        "autoHint": "Checks GitHub shortly after launch and installs a signed update when you quit. Nothing is installed while you are using Vitals.",
+        "pending": "Version {{version}} is downloaded and installs when you quit Vitals."
+      },
+      "legal": "Legal",
+      "privacyPolicy": "Privacy policy",
+      "terms": "Terms of use",
+      "licenses": "Open-source licences",
+      "logFolder": "Open log folder"
     }
   },
   "a11y": {

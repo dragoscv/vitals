@@ -194,7 +194,7 @@ describe('SettingsDialog', () => {
     }
   });
 
-  it('states plainly that nothing is sent, with no switches to get wrong', async () => {
+  it('states plainly what is sent and what listens, with no switches to get wrong', async () => {
     setSettingsBackend(memoryBackend().backend);
     render(<Harness />);
     const dialog = await screen.findByRole('dialog');
@@ -202,7 +202,11 @@ describe('SettingsDialog', () => {
     selectTab(dialog, 'Privacy');
 
     const panel = await within(dialog).findByRole('tabpanel');
-    expect(panel.textContent).toMatch(/sends nothing anywhere/i);
+    expect(panel.textContent).toMatch(/collects nothing about you/i);
+    // The two things "sends nothing" used to hide: the automatic update
+    // check, and the loopback listener that is always open.
+    expect(panel.textContent).toMatch(/update check to GitHub/i);
+    expect(panel.textContent).toMatch(/127\.0\.0\.1/);
     // The point of the rewrite: a promise the code can keep, rather than
     // three toggles wired to nothing.
     expect(within(panel).queryAllByRole('switch')).toHaveLength(0);

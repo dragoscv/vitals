@@ -161,7 +161,7 @@ fn run(app: &AppHandle, stop: &AtomicBool) {
         arm_startup_impact(app, &mut backend);
 
         match backend.next_frame() {
-            Ok(frame) => {
+            Ok(mut frame) => {
                 consecutive_failures = 0;
                 #[cfg(windows)]
                 feed_startup_impact(app, &mut backend, &frame);
@@ -175,17 +175,11 @@ fn run(app: &AppHandle, stop: &AtomicBool) {
                 }
                 if let Some(rec) = recorder.as_mut() {
                     reconcile_recorder(app, rec, &mut applied);
-                    // Serialised once here and once by `emit`. The duplicate
-                    // is deliberate: the flight recorder must hold exactly
-                    // the bytes the UI received, and `emit` gives us no
-                    // access to them.
-                    match serde_json::to_vec(&frame) {
-                        Ok(bytes) => {
-                            if let Err(error) = rec.observe(&frame, &bytes) {
-                                tracing::warn!(%error, "recorder write failed");
-                            }
-                        }
-                        Err(error) => tracing::warn!(%error, "frame did not serialise"),
+                    // Serialised once here and once by `emit`. The recorder
+                    // serialises its own copy because it leaves out owners
+                    // and MAC addresses, which the UI does receive.
+                    if let Err(error) = rec.observe(&mut frame) {
+                        tracing::warn!(%error, "recorder write failed");
                     }
                 }
                 // The LAN server, only while it is running: a clone of a

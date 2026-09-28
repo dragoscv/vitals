@@ -5697,7 +5697,7 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
 name = "vitals-bench"
-version = "0.1.0"
+version = "0.9.0-beta.1"
 dependencies = [
  "serde",
  "vitals-core",
@@ -5706,7 +5706,7 @@ dependencies = [
 
 [[package]]
 name = "vitals-cli"
-version = "0.1.0"
+version = "0.9.0-beta.1"
 dependencies = [
  "anyhow",
  "clap",
@@ -5724,7 +5724,7 @@ dependencies = [
 
 [[package]]
 name = "vitals-core"
-version = "0.1.0"
+version = "0.9.0-beta.1"
 dependencies = [
  "serde",
  "serde_json",
@@ -5734,7 +5734,7 @@ dependencies = [
 
 [[package]]
 name = "vitals-desktop"
-version = "0.1.0"
+version = "0.9.0-beta.1"
 dependencies = [
  "parking_lot",
  "serde",
@@ -5765,7 +5765,7 @@ dependencies = [
 
 [[package]]
 name = "vitals-helper"
-version = "0.1.0"
+version = "0.9.0-beta.1"
 dependencies = [
  "anyhow",
  "serde",
@@ -5780,7 +5780,7 @@ dependencies = [
 
 [[package]]
 name = "vitals-ipc"
-version = "0.1.0"
+version = "0.9.0-beta.1"
 dependencies = [
  "interprocess",
  "parking_lot",
@@ -5792,21 +5792,21 @@ dependencies = [
 
 [[package]]
 name = "vitals-linux"
-version = "0.1.0"
+version = "0.9.0-beta.1"
 dependencies = [
  "vitals-core",
 ]
 
 [[package]]
 name = "vitals-macos"
-version = "0.1.0"
+version = "0.9.0-beta.1"
 dependencies = [
  "vitals-core",
 ]
 
 [[package]]
 name = "vitals-server"
-version = "0.1.0"
+version = "0.9.0-beta.1"
 dependencies = [
  "axum",
  "futures-util",
@@ -5816,6 +5816,7 @@ dependencies = [
  "qrcode",
  "serde",
  "serde_json",
+ "sha2",
  "subtle",
  "thiserror 2.0.20",
  "tokio",
@@ -5828,7 +5829,7 @@ dependencies = [
 
 [[package]]
 name = "vitals-store"
-version = "0.1.0"
+version = "0.9.0-beta.1"
 dependencies = [
  "rusqlite",
  "serde",
@@ -5840,7 +5841,7 @@ dependencies = [
 
 [[package]]
 name = "vitals-win"
-version = "0.1.0"
+version = "0.9.0-beta.1"
 dependencies = [
  "serde",
  "serde_json",

@@ -73,18 +73,8 @@ fn state_with(
 ) -> ApiState {
     let tokens = TokenSet {
         tokens: vec![
-            Token {
-                secret: READ_TOKEN.into(),
-                scope: Scope::Read,
-                label: "phone".into(),
-                created: 0,
-            },
-            Token {
-                secret: CONTROL_TOKEN.into(),
-                scope: Scope::Control,
-                label: "trusted".into(),
-                created: 0,
-            },
+            Token::new(READ_TOKEN, Scope::Read, "phone", 0),
+            Token::new(CONTROL_TOKEN, Scope::Control, "trusted", 0),
         ],
     };
 

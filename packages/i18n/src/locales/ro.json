@@ -144,11 +144,13 @@
     },
     "privacy": {
       "title": "Confidențialitate",
-      "noTelemetry": "Vitals nu trimite nimic nicăieri.",
-      "localOnly": "Tot ce măsură rămâne pe acest calculator. Istoricul, dacă îl activezi, este un fișier local pe care îl poți șterge.",
-      "noCrashReports": "Nu există raportare de erori și nici analiză de utilizare — nici opțional, nici implicit, deloc.",
+      "noTelemetry": "Vitals nu colectează nimic despre tine și nu trimite nimic nicăieri.",
+      "localOnly": "Tot ce măsoară rămâne pe acest calculator. Istoricul, dacă îl activezi, este un fișier local pe care îl poți șterge.",
+      "noCrashReports": "Nu există raportare de erori și nici analiză de utilizare. Dacă Vitals se oprește neașteptat, scrie crash.txt în propriul folder, ca să-l atașezi la un raport — nu îl trimite niciodată.",
       "noLookups": "Niciun fișier nu este vreodată verificat sau căutat online.",
-      "lanServer": "Singura funcție de rețea este serverul LAN opțional pentru telefon și alte aplicații. Este oprit până îl pornești și comunică doar cu dispozitive din rețeaua ta."
+      "lanServer": "Serverul LAN pentru telefon și alte aplicații este oprit până îl pornești și răspunde doar dispozitivelor din rețeaua ta. O conexiune strict locală pe 127.0.0.1 este mereu deschisă, ca utilitarul în linie de comandă vitals să poată ajunge la aplicație.",
+      "updates": "Singura cerere pe care Vitals o face singur este verificarea actualizărilor pe GitHub, la circa 20 de secunde după pornire. GitHub vede adresa ta IP și versiunea aplicației, ca la orice descărcare. O poți opri din secțiunea Despre.",
+      "policy": "Citește politica de confidențialitate"
     },
     "about": {
       "title": "Despre",
@@ -189,8 +191,16 @@
         "error": "Verificarea actualizărilor a eșuat: {{message}}",
         "retry": "Încearcă din nou",
         "unconfigured": "Actualizările nu sunt configurate pentru această versiune.",
-        "unconfiguredHint": "Versiunile de dezvoltare și cele nesemnate nu pot verifica o actualizare. Descarcă cea mai recentă versiune de pe GitHub."
-      }
+        "unconfiguredHint": "Versiunile de dezvoltare și cele nesemnate nu pot verifica o actualizare. Descarcă cea mai recentă versiune de pe GitHub.",
+        "auto": "Instalează actualizările automat",
+        "autoHint": "Verifică pe GitHub la scurt timp după pornire și instalează o actualizare semnată când închizi aplicația. Nimic nu se instalează cât timp folosești Vitals.",
+        "pending": "Versiunea {{version}} este descărcată și se instalează când închizi Vitals."
+      },
+      "legal": "Informații legale",
+      "privacyPolicy": "Politica de confidențialitate",
+      "terms": "Termeni de utilizare",
+      "licenses": "Licențe open source",
+      "logFolder": "Deschide folderul cu jurnale"
     }
   },
   "a11y": {

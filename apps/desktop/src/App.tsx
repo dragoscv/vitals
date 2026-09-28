@@ -6,6 +6,7 @@ import { DASHBOARD_NS } from './features/dashboard/strings';
 import { signalReady, wasAutostarted } from './lib/ready';
 import { effectiveRate, pushSampleRate } from './lib/sampleRate';
 import {
+  pushAutoUpdate,
   pushCloseToTray,
   pushHistoryEnabled,
   pushRetentionDays,
@@ -104,7 +105,7 @@ function useSettingsSync(
   settings: ReturnType<typeof useSettings.getState>['settings'],
   hydrated: boolean,
 ): void {
-  const { historyEnabled, retentionDays, startWithWindows, closeToTray } = settings;
+  const { historyEnabled, retentionDays, startWithWindows, closeToTray, autoUpdate } = settings;
   const patch = useSettings((state) => state.patch);
 
   useEffect(() => {
@@ -121,6 +122,11 @@ function useSettingsSync(
     if (!hydrated) return;
     void pushCloseToTray(closeToTray);
   }, [hydrated, closeToTray]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    void pushAutoUpdate(autoUpdate);
+  }, [hydrated, autoUpdate]);
 
   useEffect(() => {
     if (!hydrated) return;

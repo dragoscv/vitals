@@ -170,6 +170,43 @@ impl Frame {
         (u128::from(delta_bytes) * 1000 / u128::from(self.elapsed_ms)).min(u128::from(u64::MAX))
             as u64
     }
+
+    /// Runs `f` on this frame with the fields that identify a person or a
+    /// device — process owners and adapter MAC addresses — taken out, then
+    /// puts them back.
+    ///
+    /// For anything written to disk without the user asking: the flight
+    /// recorder runs on every tick, and a crash-survivable file of who was
+    /// signed in and which hardware addresses the machine has is more than a
+    /// bug report needs. Moving the values out and back costs a few pointer
+    /// swaps; cloning a 600-process keyframe to redact it would cost the
+    /// sampler more than the write itself.
+    pub fn with_identifiers_removed<R>(&mut self, f: impl FnOnce(&Self) -> R) -> R {
+        let (system, processes) = match &mut self.payload {
+            FramePayload::Keyframe { system, processes } => (system, processes),
+            FramePayload::Delta {
+                system, changed, ..
+            } => (system, changed),
+        };
+        let users: Vec<Option<String>> = processes.iter_mut().map(|p| p.user.take()).collect();
+        let macs: Vec<Option<String>> = system.networks.iter_mut().map(|n| n.mac.take()).collect();
+
+        let result = f(self);
+
+        let (system, processes) = match &mut self.payload {
+            FramePayload::Keyframe { system, processes } => (system, processes),
+            FramePayload::Delta {
+                system, changed, ..
+            } => (system, changed),
+        };
+        for (process, user) in processes.iter_mut().zip(users) {
+            process.user = user;
+        }
+        for (network, mac) in system.networks.iter_mut().zip(macs) {
+            network.mac = mac;
+        }
+        result
+    }
 }
 
 #[cfg(test)]

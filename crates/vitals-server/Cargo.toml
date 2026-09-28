@@ -22,6 +22,7 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 subtle = { workspace = true }
 getrandom = { workspace = true }
+sha2 = { workspace = true }
 local-ip-address = { workspace = true }
 qrcode = { workspace = true }
 mdns-sd = { workspace = true }

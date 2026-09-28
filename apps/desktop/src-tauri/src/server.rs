@@ -261,11 +261,17 @@ fn tokens_path() -> PathBuf {
     data_dir().join("lan-tokens.json")
 }
 
+/// Reads the token set. A file from before tokens were hashed is rewritten
+/// hashed immediately, so no secret outlives the first launch of this build.
 fn load_tokens() -> TokenSet {
-    std::fs::read(tokens_path())
-        .ok()
-        .and_then(|bytes| serde_json::from_slice(&bytes).ok())
-        .unwrap_or_default()
+    let Ok(bytes) = std::fs::read(tokens_path()) else {
+        return TokenSet::default();
+    };
+    let tokens: TokenSet = serde_json::from_slice(&bytes).unwrap_or_default();
+    if bytes.windows(9).any(|w| w == b"\"secret\"") {
+        save_tokens(&tokens);
+    }
+    tokens
 }
 
 /// Writes the token set. Failure is logged, not surfaced: the tokens still
@@ -376,9 +382,9 @@ pub struct LanStatus {
     pub tokens: Vec<TokenSummary>,
 }
 
-/// How much of a secret the UI shows: enough to tell two pairings apart in
-/// a list, far too little to use. `revoke_pairing` requires all of it.
-const PREFIX_CHARS: usize = 8;
+// How much of a secret the UI shows: enough to tell two pairings apart in a
+// list, far too little to use. `revoke_pairing` requires all of it.
+use vitals_server::auth::PREFIX_CHARS;
 
 /// A token as shown in the UI: everything except the secret.
 #[derive(Debug, Clone, Serialize)]
@@ -394,7 +400,7 @@ pub struct TokenSummary {
 impl From<&Token> for TokenSummary {
     fn from(t: &Token) -> Self {
         Self {
-            prefix: t.secret.chars().take(PREFIX_CHARS).collect(),
+            prefix: t.prefix.clone(),
             scope: t.scope,
             label: t.label.clone(),
             created: t.created,
@@ -557,13 +563,9 @@ pub fn create_pairing(
             })?,
     };
 
-    let token = Token {
-        secret: vitals_server::auth::generate_secret(),
-        scope: request.scope,
-        label: request.label,
-        created: now_secs(),
-    };
-    let url = vitals_server::pairing_url(address, port, &token.secret);
+    let secret = vitals_server::auth::generate_secret();
+    let token = Token::new(&secret, request.scope, request.label, now_secs());
+    let url = vitals_server::pairing_url(address, port, &secret);
     let qr_svg = vitals_server::pairing_qr_svg(&url).map_err(|e| CommandError::Internal {
         message: format!("QR: {e}"),
     })?;
@@ -604,15 +606,11 @@ fn revoke_by_prefix(tokens: &mut TokenSet, prefix: &str) -> bool {
     if prefix.chars().count() < PREFIX_CHARS {
         return false;
     }
-    let matching = tokens
-        .tokens
-        .iter()
-        .filter(|t| t.secret.starts_with(prefix))
-        .count();
+    let matching = tokens.tokens.iter().filter(|t| t.prefix == prefix).count();
     if matching != 1 {
         return false;
     }
-    tokens.tokens.retain(|t| !t.secret.starts_with(prefix));
+    tokens.tokens.retain(|t| t.prefix != prefix);
     true
 }
 
@@ -668,12 +666,7 @@ mod tests {
     use super::*;
 
     fn token(secret: &str) -> Token {
-        Token {
-            secret: secret.into(),
-            scope: Scope::Read,
-            label: secret.into(),
-            created: 0,
-        }
+        Token::new(secret, Scope::Read, secret, 0)
     }
 
     #[test]
@@ -695,7 +688,7 @@ mod tests {
         };
         assert!(revoke_by_prefix(&mut set, "aaaaaaaa"));
         assert_eq!(set.tokens.len(), 1);
-        assert_eq!(set.tokens[0].secret, "bbbbbbbb-two");
+        assert_eq!(set.tokens[0].prefix, "bbbbbbbb");
     }
 
     #[test]
