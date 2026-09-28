@@ -60,7 +60,7 @@ jobs:
       tag: ${{ steps.plan.outputs.tag }}
       title: ${{ steps.plan.outputs.title }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -127,7 +127,7 @@ jobs:
     if: needs.plan.outputs.is_release == 'true'
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       # Before any compile: an updater release without its minisign key
       # produces installers every existing copy of Vitals refuses. Fail in
@@ -159,9 +159,9 @@ jobs:
         with:
           key: verify
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
@@ -272,7 +272,7 @@ jobs:
       IS_RELEASE: ${{ needs.plan.outputs.is_release }}
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -288,9 +288,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
@@ -438,7 +438,7 @@ jobs:
 
           Get-ChildItem $out -File | ForEach-Object { "  $($_.Name)  $([math]::Round($_.Length/1MB,1)) MB" }
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: vitals-${{ matrix.platform.name }}
           path: dist/${{ matrix.platform.name }}/*
@@ -457,7 +457,7 @@ jobs:
       (needs.verify.result == 'success' || needs.verify.result == 'skipped')
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -466,9 +466,9 @@ jobs:
         with:
           tool: cargo-cyclonedx
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
@@ -498,7 +498,7 @@ jobs:
           $count = (Get-Content sbom/sbom-js.cdx.json -Raw | ConvertFrom-Json).components.Count
           Write-Host "JavaScript SBOM: $count components"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: vitals-sbom
           path: sbom/*
@@ -529,9 +529,9 @@ jobs:
       PUBLISH_MACOS: ${{ vars.PUBLISH_MACOS }}
       PUBLISH_LINUX: ${{ vars.PUBLISH_LINUX }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v8
         with:
           path: artefacts
           pattern: vitals-*
@@ -621,18 +621,18 @@ jobs:
       # not check it, but a security-conscious user can
       # (`gh attestation verify`).
       - name: Attest build provenance
-        uses: actions/attest-build-provenance@v3
+        uses: actions/attest-build-provenance@v4
         with:
           subject-checksums: publish/SHA256SUMS.txt
 
       - name: Attest Rust SBOM
-        uses: actions/attest-sbom@v2
+        uses: actions/attest-sbom@v4
         with:
           subject-path: 'publish/*-setup.exe'
           sbom-path: publish/sbom-rust.cdx.json
 
       - name: Attest JavaScript SBOM
-        uses: actions/attest-sbom@v2
+        uses: actions/attest-sbom@v4
         with:
           subject-path: 'publish/*-setup.exe'
           sbom-path: publish/sbom-js.cdx.json
@@ -661,7 +661,7 @@ jobs:
       # nothing. The title says "(public beta)" instead. Only the nightly,
       # which must never become "latest", is a pre-release.
       - name: Publish release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: publish/*
           body_path: release-notes.md
@@ -692,9 +692,9 @@ jobs:
       # is stored anywhere, and the upload carries a provenance statement.
       id-token: write
     steps:
-      - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: pnpm
@@ -755,10 +755,10 @@ jobs:
           "ok=$($ok.ToString().ToLower())" | Add-Content $env:GITHUB_OUTPUT
 
       - if: steps.gate.outputs.ok == 'true'
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - if: steps.gate.outputs.ok == 'true'
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           repository: dragoscv/scoop-vitals
           # A deploy key: write access to the bucket and nothing else, unlike a
@@ -824,7 +824,7 @@ jobs:
           "ok=$($ok.ToString().ToLower())" | Add-Content $env:GITHUB_OUTPUT
 
       - if: steps.gate.outputs.ok == 'true'
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Pack
         if: steps.gate.outputs.ok == 'true'
