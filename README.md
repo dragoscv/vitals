@@ -130,7 +130,7 @@ The phone talks to a small HTTP server inside the app, and so can you:
 - **Prometheus** at `/metrics`. Absent readings are absent series, not zero.
 - **Home Assistant** — a ready-made package in
   [`docs/integrations/home-assistant.md`](docs/integrations/home-assistant.md).
-- **`@vitals/client`** — a typed TypeScript SDK over all three transports,
+- **[`@vitals-app/client`](https://www.npmjs.com/package/@vitals-app/client)** (`pnpm add @vitals-app/client@next`) — a typed TypeScript SDK over all three transports,
   built on the same generated types the app uses.
 - **mDNS** — the server advertises `_vitals._tcp` while it runs, and stops
   when it stops.

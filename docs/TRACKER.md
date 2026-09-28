@@ -164,6 +164,35 @@ CSV records the state.
 Every claim of "done" needs a command and its output. Recorded here as work
 lands, newest first.
 
+### 2026-09-28 — S13-12 CI in 8 minutes instead of 49
+
+**Cause.** The Windows leg was one job running clippy (622 s), `cargo test`
+(719 s), the performance budget and `cargo test --workspace --release --
+--ignored` (710 s — a fat-LTO build of the desktop app to run two
+`vitals-bench` tests) one after another. `cancel-in-progress: true` on
+main killed each run when the next push landed, and rust-cache saves only
+when a job finishes, so `gh cache list` held no Windows entry at all.
+
+**Change.** Three parallel Windows jobs with a rust-cache `shared-key` each,
+`cache-on-failure`, saved from main only; cancel only on pull requests;
+ignored tests run with `-p vitals-bench`, guarded by a step that fails if
+an `#[ignore]` appears anywhere else; `CARGO_INCREMENTAL=0` and
+`CARGO_PROFILE_DEV_DEBUG=0`; bindings check on Linux; installer built in
+parallel, without updater artefacts (the key is release-only — the first
+run failed with "A public key has been found, but no private key"); a
+`changes` job skips Rust for site/ADR/prose pushes (`docs/api` and
+`docs/integrations` stay in, the server tests `include_str!` them).
+
+**Evidence.**
+
+```text
+36421745331 (before)  first job start -> last job end 49.4 min   58 job-min
+36427586540 (after)   first job start -> last job end  7.7 min   21 job-min
+  Rust test (windows) 191 s · Rust lint (windows) 102 s · Performance 100 s
+  Build installer 447 s · Rust (linux) 79 s · all success
+guard: clean tree GREEN; planted #[ignore] in vitals-core RED
+```
+
 ### 2026-09-28 — S12-30 Devices shows this machine's temperatures; its fact cards never scroll
 
 **Ask.** The first two cards on Devices & sensors should be separate and not

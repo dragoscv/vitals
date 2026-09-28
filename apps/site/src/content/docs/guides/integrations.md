@@ -41,9 +41,15 @@ A ready-made package adds CPU, memory, disk, GPU and alert sensors to Home Assis
 
 ## TypeScript SDK
 
-[`@vitals/client`](https://github.com/dragoscv/vitals/tree/main/packages/client) is a typed client
-over REST, SSE and WebSocket, built on the same generated types the app itself uses. It lives in
-the repository under `packages/client`; publishing it to npm is planned.
+[`@vitals-app/client`](https://www.npmjs.com/package/@vitals-app/client) is a typed client over REST, SSE and WebSocket, built on the
+same generated types the app itself uses. No dependencies; ESM with full type declarations.
+
+```sh
+pnpm add @vitals-app/client@next
+```
+
+The `next` tag follows the beta. The source is `packages/client` in the repository (named
+`@vitals/client` inside the monorepo; the `@vitals` npm scope belongs to another project).
 
 ## Discovery
 

@@ -43,9 +43,16 @@ atenționări. Vezi
 
 ## SDK TypeScript
 
-[`@vitals/client`](https://github.com/dragoscv/vitals/tree/main/packages/client) este un client
-tipizat peste REST, SSE și WebSocket, construit pe aceleași tipuri generate pe care le folosește și
-aplicația. Se află în depozit, în `packages/client`; publicarea pe npm este planificată.
+[`@vitals-app/client`](https://www.npmjs.com/package/@vitals-app/client) este un client tipizat peste REST, SSE și WebSocket, construit pe
+aceleași tipuri generate pe care le folosește și aplicația. Fără dependențe; ESM cu declarații de
+tipuri complete.
+
+```sh
+pnpm add @vitals-app/client@next
+```
+
+Eticheta `next` urmează versiunea beta. Sursa este `packages/client` în depozit (numit
+`@vitals/client` în monorepo; scope-ul npm `@vitals` aparține altui proiect).
 
 ## Descoperire
 
