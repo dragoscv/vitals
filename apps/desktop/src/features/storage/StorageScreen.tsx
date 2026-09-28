@@ -148,76 +148,88 @@ export function StorageScreen({ source }: StorageScreenProps = {}): React.JSX.El
         </p>
       )}
 
-      {/* Drives, scan and cleanup are three cards the user reads in turn, not
-          one list, so the page body scrolls as a unit under a fixed title. */}
-      <div className="screen-scroll flex flex-col gap-4">
-        <Volumes
-          volumes={volumes}
-          activeMount={activeMount}
-          locale={locale}
-          onSelect={setSelected}
-        />
-
-        <div className="flex flex-wrap items-center gap-2">
-          <SegmentedControl
-            value={depth}
-            ariaLabel={t('scan.depthLabel')}
-            onValueChange={(next) => {
-              setDepth(next);
-            }}
-            options={DEPTHS.map((entry) => ({
-              value: entry.id,
-              label: t(`scan.depth.${entry.id}`),
-            }))}
+      {/*
+       * Drives and the scan controls stay at the top; below them the scan
+       * result and the clean-up list sit side by side, each scrolling inside
+       * its own card (S12-26). Before, the three scrolled together, so the
+       * Clean-up button was below the fold as soon as a scan had results.
+       * Small windows stack everything and the body scrolls instead.
+       */}
+      <div className="screen-body grid-rows-[auto_minmax(0,1fr)_minmax(0,1fr)] @5xl/main:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] @5xl/main:grid-rows-[auto_minmax(0,1fr)]">
+        <div className="flex flex-col gap-3 @5xl/main:col-span-2">
+          <Volumes
+            volumes={volumes}
+            activeMount={activeMount}
+            locale={locale}
+            onSelect={setSelected}
           />
-          {state.scanning ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                state.cancelScan();
+
+          <div className="flex flex-wrap items-center gap-2">
+            <SegmentedControl
+              value={depth}
+              ariaLabel={t('scan.depthLabel')}
+              onValueChange={(next) => {
+                setDepth(next);
               }}
-            >
-              <X aria-hidden className="size-4" />
-              {t('scan.cancel')}
-            </Button>
-          ) : (
-            <Button
-              size="sm"
-              disabled={activeMount === null}
-              onClick={() => {
-                if (activeMount !== null) state.scan(activeMount, activeDepth);
-              }}
-            >
-              {state.snapshot === null ? t('scan.start') : t('scan.rescan')}
-            </Button>
+              options={DEPTHS.map((entry) => ({
+                value: entry.id,
+                label: t(`scan.depth.${entry.id}`),
+              }))}
+            />
+            {state.scanning ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  state.cancelScan();
+                }}
+              >
+                <X aria-hidden className="size-4" />
+                {t('scan.cancel')}
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                disabled={activeMount === null}
+                onClick={() => {
+                  if (activeMount !== null) state.scan(activeMount, activeDepth);
+                }}
+              >
+                {state.snapshot === null ? t('scan.start') : t('scan.rescan')}
+              </Button>
+            )}
+          </div>
+
+          {state.scanError !== null && (
+            <p role="alert" className="text-2xs text-[var(--color-status-danger)]">
+              {/* Phrased as "the last completed scan" when one survives, because
+              the previous snapshot is deliberately still on screen. */}
+              {state.snapshot === null
+                ? t('scan.failed', { message: state.scanError })
+                : t('scan.stale', { message: state.scanError })}
+            </p>
+          )}
+
+          {state.scanning && (
+            <div role="status" className="flex flex-col gap-1.5">
+              <p className="text-sm">{t('scan.running', { root: state.scanRoot ?? '' })}</p>
+              <p className="text-2xs text-[var(--color-fg-muted)]">{t('scan.runningDetail')}</p>
+              {/* Indeterminate on purpose: the scanner reports files seen, not a
+              fraction of a total it cannot know before walking. A percentage
+              here would be invented. */}
+              <ProgressBar
+                indeterminate
+                label={t('scan.running', { root: state.scanRoot ?? '' })}
+              />
+            </div>
           )}
         </div>
 
-        {state.scanError !== null && (
-          <p role="alert" className="text-2xs text-[var(--color-status-danger)]">
-            {/* Phrased as "the last completed scan" when one survives, because
-              the previous snapshot is deliberately still on screen. */}
-            {state.snapshot === null
-              ? t('scan.failed', { message: state.scanError })
-              : t('scan.stale', { message: state.scanError })}
-          </p>
-        )}
-
-        {state.scanning && (
-          <div role="status" className="flex flex-col gap-1.5">
-            <p className="text-sm">{t('scan.running', { root: state.scanRoot ?? '' })}</p>
-            <p className="text-2xs text-[var(--color-fg-muted)]">{t('scan.runningDetail')}</p>
-            {/* Indeterminate on purpose: the scanner reports files seen, not a
-              fraction of a total it cannot know before walking. A percentage
-              here would be invented. */}
-            <ProgressBar indeterminate label={t('scan.running', { root: state.scanRoot ?? '' })} />
-          </div>
-        )}
-
         {state.snapshot === null ? (
           !state.scanning && (
-            <EmptyState title={t('scan.idleTitle')} description={t('scan.idleBody')} />
+            <div className="pane">
+              <EmptyState title={t('scan.idleTitle')} description={t('scan.idleBody')} />
+            </div>
           )
         ) : (
           <ScanResult
@@ -370,11 +382,11 @@ function ScanResult({
   );
 
   return (
-    <Card>
+    <Card className="pane">
       <CardHeader>
         <CardTitle level={3}>{t('result.heading')}</CardTitle>
       </CardHeader>
-      <CardBody className="flex flex-col gap-3">
+      <CardBody className="flex min-h-0 flex-1 flex-col gap-3">
         <div>
           <p className="text-sm">
             {t('result.total', {
@@ -439,7 +451,7 @@ function ScanResult({
             description={query === '' ? t('result.emptyBody') : t('result.filterEmptyBody')}
           />
         ) : (
-          <div className="overflow-x-auto rounded-md border border-[var(--color-border-subtle)]">
+          <div className="pane-scroll rounded-md border border-[var(--color-border-subtle)]">
             <table className="w-full text-left">
               <thead>
                 <tr className="text-2xs text-[var(--color-fg-muted)]">
@@ -516,7 +528,7 @@ function Cleanup({
   const groups = useMemo(() => groupBySafety(candidates ?? []), [candidates]);
 
   return (
-    <Card>
+    <Card className="pane">
       <CardHeader
         actions={
           <Button variant="ghost" size="sm" disabled={running} onClick={onScan}>
@@ -527,7 +539,7 @@ function Cleanup({
       >
         <CardTitle level={3}>{t('cleanup.heading')}</CardTitle>
       </CardHeader>
-      <CardBody className="flex flex-col gap-3">
+      <CardBody className="pane-scroll flex flex-col gap-3">
         {error !== null && (
           <p role="alert" className="text-2xs text-[var(--color-status-danger)]">
             {t('cleanup.failed', { message: error })}

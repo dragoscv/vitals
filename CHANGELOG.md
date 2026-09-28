@@ -23,6 +23,15 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   or Wi-Fi, so they could not be filtered out. They now start hidden, with
   unused tunnels and displays that report nothing.
 
+### 2026-09-28 — no page scroll on any screen
+
+#### Changed
+
+- **Every screen fits the window** — titles, toolbars and selections stay
+  put, and only the part that needs it scrolls: a table, a list, a card's
+  contents. In a very short window a screen's body scrolls as one, so
+  nothing gets squeezed unreadably small.
+
 ### 2026-09-28 — a dashboard that fits the window
 
 #### Changed

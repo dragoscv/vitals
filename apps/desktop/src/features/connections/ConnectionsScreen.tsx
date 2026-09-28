@@ -171,7 +171,9 @@ export function ConnectionsScreen({
       {visible.length === 0 ? (
         <EmptyState title={t('empty.title')} description={t('empty.body')} />
       ) : (
-        <div className="screen-scroll">
+        // A bounded box, like the tables elsewhere: the list scrolls inside
+        // it, and the search and filter above never scroll away (S12-26).
+        <div className="list-scroll">
           <ul className="flex flex-col gap-1.5">
             {visible.map((group) => (
               <GroupRow

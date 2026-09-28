@@ -33,8 +33,8 @@ export function CpuPanel({
   const { cpu } = system;
 
   return (
-    <div className="flex flex-col gap-4">
-      <div>
+    <div className="perf-panel">
+      <div className="perf-chart">
         <div className="mb-2 flex items-baseline justify-between gap-3">
           <span className="text-2xs text-[var(--color-fg-muted)]">{t('cpu.utilisation')}</span>
           <span className="tnum font-mono text-2xl">{formatPercent(cpu.total, locale)}</span>
@@ -51,7 +51,7 @@ export function CpuPanel({
           revision={history.revision}
           scale={{ min: 0, max: 100 }}
           grid={{ horizontalLines: 4 }}
-          className="h-40 w-full"
+          className="min-h-0"
           ariaLabel={t('cpu.title')}
         />
       </div>

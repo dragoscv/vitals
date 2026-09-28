@@ -118,7 +118,8 @@ export function UsersScreen({ reader }: UsersScreenProps): React.JSX.Element {
         {t('counts.interactive', { count: interactiveCount })}
       </p>
 
-      <div className="screen-scroll flex flex-col gap-3">
+      {/* The search above stays put; only the session cards scroll (S12-26). */}
+      <div className="pane-stack flex-1">
         {filteredSessions.map((session) => (
           <SessionCard
             key={session.sessionId}

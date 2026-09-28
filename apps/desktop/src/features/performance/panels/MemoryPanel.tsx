@@ -40,8 +40,8 @@ export function MemoryPanel({
   const usedPercent = memory.total > 0 ? (memory.used / memory.total) * 100 : 0;
 
   return (
-    <div className="flex flex-col gap-4">
-      <div>
+    <div className="perf-panel">
+      <div className="perf-chart">
         <div className="mb-2 flex items-baseline justify-between gap-3">
           <span className="text-2xs text-[var(--color-fg-muted)]">
             {t('memory.inUse')} — {formatBytes(memory.used, locale)} /{' '}
@@ -61,7 +61,7 @@ export function MemoryPanel({
           revision={history.revision}
           scale={{ min: 0, max: 100 }}
           grid={{ horizontalLines: 4 }}
-          className="h-40 w-full"
+          className="min-h-0"
           ariaLabel={t('memory.title')}
         />
       </div>

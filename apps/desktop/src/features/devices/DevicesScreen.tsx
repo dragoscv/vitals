@@ -34,6 +34,7 @@ import {
   CardTitle,
   EmptyState,
   Skeleton,
+  cn,
   formatCount,
   formatPercent,
   formatTemperature,
@@ -112,10 +113,19 @@ export function DevicesScreen({ reader }: DevicesScreenProps): React.JSX.Element
             {t('cost', { ms: Math.round(snapshot.elapsedMs) })}
           </p>
 
-          <div className="screen-scroll flex flex-col gap-4">
-            <PowerSection snapshot={snapshot} />
-            <BatterySection snapshot={snapshot} />
-            <ThermalSection snapshot={snapshot} />
+          {/*
+           * Two columns that fit the window (S12-26): the short, fixed
+           * facts (power, battery, thermal zones) on the left as one stack,
+           * the two open-ended lists (sensor readings, driver gaps) on the
+           * right, each scrolling inside its own card so its title and the
+           * table header stay put. Small windows stack them and scroll.
+           */}
+          <div className="screen-body @4xl/main:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] @4xl/main:grid-rows-[minmax(0,3fr)_minmax(0,2fr)]">
+            <div className="pane-stack @4xl/main:row-span-2">
+              <PowerSection snapshot={snapshot} />
+              <BatterySection snapshot={snapshot} />
+              <ThermalSection snapshot={snapshot} />
+            </div>
             <ReadingsSection snapshot={snapshot} />
             <GapsSection gaps={snapshot.gaps} />
           </div>
@@ -413,7 +423,7 @@ function ReadingsSection({ snapshot }: { readonly snapshot: SensorsSnapshot }) {
   );
 
   return (
-    <Card regionLabel={t('sensors.title')}>
+    <Card regionLabel={t('sensors.title')} className="pane">
       <CardHeader>
         <CardTitle level={3}>
           <span className="inline-flex items-center gap-1.5">
@@ -425,7 +435,7 @@ function ReadingsSection({ snapshot }: { readonly snapshot: SensorsSnapshot }) {
       </CardHeader>
       {/* The table draws its own padding, so the body sheds it — otherwise the
           header rule and the first row do not line up. */}
-      <CardBody className={hasMeasurements(snapshot) ? 'p-0' : 'p-3'}>
+      <CardBody className={cn('pane-scroll', hasMeasurements(snapshot) ? 'p-0' : 'p-3')}>
         {rows.length === 0 ? (
           <EmptyState title={t('sensors.none')} description={t('sensors.noneBody')} />
         ) : (
@@ -518,11 +528,11 @@ function GapsSection({ gaps }: { readonly gaps: readonly DriverGap[] }) {
   const { actionable, permanent } = useMemo(() => partitionGaps(gaps), [gaps]);
 
   return (
-    <Card regionLabel={t('gaps.title')}>
+    <Card regionLabel={t('gaps.title')} className="pane">
       <CardHeader>
         <CardTitle level={3}>{t('gaps.title')}</CardTitle>
       </CardHeader>
-      <CardBody className="flex flex-col gap-4">
+      <CardBody className="pane-scroll flex flex-col gap-4">
         <p className="text-2xs text-[var(--color-fg-muted)]">{t('gaps.body')}</p>
 
         {gaps.length === 0 && (

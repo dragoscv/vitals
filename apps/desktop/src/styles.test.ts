@@ -239,3 +239,48 @@ describe('the dashboard fits the window', () => {
     expect(source).toMatch(/'@container\/widget flex min-h-0 min-w-0 flex-col overflow-hidden'/);
   });
 });
+
+describe('screens made of panes', () => {
+  // S12-26: Devices, Storage, Benchmarks and Users scrolled their whole body
+  // under a fixed title, so section headers and buttons scrolled away. At a
+  // normal size the body now fits and each pane scrolls itself; only a small
+  // window stacks the panes and scrolls the body.
+  const rule = (css: string, selector: string): string =>
+    new RegExp(`${selector.replace(/[.]/g, '\\.')}\\s*\\{([^}]*)\\}`).exec(css)?.[1] ?? '';
+
+  it('fits the window at a normal size: the body grid never scrolls', async () => {
+    const css = await build([]);
+    const body = rule(css, '.screen-body');
+    expect(body).toMatch(/grid-auto-rows:\s*minmax\(0,\s*1fr\)/);
+    expect(body).toMatch(/min-height:\s*0/);
+    expect(body).not.toMatch(/overflow/);
+    expect(rule(css, '.pane-scroll')).toMatch(/overflow:\s*auto/);
+  });
+
+  it('stacks the panes and scrolls the body only when the window is small', async () => {
+    const source = await readFile(resolve(here, 'styles.css'), 'utf8');
+    for (const query of ['@media (max-height: 640px)', '@container main (width < 40rem)']) {
+      const start = source.indexOf(query);
+      expect(start, query).toBeGreaterThan(0);
+      const block = source.slice(start, source.indexOf('\n}\n', start));
+      expect(block, query).toMatch(/\.screen-body\s*\{[^}]*overflow-y:\s*auto/);
+      expect(block, query).toMatch(/grid-template-rows:\s*none/);
+    }
+  });
+
+  it('leaves no screen scrolling its whole body with `screen-scroll` except the rail detail', async () => {
+    const { execFileSync } = await import('node:child_process');
+    const hits = execFileSync('rg', ['-l', 'className="screen-scroll', resolve(here, 'features')], {
+      encoding: 'utf8',
+    })
+      .split(/\r?\n/)
+      .filter(Boolean)
+      .map((path) => path.replace(/\\/g, '/').split('/features/')[1]);
+    // Performance: the detail beside the rail, a pane in all but name.
+    // Dashboard: only its loading skeleton.
+    expect(hits.sort()).toEqual([
+      'dashboard/DashboardScreen.tsx',
+      'performance/PerformanceScreen.tsx',
+    ]);
+  });
+});

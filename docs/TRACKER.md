@@ -208,6 +208,38 @@ verify.ps1: clippy, rust tests (470 s), drift, bindings, perf budget, typecheck,
   cargo run, then 93 files / 937 tests PASS alone; cargo fmt applied, --check clean
 ```
 
+### 2026-09-28 — S12-28 no page scroll on any screen, only sections
+
+**Ask.** The same as the dashboard for every other screen — no vertical or
+horizontal page scroll, only sections — but done properly: some screens
+still need to scroll vertically at small resolutions to stay responsive.
+
+**Rule, now in styles.css.** A screen is a fixed top (title, toolbar,
+selection) over a body that fills the rest. What grows without bound — a
+table, a list, a card's contents — scrolls inside itself. When the window is
+too short to hold the panes at their minimum useful height, the body
+(`.screen-body`) scrolls as one region, so nothing is squeezed to
+nothing; that is the responsive case. The document and `main` never
+scroll, at any size.
+
+- `.pane-stack` / `.pane-scroll`: a card whose header stays put and
+  whose body scrolls (Storage scan and cleanup, Devices readings and gaps,
+  Benchmarks results, Users sessions).
+- `.list-scroll`: Network's connection list.
+- `.perf-panel` / `.perf-chart`: Performance's chart takes the height
+  left instead of a fixed `h-40`.
+
+`DevicePanels.tsx` carries the same change but also the other session's
+per-adapter charts (S12-27), so it is committed with that work.
+
+```text
+page-scroll-audit, 12 screens x 4 sizes = 48 runs: page scroll 0 in all 48
+  1280x800 / 1920x1080: only tables, lists and panes scroll
+  720x560 / 1024x640: .screen-body scrolls on Storage, Devices, Benchmarks, Users (short window)
+shadow-audit 1024x640 1280x800 1920x1080 → TOTAL clipped 0
+styles.test.ts guards; mutations RED; lint · typecheck · prettier · vitest · check-drift green
+```
+
 ### 2026-09-28 — S12-25 the dashboard fits the window
 
 **Ask.** Dashboard elements were too large; redesign it to look modern,
