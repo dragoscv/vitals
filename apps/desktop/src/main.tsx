@@ -1,5 +1,5 @@
 import { StrictMode } from 'react';
-import { createRoot } from 'react-dom/client';
+import { createRoot, type Root } from 'react-dom/client';
 
 import { initI18n } from '@vitals/i18n';
 
@@ -7,6 +7,14 @@ import { App } from './App';
 import { registerDashboardStrings } from './features/dashboard';
 import { registerShellStrings } from './shell/strings';
 import './styles.css';
+
+/**
+ * The mounted root, for the bootstrap test only. A root left mounted when
+ * the test environment tears `window` down keeps React's scheduler running
+ * against a document that no longer exists — "window is not defined", an
+ * unhandled error that failed CI while every assertion passed.
+ */
+export let mountedRoot: Root | null = null;
 
 /**
  * Boots the application.
@@ -32,7 +40,8 @@ async function bootstrap(): Promise<void> {
   registerShellStrings();
   registerDashboardStrings();
 
-  createRoot(container).render(
+  mountedRoot = createRoot(container);
+  mountedRoot.render(
     <StrictMode>
       <App />
     </StrictMode>,

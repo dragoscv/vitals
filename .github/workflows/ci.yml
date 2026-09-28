@@ -68,13 +68,6 @@ jobs:
         shell: pwsh
         run: pwsh -NoProfile -File scripts/version.ps1
 
-      # MIT and Apache-2.0 require their notices to ship with the binary. A
-      # dependency bump that forgets to regenerate the file fails here.
-      - name: Third-party notices are current
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: pwsh -NoProfile -File scripts/third-party-notices.ps1 -Check
-
       - name: Check formatting
         run: cargo fmt --all -- --check
 
@@ -181,6 +174,13 @@ jobs:
 
       - name: pnpm audit
         run: pnpm audit --audit-level high
+
+      # MIT and Apache-2.0 require their notices to ship with the binary. A
+      # dependency bump that forgets to regenerate the file fails here. In
+      # this job because it is the one with both cargo and pnpm.
+      - name: Third-party notices are current
+        shell: pwsh
+        run: pwsh -NoProfile -File scripts/third-party-notices.ps1 -Check
 
   build:
     name: Build installer

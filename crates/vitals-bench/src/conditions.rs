@@ -223,6 +223,9 @@ mod platform {
             Self
         }
 
+        // Same signature as the Windows probe so the runner compiles against
+        // either; this backend simply has nothing in `self` to read yet.
+        #[allow(clippy::unused_self)]
         pub fn finish(self, _elapsed: Duration) -> RunConditions {
             RunConditions {
                 power_plan: None,

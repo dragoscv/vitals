@@ -12,7 +12,10 @@
 
 import type * as I18nModule from '@vitals/i18n';
 
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { act } from 'react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import type * as MainModule from './main';
 
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(() => Promise.resolve()),
@@ -37,10 +40,21 @@ vi.mock('@tauri-apps/plugin-store', () => ({
 }));
 
 describe('application bootstrap', () => {
+  let main: typeof MainModule | null = null;
+
   beforeEach(() => {
     vi.resetModules();
     document.body.innerHTML =
       '<div id="splash"><div class="pulse"></div></div><div id="root"></div>';
+  });
+
+  // Unmount before happy-dom goes away, or React's scheduler fires into a
+  // torn-down window after the last assertion and vitest reports it as an
+  // unhandled error against a green run.
+  afterEach(() => {
+    const root = main?.mountedRoot ?? null;
+    if (root !== null) act(() => root.unmount());
+    main = null;
   });
 
   // Longer than the default: this imports the whole application, and its
@@ -50,7 +64,7 @@ describe('application bootstrap', () => {
   it('mounts without throwing and dismisses the splash', { timeout: 15_000 }, async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
 
-    await import('./main');
+    main = await import('./main');
 
     // `bootstrap` is async and the splash is hidden inside a rAF, so give
     // both a chance to settle before asserting.
@@ -93,7 +107,7 @@ describe('application bootstrap', () => {
 
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
 
-    await import('./main');
+    main = await import('./main');
 
     await vi.waitFor(
       () => {
