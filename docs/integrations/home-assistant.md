@@ -7,19 +7,19 @@ Assistant: `rest`, `template`, and optionally `prometheus`.
 
 ## What you get
 
-| Entity                                               | Reads                        | Notes                                              |
-| ---------------------------------------------------- | ---------------------------- | -------------------------------------------------- |
-| `sensor.vitals_cpu`                                  | total CPU load, %            |                                                    |
-| `sensor.vitals_memory_used`                          | RAM in use, %                | used ÷ total                                       |
-| `sensor.vitals_memory_used_gib`                      | RAM in use, GiB              |                                                    |
-| `sensor.vitals_gpu`                                  | busiest GPU engine, %        | `unknown` when the GPU does not report it          |
-| `sensor.vitals_cpu_temperature`                      | °C                           | `unknown` on most desktops without a sensor driver |
-| `sensor.vitals_processes`                            | number of running processes  |                                                    |
-| `sensor.vitals_uptime`                               | seconds since boot           | rendered as "2d 3h" by Home Assistant              |
-| `sensor.vitals_busiest_disk_read` / `_write`         | MiB/s on the busiest volume  |                                                    |
-| `sensor.vitals_busiest_network_download` / `_upload` | MiB/s on the busiest adapter | bytes, not bits                                    |
-| `binary_sensor.vitals_pc_reachable`                  | the Vitals API answered      | `unavailable` while the PC is off                  |
-| `binary_sensor.vitals_pc_online`                     | plain on/off for automations | folds `unavailable` into `off`                     |
+| Entity                                               | Reads                        | Notes                                                     |
+| ---------------------------------------------------- | ---------------------------- | --------------------------------------------------------- |
+| `sensor.vitals_cpu`                                  | total CPU load, %            |                                                           |
+| `sensor.vitals_memory_used`                          | RAM in use, %                | used ÷ total                                              |
+| `sensor.vitals_memory_used_gib`                      | RAM in use, GiB              |                                                           |
+| `sensor.vitals_gpu`                                  | busiest GPU engine, %        | `unknown` when the GPU does not report it                 |
+| `sensor.vitals_cpu_temperature`                      | °C                           | `unknown` until the optional sensors service is installed |
+| `sensor.vitals_processes`                            | number of running processes  |                                                           |
+| `sensor.vitals_uptime`                               | seconds since boot           | rendered as "2d 3h" by Home Assistant                     |
+| `sensor.vitals_busiest_disk_read` / `_write`         | MiB/s on the busiest volume  |                                                           |
+| `sensor.vitals_busiest_network_download` / `_upload` | MiB/s on the busiest adapter | bytes, not bits                                           |
+| `binary_sensor.vitals_pc_reachable`                  | the Vitals API answered      | `unavailable` while the PC is off                         |
+| `binary_sensor.vitals_pc_online`                     | plain on/off for automations | folds `unavailable` into `off`                            |
 
 A value Vitals cannot measure shows as **unknown**, never 0. That is
 deliberate: a GPU that exposes no counters is not a GPU at 0 %, and a 0 on
@@ -165,7 +165,7 @@ scrape_configs:
 ```
 
 Metric names: `vitals_cpu_percent`, `vitals_cpu_kernel_percent`,
-`vitals_cpu_core_percent{core}`, `vitals_cpu_temperature_celsius`,
+`vitals_cpu_core_percent{core}`, `vitals_cpu_temperature_celsius`, `vitals_cpu_power_watts`,
 `vitals_memory_bytes{state}`, `vitals_disk_bytes_per_second{disk,direction}`,
 `vitals_disk_active_percent{disk}`, `vitals_disk_capacity_bytes`,
 `vitals_network_bytes_per_second`, `vitals_gpu_percent`,
@@ -205,5 +205,5 @@ the rename.
 | `vitals_pc_reachable` is `on`, everything else `unavailable` | Wrong token. Check `secrets.yaml` has the `Bearer ` prefix and no trailing newline.                                       |
 | All sensors `unknown` for the first seconds                  | Normal. Vitals answers `204 No Content` until its first sample.                                                           |
 | `sensor.vitals_gpu` permanently `unknown`                    | The GPU exposes no engine counters to Vitals (virtual display, some laptops). Not a bug.                                  |
-| `sensor.vitals_cpu_temperature` permanently `unknown`        | Most desktop boards need Vitals to run elevated, or a vendor sensor driver. Not a bug.                                    |
+| `sensor.vitals_cpu_temperature` permanently `unknown`        | Install the sensors service from Devices & sensors (one administrator prompt). Not a bug.                                 |
 | Values lag a few seconds behind the Vitals window            | `scan_interval` is 5 s. Expected.                                                                                         |

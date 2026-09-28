@@ -84,15 +84,26 @@ rest:
 
       - name: Vitals CPU temperature
         unique_id: vitals_cpu_temperature
-        # Most desktop boards do not expose this to an unelevated process;
-        # expect `unknown` unless Vitals runs elevated or a sensor driver is
-        # installed. Same null guard as the GPU.
+        # Ring 0 on every CPU: `unknown` until the optional Vitals sensors
+        # service is installed (Devices & sensors, one administrator prompt).
+        # Same null guard as the GPU.
         value_template: >-
           {{ value_json.payload.system.cpu.temperature | round(1)
              if value_json.payload.system.cpu.temperature is not none
              else none }}
         device_class: temperature
         unit_of_measurement: °C
+        state_class: measurement
+
+      - name: Vitals CPU package power
+        unique_id: vitals_cpu_power
+        # Package energy (RAPL) from the same optional sensors service.
+        value_template: >-
+          {{ value_json.payload.system.cpu.power | round(1)
+             if value_json.payload.system.cpu.power is not none
+             else none }}
+        device_class: power
+        unit_of_measurement: W
         state_class: measurement
 
       - name: Vitals processes

@@ -103,6 +103,33 @@ Vitals wherever it would have launched Task Manager.
 
 ## The elevated helper (planned, not shipped)
 
+## The CPU sensors service (optional, installed on request)
+
+`vitals-sensors.exe` ([ADR-0031](docs/adr/0031-cpu-sensors-service.md)) is
+the one component that runs as SYSTEM. It is installed only when the user
+presses **Install sensors service** on Devices & sensors, after one
+administrator prompt, and it can be removed from the same place.
+
+- **Read only.** It reads CPU temperature and package-energy registers
+  through the signed PawnIO driver, whose sandboxed modules expose only the
+  registers they declare. It writes no register and takes no input: the pipe
+  is outbound only, and a client can do nothing except read one line.
+- **Pipe:** `\\.\pipe\vitals-sensors`, remote clients rejected. The DACL
+  gives SYSTEM and Administrators full access and interactive/authenticated
+  users read access. The first instance is created with
+  `FILE_FLAG_FIRST_PIPE_INSTANCE`, so another process cannot pre-create the
+  name and impersonate the service.
+- **Pinned code.** The PawnIO modules are embedded in the exe and checked
+  against SHA-256 pins before loading. The PawnIO 2.2.0 installer, fetched
+  only when the driver is missing, is checked against its pin by the app and
+  again by the elevated helper, on its copy in `%ProgramFiles%`, so the
+  file that runs is the file that was hashed.
+- **Location.** It is installed to `%ProgramFiles%\Vitals Sensors` (admin-only),
+  so the user who asked for it cannot replace the binary the SCM starts.
+- **Not reachable from the LAN.** No `ControlRequest` installs or removes it.
+
+## The elevated helper (planned, not shipped)
+
 `apps/helper` is a planned SYSTEM-level service for readings that need
 `SeDebugPrivilege` and for privileged operations. **It is a stub today and
 is not installed.** When it ships, the design is:

@@ -1,4 +1,4 @@
-//! What a kernel driver would unlock, and why we do not have one.
+//! What a kernel driver unlocks, and which of it Vitals has.
 //!
 //! This file deliberately contains no measurement code. It exists so that
 //! every sensor the UI might reasonably display has an entry that either
@@ -25,23 +25,24 @@
 //! blocklisted by Microsoft's vulnerable-driver list for exactly this
 //! reason.
 //!
-//! # Why not just ship one
+//! # Why Vitals does not ship its own
 //!
 //! A kernel driver must be signed with an EV certificate and submitted to
 //! the Microsoft Hardware Developer Centre for attestation signing.
 //! [`docs/distribution.md`] records the decision to remain free of paid
-//! signing infrastructure. A driver is therefore out of scope until that
-//! decision changes, and pretending otherwise in the UI would be dishonest.
+//! signing infrastructure, so Vitals signs no driver of its own.
 //!
-//! # How a driver would slot in
+//! # The one it uses: `PawnIO`, through an optional service
 //!
-//! Each [`DriverGap`] names the interface that a future provider must fill.
-//! Nothing else in this module would change: the reader returns
-//! [`SensorReading`](super::reading::SensorReading)s, and a driver-backed
-//! provider would simply return more of them with
-//! [`SensorSource::KernelDriver`](super::reading::SensorSource::KernelDriver).
-//! The gap list is what the UI renders in the meantime, so a user can see
-//! precisely what is missing and why.
+//! CPU temperature and package power come from the third-party signed
+//! `PawnIO` driver, whose sandboxed modules expose only declared registers
+//! (unlike `WinRing0`). A SYSTEM service the user installs on request reads
+//! it and publishes the numbers on a pipe ([`super::cpu_service`], ADR-0031).
+//! Those readings carry
+//! [`SensorSource::KernelDriver`](super::reading::SensorSource::KernelDriver),
+//! and the matching gaps close only while they are measured
+//! (`inventory::closed_by` in the desktop app). Super-I/O sensors — board,
+//! VRM, fans, rails — are outside `PawnIO`'s module set and stay listed.
 
 use vitals_core::capability::{Capability, Unavailable};
 
@@ -68,9 +69,9 @@ pub const DRIVER_GAPS: &[DriverGap] = &[
         capability: Capability::Thermals,
         reason: Unavailable::NeedsPlugin,
         label: "CPU core temperature",
-        requirement: "RDMSR of IA32_THERM_STATUS (0x19C) on Intel, or SMU mailbox reads on \
-                      AMD. Ring 0 only; needs a signed kernel driver such as the one \
-                      LibreHardwareMonitor ships, or the LHM sidecar plugin.",
+        requirement: "RDMSR of IA32_THERM_STATUS (0x19C) on Intel, or SMN THM reads on AMD. \
+                  Ring 0 only: install the optional Vitals sensors service (signed PawnIO \
+                  driver, one administrator prompt) and this gap closes.",
     },
     DriverGap {
         capability: Capability::Thermals,
@@ -107,9 +108,9 @@ pub const DRIVER_GAPS: &[DriverGap] = &[
         capability: Capability::PowerDraw,
         reason: Unavailable::NeedsPlugin,
         label: "CPU package power",
-        requirement: "Intel RAPL (MSR_PKG_ENERGY_STATUS, 0x611) or the AMD equivalent. Ring 0. \
-                      The Windows Energy Estimation Engine is not a substitute: it models \
-                      power from utilisation rather than measuring it.",
+        requirement: "Intel RAPL (MSR_PKG_ENERGY_STATUS, 0x611) or the AMD equivalent, read \
+                  by the optional Vitals sensors service. The Windows Energy Estimation \
+                  Engine is not a substitute: it models power from utilisation.",
     },
     DriverGap {
         capability: Capability::PowerDraw,

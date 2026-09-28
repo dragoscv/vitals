@@ -869,10 +869,130 @@ fn closed_by(
     sample: &vitals_win::sensors::SensorSample,
 ) -> bool {
     let any = |f: fn(&vitals_win::sensors::NvidiaGpu) -> bool| sample.nvidia.iter().any(f);
+    let cpu = sample.cpu.as_ref();
     match gap.label {
         "GPU temperature" => any(|g| g.temperature_celsius.is_some()),
         "GPU board power" => any(|g| g.power_watts.is_some()),
+        "CPU core temperature" => cpu
+            .and_then(vitals_win::sensors::cpu_service::CpuSensors::temperature)
+            .is_some(),
+        "CPU package power" => cpu.and_then(|c| c.package_watts).is_some(),
         _ => false,
+    }
+}
+
+// ---------------------------------------------------------------------------
+// CPU sensors service (crate vitals-sensors, ADR-0031)
+// ---------------------------------------------------------------------------
+
+/// Whether the optional CPU sensors service is there, and what installing it
+/// would involve. Drives the Devices screen's install / remove affordance.
+// Four independent facts, each rendered separately — PawnIO can be present
+// without the service, the service installed but not reading. An enum would
+// have to enumerate their product and the UI would unpack it again.
+#[allow(clippy::struct_excessive_bools)]
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SensorsServiceDto {
+    /// The service answered on its pipe, even if only with an error.
+    pub installed: bool,
+    /// It answered with a reading.
+    pub running: bool,
+    /// Why there is no reading: the service's own error, or the pipe's.
+    pub error: Option<String>,
+    /// The `PawnIO` driver is present; if not, installing downloads it.
+    pub pawnio_installed: bool,
+    /// This build ships the helper. A dev build without a prior
+    /// `cargo build -p vitals-sensors` has none, and the button must say so
+    /// rather than fail after a UAC prompt.
+    pub helper_available: bool,
+}
+
+/// Where the helper can be: the installed app's resources, or the cargo
+/// target directory beside a dev build of the app.
+#[cfg(windows)]
+fn sensors_helper(app: &tauri::AppHandle) -> Option<std::path::PathBuf> {
+    use tauri::Manager;
+
+    let mut dirs = Vec::new();
+    if let Ok(resources) = app.path().resource_dir() {
+        dirs.push(resources.join("sensors"));
+    }
+    if let Some(exe_dir) = std::env::current_exe()
+        .ok()
+        .and_then(|e| e.parent().map(std::path::Path::to_path_buf))
+    {
+        dirs.push(exe_dir);
+    }
+    // A dev build: `resource_dir` is the target directory, and the helper
+    // is staged by `scripts/bundle-sensors.ps1` in the source tree instead.
+    if cfg!(debug_assertions) {
+        dirs.push(std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("sensors"));
+    }
+    vitals_win::sensors::cpu_service::find_helper(&dirs)
+}
+
+#[tauri::command]
+#[cfg(windows)]
+pub async fn get_sensors_service(app: tauri::AppHandle) -> CommandResult<SensorsServiceDto> {
+    let helper_available = sensors_helper(&app).is_some();
+    // Off the IPC thread: the status read waits up to 300 ms for a busy pipe.
+    tauri::async_runtime::spawn_blocking(move || {
+        let status = vitals_win::sensors::cpu_service::status();
+        SensorsServiceDto {
+            installed: status.installed,
+            running: status.running,
+            error: status.error,
+            pawnio_installed: status.pawnio_installed,
+            helper_available,
+        }
+    })
+    .await
+    .map_err(|err| CommandError::Internal {
+        message: format!("the sensors-service check was abandoned: {err}"),
+    })
+}
+
+/// Installs (`install: true`) or removes the service, behind one UAC prompt.
+///
+/// Desktop-only on purpose: installing a SYSTEM service is exactly the kind
+/// of act a paired phone must not be able to trigger, so there is no LAN
+/// equivalent in `ControlRequest`.
+#[tauri::command]
+#[cfg(windows)]
+pub async fn setup_sensors_service(app: tauri::AppHandle, install: bool) -> CommandResult<()> {
+    let helper = sensors_helper(&app).ok_or_else(|| CommandError::Unsupported {
+        message: "this build does not include the sensors service helper".to_owned(),
+    })?;
+    let code = tauri::async_runtime::spawn_blocking(move || {
+        vitals_win::sensors::cpu_service::setup(&helper, install)
+    })
+    .await
+    .map_err(|err| CommandError::Internal {
+        message: format!("the sensors-service setup was abandoned: {err}"),
+    })??;
+    setup_outcome(code)
+}
+
+/// Maps the helper's exit code to a result the UI can state.
+#[cfg(windows)]
+fn setup_outcome(code: i32) -> CommandResult<()> {
+    use vitals_sensors::exit;
+    match code {
+        exit::OK => Ok(()),
+        exit::NO_PAWNIO => Err(CommandError::Internal {
+            message: "the PawnIO driver could not be installed, so the service was not started"
+                .to_owned(),
+        }),
+        exit::NOT_ELEVATED => Err(CommandError::AccessDenied {
+            message: "the helper did not receive administrator rights".to_owned(),
+        }),
+        other => Err(CommandError::Internal {
+            message: format!(
+                "the sensors helper failed (exit {other}); details are in \
+                 %ProgramData%\\Vitals Sensors\\install.log"
+            ),
+        }),
     }
 }
 
@@ -1430,5 +1550,78 @@ const fn cleanup_kind(kind: vitals_win::storage::CleanupKind) -> &'static str {
         K::PackageManagerCache => "packageManagerCache",
         K::ThumbnailCache => "thumbnailCache",
         K::DeliveryOptimisation => "deliveryOptimisation",
+    }
+}
+
+// `cfg(test)` on its own line: clippy's allow-expect-in-tests recognises a
+// module as a test module only by that attribute, not inside `all(...)`.
+#[cfg(test)]
+#[cfg(windows)]
+mod sensors_service_tests {
+    use super::*;
+    use vitals_win::sensors::cpu_service::CpuSensors;
+    use vitals_win::sensors::{
+        DRIVER_GAPS, SensorSample, ThermalAvailability, ThermalScan, read_power_state,
+    };
+
+    fn sample(cpu: Option<CpuSensors>) -> SensorSample {
+        SensorSample {
+            thermal: ThermalScan::unavailable(ThermalAvailability::NoZonesPresent),
+            batteries: Vec::new(),
+            power: read_power_state(),
+            nvidia: Vec::new(),
+            cpu,
+            readings: Vec::new(),
+            elapsed: std::time::Duration::ZERO,
+        }
+    }
+
+    fn gap(label: &str) -> &'static vitals_win::sensors::DriverGap {
+        DRIVER_GAPS
+            .iter()
+            .find(|g| g.label == label)
+            .expect("gap is listed")
+    }
+
+    #[test]
+    fn the_cpu_gaps_close_only_when_the_service_measured_them() {
+        let none = sample(None);
+        assert!(!closed_by(gap("CPU core temperature"), &none));
+        assert!(!closed_by(gap("CPU package power"), &none));
+
+        // Temperature without power: exactly one gap closes, because a
+        // service that read no energy counter has not measured power.
+        let temp_only = sample(Some(CpuSensors {
+            package_celsius: Some(52.0),
+            hottest_core_celsius: None,
+            package_watts: None,
+        }));
+        assert!(closed_by(gap("CPU core temperature"), &temp_only));
+        assert!(!closed_by(gap("CPU package power"), &temp_only));
+
+        let both = sample(Some(CpuSensors {
+            package_celsius: None,
+            hottest_core_celsius: Some(70.0),
+            package_watts: Some(40.0),
+        }));
+        assert!(closed_by(gap("CPU core temperature"), &both));
+        assert!(closed_by(gap("CPU package power"), &both));
+    }
+
+    #[test]
+    fn a_declined_or_failed_install_is_never_reported_as_success() {
+        assert!(setup_outcome(vitals_sensors::exit::OK).is_ok());
+        assert!(matches!(
+            setup_outcome(vitals_sensors::exit::NOT_ELEVATED),
+            Err(CommandError::AccessDenied { .. })
+        ));
+        for code in [
+            vitals_sensors::exit::FAILED,
+            vitals_sensors::exit::NO_PAWNIO,
+            vitals_sensors::exit::USAGE,
+            -1,
+        ] {
+            assert!(setup_outcome(code).is_err(), "exit {code} read as success");
+        }
     }
 }

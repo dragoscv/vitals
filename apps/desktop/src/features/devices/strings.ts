@@ -96,7 +96,7 @@ const en = {
     batteryMiniport: 'Battery miniport',
     systemPowerStatus: 'OS power status',
     vendorLibrary: 'GPU driver',
-    kernelDriver: 'Kernel driver',
+    kernelDriver: 'Sensors service (PawnIO)',
   },
 
   quality: {
@@ -154,6 +154,26 @@ const en = {
     needsHelper: 'Needs the Vitals helper service',
     needsPlugin: 'Needs a kernel driver or vendor SDK Vitals does not ship',
     disabledByUser: 'Turned off in settings',
+  },
+
+  service: {
+    title: 'CPU temperature and power',
+    body: 'Vitals can read CPU package temperature, the hottest core and package power by installing a small service that runs as SYSTEM and uses the signed PawnIO driver. It only reads; it never changes a register. One administrator prompt, removable here at any time.',
+    download:
+      'The PawnIO driver is not installed yet, so installing will also download PawnIO 2.2.0 from its official GitHub release. The file is checked against a pinned hash before it runs.',
+    install: 'Install sensors service',
+    remove: 'Remove sensors service',
+    working: 'Waiting for the administrator prompt…',
+    installed: 'Installed. CPU readings appear with the next refresh.',
+    removed: 'Removed. PawnIO stays installed, because other tools use it too.',
+    failed: 'The sensors service could not be set up: {{message}}',
+    notReading: 'The service is installed but cannot read this CPU: {{message}}',
+    noHelper: 'This build does not include the sensors service.',
+    state: {
+      running: 'Reading',
+      notReading: 'Installed, not reading',
+      notInstalled: 'Not installed',
+    },
   },
 
   unavailable: 'Not available',
@@ -245,7 +265,7 @@ const ro = {
     batteryMiniport: 'Miniport de baterie',
     systemPowerStatus: 'Starea de alimentare a sistemului',
     vendorLibrary: 'Driverul plăcii video',
-    kernelDriver: 'Driver de kernel',
+    kernelDriver: 'Serviciul de senzori (PawnIO)',
   },
 
   quality: {
@@ -304,6 +324,26 @@ const ro = {
     needsPlugin:
       'Necesită un driver de kernel sau un SDK al producătorului pe care Vitals nu îl distribuie',
     disabledByUser: 'Dezactivat în setări',
+  },
+
+  service: {
+    title: 'Temperatura și consumul procesorului',
+    body: 'Vitals poate citi temperatura capsulei procesorului, cel mai fierbinte nucleu și consumul capsulei instalând un serviciu mic care rulează ca SYSTEM și folosește driverul semnat PawnIO. Doar citește; nu modifică niciun registru. O singură confirmare de administrator, iar îl poți elimina de aici oricând.',
+    download:
+      'Driverul PawnIO nu este încă instalat, așa că instalarea va descărca și PawnIO 2.2.0 din versiunea oficială de pe GitHub. Fișierul este verificat cu un hash fixat înainte de a rula.',
+    install: 'Instalează serviciul de senzori',
+    remove: 'Elimină serviciul de senzori',
+    working: 'Se așteaptă confirmarea de administrator…',
+    installed: 'Instalat. Citirile procesorului apar la următoarea reîmprospătare.',
+    removed: 'Eliminat. PawnIO rămâne instalat, pentru că îl folosesc și alte programe.',
+    failed: 'Serviciul de senzori nu a putut fi configurat: {{message}}',
+    notReading: 'Serviciul este instalat, dar nu poate citi acest procesor: {{message}}',
+    noHelper: 'Această versiune nu include serviciul de senzori.',
+    state: {
+      running: 'Citește',
+      notReading: 'Instalat, nu citește',
+      notInstalled: 'Neinstalat',
+    },
   },
 
   unavailable: 'Indisponibil',

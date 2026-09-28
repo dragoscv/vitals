@@ -277,8 +277,18 @@ fn elevate(enabled: bool) -> Result<()> {
 ///   its exit code could not be read.
 pub fn run_elevated(args: &str, declined: &str) -> Result<u32> {
     let exe = std::env::current_exe()?;
-    let exe_w = wide(exe.to_str().ok_or_else(|| Error::Os {
-        context: format!("{} is not representable as UTF-8", exe.display()),
+    run_program_elevated(&exe, args, declined)
+}
+
+/// [`run_elevated`] for another executable — the sensors helper, which is
+/// bundled beside the app rather than being the app.
+///
+/// # Errors
+///
+/// As [`run_elevated`].
+pub fn run_program_elevated(program: &Path, args: &str, declined: &str) -> Result<u32> {
+    let exe_w = wide(program.to_str().ok_or_else(|| Error::Os {
+        context: format!("{} is not representable as UTF-8", program.display()),
         code: 0,
     })?);
 
@@ -318,7 +328,7 @@ pub fn run_elevated(args: &str, declined: &str) -> Result<u32> {
         }
 
         return Err(Error::Os {
-            context: format!("ShellExecuteExW(runas, vitals {args})"),
+            context: format!("ShellExecuteExW(runas, {} {args})", program.display()),
             code: code.cast_signed(),
         });
     }

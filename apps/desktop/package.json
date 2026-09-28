@@ -8,6 +8,7 @@
     "dev:vite": "vite",
     "build": "tauri build",
     "build:vite": "tsc --noEmit && vite build",
+    "build:sensors": "pwsh -NoProfile -File ../../scripts/bundle-sensors.ps1",
     "preview": "vite preview",
     "tauri": "tauri",
     "typecheck": "tsc --noEmit",

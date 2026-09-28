@@ -30,6 +30,7 @@
 
 pub mod battery;
 pub mod convert;
+pub mod cpu_service;
 pub mod driver;
 pub mod nvml;
 pub mod power;
@@ -74,6 +75,8 @@ pub struct SensorSample {
     pub power: PowerState,
     /// NVIDIA GPUs read through the driver's own `nvml.dll`. Empty elsewhere.
     pub nvidia: Vec<NvidiaGpu>,
+    /// CPU package temperature and power from the optional sensors service.
+    pub cpu: Option<cpu_service::CpuSensors>,
     /// Every zone and battery flattened into one list for the sensors table.
     pub readings: Vec<SensorReading>,
     /// Wall-clock cost of producing this sample.
@@ -195,6 +198,10 @@ pub fn read_all() -> SensorSample {
 
     let mut readings = thermal.readings();
     readings.extend(passive_limits);
+    let cpu = cpu_service::latest();
+    if let Some(cpu) = &cpu {
+        readings.extend(cpu_readings(cpu));
+    }
     for gpu in &nvidia {
         readings.extend(nvidia_readings(gpu));
     }
@@ -208,6 +215,7 @@ pub fn read_all() -> SensorSample {
         batteries,
         power,
         nvidia,
+        cpu,
         readings,
         elapsed: started.elapsed(),
     }
@@ -247,6 +255,42 @@ fn read_thermal() -> (ThermalScan, Vec<SensorReading>) {
         availability: ThermalAvailability::Available,
     };
     (scan, limits)
+}
+
+/// Flattens the sensors-service reading; an unreported value adds no row.
+fn cpu_readings(cpu: &cpu_service::CpuSensors) -> Vec<SensorReading> {
+    use vitals_core::units::{Celsius, Watts};
+
+    let mut out = Vec::new();
+    if let Some(c) = cpu.package_celsius {
+        out.push(SensorReading::new(
+            "cpu.package.temperature",
+            "CPU package temperature",
+            SensorValue::Temperature(Celsius(c)),
+            SensorSource::KernelDriver,
+            Quality::Measured,
+        ));
+    }
+    if let Some(c) = cpu.hottest_core_celsius {
+        out.push(SensorReading::new(
+            "cpu.core.hottest",
+            "CPU hottest core",
+            SensorValue::Temperature(Celsius(c)),
+            SensorSource::KernelDriver,
+            Quality::Measured,
+        ));
+    }
+    if let Some(w) = cpu.package_watts {
+        out.push(SensorReading::new(
+            "cpu.package.power",
+            "CPU package power",
+            SensorValue::Power(Watts(w)),
+            SensorSource::KernelDriver,
+            // Energy over an interval, from a counter: measured, not modelled.
+            Quality::Measured,
+        ));
+    }
+    out
 }
 
 /// Flattens one NVIDIA GPU into readings; an unreported value adds no row.
@@ -473,6 +517,7 @@ mod tests {
             batteries: Vec::new(),
             power: read_power_state(),
             nvidia: Vec::new(),
+            cpu: None,
             readings: Vec::new(),
             elapsed: Duration::ZERO,
         };
@@ -490,6 +535,7 @@ mod tests {
             batteries: Vec::new(),
             power: read_power_state(),
             nvidia: Vec::new(),
+            cpu: None,
             readings: Vec::new(),
             elapsed: Duration::ZERO,
         };

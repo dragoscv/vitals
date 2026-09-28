@@ -95,7 +95,7 @@ export function ThermalsPanel({
         </div>
       )}
 
-      <Gaps />
+      <Gaps cpuMeasured={system.cpu.temperature !== null} />
     </div>
   );
 }
@@ -182,15 +182,26 @@ function collectFans(system: SystemMetrics) {
  * and shipping them over IPC every second to say something that never changes
  * would be silly.
  */
+const CPU_GAP = 'Per-core CPU temperature';
+
 const GAPS: readonly string[] = [
-  'Per-core CPU temperature',
+  CPU_GAP,
   'CPU fan speed',
   'Motherboard and VRM temperatures',
   'Rail voltages',
   'Case fan speeds',
 ];
 
-function Gaps() {
+/**
+ * `cpuMeasured`: the optional sensors service (ADR-0031) supplies CPU
+ * temperature, and listing it as unmeasurable under a chart of it would
+ * contradict the chart.
+ */
+export function gapsFor(cpuMeasured: boolean): readonly string[] {
+  return cpuMeasured ? GAPS.filter((gap) => gap !== CPU_GAP) : GAPS;
+}
+
+function Gaps({ cpuMeasured }: { readonly cpuMeasured: boolean }) {
   const { t } = useTranslation(PERFORMANCE_NS);
 
   return (
@@ -198,7 +209,7 @@ function Gaps() {
       <summary className="cursor-pointer text-sm font-medium">{t('thermals.gaps')}</summary>
       <p className="mt-1.5 text-2xs text-[var(--color-fg-muted)]">{t('thermals.gapsHint')}</p>
       <ul className="mt-1.5 list-disc pl-4 text-2xs text-[var(--color-fg-subtle)]">
-        {GAPS.map((gap) => (
+        {gapsFor(cpuMeasured).map((gap) => (
           <li key={gap}>{gap}</li>
         ))}
       </ul>

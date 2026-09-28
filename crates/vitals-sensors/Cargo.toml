@@ -1,0 +1,43 @@
+[package]
+name = "vitals-sensors"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Read-only CPU temperature and package power service for Vitals (PawnIO), served on a named pipe."
+
+# The library is the part the unprivileged app links: the pipe contract, the
+# register decoding, and a std-only client. Everything that touches the driver
+# or the Service Control Manager lives in the binary, so the desktop app never
+# carries driver code it cannot run.
+[lib]
+name = "vitals_sensors"
+path = "src/lib.rs"
+
+[[bin]]
+name = "vitals-sensors"
+path = "src/main.rs"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = "0.10.9"
+
+[target.'cfg(windows)'.dependencies]
+windows-service = "0.8.1"
+windows = { version = "0.62.2", features = [
+        "Win32_Foundation",
+        "Win32_Security",
+        "Win32_Security_Authorization",
+        "Win32_Storage_FileSystem",
+        "Win32_System_IO",
+        "Win32_System_Pipes",
+        "Win32_System_Registry",
+        "Win32_System_SystemInformation",
+        "Win32_System_Threading",
+] }
+
+[lints]
+workspace = true

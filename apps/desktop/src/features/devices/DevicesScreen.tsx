@@ -21,8 +21,8 @@
  * those is a fabrication the user would act on.
  */
 
-import { Cpu, Lock, PlugZap, RefreshCw, ShieldAlert } from 'lucide-react';
-import { useMemo } from 'react';
+import { Cpu, Lock, PlugZap, RefreshCw, ShieldAlert, ShieldCheck } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import {
@@ -43,7 +43,9 @@ import {
 } from '@vitals/ui';
 
 import { ExportButton } from '../../components/ExportButton';
+import { errorMessage, isCommandError } from '../../lib/commandError';
 import type { ExportColumn } from '../../lib/export';
+import { hasTauriHost } from '../../shell/host';
 import {
   aggregateIsRedundant,
   batteryHealthPercent,
@@ -58,17 +60,33 @@ import {
   type SensorsSnapshot,
 } from './model';
 import { DEVICES_NS } from './strings';
+import {
+  serviceAction,
+  tauriSensorsService,
+  type SensorsServiceApi,
+  type SensorsServiceStatus,
+} from './sensorsService';
 import { NO_HOST, useSensors, type SensorsReader } from './useSensors';
 
 export interface DevicesScreenProps {
   /** Injectable so tests and the sampler-less preview need no Tauri host. */
   readonly reader?: SensorsReader;
+  /** Injectable for the same reason; `null` hides the service panel. */
+  readonly service?: SensorsServiceApi | null;
 }
 
-export function DevicesScreen({ reader }: DevicesScreenProps): React.JSX.Element {
+export function DevicesScreen({ reader, service }: DevicesScreenProps): React.JSX.Element {
   const { t, i18n } = useTranslation(DEVICES_NS);
   const state = useSensors(reader);
   const snapshot = state.snapshot;
+  // An injected reader without an injected service is a test of something
+  // else; it must not reach for the real IPC module.
+  const serviceApi =
+    service !== undefined
+      ? service
+      : reader === undefined && hasTauriHost()
+        ? tauriSensorsService
+        : null;
 
   const updatedLabel = useMemo(() => {
     if (state.updatedAt === null) return null;
@@ -130,7 +148,11 @@ export function DevicesScreen({ reader }: DevicesScreenProps): React.JSX.Element
               {snapshot.batteries.length > 0 && <BatterySection snapshot={snapshot} />}
             </div>
             <ReadingsSection snapshot={snapshot} />
-            <GapsSection gaps={snapshot.gaps} />
+            <GapsSection
+              gaps={snapshot.gaps}
+              service={serviceApi}
+              onServiceChanged={state.refresh}
+            />
           </div>
         </>
       )}
@@ -527,7 +549,15 @@ export function formatReading(reading: SensorReading, locale?: string): string {
   }
 }
 
-function GapsSection({ gaps }: { readonly gaps: readonly DriverGap[] }) {
+function GapsSection({
+  gaps,
+  service,
+  onServiceChanged,
+}: {
+  readonly gaps: readonly DriverGap[];
+  readonly service: SensorsServiceApi | null;
+  readonly onServiceChanged: () => void;
+}) {
   const { t } = useTranslation(DEVICES_NS);
   const { actionable, permanent } = useMemo(() => partitionGaps(gaps), [gaps]);
 
@@ -537,6 +567,8 @@ function GapsSection({ gaps }: { readonly gaps: readonly DriverGap[] }) {
         <CardTitle level={3}>{t('gaps.title')}</CardTitle>
       </CardHeader>
       <CardBody className="pane-scroll flex flex-col gap-4">
+        {service !== null && <SensorsServicePanel api={service} onChanged={onServiceChanged} />}
+
         <p className="text-2xs text-[var(--color-fg-muted)]">{t('gaps.body')}</p>
 
         {gaps.length === 0 && (
@@ -547,6 +579,131 @@ function GapsSection({ gaps }: { readonly gaps: readonly DriverGap[] }) {
         {permanent.length > 0 && <GapGroup heading={t('gaps.permanent')} gaps={permanent} />}
       </CardBody>
     </Card>
+  );
+}
+
+/**
+ * The one gap Vitals can close itself: CPU temperature and package power,
+ * through the optional sensors service (ADR-0031).
+ *
+ * Everything the user is agreeing to is on the panel before the UAC prompt:
+ * a signed third-party driver, a service running as SYSTEM, and — when the
+ * driver is missing — a download. A prompt that appears without that context
+ * is the kind people learn to click through.
+ */
+function SensorsServicePanel({
+  api,
+  onChanged,
+}: {
+  readonly api: SensorsServiceApi;
+  readonly onChanged: () => void;
+}) {
+  const { t } = useTranslation(DEVICES_NS);
+  const [status, setStatus] = useState<SensorsServiceStatus | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<{ tone: 'error' | 'info'; text: string } | null>(null);
+
+  const load = useCallback(
+    () =>
+      api.status().then(setStatus, (cause: unknown) => {
+        setMessage({ tone: 'error', text: errorMessage(cause) });
+      }),
+    [api],
+  );
+
+  useEffect(() => {
+    // State is set in the promise callbacks, after the external read — the
+    // subscription shape the effect rule allows.
+    void load();
+  }, [load]);
+
+  const action = serviceAction(status);
+
+  const run = async (install: boolean) => {
+    setBusy(true);
+    setMessage(null);
+    try {
+      await api.setup(install);
+      setMessage({ tone: 'info', text: t(install ? 'service.installed' : 'service.removed') });
+    } catch (cause: unknown) {
+      // A dismissed UAC prompt is the user's answer, not a failure.
+      const declined = isCommandError(cause) && cause.kind === 'refused';
+      setMessage({
+        tone: declined ? 'info' : 'error',
+        text: declined
+          ? errorMessage(cause)
+          : t('service.failed', { message: errorMessage(cause) }),
+      });
+    } finally {
+      setBusy(false);
+      await load();
+      onChanged();
+    }
+  };
+
+  if (status === null && message === null) return null;
+
+  return (
+    <section
+      aria-labelledby="sensors-service-title"
+      className="rounded-md border border-[var(--color-border-subtle)] p-3"
+    >
+      <div className="flex flex-wrap items-center gap-1.5">
+        <ShieldCheck aria-hidden className="size-4" />
+        <h4 id="sensors-service-title" className="text-sm font-medium">
+          {t('service.title')}
+        </h4>
+        {status !== null && (
+          <Badge tone={status.running ? 'ok' : status.installed ? 'warn' : 'neutral'}>
+            {t(
+              status.running
+                ? 'service.state.running'
+                : status.installed
+                  ? 'service.state.notReading'
+                  : 'service.state.notInstalled',
+            )}
+          </Badge>
+        )}
+      </div>
+      <p className="mt-1 text-2xs text-[var(--color-fg-muted)]">{t('service.body')}</p>
+      {status !== null && !status.installed && !status.pawnioInstalled && (
+        <p className="mt-1 text-2xs text-[var(--color-fg-muted)]">{t('service.download')}</p>
+      )}
+      {status?.installed === true && !status.running && status.error !== null && (
+        <p className="mt-1 text-2xs text-[var(--color-status-warn)]">
+          {t('service.notReading', { message: status.error })}
+        </p>
+      )}
+      {action === 'unavailable' && (
+        <p className="mt-1 text-2xs text-[var(--color-fg-subtle)]">{t('service.noHelper')}</p>
+      )}
+      {(action === 'install' || action === 'remove') && (
+        <div className="mt-2">
+          <Button
+            size="sm"
+            variant={action === 'install' ? 'primary' : 'secondary'}
+            loading={busy}
+            loadingLabel={t('service.working')}
+            onClick={() => void run(action === 'install')}
+          >
+            {t(action === 'install' ? 'service.install' : 'service.remove')}
+          </Button>
+        </div>
+      )}
+      {message !== null && (
+        <p
+          role={message.tone === 'error' ? 'alert' : 'status'}
+          className={cn(
+            'mt-2 text-2xs',
+            message.tone === 'error'
+              ? 'text-[var(--color-status-danger)]'
+              : 'text-[var(--color-fg-muted)]',
+          )}
+        >
+          {message.text}
+        </p>
+      )}
+    </section>
   );
 }
 

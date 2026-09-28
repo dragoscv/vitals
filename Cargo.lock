@@ -5758,6 +5758,7 @@ dependencies = [
  "vitals-ipc",
  "vitals-linux",
  "vitals-macos",
+ "vitals-sensors",
  "vitals-server",
  "vitals-store",
  "vitals-win",
@@ -5805,6 +5806,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "vitals-sensors"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "sha2",
+ "windows 0.62.2",
+ "windows-service",
+]
+
+[[package]]
 name = "vitals-server"
 version = "0.9.0-beta.1"
 dependencies = [
@@ -5846,6 +5858,7 @@ dependencies = [
  "serde",
  "serde_json",
  "vitals-core",
+ "vitals-sensors",
  "windows 0.62.2",
  "windows-sys 0.61.2",
 ]

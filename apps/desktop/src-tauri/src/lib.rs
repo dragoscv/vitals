@@ -195,6 +195,10 @@ fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
         inventory::uninstall_app,
         #[cfg(windows)]
         inventory::get_sensors,
+        #[cfg(windows)]
+        inventory::get_sensors_service,
+        #[cfg(windows)]
+        inventory::setup_sensors_service,
         // Storage. `scan_storage` and `find_cleanup_candidates` are
         // async so the synchronous command thread stays free — otherwise
         // `cancel_storage_scan` would queue behind the very scan it is

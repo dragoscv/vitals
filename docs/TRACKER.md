@@ -193,6 +193,51 @@ run failed with "A public key has been found, but no private key"); a
 guard: clean tree GREEN; planted #[ignore] in vitals-core RED
 ```
 
+### 2026-09-28 — S12-31 CPU temperature and package power through PawnIO
+
+**Ask.** "See how it was implemented in the codai desktop app and apply it
+the same way": CPU temperature, done codai's way. Owner decisions:
+Vitals' own service (not codai's pipe), PawnIO downloaded pinned by hash,
+and package power as well as temperature.
+
+**What.** `crates/vitals-sensors` is a port of `codai-sensors`. A LocalSystem
+service opens the signed PawnIO driver, loads the embedded, pinned
+PawnIO.Modules 0.2.11 blob for the vendor, and a one-second refresher reads
+package temperature (0x1B1), hottest core (0x19C, pinned per logical CPU
+across groups), TjMax (0x1A2) and RAPL energy (0x606/0x611; AMD
+0xC0010299/0xC001029B), wrap-safe over 32 bits. It serves one JSON line per
+connection on `\\.\pipe\vitals-sensors`. `vitals-win::sensors::cpu_service`
+is the reader (sampler-safe: about 0.3 ms, 10 s backoff when absent), plus
+status, pinned download (urlmon) and elevated setup via
+`run_program_elevated`. Devices gains a panel that says what installing
+involves (SYSTEM, signed driver, download if missing) before the one UAC
+prompt; a dismissed prompt is shown as the user's answer. Removal is always
+offered once installed. No LAN equivalent. The installer carries the helper
+from the same commit (`scripts/bundle-sensors.ps1` in `beforeBuildCommand`).
+
+**Found by the prover, not the tests.** The first client read 0 of 20 lines
+from the live service while a .NET reader got every one: the server
+disconnects right after flushing, and std maps the resulting
+`ERROR_PIPE_NOT_CONNECTED` (233) to an error, not EOF, so `read_to_string`
+discarded a complete line. `read_line` stops at the newline and treats a
+disconnect after data as the end. A second defect showed on the first UI
+install: the helper logged the refresher's `"starting"` placeholder as a
+failure (exit 1) while the service was fine; install now waits for the first
+real reading.
+
+```text
+prove_sensors_service: pipe reads 20/20 ok · latest() 0.315 ms -> 81 °C package, 80 °C hottest, 169.3 W
+UI Remove (UAC): panel "Not installed", CPU rows [], gaps + CPU core temperature, CPU package power
+UI Install (UAC): panel "Reading", rows 83 °C / 83 °C / 188 W, gaps 4 (was 6), install.log ok JSON
+serve_dev /metrics: vitals_cpu_temperature_celsius 81.000
+cargo test vitals-sensors 21 · vitals-win 620 · desktop 52 · clippy -D warnings clean
+vitest devices + performance 114 · tsc · eslint · check-drift 0 (60 invokes, 60 commands)
+mutations: refused shown as error → RED · CPU gap filter removed → RED · RAPL saturating_sub → RED (2)
+```
+
+**Still listed:** board and VRM temperatures, fan RPM, rail voltages
+(Super-I/O, outside PawnIO's module set), and drive temperature.
+
 ### 2026-09-28 — S12-30 Devices shows this machine's temperatures; its fact cards never scroll
 
 **Ask.** The first two cards on Devices & sensors should be separate and not

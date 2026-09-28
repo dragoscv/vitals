@@ -226,6 +226,18 @@ describe('PerformanceScreen', () => {
       // The honesty section: the limitation is Vitals', not the machine's, and
       // saying so stops someone hunting for a hardware fault.
       expect(screen.getByText('What cannot be measured')).toBeTruthy();
+      expect(screen.getByText('Rail voltages')).toBeTruthy();
+      // A measured CPU temperature (the sensors service) must not also be
+      // listed as unmeasurable under its own chart.
+      expect(screen.queryByText('Per-core CPU temperature')).toBeNull();
+    });
+
+    it('lists CPU temperature as unmeasurable while nothing measures it', () => {
+      mount({ cpu: { temperature: null } });
+
+      const rail = screen.getByRole('navigation', { name: 'Resources' });
+      fireEvent.click(within(rail).getByRole('button', { name: /Thermals/ }));
+
       expect(screen.getByText('Per-core CPU temperature')).toBeTruthy();
     });
 

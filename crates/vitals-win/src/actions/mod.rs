@@ -22,5 +22,6 @@ pub use safety::{ProcessFacts, Risk, assess_suspension, assess_termination, cons
 pub use shell::{executable_path, open_file_location, show_file_properties};
 pub use taskmgr::{
     ReplacementStatus, SET_REPLACEMENT_ARG, is_elevated, is_task_manager_elevation_hop,
-    launch_real_task_manager, replacement_status, set_replacement, write_replacement,
+    launch_real_task_manager, replacement_status, run_program_elevated, set_replacement,
+    write_replacement,
 };

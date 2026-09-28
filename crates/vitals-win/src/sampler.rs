@@ -213,7 +213,13 @@ impl SystemSampler {
 
         // CPU metrics need the aggregate thread and handle counts, so they
         // are computed before the process list is consumed below.
-        let cpu = build_cpu_metrics(&cpu_usage, &raw_processes);
+        // A pipe read of tens of microseconds, backed off when the service is
+        // absent — within the tick budget, unlike WMI (sensors::cpu_service).
+        let cpu = build_cpu_metrics(
+            &cpu_usage,
+            &raw_processes,
+            crate::sensors::cpu_service::latest(),
+        );
 
         // App history folds in from the same enumeration rather than running
         // its own, which would double the most expensive part of the tick for
@@ -575,7 +581,11 @@ fn vendor_from_name(name: &str) -> GpuVendor {
     }
 }
 
-fn build_cpu_metrics(per_core: &[crate::cpu::CpuUsage], processes: &[RawProcess]) -> CpuMetrics {
+fn build_cpu_metrics(
+    per_core: &[crate::cpu::CpuUsage],
+    processes: &[RawProcess],
+    cpu_sensors: Option<crate::sensors::cpu_service::CpuSensors>,
+) -> CpuMetrics {
     let cores = per_core.len().max(1) as f32;
 
     let total = Percent::new(per_core.iter().map(|u| u.total.get()).sum::<f32>() / cores);
@@ -588,12 +598,17 @@ fn build_cpu_metrics(per_core: &[crate::cpu::CpuUsage], processes: &[RawProcess]
         total,
         per_core: per_core.iter().map(|u| u.total).collect(),
         kernel,
-        // Clocks, temperature, power and throttle state need MSR or vendor
-        // access. Absent rather than guessed.
+        // Temperature and package power come from the optional sensors
+        // service, and are absent without it; clocks and throttle state
+        // still need MSR reads nothing performs. Absent rather than guessed.
         effective_clock: None,
         max_clock: None,
-        temperature: None,
-        power: None,
+        temperature: cpu_sensors
+            .and_then(|s| s.temperature())
+            .map(vitals_core::units::Celsius),
+        power: cpu_sensors
+            .and_then(|s| s.package_watts)
+            .map(vitals_core::units::Watts),
         throttled: None,
         process_count: u32::try_from(processes.len()).unwrap_or(u32::MAX),
         thread_count,

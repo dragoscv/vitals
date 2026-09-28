@@ -1,0 +1,4 @@
+# Staged by scripts/bundle-sensors.ps1 (beforeBuildCommand). .gitkeep keeps the
+# resource directory present so tauri-build accepts it in a clean checkout.
+sensors/*
+!sensors/.gitkeep

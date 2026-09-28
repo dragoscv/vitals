@@ -73,9 +73,8 @@ pub enum SensorSource {
     /// A vendor's own user-mode library installed with its driver, e.g.
     /// NVIDIA's `nvml.dll` in `System32`. Not redistributed by us.
     VendorLibrary,
-    /// A signed kernel driver talking to a Super-I/O or vendor bus.
-    ///
-    /// Never produced today; see [`crate::sensors::driver`].
+    /// A signed kernel driver — today `PawnIO`, read through the optional
+    /// `vitals-sensors` service ([`crate::sensors::cpu_service`]).
     KernelDriver,
 }
 

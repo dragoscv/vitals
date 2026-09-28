@@ -231,6 +231,16 @@ pub fn render(system: &SystemMetrics, processes: &[Process], top_n: usize) -> St
             },
         );
     }
+    if let Some(power) = system.cpu.power {
+        gauge(
+            &mut out,
+            "vitals_cpu_power_watts",
+            "CPU package power (RAPL), from the optional sensors service.",
+            |o| {
+                let _ = writeln!(o, "vitals_cpu_power_watts {}", num(power.0));
+            },
+        );
+    }
     if let Some(power) = system.power_draw {
         gauge(
             &mut out,
@@ -373,6 +383,7 @@ mod tests {
         // drags every average down.
         let out = render(&fixtures::system(), &[], 0);
         assert!(!out.contains("vitals_cpu_temperature_celsius"));
+        assert!(!out.contains("vitals_cpu_power_watts"));
         assert!(!out.contains("vitals_power_draw_watts"));
         assert!(!out.contains("vitals_battery_percent"));
 
@@ -383,6 +394,11 @@ mod tests {
             out.contains("vitals_cpu_temperature_celsius 61.500"),
             "{out}"
         );
+
+        let mut with_power = fixtures::system();
+        with_power.cpu.power = Some(vitals_core::units::Watts(142.25));
+        let out = render(&with_power, &[], 0);
+        assert!(out.contains("vitals_cpu_power_watts 142.250"), "{out}");
     }
 
     #[test]

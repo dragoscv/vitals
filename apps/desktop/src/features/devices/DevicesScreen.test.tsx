@@ -1,10 +1,11 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { i18n, initI18n } from '@vitals/i18n';
 
 import { DevicesScreen } from './DevicesScreen';
 import type { Battery, DriverGap, SensorReading, SensorsSnapshot } from './model';
+import type { SensorsServiceApi, SensorsServiceStatus } from './sensorsService';
 import { registerDevicesStrings } from './strings';
 
 beforeAll(async () => {
@@ -351,5 +352,132 @@ describe('DevicesScreen', () => {
     // "availability.accessDenied" on screen.
     const text = container.textContent ?? '';
     expect(text).not.toMatch(/\b(availability|reason|capability|quality|source|mode|line)\.[a-z]/i);
+  });
+});
+
+describe('the CPU sensors service', () => {
+  /** A real Error with the CommandError fields, as Tauri's rejection carries them. */
+  function commandError(kind: 'refused' | 'internal', message: string): Error {
+    return Object.assign(new Error(message), { kind });
+  }
+
+  function status(overrides: Partial<SensorsServiceStatus> = {}): SensorsServiceStatus {
+    return {
+      installed: false,
+      running: false,
+      error: 'open \\\\.\\pipe\\vitals-sensors: not found',
+      pawnioInstalled: false,
+      helperAvailable: true,
+      ...overrides,
+    };
+  }
+
+  function api(first: SensorsServiceStatus, after = first, setup?: () => Promise<void>) {
+    const statusFn = vi
+      .fn<() => Promise<SensorsServiceStatus>>()
+      .mockResolvedValueOnce(first)
+      .mockResolvedValue(after);
+    const setupFn = vi.fn<(install: boolean) => Promise<void>>(setup ?? (() => Promise.resolve()));
+    const service: SensorsServiceApi = { status: statusFn, setup: setupFn };
+    return { service, statusFn, setupFn };
+  }
+
+  async function mountWith(service: SensorsServiceApi) {
+    const reader = vi.fn<() => Promise<SensorsSnapshot>>().mockResolvedValue(snapshot());
+    render(<DevicesScreen reader={reader} service={service} />);
+    await screen.findByRole('heading', { name: 'CPU temperature and power' });
+    return { reader };
+  }
+
+  it('says what installing involves, including the download, before any prompt', async () => {
+    const { service, setupFn } = api(status());
+    await mountWith(service);
+
+    expect(screen.getByText(/runs as SYSTEM and uses the signed PawnIO driver/)).toBeTruthy();
+    expect(screen.getByText(/download PawnIO 2\.2\.0/)).toBeTruthy();
+    expect(screen.getByText('Not installed')).toBeTruthy();
+    expect(setupFn).not.toHaveBeenCalled();
+  });
+
+  it('does not mention a download when the driver is already there', async () => {
+    const { service } = api(status({ pawnioInstalled: true }));
+    await mountWith(service);
+    expect(screen.queryByText(/download PawnIO/)).toBeNull();
+  });
+
+  it('installs, then re-reads both the service and the sensors', async () => {
+    const { service, setupFn, statusFn } = api(
+      status(),
+      status({ installed: true, running: true, error: null, pawnioInstalled: true }),
+    );
+    const { reader } = await mountWith(service);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Install sensors service' }));
+
+    await screen.findByText(/CPU readings appear with the next refresh/);
+    expect(setupFn).toHaveBeenCalledWith(true);
+    expect(statusFn).toHaveBeenCalledTimes(2);
+    // The gap list must be re-read, or "CPU core temperature" stays listed
+    // as unmeasurable beside the new reading for a full cadence.
+    await waitFor(() => expect(reader).toHaveBeenCalledTimes(2));
+    expect(await screen.findByRole('button', { name: 'Remove sensors service' })).toBeTruthy();
+  });
+
+  it('treats a dismissed UAC prompt as an answer, not a failure', async () => {
+    const { service } = api(status(), status(), () =>
+      Promise.reject(
+        commandError(
+          'refused',
+          'administrator approval was declined, so the sensors service was not installed',
+        ),
+      ),
+    );
+    await mountWith(service);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Install sensors service' }));
+
+    await screen.findByText(/approval was declined/);
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('surfaces a real failure as an error', async () => {
+    const { service } = api(status(), status(), () =>
+      Promise.reject(commandError('internal', 'the sensors helper failed (exit 1)')),
+    );
+    await mountWith(service);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Install sensors service' }));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toMatch(/could not be set up: the sensors helper failed/);
+  });
+
+  it('offers removal for an installed service that cannot read this CPU', async () => {
+    const { service } = api(
+      status({ installed: true, running: false, error: 'unsupported AMD CPU family 0x16' }),
+    );
+    await mountWith(service);
+
+    expect(screen.getByText(/cannot read this CPU: unsupported AMD CPU family/)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Remove sensors service' })).toBeTruthy();
+  });
+
+  it('offers no button when the build has no helper', async () => {
+    const { service } = api(status({ helperAvailable: false }));
+    await mountWith(service);
+
+    expect(screen.getByText('This build does not include the sensors service.')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /sensors service/ })).toBeNull();
+  });
+
+  it('renders in Romanian without leaking key paths', async () => {
+    await i18n.changeLanguage('ro');
+    const { service } = api(status());
+    const reader = vi.fn<() => Promise<SensorsSnapshot>>().mockResolvedValue(snapshot());
+    const { container } = render(<DevicesScreen reader={reader} service={service} />);
+    await screen.findByRole('heading', { name: 'Temperatura și consumul procesorului' });
+
+    expect(screen.getByRole('button', { name: 'Instalează serviciul de senzori' })).toBeTruthy();
+    expect(container.textContent ?? '').not.toMatch(/\bservice\.[a-z]/i);
   });
 });

@@ -42,6 +42,8 @@ parking_lot = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
 vitals-win = { workspace = true }
+# Exit codes of the sensors helper; the client itself lives in vitals-win.
+vitals-sensors = { workspace = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 vitals-linux = { workspace = true }
