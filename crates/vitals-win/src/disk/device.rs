@@ -152,6 +152,20 @@ pub fn refine_kind(letter: char, fallback: DiskKind) -> DiskKind {
         })
 }
 
+/// The raw `STORAGE_BUS_TYPE` of a volume's device, if it answers.
+#[must_use]
+pub fn bus_type(letter: char) -> Option<i32> {
+    let handle = VolumeHandle::open(letter)?;
+    let query = STORAGE_PROPERTY_QUERY {
+        PropertyId: StorageDeviceProperty,
+        QueryType: PropertyStandardQuery,
+        AdditionalParameters: [0],
+    };
+    handle
+        .query::<_, STORAGE_DEVICE_DESCRIPTOR>(IOCTL_STORAGE_QUERY_PROPERTY, Some(&query))
+        .map(|d| d.BusType)
+}
+
 /// Whether the volume sits on a virtual, file-backed or Storage Spaces bus —
 /// the devices that answer neither classification query, so `Unknown` is
 /// the truthful kind for them rather than a failure to look.
@@ -199,7 +213,8 @@ mod tests {
         assert_ne!(
             kind,
             DiskKind::Unknown,
-            "C: answered neither the bus-type nor the seek-penalty query"
+            "C: answered neither the bus-type nor the seek-penalty query (bus type {:?})",
+            bus_type('C')
         );
     }
 
