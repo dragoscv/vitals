@@ -164,6 +164,33 @@ CSV records the state.
 Every claim of "done" needs a command and its output. Recorded here as work
 lands, newest first.
 
+### 2026-09-28 — S12-27 network chart follows the selected adapter
+
+**Ask.** The network chart did not change when switching adapters, and the
+rail's scrollbar sat on top of the entries.
+
+**Cause.** Not a rendering bug: `NetworkPanel` charted `history.core.netRx/Tx`,
+the machine-wide sum, for every adapter, because per-NIC history was never
+collected. The comment said so; the user saw it as a broken click. The rail's
+list padded 8 px under a 10 px Radix scrollbar that overlays the viewport.
+
+**Fix.** `HistoryCollector` keeps `netRx`/`netTx` per adapter id, with the
+same gap and reset handling as the disk and GPU series (34 adapters × 2 ×
+180 samples ≈ 100 KB). `NetworkPanel` charts the selected adapter's pair,
+keyed by id so a switch mounts a fresh chart, and names it after the
+adapter. The rail pads the bar's side by 16 px: right in the column layout,
+bottom in the strip.
+
+```text
+live CDP (tauri dev, this machine):
+  chart canvas Ethernet != Tailscale                      true
+  rail column  button right 472 -> 464, bar left 470      overlap 2 px -> -6 px
+  rail strip   900x700, button bottom 204, bar top 210    overlap -6 px
+history.test "records each network adapter separately" + PerformanceScreen.test
+  "charts the selected network adapter" — mutation (every adapter into one series) -> 2 RED
+vitest performance + dashboard: 11 files, 155 tests · tsc · eslint · prettier
+```
+
 ### 2026-09-28 — S12-26 hide devices on the Performance page
 
 **Ask.** Hide the devices that should not be listed, hide any device from a

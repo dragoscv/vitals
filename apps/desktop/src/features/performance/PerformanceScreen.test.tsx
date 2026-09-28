@@ -148,6 +148,44 @@ describe('PerformanceScreen', () => {
     expect(screen.queryByRole('menuitem')).toBeNull();
   });
 
+  it('charts the selected network adapter, not the machine total', () => {
+    // Every adapter used to draw the same machine-wide line, so switching
+    // between them looked like the page ignored the click.
+    mount({
+      networks: [
+        { id: 16, name: 'Ethernet', kind: 'ethernet', rx: 5000 },
+        { id: 14, name: 'Tailscale', kind: 'ethernet', rx: 30 },
+      ],
+    });
+
+    const rail = screen.getByRole('navigation', { name: 'Resources' });
+    fireEvent.click(within(rail).getByRole('button', { name: /Ethernet/ }));
+    expect(screen.getByRole('img', { name: 'Ethernet' })).toBeTruthy();
+
+    fireEvent.click(within(rail).getByRole('button', { name: /Tailscale/ }));
+    expect(screen.getByRole('img', { name: 'Tailscale' })).toBeTruthy();
+    expect(screen.queryByRole('img', { name: 'Ethernet' })).toBeNull();
+  });
+
+  it('offers no menu on thermals either', () => {
+    mount({ cpu: { temperature: 55 } });
+
+    const rail = screen.getByRole('navigation', { name: 'Resources' });
+    fireEvent.contextMenu(within(rail).getByRole('button', { name: /Thermals/ }));
+    expect(screen.queryByRole('menuitem')).toBeNull();
+  });
+
+  it('keeps rail buttons clear of the overlay scrollbar', () => {
+    // The Radix bar is 10 px and overlays the viewport; the list must pad
+    // that side by more, or the bar paints over the buttons' edge.
+    mount();
+
+    const rail = screen.getByRole('navigation', { name: 'Resources' });
+    const list = within(rail).getAllByRole('listitem')[0]?.parentElement;
+    expect(list?.className).toMatch(/\blg:pr-4\b/);
+    expect(list?.className).toMatch(/\bpb-4\b/);
+  });
+
   describe('thermals', () => {
     it('is absent when the machine reports no temperature', () => {
       mount({

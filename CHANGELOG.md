@@ -7,6 +7,16 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### 2026-09-28 — the network chart shows the adapter you chose
+
+#### Fixed
+
+- **The network chart shows the adapter you chose** — on the Performance
+  page every adapter drew the same total for the whole machine, so picking
+  another one seemed to do nothing. Each adapter now has its own chart.
+- **The scrollbar no longer covers the device list** on the Performance
+  page.
+
 ### 2026-09-28 — hide the devices you do not need
 
 #### Added

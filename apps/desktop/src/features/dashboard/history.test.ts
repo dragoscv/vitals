@@ -105,6 +105,26 @@ describe('HistoryCollector', () => {
     expect(collector.current.diskActive.get(3)?.last).toBe(90);
   });
 
+  it('records each network adapter separately so its own chart can be drawn', () => {
+    // The Performance page charted the machine-wide total for every adapter,
+    // so choosing another adapter left the chart unchanged.
+    const collector = new HistoryCollector();
+    collector.push(
+      frame(1, {
+        networks: [
+          { id: 16, rx: 5000, tx: 200 },
+          { id: 14, rx: 30, tx: 7 },
+        ],
+      }),
+    );
+
+    expect(collector.current.netRx.get(16)?.last).toBe(5000);
+    expect(collector.current.netTx.get(16)?.last).toBe(200);
+    expect(collector.current.netRx.get(14)?.last).toBe(30);
+    expect(collector.current.netTx.get(14)?.last).toBe(7);
+    expect(collector.current.core.netRx.last).toBe(5030);
+  });
+
   it('does not shift history onto the wrong device when one disappears', () => {
     // The reason series are keyed by id and not by array index: unplugging a
     // drive would otherwise slide every later device's history one chart left.

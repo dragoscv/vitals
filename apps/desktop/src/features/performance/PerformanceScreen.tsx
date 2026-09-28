@@ -135,7 +135,11 @@ export function PerformanceScreen({
               out by the same amount, so the selected item's glow has room to
               paint without the rail shifting off the column edge. */}
           <ScrollArea orientation="both" className="-m-2 lg:min-h-0 lg:flex-1">
-            <ul className="flex gap-1.5 p-2 lg:flex-col">
+            {/* The Radix bar overlays the viewport rather than taking space,
+                so the side it appears on gets a gutter wider than the bar
+                (10 px): right in the column layout, bottom in the strip.
+                With the shared 8 px the bar sat on the buttons' edge. */}
+            <ul className="flex gap-1.5 p-2 pb-4 lg:flex-col lg:pr-4 lg:pb-2">
               {entries.map((entry) => (
                 <li key={entry.id} className="min-w-40 flex-1 lg:min-w-0">
                   <RailButton

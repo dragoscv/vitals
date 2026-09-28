@@ -51,8 +51,8 @@ export function GpuPanel({
   const buffer = history.gpu.get(gpu.id);
 
   return (
-    <div className="flex flex-col gap-4">
-      <div>
+    <div className="perf-panel">
+      <div className="perf-chart">
         <div className="mb-2 flex items-baseline justify-between gap-3">
           <span className="truncate text-sm font-medium">{gpu.name}</span>
           <span className="tnum font-mono text-2xl">{formatPercent(gpu.utilization, locale)}</span>
@@ -63,7 +63,7 @@ export function GpuPanel({
             revision={history.revision}
             scale={{ min: 0, max: 100 }}
             grid={{ horizontalLines: 4 }}
-            className="h-40 w-full"
+            className="min-h-0"
             ariaLabel={gpu.name}
           />
         )}
@@ -167,8 +167,8 @@ export function DiskPanel({
   const used = disk.total - disk.free;
 
   return (
-    <div className="flex flex-col gap-4">
-      <div>
+    <div className="perf-panel">
+      <div className="perf-chart">
         <div className="mb-2 flex items-baseline justify-between gap-3">
           <span className="truncate text-sm font-medium">{disk.mount ?? disk.name}</span>
           <span className="tnum font-mono text-2xl">{formatPercent(disk.activeTime, locale)}</span>
@@ -179,7 +179,7 @@ export function DiskPanel({
             revision={history.revision}
             scale={{ min: 0, max: 100 }}
             grid={{ horizontalLines: 4 }}
-            className="h-40 w-full"
+            className="min-h-0"
             ariaLabel={disk.mount ?? disk.name}
           />
         )}
@@ -282,10 +282,12 @@ export function NetworkPanel({
 }): React.JSX.Element {
   const { t } = useTranslation(PERFORMANCE_NS);
   const colors = useThemeColors();
+  const rx = history.netRx.get(nic.id);
+  const tx = history.netTx.get(nic.id);
 
   return (
-    <div className="flex flex-col gap-4">
-      <div>
+    <div className="perf-panel">
+      <div className="perf-chart">
         <div className="mb-2 flex items-baseline justify-between gap-3">
           <span className="truncate text-sm font-medium">{nic.name}</span>
           <Badge tone={nic.connected ? 'ok' : 'neutral'}>
@@ -293,23 +295,26 @@ export function NetworkPanel({
           </Badge>
         </div>
         {/*
-         * Totals rather than this adapter's own series: per-NIC history is not
-         * collected, because on a machine with a dozen virtual adapters that
-         * would be a dozen ring buffers filling with zeroes. The panel is
-         * explicit that the chart is machine-wide by labelling the figures
-         * beneath it, which are this adapter's.
+         * This adapter's own series, keyed by its id so switching adapters
+         * mounts a fresh chart instead of redrawing the old one's scale. It
+         * charted the machine-wide total until S12-27, so every adapter
+         * showed the same line and choosing another one appeared to do
+         * nothing.
          */}
-        <TimeSeriesChart
-          series={[
-            { buffer: history.core.netRx, color: colors.accent, fillOpacity: 0.15, headDot: true },
-            { buffer: history.core.netTx, color: colors.warning, fillOpacity: 0.15 },
-          ]}
-          revision={history.revision}
-          scale={{ min: 0 }}
-          grid={{ horizontalLines: 4 }}
-          className="h-40 w-full"
-          ariaLabel={t('network.title')}
-        />
+        {rx !== undefined && tx !== undefined && (
+          <TimeSeriesChart
+            key={nic.id}
+            series={[
+              { buffer: rx, color: colors.accent, fillOpacity: 0.15, headDot: true },
+              { buffer: tx, color: colors.warning, fillOpacity: 0.15 },
+            ]}
+            revision={history.revision}
+            scale={{ min: 0 }}
+            grid={{ horizontalLines: 4 }}
+            className="min-h-0"
+            ariaLabel={nic.name}
+          />
+        )}
       </div>
 
       <StatList

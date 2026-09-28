@@ -88,6 +88,15 @@ export interface MetricHistory {
   readonly gpuMemory: DeviceSeries;
   readonly diskActive: DeviceSeries;
   /**
+   * Per-adapter throughput, so the Performance page charts the adapter that
+   * is selected. It used to chart the machine-wide total for every adapter,
+   * which made switching between them look broken: the chart never changed.
+   * Measured cost: 34 adapters × 2 buffers × 180 floats ≈ 100 KB, and 68
+   * pushes per tick.
+   */
+  readonly netRx: DeviceSeries;
+  readonly netTx: DeviceSeries;
+  /**
    * Increments whenever samples land.
    *
    * The buffers are mutable and deliberately outside React state; this counter
@@ -147,6 +156,8 @@ export class HistoryCollector {
     gpu: new Map(),
     gpuMemory: new Map(),
     diskActive: new Map(),
+    netRx: new Map(),
+    netTx: new Map(),
     revision: 0,
     lastTimestampMs: 0,
     sampleCount: 0,
@@ -207,6 +218,8 @@ export class HistoryCollector {
     for (const nic of networks) {
       rx += nic.rx;
       tx += nic.tx;
+      pushInto(this.state.netRx, nic.id, nic.rx);
+      pushInto(this.state.netTx, nic.id, nic.tx);
     }
     core.netRx.push(rx);
     core.netTx.push(tx);
@@ -243,7 +256,13 @@ export class HistoryCollector {
     // non-buffer field to `CoreSeries` is a compile error here rather than a
     // runtime `pushGap is not a function`.
     for (const buffer of coreBuffers(core)) buffer.pushGap();
-    for (const map of [this.state.gpu, this.state.gpuMemory, this.state.diskActive]) {
+    for (const map of [
+      this.state.gpu,
+      this.state.gpuMemory,
+      this.state.diskActive,
+      this.state.netRx,
+      this.state.netTx,
+    ]) {
       for (const buffer of map.values()) buffer.pushGap();
     }
     this.state = { ...this.state, revision: this.state.revision + 1 };
@@ -258,6 +277,8 @@ export class HistoryCollector {
       gpu: new Map(),
       gpuMemory: new Map(),
       diskActive: new Map(),
+      netRx: new Map(),
+      netTx: new Map(),
       revision: this.state.revision + 1,
       lastTimestampMs: 0,
       sampleCount: 0,
