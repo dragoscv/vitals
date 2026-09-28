@@ -163,6 +163,56 @@
     width: 100%;
     max-width: 0;
   }
+
+  /*
+   * The dashboard: a grid that fills the content column exactly and never
+   * scrolls (S12-25). Implicit rows share the height equally
+   * (`minmax(0, 1fr)`), so six widgets are two rows of half the window and
+   * twelve are four rows of a quarter; a card taller than its share scrolls
+   * inside its own body (`WidgetFrame`), never the page.
+   *
+   * Columns follow the width the column actually gets (the `main`
+   * container), not the window: the sidebar takes 56 or 224 px. Every step
+   * keeps a card at ~17rem or wider, so the numbers in it do not wrap.
+   *
+   * Then balanced against the widget count (`--n`, set by the screen): six
+   * widgets on a five-column ultrawide would be a full row and an orphan,
+   * so the grid uses the fewest columns that still need the same number of
+   * rows — three and three. `round(up, …)` is CSS, not JavaScript, so this
+   * follows the container without a resize observer.
+   */
+  .dashboard-grid {
+    --cols: 1;
+    --n: 1;
+    --rows: round(up, calc(var(--n) / var(--cols)), 1);
+    display: grid;
+    flex: 1 1 0%;
+    min-height: 0;
+    gap: 0.75rem;
+    grid-template-columns: repeat(round(up, calc(var(--n) / var(--rows)), 1), minmax(0, 1fr));
+    grid-auto-rows: minmax(0, 1fr);
+  }
+
+  @container main (width >= 34rem) {
+    .dashboard-grid {
+      --cols: 2;
+    }
+  }
+  @container main (width >= 60rem) {
+    .dashboard-grid {
+      --cols: 3;
+    }
+  }
+  @container main (width >= 110rem) {
+    .dashboard-grid {
+      --cols: 4;
+    }
+  }
+  @container main (width >= 150rem) {
+    .dashboard-grid {
+      --cols: 5;
+    }
+  }
 }
 
 /*

@@ -7,6 +7,15 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### 2026-09-28 — a dashboard that fits the window
+
+#### Changed
+
+- **The dashboard fits the window** — cards share the window's height and
+  width instead of growing with their content, so the page never scrolls;
+  a card that is short on room scrolls inside itself. Each card leads with
+  its key number in the header, and charts grow into the space left.
+
 ### 2026-09-28 — every tab is ready before you open it
 
 #### Changed

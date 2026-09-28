@@ -209,3 +209,33 @@ describe('one window background', () => {
     }
   });
 });
+
+describe('the dashboard fits the window', () => {
+  // S12-25: the dashboard scrolled 438 px at 1280×800 in two columns of
+  // content-height cards. It now shares the height between its rows and a
+  // card that is too short scrolls inside itself.
+  it('shares the height between rows instead of growing with content', async () => {
+    const css = await build([]);
+    const grid = /\.dashboard-grid\s*\{([^}]*)\}/.exec(css)?.[1] ?? '';
+    expect(grid).toMatch(/grid-auto-rows:\s*minmax\(0,\s*1fr\)/);
+    expect(grid).toMatch(/min-height:\s*0/);
+    expect(grid).not.toMatch(/overflow(-y)?:\s*(auto|scroll)/);
+  });
+
+  it('puts the grid directly in the screen, not in a scrolling wrapper', async () => {
+    const source = await readFile(resolve(here, 'features/dashboard/DashboardScreen.tsx'), 'utf8');
+    const grid = source.indexOf('dashboard-grid');
+    expect(grid).toBeGreaterThan(0);
+    // The nearest wrapper opened before the grid must not be `screen-scroll`.
+    const before = source.slice(0, grid);
+    const lastScroll = before.lastIndexOf('screen-scroll');
+    const lastEmpty = before.lastIndexOf(': placements.length === 0');
+    expect(lastScroll).toBeLessThan(lastEmpty);
+  });
+
+  it('lets a card scroll its own body when its share of the height is too small', async () => {
+    const source = await readFile(resolve(here, 'features/dashboard/WidgetFrame.tsx'), 'utf8');
+    expect(source).toMatch(/className="widget-body[^"]*\bmin-h-0\b[^"]*\boverflow-y-auto\b/);
+    expect(source).toMatch(/'@container\/widget flex min-h-0 min-w-0 flex-col overflow-hidden'/);
+  });
+});

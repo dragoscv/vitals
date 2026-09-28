@@ -66,6 +66,7 @@ import {
   type WidgetBodyProps,
 } from './widgets/ResourceWidgets';
 import type { HistorySource } from './widgets/useMachineHistory';
+import { headlineFor } from './widgets/headline';
 import { WidgetFrame } from './WidgetFrame';
 import {
   availableToAdd,
@@ -277,57 +278,66 @@ export function DashboardScreen({
           }
         />
       ) : (
-        <div className="screen-scroll">
-          <div
-            // Column count comes from the width the content column actually
-            // gets (container query, not the window: the sidebar takes 56 or
-            // 224 px of it), never from saved state, so a layout stored on an
-            // ultrawide is still correct on a laptop. The thresholds keep a
-            // card at ~300 px or wider — the old viewport ones put three
-            // 250 px cards beside an expanded sidebar at 1280. See the note
-            // in `widgets.ts` on why placements are a list, not a grid.
-            // `vitals-stagger` lifts each card in 40 ms after the previous one
-            // (theme.css). Only on mount: a widget moved in edit mode keeps its
-            // key, so it is not re-animated.
-            className="vitals-stagger grid grid-cols-1 gap-4 @2xl/main:grid-cols-2 @[110rem]/main:grid-cols-4 @[150rem]/main:grid-cols-5 @5xl/main:grid-cols-3"
-          >
-            {placements.map((placement, index) => {
-              const definition = widgetById.get(placement.id);
-              if (definition === undefined) return null;
+        <div
+          // The dashboard fits the window: it never scrolls, in either
+          // direction (S12-25). Implicit rows are `minmax(0, 1fr)`
+          // (`.dashboard-grid` in styles.css), so every row takes an equal
+          // share of the height the column has, however many widgets there
+          // are, and a card whose content is taller than its share scrolls
+          // inside its own body.
+          //
+          // Column count comes from the width the content column actually
+          // gets (container query, not the window: the sidebar takes 56 or
+          // 224 px of it), never from saved state, so a layout stored on an
+          // ultrawide is still correct on a laptop. Three columns from 60rem
+          // puts the default six widgets in two rows — the old two-column
+          // grid needed three rows and scrolled 438 px at 1280×800.
+          //
+          // See `widgets.ts` on why placements are a list, not coordinates.
+          //
+          // `vitals-stagger` lifts each card in 40 ms after the previous one
+          // (theme.css). Only on mount: a widget moved in edit mode keeps its
+          // key, so it is not re-animated.
+          className="dashboard-grid vitals-stagger"
+          style={{ '--n': placements.length } as React.CSSProperties}
+        >
+          {placements.map((placement, index) => {
+            const definition = widgetById.get(placement.id);
+            if (definition === undefined) return null;
 
-              return (
-                <WidgetFrame
-                  key={placement.id}
-                  index={index}
-                  definition={definition}
-                  size={placement.size}
-                  editing={editing}
-                  canMoveUp={index > 0}
-                  canMoveDown={index < placements.length - 1}
-                  onMove={(direction) => {
-                    layoutController.move(placement.id, direction);
-                  }}
-                  onResize={(size) => {
-                    layoutController.resize(placement.id, size);
-                  }}
-                  onRemove={() => {
-                    layoutController.remove(placement.id);
-                  }}
-                >
-                  <WidgetBody
-                    id={placement.id}
-                    snapshot={snapshot}
-                    history={historyState}
-                    locale={locale}
-                    alerts={alerts}
-                    recording={recording}
-                    historySource={historySource}
-                    onNavigate={navigate}
-                  />
-                </WidgetFrame>
-              );
-            })}
-          </div>
+            return (
+              <WidgetFrame
+                key={placement.id}
+                index={index}
+                definition={definition}
+                size={placement.size}
+                editing={editing}
+                canMoveUp={index > 0}
+                canMoveDown={index < placements.length - 1}
+                onMove={(direction) => {
+                  layoutController.move(placement.id, direction);
+                }}
+                onResize={(size) => {
+                  layoutController.resize(placement.id, size);
+                }}
+                onRemove={() => {
+                  layoutController.remove(placement.id);
+                }}
+                headline={headlineFor(placement.id, snapshot.system, locale, t)}
+              >
+                <WidgetBody
+                  id={placement.id}
+                  snapshot={snapshot}
+                  history={historyState}
+                  locale={locale}
+                  alerts={alerts}
+                  recording={recording}
+                  historySource={historySource}
+                  onNavigate={navigate}
+                />
+              </WidgetFrame>
+            );
+          })}
         </div>
       )}
 

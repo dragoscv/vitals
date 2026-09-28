@@ -25,7 +25,6 @@ import {
   formatFrequency,
   formatPercent,
   formatThroughput,
-  Meter,
 } from '@vitals/ui';
 
 import { useThemeColors } from './useThemeColors';
@@ -38,6 +37,19 @@ export interface WidgetBodyProps {
   readonly locale: string;
 }
 
+/**
+ * The chart area: takes whatever height the card has left after the stats.
+ *
+ * The dashboard fits the window (S12-25), so a card's height is its share
+ * of the window, not its content. A fixed-height chart either left a hole
+ * at 1440p or pushed the stats out of a card at 768p; flexing it means the
+ * numbers always stay visible and the chart grows into the rest. The floor
+ * keeps a trace legible in the smallest card.
+ */
+function ChartArea({ children }: { readonly children: React.ReactNode }) {
+  return <div className="relative min-h-8 flex-1">{children}</div>;
+}
+
 /** A row of label/value pairs under a chart. */
 function Stats({
   items,
@@ -45,11 +57,11 @@ function Stats({
   readonly items: readonly { label: string; value: string; key: string }[];
 }) {
   return (
-    <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5 sm:grid-cols-3">
+    <dl className="grid shrink-0 grid-cols-[repeat(auto-fill,minmax(6.5rem,1fr))] gap-x-3 gap-y-1">
       {items.map((item) => (
         <div key={item.key} className="min-w-0">
-          <dt className="truncate text-2xs text-[var(--color-fg-muted)]">{item.label}</dt>
-          <dd className="tnum truncate font-mono text-sm text-[var(--color-fg-default)]">
+          <dt className="truncate text-2xs leading-4 text-[var(--color-fg-muted)]">{item.label}</dt>
+          <dd className="tnum truncate font-mono text-xs leading-4 text-[var(--color-fg-default)]">
             <AnimatedValue value={item.value} />
           </dd>
         </div>
@@ -74,16 +86,18 @@ export function CpuWidget({ system, history, locale }: WidgetBodyProps): React.J
 
   return (
     <>
-      <TimeSeriesChart
-        series={series}
-        revision={history.revision}
-        scale={{ min: 0, max: 100 }}
-        className="h-24 w-full"
-        ariaLabel={t('widget.cpu.title')}
-      />
+      <ChartArea>
+        <TimeSeriesChart
+          series={series}
+          revision={history.revision}
+          scale={{ min: 0, max: 100 }}
+          className="absolute inset-0"
+          ariaLabel={t('widget.cpu.title')}
+        />
+      </ChartArea>
+      <PerCore values={cpu.perCore} label={t('cpu.perCore')} />
       <Stats
         items={[
-          { key: 'total', label: t('cpu.total'), value: formatPercent(cpu.total, locale) },
           { key: 'kernel', label: t('cpu.kernel'), value: formatPercent(cpu.kernel, locale) },
           {
             key: 'clock',
@@ -102,15 +116,8 @@ export function CpuWidget({ system, history, locale }: WidgetBodyProps): React.J
             value: formatCount(cpu.processCount, locale),
           },
           { key: 'threads', label: t('cpu.threads'), value: formatCount(cpu.threadCount, locale) },
-          {
-            key: 'handles',
-            label: t('cpu.handles'),
-            value:
-              cpu.handleCount !== null ? formatCount(cpu.handleCount, locale) : t('unavailable'),
-          },
         ]}
       />
-      <PerCore values={cpu.perCore} label={t('cpu.perCore')} />
     </>
   );
 }
@@ -137,33 +144,31 @@ function PerCore({
   if (values.length === 0) return null;
 
   return (
-    <div>
-      <p className="mb-1 text-2xs text-[var(--color-fg-muted)]">{label}</p>
-      <div
-        className="flex h-8 items-end gap-px"
-        role="img"
-        // One accessible summary rather than 32 announcements: a screen reader
-        // reading "core 1, 4%, core 2, 7%…" every second is unusable, and the
-        // per-core detail is available on the Performance page as a table.
-        aria-label={`${label}: ${values.length}`}
-      >
-        {values.map((value, index) => (
+    <div
+      className="flex h-5 shrink-0 items-end gap-px"
+      role="img"
+      // One accessible summary rather than 32 announcements: a screen reader
+      // reading "core 1, 4%, core 2, 7%…" every second is unusable, and the
+      // per-core detail is available on the Performance page as a table.
+      aria-label={`${label}: ${values.length}`}
+      title={label}
+    >
+      {values.map((value, index) => (
+        <div
+          key={index}
+          className="flex min-w-0 flex-1 flex-col justify-end rounded-t-[2px] bg-[var(--color-bg-inset)]"
+        >
           <div
-            key={index}
-            className="flex min-w-0 flex-1 flex-col justify-end rounded-t-[2px] bg-[var(--color-bg-inset)]"
-          >
-            <div
-              // The fill was never at the bottom: `marginTop: auto` does
-              // nothing outside a flex column, so every bar hung from the
-              // top. The column above is what makes it grow upwards.
-              className="w-full rounded-t-[2px] bg-gradient-to-t from-[var(--color-accent)] to-[color-mix(in_oklch,var(--color-accent)_60%,white)] transition-[height] duration-(--duration-slow) ease-(--ease-out-quart)"
-              style={{
-                height: `${Math.min(Math.max(value, 0), 100).toFixed(1)}%`,
-              }}
-            />
-          </div>
-        ))}
-      </div>
+            // The fill was never at the bottom: `marginTop: auto` does
+            // nothing outside a flex column, so every bar hung from the
+            // top. The column above is what makes it grow upwards.
+            className="w-full rounded-t-[2px] bg-gradient-to-t from-[var(--color-accent)] to-[color-mix(in_oklch,var(--color-accent)_60%,white)] transition-[height] duration-(--duration-slow) ease-(--ease-out-quart)"
+            style={{
+              height: `${Math.min(Math.max(value, 0), 100).toFixed(1)}%`,
+            }}
+          />
+        </div>
+      ))}
     </div>
   );
 }
@@ -173,35 +178,27 @@ export function MemoryWidget({ system, history, locale }: WidgetBodyProps): Reac
   const colors = useThemeColors();
   const { memory } = system;
 
-  const usedPercent = memory.total > 0 ? (memory.used / memory.total) * 100 : 0;
-
   return (
     <>
-      <TimeSeriesChart
-        series={[
-          {
-            buffer: history.core.memoryPercent,
-            color: colors.accent,
-            fillOpacity: 0.18,
-            headDot: true,
-          },
-        ]}
-        revision={history.revision}
-        scale={{ min: 0, max: 100 }}
-        className="h-24 w-full"
-        ariaLabel={t('widget.memory.title')}
-      />
-      <Meter
-        label={t('memory.used')}
-        accessibleLabel={t('widget.memory.title')}
-        value={usedPercent}
-        valueText={t('memory.ofTotal', {
-          used: formatBytes(memory.used, locale),
-          total: formatBytes(memory.total, locale),
-        })}
-      />
+      <ChartArea>
+        <TimeSeriesChart
+          series={[
+            {
+              buffer: history.core.memoryPercent,
+              color: colors.accent,
+              fillOpacity: 0.18,
+              headDot: true,
+            },
+          ]}
+          revision={history.revision}
+          scale={{ min: 0, max: 100 }}
+          className="absolute inset-0"
+          ariaLabel={t('widget.memory.title')}
+        />
+      </ChartArea>
       <Stats
         items={[
+          { key: 'used', label: t('memory.used'), value: formatBytes(memory.used, locale) },
           {
             key: 'available',
             label: t('memory.available'),
@@ -235,20 +232,27 @@ export function DiskWidget({ system, history, locale }: WidgetBodyProps): React.
 
   return (
     <>
-      <TimeSeriesChart
-        series={[
-          { buffer: history.core.diskRead, color: colors.accent, fillOpacity: 0.15, headDot: true },
-          { buffer: history.core.diskWrite, color: colors.warning, fillOpacity: 0.15 },
-        ]}
-        revision={history.revision}
-        // Autoscaled, unlike CPU: throughput has no natural ceiling, and a
-        // fixed axis picked for an NVMe drive would flatten a USB stick's
-        // trace to the baseline. `niceTo` keeps the axis from re-fitting on
-        // every frame, which otherwise makes a steady line visibly breathe.
-        scale={{ min: 0 }}
-        className="h-24 w-full"
-        ariaLabel={t('widget.disk.title')}
-      />
+      <ChartArea>
+        <TimeSeriesChart
+          series={[
+            {
+              buffer: history.core.diskRead,
+              color: colors.accent,
+              fillOpacity: 0.15,
+              headDot: true,
+            },
+            { buffer: history.core.diskWrite, color: colors.warning, fillOpacity: 0.15 },
+          ]}
+          revision={history.revision}
+          // Autoscaled, unlike CPU: throughput has no natural ceiling, and a
+          // fixed axis picked for an NVMe drive would flatten a USB stick's
+          // trace to the baseline. `niceTo` keeps the axis from re-fitting on
+          // every frame, which otherwise makes a steady line visibly breathe.
+          scale={{ min: 0 }}
+          className="absolute inset-0"
+          ariaLabel={t('widget.disk.title')}
+        />
+      </ChartArea>
       <Stats
         items={[
           { key: 'read', label: t('disk.read'), value: formatThroughput(read, locale) },
@@ -278,16 +282,18 @@ export function NetworkWidget({ system, history, locale }: WidgetBodyProps): Rea
 
   return (
     <>
-      <TimeSeriesChart
-        series={[
-          { buffer: history.core.netRx, color: colors.accent, fillOpacity: 0.15, headDot: true },
-          { buffer: history.core.netTx, color: colors.warning, fillOpacity: 0.15 },
-        ]}
-        revision={history.revision}
-        scale={{ min: 0 }}
-        className="h-24 w-full"
-        ariaLabel={t('widget.network.title')}
-      />
+      <ChartArea>
+        <TimeSeriesChart
+          series={[
+            { buffer: history.core.netRx, color: colors.accent, fillOpacity: 0.15, headDot: true },
+            { buffer: history.core.netTx, color: colors.warning, fillOpacity: 0.15 },
+          ]}
+          revision={history.revision}
+          scale={{ min: 0 }}
+          className="absolute inset-0"
+          ariaLabel={t('widget.network.title')}
+        />
+      </ChartArea>
       <Stats
         items={[
           { key: 'down', label: t('network.down'), value: formatThroughput(rx, locale) },

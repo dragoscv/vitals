@@ -164,6 +164,43 @@ CSV records the state.
 Every claim of "done" needs a command and its output. Recorded here as work
 lands, newest first.
 
+### 2026-09-28 — S12-25 the dashboard fits the window
+
+**Ask.** Dashboard elements were too large; redesign it to look modern,
+with no vertical or horizontal page scroll — only sections scroll when
+they must.
+
+**Before** (live CDP, `.copilot-tmp/dash-shot.mjs`): two columns of
+content-height cards, 491×448 at 1280×800; the page scrolled 438 px there,
+522 px at 1920×1080 and 2054 px (plus 17 px sideways) at 720×560.
+
+**Design.** The grid is the window. `.dashboard-grid` (styles.css) fills
+the content column with equal-share rows (`grid-auto-rows: minmax(0, 1fr)`)
+and a column count from the container width — 1/2/3/4/5 at
+34/60/110/150 rem — then balanced to the widget count with CSS `round()`,
+so six widgets are 3+3 rather than 5+1. Each card leads with one number in
+its header (`widgets/headline.ts`: CPU load, memory %, total disk and
+network throughput, the busiest GPU, battery charge; toned amber at 75 %
+and red at 90 %; nothing for lists and nothing when unmeasured). The chart
+takes whatever height is left, the stats are a compact auto-fill grid, and
+the body scrolls inside the card when a short window leaves too little.
+Figures the header now carries (CPU total, the memory meter) and the
+rarely-read handle count left the body.
+
+```text
+dash-shot, dark + light, doc/main scroll and inner scrollers:
+  1280x800   doc 0 main 0  0 scrollers  cards 328x325
+  1366x768   doc 0 main 0  0 scrollers  cards 357x309
+  1920x1080  doc 0 main 0  0 scrollers  cards 541x465
+  3440x1440  doc 0 main 0  0 scrollers  cards 1048x645 (3+3)
+  1024x640   doc 0 main 0  4 cards scroll inside (5-56 px)
+  720x560    doc 0 main 0  cards scroll inside
+layout-audit dashboard: main=0 at 720x560, 1280x800, 1920x1080 · shadow-audit 0 clipped
+guards: styles.test.ts "the dashboard fits the window" (3) + headline.test.ts (5);
+  mutations: auto rows → RED · body not scrollable → RED · warn threshold → RED · GPU 0 % → RED
+pnpm lint · typecheck · format:check · pnpm test · check-drift 0 · size 186.7 KB of 195.2 KB
+```
+
 ### 2026-09-28 — S12-24 every tab is ready before its first visit
 
 **Ask.** The first visit to a tab waited for its data; the second was

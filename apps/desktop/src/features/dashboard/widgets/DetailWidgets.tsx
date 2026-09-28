@@ -204,11 +204,11 @@ function TopList({
   }
 
   return (
-    <ol className="flex flex-col gap-1.5">
+    <ol className="flex flex-col gap-1">
       {entries.map((entry) => (
         <li key={entry.name} className="flex flex-col gap-0.5">
           <div className="flex items-baseline justify-between gap-2">
-            <span className="truncate text-sm">
+            <span className="truncate text-xs">
               {entry.name}
               {entry.count > 1 && (
                 <span className="ml-1.5 text-2xs text-[var(--color-fg-muted)]">
@@ -216,7 +216,7 @@ function TopList({
                 </span>
               )}
             </span>
-            <span className="tnum shrink-0 font-mono text-sm">{format(entry.value)}</span>
+            <span className="tnum shrink-0 font-mono text-xs">{format(entry.value)}</span>
           </div>
           <ProgressBar
             // Scaled against the largest entry rather than against 100% or

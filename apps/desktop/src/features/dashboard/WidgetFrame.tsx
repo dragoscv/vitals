@@ -17,9 +17,10 @@ import { ChevronDown, ChevronUp, Maximize2, Minimize2, X } from 'lucide-react';
 import { type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { Card, CardBody, CardHeader, CardTitle, IconButton, cn } from '@vitals/ui';
+import { AnimatedValue, Card, CardBody, CardHeader, CardTitle, IconButton, cn } from '@vitals/ui';
 
 import { DASHBOARD_NS } from './strings';
+import type { Headline } from './widgets/headline';
 import type { WidgetDefinition, WidgetSize } from './widgets';
 
 export interface WidgetFrameProps {
@@ -36,8 +37,16 @@ export interface WidgetFrameProps {
   readonly onRemove: () => void;
   /** Trailing content shown when not editing — a live badge, a link. */
   readonly actions?: ReactNode;
+  /** The one number the widget leads with, shown large beside the title. */
+  readonly headline?: Headline | null;
   readonly children: ReactNode;
 }
+
+const HEADLINE_TONE = {
+  default: 'text-[var(--color-fg-default)]',
+  warn: 'text-[var(--color-status-warn)]',
+  danger: 'text-[var(--color-status-danger)]',
+} as const;
 
 export function WidgetFrame({
   definition,
@@ -50,6 +59,7 @@ export function WidgetFrame({
   onResize,
   onRemove,
   actions,
+  headline,
   children,
 }: WidgetFrameProps): React.JSX.Element {
   const { t } = useTranslation(DASHBOARD_NS);
@@ -64,7 +74,10 @@ export function WidgetFrame({
       data-widget={definition.id}
       style={{ '--i': index } as React.CSSProperties}
       className={cn(
-        'flex min-w-0 flex-col',
+        // `min-h-0` lets the card shrink to its grid row: the dashboard fits
+        // the window and never scrolls, so a card whose content is taller
+        // than its row scrolls inside its own body instead (S12-25).
+        '@container/widget flex min-h-0 min-w-0 flex-col overflow-hidden',
         // Grid placement is a class, not inline style, so the same layout works
         // at every breakpoint without JavaScript measuring the window. Full
         // spans every track, whatever the grid's column count is at this width.
@@ -73,6 +86,7 @@ export function WidgetFrame({
       )}
     >
       <CardHeader
+        className="min-h-9 px-3.5 pt-2.5 pb-0.5"
         actions={
           editing ? (
             <>
@@ -109,6 +123,25 @@ export function WidgetFrame({
                 onClick={onRemove}
               />
             </>
+          ) : headline ? (
+            // The number a glance is for. In the header, not as the first of
+            // six equal stats, so the card can be a quarter of the window and
+            // still answer "how busy is it" without reading the body.
+            <p className="flex items-baseline gap-2">
+              {headline.caption !== undefined && (
+                <span className="tnum hidden truncate text-2xs text-[var(--color-fg-muted)] @[20rem]/widget:inline">
+                  {headline.caption}
+                </span>
+              )}
+              <span
+                className={cn(
+                  'tnum text-lg leading-none font-semibold tracking-tight',
+                  HEADLINE_TONE[headline.tone],
+                )}
+              >
+                <AnimatedValue value={headline.value} />
+              </span>
+            </p>
           ) : (
             actions
           )
@@ -116,7 +149,9 @@ export function WidgetFrame({
       >
         <CardTitle level={3}>{title}</CardTitle>
       </CardHeader>
-      <CardBody className="flex min-h-0 flex-1 flex-col gap-3">{children}</CardBody>
+      <CardBody className="widget-body flex min-h-0 flex-1 flex-col gap-2 overflow-x-hidden overflow-y-auto px-3.5 pt-1.5 pb-3">
+        {children}
+      </CardBody>
     </Card>
   );
 }
