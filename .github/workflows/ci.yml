@@ -49,6 +49,12 @@ jobs:
       # a four-minute compile never would: serde casing that disagrees with
       # the generated TypeScript, an invoke() with no command behind it, a
       # locale key present in one language only.
+      # GitHub's runners do not ship ripgrep; the drift script needs it.
+      - uses: taiki-e/install-action@v2
+        if: runner.os == 'Windows'
+        with:
+          tool: ripgrep
+
       - name: Contract drift
         if: runner.os == 'Windows'
         shell: pwsh

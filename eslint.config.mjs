@@ -14,6 +14,7 @@ export default defineConfig(
       '**/node_modules/**',
       '**/.turbo/**',
       '**/.vitest/**',
+      '**/.astro/**',
       // Generated from Rust — lint failures here belong to the generator.
       'packages/protocol/src/generated/**',
     ],
@@ -32,7 +33,7 @@ export default defineConfig(
       parserOptions: {
         projectService: {
           // Config files that sit outside every tsconfig `include`.
-          allowDefaultProject: ['packages/*/vitest.config.ts'],
+          allowDefaultProject: ['packages/*/vitest.config.ts', 'packages/*/tsup.config.ts'],
           defaultProject: 'apps/desktop/tsconfig.json',
         },
         tsconfigRootDir: import.meta.dirname,

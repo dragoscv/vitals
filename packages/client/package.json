@@ -1,25 +1,60 @@
 {
   "name": "@vitals/client",
   "version": "0.9.0-beta.1",
-  "private": true,
+  "description": "Typed TypeScript client for the Vitals system monitor's local and LAN API: REST, SSE and WebSocket.",
+  "license": "MIT",
+  "author": "Dragos Catalin Vladulescu",
+  "homepage": "https://vitals.dragoscatalin.ro/guides/integrations/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dragoscv/vitals.git",
+    "directory": "packages/client"
+  },
+  "bugs": "https://github.com/dragoscv/vitals/issues",
+  "keywords": [
+    "vitals",
+    "system-monitor",
+    "task-manager",
+    "windows",
+    "metrics",
+    "sse",
+    "websocket"
+  ],
+  "sideEffects": false,
   "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts"
   },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true,
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js"
+      }
+    }
+  },
   "scripts": {
+    "build": "tsup && tsc -p tsconfig.build.json && node scripts/inline-protocol.mjs",
+    "prepack": "tsup && tsc -p tsconfig.build.json && node scripts/inline-protocol.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
     "clean": "rimraf dist"
   },
-  "dependencies": {
-    "@vitals/protocol": "workspace:*"
-  },
   "devDependencies": {
     "@vitals/config": "workspace:*",
     "typescript": "catalog:",
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "@vitals/protocol": "workspace:*",
+    "tsup": "^8.5.1"
   }
 }

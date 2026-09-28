@@ -269,13 +269,20 @@ describe('screens made of panes', () => {
   });
 
   it('leaves no screen scrolling its whole body with `screen-scroll` except the rail detail', async () => {
-    const { execFileSync } = await import('node:child_process');
-    const hits = execFileSync('rg', ['-l', 'className="screen-scroll', resolve(here, 'features')], {
-      encoding: 'utf8',
-    })
-      .split(/\r?\n/)
-      .filter(Boolean)
-      .map((path) => path.replace(/\\/g, '/').split('/features/')[1]);
+    // A walk in Node rather than a ripgrep subprocess: CI runners have no
+    // `rg`, and a test that depends on a developer's PATH passes locally and
+    // fails everywhere else (it did, on the first CI run).
+    const { readdir } = await import('node:fs/promises');
+    const root = resolve(here, 'features');
+    const entries = await readdir(root, { recursive: true, withFileTypes: true });
+    const hits: string[] = [];
+    for (const entry of entries) {
+      if (!entry.isFile() || !/\.tsx?$/.test(entry.name)) continue;
+      const path = resolve(entry.parentPath, entry.name);
+      if ((await readFile(path, 'utf8')).includes('className="screen-scroll')) {
+        hits.push(path.replace(/\\/g, '/').split('/features/')[1] ?? path);
+      }
+    }
     // Performance: the detail beside the rail, a pane in all but name.
     // Dashboard: only its loading skeleton.
     expect(hits.sort()).toEqual([

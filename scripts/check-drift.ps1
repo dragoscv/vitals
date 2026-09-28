@@ -32,10 +32,19 @@ Set-Location $root
 $failures = [System.Collections.Generic.List[string]]::new()
 $warnings = [System.Collections.Generic.List[string]]::new()
 
+# The real executable, resolved once. Without ripgrep on PATH, `& rg` did not
+# fail: it recursed until PowerShell gave up with "call depth overflow" — the
+# first CI run on a GitHub runner, which has no ripgrep, showed nothing more.
+$rgExe = Get-Command rg -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+if ($null -eq $rgExe) {
+    Write-Host 'check-drift needs ripgrep (rg) on PATH: winget install BurntSushi.ripgrep.MSVC, or apt-get install ripgrep' -ForegroundColor Red
+    exit 2
+}
+
 function Get-Rg {
     param([string[]]$RgArgs)
     # rg exits 1 for "no matches", which is a legitimate answer here.
-    $out = & rg @RgArgs 2>$null
+    $out = & $rgExe.Source @RgArgs 2>$null
     if ($LASTEXITCODE -gt 1) { throw "rg failed: rg $($RgArgs -join ' ')" }
     return @($out)
 }

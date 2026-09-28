@@ -228,7 +228,7 @@ Microsoft; Vitals does not redistribute it.
 | [ring](https://github.com/briansmith/ring) | 0.17.14 | Apache-2.0 AND ISC |
 | [rusqlite](https://github.com/rusqlite/rusqlite) | 0.40.2 | MIT |
 | [rustc-hash](https://github.com/rust-lang/rustc-hash) | 2.1.3 | Apache-2.0 OR MIT |
-| [rustls](https://github.com/rustls/rustls) | 0.23.44 | Apache-2.0 OR ISC OR MIT |
+| [rustls](https://github.com/rustls/rustls) | 0.23.45 | Apache-2.0 OR ISC OR MIT |
 | [rustls-pki-types](https://github.com/rustls/pki-types) | 1.15.1 | MIT OR Apache-2.0 |
 | [rustls-platform-verifier](https://github.com/rustls/rustls-platform-verifier) | 0.7.0 | MIT OR Apache-2.0 |
 | [rustls-webpki](https://github.com/rustls/webpki) | 0.103.15 | ISC |

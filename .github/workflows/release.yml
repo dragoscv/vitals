@@ -170,6 +170,11 @@ jobs:
 
       # Two seconds, and catches what a compile cannot: serde casing against
       # the generated TypeScript, invoke() with no command, locale parity.
+      # GitHub's runners do not ship ripgrep; the drift script needs it.
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: ripgrep
+
       - name: Contract drift
         shell: pwsh
         run: pwsh -NoProfile -File scripts/check-drift.ps1

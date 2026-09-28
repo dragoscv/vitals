@@ -1,0 +1,26 @@
+# `cargo audit --deny warnings` fails on every advisory, including
+# "unmaintained" notices. Each exception below is a warning — never a
+# vulnerability — in a crate we do not depend on directly and cannot replace
+# without replacing Tauri itself. Reviewed 2026-09-28; re-review whenever
+# Tauri is upgraded, and delete any line whose crate has left Cargo.lock.
+#
+# A vulnerability (like RUSTSEC-2026-0285 in rustls, fixed by upgrading) is
+# never listed here.
+
+[advisories]
+ignore = [
+  # unic-* (unmaintained): pulled in by `urlpattern`, which tauri-utils uses to
+  # match capability URLs at build time. No runtime input reaches it.
+  "RUSTSEC-2025-0081", # unic-char-property
+  "RUSTSEC-2025-0075", # unic-char-range
+  "RUSTSEC-2025-0080", # unic-common
+  "RUSTSEC-2025-0100", # unic-ucd-ident
+  "RUSTSEC-2025-0098", # unic-ucd-version
+  # proc-macro-error (unmaintained): a proc-macro, runs only at compile time
+  # and ships nothing in the binary.
+  "RUSTSEC-2024-0370",
+  # glib 0.18 (unsound VariantStrIter): the GTK stack under Tauri on Linux
+  # only. The Windows build does not contain it, and Vitals never iterates a
+  # GVariant string array.
+  "RUSTSEC-2024-0429",
+]
