@@ -185,9 +185,17 @@ Checksums are in `SHA256SUMS.txt` alongside each release, and CycloneDX
 SBOMs for the Rust and JavaScript dependencies are attached too. See
 [docs/distribution.md](docs/distribution.md) for the full reasoning.
 
-Package managers — winget, Scoop and Chocolatey — are wired into the release
-pipeline and switch on as each listing is approved; see
-[docs/releasing.md](docs/releasing.md).
+Or with a package manager:
+
+```powershell
+scoop bucket add vitals https://github.com/dragoscv/scoop-vitals
+scoop install vitals/vitals
+```
+
+winget (`winget install Vitals.Vitals`) and Chocolatey (`choco install vitals
+--pre`) are submitted and become available once each registry's moderators
+approve the first listing; every later release updates all three
+automatically. See [docs/releasing.md](docs/releasing.md).
 
 ## Building
 
