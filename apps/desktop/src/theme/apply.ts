@@ -43,7 +43,6 @@ export function applyTheme(
 
   root.classList.toggle('dark', mode === 'dark');
   root.dataset['accent'] = settings.accent;
-  root.dataset['surface'] = settings.surface;
   root.dataset['density'] = settings.density;
   root.style.setProperty('--row-height', `${rowHeight(settings.density)}px`);
 

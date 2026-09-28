@@ -7,9 +7,8 @@
  * indicator, which is a WCAG 2.4.7 failure that nobody notices because it only
  * shows up when navigating by keyboard.
  *
- * Every colour is a `var(--color-*)` token: the theme has three independent
- * axes (light/dark, accent hue, surface translucency) and a literal colour
- * silently opts out of all three.
+ * Every colour is a `var(--color-*)` token: the theme has independent axes
+ * (light/dark, accent hue) and a literal colour silently opts out of them.
  */
 
 /**

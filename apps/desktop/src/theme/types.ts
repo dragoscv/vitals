@@ -1,4 +1,4 @@
-/** The three independent appearance axes. See `packages/ui/src/styles/theme.css`. */
+/** The independent appearance axes. See `packages/ui/src/styles/theme.css`. */
 
 export const themeModes = ['light', 'dark', 'system'] as const;
 export type ThemeMode = (typeof themeModes)[number];
@@ -17,9 +17,6 @@ export const accents = [
 ] as const;
 export type Accent = (typeof accents)[number];
 
-export const surfaces = ['solid', 'mica', 'acrylic'] as const;
-export type Surface = (typeof surfaces)[number];
-
 /**
  * Row height and spacing scale.
  *
@@ -32,7 +29,6 @@ export type Density = (typeof densities)[number];
 export interface ThemeSettings {
   readonly mode: ThemeMode;
   readonly accent: Accent;
-  readonly surface: Surface;
   readonly density: Density;
   /**
    * Overrides the OS `prefers-reduced-motion` setting.
@@ -48,17 +44,12 @@ export interface ThemeSettings {
 export const defaultTheme: ThemeSettings = {
   mode: 'system',
   accent: 'blue',
-  surface: 'mica',
   density: 'default',
   reduceMotion: null,
 };
 
 export function isAccent(value: string): value is Accent {
   return (accents as readonly string[]).includes(value);
-}
-
-export function isSurface(value: string): value is Surface {
-  return (surfaces as readonly string[]).includes(value);
 }
 
 export function isThemeMode(value: string): value is ThemeMode {

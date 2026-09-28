@@ -146,7 +146,7 @@ export function Sidebar({
   return (
     <nav
       aria-label={t('a11y.mainNavigation')}
-      className="surface-chrome flex shrink-0 flex-col border-r border-[var(--color-border-subtle)] transition-[width] duration-(--duration-normal) ease-(--ease-out-quart)"
+      className="shell-chrome flex shrink-0 flex-col transition-[width] duration-(--duration-normal) ease-(--ease-out-quart)"
       style={{ width: collapsed ? COLLAPSED_WIDTH : EXPANDED_WIDTH }}
     >
       <ul
@@ -211,7 +211,9 @@ export function Sidebar({
                 'transition-colors duration-(--duration-fast)',
                 collapsed && 'justify-center px-0',
                 isActive
-                  ? 'text-[var(--color-accent)]'
+                  ? // Not `--color-accent`: on the indicator's accent-subtle
+                    // fill it measured 4.12:1 in light mode, under AA.
+                    'text-[var(--color-accent-text)]'
                   : 'text-[var(--color-fg-muted)] hover:bg-[var(--color-bg-inset)]/70 hover:text-[var(--color-fg-default)]',
                 focusRing,
                 'focus-visible:-outline-offset-2',
@@ -245,12 +247,7 @@ export function Sidebar({
         })}
       </ul>
 
-      <div
-        className={cn(
-          'flex shrink-0 items-center gap-1 border-t border-[var(--color-border-subtle)] p-2',
-          collapsed && 'flex-col',
-        )}
-      >
+      <div className={cn('flex shrink-0 items-center gap-1 p-2', collapsed && 'flex-col')}>
         <SidebarAction
           label={ts('sidebar.openSettings')}
           collapsed={collapsed}

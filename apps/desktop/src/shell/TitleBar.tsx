@@ -131,7 +131,7 @@ export function TitleBar({ children, controls }: TitleBarProps) {
 
   return (
     <header
-      className="surface-chrome relative flex shrink-0 items-center border-b border-[var(--color-border-subtle)]"
+      className="shell-chrome relative flex shrink-0 items-center"
       style={{ height: TITLE_BAR_HEIGHT }}
     >
       {/*

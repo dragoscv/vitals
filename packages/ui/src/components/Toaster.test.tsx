@@ -74,8 +74,8 @@ describe('Toaster', () => {
 
     const item = document.querySelector('[data-sonner-toast]');
     expect(item?.getAttribute('data-rich-colors')).toBe('false');
-    // Every surface colour is a token, so the accent and translucency
-    // settings reach the toast like everything else.
+    // Every surface colour is a token, so the mode and accent settings reach
+    // the toast like everything else.
     expect(item?.className).toContain('bg-[var(--color-bg-raised)]');
   });
 });

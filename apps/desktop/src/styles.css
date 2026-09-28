@@ -181,12 +181,21 @@
 /*
  * ---- Atmosphere --------------------------------------------------------
  *
- * Two soft pools of the accent behind the content column, fixed to the
- * window so they do not scroll with the page. Static by design: moving
- * colour behind live numbers would compete with them. `--ambient-*` follow
- * the accent and the mode (theme.css), so a pink theme gets pink light.
+ * ONE background for the whole window: title bar, sidebar and content sit on
+ * the same canvas, with no fill and no border of their own. Two soft pools of
+ * the accent, fixed to the window so they do not scroll with the page. Static
+ * by design: moving colour behind live numbers would compete with them.
+ * `--ambient-*` follow the accent and the mode (theme.css), so a pink theme
+ * gets pink light.
+ *
+ * It lives on `#root`, not `main`: painted on `main`, the chrome needed a
+ * fill of its own (the old solid / mica / acrylic tint of `--color-bg-subtle`)
+ * and a border to separate it, and the window read as three panels. Because
+ * the attachment is `fixed`, the gradients are positioned against the
+ * viewport either way, so the content column looks exactly as it did.
+ * styles.test.ts fails if any shell region paints a background again.
  */
-#main-content {
+#root {
   background:
     radial-gradient(60rem 40rem at 85% -10%, var(--ambient-a), transparent 70%),
     radial-gradient(50rem 36rem at -10% 110%, var(--ambient-b), transparent 70%),
@@ -236,10 +245,10 @@ main h2.text-lg + p {
  * has its own `<nav>` rail, and two elements named `sidebar` abort the
  * transition.
  */
-nav.surface-chrome {
+nav.shell-chrome {
   view-transition-name: sidebar;
 }
-header.surface-chrome {
+header.shell-chrome {
   view-transition-name: titlebar;
 }
 ::view-transition-group(sidebar),

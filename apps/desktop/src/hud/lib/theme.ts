@@ -12,9 +12,4 @@
 export function applyOverlayTheme(root: HTMLElement): void {
   root.classList.add('dark');
   root.dataset['accent'] = 'blue';
-  // `solid` rather than mica/acrylic: the window is already transparent, and
-  // a backdrop filter on a transparent Windows webview is expensive and
-  // renders inconsistently over fullscreen games — the one place a HUD
-  // matters most.
-  root.dataset['surface'] = 'solid';
 }

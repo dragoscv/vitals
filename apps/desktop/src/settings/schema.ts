@@ -1,7 +1,7 @@
 import { defaultLocale, isSupportedLocale, type Locale } from '@vitals/i18n';
 
 import { defaultRoute, isRouteId, type RouteId } from '../shell/navigation';
-import { defaultTheme, isAccent, isDensity, isSurface, isThemeMode } from '../theme/types';
+import { defaultTheme, isAccent, isDensity, isThemeMode } from '../theme/types';
 import type { ThemeSettings } from '../theme/types';
 
 export const samplingRates = ['fast', 'normal', 'slow'] as const;
@@ -118,7 +118,6 @@ export function parseSettings(raw: unknown): AppSettings {
   const theme: ThemeSettings = {
     mode: pick(rawTheme['mode'], isThemeMode, defaultTheme.mode),
     accent: pick(rawTheme['accent'], isAccent, defaultTheme.accent),
-    surface: pick(rawTheme['surface'], isSurface, defaultTheme.surface),
     density: pick(rawTheme['density'], isDensity, defaultTheme.density),
     reduceMotion: typeof reduceMotionRaw === 'boolean' ? reduceMotionRaw : null,
   };

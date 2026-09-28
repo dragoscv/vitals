@@ -129,3 +129,83 @@ describe('scroll gutters', () => {
     for (const value of values) expect(reach(value).side, value).toBeLessThanOrEqual(8);
   });
 });
+
+/** The class string on the first `<tag ...>` in a component's source. */
+async function rootClasses(file: string, tag: string): Promise<string[]> {
+  const source = await readFile(resolve(here, file), 'utf8');
+  const match = new RegExp(`<${tag}\\b[^>]*?className="([^"]+)"`).exec(source);
+  expect(match, `${file} <${tag} className>`).not.toBeNull();
+  return (match?.[1] ?? '').split(/\s+/).filter(Boolean);
+}
+
+/** Every `selector { body }` whose body declares a background or a border. */
+function paintingRules(css: string): { selector: string; body: string }[] {
+  return [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+    .map((m) => ({ selector: (m[1] ?? '').trim(), body: m[2] ?? '' }))
+    .filter(({ body }) =>
+      /(?:^|[;\s])(?:background(?:-color|-image)?|border(?:-(?:top|right|bottom|left|inline|block)[\w-]*)?(?:-width|-style)?)\s*:/.test(
+        body,
+      ),
+    );
+}
+
+describe('one window background', () => {
+  // The user asked for title bar, sidebar and content to read as one surface
+  // (S12-23). They used to be three: the chrome had a tinted mica/acrylic
+  // fill of `--color-bg-subtle` and a hairline border on each seam.
+  const regions = [
+    ['shell/TitleBar.tsx', 'header'],
+    ['shell/Sidebar.tsx', 'nav'],
+    ['shell/Content.tsx', 'main'],
+  ] as const;
+
+  it('is painted once, on #root, with the base token', async () => {
+    const css = await build([]);
+    const canvases = paintingRules(css).filter(({ body }) => body.includes('--color-bg-base'));
+    const selectors = canvases.map(({ selector }) => selector);
+    // `body` carries the base colour too, for the instant before #root mounts.
+    expect(selectors).toContain('#root');
+    for (const selector of selectors) expect(['#root', 'body']).toContain(selector);
+  });
+
+  it('leaves the title bar, sidebar and content region without a fill or a border of their own', async () => {
+    for (const [file, tag] of regions) {
+      const classes = await rootClasses(file, tag);
+      const painted = paintingRules(await build(classes));
+      // Tailwind compiles only the candidates it is given, so anything left
+      // here came from one of this region's own classes.
+      const own = painted.filter(({ selector }) =>
+        classes.some((c) => selector.includes(c.replace(/[[\]()/:.%]/g, (ch) => `\\${ch}`))),
+      );
+      expect(own, `${file} <${tag}>`).toEqual([]);
+    }
+  });
+
+  it('has no stylesheet rule that paints a shell region', async () => {
+    const css = await build([]);
+    // The subject (last compound) is what gets painted: `main h2` paints a
+    // heading, `nav.shell-chrome` paints the sidebar.
+    const shell = /^(?:header|nav|main)\b|#main-content|\.shell-chrome|\.surface-chrome/;
+    const subject = (selector: string): string[] =>
+      selector.split(',').map(
+        (part) =>
+          part
+            .trim()
+            .split(/[\s>+~]+/)
+            .at(-1) ?? '',
+      );
+    const hits = paintingRules(css).filter(({ selector }) =>
+      subject(selector).some((s) => shell.test(s)),
+    );
+    expect(hits).toEqual([]);
+  });
+
+  it('draws no divider inside the chrome either', async () => {
+    // The sidebar footer had a border-t; a seam inside the chrome reads as a
+    // panel edge just as much as one between regions.
+    for (const file of ['shell/TitleBar.tsx', 'shell/Sidebar.tsx']) {
+      const source = await readFile(resolve(here, file), 'utf8');
+      expect(source, file).not.toMatch(/(?<![\w-])border(?:-[trblxy])?(?=[\s'"`])/);
+    }
+  });
+});

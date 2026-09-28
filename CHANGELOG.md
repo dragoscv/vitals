@@ -7,6 +7,22 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### 2026-09-28 — one window background
+
+#### Changed
+
+- **One window background** — the title bar, sidebar and content share one
+  canvas with no borders between them; the window no longer reads as three
+  panels.
+- **Removed the Surface setting** (solid / mica / acrylic). It only tinted
+  the title bar and sidebar, which now have no fill of their own; a saved
+  value is ignored.
+
+#### Fixes
+
+- The active sidebar item's label now meets WCAG AA contrast for every
+  accent (it measured 4.12:1 in light mode).
+
 ### 2026-09-27 — redesign and the truths it exposed
 
 #### Features
@@ -166,7 +182,7 @@ but nothing has been through a public beta.
   `RingBuffer` and a canvas time-series renderer with axis snapping, gap
   handling and HiDPI support.
 - **Theme system** — light/dark, ten accents and three surface modes as three
-  independent axes, built on OKLCH so every accent stays legible in both
+  independent axes (the surface modes were removed on 2026-09-28), built on OKLCH so every accent stays legible in both
   modes.
 - **Internationalisation** — English and Romanian, with tests enforcing key
   parity, placeholder parity and Romanian's three-form plural rule.

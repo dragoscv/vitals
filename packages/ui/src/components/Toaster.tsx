@@ -57,11 +57,10 @@ function readMode(): 'light' | 'dark' {
  * ## Styling is tokens only
  *
  * sonner ships its own palette via `richColors`; that is switched off and the
- * surface is dressed in `var(--color-*)` instead. The theme has three
- * independent axes (light/dark, accent hue, surface translucency) and any
- * literal colour silently opts out of all three — a toast would be the one
- * element that ignores the user's accent and stays opaque over an acrylic
- * window.
+ * surface is dressed in `var(--color-*)` instead. The theme has independent
+ * axes (light/dark, accent hue) and any literal colour silently opts out of
+ * them — a toast would be the one element that ignores the user's accent and
+ * stays light on a dark window.
  *
  * ## A close button, always
  *

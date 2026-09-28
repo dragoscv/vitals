@@ -164,6 +164,54 @@ CSV records the state.
 Every claim of "done" needs a command and its output. Recorded here as work
 lands, newest first.
 
+### 2026-09-28 — S12-23 one window background, no borders between regions
+
+**Ask.** Title bar, sidebar and content on ONE background for the whole
+app, with no border between them; restyle only the chrome, keep the
+content's background as it is.
+
+**Cause.** The chrome carried `.surface-chrome`: a `--color-bg-subtle`
+fill (80 % + 48 px blur under mica, the default; 62 % under acrylic; opaque
+under solid) and hairlines — `border-b` on the title bar, `border-r` on the
+sidebar, `border-t` over the sidebar footer. The ambient canvas was painted
+on `#main-content` only.
+
+**Fix.** The canvas (base colour + the two fixed accent pools) moved to
+`#root`; `header`, `nav` and `main` paint nothing. With
+`background-attachment: fixed` the pools are positioned against the
+viewport either way, so the content looks exactly as before. The
+solid / mica / acrylic setting only ever tinted the chrome, so with no chrome
+fill it did nothing: removed per ADR-0013 (types, schema, `applyTheme`,
+Settings row, four keys in en and ro, the three theme.css rules; a stored
+`surface` value is dropped on parse, tested). The class became
+`.shell-chrome` (it still names the View Transition snapshots).
+
+**Contrast found on the way.** The active nav label used `--color-accent`
+on the indicator's `--color-accent-subtle` fill: 4.12:1 in light blue and
+4.46:1 in light teal, under AA. New `--color-accent-text` step (L 0.46
+light / 0.8 dark); every chrome text and icon now clears its threshold for
+all ten accents in both modes.
+
+```text
+styles.test.ts "one window background": 4 tests; mutations (each restored):
+  title bar border-b → RED · sidebar bg-subtle → RED · footer border-t → RED ·
+  canvas back on #main-content → RED · nav.shell-chrome background rule → RED
+live CDP, .copilot-tmp/chrome-audit.mjs, 720x560 1280x800 1920x1080 3440x1440, light + dark:
+  header/nav/main/footer border 0/0/0/0, background rgba(0,0,0,0), no image, no backdrop-filter
+  #root: oklch(0.98 0.002 260) light / oklch(0.17 0.006 260) dark + gradients, attachment fixed
+  contrast on base / on base+ambient: fg-default 16.3/14.3 (light) 16.5/14.4 (dark) · fg-muted 6.14/5.39 · 7.74/6.77
+chrome-contrast (every text node + icon vs its real backdrop), 10 accents x 2 modes → 0 below threshold
+  (before --color-accent-text: light blue 4.12, light teal 4.46)
+layout-audit 12 sections x 4 sizes → doc=0 main=0 in all 48
+shadow-audit 12 sections x 4 sizes → TOTAL clipped 0
+pnpm typecheck 6/6 · pnpm lint 6/6 · prettier clean · pnpm test 89 files 898 tests · check-drift 0
+```
+
+**Not changed.** Overlays (menus, dialogs, tooltips, toasts) keep their
+raised fill and border: they float above the window and are not regions of
+it. The mobile page and the HUD never used the surface axis beyond setting
+`solid`; that line was removed from both.
+
 ### 2026-09-28 — S12-16..22 audit: security, honesty and lifecycle gaps
 
 **Ask.** "mai caută bug-uri și gap-uri și rezolvă. gândește-te la toate."

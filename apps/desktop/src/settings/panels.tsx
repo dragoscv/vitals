@@ -19,7 +19,7 @@ import { hasTauriHost } from '../shell/host';
 import { openWindowsTaskManager, quitApp } from '../lib/settingsSync';
 import { reportFailure } from '../lib/reportFailure';
 import { useTheme } from '../theme/ThemeProvider';
-import { accents, densities, surfaces, themeModes, type Accent } from '../theme/types';
+import { accents, densities, themeModes, type Accent } from '../theme/types';
 import { SettingsRow, SettingsSection } from './SettingsRow';
 import { clearHistory, exportFlightRecording } from './historyActions';
 import { retentionDayOptions, samplingRates } from './schema';
@@ -194,12 +194,6 @@ export function AppearancePanel() {
     system: t('settings.appearance.themeSystem'),
   } as const;
 
-  const surfaceLabels = {
-    solid: t('settings.appearance.surfaceSolid'),
-    mica: t('settings.appearance.surfaceMica'),
-    acrylic: t('settings.appearance.surfaceAcrylic'),
-  } as const;
-
   const densityLabels = {
     compact: t('settings.appearance.densityCompact'),
     default: t('settings.appearance.densityDefault'),
@@ -226,20 +220,6 @@ export function AppearancePanel() {
               labelId={labelId}
               value={theme.accent}
               onChange={(accent) => setTheme({ accent })}
-            />
-          )}
-        </SettingsRow>
-
-        <SettingsRow label={t('settings.appearance.surface')}>
-          {() => (
-            <SegmentedControl
-              ariaLabel={t('settings.appearance.surface')}
-              value={theme.surface}
-              onValueChange={(surface) => setTheme({ surface })}
-              options={surfaces.map((surface) => ({
-                value: surface,
-                label: surfaceLabels[surface],
-              }))}
             />
           )}
         </SettingsRow>

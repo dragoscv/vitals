@@ -30,11 +30,11 @@ describe('applyTheme', () => {
   });
 
   it('writes every axis independently', () => {
-    applyTheme({ ...defaultTheme, mode: 'dark', accent: 'green', surface: 'acrylic' }, root, false);
+    applyTheme({ ...defaultTheme, mode: 'dark', accent: 'green', density: 'compact' }, root, false);
 
     expect(root.classList.contains('dark')).toBe(true);
     expect(root.dataset['accent']).toBe('green');
-    expect(root.dataset['surface']).toBe('acrylic');
+    expect(root.dataset['density']).toBe('compact');
   });
 
   it('removes the dark class when switching back to light', () => {

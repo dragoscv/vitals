@@ -3,15 +3,18 @@
  *
  * Tailwind v4 CSS-first configuration. There is no tailwind.config.js.
  *
- * ## The three independent axes
+ * ## The independent axes
  *
  * 1. **Mode** — light / dark, driven by `.dark` on the root.
  * 2. **Accent** — the single hue the user picks, applied via `data-accent`.
- * 3. **Surface** — solid / mica / acrylic, applied via `data-surface`.
  *
- * These are deliberately orthogonal: any accent works in any mode with any
- * surface. Products that entangle them end up with an accent that is
- * unreadable in one mode and a "custom theme" feature nobody can use.
+ * These are deliberately orthogonal: any accent works in any mode. Products
+ * that entangle them end up with an accent that is unreadable in one mode and
+ * a "custom theme" feature nobody can use.
+ *
+ * There was a third axis, a solid / mica / acrylic tint on the title bar and
+ * sidebar. It went with S12-23: the window is one background now (see
+ * `#root` in apps/desktop/src/styles.css), so the chrome has no fill to tint.
  *
  * ## Why OKLCH
  *
@@ -109,6 +112,10 @@
   --color-accent-hover: oklch(0.5 var(--accent-chroma) var(--accent-hue));
   --color-accent-subtle: oklch(0.95 0.03 var(--accent-hue));
   --color-accent-border: oklch(0.8 0.08 var(--accent-hue));
+  /* Accent-coloured TEXT on an accent-subtle fill (the active nav item).
+   * The accent itself is tuned for fills and measured 4.12:1 there; this
+   * step clears 4.5:1 for all ten hues in both modes (S12-23, live CDP). */
+  --color-accent-text: oklch(0.46 var(--accent-chroma) var(--accent-hue));
 
   /* Elevation via layered shadow rather than a single blur: a single shadow
    * reads as a flat drop, two reads as a lift. */
@@ -182,6 +189,7 @@
   --color-accent-hover: oklch(0.78 calc(var(--accent-chroma) * 0.85) var(--accent-hue));
   --color-accent-subtle: oklch(0.28 0.05 var(--accent-hue));
   --color-accent-border: oklch(0.42 0.09 var(--accent-hue));
+  --color-accent-text: oklch(0.8 calc(var(--accent-chroma) * 0.85) var(--accent-hue));
 
   --shadow-widget: 0 1px 2px oklch(0 0 0 / 0.3), 0 4px 12px oklch(0 0 0 / 0.35);
   --shadow-overlay: 0 2px 4px oklch(0 0 0 / 0.4), 0 12px 32px oklch(0 0 0 / 0.5);
@@ -250,26 +258,6 @@
 [data-accent='graphite'] {
   --accent-hue: 260;
   --accent-chroma: 0.02;
-}
-
-/* ---- Surface modes ---------------------------------------------------- */
-/*
- * Translucency is applied to the *chrome* only — sidebar, title bar, overlays.
- * Never to a chart or a data table: text over a moving desktop background is
- * harder to read, and a task manager is read, not admired.
- */
-[data-surface='mica'] .surface-chrome {
-  background-color: color-mix(in oklch, var(--color-bg-subtle) 80%, transparent);
-  backdrop-filter: blur(48px) saturate(1.4);
-}
-
-[data-surface='acrylic'] .surface-chrome {
-  background-color: color-mix(in oklch, var(--color-bg-subtle) 62%, transparent);
-  backdrop-filter: blur(24px) saturate(1.8);
-}
-
-[data-surface='solid'] .surface-chrome {
-  background-color: var(--color-bg-subtle);
 }
 
 /* ---- Accessibility ----------------------------------------------------- */

@@ -37,7 +37,7 @@ describe('settings store', () => {
 
   it('restores persisted values', async () => {
     const { backend } = memoryBackend({
-      theme: { mode: 'dark', accent: 'green', surface: 'solid', density: 'compact' },
+      theme: { mode: 'dark', accent: 'green', density: 'compact' },
       sidebarCollapsed: true,
       lastRoute: 'processes',
     });

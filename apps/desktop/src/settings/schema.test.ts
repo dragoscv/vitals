@@ -14,7 +14,9 @@ describe('parseSettings', () => {
     // The file is hand-editable JSON that survives upgrades. One bad value
     // must cost that one setting, not the entire configuration.
     const parsed = parseSettings({
-      theme: { mode: 'dark', accent: 'chartreuse', surface: 'acrylic' },
+      // `surface` was a setting until S12-23; a store written before then
+      // still carries it, and it must be dropped rather than break parsing.
+      theme: { mode: 'dark', accent: 'chartreuse', density: 'compact', surface: 'acrylic' },
       locale: 'klingon',
       retentionDays: 9999,
       historyEnabled: true,
@@ -22,7 +24,8 @@ describe('parseSettings', () => {
     });
 
     expect(parsed.theme.mode).toBe('dark');
-    expect(parsed.theme.surface).toBe('acrylic');
+    expect(parsed.theme.density).toBe('compact');
+    expect(parsed.theme).not.toHaveProperty('surface');
     expect(parsed.theme.accent).toBe(defaultSettings.theme.accent);
     expect(parsed.locale).toBe(defaultSettings.locale);
     expect(parsed.retentionDays).toBe(defaultSettings.retentionDays);
