@@ -23,6 +23,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { peekPrefetched, prefetch, takePrefetched } from '../../lib/prefetch';
 import { hasTauriHost } from '../../shell/host';
 import type { StartupSnapshot } from './model';
 import { errorMessage } from '../../lib/commandError';
@@ -36,6 +37,19 @@ export type StartupReader = (withServiceConfig: boolean) => Promise<StartupSnaps
 export async function readStartup(withServiceConfig: boolean): Promise<StartupSnapshot> {
   const { invoke } = await import('@tauri-apps/api/core');
   return invoke<StartupSnapshot>('get_startup', { withServiceConfig });
+}
+
+/** One entry per mode: the Services read carries start types the Startup read does not. */
+const prefetchKey = (withServiceConfig: boolean): string =>
+  withServiceConfig ? 'startup:services' : 'startup';
+
+/** Reads the inventory in the background so the first visit has it (lib/prefetch). */
+export function prefetchStartup(withServiceConfig: boolean): Promise<void> {
+  return prefetch(
+    prefetchKey(withServiceConfig),
+    () => readStartup(withServiceConfig),
+    10 * 60_000,
+  );
 }
 
 export interface StartupState {
@@ -62,16 +76,22 @@ export interface StartupState {
 }
 
 export function useStartup(withServiceConfig: boolean, reader?: StartupReader): StartupState {
-  const [snapshot, setSnapshot] = useState<StartupSnapshot | null>(null);
-  const [pending, setPending] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
   // An injected reader replaces the host check rather than being consulted
   // after it. A seam the production path can veto is not a seam — it silently
   // never runs in tests, and every assertion then fails for an unrelated
   // reason. That mistake has already been made once in this codebase.
   const injected = reader !== undefined;
+
+  // Seeded from the background read so a first visit shows the list, not a
+  // skeleton. Never for an injected reader: a test's data comes from the test.
+  const [seed] = useState(() =>
+    injected ? undefined : peekPrefetched<StartupSnapshot>(prefetchKey(withServiceConfig)),
+  );
+  const [snapshot, setSnapshot] = useState<StartupSnapshot | null>(seed?.value ?? null);
+  const [pending, setPending] = useState(seed === undefined);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   const readerRef = useRef<StartupReader>(reader ?? readStartup);
   readerRef.current = reader ?? readStartup;
 
@@ -80,19 +100,26 @@ export function useStartup(withServiceConfig: boolean, reader?: StartupReader): 
 
   // Survives the effect teardown that `<Activity mode="hidden">` performs,
   // which is what lets a return visit know it already has something to show.
-  const hasData = useRef(false);
+  const hasData = useRef(seed !== undefined);
 
   const load = useCallback(async () => {
     if (inFlight.current) return;
     inFlight.current = true;
 
+    // The first load reuses a young background read instead of repeating
+    // the SCM walk; anything older is shown while a real read runs.
+    const prefetched = injected
+      ? undefined
+      : takePrefetched<StartupSnapshot>(prefetchKey(withServiceConfig));
+
     // `hasData` is read from the ref rather than the state value so this
     // does not need `snapshot` in its dependency list — which would rebuild
-    // `load`, retrigger the effect below, and refetch in a loop.
-    if (hasData.current) setRefreshing(true);
+    // `load`, retrigger the effect below, and refetch in a loop. Not for a
+    // reused read: nothing is being refreshed, the data is already current.
+    if (hasData.current && prefetched === undefined) setRefreshing(true);
 
     try {
-      const next = await readerRef.current(withServiceConfig);
+      const next = await (prefetched ?? readerRef.current(withServiceConfig));
       if (!mounted.current) return;
       setSnapshot(next);
       hasData.current = true;
@@ -109,7 +136,7 @@ export function useStartup(withServiceConfig: boolean, reader?: StartupReader): 
         setRefreshing(false);
       }
     }
-  }, [withServiceConfig]);
+  }, [withServiceConfig, injected]);
 
   const refresh = useCallback(() => {
     void load();

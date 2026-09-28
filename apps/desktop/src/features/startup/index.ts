@@ -13,4 +13,4 @@ export {
   type StartupEntry,
   type StartupSnapshot,
 } from './model';
-export { NO_HOST, useStartup, type StartupReader } from './useStartup';
+export { NO_HOST, prefetchStartup, useStartup, type StartupReader } from './useStartup';

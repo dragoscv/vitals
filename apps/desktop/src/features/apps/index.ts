@@ -9,4 +9,4 @@ export {
   type AppSort,
   type InstalledApp,
 } from './model';
-export { NO_HOST, useApps, type AppsReader, type Uninstaller } from './useApps';
+export { NO_HOST, prefetchApps, useApps, type AppsReader, type Uninstaller } from './useApps';

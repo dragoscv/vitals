@@ -7,6 +7,23 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### 2026-09-28 — every tab is ready before you open it
+
+#### Changed
+
+- **Every tab is ready before its first visit** — after the window paints,
+  each section's code and data are loaded in the background while the app
+  is idle, so opening a tab for the first time shows its content at once
+  instead of a loading skeleton. Disk scans and benchmarks still only run
+  when you start them.
+
+#### Fixes
+
+- Processes opened for the first time could list only the processes that
+  had changed recently (116 of 780) for up to thirty seconds.
+- Reading startup items, installed apps, sensors and connections no longer
+  freezes the window while it runs.
+
 ### 2026-09-28 — one window background
 
 #### Changed

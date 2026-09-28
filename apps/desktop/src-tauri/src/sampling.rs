@@ -153,12 +153,7 @@ fn run(app: &AppHandle, stop: &AtomicBool) {
         };
         let started = Instant::now();
 
-        // A CLI that has just attached has no keyframe to fold deltas onto
-        // (frames are not forwarded while nobody is attached, so the pipe's
-        // view is empty). Force one so its first frame is complete.
-        if let Some(pipe) = app.try_state::<crate::ipc::AttachPipe>()
-            && pipe.wants_keyframe()
-        {
+        if keyframe_wanted(app) {
             backend.request_keyframe();
         }
 
@@ -445,6 +440,24 @@ impl Backend {
     fn disk_counter_source(&self) -> vitals_core::process::DiskCounterSource {
         self.sampler.disk_counter_source()
     }
+}
+
+/// Whether a consumer has no baseline and needs the next frame whole.
+///
+/// A CLI that has just attached has no keyframe to fold deltas onto (frames
+/// are not forwarded while nobody is attached, so the pipe's view is empty).
+/// The webview asks once, when it starts listening — after launch or a
+/// reload it would otherwise fold deltas onto nothing until the periodic
+/// keyframe. Both are checked every tick so neither request is swallowed by
+/// the other (`take_keyframe_request` clears its flag).
+fn keyframe_wanted(app: &AppHandle) -> bool {
+    let pipe = app
+        .try_state::<crate::ipc::AttachPipe>()
+        .is_some_and(|pipe| pipe.wants_keyframe());
+    let webview = app
+        .try_state::<AppState>()
+        .is_some_and(|state| state.take_keyframe_request());
+    pipe || webview
 }
 
 /// Placeholder until the other platform backends land.

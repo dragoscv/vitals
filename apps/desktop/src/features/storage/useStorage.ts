@@ -18,6 +18,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { peekPrefetched, prefetch, takePrefetched } from '../../lib/prefetch';
 import { hasTauriHost } from '../../shell/host';
 import type { CleanupCandidate, ScanSnapshot, Volume } from './model';
 import { errorMessage } from '../../lib/commandError';
@@ -55,6 +56,16 @@ export const tauriSource: StorageSource = {
   },
 };
 
+const PREFETCH_KEY = 'storage:volumes';
+
+/**
+ * Background read of the drive list for the first visit (lib/prefetch).
+ * Only the volumes: a scan is minutes of disk walking the user starts.
+ */
+export function prefetchStorage(): Promise<void> {
+  return prefetch(PREFETCH_KEY, () => tauriSource.volumes(), 60_000);
+}
+
 export interface StorageState {
   readonly volumes: readonly Volume[];
   /** True until the volume read settles, whether it succeeds or fails. */
@@ -77,8 +88,16 @@ export interface StorageState {
 }
 
 export function useStorage(source?: StorageSource): StorageState {
-  const [volumes, setVolumes] = useState<readonly Volume[]>([]);
-  const [pending, setPending] = useState(true);
+  // An injected source replaces the host check rather than sitting behind it.
+  // A seam the production path can veto silently never runs in tests, and
+  // every assertion then fails for an unrelated reason.
+  const injected = source !== undefined;
+
+  const [seed] = useState(() =>
+    injected ? undefined : peekPrefetched<readonly Volume[]>(PREFETCH_KEY),
+  );
+  const [volumes, setVolumes] = useState<readonly Volume[]>(seed?.value ?? []);
+  const [pending, setPending] = useState(seed === undefined);
   const [volumeError, setVolumeError] = useState<string | null>(null);
 
   const [snapshot, setSnapshot] = useState<ScanSnapshot | null>(null);
@@ -90,10 +109,6 @@ export function useStorage(source?: StorageSource): StorageState {
   const [cleanupRunning, setCleanupRunning] = useState(false);
   const [cleanupError, setCleanupError] = useState<string | null>(null);
 
-  // An injected source replaces the host check rather than sitting behind it.
-  // A seam the production path can veto silently never runs in tests, and
-  // every assertion then fails for an unrelated reason.
-  const injected = source !== undefined;
   const sourceRef = useRef<StorageSource>(source ?? tauriSource);
   sourceRef.current = source ?? tauriSource;
 
@@ -103,7 +118,9 @@ export function useStorage(source?: StorageSource): StorageState {
 
   const loadVolumes = useCallback(async () => {
     try {
-      const next = await sourceRef.current.volumes();
+      const next = await ((injected
+        ? undefined
+        : takePrefetched<readonly Volume[]>(PREFETCH_KEY)) ?? sourceRef.current.volumes());
       if (!mounted.current) return;
       setVolumes(next);
       setVolumeError(null);
@@ -114,7 +131,7 @@ export function useStorage(source?: StorageSource): StorageState {
     } finally {
       if (mounted.current) setPending(false);
     }
-  }, []);
+  }, [injected]);
 
   const scan = useCallback((path: string, maxDepth: number | null) => {
     // Guarded rather than queued: the backend shares one cancellation flag,

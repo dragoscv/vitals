@@ -121,6 +121,7 @@ fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
     tauri::generate_handler![
         commands::get_host_info,
         commands::get_capabilities,
+        commands::request_keyframe,
         commands::set_sample_rate,
         commands::get_launch_options,
         commands::show_main_window,

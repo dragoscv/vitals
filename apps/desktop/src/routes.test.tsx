@@ -4,7 +4,7 @@ import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { initI18n } from '@vitals/i18n';
 
-import { RouteView } from './routes';
+import { preloadRoutes, RouteView } from './routes';
 import { Content } from './shell/Content';
 import type { RouteId } from './shell/navigation';
 
@@ -232,5 +232,43 @@ describe('RouteView keeps visited screens alive', () => {
     // Neither the content wrapper nor anything inside it was rebuilt.
     expect(mounts).toBe(1);
     expect(screen.getByTestId('probe-typed').textContent).toBe('user input');
+  });
+});
+
+describe('preloadRoutes', () => {
+  it('runs one step per idle callback, so a click or a frame always goes first', async () => {
+    const idle: (() => void)[] = [];
+    const order: string[] = [];
+    const steps = ['a', 'b', 'c'].map((name) => async () => {
+      order.push(name);
+    });
+
+    const done = preloadRoutes((run) => idle.push(run), steps);
+    await Promise.resolve();
+    expect(order).toEqual([]);
+
+    for (let i = 0; i < 3; i++) {
+      await vi.waitFor(() => expect(idle.length).toBe(i + 1));
+      idle[i]?.();
+      await vi.waitFor(() => expect(order).toHaveLength(i + 1));
+    }
+    await done;
+    expect(order).toEqual(['a', 'b', 'c']);
+  });
+
+  it('keeps going past a failed step; that screen simply loads when opened', async () => {
+    const ran: string[] = [];
+    await preloadRoutes(
+      (run) => {
+        run();
+      },
+      [
+        () => Promise.reject(new Error('chunk failed')),
+        async () => {
+          ran.push('next');
+        },
+      ],
+    );
+    expect(ran).toEqual(['next']);
   });
 });

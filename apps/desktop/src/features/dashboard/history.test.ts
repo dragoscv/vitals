@@ -31,6 +31,18 @@ describe('HistoryCollector', () => {
     expect(collector.current.core.cpu.last).toBe(40);
   });
 
+  it('ignores a frame it has already folded, so a replay does not draw one second twice', () => {
+    // The metrics hub hands each new subscriber the current frame, and both
+    // Dashboard and Performance feed this collector.
+    const collector = new HistoryCollector();
+    const same = frame(1, { cpu: { total: 30 } });
+    collector.push(same);
+    collector.push(same);
+
+    expect(collector.current.sampleCount).toBe(1);
+    expect(collector.current.core.cpu.size).toBe(1);
+  });
+
   it('bumps the revision so subscribers know to repaint', () => {
     // The buffers are mutated in place, so identity cannot signal a change.
     // This counter is the only cheap signal a chart has.

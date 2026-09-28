@@ -18,7 +18,7 @@ import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
 import type { Process, SystemMetrics } from '@vitals/protocol';
 
 import { errorMessage } from '@/lib/commandError';
-import { subscribeToMetrics, type Snapshot } from '@/lib/metrics';
+import { latestMetrics, subscribeToMetrics, type Snapshot } from '@/lib/metrics';
 import { hasTauriHost } from '../../shell/host';
 
 const NO_PROCESSES: ReadonlyMap<string, Process> = new Map();
@@ -68,7 +68,21 @@ export interface SystemSource {
 
 /** Backed by the Tauri event channel. */
 export function createTauriSystemSource(onFrame?: (snapshot: Snapshot) => void): SystemSource {
-  let value = INITIAL_SYSTEM_SNAPSHOT;
+  // Seeded from the session-long stream (lib/metrics) so a first visit
+  // renders the current frame. `onFrame` is not replayed: the history
+  // collector already received that frame from whoever was listening then.
+  const latest = latestMetrics();
+  let value: SystemSnapshot =
+    latest === null
+      ? INITIAL_SYSTEM_SNAPSHOT
+      : {
+          system: latest.system,
+          processes: new Map(latest.processes),
+          seq: latest.seq,
+          timestampMs: latest.timestampMs,
+          error: null,
+          pending: false,
+        };
   const listeners = new Set<() => void>();
 
   const publish = (next: SystemSnapshot): void => {

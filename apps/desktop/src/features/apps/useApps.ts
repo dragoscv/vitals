@@ -10,6 +10,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { peekPrefetched, prefetch, takePrefetched } from '../../lib/prefetch';
 import { hasTauriHost } from '../../shell/host';
 import type { AppsSnapshot, InstalledApp } from './model';
 import { errorMessage } from '../../lib/commandError';
@@ -36,6 +37,19 @@ export async function runUninstaller(app: Pick<InstalledApp, 'keyName' | 'source
   return invoke<void>('uninstall_app', { keyName: app.keyName, source: app.source });
 }
 
+const PREFETCH_KEY = 'apps';
+
+/**
+ * Reads the list in the background so the first visit has it (lib/prefetch).
+ *
+ * Ten minutes: the list changes when something is installed or removed, and
+ * the screen re-reads on every visit anyway — this only decides whether the
+ * first paint may show the background read while that happens.
+ */
+export function prefetchApps(): Promise<void> {
+  return prefetch(PREFETCH_KEY, readApps, 10 * 60_000);
+}
+
 export interface AppsState {
   readonly snapshot: AppsSnapshot | null;
   /** True until the first read settles, whether it succeeds or fails. */
@@ -45,14 +59,21 @@ export interface AppsState {
 }
 
 export function useApps(reader?: AppsReader): AppsState {
-  const [snapshot, setSnapshot] = useState<AppsSnapshot | null>(null);
-  const [pending, setPending] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
   // An injected reader replaces the host check rather than sitting behind it.
   // A seam the production path can veto silently never runs in tests, and
   // every assertion then fails for an unrelated reason.
   const injected = reader !== undefined;
+
+  // Seeded from the background read, so a first visit renders the list
+  // rather than a skeleton. Never for an injected reader: a test's data must
+  // come from the test.
+  const [seed] = useState(() =>
+    injected ? undefined : peekPrefetched<AppsSnapshot>(PREFETCH_KEY),
+  );
+  const [snapshot, setSnapshot] = useState<AppsSnapshot | null>(seed?.value ?? null);
+  const [pending, setPending] = useState(seed === undefined);
+  const [error, setError] = useState<string | null>(null);
+
   const readerRef = useRef<AppsReader>(reader ?? readApps);
   readerRef.current = reader ?? readApps;
 
@@ -64,7 +85,10 @@ export function useApps(reader?: AppsReader): AppsState {
     inFlight.current = true;
 
     try {
-      const next = await readerRef.current();
+      // The first load reuses the background read (settled or in flight)
+      // instead of repeating it; every later load is a real read.
+      const next = await ((injected ? undefined : takePrefetched<AppsSnapshot>(PREFETCH_KEY)) ??
+        readerRef.current());
       if (!mounted.current) return;
       setSnapshot(next);
       setError(null);
@@ -76,7 +100,7 @@ export function useApps(reader?: AppsReader): AppsState {
       inFlight.current = false;
       if (mounted.current) setPending(false);
     }
-  }, []);
+  }, [injected]);
 
   const refresh = useCallback(() => {
     void load();

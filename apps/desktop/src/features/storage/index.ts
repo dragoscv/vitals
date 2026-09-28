@@ -24,4 +24,4 @@ export {
   type SkippedPath,
   type Volume,
 } from './model';
-export { NO_HOST, TOP_N, useStorage, type StorageSource } from './useStorage';
+export { NO_HOST, prefetchStorage, TOP_N, useStorage, type StorageSource } from './useStorage';

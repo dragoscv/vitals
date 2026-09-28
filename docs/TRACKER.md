@@ -164,6 +164,60 @@ CSV records the state.
 Every claim of "done" needs a command and its output. Recorded here as work
 lands, newest first.
 
+### 2026-09-28 — S12-24 every tab is ready before its first visit
+
+**Ask.** The first visit to a tab waited for its data; the second was
+instant because the screen stayed mounted. The whole app should be
+preloaded.
+
+**Measured before** (live CDP, `.copilot-tmp/firstvisit-split.mjs`): a first
+visit took 300–1300 ms — lazy chunk (Performance 1241 ms), then the data
+read. `get_startup` 231–322 ms and `get_installed_apps` 223 ms ran as
+synchronous commands on the main thread, so parallel reads serialised
+(11 commands: 718 ms wall, each "taking" 711 ms). And a defect: every
+metrics source ran its own `listen()` and reconciled deltas from an empty
+map, so Processes opened between keyframes showed **116 of 780** processes
+for up to thirty seconds.
+
+**Fix.**
+
+- `lib/metrics`: one session-long frame hub. It asks the sampler for a
+  keyframe (new `request_keyframe` command, flag on `AppState`), folds no
+  delta before a baseline, and hands every new subscriber the current
+  snapshot. Stream sources (Processes, Performance, Network, Dashboard)
+  seed their initial state from it.
+- `lib/prefetch`: background reads keyed per screen, with a max age; a
+  hook seeds its first render from `peekPrefetched` and reuses the read
+  (`takePrefetched`) only when younger than 15 s, otherwise it shows it
+  and reads again. Failed reads leave no entry.
+- `routes.tsx`: `preloadRoutes` loads every chunk and prefetches every
+  screen's data, one step per idle callback, after first paint; then every
+  route is mounted hidden inside a transition. Chunks are memoised so
+  `lazy` and the preloader share one import.
+- Four inventory commands are `async` + `spawn_blocking`.
+- `HistoryCollector` ignores a frame it already folded (the hub replays
+  the current frame to late subscribers).
+
+Not preloaded, by design: storage scans, cleanup candidates, benchmark runs
+— each loads the disk or every core and is the user's call.
+
+```text
+skeleton-check (reload, idle, click each tab once, inspect its FIRST frame):
+  idle 1.5 s → 11/11 data, 0 skeletons · idle 6 s → 11/11 data, 0 skeletons   (before: skeleton on 11/11)
+proc-count: first Processes visit "804 of 804 processes"                      (before: "116 of 116" on 780)
+backend-check: request_keyframe ok · startup+apps+sensors+connections parallel 239 ms vs 513 ms sequential, 0 frame gaps
+mutations (each restored): hub replay removed → RED · baseline gate removed → RED · hub re-installed per subscribe → RED ·
+  useStartup seed ignored → RED · prefetched read ignored → RED · take does not consume → RED · process source not seeded → RED ·
+  history replay dedupe removed → RED
+pnpm test 92 files 916 · cargo test -p vitals-desktop 50 · clippy -D warnings · lint · typecheck · prettier · cargo fmt
+check-drift 0 (58 commands) · check-size within budget (initial 186.1 KB of 195.2 KB)
+```
+
+**Remaining cost.** A click still takes 200–600 ms to paint in the dev
+build even with everything mounted: the profile is React dev-mode JSX
+validation and the 800-row table re-rendering as it becomes visible. That
+is navigation cost, present on revisits too, not loading.
+
 ### 2026-09-28 — S12-23 one window background, no borders between regions
 
 **Ask.** Title bar, sidebar and content on ONE background for the whole

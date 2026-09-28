@@ -78,9 +78,22 @@ pub struct ConnectionsSnapshot {
 /// Cheap enough to call on a timer from the screen (single-digit milliseconds
 /// for a few hundred rows), but still not on the sampler tick — the tables are
 /// only interesting while the Network screen is open.
+///
+/// Off the main thread anyway: measured at 27 ms and ~320 KB on a busy
+/// machine, every two seconds while the screen is open, and a synchronous
+/// command blocks the window for that long each time.
 #[tauri::command]
 #[cfg(windows)]
-pub fn get_connections() -> ConnectionsSnapshot {
+pub async fn get_connections() -> CommandResult<ConnectionsSnapshot> {
+    tauri::async_runtime::spawn_blocking(collect_connections)
+        .await
+        .map_err(|err| CommandError::Internal {
+            message: format!("the connections read was abandoned: {err}"),
+        })
+}
+
+#[cfg(windows)]
+fn collect_connections() -> ConnectionsSnapshot {
     use vitals_win::connections;
 
     let (rows, by_process) = connections::snapshot();
@@ -239,14 +252,32 @@ pub struct StartupSnapshot {
 /// path, which costs an SCM round trip per service — on a machine with ~370
 /// services that is the difference between a fast list and a slow one. The
 /// screen asks for it only when the user opens the Services tab.
+///
+/// `async` + `spawn_blocking`: 230–320 ms measured, and a synchronous command
+/// runs on the main thread, so it froze the window and queued every other
+/// command behind it. The webview now reads this in the background at
+/// launch, which is only harmless if it cannot block a click.
 #[tauri::command]
 #[cfg(windows)]
-// Tauri injects `State` by value; a borrow cannot be expressed in a command
-// signature, so clippy's suggestion is not available here.
-#[allow(clippy::needless_pass_by_value)]
-pub fn get_startup(
+pub async fn get_startup(
     with_service_config: bool,
-    impact: tauri::State<'_, crate::startup_impact::StartupImpactStore>,
+    app: tauri::AppHandle,
+) -> CommandResult<StartupSnapshot> {
+    tauri::async_runtime::spawn_blocking(move || {
+        use tauri::Manager;
+        let impact = app.state::<crate::startup_impact::StartupImpactStore>();
+        collect_startup(with_service_config, &impact)
+    })
+    .await
+    .map_err(|err| CommandError::Internal {
+        message: format!("the startup read was abandoned: {err}"),
+    })?
+}
+
+#[cfg(windows)]
+fn collect_startup(
+    with_service_config: bool,
+    impact: &crate::startup_impact::StartupImpactStore,
 ) -> CommandResult<StartupSnapshot> {
     use vitals_win::startup;
 
@@ -437,9 +468,21 @@ pub struct RejectionDto {
 ///
 /// Never fails as a whole: an absent registry view — `WOW6432Node` does not
 /// exist on a 32-bit-only system — is skipped rather than blanking the list.
+///
+/// Off the main thread for the reason given on [`get_startup`]: ~220 ms of
+/// registry walking.
 #[tauri::command]
 #[cfg(windows)]
-pub fn get_installed_apps() -> AppsSnapshot {
+pub async fn get_installed_apps() -> CommandResult<AppsSnapshot> {
+    tauri::async_runtime::spawn_blocking(collect_installed_apps)
+        .await
+        .map_err(|err| CommandError::Internal {
+            message: format!("the installed-apps read was abandoned: {err}"),
+        })
+}
+
+#[cfg(windows)]
+fn collect_installed_apps() -> AppsSnapshot {
     use vitals_win::apps;
 
     let scan = apps::enumerate_installed_apps();
@@ -741,10 +784,23 @@ pub struct SensorsSnapshot {
 /// that already respects `cadence_ms`. Adding a second cache here would make
 /// the manual refresh button do nothing for up to five seconds, which reads
 /// as a broken button.
+///
+/// Off the main thread: a WMI round trip is tens of milliseconds (48 ms
+/// measured). `read_all` enters and leaves its COM apartment per call, so a
+/// pool thread is as good as any.
 #[tauri::command]
 #[cfg(windows)]
+pub async fn get_sensors() -> CommandResult<SensorsSnapshot> {
+    tauri::async_runtime::spawn_blocking(read_sensors)
+        .await
+        .map_err(|err| CommandError::Internal {
+            message: format!("the sensor read was abandoned: {err}"),
+        })
+}
+
+#[cfg(windows)]
 #[must_use]
-pub fn get_sensors() -> SensorsSnapshot {
+fn read_sensors() -> SensorsSnapshot {
     use vitals_win::sensors;
 
     let sample = sensors::read_all();
@@ -965,7 +1021,7 @@ mod sensor_tests {
 
     #[test]
     fn an_empty_thermal_scan_always_carries_a_reason() {
-        let snapshot = get_sensors();
+        let snapshot = read_sensors();
 
         if snapshot.zones.is_empty() {
             assert_ne!(
@@ -978,7 +1034,7 @@ mod sensor_tests {
 
     #[test]
     fn every_gap_is_sent_with_a_reason_and_a_requirement() {
-        let snapshot = get_sensors();
+        let snapshot = read_sensors();
 
         assert!(!snapshot.gaps.is_empty(), "the gap list is the screen");
         for gap in &snapshot.gaps {
@@ -992,12 +1048,12 @@ mod sensor_tests {
     fn the_cadence_is_far_slower_than_the_frame_budget() {
         // Polling sensors at the sampler's rate would spend the whole 30 ms
         // budget in WMI. The screen honours this value.
-        assert!(get_sensors().cadence_ms >= 1000);
+        assert!(read_sensors().cadence_ms >= 1000);
     }
 
     #[test]
     fn no_reading_is_fabricated() {
-        for reading in &get_sensors().readings {
+        for reading in &read_sensors().readings {
             assert!(!reading.key.is_empty());
             assert!(reading.value.is_finite());
         }

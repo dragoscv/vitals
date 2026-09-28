@@ -17,7 +17,8 @@ const hasHost = vi.hoisted(() => ({ value: true }));
 vi.mock('../../shell/host', () => ({ hasTauriHost: () => hasHost.value }));
 
 const subscribeToMetrics = vi.hoisted(() => vi.fn());
-vi.mock('@/lib/metrics', () => ({ subscribeToMetrics }));
+const latestMetrics = vi.hoisted(() => vi.fn<() => unknown>(() => null));
+vi.mock('@/lib/metrics', () => ({ subscribeToMetrics, latestMetrics }));
 
 type Listener = { onSnapshot(snapshot: unknown): void };
 
@@ -25,6 +26,8 @@ beforeEach(() => {
   vi.useFakeTimers();
   hasHost.value = true;
   subscribeToMetrics.mockReset();
+  latestMetrics.mockReset();
+  latestMetrics.mockReturnValue(null);
 });
 
 afterEach(() => {
@@ -32,6 +35,31 @@ afterEach(() => {
 });
 
 describe('createTauriSnapshotSource', () => {
+  it('starts from the stream\u2019s current frame instead of an empty table', () => {
+    // Found live 2026-09-28: a first visit to Processes showed skeletons and
+    // then "116 of 116" on a machine running 780 — each source folded deltas
+    // onto nothing. The session-long hub holds the whole map; a new source
+    // must start from it.
+    const processes = new Map([
+      ['4:1', { name: 'a' }],
+      ['8:1', { name: 'b' }],
+    ]);
+    latestMetrics.mockReturnValue({
+      system: {},
+      processes,
+      seq: 9,
+      elapsedMs: 1000,
+      timestampMs: 1,
+    });
+
+    const current = createTauriSnapshotSource().current();
+
+    expect(current.pending).toBe(false);
+    expect(current.processes.size).toBe(2);
+    // A copy: the hub mutates its map in place on every delta.
+    expect(current.processes).not.toBe(processes);
+  });
+
   it('keeps listening after the last subscriber leaves and a new one arrives', async () => {
     // `<Activity mode="hidden">` unmounts a route's effects and remounts them
     // on return; StrictMode does the same on purpose in dev. The second

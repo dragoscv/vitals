@@ -22,4 +22,4 @@ export {
   type RunConditionsDto,
   type Spread,
 } from './model';
-export { NO_HOST, useBenchmarks, type BenchmarksSource } from './useBenchmarks';
+export { NO_HOST, prefetchBenchmarks, useBenchmarks, type BenchmarksSource } from './useBenchmarks';

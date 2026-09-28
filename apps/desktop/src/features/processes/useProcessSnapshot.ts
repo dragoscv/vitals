@@ -13,7 +13,7 @@ import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
 import type { Process } from '@vitals/protocol';
 
 import { errorMessage } from '@/lib/commandError';
-import { subscribeToMetrics, type Snapshot } from '@/lib/metrics';
+import { latestMetrics, subscribeToMetrics, type Snapshot } from '@/lib/metrics';
 import { hasTauriHost } from '../../shell/host';
 
 const EMPTY_PROCESSES: ReadonlyMap<string, Process> = new Map();
@@ -56,7 +56,20 @@ export const NO_SAMPLER = 'no-sampler';
 
 /** Creates a source backed by the Tauri event channel. */
 export function createTauriSnapshotSource(): SnapshotSource {
-  let value = INITIAL;
+  // Starts from the stream's current frame when there is one: the metrics
+  // listener lives for the whole session (lib/metrics), so a screen opened
+  // for the first time has rows on its first render instead of skeletons.
+  const latest = latestMetrics();
+  let value: ProcessSnapshot =
+    latest === null
+      ? INITIAL
+      : {
+          processes: new Map(latest.processes),
+          seq: latest.seq,
+          timestampMs: latest.timestampMs,
+          error: null,
+          pending: false,
+        };
   const listeners = new Set<(snapshot: ProcessSnapshot) => void>();
 
   const publish = (next: ProcessSnapshot): void => {

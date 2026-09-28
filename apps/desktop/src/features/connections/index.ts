@@ -15,6 +15,7 @@ export {
 export {
   NO_HOST,
   POLL_INTERVAL_MS,
+  prefetchConnections,
   useConnections,
   type ConnectionsReader,
   type ConnectionsSnapshot,

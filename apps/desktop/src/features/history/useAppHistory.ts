@@ -8,6 +8,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { peekPrefetched, prefetch, takePrefetched } from '../../lib/prefetch';
 import { hasTauriHost } from '../../shell/host';
 import type { AppHistorySnapshot } from './model';
 import { errorMessage } from '../../lib/commandError';
@@ -29,6 +30,13 @@ export async function clearHistory(): Promise<void> {
   return invoke<void>('clear_app_history');
 }
 
+const PREFETCH_KEY = 'appHistory';
+
+/** Background read for the first visit (lib/prefetch). */
+export function prefetchAppHistory(): Promise<void> {
+  return prefetch(PREFETCH_KEY, readHistory, 60_000);
+}
+
 export interface HistoryState {
   readonly snapshot: AppHistorySnapshot | null;
   /** True until the first read settles, whether it succeeds or fails. */
@@ -39,12 +47,16 @@ export interface HistoryState {
 }
 
 export function useAppHistory(reader?: HistoryReader, clearer?: HistoryClearer): HistoryState {
-  const [snapshot, setSnapshot] = useState<AppHistorySnapshot | null>(null);
-  const [pending, setPending] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
   // Injected functions replace the host check rather than sitting behind it.
   const injected = reader !== undefined || clearer !== undefined;
+
+  const [seed] = useState(() =>
+    injected ? undefined : peekPrefetched<AppHistorySnapshot>(PREFETCH_KEY),
+  );
+  const [snapshot, setSnapshot] = useState<AppHistorySnapshot | null>(seed?.value ?? null);
+  const [pending, setPending] = useState(seed === undefined);
+  const [error, setError] = useState<string | null>(null);
+
   const readerRef = useRef<HistoryReader>(reader ?? readHistory);
   const clearerRef = useRef<HistoryClearer>(clearer ?? clearHistory);
   readerRef.current = reader ?? readHistory;
@@ -58,7 +70,9 @@ export function useAppHistory(reader?: HistoryReader, clearer?: HistoryClearer):
     inFlight.current = true;
 
     try {
-      const next = await readerRef.current();
+      const next = await ((injected
+        ? undefined
+        : takePrefetched<AppHistorySnapshot>(PREFETCH_KEY)) ?? readerRef.current());
       if (!mounted.current) return;
       setSnapshot(next);
       setError(null);
@@ -70,7 +84,7 @@ export function useAppHistory(reader?: HistoryReader, clearer?: HistoryClearer):
       inFlight.current = false;
       if (mounted.current) setPending(false);
     }
-  }, []);
+  }, [injected]);
 
   const refresh = useCallback(() => {
     void load();

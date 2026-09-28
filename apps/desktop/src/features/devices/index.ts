@@ -14,4 +14,10 @@ export {
   type SensorsSnapshot,
   type ThermalAvailability,
 } from './model';
-export { DEFAULT_CADENCE_MS, NO_HOST, useSensors, type SensorsReader } from './useSensors';
+export {
+  DEFAULT_CADENCE_MS,
+  NO_HOST,
+  prefetchSensors,
+  useSensors,
+  type SensorsReader,
+} from './useSensors';

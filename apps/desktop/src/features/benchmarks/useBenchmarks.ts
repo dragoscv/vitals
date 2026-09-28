@@ -18,6 +18,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { peekPrefetched, prefetch, takePrefetched } from '../../lib/prefetch';
 import { hasTauriHost } from '../../shell/host';
 import type { BenchmarkId, BenchmarkInfo, BenchmarkSuiteDto } from './model';
 import { errorMessage } from '../../lib/commandError';
@@ -42,6 +43,16 @@ export const tauriSource: BenchmarksSource = {
   },
 };
 
+const PREFETCH_KEY = 'benchmarks:list';
+
+/**
+ * Background read of the catalogue for the first visit (lib/prefetch). The
+ * list only — running a benchmark loads every core and is the user's call.
+ */
+export function prefetchBenchmarks(): Promise<void> {
+  return prefetch(PREFETCH_KEY, () => tauriSource.list(), 10 * 60_000);
+}
+
 export interface BenchmarksState {
   readonly infos: readonly BenchmarkInfo[];
   /** True until the listing settles, whether it succeeds or fails. */
@@ -59,8 +70,16 @@ export interface BenchmarksState {
 }
 
 export function useBenchmarks(source?: BenchmarksSource): BenchmarksState {
-  const [infos, setInfos] = useState<readonly BenchmarkInfo[]>([]);
-  const [pending, setPending] = useState(true);
+  // An injected source replaces the host check rather than sitting behind it.
+  // A seam the production path can veto silently never runs in tests, and
+  // every assertion then fails for an unrelated reason.
+  const injected = source !== undefined;
+
+  const [seed] = useState(() =>
+    injected ? undefined : peekPrefetched<readonly BenchmarkInfo[]>(PREFETCH_KEY),
+  );
+  const [infos, setInfos] = useState<readonly BenchmarkInfo[]>(seed?.value ?? []);
+  const [pending, setPending] = useState(seed === undefined);
   const [listError, setListError] = useState<string | null>(null);
 
   const [suite, setSuite] = useState<BenchmarkSuiteDto | null>(null);
@@ -68,10 +87,6 @@ export function useBenchmarks(source?: BenchmarksSource): BenchmarksState {
   const [runningIds, setRunningIds] = useState<readonly BenchmarkId[]>([]);
   const [runError, setRunError] = useState<string | null>(null);
 
-  // An injected source replaces the host check rather than sitting behind it.
-  // A seam the production path can veto silently never runs in tests, and
-  // every assertion then fails for an unrelated reason.
-  const injected = source !== undefined;
   const sourceRef = useRef<BenchmarksSource>(source ?? tauriSource);
   sourceRef.current = source ?? tauriSource;
 
@@ -80,7 +95,9 @@ export function useBenchmarks(source?: BenchmarksSource): BenchmarksState {
 
   const load = useCallback(async () => {
     try {
-      const next = await sourceRef.current.list();
+      const next = await ((injected
+        ? undefined
+        : takePrefetched<readonly BenchmarkInfo[]>(PREFETCH_KEY)) ?? sourceRef.current.list());
       if (!mounted.current) return;
       setInfos(next);
       setListError(null);
@@ -90,7 +107,7 @@ export function useBenchmarks(source?: BenchmarksSource): BenchmarksState {
     } finally {
       if (mounted.current) setPending(false);
     }
-  }, []);
+  }, [injected]);
 
   const run = useCallback((ids: readonly BenchmarkId[]) => {
     // Guarded rather than queued: two suites measuring the same machine at the

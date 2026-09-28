@@ -29,6 +29,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { Connection } from '@vitals/protocol';
 
+import { peekPrefetched, prefetch, takePrefetched } from '../../lib/prefetch';
 import { hasTauriHost } from '../../shell/host';
 import { errorMessage } from '../../lib/commandError';
 
@@ -72,12 +73,18 @@ export async function readConnections(): Promise<ConnectionsSnapshot> {
   return invoke<ConnectionsSnapshot>('get_connections');
 }
 
-export function useConnections(reader?: ConnectionsReader): ConnectionsState {
-  const [snapshot, setSnapshot] = useState<ConnectionsSnapshot | null>(null);
-  const [pending, setPending] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [updatedAt, setUpdatedAt] = useState<number | null>(null);
+const PREFETCH_KEY = 'connections';
 
+/**
+ * Background read for the first visit (lib/prefetch). Thirty seconds: the
+ * table is polled every two once the screen is open, so this only has to
+ * bridge the first paint, and an older table would show sockets long closed.
+ */
+export function prefetchConnections(): Promise<void> {
+  return prefetch(PREFETCH_KEY, readConnections, 30_000);
+}
+
+export function useConnections(reader?: ConnectionsReader): ConnectionsState {
   // An injected reader replaces the host check entirely, rather than being
   // consulted after it. The earlier version defaulted the argument and then
   // short-circuited on `hasTauriHost()`, so in a test — where there is no
@@ -86,6 +93,16 @@ export function useConnections(reader?: ConnectionsReader): ConnectionsState {
   // not a seam; it is a trap that makes every test fail for a reason
   // unrelated to what it is testing.
   const injected = reader !== undefined;
+
+  const [seed] = useState(() =>
+    injected ? undefined : peekPrefetched<ConnectionsSnapshot>(PREFETCH_KEY),
+  );
+  const [snapshot, setSnapshot] = useState<ConnectionsSnapshot | null>(seed?.value ?? null);
+  const [pending, setPending] = useState(seed === undefined);
+  const [error, setError] = useState<string | null>(null);
+  // The seed's own read time, so "updated" never claims the prefetch is newer than it is.
+  const [updatedAt, setUpdatedAt] = useState<number | null>(seed?.at ?? null);
+
   const readerRef = useRef<ConnectionsReader>(reader ?? readConnections);
   readerRef.current = reader ?? readConnections;
 
@@ -97,7 +114,9 @@ export function useConnections(reader?: ConnectionsReader): ConnectionsState {
     inFlight.current = true;
 
     try {
-      const next = await readerRef.current();
+      const next = await ((injected
+        ? undefined
+        : takePrefetched<ConnectionsSnapshot>(PREFETCH_KEY, 3000)) ?? readerRef.current());
       if (!mounted.current) return;
       setSnapshot(next);
       setError(null);
@@ -111,7 +130,7 @@ export function useConnections(reader?: ConnectionsReader): ConnectionsState {
       inFlight.current = false;
       if (mounted.current) setPending(false);
     }
-  }, []);
+  }, [injected]);
 
   const refresh = useCallback(() => {
     void load();

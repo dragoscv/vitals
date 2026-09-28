@@ -28,6 +28,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { peekPrefetched, prefetch, takePrefetched } from '../../lib/prefetch';
 import { hasTauriHost } from '../../shell/host';
 import type { SensorsSnapshot } from './model';
 import { errorMessage } from '../../lib/commandError';
@@ -51,6 +52,17 @@ export async function readSensors(): Promise<SensorsSnapshot> {
   return invoke<SensorsSnapshot>('get_sensors');
 }
 
+const PREFETCH_KEY = 'sensors';
+
+/**
+ * Background read for the first visit (lib/prefetch). One minute: the screen
+ * polls every five seconds once open, and temperatures older than a minute
+ * would describe a different load.
+ */
+export function prefetchSensors(): Promise<void> {
+  return prefetch(PREFETCH_KEY, readSensors, 60_000);
+}
+
 export interface SensorsState {
   readonly snapshot: SensorsSnapshot | null;
   /** True until the first read settles, whether it succeeds or fails. */
@@ -62,16 +74,20 @@ export interface SensorsState {
 }
 
 export function useSensors(reader?: SensorsReader): SensorsState {
-  const [snapshot, setSnapshot] = useState<SensorsSnapshot | null>(null);
-  const [pending, setPending] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [updatedAt, setUpdatedAt] = useState<number | null>(null);
-
   // An injected reader replaces the host check rather than being consulted
   // after it. A seam the production path can veto is not a seam — it silently
   // never runs in tests, and every assertion then fails for an unrelated
   // reason. That mistake has already been made once in this codebase.
   const injected = reader !== undefined;
+
+  const [seed] = useState(() =>
+    injected ? undefined : peekPrefetched<SensorsSnapshot>(PREFETCH_KEY),
+  );
+  const [snapshot, setSnapshot] = useState<SensorsSnapshot | null>(seed?.value ?? null);
+  const [pending, setPending] = useState(seed === undefined);
+  const [error, setError] = useState<string | null>(null);
+  const [updatedAt, setUpdatedAt] = useState<number | null>(seed?.at ?? null);
+
   const readerRef = useRef<SensorsReader>(reader ?? readSensors);
   readerRef.current = reader ?? readSensors;
 
@@ -89,7 +105,9 @@ export function useSensors(reader?: SensorsReader): SensorsState {
     inFlight.current = true;
 
     try {
-      const next = await readerRef.current();
+      const next = await ((injected
+        ? undefined
+        : takePrefetched<SensorsSnapshot>(PREFETCH_KEY, 5000)) ?? readerRef.current());
       if (!mounted.current) return;
       setSnapshot(next);
       setError(null);
@@ -108,7 +126,7 @@ export function useSensors(reader?: SensorsReader): SensorsState {
       // already shipped three times.
       if (mounted.current) setPending(false);
     }
-  }, []);
+  }, [injected]);
 
   const refresh = useCallback(() => {
     void load();

@@ -16,6 +16,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { peekPrefetched, prefetch, takePrefetched } from '../../lib/prefetch';
 import { hasTauriHost } from '../../shell/host';
 import type { UsersSnapshot } from './model';
 import { errorMessage } from '../../lib/commandError';
@@ -31,6 +32,17 @@ export async function readUsers(): Promise<UsersSnapshot> {
   return invoke<UsersSnapshot>('get_users');
 }
 
+const PREFETCH_KEY = 'users';
+
+/**
+ * Background read for the first visit (lib/prefetch). One minute: the
+ * per-session rollups are a sampler tick's CPU and memory, and older than
+ * that they describe a different moment.
+ */
+export function prefetchUsers(): Promise<void> {
+  return prefetch(PREFETCH_KEY, readUsers, 60_000);
+}
+
 export interface UsersState {
   readonly snapshot: UsersSnapshot | null;
   /** True until the first read settles, whether it succeeds or fails. */
@@ -40,15 +52,19 @@ export interface UsersState {
 }
 
 export function useUsers(reader?: UsersReader): UsersState {
-  const [snapshot, setSnapshot] = useState<UsersSnapshot | null>(null);
-  const [pending, setPending] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
   // An injected reader replaces the host check rather than being consulted
   // after it. A seam the production path can veto is not a seam — it silently
   // never runs in tests, and every assertion then fails for an unrelated
   // reason. That mistake has already been made once in this codebase.
   const injected = reader !== undefined;
+
+  const [seed] = useState(() =>
+    injected ? undefined : peekPrefetched<UsersSnapshot>(PREFETCH_KEY),
+  );
+  const [snapshot, setSnapshot] = useState<UsersSnapshot | null>(seed?.value ?? null);
+  const [pending, setPending] = useState(seed === undefined);
+  const [error, setError] = useState<string | null>(null);
+
   const readerRef = useRef<UsersReader>(reader ?? readUsers);
   readerRef.current = reader ?? readUsers;
 
@@ -60,7 +76,8 @@ export function useUsers(reader?: UsersReader): UsersState {
     inFlight.current = true;
 
     try {
-      const next = await readerRef.current();
+      const next = await ((injected ? undefined : takePrefetched<UsersSnapshot>(PREFETCH_KEY)) ??
+        readerRef.current());
       if (!mounted.current) return;
       setSnapshot(next);
       setError(null);
@@ -73,7 +90,7 @@ export function useUsers(reader?: UsersReader): UsersState {
       inFlight.current = false;
       if (mounted.current) setPending(false);
     }
-  }, []);
+  }, [injected]);
 
   const refresh = useCallback(() => {
     void load();

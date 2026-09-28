@@ -110,6 +110,19 @@ pub fn get_capabilities(state: State<'_, AppState>) -> CapabilityReport {
     }
 }
 
+/// Makes the sampler's next frame a keyframe.
+///
+/// Called by the webview when it starts listening for frames. Deltas are only
+/// meaningful against a baseline, and a window that attaches between the
+/// periodic keyframes would otherwise show a partial process list — measured
+/// at 116 of 780 — for up to thirty seconds. Desktop-only: LAN clients get a
+/// keyframe from the server on connect.
+#[tauri::command]
+#[allow(clippy::needless_pass_by_value)]
+pub fn request_keyframe(state: State<'_, AppState>) {
+    state.request_keyframe();
+}
+
 /// The alerts currently raised, most serious first.
 ///
 /// Request/response for the initial list; changes arrive as

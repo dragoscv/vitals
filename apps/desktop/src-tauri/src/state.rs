@@ -44,6 +44,11 @@ pub struct AppState {
     /// every tick and reconciles; commands only ever write it. The SQLite
     /// connection itself never crosses a thread — readers open their own.
     recording: RwLock<RecordingSettings>,
+    /// Set by the webview when it starts listening; the sampler makes its
+    /// next frame a keyframe and clears it. Without it a window that starts
+    /// listening after the first frame has only deltas to fold, onto nothing,
+    /// until the periodic keyframe thirty ticks later.
+    keyframe_requested: std::sync::atomic::AtomicBool,
 }
 
 /// Recorder configuration as the user has set it.
@@ -79,7 +84,20 @@ impl AppState {
             latest_processes: RwLock::new(std::sync::Arc::new(Vec::new())),
             disk_counter_source: RwLock::new(None),
             recording: RwLock::new(RecordingSettings::default()),
+            keyframe_requested: std::sync::atomic::AtomicBool::new(false),
         }
+    }
+
+    /// Asks the sampler to send a full frame next tick.
+    pub fn request_keyframe(&self) {
+        self.keyframe_requested
+            .store(true, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    /// Whether a keyframe was asked for since the last call. Sampler thread.
+    pub fn take_keyframe_request(&self) -> bool {
+        self.keyframe_requested
+            .swap(false, std::sync::atomic::Ordering::Relaxed)
     }
 
     pub fn recording(&self) -> RecordingSettings {

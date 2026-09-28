@@ -1,73 +1,170 @@
-import { Activity, Suspense, lazy, useEffect, useRef, useState, type ReactNode } from 'react';
+import {
+  Activity,
+  Suspense,
+  lazy,
+  startTransition,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 
 import { Skeleton, useReducedMotion } from '@vitals/ui';
 
 import { DashboardScreen } from './features/dashboard';
-import { type RouteId } from './shell/navigation';
+import { hasTauriHost } from './shell/host';
+import { routeIds, type RouteId } from './shell/navigation';
 
 // Dashboard is eager: it is what the window opens on, so deferring it would
 // only add a flash of skeleton to the one screen whose load time is the
 // app's perceived startup time.
 //
-// Every other section is lazy. Only one is ever on screen, and most sessions
-// touch two or three, so eagerly parsing all eleven made the first paint pay
-// for Benchmarks, Storage and Users that the user may never open. Each of
-// these is a chunk the browser fetches from local disk on first navigation.
+// Every other section is lazy, so the first paint does not pay for eleven
+// screens. They are then preloaded in the background — chunk AND first
+// data — by `preloadRoutes` below, so a first visit is as fast as a return
+// visit. Lazy-then-preload keeps both properties: a fast launch and no
+// skeleton on any tab.
 //
 // Each chunk registers its own translations as it loads. That has to happen
 // before the component renders, which is exactly what awaiting it inside the
 // `lazy` factory guarantees — registering from `main.tsx` instead would
 // import every barrel eagerly and collapse the split back into one bundle.
-const ConnectionsScreen = lazy(async () => {
+//
+// Each loader is memoised: `lazy` and the preloader share one promise, so the
+// chunk is fetched and the strings registered exactly once, whichever asks
+// first.
+function once<T>(load: () => Promise<T>): () => Promise<T> {
+  let promise: Promise<T> | null = null;
+  return () => {
+    promise ??= load().catch((error: unknown) => {
+      // A failed chunk (a dev-server restart, a disk hiccup) is retried by
+      // the next caller rather than cached as a permanent failure.
+      promise = null;
+      throw error;
+    });
+    return promise;
+  };
+}
+
+const loadConnections = once(async () => {
   const m = await import('./features/connections');
   m.registerConnectionStrings();
-  return { default: m.ConnectionsScreen };
+  return m;
 });
-const AppsScreen = lazy(async () => {
+const loadApps = once(async () => {
   const m = await import('./features/apps');
   m.registerAppsStrings();
-  return { default: m.AppsScreen };
+  return m;
 });
-const BenchmarksScreen = lazy(async () => {
+const loadBenchmarks = once(async () => {
   const m = await import('./features/benchmarks');
   m.registerBenchmarksStrings();
-  return { default: m.BenchmarksScreen };
+  return m;
 });
-const DevicesScreen = lazy(async () => {
+const loadDevices = once(async () => {
   const m = await import('./features/devices');
   m.registerDevicesStrings();
-  return { default: m.DevicesScreen };
+  return m;
 });
-const AppHistoryScreen = lazy(async () => {
+const loadHistory = once(async () => {
   const m = await import('./features/history');
   m.registerHistoryStrings();
-  return { default: m.AppHistoryScreen };
+  return m;
 });
-const PerformanceScreen = lazy(async () => {
+const loadPerformance = once(async () => {
   const m = await import('./features/performance');
   m.registerPerformanceStrings();
-  return { default: m.PerformanceScreen };
+  return m;
 });
-const ProcessesScreen = lazy(async () => {
+const loadProcesses = once(async () => {
   const m = await import('./features/processes');
   m.registerProcessesStrings();
-  return { default: m.ProcessesScreen };
+  return m;
 });
-const StartupScreen = lazy(async () => {
+const loadStartup = once(async () => {
   const m = await import('./features/startup');
   m.registerStartupStrings();
-  return { default: m.StartupScreen };
+  return m;
 });
-const StorageScreen = lazy(async () => {
+const loadStorage = once(async () => {
   const m = await import('./features/storage');
   m.registerStorageStrings();
-  return { default: m.StorageScreen };
+  return m;
 });
-const UsersScreen = lazy(async () => {
+const loadUsers = once(async () => {
   const m = await import('./features/users');
   m.registerUsersStrings();
-  return { default: m.UsersScreen };
+  return m;
 });
+
+const ConnectionsScreen = lazy(async () => ({
+  default: (await loadConnections()).ConnectionsScreen,
+}));
+const AppsScreen = lazy(async () => ({ default: (await loadApps()).AppsScreen }));
+const BenchmarksScreen = lazy(async () => ({ default: (await loadBenchmarks()).BenchmarksScreen }));
+const DevicesScreen = lazy(async () => ({ default: (await loadDevices()).DevicesScreen }));
+const AppHistoryScreen = lazy(async () => ({ default: (await loadHistory()).AppHistoryScreen }));
+const PerformanceScreen = lazy(async () => ({
+  default: (await loadPerformance()).PerformanceScreen,
+}));
+const ProcessesScreen = lazy(async () => ({ default: (await loadProcesses()).ProcessesScreen }));
+const StartupScreen = lazy(async () => ({ default: (await loadStartup()).StartupScreen }));
+const StorageScreen = lazy(async () => ({ default: (await loadStorage()).StorageScreen }));
+const UsersScreen = lazy(async () => ({ default: (await loadUsers()).UsersScreen }));
+
+/**
+ * What each section needs before its first paint: its chunk, then a
+ * background read of its data (lib/prefetch). In the order a user is most
+ * likely to open them, so the probable next click is ready first.
+ *
+ * Only reads — nothing here scans a disk or runs a benchmark. Screens fed by
+ * the metrics stream (Performance, Processes) need no read: the stream is
+ * always listening (lib/metrics), so they render from the current frame.
+ */
+const preloaders: readonly (() => Promise<unknown>)[] = [
+  loadProcesses,
+  loadPerformance,
+  async () => (await loadStartup()).prefetchStartup(false),
+  async () => (await loadStartup()).prefetchStartup(true),
+  async () => (await loadApps()).prefetchApps(),
+  async () => (await loadConnections()).prefetchConnections(),
+  async () => (await loadUsers()).prefetchUsers(),
+  async () => (await loadHistory()).prefetchAppHistory(),
+  async () => (await loadStorage()).prefetchStorage(),
+  async () => (await loadDevices()).prefetchSensors(),
+  async () => (await loadBenchmarks()).prefetchBenchmarks(),
+];
+
+/**
+ * Loads every section in the background, one at a time, while the window is
+ * idle.
+ *
+ * One at a time rather than all at once: eleven chunks parsing and eleven
+ * commands answering in the same second would make the dashboard stutter
+ * for exactly the second after launch the user is looking at it. Each step
+ * waits for an idle callback, so a click or a frame always goes first.
+ *
+ * Failures are ignored here. A section whose preload failed simply loads
+ * when opened, as it did before, and reports its own error there.
+ */
+export async function preloadRoutes(
+  idle: (run: () => void) => void = whenIdle,
+  steps: readonly (() => Promise<unknown>)[] = preloaders,
+): Promise<void> {
+  for (const step of steps) {
+    await new Promise<void>((resolve) => {
+      idle(resolve);
+    });
+    await step().catch(() => undefined);
+  }
+}
+
+function whenIdle(run: () => void): void {
+  // `requestIdleCallback` is in every WebView2 build; the timeout keeps a
+  // constantly-busy dashboard from postponing the preload forever.
+  if (typeof requestIdleCallback === 'function') requestIdleCallback(run, { timeout: 500 });
+  else setTimeout(run, 50);
+}
 
 /**
  * Fades and lifts the content area when the section changes.
@@ -201,9 +298,13 @@ export function RouteView({
   // the property that makes this affordable: eleven mounted screens cost
   // eleven React trees in memory, not eleven pollers.
   //
-  // Only VISITED routes are rendered. Rendering all eleven up front would
-  // resolve every `lazy` import immediately and undo the code splitting that
-  // keeps the first paint cheap.
+  // Only VISITED routes are rendered at first. Rendering all eleven up front
+  // would resolve every `lazy` import immediately and undo the code
+  // splitting that keeps the first paint cheap. Once the background preload
+  // has loaded every chunk and read every screen's data, the rest are
+  // mounted hidden too (below): mounting a screen — building a 800-row
+  // table's tree — was most of the ~400 ms a first visit still took after its
+  // data was ready, and a hidden mount in idle time costs the user nothing.
   // State rather than a ref: a ref mutated during render is invisible to
   // React's concurrent scheduler, which may render a component twice or
   // discard the result. The lint rule that forbids it is correct — the
@@ -212,6 +313,28 @@ export function RouteView({
   // The updater returns the SAME set when the route is already known, so a
   // revisit is not a state change and does not re-render.
   const [visited, setVisited] = useState<ReadonlySet<RouteId>>(() => new Set([route]));
+
+  // After the first paint, never before it: the window's first frame is the
+  // app's perceived start time. Host-only — without one every read answers
+  // "no host" at once and there is nothing to warm. `preloadRoutes` is
+  // idempotent in effect (memoised chunks, prefetch keeps fresh entries), so
+  // StrictMode's second mount costs nothing.
+  useEffect(() => {
+    if (!hasTauriHost()) return;
+    let live = true;
+    void preloadRoutes().then(() => {
+      if (!live) return;
+      // A transition, so React may split the work and a click interrupts it.
+      startTransition(() => {
+        setVisited((current) =>
+          current.size === routeIds.length ? current : new Set([...current, ...routeIds]),
+        );
+      });
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
 
   if (!visited.has(route)) {
     // Setting state during render is the supported way to derive state from

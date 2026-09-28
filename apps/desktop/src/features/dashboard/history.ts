@@ -176,6 +176,11 @@ export class HistoryCollector {
     const { core } = this.state;
     const previous = this.state.lastTimestampMs;
 
+    // The same frame twice: the metrics hub hands every new subscriber the
+    // current frame, and Dashboard and Performance both feed this collector.
+    // A replay would draw one second as two identical points.
+    if (previous > 0 && snapshot.timestampMs <= previous) return;
+
     if (previous > 0 && snapshot.timestampMs - previous > GAP_THRESHOLD_MS) {
       this.markGap();
     }

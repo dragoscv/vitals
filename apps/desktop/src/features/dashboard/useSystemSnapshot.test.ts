@@ -22,15 +22,19 @@ vi.mock('../../shell/host', () => ({
 }));
 
 const subscribeToMetrics = vi.hoisted(() => vi.fn());
+const latestMetrics = vi.hoisted(() => vi.fn<() => unknown>(() => null));
 
 vi.mock('@/lib/metrics', () => ({
   subscribeToMetrics,
+  latestMetrics,
 }));
 
 beforeEach(() => {
   vi.useFakeTimers();
   hasHost.value = false;
   subscribeToMetrics.mockReset();
+  latestMetrics.mockReset();
+  latestMetrics.mockReturnValue(null);
   // Never resolves by default: the interesting cases are the ones where no
   // frame arrives, so silence is the right default and a test that wants data
   // opts in explicitly.
@@ -45,6 +49,27 @@ describe('createTauriSystemSource', () => {
   it('is pending before anything subscribes', () => {
     const source = createTauriSystemSource();
     expect(source.current().pending).toBe(true);
+  });
+
+  it('starts from the stream\u2019s current frame, so a first visit has data on its first render', () => {
+    // The metrics listener lives for the session; a screen created after
+    // frames have arrived must not show skeletons while it waits for the
+    // next one.
+    const system = { cpu: { total: 12 } };
+    latestMetrics.mockReturnValue({
+      system,
+      processes: new Map([['4:1', { name: 'x' }]]),
+      seq: 41,
+      elapsedMs: 1000,
+      timestampMs: 5000,
+    });
+
+    const current = createTauriSystemSource().current();
+
+    expect(current.pending).toBe(false);
+    expect(current.system).toBe(system);
+    expect(current.processes.size).toBe(1);
+    expect(current.seq).toBe(41);
   });
 
   it('gives up immediately when there is no host', () => {
