@@ -334,8 +334,17 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # Without updater artefacts: those must be signed, and the signing key
+      # lives only in release.yml's environment — a CI run on any push must
+      # never hold it. The installer itself is what ships, so the size budget
+      # below still measures the real thing.
       - name: Build
-        run: pnpm --filter @vitals/desktop build
+        shell: pwsh
+        run: |
+          $overlay = Join-Path $env:RUNNER_TEMP 'ci-tauri.json'
+          '{"bundle":{"createUpdaterArtifacts":false}}' | Set-Content -Path $overlay -Encoding utf8NoBOM
+          pnpm --filter @vitals/desktop tauri build --config $overlay
+          if ($LASTEXITCODE -ne 0) { throw "tauri exited $LASTEXITCODE" }
 
       # Size is a feature here, and it regresses one careless import at a
       # time. The budgets live in size-budget.json so a deliberate increase
