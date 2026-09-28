@@ -35,10 +35,10 @@ export type LineStatus = 'ac' | 'battery' | 'unknown';
 
 export type PowerModeKey = 'bestPowerEfficiency' | 'balanced' | 'bestPerformance' | 'custom';
 
-export type SensorUnit = 'temperature' | 'power' | 'voltage' | 'fanSpeed' | 'charge';
+export type SensorUnit = 'temperature' | 'power' | 'voltage' | 'fanSpeed' | 'charge' | 'percent';
 
 export type SensorSourceKey =
-  'acpiThermalZone' | 'batteryMiniport' | 'systemPowerStatus' | 'kernelDriver';
+  'acpiThermalZone' | 'batteryMiniport' | 'systemPowerStatus' | 'vendorLibrary' | 'kernelDriver';
 
 export type SensorQuality = 'measured' | 'derived' | 'nameplate';
 

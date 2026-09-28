@@ -72,7 +72,7 @@ impl ThermalAvailability {
 }
 
 /// One ACPI thermal zone.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ThermalZone {
     /// ACPI instance name, e.g. `ACPI\ThermalZone\TZ00_0`.
     ///

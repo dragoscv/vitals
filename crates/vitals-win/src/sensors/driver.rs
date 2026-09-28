@@ -76,9 +76,9 @@ pub const DRIVER_GAPS: &[DriverGap] = &[
         capability: Capability::Thermals,
         reason: Unavailable::NeedsPlugin,
         label: "GPU temperature",
-        requirement: "Vendor SDK: NVAPI (NvAPI_GPU_GetThermalSettings), AMD ADLX, or Intel \
-                      IGCL. User-mode, but each requires redistributing a vendor library \
-                      under its own licence.",
+        requirement: "Read on NVIDIA through the driver's own nvml.dll (sensors::nvml), so \
+                  this gap is only listed when no NVIDIA GPU reported it. AMD needs ADLX \
+                  and Intel IGCL, neither of which ships in System32.",
     },
     DriverGap {
         capability: Capability::Thermals,
@@ -115,9 +115,9 @@ pub const DRIVER_GAPS: &[DriverGap] = &[
         capability: Capability::PowerDraw,
         reason: Unavailable::NeedsPlugin,
         label: "GPU board power",
-        requirement: "NVAPI (NvAPI_GPU_ClientPowerTopologyGetStatus), AMD ADLX or Intel IGCL. \
-                      User-mode, but each needs its vendor library redistributed under that \
-                      vendor's own licence terms.",
+        requirement: "Read on NVIDIA through nvml.dll (nvmlDeviceGetPowerUsage), so listed \
+                  only when no NVIDIA GPU reported it. AMD needs ADLX and Intel IGCL, \
+                  neither of which ships with Windows.",
     },
     DriverGap {
         capability: Capability::Thermals,

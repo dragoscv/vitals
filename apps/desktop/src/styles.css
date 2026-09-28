@@ -284,6 +284,33 @@
   }
 
   /*
+   * Devices & sensors (S12-29). Row one: the short fact cards — power,
+   * thermal zones, battery — side by side at their natural height, never
+   * scrolling: each is a handful of values, and stacked in one scrolling
+   * column the thermal zones were hidden below the power card. Row two: the
+   * readings table and the gap list share the remaining height and scroll
+   * inside themselves. Narrow: facts wrap, lists stack.
+   */
+  .devices-body {
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .devices-facts {
+    display: grid;
+    gap: 0.75rem;
+    grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+    align-items: start;
+    min-width: 0;
+  }
+  @container main (width >= 56rem) {
+    .devices-body {
+      grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+    }
+    .devices-facts {
+      grid-column: 1 / -1;
+    }
+  }
+
+  /*
    * The dashboard: a grid that fills the content column exactly and never
    * scrolls (S12-25). Implicit rows share the height equally
    * (`minmax(0, 1fr)`), so six widgets are two rows of half the window and

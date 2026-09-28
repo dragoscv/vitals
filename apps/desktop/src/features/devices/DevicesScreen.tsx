@@ -114,17 +114,20 @@ export function DevicesScreen({ reader }: DevicesScreenProps): React.JSX.Element
           </p>
 
           {/*
-           * Two columns that fit the window (S12-26): the short, fixed
-           * facts (power, battery, thermal zones) on the left as one stack,
-           * the two open-ended lists (sensor readings, driver gaps) on the
-           * right, each scrolling inside its own card so its title and the
-           * table header stay put. Small windows stack them and scroll.
+           * The short, fixed facts (power, battery, thermal zones) are a row
+           * of separate cards at their own height: they are a handful of
+           * values and must never scroll (S12-29 — stacked in one scrolling
+           * column, the zones were cut off below the power card). The two
+           * open-ended lists share the rest of the height side by side and
+           * scroll inside themselves, so their titles and the table header
+           * stay put. A window too short for that stacks everything and
+           * the body scrolls as one (`.screen-body`).
            */}
-          <div className="screen-body @4xl/main:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] @4xl/main:grid-rows-[minmax(0,3fr)_minmax(0,2fr)]">
-            <div className="pane-stack @4xl/main:row-span-2">
+          <div className="devices-body screen-body">
+            <div className="devices-facts">
               <PowerSection snapshot={snapshot} />
-              <BatterySection snapshot={snapshot} />
               <ThermalSection snapshot={snapshot} />
+              {snapshot.batteries.length > 0 && <BatterySection snapshot={snapshot} />}
             </div>
             <ReadingsSection snapshot={snapshot} />
             <GapsSection gaps={snapshot.gaps} />
@@ -508,6 +511,7 @@ export function formatReading(reading: SensorReading, locale?: string): string {
     case 'power':
       return formatWatts(reading.value, locale);
     case 'charge':
+    case 'percent':
       return formatPercent(reading.value, locale, 0);
     case 'voltage':
       // No `formatVolts` exists in @vitals/ui, and adding one would mean

@@ -234,6 +234,55 @@ describe('DevicesScreen', () => {
 
       expect(screen.getByText('Derived')).toBeTruthy();
     });
+
+    it('shows GPU readings from the graphics driver with their source named', async () => {
+      // Found live 2026-09-28: the RTX 3060 Ti's temperature, fan and power
+      // were readable unelevated through the driver's nvml.dll, and the
+      // screen listed them as "cannot measure".
+      await mount(
+        snapshot({
+          readings: [
+            reading({
+              key: 'nvidia.0.temperature',
+              label: 'NVIDIA GeForce RTX 3060 Ti temperature',
+              value: 47,
+              source: 'vendorLibrary',
+            }),
+            reading({
+              key: 'nvidia.0.fan',
+              label: 'NVIDIA GeForce RTX 3060 Ti fan',
+              value: 83,
+              unit: 'percent',
+              source: 'vendorLibrary',
+            }),
+          ],
+        }),
+      );
+
+      expect(screen.getByText('NVIDIA GeForce RTX 3060 Ti temperature')).toBeTruthy();
+      expect(screen.getByText('47°C')).toBeTruthy();
+      expect(screen.getByText('83%')).toBeTruthy();
+      expect(screen.getAllByText('GPU driver').length).toBe(2);
+    });
+  });
+
+  describe('layout', () => {
+    it('keeps power and thermal zones as separate cards, outside any scrolling region', async () => {
+      // S12-29: the two fact cards shared one scrolling column, and the
+      // thermal zones were cut off below the power card.
+      await mount(
+        snapshot({
+          zones: [{ instance: 'TZ00', celsius: 28, criticalCelsius: null, activeCooling: null }],
+          thermalAvailability: 'available',
+        }),
+      );
+
+      for (const name of ['Power', 'Thermal zones']) {
+        const card = screen.getByRole('region', { name });
+        expect(card.closest('.pane-stack, .pane-scroll')).toBeNull();
+        expect(card.parentElement?.classList.contains('devices-facts')).toBe(true);
+      }
+    });
   });
 
   describe('battery', () => {

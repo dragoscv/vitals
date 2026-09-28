@@ -21,17 +21,22 @@
 //! [`Error::Unsupported`](vitals_core::error::Error::Unsupported), never a
 //! plausible stand-in. The things it cannot measure are numerous and are
 //! enumerated, with the reason for each, in [`driver::DRIVER_GAPS`]:
-//! per-core CPU temperature, GPU temperature, fan RPM and rail voltages all
-//! require ring-0 access this build does not have. See [`driver`] for the
-//! full argument.
+//! per-core CPU temperature, board fan RPM and rail voltages all require
+//! ring-0 access this build does not have. See [`driver`] for the full
+//! argument. Two sources need no privilege and are read: ACPI thermal zones
+//! through the performance counters when WMI refuses ([`zone_counters`]),
+//! and NVIDIA GPU temperature, fan and board power through the driver's own
+//! `nvml.dll` ([`nvml`]).
 
 pub mod battery;
 pub mod convert;
 pub mod driver;
+pub mod nvml;
 pub mod power;
 pub mod reading;
 pub mod thermal;
 pub mod wmi;
+pub mod zone_counters;
 
 pub use battery::{Battery, ChargeState, enumerate_batteries};
 pub use convert::{
@@ -39,6 +44,7 @@ pub use convert::{
     milliwatts_to_watts, seconds_remaining,
 };
 pub use driver::{DRIVER_GAPS, DriverGap, gaps_for};
+pub use nvml::{NvidiaGpu, read_nvidia_gpus};
 pub use power::{
     AggregateBattery, LineStatus, PowerMode, PowerState, aggregate_battery, classify_scheme,
     read_power_state,
@@ -46,6 +52,7 @@ pub use power::{
 pub use reading::{Quality, SensorReading, SensorSource, SensorValue};
 pub use thermal::{RawZone, ThermalAvailability, ThermalScan, ThermalZone, parse_zone};
 pub use wmi::read_thermal_zones;
+pub use zone_counters::{CounterZone, read_zone_counters};
 
 use std::time::{Duration, Instant};
 
@@ -65,6 +72,8 @@ pub struct SensorSample {
     pub thermal: ThermalScan,
     pub batteries: Vec<Battery>,
     pub power: PowerState,
+    /// NVIDIA GPUs read through the driver's own `nvml.dll`. Empty elsewhere.
+    pub nvidia: Vec<NvidiaGpu>,
     /// Every zone and battery flattened into one list for the sensors table.
     pub readings: Vec<SensorReading>,
     /// Wall-clock cost of producing this sample.
@@ -179,11 +188,16 @@ impl SensorReader {
 pub fn read_all() -> SensorSample {
     let started = Instant::now();
 
-    let thermal = read_thermal_zones();
+    let (thermal, passive_limits) = read_thermal();
     let batteries = enumerate_batteries();
     let power = read_power_state();
+    let nvidia = read_nvidia_gpus();
 
     let mut readings = thermal.readings();
+    readings.extend(passive_limits);
+    for gpu in &nvidia {
+        readings.extend(nvidia_readings(gpu));
+    }
 
     for (index, pack) in batteries.iter().enumerate() {
         readings.extend(battery_readings(index, pack));
@@ -193,9 +207,82 @@ pub fn read_all() -> SensorSample {
         thermal,
         batteries,
         power,
+        nvidia,
         readings,
         elapsed: started.elapsed(),
     }
+}
+
+/// Thermal zones: WMI first (it has trip points), the counter set otherwise.
+///
+/// Unelevated, WMI is refused; the counter set is not. Falling back is what
+/// turns "needs administrator" into two real temperatures on an ordinary
+/// desktop. A zone throttling below 100 % also yields a reading, since that
+/// is the one thermal fact a user acts on.
+fn read_thermal() -> (ThermalScan, Vec<SensorReading>) {
+    let wmi = read_thermal_zones();
+    if !wmi.zones.is_empty() {
+        return (wmi, Vec::new());
+    }
+    let counters = read_zone_counters();
+    if counters.is_empty() {
+        return (wmi, Vec::new());
+    }
+    let limits = counters
+        .iter()
+        .enumerate()
+        .filter_map(|(index, c)| {
+            let limit = c.passive_limit.filter(|&l| (0.0..100.0).contains(&l))?;
+            Some(SensorReading::new(
+                format!("acpi.tz.{index}.passive"),
+                format!("{} throttle limit", c.zone.instance),
+                SensorValue::Percent(vitals_core::units::Percent::new(limit)),
+                SensorSource::AcpiThermalZone,
+                Quality::Measured,
+            ))
+        })
+        .collect();
+    let scan = ThermalScan {
+        zones: counters.into_iter().map(|c| c.zone).collect(),
+        availability: ThermalAvailability::Available,
+    };
+    (scan, limits)
+}
+
+/// Flattens one NVIDIA GPU into readings; an unreported value adds no row.
+fn nvidia_readings(gpu: &NvidiaGpu) -> Vec<SensorReading> {
+    use vitals_core::units::{Celsius, Percent, Watts};
+
+    let key = |what: &str| format!("nvidia.{}.{what}", gpu.index);
+    let mut out = Vec::new();
+    if let Some(c) = gpu.temperature_celsius {
+        out.push(SensorReading::new(
+            key("temperature"),
+            format!("{} temperature", gpu.name),
+            SensorValue::Temperature(Celsius(c)),
+            SensorSource::VendorLibrary,
+            Quality::Measured,
+        ));
+    }
+    if let Some(f) = gpu.fan_percent {
+        out.push(SensorReading::new(
+            key("fan"),
+            format!("{} fan", gpu.name),
+            SensorValue::Percent(Percent::new(f)),
+            SensorSource::VendorLibrary,
+            Quality::Measured,
+        ));
+    }
+    if let Some(w) = gpu.power_watts {
+        out.push(SensorReading::new(
+            key("power"),
+            format!("{} board power", gpu.name),
+            SensorValue::Power(Watts(w)),
+            SensorSource::VendorLibrary,
+            Quality::Measured,
+        ));
+    }
+    out
 }
 
 /// Flattens one battery into the generic reading list.
@@ -385,6 +472,7 @@ mod tests {
             thermal: scan,
             batteries: Vec::new(),
             power: read_power_state(),
+            nvidia: Vec::new(),
             readings: Vec::new(),
             elapsed: Duration::ZERO,
         };
@@ -401,6 +489,7 @@ mod tests {
             thermal: ThermalScan::unavailable(ThermalAvailability::AccessDenied),
             batteries: Vec::new(),
             power: read_power_state(),
+            nvidia: Vec::new(),
             readings: Vec::new(),
             elapsed: Duration::ZERO,
         };

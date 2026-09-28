@@ -20,6 +20,10 @@ pub enum SensorValue {
     Voltage(Volts),
     FanSpeed(Rpm),
     Charge(Percent),
+    /// A percentage that is not a battery charge: a fan duty cycle, a
+    /// thermal zone's throttle limit. Separate from `Charge` so an export's
+    /// unit column never calls a fan "charge".
+    Percent(Percent),
 }
 
 impl SensorValue {
@@ -31,7 +35,7 @@ impl SensorValue {
             Self::Power(_) => "W",
             Self::Voltage(_) => "V",
             Self::FanSpeed(_) => "RPM",
-            Self::Charge(_) => "%",
+            Self::Charge(_) | Self::Percent(_) => "%",
         }
     }
 
@@ -46,7 +50,7 @@ impl SensorValue {
             Self::Power(v) => v.0,
             Self::Voltage(v) => v.0,
             Self::FanSpeed(v) => v.0 as f32,
-            Self::Charge(v) => v.get(),
+            Self::Charge(v) | Self::Percent(v) => v.get(),
         }
     }
 }
@@ -66,6 +70,9 @@ pub enum SensorSource {
     BatteryMiniport,
     /// `GetSystemPowerStatus` — the OS's coarse, cached view.
     SystemPowerStatus,
+    /// A vendor's own user-mode library installed with its driver, e.g.
+    /// NVIDIA's `nvml.dll` in `System32`. Not redistributed by us.
+    VendorLibrary,
     /// A signed kernel driver talking to a Super-I/O or vendor bus.
     ///
     /// Never produced today; see [`crate::sensors::driver`].
@@ -80,6 +87,7 @@ impl SensorSource {
             Self::AcpiThermalZone => "ACPI thermal zone",
             Self::BatteryMiniport => "battery miniport",
             Self::SystemPowerStatus => "OS power status",
+            Self::VendorLibrary => "vendor driver library",
             Self::KernelDriver => "kernel driver",
         }
     }

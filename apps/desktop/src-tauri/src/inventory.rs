@@ -841,8 +841,13 @@ fn read_sensors() -> SensorsSnapshot {
                 quality: sensor_quality(reading.quality),
             })
             .collect(),
+        // A gap is listed only while it is one: on an NVIDIA machine the
+        // driver's own library now supplies GPU temperature and board power,
+        // and listing them as "cannot measure" beside the readings would
+        // contradict the table above it.
         gaps: sensors::DRIVER_GAPS
             .iter()
+            .filter(|gap| !closed_by(gap, &sample))
             .map(|gap| DriverGapDto {
                 capability: capability_key(gap.capability),
                 reason: unavailable_key(gap.reason),
@@ -853,6 +858,19 @@ fn read_sensors() -> SensorsSnapshot {
             .collect(),
         cadence_ms: u64::try_from(hint.as_millis()).unwrap_or(u64::MAX),
         elapsed_ms: sample.elapsed.as_secs_f64() * 1000.0,
+    }
+}
+
+#[cfg(windows)]
+fn closed_by(
+    gap: &vitals_win::sensors::DriverGap,
+    sample: &vitals_win::sensors::SensorSample,
+) -> bool {
+    let any = |f: fn(&vitals_win::sensors::NvidiaGpu) -> bool| sample.nvidia.iter().any(f);
+    match gap.label {
+        "GPU temperature" => any(|g| g.temperature_celsius.is_some()),
+        "GPU board power" => any(|g| g.power_watts.is_some()),
+        _ => false,
     }
 }
 
@@ -931,6 +949,7 @@ const fn sensor_unit(value: vitals_win::sensors::SensorValue) -> &'static str {
         V::Voltage(_) => "voltage",
         V::FanSpeed(_) => "fanSpeed",
         V::Charge(_) => "charge",
+        V::Percent(_) => "percent",
     }
 }
 
@@ -941,6 +960,7 @@ const fn sensor_source(source: vitals_win::sensors::SensorSource) -> &'static st
         S::AcpiThermalZone => "acpiThermalZone",
         S::BatteryMiniport => "batteryMiniport",
         S::SystemPowerStatus => "systemPowerStatus",
+        S::VendorLibrary => "vendorLibrary",
         S::KernelDriver => "kernelDriver",
     }
 }

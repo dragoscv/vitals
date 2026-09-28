@@ -95,6 +95,7 @@ const en = {
     acpiThermalZone: 'ACPI thermal zone',
     batteryMiniport: 'Battery miniport',
     systemPowerStatus: 'OS power status',
+    vendorLibrary: 'GPU driver',
     kernelDriver: 'Kernel driver',
   },
 
@@ -243,6 +244,7 @@ const ro = {
     acpiThermalZone: 'Zonă termică ACPI',
     batteryMiniport: 'Miniport de baterie',
     systemPowerStatus: 'Starea de alimentare a sistemului',
+    vendorLibrary: 'Driverul plăcii video',
     kernelDriver: 'Driver de kernel',
   },
 
