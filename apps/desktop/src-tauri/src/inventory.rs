@@ -884,7 +884,7 @@ fn closed_by(
 }
 
 // ---------------------------------------------------------------------------
-// CPU sensors service (crate vitals-sensors, ADR-0031)
+// CPU sensors service (crate vitals-sensors, ADR-0034)
 // ---------------------------------------------------------------------------
 
 /// Whether the optional CPU sensors service is there, and what installing it

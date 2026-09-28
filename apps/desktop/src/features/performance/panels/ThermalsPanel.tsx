@@ -207,7 +207,7 @@ const GAPS: readonly string[] = [
 ];
 
 /**
- * The optional sensors service (ADR-0031) supplies CPU temperature and, on
+ * The optional sensors service (ADR-0034) supplies CPU temperature and, on
  * a board with a supported Super-I/O chip, fan speeds; listing either as
  * unmeasurable beside its own reading would contradict the screen.
  */

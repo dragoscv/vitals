@@ -105,7 +105,7 @@ Vitals wherever it would have launched Task Manager.
 
 ## The CPU sensors service (optional, installed on request)
 
-`vitals-sensors.exe` ([ADR-0031](docs/adr/0031-cpu-sensors-service.md)) is
+`vitals-sensors.exe` ([ADR-0034](docs/adr/0034-cpu-sensors-service.md)) is
 the one component that runs as SYSTEM. It is installed only when the user
 presses **Install sensors service** on Devices & sensors, after one
 administrator prompt, and it can be removed from the same place.

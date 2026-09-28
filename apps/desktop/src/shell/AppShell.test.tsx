@@ -46,6 +46,12 @@ beforeAll(async () => {
   // is what crossed 8 s and then 12 s in full runs at 87-91 % CPU
   // (2026-09-27) while the file alone passed in under a second.
   await import('../settings/SettingsDialog');
+  // Warm the Motion runtime too. `renderShell` waits one microtask for it,
+  // which is enough only when the chunk is already transformed; cold, under
+  // load, it lands after the click, the shell remounts, and the open dialog
+  // is lost with the fallback — so no timeout, however long, finds it. Failed
+  // the full suite on origin/main 85d3800 at 87 % CPU (2026-09-28).
+  await import('../theme/MotionRuntime');
 });
 
 beforeEach(async () => {

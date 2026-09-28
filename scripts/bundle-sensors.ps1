@@ -5,7 +5,7 @@
 .DESCRIPTION
     `apps/desktop/src-tauri/tauri.conf.json` bundles `sensors/` as a
     resource, and the app looks for `resources\sensors\vitals-sensors.exe`
-    when the user asks to install the service (ADR-0031). This runs as part
+    when the user asks to install the service (ADR-0034). This runs as part
     of `beforeBuildCommand`, so a release installer always carries the helper
     built from the same commit as the app — a helper staged by hand could be
     from any commit, and it runs as SYSTEM.
@@ -20,6 +20,13 @@
 param()
 
 $ErrorActionPreference = 'Stop'
+
+# The sensors helper reads Windows-only interfaces; the macOS and Linux
+# release legs share this beforeBuildCommand and ship an empty resource dir.
+if (-not $IsWindows) {
+    Write-Host 'not Windows: nothing to stage'
+    exit 0
+}
 $root = Split-Path -Parent $PSScriptRoot
 $stage = Join-Path $root 'apps/desktop/src-tauri/sensors'
 

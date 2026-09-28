@@ -1,4 +1,4 @@
-# 0031 — An optional SYSTEM service reads CPU temperature and package power through PawnIO
+# 0034 — An optional SYSTEM service reads CPU temperature and package power through PawnIO
 
 - Status: Accepted
 - Date: 2026-09-28

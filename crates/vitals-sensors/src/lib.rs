@@ -10,7 +10,7 @@
 //! surface in the product, at full privilege. So a small `LocalSystem`
 //! service owns the device and publishes read-only numbers on a named pipe.
 //! The app reads the pipe; it never touches the driver. Decision and trade-offs:
-//! `docs/adr/0031-cpu-sensors-service.md`.
+//! `docs/adr/0034-cpu-sensors-service.md`.
 //!
 //! Ported from codai's `codai-sensors` (same pipe shape, same module pins),
 //! with package power added.

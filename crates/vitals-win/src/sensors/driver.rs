@@ -37,7 +37,7 @@
 //! CPU temperature and package power come from the third-party signed
 //! `PawnIO` driver, whose sandboxed modules expose only declared registers
 //! (unlike `WinRing0`). A SYSTEM service the user installs on request reads
-//! it and publishes the numbers on a pipe ([`super::cpu_service`], ADR-0031).
+//! it and publishes the numbers on a pipe ([`super::cpu_service`], ADR-0034).
 //! Those readings carry
 //! [`SensorSource::KernelDriver`](super::reading::SensorSource::KernelDriver),
 //! and the matching gaps close only while they are measured

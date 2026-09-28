@@ -5807,7 +5807,7 @@ dependencies = [
 
 [[package]]
 name = "vitals-sensors"
-version = "0.1.0"
+version = "0.9.0-beta.1"
 dependencies = [
  "serde",
  "serde_json",
@@ -5853,7 +5853,7 @@ dependencies = [
 
 [[package]]
 name = "vitals-watchdog"
-version = "0.1.0"
+version = "0.9.0-beta.1"
 dependencies = [
  "anyhow",
  "serde",

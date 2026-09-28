@@ -633,7 +633,7 @@ function GapsSection({
 
 /**
  * The one gap Vitals can close itself: CPU temperature and package power,
- * through the optional sensors service (ADR-0031).
+ * through the optional sensors service (ADR-0034).
  *
  * Everything the user is agreeing to is on the panel before the UAC prompt:
  * a signed third-party driver, a service running as SYSTEM, and — when the

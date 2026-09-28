@@ -7,8 +7,41 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **CPU temperature and package power** — install the optional sensors
+  service from Devices & sensors (one administrator prompt) and Vitals shows
+  the CPU package temperature, the hottest core and the package power draw
+  on Devices, the Thermals chart, Prometheus (`vitals_cpu_power_watts`) and
+  Home Assistant. It uses the signed PawnIO driver, only reads, and can be
+  removed from the same screen.
+- **Hardware** — Devices & sensors shows what the computer is made of:
+  processor, every memory module, graphics cards, drives (with temperature
+  and health) and the motherboard and BIOS.
+- **Device Manager** — every device Windows lists, grouped the same way,
+  with its driver and any problem it reports. You can search, and show
+  devices that are not connected.
+- **Fan speeds** — with the sensors service installed, the motherboard's fan
+  speeds appear on Devices, the Thermals chart, Prometheus
+  (`vitals_fan_rpm`) and the LAN API.
+- **Drive temperatures** without administrator rights.
+- **Lag watchdog** — `vitals-watchdog` notices when a window you are using
+  stops answering, or programs cannot get the processor in time, names the
+  process behind it (never the shell or IDE it was started from), and offers
+  End, Lower its priority or Ignore from a notification. It never ends
+  anything on its own, and `--diagnose` shows what it would decide.
+- **The watchdog ships with Vitals** — it is part of the installer and turns
+  itself on at the first launch. Settings → Watchdog turns it off, chooses
+  the sensitivity (Relaxed, Normal or Sensitive) and the warning sound: any
+  of Windows' notification sounds, none, or your own audio file with a
+  volume, and a Test button.
+
 ### Fixed
 
+- The board's thermal zones are labelled as such, so a 28 °C chipset
+  reading is no longer mistaken for the CPU temperature.
+- The watchdog no longer warns during builds or while you are away from the
+  computer: a busy processor on its own is not a freeze.
 - The macOS build compiles again: the desktop overlay is transparent on
   Windows and Linux only, because on macOS a transparent window needs Tauri's
   private-API feature. macOS is built on every release but not yet published.

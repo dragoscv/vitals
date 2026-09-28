@@ -5,7 +5,7 @@
  * the panel so it is testable without a Tauri host — the same seam as
  * `SensorsReader`.
  *
- * Why a service exists at all is ADR-0031: CPU temperature and package power
+ * Why a service exists at all is ADR-0034: CPU temperature and package power
  * live in model-specific registers (ring 0), the signed PawnIO driver is the
  * way in, and opening it needs administrator rights, so a small SYSTEM
  * service reads them and the app only reads its pipe.

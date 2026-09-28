@@ -206,7 +206,7 @@ Series you will see (all gauges):
 | `vitals_cpu_percent`              |                        | Whole machine.                                           |
 | `vitals_cpu_kernel_percent`       |                        | Kernel-mode share.                                       |
 | `vitals_cpu_core_percent`         | `core`                 | Per logical processor.                                   |
-| `vitals_cpu_temperature_celsius`  |                        | Only with the optional sensors service (ADR-0031).       |
+| `vitals_cpu_temperature_celsius`  |                        | Only with the optional sensors service (ADR-0034).       |
 | `vitals_cpu_power_watts`          |                        | CPU package power (RAPL); same service.                  |
 | `vitals_fan_rpm`                  | `fan`                  | Motherboard fan headers (Super-I/O); same service.       |
 | `vitals_memory_bytes`             | `state`                | `total`, `used`, `available`, `cached`.                  |

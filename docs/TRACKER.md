@@ -161,6 +161,53 @@ CSV records the state.
 
 ## Verification log
 
+### 2026-09-28 — S12-36 S12-31..35 land on main
+
+**Ask.** The sensors, watchdog and devices work (S12-31..35) was four commits
+in the shared clone that were never pushed, while `origin/main` moved 18
+commits ahead with the 0.9.0-beta.1 release fixes. Put them on `origin/main`
+without losing any of those fixes.
+
+**How.** Cherry-picked b55b809, 7de0374, d64b701 and f7cdb8f onto 85d3800 in
+a worktree (`E:\gh\.wt\vitals\s12-land`). The shared clone was not touched.
+Conflicts were resolved in favour of origin:
+
+- `tauri.conf.json` keeps `createUpdaterArtifacts` and gains the `sensors/`
+  and `watchdog/` resources.
+- `ci.yml` keeps origin's job split. The frontend job takes the single
+  `turbo run typecheck lint test` step; origin's separate typecheck step
+  above it was removed, because turbo would only replay it.
+- `lib.rs` keeps `crashlog` and `updates::spawn` next to the new modules.
+- `main.test.ts` keeps origin's React unmount and adds the local warm-up.
+
+**Found on the way.**
+
+- **Two ADRs numbered 0031.** Origin's public-release ADR and the sensors ADR
+  both used 0031. The sensors ADR is now **0034**. 0033 is taken by an
+  uncommitted Android ADR in the shared clone, which belongs to another
+  session.
+- **Release builds on macOS and Linux would have failed.** Those legs run the
+  same `beforeBuildCommand`, and `bundle-sensors.ps1` and
+  `bundle-watchdog.ps1` threw when the Windows `.exe` was missing. Both now
+  exit 0 when not on Windows.
+- **Two tracker rows were malformed.** The S12-34 and S12-35 titles had
+  unquoted commas, which made 10 fields instead of 8.
+- **`AppShell > opens settings` failed the full suite on unmodified origin/main
+  (85d3800) at 87 % CPU**, so this was not the picks. Root cause: the lazy
+  Motion runtime arrived after the click, the shell remounted and the open
+  dialog was lost with the fallback. That is why no timeout ever helped.
+  The test now warms `MotionRuntime` in `beforeAll`. Confirmed both ways:
+  with the fix, origin/main 948/948 and this branch 985/985 at the same load.
+
+**Verification (2026-09-28).**
+
+```text
+verify.ps1: All 10 gates passed in 232.3s (304.5s if run one after another)
+  1135 Rust tests passed; vitest desktop 96 files, 985 tests
+  perf budget: full sample median 16.5 ms, worst 23.7 ms, budget 30 ms
+check-drift: 0 failure(s), 0 warning(s) - 12 ts_rs files, 67 invokes, 67 commands, 2 locales
+```
+
 Every claim of "done" needs a command and its output. Recorded here as work
 lands, newest first.
 

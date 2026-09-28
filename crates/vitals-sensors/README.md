@@ -4,7 +4,7 @@ Optional Windows service (`LocalSystem`) that reads CPU package temperature,
 the hottest core and package power through the signed
 [PawnIO](https://pawnio.eu) driver and serves them **read-only** on
 `\\.\pipe\vitals-sensors`. The app only reads the pipe; it never opens the
-driver. Decision: [ADR-0031](../../docs/adr/0031-cpu-sensors-service.md).
+driver. Decision: [ADR-0034](../../docs/adr/0034-cpu-sensors-service.md).
 Ported from codai's `codai-sensors`, with RAPL package power added.
 
 ## Commands

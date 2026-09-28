@@ -15,6 +15,13 @@
 param()
 
 $ErrorActionPreference = 'Stop'
+
+# The watchdog reads Windows-only interfaces; the macOS and Linux
+# release legs share this beforeBuildCommand and ship an empty resource dir.
+if (-not $IsWindows) {
+    Write-Host 'not Windows: nothing to stage'
+    exit 0
+}
 $root = Split-Path -Parent $PSScriptRoot
 $stage = Join-Path $root 'apps/desktop/src-tauri/watchdog'
 
