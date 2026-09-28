@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Chocolatey package for Vitals. A template: the release workflow copies this
+  directory, fills the installer URLs and SHA-256 checksums in
+  tools/chocolateyinstall.ps1 from the published SHA256SUMS.txt, and passes
+  the release version to `choco pack` on the command line, so the version
+  element here is never shipped. (No double hyphen in this comment: XML
+  forbids it inside comments.)
+
+  The package downloads the installer from the GitHub release rather than
+  embedding it. Chocolatey's community repository accepts that for
+  open-source software, and it keeps the package a few kilobytes.
+-->
+<package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+  <metadata>
+    <id>vitals</id>
+    <version>0.0.0</version>
+    <title>Vitals</title>
+    <authors>Dragos Catalin Vladulescu</authors>
+    <owners>Dragos Catalin Vladulescu</owners>
+    <projectUrl>https://vitals.dragoscatalin.ro</projectUrl>
+    <projectSourceUrl>https://github.com/dragoscv/vitals</projectSourceUrl>
+    <packageSourceUrl>https://github.com/dragoscv/vitals/tree/main/packaging/chocolatey</packageSourceUrl>
+    <docsUrl>https://vitals.dragoscatalin.ro</docsUrl>
+    <bugTrackerUrl>https://github.com/dragoscv/vitals/issues</bugTrackerUrl>
+    <releaseNotes>https://github.com/dragoscv/vitals/releases</releaseNotes>
+    <licenseUrl>https://github.com/dragoscv/vitals/blob/main/LICENSE</licenseUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <iconUrl>https://raw.githubusercontent.com/dragoscv/vitals/main/apps/desktop/src-tauri/icons/128x128.png</iconUrl>
+    <copyright>MIT © 2026 Dragos Catalin Vladulescu and Vitals contributors</copyright>
+    <tags>system-monitor task-manager performance processes hardware sensors foss</tags>
+    <summary>A modern, fast system monitor and task manager.</summary>
+    <description>Vitals is a fast, native system monitor and task manager for Windows: a configurable dashboard, deep performance telemetry, full process control, network and storage management, and benchmarks. Free and open source, forever.
+
+The installer is per-machine and needs administrator rights, which Chocolatey already has.</description>
+  </metadata>
+  <files>
+    <file src="tools\**" target="tools" />
+  </files>
+</package>

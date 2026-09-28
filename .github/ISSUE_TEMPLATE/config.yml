@@ -9,3 +9,6 @@ contact_links:
   - name: Question or idea
     url: https://github.com/dragoscv/vitals/discussions
     about: For anything that is not yet a bug or a concrete request.
+  - name: Documentation
+    url: https://vitals.dragoscatalin.ro
+    about: Guides and answers to common questions.

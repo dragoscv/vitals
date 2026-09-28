@@ -1,6 +1,6 @@
 # 0019 — Add `origin` → `github.com/dragoscv/vitals`; agents never push
 
-- Status: Accepted
+- Status: Partly superseded by [0031](0031-public-release-and-distribution.md) — agents now push `main` and release tags
 - Date: 2026-09-10
 - Tracker: D19
 

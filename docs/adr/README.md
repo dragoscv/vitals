@@ -38,6 +38,7 @@ D-numbers refer to the decision table in [`../TRACKER.md`](../TRACKER.md).
 | [0028](0028-axum-for-the-lan-server.md)                    | axum for the LAN server                                 | S10-02  |
 | [0029](0029-no-service-worker.md)                          | No service worker in the mobile app                     | S10-02  |
 | [0030](0030-fluent-depth-redesign-and-view-transitions.md) | Fluent depth redesign; View Transitions for navigation  | S12     |
+| [0031](0031-public-release-and-distribution.md)            | Public beta from a public repository; channels          | S13     |
 
 ## Writing a new one
 

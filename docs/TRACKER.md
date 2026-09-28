@@ -1435,3 +1435,27 @@ nothing else — no store, no filesystem, no process control.
   (`AppHistoryScreen.test.tsx:23`, `initI18n` never awaited).
 - `expect_used` now warns in production code: 2 startup sites justified
   inline, 186 test sites covered by `allow-expect-in-tests`.
+
+## S13 — public beta 0.9.0-beta.1 (2026-09-28)
+
+Decided with the owner (ADR 0031): public repository, beta version, no code
+signing yet, Starlight website, every channel wired but gated, macOS/Linux
+built but not published, background updates installed on quit.
+
+Why these and not others is in ADR 0031; what shipped is S13-01..08 in
+`tracker.csv`. The two findings the pre-release audit turned up that were not
+features: the Privacy panel and README claimed "nothing listens" while
+127.0.0.1:7330 and the attach pipe are always open, and pairing secrets sat in
+plain text on disk. Both are fixed at the source.
+
+### Verification log
+
+- Gates in a clean worktree at 4f6f283 before any change: all green except a
+  doctest resolution error introduced mid-slice (fixed); perf budget median
+  19.0 ms against 30 ms on a quiet machine.
+- After the slice: clippy `-D warnings` workspace green; vitals-server 144,
+  vitals-store, vitals-core, cli, desktop tests green; vitest 946/946;
+  drift 0 failures 0 warnings.
+- Signed release build: `Vitals_0.9.0-beta.1_x64-setup.exe` 4.28 MB (budget
+  4.55 MB) plus `.sig`; payload unpacks in 387 ms to 12.05 MB.
+- Site: 25 pages built; /privacy/, /terms/, /ro/privacy/, /ro/terms/ present.

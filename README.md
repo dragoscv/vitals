@@ -2,15 +2,35 @@
 
 **See what your computer is actually doing.**
 
-A fast, native system monitor and task manager for Windows — with macOS and
-Linux to follow. Free and open source, forever. Watch it from your phone,
-scrape it with Prometheus, script it from a terminal.
+[![CI](https://github.com/dragoscv/vitals/actions/workflows/ci.yml/badge.svg)](https://github.com/dragoscv/vitals/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/dragoscv/vitals?include_prereleases&label=release)](https://github.com/dragoscv/vitals/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/dragoscv/vitals/total)](https://github.com/dragoscv/vitals/releases)
+[![Licence: MIT](https://img.shields.io/badge/licence-MIT-blue)](LICENSE)
 
-> **Status: early development.** Every section works against live data on
+A fast, native system monitor and task manager for Windows. Free and open
+source, forever. Watch it from your phone, scrape it with Prometheus, script
+it from a terminal.
+
+**[Download for Windows](https://github.com/dragoscv/vitals/releases/latest/download/Vitals_x64-setup.exe)**
+· [Website and docs](https://vitals.dragoscatalin.ro)
+· [All releases](https://github.com/dragoscv/vitals/releases)
+
+| Platform          | Download                                                                                                     | Status         |
+| ----------------- | ------------------------------------------------------------------------------------------------------------ | -------------- |
+| Windows 10/11 x64 | [Vitals_x64-setup.exe](https://github.com/dragoscv/vitals/releases/latest/download/Vitals_x64-setup.exe)     | Public beta    |
+| Windows 11 ARM64  | [Vitals_arm64-setup.exe](https://github.com/dragoscv/vitals/releases/latest/download/Vitals_arm64-setup.exe) | Preview        |
+| macOS, Linux      | —                                                                                                            | On the roadmap |
+
+> **Status: public beta (0.9).** Every section works against live data on
 > Windows — there are no placeholder screens left. The Windows sampler is
-> verified against Windows' own counters and costs a median 13 ms per sample.
-> macOS and Linux backends do not exist yet, and nothing has been through a
-> public beta. There is no stable release.
+> verified against Windows' own counters and stays inside a 30 ms-per-sample
+> budget that CI enforces. macOS and Linux builds are compiled and checked in
+> CI but not published, because their samplers do not exist yet
+> ([ADR 0007](docs/adr/0007-windows-only-honest-stubs.md)).
+
+**Privacy in one line:** no telemetry, no analytics, no accounts. The only
+request Vitals makes by itself is an update check to GitHub, which you can
+turn off. Details in [PRIVACY.md](PRIVACY.md).
 
 ---
 
@@ -96,8 +116,9 @@ Vitals is an attempt at all of it in one place, fast, and readable.
 Turn on **Remote access** in Settings, scan the QR code, and the phone shows
 the machine's load, its process list and its alerts. Several PCs sit side by
 side. Ending a process from the phone needs a separate control-scoped
-token and a two-tap confirm. Off by default; nothing listens until you turn
-it on. See [SECURITY.md](SECURITY.md) for the threat model.
+token and a two-tap confirm. Off by default; nothing listens on the network until you
+turn it on. (A loopback-only API on `127.0.0.1` is always open so the CLI can
+attach; nothing outside this computer can reach it.) See [SECURITY.md](SECURITY.md) for the threat model.
 
 ### From anything else
 
@@ -140,30 +161,33 @@ Windows exposes.
 
 ## Installing
 
-> Vitals is pre-release. Nightly builds are published from `main` and are
-> exactly as stable as that sounds.
-
-Download the installer from
+Download the installer from the table above or from
 [Releases](https://github.com/dragoscv/vitals/releases). It installs without
-asking anything — no wizard, no licence page, no "Next" — and takes about
-five seconds. Add `/S` to script it.
+asking anything — no wizard, no licence page, no "Next" — in a few seconds.
+Add `/S` to script it.
+
+**Updates install themselves.** About twenty seconds after launch Vitals asks
+GitHub whether there is a newer version, downloads it in the background,
+verifies its minisign signature, and installs it when you quit. Nothing is
+installed while you are using the app. Turn it off in Settings → About.
 
 **Windows will show a SmartScreen warning on first run.** That is expected:
-the builds are not signed with a commercial certificate, which costs
-€400–600/year. Rather than ask you to trust us, every release carries a
-cryptographic attestation linking the binary to the exact source commit and
-workflow that built it:
+the builds are not yet signed with a commercial code-signing certificate.
+Choose _More info → Run anyway_. Rather than ask you to trust us, every
+release carries a cryptographic attestation linking the binary to the exact
+source commit and workflow that built it:
 
 ```powershell
 gh attestation verify .\Vitals_x64-setup.exe --repo dragoscv/vitals
 ```
 
-Checksums are in `SHA256SUMS.txt` alongside each release. See
+Checksums are in `SHA256SUMS.txt` alongside each release, and CycloneDX
+SBOMs for the Rust and JavaScript dependencies are attached too. See
 [docs/distribution.md](docs/distribution.md) for the full reasoning.
 
-Updates are a separate matter and are verified regardless: the updater checks
-a minisign signature before applying anything, so a compromised mirror cannot
-push a malicious update.
+Package managers — winget, Scoop and Chocolatey — are wired into the release
+pipeline and switch on as each listing is approved; see
+[docs/releasing.md](docs/releasing.md).
 
 ## Building
 
@@ -228,8 +252,8 @@ and can be collapsed once typescript-eslint supports 7.1.
 apps/
   desktop/     Tauri 2 shell — React 19 frontend, thin Rust host
                three entries: the app, the HUD overlay, the phone page
-  helper/      optional elevated service: ETW tracing, privileged operations
-               (planned; a stub today)
+  helper/      optional elevated service (planned; a stub, not shipped — ADR 0012)
+  site/        the website and docs, Astro Starlight → vitals.dragoscatalin.ro
   cli/         vitals top / ps / info / report / serve
 crates/
   vitals-core  OS-agnostic domain model and provider traits
@@ -267,9 +291,16 @@ better.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) to get set up.
 
-## Licence
+## Licence and legal
 
-[MIT](LICENSE) — free forever, for any use.
+[MIT](LICENSE) — free forever, for any use. The open-source components Vitals
+is built on are listed with their licences in
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+- [Privacy policy](PRIVACY.md) · [Terms of use](TERMS.md) ·
+  [Security policy](SECURITY.md) · [Code of conduct](CODE_OF_CONDUCT.md)
+- [Contributors](CONTRIBUTORS.md) · [Support](SUPPORT.md) ·
+  [Governance](GOVERNANCE.md)
 
 ### Acknowledgements
 

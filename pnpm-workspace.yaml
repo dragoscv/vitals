@@ -72,3 +72,7 @@ catalog:
   eslint-plugin-react-hooks: 7.1.1
   eslint-config-prettier: 10.1.8
   globals: 17.12.0
+
+allowBuilds:
+  # esbuild (Astro/Vite in apps/site) fetches its native binary in a postinstall.
+  esbuild: true

@@ -1,0 +1,34 @@
+---
+title: Privacy
+description: What Vitals collects (nothing), the one automatic request it makes, and how this website treats you.
+---
+
+This page is a summary. The full, authoritative text is the
+[privacy policy in the repository](https://github.com/dragoscv/vitals/blob/main/PRIVACY.md); if the
+two ever differ, that one applies.
+
+## The app
+
+- **No telemetry.** Vitals has no analytics, no usage statistics and no crash reporting. There is no
+  account to create.
+- **One automatic request.** About 20 seconds after launch, Vitals asks GitHub whether a newer
+  version exists. GitHub sees your IP address and the app version, as with any download. You can
+  turn this off in **Settings → About**.
+- **Remote access is off by default.** Nothing listens on your network until you turn it on in
+  **Settings → Remote access**. See [Remote access](/guides/remote-access/).
+- **The local API is always on, but local only.** It listens on `127.0.0.1`, which only programs on
+  the same computer can reach.
+- **Your data stays on your machine.** Settings, history, logs and crash details are stored in
+  `%LOCALAPPDATA%\Vitals` and are never uploaded. They leave the machine only if you send them
+  yourself, for example by attaching a log to a bug report.
+
+## This website
+
+The site is hosted on GitHub Pages. It sets **no cookies** and uses **no analytics**. GitHub, as the
+host, processes the technical data any web server receives, such as your IP address, under
+[GitHub's privacy statement](https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement).
+
+## Who is responsible
+
+The controller is **Dragos Catalin Vladulescu**. For any privacy question or request, write to
+[dragoscv12@gmail.com](mailto:dragoscv12@gmail.com).

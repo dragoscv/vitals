@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630" role="img" aria-labelledby="og-title og-desc">
+  <title id="og-title">Vitals</title>
+  <desc id="og-desc">See what your computer is actually doing. A free, open-source system monitor and task manager for Windows.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#071012"/>
+      <stop offset="1" stop-color="#0d2226"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <path d="M0 470h300l40-120 70 220 50-150 30 50h710" fill="none" stroke="#2cc5cf" stroke-opacity="0.25" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <g transform="translate(96 96)">
+    <rect width="96" height="96" rx="22" fill="#0e7c86"/>
+    <path d="M15 51h17l6-18 10 33 8-23 5 8h21" fill="none" stroke="#ffffff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <text x="216" y="164" font-family="Segoe UI, Inter, system-ui, sans-serif" font-size="56" font-weight="700" fill="#e6f4f5">Vitals</text>
+  <text x="96" y="310" font-family="Segoe UI, Inter, system-ui, sans-serif" font-size="68" font-weight="700" fill="#ffffff">See what your computer</text>
+  <text x="96" y="390" font-family="Segoe UI, Inter, system-ui, sans-serif" font-size="68" font-weight="700" fill="#ffffff">is actually doing.</text>
+  <text x="96" y="540" font-family="Segoe UI, Inter, system-ui, sans-serif" font-size="30" fill="#a9c9cc">Free, open-source system monitor and task manager for Windows</text>
+  <text x="96" y="585" font-family="Segoe UI, Inter, system-ui, sans-serif" font-size="26" fill="#5fd6de">vitals.dragoscatalin.ro</text>
+</svg>

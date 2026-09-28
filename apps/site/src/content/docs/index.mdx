@@ -1,0 +1,127 @@
+---
+title: Vitals — a system monitor and task manager for Windows
+description: Vitals is a free, open-source system monitor and task manager for Windows. Honest numbers, a plain-language answer to "why is my PC slow?", and no telemetry.
+template: splash
+editUrl: false
+hero:
+  title: See what your computer is actually doing.
+  tagline: A fast, native system monitor and task manager for Windows. Free and open source under the MIT licence. Watch it from your phone, scrape it with Prometheus, script it from a terminal.
+  image:
+    file: ../../assets/logo.svg
+    alt: The Vitals logo, a white pulse line in a teal rounded square.
+  actions:
+    - text: Download for Windows
+      link: https://github.com/dragoscv/vitals/releases/latest/download/Vitals_x64-setup.exe
+      icon: download
+      variant: primary
+    - text: View on GitHub
+      link: https://github.com/dragoscv/vitals
+      icon: external
+      variant: minimal
+---
+
+import { Aside, Card, CardGrid, Tabs, TabItem, LinkCard } from '@astrojs/starlight/components';
+
+<Aside type="note" title="Public beta 0.9">
+  Windows 10 and 11, x64. macOS and Linux are on the roadmap.
+</Aside>
+
+## What it does
+
+<CardGrid>
+  <Card title="Honest numbers" icon="approve-check">
+    A reading the hardware cannot report is shown as unknown, never as zero. A feature your
+    privileges do not allow is greyed out with the reason, not a button that fails when clicked.
+  </Card>
+  <Card title="Why is my PC slow?" icon="magnifier">
+    One click correlates CPU, disk, memory pressure, network and thermal throttling, then names the
+    cause in plain language: a verdict, the culprits and a minute of chart you can copy into a bug
+    report.
+  </Card>
+  <Card title="Processes with a risk model" icon="list-format">
+    Grouped, searchable and steady under the pointer. End, suspend and resume state the actual
+    consequence before you confirm, and processes that live for under a second are still recorded.
+  </Card>
+  <Card title="Performance, all of it" icon="laptop">
+    CPU with a cell per logical processor, memory, GPU, every disk and network adapter, and a
+    Thermals tab that also lists what it cannot measure and why.
+  </Card>
+  <Card title="Beyond the window" icon="puzzle">
+    Your phone over the LAN, Prometheus, Home Assistant, a typed TypeScript SDK and a CLI, all fed
+    by one sampler so they always agree.
+  </Card>
+  <Card title="Light on your machine" icon="rocket">
+    Under 1% CPU at idle, enforced by a budget test in CI. A monitor that shows up as a top consumer
+    in its own process list has failed at its job.
+  </Card>
+  <Card title="No telemetry" icon="information">
+    No analytics, no crash reporting, no account. The only automatic request is an update check, and
+    you can turn that off.
+  </Card>
+  <Card title="Open source" icon="github">
+    MIT licensed. Every release carries a build attestation linking the installer to the exact
+    commit and workflow that produced it.
+  </Card>
+</CardGrid>
+
+## Install
+
+<Tabs syncKey="install">
+  <TabItem label="Installer">
+    Download [`Vitals_x64-setup.exe`](https://github.com/dragoscv/vitals/releases/latest/download/Vitals_x64-setup.exe)
+    and run it. There is no wizard; it installs in about five seconds. Windows SmartScreen will
+    warn you on first run because the builds are not signed with a commercial certificate. The
+    [download page](/download/) explains why and how to verify the file yourself.
+  </TabItem>
+  <TabItem label="winget">
+    ```powershell
+    winget install Vitals.Vitals
+    ```
+
+    <Aside type="caution" title="Coming soon">
+      The winget package has not been published yet. Use the installer until it is.
+    </Aside>
+
+  </TabItem>
+  <TabItem label="Scoop">
+    ```powershell
+    scoop bucket add vitals https://github.com/dragoscv/scoop-vitals
+    scoop install vitals
+    ```
+  </TabItem>
+  <TabItem label="Chocolatey">
+    ```powershell
+    choco install vitals
+    ```
+
+    <Aside type="caution" title="Coming soon">
+      The Chocolatey package has not been published yet. Use the installer until it is.
+    </Aside>
+
+  </TabItem>
+</Tabs>
+
+## Next steps
+
+<CardGrid>
+  <LinkCard
+    title="Getting started"
+    href="/guides/getting-started/"
+    description="A tour of the first five minutes."
+  />
+  <LinkCard
+    title="Watch it from your phone"
+    href="/guides/remote-access/"
+    description="Pair a phone over your local network."
+  />
+  <LinkCard
+    title="Use it from a terminal"
+    href="/guides/cli/"
+    description="vitals top, vitals ps and a headless server."
+  />
+  <LinkCard
+    title="Integrate it"
+    href="/guides/integrations/"
+    description="REST, SSE, WebSocket, Prometheus and Home Assistant."
+  />
+</CardGrid>

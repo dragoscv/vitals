@@ -18,6 +18,8 @@ build/
 
 # Generated, not hand-written: reformatting these would fight the generator
 packages/protocol/src/generated/
+THIRD_PARTY_NOTICES.md
+apps/site/.astro/
 
 # Lockfiles
 pnpm-lock.yaml

@@ -1,0 +1,128 @@
+---
+title: Vitals — monitor de sistem și manager de activități pentru Windows
+description: Vitals este un monitor de sistem și manager de activități gratuit și open source pentru Windows. Cifre oneste, un răspuns pe înțeles la „de ce merge greu calculatorul?” și zero telemetrie.
+template: splash
+editUrl: false
+hero:
+  title: Vezi ce face cu adevărat calculatorul tău.
+  tagline: Un monitor de sistem și manager de activități rapid și nativ pentru Windows. Gratuit și open source, sub licența MIT. Urmărește-l de pe telefon, colectează-l cu Prometheus, controlează-l din terminal.
+  image:
+    file: ../../../assets/logo.svg
+    alt: Sigla Vitals, o linie de puls albă într-un pătrat turcoaz cu colțuri rotunjite.
+  actions:
+    - text: Descarcă pentru Windows
+      link: https://github.com/dragoscv/vitals/releases/latest/download/Vitals_x64-setup.exe
+      icon: download
+      variant: primary
+    - text: Vezi pe GitHub
+      link: https://github.com/dragoscv/vitals
+      icon: external
+      variant: minimal
+---
+
+import { Aside, Card, CardGrid, Tabs, TabItem, LinkCard } from '@astrojs/starlight/components';
+
+<Aside type="note" title="Beta publică 0.9">
+  Windows 10 și 11, x64. macOS și Linux sunt în plan.
+</Aside>
+
+## Ce face
+
+<CardGrid>
+  <Card title="Cifre oneste" icon="approve-check">
+    O valoare pe care hardware-ul nu o raportează apare ca necunoscută, niciodată ca zero. O funcție
+    pe care permisiunile tale nu o permit este dezactivată și își spune motivul, nu un buton care dă
+    eroare când îl apeși.
+  </Card>
+  <Card title="De ce merge greu calculatorul?" icon="magnifier">
+    Un singur clic corelează procesorul, discul, presiunea pe memorie, rețeaua și limitarea termică,
+    apoi numește cauza pe înțeles: un verdict, vinovații și un minut de grafic pe care îl poți copia
+    într-un raport de eroare.
+  </Card>
+  <Card title="Procese cu model de risc" icon="list-format">
+    Grupate, căutabile și stabile sub cursor. Oprirea, suspendarea și reluarea îți spun consecința
+    reală înainte să confirmi, iar procesele care trăiesc sub o secundă sunt totuși înregistrate.
+  </Card>
+  <Card title="Performanță, completă" icon="laptop">
+    Procesorul cu câte o celulă pentru fiecare nucleu logic, memoria, placa video, fiecare disc și
+    adaptor de rețea, plus o filă Temperaturi care arată și ce nu poate măsura și de ce.
+  </Card>
+  <Card title="Dincolo de fereastră" icon="puzzle">
+    Telefonul prin rețeaua locală, Prometheus, Home Assistant, un SDK TypeScript tipizat și o linie
+    de comandă, toate alimentate de același eșantionator, deci arată mereu aceleași cifre.
+  </Card>
+  <Card title="Ușor pentru calculator" icon="rocket">
+    Sub 1% procesor în repaus, impus de un test de buget în CI. Un monitor care apare printre cei
+    mai mari consumatori în propria listă de procese și-a ratat rostul.
+  </Card>
+  <Card title="Zero telemetrie" icon="information">
+    Fără statistici, fără raportare de erori, fără cont. Singura cerere automată este verificarea
+    actualizărilor, iar pe aceasta o poți dezactiva.
+  </Card>
+  <Card title="Open source" icon="github">
+    Licență MIT. Fiecare versiune are o atestare de build care leagă programul de instalare de
+    commit-ul și fluxul de lucru exacte care l-au produs.
+  </Card>
+</CardGrid>
+
+## Instalare
+
+<Tabs syncKey="install">
+  <TabItem label="Program de instalare">
+    Descarcă [`Vitals_x64-setup.exe`](https://github.com/dragoscv/vitals/releases/latest/download/Vitals_x64-setup.exe)
+    și rulează-l. Nu are expert de instalare; se instalează în circa cinci secunde. La prima
+    rulare, Windows SmartScreen te va avertiza, pentru că programul nu este semnat cu un certificat
+    comercial. [Pagina de descărcare](/ro/download/) explică de ce și cum verifici singur fișierul.
+  </TabItem>
+  <TabItem label="winget">
+    ```powershell
+    winget install Vitals.Vitals
+    ```
+
+    <Aside type="caution" title="În curând">
+      Pachetul winget nu a fost publicat încă. Până atunci, folosește programul de instalare.
+    </Aside>
+
+  </TabItem>
+  <TabItem label="Scoop">
+    ```powershell
+    scoop bucket add vitals https://github.com/dragoscv/scoop-vitals
+    scoop install vitals
+    ```
+  </TabItem>
+  <TabItem label="Chocolatey">
+    ```powershell
+    choco install vitals
+    ```
+
+    <Aside type="caution" title="În curând">
+      Pachetul Chocolatey nu a fost publicat încă. Până atunci, folosește programul de instalare.
+    </Aside>
+
+  </TabItem>
+</Tabs>
+
+## Pașii următori
+
+<CardGrid>
+  <LinkCard
+    title="Primii pași"
+    href="/ro/guides/getting-started/"
+    description="Un tur al primelor cinci minute."
+  />
+  <LinkCard
+    title="Urmărește-l de pe telefon"
+    href="/ro/guides/remote-access/"
+    description="Asociază un telefon prin rețeaua locală."
+  />
+  <LinkCard
+    title="Folosește-l din terminal"
+    href="/ro/guides/cli/"
+    description="vitals top, vitals ps și un server fără interfață."
+  />
+  <LinkCard
+    title="Integrează-l"
+    href="/ro/guides/integrations/"
+    description="REST, SSE, WebSocket, Prometheus și Home Assistant."
+  />
+</CardGrid>

@@ -1,0 +1,27 @@
+title: '[Idea] '
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Ideas grounded in a real frustration are the most useful. Tell us what you were trying to do, not only what you would like added.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What were you trying to do?
+      description: The situation where Vitals, or Task Manager, did not help.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would help?
+      description: Describe the change you have in mind.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What do you do today instead?
+      description: Another tool, a workaround, or nothing.
+    validations:
+      required: false

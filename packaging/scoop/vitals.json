@@ -1,0 +1,42 @@
+{
+  "##": "Template. The release workflow fills version, url and hash from the published release and SHA256SUMS.txt, then pushes the result to dragoscv/scoop-vitals as bucket/vitals.json. Scoop does not run the NSIS installer: 7-Zip unpacks it (the #/dl.7z suffix), which gives a portable copy with no Program Files entry, no service and no uninstaller registration. See packaging/winget/README.md for the other channels.",
+  "version": "0.0.0",
+  "description": "A modern, fast system monitor and task manager for Windows.",
+  "homepage": "https://vitals.dragoscatalin.ro",
+  "license": "MIT",
+  "notes": [
+    "Vitals is installed as a portable copy. Settings live in %APPDATA%\\Vitals and survive 'scoop uninstall'.",
+    "Update with 'scoop update vitals'. The app's own updater installs the full per-machine version instead, so prefer Scoop for updates."
+  ],
+  "architecture": {
+    "64bit": {
+      "url": "https://github.com/dragoscv/vitals/releases/download/v0.0.0/Vitals_0.0.0_x64-setup.exe#/dl.7z",
+      "hash": ""
+    },
+    "arm64": {
+      "url": "https://github.com/dragoscv/vitals/releases/download/v0.0.0/Vitals_0.0.0_arm64-setup.exe#/dl.7z",
+      "hash": ""
+    }
+  },
+  "pre_install": [
+    "Remove-Item \"$dir\\`$PLUGINSDIR\" -Recurse -Force -ErrorAction SilentlyContinue",
+    "Remove-Item \"$dir\\uninstall.exe\" -Force -ErrorAction SilentlyContinue"
+  ],
+  "shortcuts": [["vitals-desktop.exe", "Vitals"]],
+  "checkver": {
+    "github": "https://github.com/dragoscv/vitals"
+  },
+  "autoupdate": {
+    "architecture": {
+      "64bit": {
+        "url": "https://github.com/dragoscv/vitals/releases/download/v$version/Vitals_$version_x64-setup.exe#/dl.7z"
+      },
+      "arm64": {
+        "url": "https://github.com/dragoscv/vitals/releases/download/v$version/Vitals_$version_arm64-setup.exe#/dl.7z"
+      }
+    },
+    "hash": {
+      "url": "$baseurl/SHA256SUMS.txt"
+    }
+  }
+}

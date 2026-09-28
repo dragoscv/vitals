@@ -54,6 +54,21 @@ jobs:
         shell: pwsh
         run: pwsh -NoProfile -File scripts/check-drift.ps1
 
+      # Informational: prints the version every manifest carries, so a
+      # disagreement is visible here long before release.yml's
+      # `version.ps1 -Check <tag>` refuses the tag over it.
+      - name: Versions
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: pwsh -NoProfile -File scripts/version.ps1
+
+      # MIT and Apache-2.0 require their notices to ship with the binary. A
+      # dependency bump that forgets to regenerate the file fails here.
+      - name: Third-party notices are current
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: pwsh -NoProfile -File scripts/third-party-notices.ps1 -Check
+
       - name: Check formatting
         run: cargo fmt --all -- --check
 

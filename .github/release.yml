@@ -1,0 +1,32 @@
+# Categories for GitHub's generated release notes (the "What's Changed"
+# list the release workflow appends below the curated CHANGELOG section).
+#
+# GitHub sorts pull requests by LABEL, not by commit prefix, so these match
+# labels named after the Conventional Commit types. A pull request with no
+# matching label falls into "Other" rather than disappearing.
+changelog:
+  exclude:
+    labels:
+      - skip-changelog
+    authors:
+      - dependabot
+  categories:
+    - title: Features
+      labels:
+        - feat
+        - enhancement
+    - title: Fixes
+      labels:
+        - fix
+        - bug
+    - title: Performance
+      labels:
+        - perf
+        - performance
+    - title: Documentation
+      labels:
+        - docs
+        - documentation
+    - title: Other
+      labels:
+        - '*'

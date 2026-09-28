@@ -1,0 +1,58 @@
+name: Pages
+
+# Builds the website in apps/site and publishes it to GitHub Pages, served at
+# https://vitals.dragoscatalin.ro (the domain comes from apps/site/public/CNAME).
+# Only site changes trigger it: a Rust or desktop change has nothing to publish.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/site/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time; a newer push supersedes a queued one, but an
+# in-progress deployment is allowed to finish rather than leave Pages half-updated.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+
+      # The trailing `...` installs the site and its workspace dependencies
+      # only, not the desktop app's toolchain.
+      - name: Install
+        run: pnpm install --frozen-lockfile --filter @vitals/site...
+
+      - name: Build
+        run: pnpm --filter @vitals/site build
+
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: apps/site/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

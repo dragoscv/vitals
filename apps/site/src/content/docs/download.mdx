@@ -1,0 +1,90 @@
+---
+title: Download
+description: Download Vitals for Windows, verify the installer, and learn about updates, silent installs and uninstalling.
+---
+
+import { Aside, LinkButton } from '@astrojs/starlight/components';
+
+<LinkButton
+  href="https://github.com/dragoscv/vitals/releases/latest/download/Vitals_x64-setup.exe"
+  icon="download"
+>
+  Download for Windows (x64)
+</LinkButton>
+
+<Aside type="note" title="Public beta 0.9">
+  Windows 10 and 11. macOS and Linux are on the roadmap.
+</Aside>
+
+## Files
+
+<div class="downloads">
+
+| File                                                                                                           | Platform                | Status  |
+| -------------------------------------------------------------------------------------------------------------- | ----------------------- | ------- |
+| [`Vitals_x64-setup.exe`](https://github.com/dragoscv/vitals/releases/latest/download/Vitals_x64-setup.exe)     | Windows, x64            | Beta    |
+| [`Vitals_arm64-setup.exe`](https://github.com/dragoscv/vitals/releases/latest/download/Vitals_arm64-setup.exe) | Windows, ARM64          | Preview |
+| [`SHA256SUMS.txt`](https://github.com/dragoscv/vitals/releases/latest/download/SHA256SUMS.txt)                 | Checksums for all files | —       |
+
+</div>
+
+These links always point at the latest release. Older versions, release notes and nightly builds
+are on the [releases page](https://github.com/dragoscv/vitals/releases).
+
+## System requirements
+
+- Windows 10 version 1809 or later, or Windows 11.
+- An x64 or ARM64 processor.
+- Microsoft Edge WebView2. It ships with Windows 11 and current Windows 10; the installer adds it
+  automatically if it is missing.
+
+## Verify the download
+
+Every release is built by a public GitHub Actions workflow and carries a signed build
+attestation. With the [GitHub CLI](https://cli.github.com) installed:
+
+```powershell
+gh attestation verify .\Vitals_x64-setup.exe --repo dragoscv/vitals
+```
+
+A successful result proves the file was built from this repository by its release workflow, and
+names the exact commit. To compare checksums instead:
+
+```powershell
+Get-FileHash .\Vitals_x64-setup.exe -Algorithm SHA256
+```
+
+and look for the same value in `SHA256SUMS.txt`.
+
+## Windows SmartScreen
+
+The first time you run the installer, Windows may show **"Windows protected your PC"**. That is
+expected.
+
+- **Why:** the installer is not signed with a commercial code-signing certificate. Those cost
+  several hundred euros a year, and SmartScreen trusts a file only after many people have run it.
+  An unknown publisher is warned about by default.
+- **What to do:** select **More info**, then **Run anyway**.
+- **How to be sure it is safe:** verify the attestation or checksum above before you run it. That
+  is a stronger guarantee than a certificate, because it ties the file to the public source code
+  that produced it.
+
+## Silent install
+
+The installer asks no questions. To script it:
+
+```powershell
+.\Vitals_x64-setup.exe /S
+```
+
+## Updates
+
+Vitals checks for a new version in the background shortly after it starts. When one is found it
+is downloaded, its signature is verified, and it is installed when you quit the app. An update
+with a missing or wrong signature is refused. You can turn the check off in **Settings → About**.
+
+## Uninstall
+
+Open **Settings → Apps → Installed apps** in Windows, find **Vitals** and choose **Uninstall**.
+Your settings and history in `%LOCALAPPDATA%\Vitals` are kept, so a reinstall picks up where you
+left off. Delete that folder to remove them too.

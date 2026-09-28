@@ -1,0 +1,90 @@
+---
+title: Descărcare
+description: Descarcă Vitals pentru Windows, verifică programul de instalare și află despre actualizări, instalarea silențioasă și dezinstalare.
+---
+
+import { Aside, LinkButton } from '@astrojs/starlight/components';
+
+<LinkButton
+  href="https://github.com/dragoscv/vitals/releases/latest/download/Vitals_x64-setup.exe"
+  icon="download"
+>
+  Descarcă pentru Windows (x64)
+</LinkButton>
+
+<Aside type="note" title="Beta publică 0.9">
+  Windows 10 și 11. macOS și Linux sunt în plan.
+</Aside>
+
+## Fișiere
+
+<div class="downloads">
+
+| Fișier                                                                                                         | Platformă                              | Stare          |
+| -------------------------------------------------------------------------------------------------------------- | -------------------------------------- | -------------- |
+| [`Vitals_x64-setup.exe`](https://github.com/dragoscv/vitals/releases/latest/download/Vitals_x64-setup.exe)     | Windows, x64                           | Beta           |
+| [`Vitals_arm64-setup.exe`](https://github.com/dragoscv/vitals/releases/latest/download/Vitals_arm64-setup.exe) | Windows, ARM64                         | Previzualizare |
+| [`SHA256SUMS.txt`](https://github.com/dragoscv/vitals/releases/latest/download/SHA256SUMS.txt)                 | Sume de control pentru toate fișierele | —              |
+
+</div>
+
+Aceste linkuri indică mereu cea mai recentă versiune. Versiunile mai vechi, notele de lansare și
+build-urile nocturne sunt pe [pagina de versiuni](https://github.com/dragoscv/vitals/releases).
+
+## Cerințe de sistem
+
+- Windows 10 versiunea 1809 sau mai nouă, ori Windows 11.
+- Un procesor x64 sau ARM64.
+- Microsoft Edge WebView2. Vine cu Windows 11 și cu versiunile actuale de Windows 10; dacă lipsește,
+  programul de instalare îl adaugă automat.
+
+## Verifică descărcarea
+
+Fiecare versiune este construită de un flux de lucru GitHub Actions public și are o atestare de
+build semnată. Cu [GitHub CLI](https://cli.github.com) instalat:
+
+```powershell
+gh attestation verify .\Vitals_x64-setup.exe --repo dragoscv/vitals
+```
+
+Un rezultat reușit dovedește că fișierul a fost construit din acest depozit de fluxul său de
+lansare și numește commit-ul exact. Ca să compari sumele de control:
+
+```powershell
+Get-FileHash .\Vitals_x64-setup.exe -Algorithm SHA256
+```
+
+și caută aceeași valoare în `SHA256SUMS.txt`.
+
+## Windows SmartScreen
+
+La prima rulare a programului de instalare, Windows poate afișa **„Windows a protejat PC-ul”**.
+Este de așteptat.
+
+- **De ce:** programul de instalare nu este semnat cu un certificat comercial de semnare a codului.
+  Acestea costă câteva sute de euro pe an, iar SmartScreen are încredere într-un fișier doar după ce
+  l-au rulat mulți oameni. Un editor necunoscut primește implicit un avertisment.
+- **Ce faci:** alege **Mai multe informații**, apoi **Rulează oricum**.
+- **Cum te asiguri că este sigur:** verifică atestarea sau suma de control de mai sus înainte să îl
+  rulezi. Este o garanție mai puternică decât un certificat, pentru că leagă fișierul de codul sursă
+  public care l-a produs.
+
+## Instalare silențioasă
+
+Programul de instalare nu pune întrebări. Pentru scripturi:
+
+```powershell
+.\Vitals_x64-setup.exe /S
+```
+
+## Actualizări
+
+Vitals verifică în fundal dacă există o versiune nouă, la scurt timp după pornire. Când găsește una,
+o descarcă, îi verifică semnătura și o instalează când închizi aplicația. O actualizare cu semnătură
+lipsă sau greșită este refuzată. Poți dezactiva verificarea din **Setări → Despre**.
+
+## Dezinstalare
+
+Deschide în Windows **Setări → Aplicații → Aplicații instalate**, găsește **Vitals** și alege
+**Dezinstalare**. Setările și istoricul din `%LOCALAPPDATA%\Vitals` sunt păstrate, așa că o
+reinstalare continuă de unde ai rămas. Șterge acel folder ca să le elimini și pe ele.

@@ -7,6 +7,12 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.9.0-beta.1] — 2026-09-28
+
+The first public release. A beta: every screen works against live data on
+Windows, and this is the first build to go through the release pipeline end
+to end.
+
 ### 2026-09-28 — real temperatures on Devices & sensors
 
 #### Features
@@ -21,6 +27,43 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Devices & sensors** — Power and Thermal zones are separate cards that
   never scroll; the readings table and the list of what cannot be measured
   scroll on their own.
+
+### Added
+
+- **Updates install themselves.** About twenty seconds after launch Vitals
+  checks GitHub for a newer version, downloads it in the background, checks
+  its signature, and installs it when you quit — never while you are using
+  it. Settings → About has the switch to turn it off, and shows a version
+  that is downloaded and waiting.
+- **A log file and a crash file.** Vitals now writes `vitals.log` (capped, so
+  it cannot fill a disk) and, if it ever crashes, `crash.txt` in
+  `%LOCALAPPDATA%\Vitals\logs`. Nothing is sent anywhere; attach them to a
+  bug report if you want to.
+- **Legal and community documents:** privacy policy, terms of use, third-party
+  licence notices, contributors, support, governance, and a Contributor
+  Covenant 3.0 code of conduct. The Privacy and About panels link to them.
+- **A website** at [vitals.dragoscatalin.ro](https://vitals.dragoscatalin.ro),
+  in English and Romanian, with the download, guides and reference.
+- **The installer speaks Romanian** as well as English.
+
+### Changed
+
+- **The Privacy panel tells the whole truth.** It used to say Vitals "sends
+  nothing anywhere"; it now names the update check and the local-only
+  connection on `127.0.0.1` that the `vitals` command-line tool uses.
+- **Running benchmarks no longer freezes the window.** The run moved off the
+  main thread.
+
+### Security
+
+- **Pairing tokens are stored as hashes.** `lan-tokens.json` used to hold
+  every paired phone's secret in plain text; it now holds a SHA-256 hash and
+  the eight-character prefix you see in Settings. An existing file is
+  converted the first time this version starts, and existing pairings keep
+  working.
+- **The flight recorder no longer writes who is signed in or your network
+  adapters' hardware addresses.** It still records process names and
+  resource use for bug reports.
 
 ### 2026-09-28 — "show hidden devices" at the top of the list
 

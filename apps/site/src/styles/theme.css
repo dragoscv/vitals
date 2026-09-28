@@ -1,0 +1,71 @@
+/*
+ * Vitals palette. Dark is the primary theme: the app itself is dark-first and
+ * the site should feel like the same product. Accent is a teal/cyan hue (195)
+ * chosen so link text clears WCAG AA (4.5:1) on both backgrounds:
+ *   dark  — accent-high on gray-6/black is well above 7:1;
+ *   light — accent (L 0.48) on white is about 5.3:1.
+ * If you lighten the light-theme accent, re-check link contrast first.
+ */
+
+:root {
+  --sl-color-accent-low: oklch(0.28 0.06 200);
+  --sl-color-accent: oklch(0.7 0.13 195);
+  --sl-color-accent-high: oklch(0.9 0.07 195);
+
+  --sl-color-white: oklch(0.98 0.005 200);
+  --sl-color-gray-1: oklch(0.93 0.01 200);
+  --sl-color-gray-2: oklch(0.83 0.015 200);
+  --sl-color-gray-3: oklch(0.68 0.02 200);
+  --sl-color-gray-4: oklch(0.5 0.02 200);
+  --sl-color-gray-5: oklch(0.33 0.02 205);
+  --sl-color-gray-6: oklch(0.22 0.02 210);
+  --sl-color-black: oklch(0.16 0.015 210);
+
+  --sl-font: 'Segoe UI Variable Text', 'Segoe UI', Inter, system-ui, -apple-system, sans-serif;
+}
+
+:root[data-theme='light'] {
+  --sl-color-accent-low: oklch(0.93 0.04 195);
+  --sl-color-accent: oklch(0.48 0.1 200);
+  --sl-color-accent-high: oklch(0.32 0.08 205);
+
+  --sl-color-white: oklch(0.17 0.015 210);
+  --sl-color-gray-1: oklch(0.24 0.02 210);
+  --sl-color-gray-2: oklch(0.34 0.02 205);
+  --sl-color-gray-3: oklch(0.48 0.02 200);
+  --sl-color-gray-4: oklch(0.64 0.02 200);
+  --sl-color-gray-5: oklch(0.84 0.012 200);
+  --sl-color-gray-6: oklch(0.95 0.006 200);
+  --sl-color-gray-7: oklch(0.975 0.004 200);
+  --sl-color-black: oklch(1 0 0);
+}
+
+/* Landing hero: a touch more presence than a docs page title. */
+[data-has-hero] .hero h1 {
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+}
+
+[data-has-hero] .page {
+  background:
+    radial-gradient(60rem 30rem at 85% -10%, oklch(0.7 0.13 195 / 0.14), transparent 70%),
+    var(--sl-color-black);
+}
+
+:root[data-theme='light'][data-has-hero] .page {
+  background:
+    radial-gradient(60rem 30rem at 85% -10%, oklch(0.7 0.13 195 / 0.16), transparent 70%),
+    var(--sl-color-black);
+}
+
+/* Keyboard focus must stay visible against the accent-filled buttons. */
+.sl-link-button:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--sl-color-accent-high);
+  outline-offset: 3px;
+}
+
+/* Download tables: keep the file column from wrapping mid-name. */
+.downloads td:first-child {
+  white-space: nowrap;
+}

@@ -148,11 +148,28 @@ Imperative, lowercase, no trailing period.
 
 Small, focused pull requests get reviewed quickly. Large ones do not.
 
+## Developer Certificate of Origin
+
+Every commit must be signed off under the
+[Developer Certificate of Origin](https://developercertificate.org) (DCO).
+By signing off you certify that you wrote the change, or otherwise have the
+right to submit it under the project's MIT licence.
+
+Sign off by committing with `-s`:
+
+```powershell
+git commit -s -m "fix(charts): stop axis jitter"
+```
+
+This adds a `Signed-off-by: Your Name <you@example.com>` line matching your
+git identity. To sign off commits you have already made on your branch, run
+`git rebase --signoff main` and force-push the branch. Pull requests with
+unsigned commits cannot be merged.
+
 ## Security
 
-Vitals runs an optional service with SYSTEM privileges. If you find a way to
-misuse it, please **do not** open a public issue — email the address in
-[SECURITY.md](SECURITY.md) instead.
+If you find a vulnerability, please **do not** open a public issue — report
+it privately as described in [SECURITY.md](SECURITY.md).
 
 ## Code of conduct
 

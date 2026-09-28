@@ -5,6 +5,16 @@ name: Release
 # Nightlies exist because the alternative — holding everything back until a
 # silent v1.0 — leaves the most differentiated features unvalidated for
 # months, and gives contributors nothing to run.
+#
+# Shape: plan -> verify (tags only) -> build matrix + SBOM -> publish ->
+# distribution channels (tags only, each opt-in). Everything that must see
+# every platform's output at once — latest.json, SHA256SUMS.txt, the stable
+# download names — happens in `publish`, never in a build leg: two legs
+# racing to upload the same filename publish whichever finished last and
+# silently drop the other.
+#
+# The owner-facing guide to secrets, variables and channels is
+# docs/releasing.md. Keep the two in step.
 
 on:
   push:
@@ -16,12 +26,18 @@ on:
   workflow_dispatch:
     inputs:
       nightly:
-        description: 'Build a nightly rather than a release'
+        description: 'Publish as the nightly (off = build only, publish nothing)'
         type: boolean
         default: true
 
 permissions:
   contents: read
+
+# Two runs for the same ref would race on the same release. A tag is never
+# cancelled half-published; a newer nightly simply waits.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 env:
   CARGO_TERM_COLOR: always
@@ -31,64 +47,117 @@ env:
   # where the guarantee belongs.
 
 jobs:
-  # Skip the nightly entirely when nothing has landed. A stream of identical
-  # nightlies is noise that trains people to ignore releases.
-  changes:
-    name: Anything to build?
+  # One place decides what this run is, so no two jobs can disagree about
+  # the version, the tag or whether anything gets published.
+  plan:
+    name: Plan
     runs-on: ubuntu-latest
     outputs:
-      should_build: ${{ steps.check.outputs.should_build }}
+      should_build: ${{ steps.plan.outputs.should_build }}
+      is_release: ${{ steps.plan.outputs.is_release }}
+      publish: ${{ steps.plan.outputs.publish }}
+      version: ${{ steps.plan.outputs.version }}
+      tag: ${{ steps.plan.outputs.tag }}
+      title: ${{ steps.plan.outputs.title }}
     steps:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
-      - id: check
-        shell: bash
+      - id: plan
+        shell: pwsh
+        env:
+          EVENT: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+          REF_NAME: ${{ github.ref_name }}
+          NIGHTLY_INPUT: ${{ inputs.nightly }}
         run: |
-          if [ "${{ github.event_name }}" != "schedule" ]; then
-            echo "should_build=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          if [ -z "$(git log --since='24 hours ago' --oneline)" ]; then
-            echo "No commits in the last 24 hours; skipping nightly."
-            echo "should_build=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "should_build=true" >> "$GITHUB_OUTPUT"
-          fi
+          $isRelease = $env:REF -like 'refs/tags/v*'
 
-  build:
-    name: Build (${{ matrix.platform.name }})
-    needs: changes
-    if: needs.changes.outputs.should_build == 'true'
-    permissions:
-      contents: read
-      # Required for build-provenance attestation.
-      id-token: write
-      attestations: write
-    strategy:
-      fail-fast: false
-      matrix:
-        platform:
-          - name: windows-x64
-            runner: windows-latest
-            target: x86_64-pc-windows-msvc
-          - name: windows-arm64
-            runner: windows-11-arm
-            target: aarch64-pc-windows-msvc
+          # Skip the nightly entirely when nothing has landed. A stream of
+          # identical nightlies is noise that trains people to ignore releases.
+          $shouldBuild = $true
+          if ($env:EVENT -eq 'schedule' -and -not (git log --since='24 hours ago' --oneline)) {
+            Write-Host 'No commits in the last 24 hours; skipping nightly.'
+            $shouldBuild = $false
+          }
 
-    runs-on: ${{ matrix.platform.runner }}
+          $publish = $isRelease -or $env:EVENT -eq 'schedule' -or
+            ($env:EVENT -eq 'workflow_dispatch' -and $env:NIGHTLY_INPUT -eq 'true')
 
+          if ($isRelease) {
+            $version = $env:REF_NAME -replace '^v', ''
+            $tag = $env:REF_NAME
+            # See the comment on "Publish release" for why a beta is not
+            # marked as a GitHub pre-release; the title carries it instead.
+            $title = if ($version -notmatch '-') { "Vitals $version" }
+              elseif ($version -match 'beta') { "Vitals $version (public beta)" }
+              else { "Vitals $version (pre-release)" }
+          } else {
+            # Nightlies are dated and carry the short SHA, so a bug report
+            # names exactly one build. The `g` keeps the identifier
+            # alphanumeric: an all-digit SHA with a leading zero is not
+            # valid SemVer, and Tauri refuses to bundle an invalid version.
+            $current = (Get-Content apps/desktop/src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
+            $base = ($current -split '-')[0]
+            $sha = (git rev-parse --short=7 HEAD).Trim()
+            $version = "$base-nightly.$((Get-Date).ToUniversalTime().ToString('yyyyMMdd')).g$sha"
+            $tag = 'nightly'
+            $title = "Nightly $version"
+          }
+
+          $lines = @(
+            "should_build=$($shouldBuild.ToString().ToLower())"
+            "is_release=$($isRelease.ToString().ToLower())"
+            "publish=$($publish.ToString().ToLower())"
+            "version=$version"
+            "tag=$tag"
+            "title=$title"
+          )
+          $lines | ForEach-Object { Write-Host $_ }
+          $lines | Add-Content -Path $env:GITHUB_OUTPUT -Encoding utf8
+
+  # A release must never ship code its own gates have not passed. ci.yml
+  # already ran on the commit, but a tag can point anywhere — including a
+  # commit CI never saw — so a tag re-proves it. Nightlies skip this: they
+  # are built from main, which CI gates on every push.
+  verify:
+    name: Verify
+    needs: plan
+    if: needs.plan.outputs.is_release == 'true'
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v5
 
+      # Before any compile: an updater release without its minisign key
+      # produces installers every existing copy of Vitals refuses. Fail in
+      # seconds rather than after twenty minutes of building.
+      - name: Updater signing key present
+        shell: pwsh
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY)) {
+            throw 'TAURI_SIGNING_PRIVATE_KEY is not set. A tagged release without it ships updates no installed copy will accept. See docs/releasing.md.'
+          }
+          Write-Host 'updater signing key is configured'
+
+      # The updater compares the installed version with latest.json; a tag
+      # whose manifests say something else either offers itself forever or
+      # never.
+      - name: Version matches the tag
+        shell: pwsh
+        env:
+          TAG: ${{ github.ref_name }}
+        run: pwsh -NoProfile -File scripts/version.ps1 -Check $env:TAG
+
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.platform.target }}
+          components: rustfmt, clippy
 
       - uses: Swatinem/rust-cache@v2
         with:
-          key: ${{ matrix.platform.target }}
+          key: verify
 
       - uses: pnpm/action-setup@v4
 
@@ -99,190 +168,715 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      # A release that fails its own quality gates should never be published —
-      # but correctness is architecture-independent, and ci.yml already proved
-      # it on this commit. Run the gates once, on x64; the ARM64 leg only has
-      # to build. Re-running fmt, clippy, tests and the perf budget on both
-      # legs doubled the cost of every release for no new information.
-      - name: Verify
-        if: matrix.platform.name == 'windows-x64'
-        run: |
-          cargo fmt --all -- --check
-          cargo clippy --workspace --all-targets -- -D warnings
-          cargo test --workspace
+      # Two seconds, and catches what a compile cannot: serde casing against
+      # the generated TypeScript, invoke() with no command, locale parity.
+      - name: Contract drift
+        shell: pwsh
+        run: pwsh -NoProfile -File scripts/check-drift.ps1
+
+      - name: Rust format
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Rust tests
+        run: cargo test --workspace
 
       # A tag can otherwise ship generated types that disagree with the Rust
       # model. Same check as ci.yml's `bindings` job.
       - name: Bindings drift
-        if: matrix.platform.name == 'windows-x64'
         run: |
           cargo test -p vitals-core --features ts
           git diff --exit-code -- packages/protocol/src/generated
 
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Format check
+        run: pnpm format:check
+
+      - name: Frontend tests
+        run: pnpm test
+
+      # Release build: debug would measure the compiler's lack of
+      # optimisation rather than our code.
       - name: Performance budget
-        if: matrix.platform.name == 'windows-x64'
         run: cargo test -p vitals-win --release --test overhead -- --nocapture
 
-      - name: Determine version
-        id: version
-        shell: bash
-        run: |
-          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
-            echo "version=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
-            echo "channel=stable" >> "$GITHUB_OUTPUT"
-          else
-            # Nightlies are dated and carry the short SHA, so a bug report
-            # names exactly one build.
-            echo "version=0.0.0-nightly.$(date -u +%Y%m%d).${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
-            echo "channel=nightly" >> "$GITHUB_OUTPUT"
-          fi
+  build:
+    name: Build (${{ matrix.platform.name }})
+    needs: [plan, verify]
+    # `verify` is skipped for nightlies, and a skipped dependency would
+    # otherwise skip this job too. `!cancelled()` rather than `always()` so a
+    # cancelled run stays cancelled.
+    if: >-
+      !cancelled() &&
+      needs.plan.outputs.should_build == 'true' &&
+      (needs.verify.result == 'success' || needs.verify.result == 'skipped')
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - name: windows-x64
+            os: windows
+            runner: windows-latest
+            target: x86_64-pc-windows-msvc
+            rust_targets: x86_64-pc-windows-msvc
+            bundles: nsis
+          - name: windows-arm64
+            os: windows
+            runner: windows-11-arm
+            target: aarch64-pc-windows-msvc
+            rust_targets: aarch64-pc-windows-msvc
+            bundles: nsis
+          # macOS and Linux are built and checked on every run so the port
+          # never silently rots, but their samplers are still honest stubs
+          # (ADR 0007). They are published only when the matching repo
+          # variable says so; otherwise they stay workflow artefacts.
+          - name: macos-universal
+            os: macos
+            runner: macos-latest
+            target: universal-apple-darwin
+            rust_targets: aarch64-apple-darwin,x86_64-apple-darwin
+            bundles: app,dmg
+          # 22.04 rather than latest: an AppImage links against the build
+          # machine's glibc, so the oldest supported base runs on the most
+          # distributions.
+          - name: linux-x64
+            os: linux
+            runner: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            rust_targets: x86_64-unknown-linux-gnu
+            bundles: appimage,deb,rpm
 
-      - name: Build
-        run: pnpm --filter @vitals/desktop build
+    runs-on: ${{ matrix.platform.runner }}
+    # An unpublished platform must not hold back a Windows release: a leg
+    # that fails there shows red, but the run carries on. Once a platform is
+    # published it becomes a hard gate, because latest.json would otherwise
+    # name a file that does not exist.
+    continue-on-error: ${{ (matrix.platform.os == 'macos' && vars.PUBLISH_MACOS != 'true') || (matrix.platform.os == 'linux' && vars.PUBLISH_LINUX != 'true') }}
+
+    env:
+      VERSION: ${{ needs.plan.outputs.version }}
+      IS_RELEASE: ${{ needs.plan.outputs.is_release }}
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform.rust_targets }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.platform.target }}
+
+      - name: Install Linux system dependencies
+        if: matrix.platform.os == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # A tag's manifests already match (verify proved it). A nightly's do
+      # not, and without this every nightly installer would claim to be the
+      # last release — indistinguishable in a bug report.
+      - name: Stamp nightly version
+        if: needs.plan.outputs.is_release != 'true'
+        shell: pwsh
+        run: pwsh -NoProfile -File scripts/version.ps1 -Set $env:VERSION
+
+      # Everything that varies per run goes into one JSON merge-patch passed
+      # with --config, written outside the tree so it can never be committed.
+      - name: Build configuration
+        id: config
+        shell: pwsh
         env:
-          # Present once signing is funded; absent builds are unsigned and
-          # that is expected. See docs/distribution.md.
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-
-      - name: Collect artefacts
-        id: collect
-        shell: pwsh
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+          PLATFORM_OS: ${{ matrix.platform.os }}
         run: |
-          $out = "dist/${{ matrix.platform.name }}"
-          New-Item -ItemType Directory -Force -Path $out | Out-Null
+          $override = @{}
+          $bundle = @{}
 
-          $bundles = "target/${{ matrix.platform.target }}/release/bundle"
-          Get-ChildItem -Path $bundles -Recurse -Include *.exe, *.msi, *.sig `
-            -ErrorAction SilentlyContinue |
-            Copy-Item -Destination $out
-
-          $files = Get-ChildItem $out -File
-          if ($files.Count -eq 0) {
-            throw "no artefacts produced; the bundle step silently failed"
-          }
-          $files | ForEach-Object { "  $($_.Name)  $([math]::Round($_.Length/1MB,1)) MB" }
-
-      # The manifest the installed app polls. Only meaningful for a tagged
-      # release: nightlies move their tag, and an updater pointed at a moving
-      # target would offer the same "new" version forever.
-      #
-      # Only windows-x64 writes it. The manifest names one platform key per
-      # architecture and two runners racing to upload the same filename would
-      # publish whichever finished last, silently dropping the other.
-      - name: Update manifest
-        if: startsWith(github.ref, 'refs/tags/v') && matrix.platform.name == 'windows-x64'
-        shell: pwsh
-        run: |
-          $out = "dist/${{ matrix.platform.name }}"
-
-          # NSIS is the bundle this project ships (see docs/distribution.md);
-          # the .sig sits beside the installer it signs.
-          $setup = Get-ChildItem $out -Filter '*-setup.exe' | Select-Object -First 1
-          if ($null -eq $setup) {
-            throw "no NSIS *-setup.exe in $out; the updater manifest would point at nothing"
+          # Tauri refuses to build updater artefacts with a public key and no
+          # private one. A tag must have the key (verify enforced it); a
+          # nightly or a fork without it still builds, just without .sig
+          # files, rather than failing for a reason unrelated to the code.
+          if ([string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY)) {
+            if ($env:IS_RELEASE -eq 'true') { throw 'TAURI_SIGNING_PRIVATE_KEY is required for a tagged release.' }
+            Write-Host '::notice::No updater signing key: building without updater artefacts.'
+            $bundle['createUpdaterArtifacts'] = $false
           }
 
-          $sigPath = Join-Path $out "$($setup.Name).sig"
-          if (-not (Test-Path $sigPath)) {
-            throw "no signature beside $($setup.Name). TAURI_SIGNING_PRIVATE_KEY is probably unset, and an unsigned update is one the app will refuse to install."
-          }
-
-          $manifest = [ordered]@{
-            version   = '${{ github.ref_name }}'
-            notes     = 'See the release notes at https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}'
-            pub_date  = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
-            platforms = [ordered]@{
-              'windows-x86_64' = [ordered]@{
-                signature = (Get-Content $sigPath -Raw).Trim()
-                url       = "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/$($setup.Name)"
+          # Authenticode is optional until a certificate is funded
+          # (docs/distribution.md). With it, Tauri calls signtool on every
+          # binary and on the installer; without it the build is unsigned and
+          # SmartScreen warns, which the release notes explain.
+          if ($env:PLATFORM_OS -eq 'windows') {
+            if ([string]::IsNullOrWhiteSpace($env:WINDOWS_CERTIFICATE) -or [string]::IsNullOrWhiteSpace($env:WINDOWS_CERTIFICATE_PASSWORD)) {
+              Write-Host '::notice::No WINDOWS_CERTIFICATE: the installer is not Authenticode-signed.'
+            } else {
+              $pfx = Join-Path $env:RUNNER_TEMP 'vitals-signing.pfx'
+              [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE))
+              $password = ConvertTo-SecureString $env:WINDOWS_CERTIFICATE_PASSWORD -AsPlainText -Force
+              $cert = Import-PfxCertificate -FilePath $pfx -CertStoreLocation Cert:\CurrentUser\My -Password $password
+              Remove-Item $pfx -Force
+              $bundle['windows'] = @{
+                certificateThumbprint = $cert.Thumbprint
+                digestAlgorithm       = 'sha256'
+                timestampUrl          = 'http://timestamp.digicert.com'
               }
+              Write-Host "Authenticode signing with certificate $($cert.Thumbprint.Substring(0, 8))..."
             }
           }
 
-          $manifest | ConvertTo-Json -Depth 5 |
-            Set-Content "$out/latest.json" -Encoding utf8NoBOM
-          Get-Content "$out/latest.json"
+          $path = ''
+          if ($bundle.Count -gt 0) {
+            $override['bundle'] = $bundle
+            $path = Join-Path $env:RUNNER_TEMP 'tauri.override.json'
+            $override | ConvertTo-Json -Depth 5 | Set-Content -Path $path -Encoding utf8NoBOM
+          }
+          "path=$path" | Add-Content -Path $env:GITHUB_OUTPUT -Encoding utf8
 
-      # Free, and stronger than a certificate in one respect: it links the
-      # binary to the exact source and workflow that produced it. Windows does
-      # not check it, but a security-conscious user can.
-      - name: Attest build provenance
-        uses: actions/attest-build-provenance@v3
-        with:
-          subject-path: 'dist/${{ matrix.platform.name }}/*'
-
-      - name: Checksums
+      # --target always, even for the host triple, so the bundle lands in
+      # target/<triple>/release/bundle on every leg and the collect step has
+      # exactly one path to look in. --bundles because tauri.conf.json lists
+      # only nsis, which produces nothing on macOS or Linux.
+      - name: Build
         shell: pwsh
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          TARGET: ${{ matrix.platform.target }}
+          BUNDLES: ${{ matrix.platform.bundles }}
+          OVERRIDE: ${{ steps.config.outputs.path }}
         run: |
-          $out = "dist/${{ matrix.platform.name }}"
-          Get-ChildItem $out -File | ForEach-Object {
-            $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower()
-            "$hash  $($_.Name)"
-          } | Set-Content "$out/SHA256SUMS.txt" -Encoding ascii
-          Get-Content "$out/SHA256SUMS.txt"
+          $tauriArgs = @('build', '--target', $env:TARGET, '--bundles', $env:BUNDLES)
+          if ($env:OVERRIDE) { $tauriArgs += @('--config', $env:OVERRIDE) }
+          pnpm --filter @vitals/desktop tauri @tauriArgs
+          if ($LASTEXITCODE -ne 0) { throw "tauri build exited $LASTEXITCODE" }
+
+      - name: Collect artefacts
+        shell: pwsh
+        env:
+          TARGET: ${{ matrix.platform.target }}
+          PLATFORM: ${{ matrix.platform.name }}
+          PLATFORM_OS: ${{ matrix.platform.os }}
+        run: |
+          $out = "dist/$env:PLATFORM"
+          New-Item -ItemType Directory -Force -Path $out | Out-Null
+          $bundles = "target/$env:TARGET/release/bundle"
+
+          # The file each platform's updater consumes, plus whatever a person
+          # downloads by hand.
+          $updater = @()
+          switch ($env:PLATFORM_OS) {
+            'windows' {
+              $updater = @(Get-ChildItem "$bundles/nsis" -Filter '*-setup.exe' -File)
+              $updater | Copy-Item -Destination $out
+            }
+            'macos' {
+              Get-ChildItem "$bundles/dmg" -Filter '*.dmg' -File | Copy-Item -Destination $out
+              # Tauri names the updater archive after the product alone
+              # (Vitals.app.tar.gz). Versioned and suffixed here so it cannot
+              # collide with anything in the flat release asset list.
+              foreach ($tgz in Get-ChildItem "$bundles/macos" -Filter '*.app.tar.gz' -File) {
+                $dest = Join-Path $out "Vitals_$($env:VERSION)_universal.app.tar.gz"
+                Copy-Item $tgz.FullName $dest
+                $updater += Get-Item $dest
+                if (Test-Path "$($tgz.FullName).sig") { Copy-Item "$($tgz.FullName).sig" "$dest.sig" }
+              }
+              # Without updater artefacts there is no archive; the .dmg is
+              # still proof the leg built.
+              if ($updater.Count -eq 0) { $updater = @(Get-ChildItem $out -Filter '*.dmg' -File) }
+            }
+            'linux' {
+              $updater = @(Get-ChildItem "$bundles/appimage" -Filter '*.AppImage' -File)
+              $updater | Copy-Item -Destination $out
+              Get-ChildItem "$bundles/deb" -Filter '*.deb' -File | Copy-Item -Destination $out
+              Get-ChildItem "$bundles/rpm" -Filter '*.rpm' -File | Copy-Item -Destination $out
+            }
+          }
+
+          if ($updater.Count -eq 0) {
+            throw "nothing under $bundles; the bundle step silently failed"
+          }
+          if ($env:PLATFORM_OS -ne 'macos') {
+            foreach ($u in $updater) {
+              if (Test-Path "$($u.FullName).sig") { Copy-Item "$($u.FullName).sig" -Destination $out }
+            }
+          }
+
+          # On a tag every updater bundle must carry its minisign signature:
+          # an unsigned update is one the installed app will refuse.
+          if ($env:IS_RELEASE -eq 'true') {
+            foreach ($u in Get-ChildItem $out -File | Where-Object { $_.Name -match '(-setup\.exe|\.app\.tar\.gz|\.AppImage)$' }) {
+              if (-not (Test-Path "$($u.FullName).sig")) { throw "no signature beside $($u.Name)" }
+            }
+          }
+
+          Get-ChildItem $out -File | ForEach-Object { "  $($_.Name)  $([math]::Round($_.Length/1MB,1)) MB" }
 
       - uses: actions/upload-artifact@v4
         with:
           name: vitals-${{ matrix.platform.name }}
           path: dist/${{ matrix.platform.name }}/*
           if-no-files-found: error
+          retention-days: 30
+
+  # What is inside the installer, in a machine-readable form a security team
+  # can feed to a scanner. Windows host so cargo resolves the Windows-only
+  # dependency tree (vitals-win and its crates) — the one that ships.
+  sbom:
+    name: SBOM
+    needs: [plan, verify]
+    if: >-
+      !cancelled() &&
+      needs.plan.outputs.should_build == 'true' &&
+      (needs.verify.result == 'success' || needs.verify.result == 'skipped')
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      # Prebuilt binary; compiling it from source costs minutes per run.
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-cyclonedx
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Rust SBOM
+        shell: pwsh
+        working-directory: apps/desktop/src-tauri
+        run: |
+          cargo cyclonedx --format json --override-filename sbom-rust
+          if ($LASTEXITCODE -ne 0) { throw "cargo cyclonedx exited $LASTEXITCODE" }
+          $file = Get-ChildItem -Filter 'sbom-rust*.json' -File | Select-Object -First 1
+          if ($null -eq $file) { throw 'cargo cyclonedx wrote no sbom-rust*.json beside the desktop crate' }
+          New-Item -ItemType Directory -Force -Path ../../../sbom | Out-Null
+          Copy-Item $file.FullName ../../../sbom/sbom-rust.cdx.json
+
+      # Scoped to the desktop app and production dependencies: the root
+      # workspace would list every linter and test runner, none of which
+      # ships.
+      - name: JavaScript SBOM
+        shell: pwsh
+        run: |
+          pnpm --filter @vitals/desktop sbom --sbom-format cyclonedx --sbom-type application --prod --lockfile-only |
+            Set-Content -Path sbom/sbom-js.cdx.json -Encoding utf8NoBOM
+          if ($LASTEXITCODE -ne 0) { throw "pnpm sbom exited $LASTEXITCODE" }
+          $count = (Get-Content sbom/sbom-js.cdx.json -Raw | ConvertFrom-Json).components.Count
+          Write-Host "JavaScript SBOM: $count components"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vitals-sbom
+          path: sbom/*
+          if-no-files-found: error
 
   publish:
     name: Publish
-    needs: build
+    needs: [plan, build, sbom]
+    # `build` reports success even when an unpublished platform's leg failed
+    # (continue-on-error), so this gate is exactly "everything we publish
+    # built". The assemble step then refuses a missing published artefact.
+    if: >-
+      !cancelled() &&
+      needs.plan.outputs.publish == 'true' &&
+      needs.build.result == 'success' &&
+      needs.sbom.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      # Build-provenance and SBOM attestations.
+      id-token: write
+      attestations: write
+    env:
+      VERSION: ${{ needs.plan.outputs.version }}
+      TAG: ${{ needs.plan.outputs.tag }}
+      IS_RELEASE: ${{ needs.plan.outputs.is_release }}
+      REPOSITORY: ${{ github.repository }}
+      PUBLISH_MACOS: ${{ vars.PUBLISH_MACOS }}
+      PUBLISH_LINUX: ${{ vars.PUBLISH_LINUX }}
     steps:
       - uses: actions/checkout@v5
 
       - uses: actions/download-artifact@v5
         with:
-          path: dist
-          merge-multiple: true
+          path: artefacts
+          pattern: vitals-*
+
+      - name: Assemble published files
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path publish | Out-Null
+          $legs = @('vitals-windows-x64', 'vitals-windows-arm64', 'vitals-sbom')
+          if ($env:PUBLISH_MACOS -eq 'true') { $legs += 'vitals-macos-universal' }
+          if ($env:PUBLISH_LINUX -eq 'true') { $legs += 'vitals-linux-x64' }
+          foreach ($leg in $legs) {
+            if (-not (Test-Path "artefacts/$leg")) { throw "artefact $leg is missing; refusing to publish a partial release" }
+            Copy-Item "artefacts/$leg/*" -Destination publish
+          }
+          foreach ($held in @('vitals-macos-universal', 'vitals-linux-x64') | Where-Object { $_ -notin $legs }) {
+            $state = if (Test-Path "artefacts/$held") { 'built, kept as a workflow artefact' } else { 'did not build' }
+            "- ``$held``: $state; not attached to the release." | Add-Content $env:GITHUB_STEP_SUMMARY
+          }
+          Get-ChildItem publish -File | ForEach-Object { $_.Name }
+
+      # The manifest the installed app polls. Tags only: nightlies move
+      # their tag, and an updater pointed at a moving target would offer the
+      # same "new" version forever.
+      - name: Update manifest (latest.json)
+        if: needs.plan.outputs.is_release == 'true'
+        shell: pwsh
+        run: |
+          $base = "https://github.com/$env:REPOSITORY/releases/download/$env:TAG"
+          function Get-Entry([string]$pattern) {
+            $file = Get-ChildItem publish -File | Where-Object { $_.Name -match $pattern } | Select-Object -First 1
+            if ($null -eq $file) { throw "no file matching $pattern; latest.json would point at nothing" }
+            $sig = "$($file.FullName).sig"
+            if (-not (Test-Path $sig)) { throw "no signature beside $($file.Name)" }
+            [ordered]@{
+              signature = (Get-Content $sig -Raw).Trim()
+              url       = "$base/$([uri]::EscapeDataString($file.Name))"
+            }
+          }
+
+          $v = [regex]::Escape($env:VERSION)
+          $platforms = [ordered]@{
+            'windows-x86_64'  = Get-Entry "^Vitals_${v}_x64-setup\.exe$"
+            'windows-aarch64' = Get-Entry "^Vitals_${v}_arm64-setup\.exe$"
+          }
+          if ($env:PUBLISH_MACOS -eq 'true') {
+            # One universal bundle serves both architectures. The plain
+            # darwin-<arch> keys are what the updater asks for by default;
+            # darwin-universal is there for a custom target.
+            $mac = Get-Entry "^Vitals_${v}_universal\.app\.tar\.gz$"
+            $platforms['darwin-universal'] = $mac
+            $platforms['darwin-aarch64'] = $mac
+            $platforms['darwin-x86_64'] = $mac
+          }
+          if ($env:PUBLISH_LINUX -eq 'true') {
+            $platforms['linux-x86_64'] = Get-Entry '\.AppImage$'
+          }
+
+          # `version` without the leading v: it is compared as SemVer against
+          # the installed version.
+          $manifest = [ordered]@{
+            version   = $env:VERSION
+            notes     = "See https://github.com/$env:REPOSITORY/releases/tag/$env:TAG"
+            pub_date  = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+            platforms = $platforms
+          }
+          $manifest | ConvertTo-Json -Depth 5 | Set-Content publish/latest.json -Encoding utf8NoBOM
+          Get-Content publish/latest.json
+
+      # Stable names so a website can link to
+      # /releases/latest/download/Vitals_x64-setup.exe forever.
+      - name: Stable download names
+        if: needs.plan.outputs.is_release == 'true'
+        shell: pwsh
+        run: pwsh -NoProfile -File scripts/stable-assets.ps1 -Directory publish -Version $env:VERSION
+
+      - name: Checksums
+        shell: pwsh
+        run: |
+          Get-ChildItem publish -File | Where-Object Name -ne 'SHA256SUMS.txt' | Sort-Object Name | ForEach-Object {
+            "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower())  $($_.Name)"
+          } | Set-Content publish/SHA256SUMS.txt -Encoding ascii
+          Get-Content publish/SHA256SUMS.txt
+
+      # Free, and stronger than a certificate in one respect: it links each
+      # file to the exact source and workflow that produced it. Windows does
+      # not check it, but a security-conscious user can
+      # (`gh attestation verify`).
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v3
+        with:
+          subject-checksums: publish/SHA256SUMS.txt
+
+      - name: Attest Rust SBOM
+        uses: actions/attest-sbom@v2
+        with:
+          subject-path: 'publish/*-setup.exe'
+          sbom-path: publish/sbom-rust.cdx.json
+
+      - name: Attest JavaScript SBOM
+        uses: actions/attest-sbom@v2
+        with:
+          subject-path: 'publish/*-setup.exe'
+          sbom-path: publish/sbom-js.cdx.json
 
       - name: Release notes
-        id: notes
-        shell: bash
+        shell: pwsh
         run: |
-          {
-            echo 'notes<<RELEASE_NOTES_EOF'
-            if [[ "${{ github.ref }}" != refs/tags/v* ]]; then
-              cat <<'HEADER'
-          **Nightly build.** Unreleased, and it may be broken.
+          $notesArgs = @('-Version', $env:VERSION, '-Tag', $env:TAG, '-Repository', $env:REPOSITORY, '-Out', 'release-notes.md')
+          if ($env:IS_RELEASE -ne 'true') { $notesArgs += '-Nightly' }
+          pwsh -NoProfile -File scripts/release-notes.ps1 @notesArgs
 
-          HEADER
-            fi
-            cat <<'BODY'
-          ### Verifying this download
+      # The nightly is one release on one moving tag. Delete it first so the
+      # tag moves to this commit and yesterday's versioned assets do not pile
+      # up beside today's.
+      - name: Retire the previous nightly
+        if: needs.plan.outputs.is_release != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release delete nightly --cleanup-tag --yes --repo "$REPOSITORY" || echo "no previous nightly"
 
-          Windows shows a SmartScreen warning on first run because these
-          builds are not signed with a commercial certificate. That is
-          expected — see [docs/distribution.md](docs/distribution.md).
-
-          You do not have to take our word for what is in the binary:
-
-          ```
-          gh attestation verify <file> --repo dragoscv/vitals
-          ```
-
-          This proves the file was built by this repository's workflow from
-          the commit below, and nowhere else. Checksums are in
-          `SHA256SUMS.txt`.
-          BODY
-            echo 'RELEASE_NOTES_EOF'
-          } >> "$GITHUB_OUTPUT"
-
+      # prerelease is false for betas on purpose. GitHub's /releases/latest/
+      # skips pre-releases, and both the updater endpoint
+      # (releases/latest/download/latest.json) and the stable download links
+      # go through it — so while every release is a beta, marking them
+      # pre-release would leave the updater and the website pointing at
+      # nothing. The title says "(public beta)" instead. Only the nightly,
+      # which must never become "latest", is a pre-release.
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/**/*
-          body: ${{ steps.notes.outputs.notes }}
-          prerelease: ${{ !startsWith(github.ref, 'refs/tags/v') }}
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'nightly' }}
-          name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'Nightly' }}
-          # A moving `nightly` tag keeps one download URL that always points
-          # at the newest build.
-          make_latest: ${{ startsWith(github.ref, 'refs/tags/v') }}
-          generate_release_notes: true
+          files: publish/*
+          body_path: release-notes.md
+          tag_name: ${{ needs.plan.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: ${{ needs.plan.outputs.title }}
+          prerelease: ${{ needs.plan.outputs.is_release != 'true' }}
+          make_latest: ${{ needs.plan.outputs.is_release == 'true' && 'true' || 'false' }}
+          # Categorised by .github/release.yml; appended below our notes.
+          generate_release_notes: ${{ needs.plan.outputs.is_release == 'true' }}
+          fail_on_unmatched_files: true
+
+  # ── Distribution channels ────────────────────────────────────────────────
+  # Tags only, each opt-in with a repo variable, and each skips cleanly —
+  # a notice, not a failure — when its secret is absent. Secrets cannot
+  # appear in `if:`, so the first step of each job tests the environment
+  # and later steps key off its output.
+
+  npm:
+    name: npm (@vitals/client)
+    needs: [plan, publish]
+    if: needs.plan.outputs.is_release == 'true' && vars.PUBLISH_NPM == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # npm provenance.
+      id-token: write
+    steps:
+      - id: gate
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -z "$NPM_TOKEN" ]; then
+            echo "::notice::NPM_TOKEN not set; skipping npm."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - if: steps.gate.outputs.ok == 'true'
+        uses: actions/checkout@v5
+
+      - if: steps.gate.outputs.ok == 'true'
+        uses: pnpm/action-setup@v4
+
+      - if: steps.gate.outputs.ok == 'true'
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: 'https://registry.npmjs.org'
+
+      - if: steps.gate.outputs.ok == 'true'
+        run: pnpm install --frozen-lockfile
+
+      # Correct once packages/client is made publishable (not private, built
+      # to JS, `exports` pointing at the build) — a separate change. Until
+      # then pnpm refuses a private package, which is why PUBLISH_NPM stays
+      # off.
+      - if: steps.gate.outputs.ok == 'true'
+        run: pnpm --filter @vitals/client publish --access public --no-git-checks --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  winget:
+    name: winget
+    needs: [plan, publish]
+    if: needs.plan.outputs.is_release == 'true' && vars.PUBLISH_WINGET == 'true'
+    runs-on: windows-latest
+    steps:
+      - id: gate
+        shell: pwsh
+        env:
+          WINGET_TOKEN: ${{ secrets.WINGET_TOKEN }}
+        run: |
+          $ok = -not [string]::IsNullOrWhiteSpace($env:WINGET_TOKEN)
+          if (-not $ok) { Write-Host '::notice::WINGET_TOKEN not set; skipping winget.' }
+          "ok=$($ok.ToString().ToLower())" | Add-Content $env:GITHUB_OUTPUT
+
+      # Updates an existing package only: the first manifest is submitted by
+      # hand (packaging/winget/README.md). The regex matches the versioned
+      # installers and not the stable-named copies, which carry no version
+      # and would give winget two installers per architecture.
+      - if: steps.gate.outputs.ok == 'true'
+        uses: vedantmgoyal9/winget-releaser@main
+        with:
+          identifier: Vitals.Vitals
+          version: ${{ needs.plan.outputs.version }}
+          release-tag: ${{ needs.plan.outputs.tag }}
+          installers-regex: '_\d+\.\d+\.\d+[^_]*_(x64|arm64)-setup\.exe$'
+          token: ${{ secrets.WINGET_TOKEN }}
+
+  scoop:
+    name: Scoop bucket
+    needs: [plan, publish]
+    if: needs.plan.outputs.is_release == 'true' && vars.PUBLISH_SCOOP == 'true'
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.plan.outputs.version }}
+      TAG: ${{ needs.plan.outputs.tag }}
+      REPOSITORY: ${{ github.repository }}
+    steps:
+      - id: gate
+        shell: pwsh
+        env:
+          SCOOP_BUCKET_TOKEN: ${{ secrets.SCOOP_BUCKET_TOKEN }}
+        run: |
+          $ok = -not [string]::IsNullOrWhiteSpace($env:SCOOP_BUCKET_TOKEN)
+          if (-not $ok) { Write-Host '::notice::SCOOP_BUCKET_TOKEN not set; skipping Scoop.' }
+          "ok=$($ok.ToString().ToLower())" | Add-Content $env:GITHUB_OUTPUT
+
+      - if: steps.gate.outputs.ok == 'true'
+        uses: actions/checkout@v5
+
+      - if: steps.gate.outputs.ok == 'true'
+        uses: actions/checkout@v5
+        with:
+          repository: dragoscv/scoop-vitals
+          token: ${{ secrets.SCOOP_BUCKET_TOKEN }}
+          path: bucket-repo
+
+      # Hashes come from the published SHA256SUMS.txt, so the bucket names
+      # exactly the bytes users download — not a rebuild.
+      - name: Render manifest
+        if: steps.gate.outputs.ok == 'true'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download $env:TAG --repo $env:REPOSITORY --pattern SHA256SUMS.txt --dir sums
+          $sums = @{}
+          Get-Content sums/SHA256SUMS.txt | ForEach-Object { $h, $n = $_ -split '\s+', 2; $sums[$n.Trim()] = $h }
+
+          $m = Get-Content packaging/scoop/vitals.json -Raw | ConvertFrom-Json
+          $m.version = $env:VERSION
+          foreach ($pair in @(@('64bit', 'x64'), @('arm64', 'arm64'))) {
+            $name = "Vitals_$($env:VERSION)_$($pair[1])-setup.exe"
+            if (-not $sums.ContainsKey($name)) { throw "$name is not in SHA256SUMS.txt" }
+            $m.architecture.($pair[0]).url = "https://github.com/$env:REPOSITORY/releases/download/$env:TAG/$name#/dl.7z"
+            $m.architecture.($pair[0]).hash = $sums[$name]
+          }
+          New-Item -ItemType Directory -Force -Path bucket-repo/bucket | Out-Null
+          $m | ConvertTo-Json -Depth 10 | Set-Content bucket-repo/bucket/vitals.json -Encoding utf8NoBOM
+          Get-Content bucket-repo/bucket/vitals.json
+
+      - name: Push
+        if: steps.gate.outputs.ok == 'true'
+        working-directory: bucket-repo
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add bucket/vitals.json
+          if git diff --cached --quiet; then
+            echo "bucket already at $VERSION"
+            exit 0
+          fi
+          git commit -m "vitals: update to $VERSION"
+          git push
+
+  chocolatey:
+    name: Chocolatey
+    needs: [plan, publish]
+    if: needs.plan.outputs.is_release == 'true' && vars.PUBLISH_CHOCO == 'true'
+    runs-on: windows-latest
+    env:
+      VERSION: ${{ needs.plan.outputs.version }}
+      TAG: ${{ needs.plan.outputs.tag }}
+      REPOSITORY: ${{ github.repository }}
+    steps:
+      - id: gate
+        shell: pwsh
+        env:
+          CHOCO_API_KEY: ${{ secrets.CHOCO_API_KEY }}
+        run: |
+          $ok = -not [string]::IsNullOrWhiteSpace($env:CHOCO_API_KEY)
+          if (-not $ok) { Write-Host '::notice::CHOCO_API_KEY not set; skipping Chocolatey.' }
+          "ok=$($ok.ToString().ToLower())" | Add-Content $env:GITHUB_OUTPUT
+
+      - if: steps.gate.outputs.ok == 'true'
+        uses: actions/checkout@v5
+
+      - name: Pack
+        if: steps.gate.outputs.ok == 'true'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download $env:TAG --repo $env:REPOSITORY --pattern SHA256SUMS.txt --dir sums
+          $sums = @{}
+          Get-Content sums/SHA256SUMS.txt | ForEach-Object { $h, $n = $_ -split '\s+', 2; $sums[$n.Trim()] = $h }
+          $x64 = "Vitals_$($env:VERSION)_x64-setup.exe"
+          $arm = "Vitals_$($env:VERSION)_arm64-setup.exe"
+          foreach ($n in $x64, $arm) { if (-not $sums.ContainsKey($n)) { throw "$n is not in SHA256SUMS.txt" } }
+
+          # Work on a copy so the templates in the tree keep their
+          # placeholders.
+          Copy-Item packaging/chocolatey -Destination choco -Recurse
+          $install = (Resolve-Path 'choco/tools/chocolateyinstall.ps1').Path
+          $text = [IO.File]::ReadAllText($install)
+          $text = $text.Replace('__URL64__', "https://github.com/$env:REPOSITORY/releases/download/$env:TAG/$x64")
+          $text = $text.Replace('__CHECKSUM64__', $sums[$x64])
+          $text = $text.Replace('__URLARM64__', "https://github.com/$env:REPOSITORY/releases/download/$env:TAG/$arm")
+          $text = $text.Replace('__CHECKSUMARM64__', $sums[$arm])
+          [IO.File]::WriteAllText($install, $text)
+
+          # Chocolatey's package versions predate SemVer 2: a pre-release
+          # label may not contain dots, so 0.9.0-beta.1 is packed as
+          # 0.9.0-beta1. It still sorts correctly against later betas.
+          $parts = $env:VERSION -split '-', 2
+          $chocoVersion = if ($parts.Count -eq 2) { "$($parts[0])-$($parts[1] -replace '\.', '')" } else { $parts[0] }
+          choco pack choco/vitals.nuspec --version $chocoVersion --outputdirectory out
+          if ($LASTEXITCODE -ne 0) { throw "choco pack exited $LASTEXITCODE" }
+          Get-ChildItem out
+
+      - name: Push
+        if: steps.gate.outputs.ok == 'true'
+        shell: pwsh
+        env:
+          CHOCO_API_KEY: ${{ secrets.CHOCO_API_KEY }}
+        run: |
+          $pkg = Get-ChildItem out -Filter '*.nupkg' | Select-Object -First 1
+          choco push $pkg.FullName --source https://push.chocolatey.org/ --api-key $env:CHOCO_API_KEY
+          if ($LASTEXITCODE -ne 0) { throw "choco push exited $LASTEXITCODE" }

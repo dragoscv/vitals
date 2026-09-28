@@ -42,6 +42,7 @@ apps/
                  three entries: index.html, hud.html, mobile.html
   cli/           vitals ps|top|info|report|serve
   helper/        planned elevated service — a stub today (ADR 0012)
+  site/          Astro Starlight website + docs (vitals.dragoscatalin.ro)
 packages/
   protocol       TypeScript types generated from vitals-core by ts-rs
   client         @vitals/client — typed SDK over REST, SSE, WebSocket
@@ -90,3 +91,52 @@ packages/
 - The release profile is `panic = "abort"` (ADR 0026); a panic on the
   sampler thread is a crash, not a frozen window.
 - The installer is NSIS, per-machine, silent (ADR 0025).
+
+## What is persisted, and what listens
+
+| Thing              | When                    | Where / scope                                          |
+| ------------------ | ----------------------- | ------------------------------------------------------ |
+| Local API          | always, while running   | `127.0.0.1:7330`, loopback only, tokenless control     |
+| Attach pipe        | always, while running   | `\\.\pipe\vitals-<USERNAME>`, default per-user DACL    |
+| LAN server         | only when switched on   | `0.0.0.0:7331`, bearer token, mDNS `_vitals._tcp`      |
+| Flight recorder    | always                  | last 120 frames in `history.sqlite`, no owners or MACs |
+| History            | only when switched on   | `history.sqlite` tiers, 1–90 days, 512 MB cap          |
+| Pairing tokens     | once a device is paired | `lan-tokens.json`, SHA-256 hashes + 8-char prefix only |
+| Log and last crash | always                  | `logs\vitals.log` (capped, rotated), `logs\crash.txt`  |
+
+All under `%LOCALAPPDATA%\Vitals`. [PRIVACY.md](../PRIVACY.md) is the
+user-facing version of this table; change both together.
+
+## Updates
+
+`src-tauri/src/updates.rs`. About twenty seconds after launch — never before
+the first paint — the app asks `releases/latest/download/latest.json` whether
+there is a newer version. A newer one is downloaded in the background and its
+minisign signature checked against `plugins.updater.pubkey`; the verified
+bytes wait in memory, and on `RunEvent::Exit`, after the sampler and the
+listeners have stopped, they are handed to the NSIS installer in passive mode.
+The next launch is the new version. The "Install updates automatically"
+setting stops the check and drops anything already downloaded.
+
+## Release architecture
+
+```
+tag vX.Y.Z ─▶ plan ─▶ verify (every CI gate + version.ps1 -Check) ─┬▶ build windows-x64    ─┐
+                                                                  ├▶ build windows-arm64  ─┤
+                                                                  ├▶ build macos-universal ─┤ artefacts only until
+                                                                  ├▶ build linux-x64      ─┤ PUBLISH_MACOS/LINUX
+                                                                  └▶ sbom (CycloneDX)     ─┤
+                                                                                           ▼
+                           publish: latest.json (all published platforms), stable names,
+                           SHA256SUMS, provenance + SBOM attestations, release notes
+                                                                                           │
+                               ┌───────────────┬──────────────┬───────────────┬───────────┘
+                               ▼               ▼              ▼               ▼
+                             winget          Scoop       Chocolatey       npm (@vitals/client)
+```
+
+Every channel job is gated on a repository variable (`PUBLISH_*`) and its
+secret, so a channel that is not set up yet is skipped rather than failing a
+release. Details, secrets and the manual first submissions:
+[releasing.md](releasing.md). The website is built by `pages.yml` on every
+push to `main` that touches `apps/site`.

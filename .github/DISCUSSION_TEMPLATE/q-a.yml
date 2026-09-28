@@ -1,0 +1,19 @@
+body:
+  - type: markdown
+    attributes:
+      value: |
+        If something is broken, please open an issue instead. For security problems, report privately: https://github.com/dragoscv/vitals/security/advisories/new
+  - type: textarea
+    id: question
+    attributes:
+      label: Your question
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: System details
+      description: In Vitals, open Settings → About → Copy system details and paste the result.
+      render: text
+    validations:
+      required: false

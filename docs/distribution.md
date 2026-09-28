@@ -11,8 +11,9 @@ Windows shows **SmartScreen** on any executable it has not seen before:
 > Microsoft Defender SmartScreen prevented an unrecognised app from starting.
 
 Running it requires clicking _More info_ → _Run anyway_. Most people close the
-dialog instead. Vitals also installs a service for privileged operations,
-which makes the warning stricter and antivirus heuristics more suspicious.
+dialog instead. (Vitals does not install a service — the privileged helper
+is not shipped, ADR 0012 — so the only thing Windows is judging is the
+installer itself.)
 
 ## What actually removes the warning, and what it costs
 
@@ -21,15 +22,18 @@ which makes the warning stricter and antivirus heuristics more suspicious.
 | Unsigned                | Free      | No                                              |
 | Self-signed certificate | Free      | **No** — worse, it looks like forgery           |
 | Sigstore / cosign       | Free      | No (not a Windows trust root)                   |
-| OV certificate          | ~€250–400 | Only after building reputation, weeks to months |
-| **EV certificate**      | ~€400–600 | Yes, immediately                                |
-| Microsoft Store         | Free*     | Yes — Microsoft signs it                        |
+| Certum Open Source (OV) | ~€30–60   | Only after building reputation, weeks to months |
+| OV / EV certificate     | ~€250–600 | Reputation-based for both since 2024            |
+| SignPath Foundation     | Free      | Reputation-based; needs an established project  |
+| Microsoft Store         | Free\*    | Yes — Store installs never show SmartScreen     |
 
-\* Individual developer account is a one-off ~€17, not annual.
+\* Individual developer registration has been free since September 2025.
+Azure Artifact Signing (formerly Trusted Signing) is not offered to individual
+developers outside the US and Canada, so it is not an option for this project.
 
-There is no free path to an immediate SmartScreen bypass through direct
-download. Anyone claiming otherwise is describing OV reputation-building,
-which takes thousands of installs.
+There is no path — free or paid — to an immediate SmartScreen bypass through
+direct download any more: since 2024 EV certificates build reputation the same
+way OV ones do. The Store is the only warning-free route.
 
 ## What we do
 
@@ -51,33 +55,31 @@ Verify a download:
 
 ```powershell
 # Checksum
-Get-FileHash .\vitals-setup.exe -Algorithm SHA256
+Get-FileHash .\Vitals_x64-setup.exe -Algorithm SHA256
 
 # Provenance, with the GitHub CLI
-gh attestation verify .\vitals-setup.exe --repo dragoscv/vitals
+gh attestation verify .\Vitals_x64-setup.exe --repo dragoscv/vitals
 ```
 
 Stronger than a code-signing certificate in one specific way: a certificate
 proves _who_ built it, provenance proves _what source_ built it. It is weaker
 in the way that matters commercially — Windows does not check it.
 
-### 3. Microsoft Store as the recommended channel
+### 3. Microsoft Store, once the installer is signed
 
-The Store is the only free route to a signed, warning-free install. Microsoft
-signs Store packages, so SmartScreen never appears. The one-off developer fee
-(~€17) is not a subscription.
+The Store is the only route to a warning-free install. Registration is free
+for individuals. The EXE route requires an installer signed with a CA
+certificate and an offline WebView2 variant; the MSIX route has Microsoft sign
+the package but Tauri has no native MSIX output. Neither is in place yet, so
+the Store listing waits for a certificate — see `docs/releasing.md`.
 
 Trade-offs, stated plainly:
 
 - **Certification review** adds days to each release, so the Store lags the
   direct download.
-- **Privileged operations are restricted.** The Store's packaging model does
-  not permit installing an arbitrary SYSTEM service, so features needing one
-  — some sensors, some process actions against protected processes — are
-  unavailable in the Store build. The app reports these as unavailable with a
-  reason rather than failing at the point of use.
-
-The direct download remains the full-capability build.
+- **The listing must never change underneath Microsoft.** For the EXE route
+  the URL they review has to keep serving the same bytes, so the Store points
+  at a versioned asset, never at `latest`.
 
 ### 4. Honest documentation of the warning
 
@@ -90,10 +92,11 @@ risk model exists to avoid.
 
 The switch is small and localised:
 
-1. Add `WINDOWS_CERTIFICATE` and `WINDOWS_CERTIFICATE_PASSWORD` repository
-   secrets.
-2. Set `bundle.windows.certificateThumbprint` in `tauri.conf.json`.
-3. Tauri signs during `tauri build`; no other change is needed.
+1. Add `WINDOWS_CERTIFICATE` (base64 PFX) and
+   `WINDOWS_CERTIFICATE_PASSWORD` repository secrets.
+2. That is all. `release.yml` imports the certificate and passes the
+   thumbprint to `tauri build` through a `--config` override; with the secrets
+   absent it builds unsigned and says so.
 
 Deliberately not designed around: nothing in the build depends on signing
 being absent.
@@ -107,13 +110,13 @@ Windows code signing.
 This matters more than SmartScreen for ongoing safety: it means a
 man-in-the-middle cannot serve a malicious update, even though the initial
 download shows a warning. The private key lives only in repository secrets
-and never on a developer machine.
+and on the maintainer's machine under `%USERPROFILE%\.tauri`, never in the
+repository (`docs/releasing.md`).
 
 ## Summary
 
 - SmartScreen on first run is **expected** for the direct download. Documented,
   not hidden.
 - Provenance and checksums give verifiability without a certificate.
-- The Store build is signed and warning-free, at the cost of some privileged
-  features.
+- The Store listing follows once the installer is signed.
 - Updates are cryptographically verified regardless of channel.
