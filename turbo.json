@@ -2,6 +2,9 @@
   "$schema": "https://turbo.build/schema.json",
   "ui": "tui",
   "tasks": {
+    "transit": {
+      "dependsOn": ["^transit"]
+    },
     "build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", "!**/*.test.*", "!**/*.md"],
@@ -12,16 +15,17 @@
       "persistent": true
     },
     "lint": {
-      "dependsOn": ["^build"],
+      "dependsOn": ["transit"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/eslint.config.mjs"],
       "outputs": []
     },
     "typecheck": {
-      "dependsOn": ["^build"],
-      "outputs": ["*.tsbuildinfo"]
+      "dependsOn": ["transit"],
+      "outputs": []
     },
     "test": {
-      "dependsOn": ["^build"],
-      "outputs": ["coverage/**"]
+      "dependsOn": ["transit"],
+      "outputs": []
     },
     "clean": {
       "cache": false

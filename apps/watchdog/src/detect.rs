@@ -2,51 +2,77 @@
 //!
 //! Pure, driven by one [`Tick`] a second, so thresholds and the
 //! don't-nag rules are testable without loading a real machine.
+//!
+//! ## What counts
+//!
+//! The first version counted CPU at or above 90 %. On a developer's machine
+//! that fired seven times in ten minutes — `tsc`, VS Code, `python`, `rg` —
+//! and every one of those ticks had **0 ms** of scheduling delay: the
+//! machine was busy, not slow. Measured on the same machine at 97–100 %
+//! CPU, the foreground window answered a message in 0.1–8 ms. A busy CPU is
+//! not a frozen desktop, so CPU is no longer a trigger at all; it only
+//! decides whom to blame once something the user can feel has happened.
+//!
+//! What the user feels, each measured directly:
+//!
+//! - **The window they are using does not answer.** `SendMessageTimeout`
+//!   with `WM_NULL` to the foreground window, timed. Windows' own "Not
+//!   Responding" (`IsHungAppWindow`) is the extreme of the same signal.
+//! - **The scheduler is starved.** A Normal-priority thread asks to sleep
+//!   10 ms and is woken late. The cursor and input threads of every
+//!   ordinary app run at that priority, so they are late too.
+//! - **The disk is standing in for RAM.** Hard faults a second, with memory
+//!   nearly full. Paging makes the CPU look idle while everything waits.
+//!
+//! And only while the person is there: no input for a minute means nobody
+//! is waiting on the screen, so a nightly build can saturate what it likes.
 
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
 use vitals_core::ids::ProcessKey;
 
-/// Machine CPU at or above this counts towards a lag episode.
-pub const BUSY: f64 = 0.90;
-/// Scheduling delay of an ordinary-priority thread, in ms, that counts.
-///
-/// This is the signal that matches what a person feels: the probe thread
-/// runs at the same priority as the cursor-drawing and input threads of
-/// every normal app, so when it is woken 40 ms late, so are they.
-pub const LAG_MS: f64 = 40.0;
-/// `dwMemoryLoad` at or above this counts as memory pressure.
-pub const MEMORY_LOAD: u32 = 95;
+use crate::config::Thresholds;
+
+/// Physical memory load at or above which hard faults count as paging.
+pub const MEMORY_LOAD: u32 = 90;
 /// Ticks looked back over.
-pub const WINDOW: u32 = 8;
-/// Ticks within [`WINDOW`] that must be bad. A single compile spike is not a
-/// lag episode; five bad seconds out of eight is.
-pub const NEEDED: u32 = 5;
-/// Consecutive ticks the foreground window must be hung.
+pub const WINDOW: u32 = 6;
+/// Ticks within [`WINDOW`] that must be bad. One stall is a hiccup; four
+/// seconds out of six is something the user is sitting through.
+pub const NEEDED: u32 = 4;
+/// Consecutive ticks the foreground window must be "Not Responding".
 pub const HUNG_TICKS: u32 = 5;
+/// Seconds without keyboard or mouse input after which nobody is watching.
+pub const IDLE_SECS: u64 = 60;
 
 /// One second of observation.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Tick {
-    /// Machine CPU, 0..=1.
-    pub busy: f64,
-    /// Worst wake-up delay of the probe thread during the tick, ms.
-    pub lag_ms: f64,
+    /// Round-trip of `WM_NULL` to the foreground window, ms. `None` when
+    /// there is no foreground window to ask (desktop, lock screen).
+    pub window_ms: Option<f64>,
+    /// Worst wake-up delay of the Normal-priority probe during the tick, ms.
+    pub scheduler_ms: f64,
+    /// Hard page faults in the last second, machine-wide.
+    pub hard_faults: f64,
     /// Physical memory in use, percent.
     pub memory_load: u32,
     /// The foreground window's process, when Windows says it is hung.
     pub hung: Option<ProcessKey>,
+    /// Seconds since the last keyboard or mouse input.
+    pub idle_secs: u64,
 }
 
 /// Why a notification is warranted.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Trigger {
-    /// Sustained CPU saturation or scheduling delay.
-    Busy,
-    /// Sustained memory pressure.
-    Memory,
-    /// The foreground app stopped answering.
+    /// The desktop is stalling: windows slow to answer or the scheduler
+    /// starved. The culprit is chosen by CPU.
+    Stall,
+    /// Sustained paging. The culprit is chosen by memory.
+    Paging,
+    /// The foreground app stopped answering altogether.
     Hung(ProcessKey),
 }
 
@@ -60,25 +86,43 @@ impl Window {
         self.0 = ((self.0 << 1) | u32::from(bad)) & mask;
         self.0.count_ones()
     }
+
+    fn clear(&mut self) {
+        self.0 = 0;
+    }
 }
 
 /// Turns ticks into triggers.
 #[derive(Debug, Default)]
 pub struct Detector {
-    busy: Window,
-    memory: Window,
+    stall: Window,
+    paging: Window,
     hung: Option<(ProcessKey, u32)>,
 }
 
 impl Detector {
     /// Feeds one tick; returns what, if anything, is now sustained.
     ///
-    /// A hung window outranks memory, which outranks CPU: a frozen app is the
-    /// most specific explanation, and paging makes the CPU look idle while
-    /// everything waits on the disk.
-    pub fn push(&mut self, tick: Tick) -> Option<Trigger> {
-        let busy = self.busy.push(tick.busy >= BUSY || tick.lag_ms >= LAG_MS);
-        let memory = self.memory.push(tick.memory_load >= MEMORY_LOAD);
+    /// A hung window outranks paging, which outranks a stall: the first is
+    /// the most specific explanation, and paging stalls everything while
+    /// making the CPU look idle.
+    pub fn push(&mut self, tick: Tick, limits: Thresholds) -> Option<Trigger> {
+        if tick.idle_secs >= IDLE_SECS {
+            // Nobody is at the machine. Forget what was building up, so the
+            // user's first keystroke back is not met by a stale episode.
+            self.stall.clear();
+            self.paging.clear();
+            self.hung = None;
+            return None;
+        }
+
+        let window_slow = tick.window_ms.is_some_and(|ms| ms >= limits.window_ms);
+        let stall = self
+            .stall
+            .push(window_slow || tick.scheduler_ms >= limits.scheduler_ms);
+        let paging = self
+            .paging
+            .push(tick.memory_load >= MEMORY_LOAD && tick.hard_faults >= limits.hard_faults);
 
         self.hung = match (tick.hung, self.hung) {
             (Some(key), Some((same, n))) if same == key => Some((key, n + 1)),
@@ -91,23 +135,23 @@ impl Detector {
         {
             return Some(Trigger::Hung(key));
         }
-        if memory >= NEEDED {
-            return Some(Trigger::Memory);
+        if paging >= NEEDED {
+            return Some(Trigger::Paging);
         }
-        (busy >= NEEDED).then_some(Trigger::Busy)
+        (stall >= NEEDED).then_some(Trigger::Stall)
     }
 }
 
 /// Minimum gap between any two proposals.
-pub const GAP: Duration = Duration::from_secs(60);
+pub const GAP: Duration = Duration::from_secs(3 * 60);
 /// How long the same process is not proposed again.
-pub const SAME_TARGET: Duration = Duration::from_secs(5 * 60);
+pub const SAME_TARGET: Duration = Duration::from_secs(15 * 60);
 /// How long "Ignore" silences an image name.
 pub const SNOOZE: Duration = Duration::from_secs(30 * 60);
 
 /// The don't-nag rules.
 ///
-/// A notification that repeats every second while a build finishes is worse
+/// A notification that repeats every minute while a build finishes is worse
 /// than none: it teaches the user to dismiss it unread, which is exactly
 /// when the one that matters gets ignored.
 #[derive(Debug, Default)]
@@ -148,52 +192,153 @@ impl Policy {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::Sensitivity;
     use vitals_core::ids::Pid;
 
     const CALM: Tick = Tick {
-        busy: 0.2,
-        lag_ms: 1.0,
-        memory_load: 40,
+        window_ms: Some(2.0),
+        scheduler_ms: 0.0,
+        hard_faults: 0.0,
+        memory_load: 45,
         hung: None,
+        idle_secs: 0,
     };
-    const HOT: Tick = Tick { busy: 0.97, ..CALM };
+
+    fn normal() -> Thresholds {
+        Sensitivity::Normal.thresholds()
+    }
 
     fn key(pid: u32) -> ProcessKey {
         ProcessKey::new(Pid(pid), 1)
     }
 
-    #[test]
-    fn a_short_spike_is_not_an_episode_but_five_bad_seconds_of_eight_are() {
-        let mut d = Detector::default();
-        for _ in 0..4 {
-            assert_eq!(d.push(HOT), None);
-        }
-        assert_eq!(d.push(CALM), None);
-        assert_eq!(d.push(HOT), Some(Trigger::Busy));
+    fn run(d: &mut Detector, tick: Tick, n: u32) -> Option<Trigger> {
+        (0..n).map(|_| d.push(tick, normal())).last().flatten()
     }
 
     #[test]
-    fn scheduling_delay_alone_counts_even_when_the_cpu_meter_looks_fine() {
+    fn a_saturated_cpu_that_the_desktop_does_not_feel_never_notifies() {
+        // The 2026-09-28 log: tsc / VS Code / rg at 93-100 % CPU, the probe
+        // at 0 ms, the foreground window answering in single milliseconds.
+        // CPU is not an input any more, so there is nothing to feed it here;
+        // the point is that the ticks such a machine produces stay silent.
         let mut d = Detector::default();
-        let laggy = Tick {
-            lag_ms: 120.0,
+        let busy_but_fine = Tick {
+            window_ms: Some(7.9),
+            scheduler_ms: 0.0,
             ..CALM
         };
-        let got: Vec<_> = (0..NEEDED).map(|_| d.push(laggy)).collect();
-        assert_eq!(got.last().copied().flatten(), Some(Trigger::Busy));
+        assert_eq!(run(&mut d, busy_but_fine, 120), None);
     }
 
     #[test]
-    fn an_episode_ends_once_the_window_has_calmed_down() {
+    fn a_window_slow_to_answer_for_four_seconds_of_six_is_a_stall() {
         let mut d = Detector::default();
-        for _ in 0..WINDOW {
-            d.push(HOT);
+        let slow = Tick {
+            window_ms: Some(400.0),
+            ..CALM
+        };
+        for _ in 0..NEEDED - 1 {
+            assert_eq!(d.push(slow, normal()), None);
         }
-        let mut last = Some(Trigger::Busy);
-        for _ in 0..=(WINDOW - NEEDED) {
-            last = d.push(CALM);
+        assert_eq!(d.push(CALM, normal()), None);
+        assert_eq!(d.push(slow, normal()), Some(Trigger::Stall));
+    }
+
+    #[test]
+    fn a_starved_scheduler_counts_even_when_the_window_still_answers() {
+        let mut d = Detector::default();
+        let starved = Tick {
+            scheduler_ms: 80.0,
+            ..CALM
+        };
+        assert_eq!(run(&mut d, starved, NEEDED), Some(Trigger::Stall));
+    }
+
+    #[test]
+    fn a_single_hiccup_is_not_an_episode() {
+        let mut d = Detector::default();
+        let slow = Tick {
+            window_ms: Some(900.0),
+            scheduler_ms: 200.0,
+            ..CALM
+        };
+        for _ in 0..20 {
+            assert_eq!(d.push(slow, normal()), None);
+            for _ in 0..WINDOW {
+                assert_eq!(d.push(CALM, normal()), None);
+            }
         }
-        assert_eq!(last, None);
+    }
+
+    #[test]
+    fn sensitivity_moves_the_line_a_stall_must_cross() {
+        let tick = Tick {
+            window_ms: Some(300.0),
+            ..CALM
+        };
+        let outcome = |s: Sensitivity| {
+            let mut d = Detector::default();
+            (0..NEEDED)
+                .map(|_| d.push(tick, s.thresholds()))
+                .last()
+                .flatten()
+        };
+        assert_eq!(outcome(Sensitivity::Relaxed), None);
+        assert_eq!(outcome(Sensitivity::Normal), Some(Trigger::Stall));
+        assert_eq!(outcome(Sensitivity::Sensitive), Some(Trigger::Stall));
+    }
+
+    #[test]
+    fn nothing_is_reported_while_nobody_is_at_the_machine() {
+        let mut d = Detector::default();
+        let away_and_awful = Tick {
+            window_ms: Some(5_000.0),
+            scheduler_ms: 900.0,
+            idle_secs: IDLE_SECS,
+            ..CALM
+        };
+        assert_eq!(run(&mut d, away_and_awful, 30), None);
+    }
+
+    #[test]
+    fn coming_back_does_not_inherit_what_built_up_before_leaving() {
+        let mut d = Detector::default();
+        let slow = Tick {
+            window_ms: Some(400.0),
+            ..CALM
+        };
+        run(&mut d, slow, NEEDED - 1);
+        d.push(
+            Tick {
+                idle_secs: IDLE_SECS,
+                ..CALM
+            },
+            normal(),
+        );
+        assert_eq!(d.push(slow, normal()), None);
+    }
+
+    #[test]
+    fn paging_needs_both_a_full_memory_and_a_fault_storm() {
+        let mut d = Detector::default();
+        let faults_with_room = Tick {
+            hard_faults: 5_000.0,
+            memory_load: 60,
+            ..CALM
+        };
+        assert_eq!(run(&mut d, faults_with_room, 10), None);
+        let full_and_quiet = Tick {
+            memory_load: 97,
+            ..CALM
+        };
+        assert_eq!(run(&mut d, full_and_quiet, 10), None);
+        let thrashing = Tick {
+            hard_faults: 5_000.0,
+            memory_load: 97,
+            ..CALM
+        };
+        assert_eq!(run(&mut d, thrashing, NEEDED), Some(Trigger::Paging));
     }
 
     #[test]
@@ -204,38 +349,36 @@ mod tests {
             ..CALM
         };
         for _ in 0..HUNG_TICKS - 1 {
-            assert_eq!(d.push(hung(7)), None);
+            assert_eq!(d.push(hung(7), normal()), None);
         }
-        // Focus moved to another hung app: the count restarts.
-        assert_eq!(d.push(hung(8)), None);
+        assert_eq!(d.push(hung(8), normal()), None);
         for _ in 0..HUNG_TICKS - 2 {
-            assert_eq!(d.push(hung(8)), None);
+            assert_eq!(d.push(hung(8), normal()), None);
         }
-        assert_eq!(d.push(hung(8)), Some(Trigger::Hung(key(8))));
+        assert_eq!(d.push(hung(8), normal()), Some(Trigger::Hung(key(8))));
     }
 
     #[test]
-    fn a_hung_window_outranks_memory_which_outranks_cpu() {
-        let mut d = Detector::default();
+    fn a_hung_window_outranks_paging_which_outranks_a_stall() {
         let everything = Tick {
-            busy: 1.0,
-            lag_ms: 500.0,
+            window_ms: Some(2_000.0),
+            scheduler_ms: 500.0,
+            hard_faults: 9_000.0,
             memory_load: 99,
             hung: Some(key(3)),
+            idle_secs: 0,
         };
-        let mut last = None;
-        for _ in 0..HUNG_TICKS {
-            last = d.push(everything);
-        }
-        assert_eq!(last, Some(Trigger::Hung(key(3))));
         let mut d = Detector::default();
-        for _ in 0..NEEDED {
-            last = d.push(Tick {
-                hung: None,
-                ..everything
-            });
-        }
-        assert_eq!(last, Some(Trigger::Memory));
+        assert_eq!(
+            run(&mut d, everything, HUNG_TICKS),
+            Some(Trigger::Hung(key(3)))
+        );
+        let mut d = Detector::default();
+        let no_hang = Tick {
+            hung: None,
+            ..everything
+        };
+        assert_eq!(run(&mut d, no_hang, NEEDED), Some(Trigger::Paging));
     }
 
     #[test]
@@ -244,15 +387,12 @@ mod tests {
         let mut policy = Policy::default();
         assert!(policy.allow(key(1), "java.exe", t0));
         assert!(
-            !policy.allow(key(2), "tsc.exe", t0 + Duration::from_secs(10)),
+            !policy.allow(key(2), "tsc.exe", t0 + Duration::from_secs(60)),
             "gap"
         );
-        assert!(
-            !policy.allow(key(1), "java.exe", t0 + Duration::from_secs(120)),
-            "same"
-        );
-        assert!(policy.allow(key(2), "tsc.exe", t0 + Duration::from_secs(120)));
-        assert!(policy.allow(key(1), "java.exe", t0 + Duration::from_secs(400)));
+        assert!(!policy.allow(key(1), "java.exe", t0 + GAP), "same process");
+        assert!(policy.allow(key(2), "tsc.exe", t0 + GAP));
+        assert!(policy.allow(key(1), "java.exe", t0 + SAME_TARGET + GAP));
     }
 
     #[test]

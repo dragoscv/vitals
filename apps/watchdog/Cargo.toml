@@ -15,6 +15,8 @@ path = "src/main.rs"
 [dependencies]
 vitals-core = { workspace = true }
 anyhow = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 
@@ -33,6 +35,11 @@ windows-sys = { version = "0.61.2", features = [
         "Win32_System_Console",
         "Win32_Globalization",
         "Win32_UI_WindowsAndMessaging",
+        # Idle detection: GetLastInputInfo.
+        "Win32_UI_Input_KeyboardAndMouse",
+        # A chosen audio file (MP3/WAV/M4A) through MCI; toasts cannot play one.
+        "Win32_Media",
+        "Win32_Media_Multimedia",
 ] }
 
 [lints]

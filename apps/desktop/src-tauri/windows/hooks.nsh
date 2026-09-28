@@ -20,6 +20,10 @@
   DetailPrint "Closing any running instance of Vitals..."
   nsExec::Exec 'taskkill /IM ${MAINBINARYNAME}.exe /F'
   Pop $0
+  ; The watchdog runs from $INSTDIR\watchdog and holds its exe open the same
+  ; way. Ending it is safe: the app starts it again at its next launch.
+  nsExec::Exec 'taskkill /IM vitals-watchdog.exe /F'
+  Pop $0
 
   ; Give the OS a moment to release file handles. Without the pause the very
   ; next file write can still fail with a sharing violation.
@@ -36,7 +40,18 @@
   DetailPrint "Closing Vitals..."
   nsExec::Exec 'taskkill /IM ${MAINBINARYNAME}.exe /F'
   Pop $0
+  nsExec::Exec 'taskkill /IM vitals-watchdog.exe /F'
+  Pop $0
   Sleep 500
+
+  ; The logon entry names $INSTDIR\watchdog\vitals-watchdog.exe. Left behind
+  ; it would make Windows try to start a deleted file at every sign-in.
+  ; HKCU of the user running the uninstaller, which is who enabled it; a
+  ; watchdog installed by hand elsewhere with --install is not ours.
+  ReadRegStr $1 HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "VitalsWatchdog"
+  ${If} $1 == '"$INSTDIR\watchdog\vitals-watchdog.exe"'
+    DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "VitalsWatchdog"
+  ${EndIf}
 
   ; If the user made Vitals their Task Manager, the registry points every
   ; Ctrl+Shift+Esc at a file that is about to be deleted; Windows would then

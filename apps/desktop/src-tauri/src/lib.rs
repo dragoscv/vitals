@@ -26,6 +26,7 @@ pub mod store;
 pub mod tray;
 pub mod updates;
 pub mod users;
+pub mod watchdog;
 
 use tauri::Manager;
 
@@ -206,6 +207,14 @@ fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
         hardware::get_hardware,
         #[cfg(windows)]
         hardware::get_device_tree,
+        // The lag watchdog's settings, logon entry and sound test. Desktop
+        // only: a phone has no business choosing this machine's alarms.
+        #[cfg(windows)]
+        watchdog::get_watchdog_status,
+        #[cfg(windows)]
+        watchdog::set_watchdog_config,
+        #[cfg(windows)]
+        watchdog::test_watchdog_sound,
         // Storage. `scan_storage` and `find_cleanup_candidates` are
         // async so the synchronous command thread stays free — otherwise
         // `cancel_storage_scan` would queue behind the very scan it is
@@ -279,6 +288,10 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     server::start_local_api(app.handle());
     arm_reveal_safety_net(app.handle().clone());
     updates::spawn(app.handle());
+    // Off the setup thread: it can spawn a process and run `reg`, and the
+    // window must not wait for either.
+    #[cfg(windows)]
+    std::thread::spawn(watchdog::ensure_default);
     Ok(())
 }
 

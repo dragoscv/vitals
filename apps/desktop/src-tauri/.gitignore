@@ -2,3 +2,6 @@
 # resource directory present so tauri-build accepts it in a clean checkout.
 sensors/*
 !sensors/.gitkeep
+# Staged by scripts/bundle-watchdog.ps1, same reason.
+watchdog/*
+!watchdog/.gitkeep

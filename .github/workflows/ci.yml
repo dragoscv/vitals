@@ -253,17 +253,13 @@ jobs:
           key: turbo-${{ runner.os }}-${{ github.sha }}
           restore-keys: turbo-${{ runner.os }}-
 
-      - name: Typecheck
-        run: pnpm typecheck
-
-      - name: Lint
-        run: pnpm lint
+      # One invocation, so the three tasks run side by side across packages
+      # instead of one after another.
+      - name: Typecheck, lint, test
+        run: pnpm exec turbo run typecheck lint test --output-logs=errors-only
 
       - name: Format check
         run: pnpm format:check
-
-      - name: Test
-        run: pnpm test
 
       # The bundle is the one input `check-size.ps1` needs; the installer is
       # measured by the build job below, which is the only place it exists.

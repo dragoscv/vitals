@@ -1,4 +1,5 @@
 import {
+  Activity,
   Bell,
   Info,
   Palette,
@@ -32,12 +33,14 @@ import {
   SamplingPanel,
 } from './panels';
 import { RemoteAccessPanel } from './lan/RemoteAccessPanel';
+import { WatchdogPanel } from './WatchdogPanel';
 
 const tabIds = [
   'general',
   'appearance',
   'sampling',
   'notifications',
+  'watchdog',
   'remote',
   'privacy',
   'about',
@@ -50,6 +53,7 @@ const tabIcons: Readonly<Record<TabId, LucideIcon>> = {
   appearance: Palette,
   sampling: Timer,
   notifications: Bell,
+  watchdog: Activity,
   remote: Smartphone,
   privacy: ShieldCheck,
   about: Info,
@@ -73,6 +77,7 @@ export function SettingsDialog({ open, onOpenChange, version }: SettingsDialogPr
     appearance: t('settings.appearance.title'),
     sampling: t('settings.sampling.title'),
     notifications: ts('settings.notifications.title'),
+    watchdog: ts('settings.watchdog.title'),
     remote: ts('settings.remote.title'),
     privacy: t('settings.privacy.title'),
     about: t('settings.about.title'),
@@ -131,6 +136,9 @@ export function SettingsDialog({ open, onOpenChange, version }: SettingsDialogPr
               </TabsContent>
               <TabsContent value="notifications">
                 <NotificationsPanel />
+              </TabsContent>
+              <TabsContent value="watchdog">
+                <WatchdogPanel />
               </TabsContent>
               <TabsContent value="remote">
                 <RemoteAccessPanel />

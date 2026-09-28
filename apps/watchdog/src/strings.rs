@@ -26,12 +26,13 @@ pub struct Strings {
     pub already_gone: &'static str,
     pub failed: &'static str,
     pub ignored: &'static str,
+    pub sound_test: &'static str,
 }
 
 pub const EN: Strings = Strings {
-    busy_title: "{name} is slowing this computer down",
-    busy_cpu: "Using {cores} of {total} processor cores.",
-    busy_memory: "Using {size} of memory, and memory is almost full.",
+    busy_title: "{name} is freezing what you are using",
+    busy_cpu: "Windows are slow to respond while it uses {cores} of {total} processor cores.",
+    busy_memory: "Memory is full and the disk is standing in for it; it holds {size}.",
     hung_title: "{name} is not responding",
     hung_body: "Its window has not answered for {secs} seconds.",
     started_from: "Started from {chain}.",
@@ -47,12 +48,13 @@ pub const EN: Strings = Strings {
     already_gone: "{name} had already exited",
     failed: "{name} could not be changed: {reason}",
     ignored: "{name} will not be mentioned for 30 minutes",
+    sound_test: "This is the Vitals watchdog sound",
 };
 
 pub const RO: Strings = Strings {
-    busy_title: "{name} încetinește calculatorul",
-    busy_cpu: "Folosește {cores} din {total} nuclee ale procesorului.",
-    busy_memory: "Folosește {size} de memorie, iar memoria e aproape plină.",
+    busy_title: "{name} blochează ce folosești",
+    busy_cpu: "Ferestrele răspund greu cât timp folosește {cores} din {total} nuclee ale procesorului.",
+    busy_memory: "Memoria e plină și discul ține locul ei; ocupă {size}.",
     hung_title: "{name} nu răspunde",
     hung_body: "Fereastra lui nu a mai răspuns de {secs} secunde.",
     started_from: "Pornit din {chain}.",
@@ -68,6 +70,7 @@ pub const RO: Strings = Strings {
     already_gone: "{name} se închisese deja",
     failed: "{name} nu a putut fi schimbat: {reason}",
     ignored: "{name} nu va mai fi semnalat 30 de minute",
+    sound_test: "Acesta e sunetul watchdog-ului Vitals",
 };
 
 /// Fills `{name}`-style placeholders.
@@ -137,6 +140,7 @@ mod tests {
             ("already_gone", s.already_gone),
             ("failed", s.failed),
             ("ignored", s.ignored),
+            ("sound_test", s.sound_test),
         ]
     }
 

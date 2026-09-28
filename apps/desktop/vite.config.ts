@@ -97,6 +97,12 @@ export default defineConfig(({ command }) => ({
     // A test that truly hangs still fails; one that is slow under load no
     // longer does.
     testTimeout: 15_000,
+    // A quarter of the cores, not vitest's cores-minus-one. Each fork boots
+    // its own happy-dom, and on this 32-thread machine 31 of them spent half
+    // the run in environment setup fighting each other: measured back to back
+    // at the same load (2026-09-28), 31 forks took 122.8 s with two timeouts,
+    // 8 forks took 46.3 s with all 985 passing.
+    maxWorkers: '25%',
     coverage: {
       provider: 'v8',
       reporter: ['text-summary', 'lcov'],

@@ -62,7 +62,69 @@ rights), and runs whether or not Vitals or VS Code is open.
 
 ## Consequences
 
-- One more binary; it is not yet bundled in the NSIS installer. Install it
-  from a build with `vitals-watchdog --install`.
+- One more binary, bundled by the installer as a resource in
+  `$INSTDIR\watchdog\` (see the revision below).
 - The pure logic (`forest`, `detect`, `action`, `strings`) is
   platform-free and tested on the Linux CI leg as well.
+
+## Revision 2026-09-28 (v2): strict UI signals, sounds, installer
+
+**Why.** v1 fired on ordinary builds. Its log showed seven proposals in ten
+minutes (`tsc`, VS Code, `python`, `rg`), each with the machine at 93 % or
+more busy and a probe lag of 0.0 ms. Measured at 97–100 % CPU on this
+32-core machine, the foreground window still answered `WM_NULL` in
+0.1–8 ms, and DWM counted no missed frames at 180 Hz. A busy processor is
+not a frozen computer. The "User Input Delay" performance counters that
+would measure input latency directly do not exist here (they need the
+per-session counters policy), so they cannot be the signal.
+
+**Detection now.** CPU load is no longer a trigger at all. A tick is bad
+when either:
+
+- the foreground window takes longer than the threshold to answer
+  `SendMessageTimeout(WM_NULL, SMTO_ABORTIFHUNG)` (capped at 1 s): the UI
+  the person is looking at is not responding to input; or
+- a Normal-priority probe thread wakes up late by more than the scheduler
+  threshold: the machine is not giving anyone the CPU in time.
+
+Four bad ticks out of six make an episode. Paging counts only when memory
+load is at or above 90 % _and_ hard faults exceed the threshold; either
+alone is normal. A window `IsHungAppWindow` reports for five seconds still
+outranks everything. Nothing is proposed while the user has not touched the
+mouse or keyboard for 60 s: a freeze nobody is waiting on does not need a
+notification, and a build left overnight is not a problem.
+
+Sensitivity is chosen in Settings:
+
+|                  | window | scheduler | hard faults/s |
+| ---------------- | ------ | --------- | ------------- |
+| Relaxed          | 500 ms | 100 ms    | 2000          |
+| Normal (default) | 250 ms | 50 ms     | 1000          |
+| Sensitive        | 120 ms | 30 ms     | 500           |
+
+After a proposal: 3 minutes before any other, 15 before the same target
+again, 30 after "Ignore".
+
+**Sound.** Windows' notification sounds, no sound, or an audio file. A toast
+from an unpackaged app can only play `ms-winsoundevent:` sounds, not a local
+file, so for a file the toast is silent and the watchdog plays the file
+itself through MCI (volume 0–100, at most 10 s). "Default" is `Reminder`:
+the crate's `Default` under the alarm scenario loops until dismissed. The
+Test button runs `vitals-watchdog --play-sound`, the same code a real
+proposal uses, so a file the watchdog cannot open fails in Settings rather
+than silently at 3 a.m.
+
+**Settings.** `%APPDATA%\Vitals\watchdog.json`, written atomically by the app
+(temporary file, then rename) and re-read by the watchdog within a second
+when its modification time changes. The Settings switch writes the file and
+the `HKCU\…\Run` entry in one command, and shows what Windows reports
+afterwards.
+
+**Installer.** `scripts/bundle-watchdog.ps1` builds it in
+`beforeBuildCommand` and stages it as the `watchdog/` resource, so it is
+installed at `$INSTDIR\watchdog\vitals-watchdog.exe` from the same commit
+as the app. The first launch with no settings file turns it on (the user's
+choice: on by default, with a switch). Every later launch restarts it if it
+is enabled and not running, because the installer ends it before replacing
+the file. The uninstaller ends it and removes the Run entry only when it
+names this install's copy.

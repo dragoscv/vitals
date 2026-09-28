@@ -15,11 +15,12 @@ use windows_sys::Win32::System::Registry::{HKEY_CURRENT_USER, RegDeleteKeyValueW
 use windows_sys::Win32::System::Threading::CreateMutexW;
 
 use crate::action::Action;
+use crate::config::{Config, Sound};
 use crate::detect::{Detector, Policy, Tick, Trigger};
 use crate::forest::{Forest, Metric, Scope, Target};
 use crate::notify::{self, Button};
 use crate::strings::{self, EN, RO, Strings, fill};
-use crate::win::{self, LagProbe, MachineCpu, Outcome, Processes};
+use crate::win::{self, LagProbe, Outcome, Processes};
 
 /// Share of a subtree one child must carry for the blame to move into it.
 const SHARE: f64 = 0.7;
@@ -48,6 +49,55 @@ fn text() -> &'static Strings {
     if lang & 0x3ff == 0x18 { &RO } else { &EN }
 }
 
+/// `%APPDATA%\Vitals\watchdog.json`, beside the desktop app's own settings.
+fn config_path() -> PathBuf {
+    std::env::var_os("APPDATA")
+        .map_or_else(std::env::temp_dir, PathBuf::from)
+        .join("Vitals")
+        .join("watchdog.json")
+}
+
+/// The settings file, re-read whenever it changes on disk.
+#[derive(Debug)]
+struct Settings {
+    path: PathBuf,
+    stamp: Option<std::time::SystemTime>,
+    current: Config,
+}
+
+impl Settings {
+    fn load() -> Self {
+        let mut settings = Self {
+            path: config_path(),
+            stamp: None,
+            current: Config::default(),
+        };
+        settings.refresh();
+        settings
+    }
+
+    /// Picks up a change. A file that fails to parse (mid-save, bad hand
+    /// edit) keeps the previous config rather than resetting to defaults.
+    fn refresh(&mut self) -> bool {
+        let stamp = std::fs::metadata(&self.path)
+            .and_then(|m| m.modified())
+            .ok();
+        if stamp == self.stamp {
+            return false;
+        }
+        self.stamp = stamp;
+        let Some(next) = std::fs::read_to_string(&self.path)
+            .ok()
+            .and_then(|text| Config::parse(&text))
+        else {
+            return false;
+        };
+        let changed = next != self.current;
+        self.current = next;
+        changed
+    }
+}
+
 fn data_dir() -> PathBuf {
     std::env::var_os("LOCALAPPDATA")
         .map_or_else(std::env::temp_dir, PathBuf::from)
@@ -61,6 +111,7 @@ pub fn main() -> anyhow::Result<()> {
         None => watch(),
         Some("--diagnose") => with_console(diagnose),
         Some("--test-toast") => with_console(test_toast),
+        Some("--play-sound") => with_console(|| play_sound(args.get(1).map(String::as_str))),
         Some("--install") => with_console(install),
         Some("--uninstall") => with_console(uninstall),
         Some(other) => with_console(|| bail!("unknown argument {other:?}")),
@@ -145,7 +196,8 @@ fn watch() -> anyhow::Result<()> {
     );
 
     let probe = LagProbe::start().context("starting the lag probe")?;
-    let mut cpu = MachineCpu::default();
+    let mut settings = Settings::load();
+    tracing::info!(config = ?settings.current, "settings");
     let mut processes = Processes::new();
     let mut detector = Detector::default();
     let mut policy = Policy::default();
@@ -182,15 +234,24 @@ fn watch() -> anyhow::Result<()> {
             next_tick = Instant::now() + Duration::from_secs(1);
         }
 
-        let busy = cpu.sample().unwrap_or(0.0);
-        let lag_ms = probe.take_ms();
+        if settings.refresh() {
+            tracing::info!(config = ?settings.current, "settings changed");
+        }
+        let limits = settings.current.sensitivity.thresholds();
+        let scheduler_ms = probe.take_ms();
+        let window_ms = win::window_response_ms(WINDOW_CAP_MS);
         let (memory_load, total_memory) = win::memory().unwrap_or((0, 0));
         let hung_pid = win::hung_foreground();
+        let idle_secs = win::idle_secs();
 
         // Enumerating ~500 processes costs a few ms. Every second while
-        // anything looks wrong, every five when calm — the rates only need
-        // to be fresh at the moment a proposal is made.
-        let troubled = busy >= 0.6 || lag_ms >= 20.0 || memory_load >= 90 || hung_pid.is_some();
+        // anything looks wrong, every five when calm: CPU shares only need
+        // to be fresh when a proposal is made, and the hard-fault rate is a
+        // rate, so a five-second window is still a correct one.
+        let troubled = window_ms.is_some_and(|ms| ms >= limits.window_ms / 2.0)
+            || scheduler_ms >= limits.scheduler_ms / 2.0
+            || memory_load >= crate::detect::MEMORY_LOAD
+            || hung_pid.is_some();
         if troubled || last_scan.is_none_or(|at| at.elapsed() >= Duration::from_secs(5)) {
             match processes.refresh() {
                 Ok(()) => {
@@ -202,21 +263,25 @@ fn watch() -> anyhow::Result<()> {
         }
 
         let tick = Tick {
-            busy,
-            lag_ms,
+            window_ms,
+            scheduler_ms,
+            hard_faults: processes.hard_faults,
             memory_load,
             hung: hung_pid.and_then(|pid| processes.key_of(pid)),
+            idle_secs,
         };
-        let Some(trigger) = detector.push(tick) else {
+        let Some(trigger) = detector.push(tick, limits) else {
             continue;
         };
-        if warm {
+        if warm && settings.current.enabled {
             pending.retain(|_, p| p.at.elapsed() < PENDING_FOR);
             let context = Situation {
                 processes: &processes,
                 cores,
                 total_memory,
                 strings,
+                sound: &settings.current.sound,
+                volume: settings.current.volume,
             };
             propose_once(&context, trigger, tick, &mut policy, &mut pending, &tx);
         }
@@ -229,7 +294,13 @@ struct Situation<'a> {
     cores: f64,
     total_memory: u64,
     strings: &'static Strings,
+    sound: &'a Sound,
+    volume: u8,
 }
+
+/// How long to wait for the foreground window before calling it stalled.
+/// Past a second the answer no longer changes the verdict.
+const WINDOW_CAP_MS: u32 = 1_000;
 
 /// Chooses a target for `trigger` and shows it, unless the policy says not to.
 fn propose_once(
@@ -263,19 +334,13 @@ fn propose_once(
         pid = target.key.pid.get(),
         load = proposal.target.load,
         descendants = proposal.target.descendants,
-        busy = tick.busy,
-        lag_ms = tick.lag_ms,
+        window_ms = tick.window_ms,
+        scheduler_ms = tick.scheduler_ms,
+        hard_faults = tick.hard_faults,
         memory_load = tick.memory_load,
         "proposing"
     );
-    show(
-        &forest,
-        &proposal,
-        trigger,
-        context.cores,
-        context.strings,
-        tx.clone(),
-    );
+    show(&forest, &proposal, trigger, context, tx.clone());
     pending.insert(
         target.key,
         Pending {
@@ -323,7 +388,7 @@ fn choose(
     }
 
     let (metric, floor) = match trigger {
-        Trigger::Memory => (Metric::Memory, MIN_MEMORY_SHARE * total_memory as f64),
+        Trigger::Paging => (Metric::Memory, MIN_MEMORY_SHARE * total_memory as f64),
         _ => (Metric::Cpu, MIN_CORES.max(MIN_CPU_SHARE * cores)),
     };
 
@@ -374,10 +439,10 @@ fn show(
     forest: &Forest,
     proposal: &Proposal,
     trigger: Trigger,
-    cores: f64,
-    s: &Strings,
+    context: &Situation<'_>,
     tx: Sender<Action>,
 ) {
+    let (s, cores) = (context.strings, context.cores);
     let Some(p) = forest.get(proposal.target.index) else {
         return;
     };
@@ -390,14 +455,14 @@ fn show(
                 &[("secs", &crate::detect::HUNG_TICKS.to_string())],
             ),
         ),
-        Trigger::Memory => (
+        Trigger::Paging => (
             fill(s.busy_title, &[("name", &p.name)]),
             fill(
                 s.busy_memory,
                 &[("size", &strings::size(proposal.target.load as u64))],
             ),
         ),
-        Trigger::Busy => (
+        Trigger::Stall => (
             fill(s.busy_title, &[("name", &p.name)]),
             fill(
                 s.busy_cpu,
@@ -456,7 +521,14 @@ fn show(
         action: Action::Ignore(p.key),
     });
 
-    notify::propose(&title, [&first, second.trim()], &buttons, tx);
+    notify::propose(
+        &title,
+        [&first, second.trim()],
+        &buttons,
+        context.sound,
+        context.volume,
+        tx,
+    );
 }
 
 fn handle_clicks(
@@ -531,33 +603,49 @@ fn handle(
 fn diagnose() -> anyhow::Result<()> {
     win::run_at_top_priority();
     let probe = LagProbe::start()?;
-    let mut cpu = MachineCpu::default();
+    let config = Settings::load().current;
+    let limits = config.sensitivity.thresholds();
     let mut processes = Processes::new();
     let mut detector = Detector::default();
     let cores = logical_cores();
     let mut trigger = None;
 
-    cpu.sample();
     processes.refresh()?;
-    println!("  s  cpu%  lag ms  mem%  hung  trigger");
+    println!(
+        "config {config:?}\nlimits: window >= {} ms, scheduler >= {} ms, paging >= {} faults/s at >= {} % memory; {} of {} s\n",
+        limits.window_ms,
+        limits.scheduler_ms,
+        limits.hard_faults,
+        crate::detect::MEMORY_LOAD,
+        crate::detect::NEEDED,
+        crate::detect::WINDOW,
+    );
+    println!("  s  window ms  sched ms  faults/s  mem%  idle s  hung  trigger");
     for second in 1..=10 {
         std::thread::sleep(Duration::from_secs(1));
         let started = Instant::now();
-        let busy = cpu.sample().unwrap_or(0.0);
-        let lag_ms = probe.take_ms();
+        let scheduler_ms = probe.take_ms();
+        let window_ms = win::window_response_ms(WINDOW_CAP_MS);
         let (memory_load, _) = win::memory().unwrap_or((0, 0));
         let hung = win::hung_foreground();
+        let idle_secs = win::idle_secs();
         processes.refresh()?;
-        let t = detector.push(Tick {
-            busy,
-            lag_ms,
-            memory_load,
-            hung: hung.and_then(|pid| processes.key_of(pid)),
-        });
+        let t = detector.push(
+            Tick {
+                window_ms,
+                scheduler_ms,
+                hard_faults: processes.hard_faults,
+                memory_load,
+                hung: hung.and_then(|pid| processes.key_of(pid)),
+                idle_secs,
+            },
+            limits,
+        );
         trigger = trigger.or(t);
         println!(
-            " {second:2}  {:4.0}  {lag_ms:6.1}  {memory_load:4}  {:4}  {:?}   (tick cost {:.1} ms)",
-            busy * 100.0,
+            " {second:2}  {:>9}  {scheduler_ms:8.1}  {:8.0}  {memory_load:4}  {idle_secs:6}  {:4}  {:?}   (tick cost {:.1} ms)",
+            window_ms.map_or_else(|| "-".to_owned(), |ms| format!("{ms:.1}")),
+            processes.hard_faults,
             hung.map_or_else(|| "-".to_owned(), |p| p.get().to_string()),
             t,
             started.elapsed().as_secs_f64() * 1000.0
@@ -630,14 +718,41 @@ fn test_toast() -> anyhow::Result<()> {
         target,
         others: Vec::new(),
     };
+    let config = Settings::load().current;
+    let (_, total_memory) = win::memory().unwrap_or((0, 0));
+    let context = Situation {
+        processes: &processes,
+        cores,
+        total_memory,
+        strings: text(),
+        sound: &config.sound,
+        volume: config.volume,
+    };
     let (tx, rx) = mpsc::channel();
-    show(&forest, &proposal, Trigger::Busy, cores, text(), tx);
+    show(&forest, &proposal, Trigger::Stall, &context, tx);
     println!("toast shown; click a button within 60 s (nothing will be changed)");
     match rx.recv_timeout(Duration::from_secs(60)) {
         Ok(action) => println!("clicked: {action:?} (test mode, nothing was changed)"),
         Err(_) => println!("no click within 60 s"),
     }
     Ok(())
+}
+
+/// Plays the configured sound, or `sound` if given, the way a proposal would.
+///
+/// For the Settings "Test" button: the desktop app runs this rather than
+/// playing audio itself, so what the user hears is exactly what a real
+/// proposal will play — including a file the watchdog cannot open.
+fn play_sound(sound: Option<&str>) -> anyhow::Result<()> {
+    let mut config = Settings::load().current;
+    if let Some(json) = sound {
+        config.sound = serde_json::from_str::<Sound>(json).context("the sound argument")?;
+    }
+    if !notify::register() {
+        bail!("could not register the notification identity");
+    }
+    let s = text();
+    notify::sample(s.sound_test, &config.sound, config.volume)
 }
 
 /// Copies the exe to `%LOCALAPPDATA%\Vitals\watchdog` and starts it at logon.

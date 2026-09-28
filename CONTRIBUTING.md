@@ -36,7 +36,11 @@ spends four minutes telling you the same thing.
 
 ## Before you open a pull request
 
-One command runs every gate CI runs and exits non-zero on the first failure:
+One command runs every gate CI runs and exits non-zero if any fails. It runs
+three lanes at once (quick checks, Rust, TypeScript) and prints each lane as
+it finishes, so a formatting slip shows up in seconds. Turbo replays any
+typecheck, lint or test whose inputs have not changed; `-Force` re-runs them
+all, `-SkipPerf` and `-SkipBuild` drop the two slowest gates:
 
 ```powershell
 pwsh -NoProfile -File scripts/verify.ps1
@@ -48,7 +52,7 @@ The individual pieces, if you want them separately:
 pwsh -NoProfile -File scripts/check-drift.ps1   # two seconds; run it first
 cargo fmt --all; cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
-pnpm lint; pnpm typecheck; pnpm test; pnpm format:check
+pnpm exec turbo run typecheck lint test   # in parallel, cached; then pnpm format:check
 pwsh -NoProfile -File scripts/check-size.ps1 -SkipInstaller
 ```
 

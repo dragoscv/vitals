@@ -6,7 +6,7 @@
   "build": {
     "beforeDevCommand": "pnpm dev:vite",
     "devUrl": "http://localhost:5273",
-    "beforeBuildCommand": "pnpm build:sensors && pnpm build:vite",
+    "beforeBuildCommand": "pnpm build:sensors && pnpm build:watchdog && pnpm build:vite",
     "frontendDist": "../dist"
   },
   "app": {
@@ -36,7 +36,7 @@
     "active": true,
     "targets": ["nsis"],
     "createUpdaterArtifacts": true,
-    "resources": { "sensors/": "sensors/" },
+    "resources": { "sensors/": "sensors/", "watchdog/": "watchdog/" },
     "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.ico"],
     "publisher": "Dragos Catalin Vladulescu",
     "copyright": "MIT © 2026 Dragos Catalin Vladulescu and Vitals contributors",

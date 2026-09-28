@@ -193,6 +193,72 @@ run failed with "A public key has been found, but no private key"); a
 guard: clean tree GREEN; planted #[ignore] in vitals-core RED
 ```
 
+### 2026-09-28 — S12-35 Faster gates
+
+**Ask.** Make typecheck, lint, build, tests and the rest of the gates as fast
+as possible: cache, parallelism, anything else.
+
+**Measured before changing anything** (same machine, other agents' builds
+keeping it at 76–100 % CPU):
+
+| What                      | Before                         | After                           |
+| ------------------------- | ------------------------------ | ------------------------------- |
+| desktop vitest, 985 tests | 122.8 s, 2 timeouts (31 forks) | 46.3 s, all pass (8 forks)      |
+| turbo typecheck           | 16.9 s every run               | 16.9 s cold, 3.4 s unchanged    |
+| turbo lint                | 83.8 s every run               | 83.8 s cold, 1.5 s unchanged    |
+| verify.ps1 -SkipPerf      | sum of gates                   | 368.9 s wall, 560.7 s if serial |
+
+**What changed and why.**
+
+- vitest `maxWorkers: '25%'`. The default is cores minus one; each fork boots
+  its own happy-dom, and 31 of them spent 51 % of the run in environment
+  setup. The sweep put 4, 8 and 12 workers all ahead of 31; a quarter keeps
+  that ratio on smaller machines.
+- turbo transit node. `lint`/`typecheck`/`test` said `dependsOn: ^build`,
+  but no library package has a build script, so they waited on nothing and
+  their cache key did not include their dependencies' sources. The transit
+  node fixes the key and keeps them parallel. Proof: appending one line to
+  `packages/ui/src/index.ts` re-ran `ui` and `desktop` typecheck, 4 of 6
+  replayed.
+- verify.ps1 runs three lanes as thread jobs. Rust stays serial inside its
+  lane: every cargo command takes the target-directory lock.
+- CI's frontend job runs one turbo invocation and restores `.turbo/cache`.
+- `main.test.ts` imports `App` in `beforeAll`: the boot test timed out at
+  15.5 s on a cold transform while passing alone in 2.5 s.
+
+**Rejected, with the number.** `eslint --cache` (67.0 s to fill, 5.7 s hit)
+is wrong for type-aware rules: it keys on the linted file only, so a type
+change in a dependency leaves a stale pass. `tsc --incremental` saved 0.6 s.
+
+**Not mine, still red in the run.** Another session's uncommitted Android
+work: `crates/vitals-core/src/remote.rs` (bindings drift, doc-test),
+`crates/vitals-server/tests/api.rs` (rustfmt), ADR-0033 (prettier).
+
+### 2026-09-28 — S12-34 Lag watchdog v2
+
+**Ask.** Bundle it in the installer; choose the alarm sound (built-in or a
+file); stop warning during builds and detect real UI freezes.
+
+**Evidence v1 was wrong.** Seven proposals in ten minutes, each with the
+machine at 93 %+ and probe lag 0.0 ms. At 97–100 % CPU the foreground window
+still answered `WM_NULL` in 0.1–8 ms and DWM missed no frames.
+
+**Live, after.**
+
+- `--diagnose` at 96 % machine load: window 0.1–14.8 ms, no trigger.
+- A window whose UI thread really stops (a C# busy loop; a PowerShell
+  `Start-Sleep` handler kept answering in 0.2 ms, which is why the first
+  two attempts proved nothing): window 1000 ms from the first tick, Stall at
+  tick 4, Hung at tick 7, and the installed watchdog logged
+  `proposing trigger=Hung(...) name=pwsh.exe`.
+- Writing `watchdog.json` with `relaxed` then `normal`: `settings changed`
+  logged within 4 s each time.
+- `--play-sound`: Mail exit 0; `Alarm01.wav` exit 0 after 11.6 s; a missing
+  file exit 1 "the file does not exist"; `win.ini` exit 1 "MCI error 277".
+  Before the fix every Windows sound failed with MCI 282 (`to 10000` past
+  the end) and the Test button reported success, because it spawned and did
+  not wait.
+
 ### 2026-09-28 — S12-33 Hardware, Device Manager and fan speeds
 
 **Ask.** Show the hardware details (CPU, RAM, GPU, SSD, HDD) that Windows

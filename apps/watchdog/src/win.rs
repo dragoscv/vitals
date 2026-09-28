@@ -12,16 +12,17 @@ use vitals_win::actions::{
     set_priority, terminate,
 };
 use vitals_win::process::{ProcessEnumerator, RawProcess};
-use windows_sys::Win32::Foundation::{CloseHandle, FILETIME};
+use windows_sys::Win32::Foundation::CloseHandle;
 use windows_sys::Win32::System::SystemInformation::{GlobalMemoryStatusEx, MEMORYSTATUSEX};
 use windows_sys::Win32::System::Threading::{
-    GetCurrentProcessId, GetCurrentThread, GetProcessInformation, GetSystemTimes, OpenProcess,
+    GetCurrentProcessId, GetCurrentThread, GetProcessInformation, OpenProcess,
     PROCESS_PROTECTION_LEVEL_INFORMATION, PROCESS_QUERY_LIMITED_INFORMATION, PROTECTION_LEVEL_NONE,
     ProcessProtectionLevelInfo, SetThreadPriority, THREAD_PRIORITY_NORMAL,
     THREAD_PRIORITY_TIME_CRITICAL,
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    GetForegroundWindow, GetWindowThreadProcessId, IsHungAppWindow,
+    GetForegroundWindow, GetWindowThreadProcessId, IsHungAppWindow, SMTO_ABORTIFHUNG,
+    SendMessageTimeoutW,
 };
 
 use crate::forest::{Forest, Proc};
@@ -83,40 +84,6 @@ impl LagProbe {
     }
 }
 
-fn filetime(ft: FILETIME) -> u64 {
-    (u64::from(ft.dwHighDateTime) << 32) | u64::from(ft.dwLowDateTime)
-}
-
-/// Machine-wide CPU from `GetSystemTimes`.
-#[derive(Debug, Default)]
-pub struct MachineCpu {
-    last: Option<(u64, u64)>,
-}
-
-impl MachineCpu {
-    /// Busy share since the previous call, 0..=1. `None` on the first call.
-    pub fn sample(&mut self) -> Option<f64> {
-        let zero = FILETIME {
-            dwLowDateTime: 0,
-            dwHighDateTime: 0,
-        };
-        let (mut idle, mut kernel, mut user) = (zero, zero, zero);
-        // SAFETY: three live out-pointers.
-        let ok = unsafe { GetSystemTimes(&raw mut idle, &raw mut kernel, &raw mut user) };
-        if ok == 0 {
-            return None;
-        }
-        // Kernel time includes idle time.
-        let total = filetime(kernel) + filetime(user);
-        let idle = filetime(idle);
-        let previous = self.last.replace((total, idle));
-        let (t0, i0) = previous?;
-        let dt = total.checked_sub(t0)?;
-        let di = idle.checked_sub(i0)?;
-        (dt > 0).then(|| 1.0 - (di as f64 / dt as f64).clamp(0.0, 1.0))
-    }
-}
-
 /// Physical memory: (load percent, total bytes).
 pub fn memory() -> Option<(u32, u64)> {
     let mut status = MEMORYSTATUSEX {
@@ -162,12 +129,154 @@ pub fn hung_foreground() -> Option<Pid> {
     (pid != 0).then_some(Pid(pid))
 }
 
+/// How long the foreground window takes to answer a message, in ms.
+///
+/// `WM_NULL` does nothing, so the time is pure queue latency: how long the
+/// window's UI thread took to get round to its message loop. That is exactly
+/// what a person feels as "it does not react". Measured on 2026-09-28 at
+/// 97–100 % CPU from builds: 0.1–8 ms, so a busy machine alone never trips
+/// it. `SMTO_ABORTIFHUNG` returns at once for a window Windows already
+/// considers hung, which `hung_foreground` reports separately; the cap keeps
+/// one frozen app from stalling this loop.
+pub fn window_response_ms(cap_ms: u32) -> Option<f64> {
+    // SAFETY: no preconditions; a null result is handled.
+    let hwnd = unsafe { GetForegroundWindow() };
+    if hwnd.is_null() {
+        return None;
+    }
+    let mut result = 0_usize;
+    let started = Instant::now();
+    // SAFETY: `hwnd` came from Windows; `result` is a live out-pointer.
+    // WM_NULL (0) carries no parameters.
+    let ok =
+        unsafe { SendMessageTimeoutW(hwnd, 0, 0, 0, SMTO_ABORTIFHUNG, cap_ms, &raw mut result) };
+    let ms = started.elapsed().as_secs_f64() * 1000.0;
+    // A timeout is "at least the cap": report the cap, not the error.
+    Some(if ok == 0 {
+        ms.max(f64::from(cap_ms))
+    } else {
+        ms
+    })
+}
+
+/// Seconds since the last keyboard or mouse input in this session.
+pub fn idle_secs() -> u64 {
+    use windows_sys::Win32::System::SystemInformation::GetTickCount64;
+    use windows_sys::Win32::UI::Input::KeyboardAndMouse::{GetLastInputInfo, LASTINPUTINFO};
+    let mut info = LASTINPUTINFO {
+        cbSize: u32::try_from(size_of::<LASTINPUTINFO>()).unwrap_or(0),
+        dwTime: 0,
+    };
+    // SAFETY: `cbSize` is set and the struct is live.
+    if unsafe { GetLastInputInfo(&raw mut info) } == 0 {
+        return 0;
+    }
+    // `dwTime` is the low 32 bits of the tick count: compare in that width
+    // so the 49.7-day wrap does not read as a very long absence.
+    // SAFETY: no preconditions.
+    let now = unsafe { GetTickCount64() } as u32;
+    u64::from(now.wrapping_sub(info.dwTime)) / 1000
+}
+
+/// Plays an audio file once, at `volume` percent, on its own thread.
+///
+/// MCI rather than `PlaySound`, which only takes WAV: people pick MP3s.
+/// Capped at ten seconds so a whole song chosen by mistake cannot play out
+/// in full every time the machine stalls. Failure is logged, never fatal —
+/// the toast is already on screen.
+pub fn play_file(path: &str, volume: u8) {
+    let path = path.to_owned();
+    let spawned = std::thread::Builder::new()
+        .name("sound".into())
+        .spawn(move || {
+            if let Err(error) = play_blocking(&path, volume) {
+                tracing::warn!(%error, path = %path, "could not play the notification sound");
+            }
+        });
+    if let Err(error) = spawned {
+        tracing::warn!(%error, "could not start the sound thread");
+    }
+}
+
+fn mci(command: &str) -> Result<(), String> {
+    use windows_sys::Win32::Media::Multimedia::mciSendStringW;
+    let wide: Vec<u16> = command.encode_utf16().chain(std::iter::once(0)).collect();
+    // SAFETY: a valid wide string; no return buffer, no callback window.
+    let code =
+        unsafe { mciSendStringW(wide.as_ptr(), std::ptr::null_mut(), 0, std::ptr::null_mut()) };
+    if code == 0 {
+        Ok(())
+    } else {
+        Err(format!("MCI error {code} for {command:?}"))
+    }
+}
+
+/// Plays an audio file once, on the calling thread, and says why not.
+///
+/// For the Settings test, which must fail visibly: `play_file` only logs.
+pub fn play_blocking(path: &str, volume: u8) -> Result<(), String> {
+    static NEXT: AtomicU64 = AtomicU64::new(0);
+    if path.contains('"') {
+        return Err("a quote in the path cannot be passed to MCI".into());
+    }
+    if !std::path::Path::new(path).is_file() {
+        return Err("the file does not exist".into());
+    }
+    // A unique alias per play: two stalls in quick succession must not
+    // close each other's sound.
+    let alias = format!("vitalswd{}", NEXT.fetch_add(1, Ordering::Relaxed));
+    mci(&format!(r#"open "{path}" type mpegvideo alias {alias}"#))?;
+    let result = (|| {
+        // MCI volume is 0..=1000.
+        mci(&format!(
+            "setaudio {alias} volume to {}",
+            u32::from(volume.min(100)) * 10
+        ))?;
+        mci(&format!("set {alias} time format milliseconds"))?;
+        // `to` past the end is MCIERR_OUTOFRANGE (282), not "play it all":
+        // with a fixed 10000 every sound shorter than ten seconds - which
+        // is every Windows sound - failed and only the log knew.
+        let end = mci_length_ms(&alias)?.min(10_000);
+        mci(&format!("play {alias} from 0 to {end} wait"))
+    })();
+    let _ = mci(&format!("close {alias}"));
+    result
+}
+
+/// The length of an open MCI device, in its current time format.
+fn mci_length_ms(alias: &str) -> Result<u32, String> {
+    use windows_sys::Win32::Media::Multimedia::mciSendStringW;
+    let command = format!("status {alias} length");
+    let wide: Vec<u16> = command.encode_utf16().chain(std::iter::once(0)).collect();
+    let mut buffer = [0u16; 32];
+    // SAFETY: a valid wide string and a writable buffer of the stated length.
+    let code = unsafe {
+        mciSendStringW(
+            wide.as_ptr(),
+            buffer.as_mut_ptr(),
+            buffer.len() as u32,
+            std::ptr::null_mut(),
+        )
+    };
+    if code != 0 {
+        return Err(format!("MCI error {code} for {command:?}"));
+    }
+    let len = buffer.iter().position(|&c| c == 0).unwrap_or(buffer.len());
+    String::from_utf16_lossy(&buffer[..len])
+        .trim()
+        .parse()
+        .map_err(|_| format!("MCI reported no length for {alias}"))
+}
+
 /// Per-process CPU, smoothed, from successive enumerations.
 #[derive(Debug)]
 pub struct Processes {
     enumerator: ProcessEnumerator,
     last: HashMap<ProcessKey, u64>,
     smooth: HashMap<ProcessKey, f64>,
+    faults: HashMap<ProcessKey, u32>,
+    /// Hard faults a second across every process, over the last refresh.
+    pub hard_faults: f64,
     at: Option<Instant>,
     pub raw: Vec<RawProcess>,
 }
@@ -178,6 +287,8 @@ impl Processes {
             enumerator: ProcessEnumerator::new(),
             last: HashMap::new(),
             smooth: HashMap::new(),
+            faults: HashMap::new(),
+            hard_faults: 0.0,
             at: None,
             raw: Vec::new(),
         }
@@ -196,6 +307,8 @@ impl Processes {
 
         let mut last = HashMap::with_capacity(raw.len());
         let mut smooth = HashMap::with_capacity(raw.len());
+        let mut faults = HashMap::with_capacity(raw.len());
+        let mut new_faults = 0_u64;
         for p in raw.iter().filter(|p| !p.is_idle_process()) {
             let time = p.cpu_time();
             if let (Some(secs), Some(&before)) = (elapsed, self.last.get(&p.key))
@@ -206,10 +319,22 @@ impl Processes {
                 let previous = self.smooth.get(&p.key).copied().unwrap_or(cores);
                 smooth.insert(p.key, 0.5 * previous + 0.5 * cores);
             }
+            // Per process and only for processes seen last time: a summed
+            // total would drop whenever a process exits and read a new one's
+            // lifetime faults as a burst.
+            if let Some(&before) = self.faults.get(&p.key) {
+                new_faults += u64::from(p.hard_faults.saturating_sub(before));
+            }
+            faults.insert(p.key, p.hard_faults);
             last.insert(p.key, time);
         }
+        self.hard_faults = match elapsed {
+            Some(secs) if secs > 0.0 => new_faults as f64 / secs,
+            _ => 0.0,
+        };
         self.last = last;
         self.smooth = smooth;
+        self.faults = faults;
         self.raw = raw;
         Ok(())
     }

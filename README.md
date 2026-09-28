@@ -108,6 +108,13 @@ Vitals is an attempt at all of it in one place, fast, and readable.
   Manager" entry so the built-in one is always a click away.
 - **HUD** — an always-on-top, transparent, click-through overlay for CPU,
   memory and GPU. `Ctrl+Shift+H`.
+- **Lag watchdog** — a small background program, installed and on by
+  default, that notices when a window you are using stops responding or
+  programs cannot get the processor, names the one responsible (never the
+  terminal or editor it was started from) and offers End, Lower its
+  priority or Ignore from a notification. A busy build alone never triggers
+  it. Settings → Watchdog chooses how sensitive it is and its sound, which
+  can be your own audio file.
 - **Updater** — checks a minisign signature before installing anything; an
   unsigned update is refused.
 

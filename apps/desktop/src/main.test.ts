@@ -13,7 +13,7 @@
 import type * as I18nModule from '@vitals/i18n';
 
 import { act } from 'react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type * as MainModule from './main';
 
@@ -41,6 +41,14 @@ vi.mock('@tauri-apps/plugin-store', () => ({
 
 describe('application bootstrap', () => {
   let main: typeof MainModule | null = null;
+  // Transforming the whole app graph cold took most of the 15 s budget
+  // with the machine at 100 % (2026-09-28: timed out at 15.5 s, passes
+  // alone in 2.5 s). Importing App here pays that once, on the hook's own
+  // timer; `vi.resetModules` below discards the instances but not vite's
+  // transform cache, so each test still boots `main` from scratch.
+  beforeAll(async () => {
+    await import('./App');
+  }, 60_000);
 
   beforeEach(() => {
     vi.resetModules();

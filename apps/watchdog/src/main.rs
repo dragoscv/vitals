@@ -21,6 +21,7 @@
 #![cfg_attr(not(windows), allow(dead_code))]
 
 mod action;
+mod config;
 mod detect;
 mod forest;
 mod strings;
