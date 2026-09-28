@@ -10,6 +10,7 @@
 #![allow(clippy::expect_used, clippy::print_stdout, clippy::unwrap_used)]
 
 use std::sync::Arc;
+#[cfg(windows)]
 use std::time::Duration;
 
 use vitals_server::state::ServerLock;

@@ -461,10 +461,13 @@ impl Direct {
 
     /// # Errors
     /// Unreachable: `new` never returns a value on this platform.
+    // Same signature as the Windows sampler so callers compile unchanged.
+    #[allow(clippy::unused_self)]
     pub fn tick(&mut self) -> Result<Frame> {
         anyhow::bail!("no sampler on this platform")
     }
 
+    #[allow(clippy::unused_self)]
     fn snapshot(&mut self) -> Result<View> {
         anyhow::bail!("no sampler on this platform")
     }

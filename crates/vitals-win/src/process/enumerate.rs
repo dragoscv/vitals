@@ -543,13 +543,24 @@ mod tests {
         let mut e = ProcessEnumerator::new();
         let processes = e.enumerate().expect("enumerate");
 
-        // The session manager exists on every Windows machine.
+        // Our own process: its name is known exactly and it exists wherever
+        // the test runs. `smss.exe` was used here and is absent from the
+        // GitHub Actions Windows image, so the test failed on a premise, not
+        // on decoding.
+        let me = std::process::id();
+        let expected = std::env::current_exe()
+            .ok()
+            .and_then(|p| p.file_name().map(|n| n.to_string_lossy().into_owned()))
+            .expect("the test binary has a file name");
+        let found = processes
+            .iter()
+            .find(|p| p.key.pid.get() == me)
+            .and_then(|p| p.name.clone());
         assert!(
-            processes.iter().any(|p| p
-                .name
+            found
                 .as_deref()
-                .is_some_and(|n| n.eq_ignore_ascii_case("smss.exe"))),
-            "smss.exe was not found; UnicodeString decoding is probably wrong"
+                .is_some_and(|n| n.eq_ignore_ascii_case(&expected)),
+            "our own process decoded as {found:?}, expected {expected}; UnicodeString decoding is probably wrong"
         );
     }
 

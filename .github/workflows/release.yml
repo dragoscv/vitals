@@ -687,43 +687,25 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      # npm provenance.
+      # npm trusted publishing: the registry trusts this workflow by OIDC,
+      # configured on npmjs.com for dragoscv/vitals + release.yml. No token
+      # is stored anywhere, and the upload carries a provenance statement.
       id-token: write
     steps:
-      - id: gate
-        env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          if [ -z "$NPM_TOKEN" ]; then
-            echo "::notice::NPM_TOKEN not set; skipping npm."
-            echo "ok=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "ok=true" >> "$GITHUB_OUTPUT"
-          fi
-
-      - if: steps.gate.outputs.ok == 'true'
-        uses: actions/checkout@v5
-
-      - if: steps.gate.outputs.ok == 'true'
-        uses: pnpm/action-setup@v4
-
-      - if: steps.gate.outputs.ok == 'true'
-        uses: actions/setup-node@v6
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v6
         with:
-          node-version: 22
+          node-version: 24
           cache: pnpm
           registry-url: 'https://registry.npmjs.org'
-
-      - if: steps.gate.outputs.ok == 'true'
-        run: pnpm install --frozen-lockfile
-
-      # Packs the SDK, renames it to its public name (@vitals-app/client; the
-      # @vitals scope belongs to another project) and uploads the tarball.
-      # Prereleases go to the `next` dist-tag. scripts/npm-release.mjs has the why.
-      - if: steps.gate.outputs.ok == 'true'
-        run: node scripts/npm-release.mjs
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      # Trusted publishing needs npm 11.5 or later.
+      - run: npm install -g npm@latest
+      - run: pnpm install --frozen-lockfile
+      # Packs the SDK, renames it to its public name (the @vitals scope
+      # belongs to another project) and uploads the tarball; prereleases go
+      # to the `next` dist-tag. scripts/npm-release.mjs has the why.
+      - run: node scripts/npm-release.mjs
 
   winget:
     name: winget
@@ -766,10 +748,10 @@ jobs:
       - id: gate
         shell: pwsh
         env:
-          SCOOP_BUCKET_TOKEN: ${{ secrets.SCOOP_BUCKET_TOKEN }}
+          SCOOP_DEPLOY_KEY: ${{ secrets.SCOOP_DEPLOY_KEY }}
         run: |
-          $ok = -not [string]::IsNullOrWhiteSpace($env:SCOOP_BUCKET_TOKEN)
-          if (-not $ok) { Write-Host '::notice::SCOOP_BUCKET_TOKEN not set; skipping Scoop.' }
+          $ok = -not [string]::IsNullOrWhiteSpace($env:SCOOP_DEPLOY_KEY)
+          if (-not $ok) { Write-Host '::notice::SCOOP_DEPLOY_KEY not set; skipping Scoop.' }
           "ok=$($ok.ToString().ToLower())" | Add-Content $env:GITHUB_OUTPUT
 
       - if: steps.gate.outputs.ok == 'true'
@@ -779,7 +761,9 @@ jobs:
         uses: actions/checkout@v5
         with:
           repository: dragoscv/scoop-vitals
-          token: ${{ secrets.SCOOP_BUCKET_TOKEN }}
+          # A deploy key: write access to the bucket and nothing else, unlike a
+          # personal token, which can reach every repository its owner can.
+          ssh-key: ${{ secrets.SCOOP_DEPLOY_KEY }}
           path: bucket-repo
 
       # Hashes come from the published SHA256SUMS.txt, so the bucket names

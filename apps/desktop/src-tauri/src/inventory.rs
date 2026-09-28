@@ -29,8 +29,10 @@
 
 use serde::Serialize;
 
+#[cfg(windows)]
 use crate::commands::CommandError;
 
+#[cfg(windows)]
 type CommandResult<T> = std::result::Result<T, CommandError>;
 
 // ---------------------------------------------------------------------------

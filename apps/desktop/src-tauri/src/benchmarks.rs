@@ -29,10 +29,13 @@
 
 use serde::Serialize;
 
+#[cfg(windows)]
 use vitals_bench::{BenchmarkKind, BenchmarkResult, RunConditions, Runner};
 
+#[cfg(windows)]
 use crate::commands::CommandError;
 
+#[cfg(windows)]
 type CommandResult<T> = std::result::Result<T, CommandError>;
 
 /// One catalogue entry, for the pre-run list.
@@ -87,6 +90,7 @@ pub struct BenchmarkSuiteDto {
     pub total_duration_ms: u64,
 }
 
+#[cfg(windows)]
 fn conditions_to_dto(conditions: &RunConditions) -> RunConditionsDto {
     RunConditionsDto {
         power_plan: conditions.power_plan.clone(),
@@ -99,6 +103,7 @@ fn conditions_to_dto(conditions: &RunConditions) -> RunConditionsDto {
     }
 }
 
+#[cfg(windows)]
 fn result_to_dto(result: &BenchmarkResult) -> BenchmarkResultDto {
     BenchmarkResultDto {
         id: result.kind.id(),

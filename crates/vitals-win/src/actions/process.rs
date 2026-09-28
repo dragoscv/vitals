@@ -1061,10 +1061,27 @@ mod tests {
             "a fresh process is not suspended"
         );
 
+        // NtSuspendProcess queues an APC per thread; each thread only enters
+        // the Suspended wait when it next gets scheduled. On a loaded machine
+        // (the full suite beside a cargo build) a single immediate read beat
+        // that and failed once in a clean run. Poll with a deadline instead:
+        // a detection bug still fails, because the state never arrives.
+        let settles_to = |want: bool| {
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+            loop {
+                if is_suspended_now(child.id()) == want {
+                    return true;
+                }
+                if std::time::Instant::now() >= deadline {
+                    return false;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(20));
+            }
+        };
         suspend(key, Consent::Unconfirmed).expect("suspend our own child");
-        let after_suspend = is_suspended_now(child.id());
+        let after_suspend = settles_to(true);
         resume(key).expect("resume our own child");
-        let after_resume = is_suspended_now(child.id());
+        let after_resume = !settles_to(false);
 
         child.kill().expect("kill");
         child.wait().expect("wait");

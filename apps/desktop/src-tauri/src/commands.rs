@@ -6,11 +6,11 @@
 //! serialise on the webview's main thread and make the UI stutter, which is
 //! the exact failure this product exists to avoid.
 
-#[cfg(windows)]
 use serde::Deserialize;
 use tauri::State;
 
 use vitals_core::capability::Capabilities;
+#[cfg(windows)]
 use vitals_core::ids::ProcessKey;
 use vitals_core::provider::HostInfo;
 use vitals_core::sample::SampleRate;

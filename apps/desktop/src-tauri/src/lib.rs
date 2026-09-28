@@ -16,6 +16,9 @@ pub mod ipc;
 pub mod launch;
 pub mod sampling;
 pub mod server;
+// Measures the boot window through vitals-win's accumulator; there is no
+// equivalent backend elsewhere yet (ADR 0007).
+#[cfg(windows)]
 pub mod startup_impact;
 pub mod state;
 pub mod store;
@@ -96,7 +99,6 @@ pub fn run() {
         .manage(state::AppState::new())
         .manage(server::LanServer::new())
         .manage(alerts::Alerts::new())
-        .manage(startup_impact::StartupImpactStore::new())
         .manage(updates::PendingInstall::default())
         // The sampler starts with the app and stops when the handle drops at
         // shutdown. Managed so it stays alive for the process lifetime —
@@ -253,6 +255,10 @@ fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
 /// The tray goes up before the reveal safety net is armed: both that net and
 /// the × button assume there is already a way back to a hidden window.
 fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
+    // Before the sampler: its first tick asks whether the boot window is
+    // still being measured.
+    #[cfg(windows)]
+    app.manage(startup_impact::StartupImpactStore::new());
     // Before the sampler, so the first tick can already see whether a CLI
     // is waiting (it is managed state the sampler looks up per tick).
     ipc::start(app.handle());

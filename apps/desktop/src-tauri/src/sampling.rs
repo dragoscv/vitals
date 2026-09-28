@@ -463,15 +463,22 @@ fn keyframe_wanted(app: &AppHandle) -> bool {
 struct Backend;
 
 #[cfg(not(windows))]
+// Same method set as the Windows backend so the sampling loop is written
+// once; this one has no state to read, which clippy calls an unused `self`.
+#[allow(clippy::unused_self)]
 impl Backend {
     const fn new() -> Self {
         Self
     }
 
     fn next_frame(&mut self) -> vitals_core::error::Result<vitals_core::sample::Frame> {
-        Err(vitals_core::Error::Unsupported(
-            "no sampling backend for this platform yet".into(),
-        ))
+        // No sampler on this platform yet (ADR 0007). `Os` with a context
+        // string rather than `Unsupported(<capability>)`, which would name
+        // one specific feature as the thing missing when it is all of them.
+        Err(vitals_core::Error::Os {
+            context: "no sampling backend for this platform yet".into(),
+            code: 0,
+        })
     }
 
     const fn request_keyframe(&mut self) {}

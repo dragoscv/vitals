@@ -72,10 +72,26 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Clippy
+        if: runner.os == 'Windows'
         run: cargo clippy --workspace --all-targets -- -D warnings
 
+      # vitals-win is `#![cfg(windows)]`: on Linux its library is empty and
+      # its twenty probe examples, which exist to be run against a real
+      # Windows machine, cannot compile. This leg's job is to prove every
+      # OTHER crate — the OS-agnostic core above all — builds without
+      # Windows, so it checks everything but those examples; the Windows
+      # leg above covers them.
+      - name: Clippy (without Windows-only examples)
+        if: runner.os != 'Windows'
+        run: cargo clippy --workspace --lib --bins --tests --benches --exclude vitals-win -- -D warnings
+
       - name: Test
+        if: runner.os == 'Windows'
         run: cargo test --workspace
+
+      - name: Test (without Windows-only examples)
+        if: runner.os != 'Windows'
+        run: cargo test --workspace --lib --bins --tests --exclude vitals-win
 
       # A release build is required: the debug build is several times slower
       # and would measure the compiler's lack of optimisation rather than
