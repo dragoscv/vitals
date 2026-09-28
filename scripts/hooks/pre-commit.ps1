@@ -94,9 +94,13 @@ foreach ($file in $textFiles) {
 
 $rustStaged = @($staged | Where-Object { $_ -match '\.rs$' })
 if ($rustStaged.Count -gt 0) {
-    & cargo fmt --all -- --check 2>&1 | Out-Null
+    # The staged files, not `cargo fmt --all`: in a clone several agents work
+    # in at once, `--all` refused a commit of fully formatted files because a
+    # different, uncommitted crate was mid-edit (2026-09-28). rustfmt reads
+    # rustfmt.toml (edition, width) from the repo root either way.
+    & rustfmt --check --edition 2024 @rustStaged 2>&1 | Out-Null
     if ($LASTEXITCODE -ne 0) {
-        $problems.Add('cargo fmt --all -- --check failed (run: cargo fmt --all)')
+        $problems.Add("rustfmt --check failed on staged files (run: rustfmt $($rustStaged -join ' '))")
     }
 }
 

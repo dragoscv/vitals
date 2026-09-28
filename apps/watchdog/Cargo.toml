@@ -1,0 +1,39 @@
+[package]
+name = "vitals-watchdog"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Watches for lag and freezes, names the process behind them, and offers to end it from a notification."
+
+[[bin]]
+name = "vitals-watchdog"
+path = "src/main.rs"
+
+[dependencies]
+vitals-core = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
+vitals-win = { workspace = true }
+# Already in the tree through tauri-plugin-notification, so no new download:
+# the toast XML, the WinRT notifier and the Activated handler that carries a
+# button's argument back into this process.
+tauri-winrt-notification = "0.7.3"
+windows-sys = { version = "0.61.2", features = [
+        "Win32_Foundation",
+        "Win32_Security",
+        "Win32_System_Threading",
+        "Win32_System_SystemInformation",
+        "Win32_System_Registry",
+        "Win32_System_Console",
+        "Win32_Globalization",
+        "Win32_UI_WindowsAndMessaging",
+] }
+
+[lints]
+workspace = true

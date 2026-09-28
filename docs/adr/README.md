@@ -39,6 +39,8 @@ D-numbers refer to the decision table in [`../TRACKER.md`](../TRACKER.md).
 | [0029](0029-no-service-worker.md)                          | No service worker in the mobile app                     | S10-02  |
 | [0030](0030-fluent-depth-redesign-and-view-transitions.md) | Fluent depth redesign; View Transitions for navigation  | S12     |
 | [0031](0031-public-release-and-distribution.md)            | Public beta from a public repository; channels          | S13     |
+| [0031](0031-cpu-sensors-service.md)                        | CPU sensors through an optional PawnIO service          | S12-31  |
+| [0032](0032-lag-watchdog.md)                               | A lag watchdog that proposes, never ends on its own     | S12-32  |
 
 ## Writing a new one
 
