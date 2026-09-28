@@ -116,7 +116,7 @@ export function AppsScreen({
 
   const startUninstall = (app: InstalledApp): void => {
     setConfirming(null);
-    void uninstall(app.uninstallString ?? '')
+    void uninstall(app)
       .then(() => {
         setNotice(t('uninstall.started', { name: app.name }));
       })

@@ -38,6 +38,16 @@
     "threads": "Fire de execuție",
     "handles": "Handle-uri",
     "uptime": "Durată de funcționare",
+    "memoryInUse": "Memorie în uz",
+    "integrity": "Nivel de integritate",
+    "integrityLevel": {
+      "untrusted": "Neîncredere",
+      "low": "Scăzut",
+      "medium": "Mediu",
+      "high": "Ridicat (administrator)",
+      "system": "Sistem",
+      "protected": "Protejat"
+    },
     "count_one": "{{count}} proces",
     "count_few": "{{count}} procese",
     "count_other": "{{count}} de procese",

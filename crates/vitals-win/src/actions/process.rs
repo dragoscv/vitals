@@ -77,6 +77,127 @@ impl Drop for ProcessHandle {
     }
 }
 
+/// What the caller has established before asking for a destructive action.
+///
+/// The risk was only ever assessed in the *plan*, from facts the caller
+/// supplied — a name and a `protected` flag sent by the webview, the phone,
+/// or nothing at all. The execute path trusted whoever called it. So a
+/// control-scope phone, the CLI, or the elevated child (which re-planned
+/// with no name and then enabled `SeDebugPrivilege`) could end `csrss.exe`
+/// and bugcheck the machine, with no dialog anywhere. Now the facts are
+/// read from the process itself, on the handle about to be used, and a
+/// critical target needs an explicit confirmation that only the desktop's
+/// risk dialog can give.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Consent {
+    /// No human confirmed a warning: LAN, CLI, local API.
+    Unconfirmed,
+    /// The user read the desktop risk dialog for this process and confirmed.
+    Confirmed,
+}
+
+/// Assesses the process behind `handle` from what the kernel says about it.
+///
+/// Every fact that cannot be read is treated as the dangerous answer:
+/// an unreadable name is `Disruptive` in `assess_*`, and an unreadable
+/// `BreakOnTermination` leaves the static list to decide.
+fn live_facts<'a>(handle: &ProcessHandle, pid: Pid, name: Option<&'a str>) -> ProcessFacts<'a> {
+    // SAFETY: no preconditions.
+    let is_self = pid.get() == unsafe { GetCurrentProcessId() };
+    ProcessFacts {
+        pid,
+        name,
+        break_on_termination: query_u32(handle, ProcessInfoClass::BreakOnTermination)
+            .map(|flag| flag != 0),
+        // PS_PROTECTION: the low three bits are the type; 0 = not protected.
+        protected: query_u8(handle, ProcessInfoClass::Protection).is_some_and(|p| p & 0x7 != 0),
+        is_self,
+    }
+}
+
+/// The image file name (no directory), lower-cased by the assessor.
+fn image_name(handle: &ProcessHandle) -> Option<String> {
+    use windows_sys::Win32::System::Threading::{PROCESS_NAME_WIN32, QueryFullProcessImageNameW};
+    let mut buffer = vec![0_u16; 32_768];
+    let mut len = u32::try_from(buffer.len()).unwrap_or(u32::MAX);
+    // SAFETY: the handle is valid; `buffer` is live for `len` UTF-16 units.
+    let ok = unsafe {
+        QueryFullProcessImageNameW(
+            handle.raw(),
+            PROCESS_NAME_WIN32,
+            buffer.as_mut_ptr(),
+            &raw mut len,
+        )
+    };
+    if ok == 0 {
+        return None;
+    }
+    let path = String::from_utf16_lossy(buffer.get(..len as usize)?);
+    path.rsplit(['\\', '/']).next().map(str::to_owned)
+}
+
+#[derive(Clone, Copy)]
+enum ProcessInfoClass {
+    BreakOnTermination = 29,
+    Protection = 61,
+}
+
+unsafe extern "system" {
+    fn NtQueryInformationProcess(
+        handle: HANDLE,
+        class: i32,
+        info: *mut core::ffi::c_void,
+        len: u32,
+        returned: *mut u32,
+    ) -> i32;
+}
+
+fn query_u32(handle: &ProcessHandle, class: ProcessInfoClass) -> Option<u32> {
+    let mut value: u32 = 0;
+    // SAFETY: `value` is a live u32 of exactly the length declared.
+    let status = unsafe {
+        NtQueryInformationProcess(
+            handle.raw(),
+            class as i32,
+            (&raw mut value).cast(),
+            4,
+            std::ptr::null_mut(),
+        )
+    };
+    (status >= 0).then_some(value)
+}
+
+fn query_u8(handle: &ProcessHandle, class: ProcessInfoClass) -> Option<u8> {
+    let mut value: u8 = 0;
+    // SAFETY: `value` is a live u8 of exactly the length declared.
+    let status = unsafe {
+        NtQueryInformationProcess(
+            handle.raw(),
+            class as i32,
+            (&raw mut value).cast(),
+            1,
+            std::ptr::null_mut(),
+        )
+    };
+    (status >= 0).then_some(value)
+}
+
+/// Refuses what the live assessment says must not happen without a human.
+fn gate(risk: Risk, consent: Consent, pid: Pid) -> Result<()> {
+    match (risk, consent) {
+        (Risk::Forbidden, _) => Err(Error::Refused(format!(
+            "Windows does not allow process {} to be changed",
+            pid.get()
+        ))),
+        (Risk::Critical, Consent::Unconfirmed) => Err(Error::Refused(format!(
+            "process {} is critical to Windows; ending or pausing it can crash the \
+             machine, so it is only done from the desktop after a confirmation",
+            pid.get()
+        ))),
+        _ => Ok(()),
+    }
+}
+
 /// Verifies a handle still refers to the process we meant.
 ///
 /// Between listing a process and acting on it, that process can exit and its
@@ -160,8 +281,9 @@ pub fn plan_terminate(pid: Pid, name: Option<&str>, protected: bool) -> ActionPl
         pid,
         name,
         // Reading BreakOnTermination needs a handle we may not have. The
-        // static list covers the documented cases; the flag is checked again
-        // at execution time when a handle exists.
+        // static list covers the documented cases here; `terminate` reads
+        // the flag (and the protection level, and the real image name) on
+        // its own handle and gates on them, whatever this plan said.
         break_on_termination: None,
         protected,
         is_self,
@@ -211,13 +333,23 @@ pub fn plan_suspend(pid: Pid, name: Option<&str>, protected: bool) -> ActionPlan
 /// - [`Error::NotFound`] when the process already exited or its PID was
 ///   reused. Not a failure worth reporting: the user's goal is achieved.
 /// - [`Error::Refused`] when we decline because the action is unrecoverable.
-pub fn terminate(key: ProcessKey, exit_code: u32) -> Result<()> {
+///   A `Critical` process (kernel `BreakOnTermination`, or on the critical
+///   list) is refused unless `consent` is [`Consent::Confirmed`]; a
+///   protected one always is.
+pub fn terminate(key: ProcessKey, exit_code: u32, consent: Consent) -> Result<()> {
     let handle = ProcessHandle::open(
         key.pid,
         PROCESS_TERMINATE | PROCESS_QUERY_LIMITED_INFORMATION,
     )?;
 
     verify_identity(&handle, key)?;
+
+    let name = image_name(&handle);
+    gate(
+        assess_termination(live_facts(&handle, key.pid, name.as_deref())),
+        consent,
+        key.pid,
+    )?;
 
     // SAFETY: the handle is valid and was opened with PROCESS_TERMINATE.
     let ok = unsafe { TerminateProcess(handle.raw(), exit_code) };
@@ -244,7 +376,7 @@ pub fn terminate(key: ProcessKey, exit_code: u32) -> Result<()> {
 /// # Errors
 ///
 /// As [`terminate`].
-pub fn suspend(key: ProcessKey) -> Result<()> {
+pub fn suspend(key: ProcessKey, consent: Consent) -> Result<()> {
     // SAFETY: no preconditions.
     if key.pid.get() == unsafe { GetCurrentProcessId() } {
         // `Refused` rather than `Unsupported`: the platform is perfectly
@@ -262,6 +394,13 @@ pub fn suspend(key: ProcessKey) -> Result<()> {
     )?;
 
     verify_identity(&handle, key)?;
+
+    let name = image_name(&handle);
+    gate(
+        assess_suspension(live_facts(&handle, key.pid, name.as_deref())),
+        consent,
+        key.pid,
+    )?;
 
     // SAFETY: the handle is valid and opened with PROCESS_SUSPEND_RESUME.
     let status = unsafe { NtSuspendProcess(handle.raw()) };
@@ -625,7 +764,7 @@ mod tests {
         let mut child = spawn_victim();
         let key = key_for(child.id());
 
-        terminate(key, 1).expect("terminate our own child");
+        terminate(key, 1, Consent::Unconfirmed).expect("terminate our own child");
 
         let status = child.wait().expect("wait");
         assert!(!status.success(), "the process should have been killed");
@@ -646,7 +785,7 @@ mod tests {
         child.kill().expect("kill");
         child.wait().expect("wait");
 
-        match terminate(key, 1) {
+        match terminate(key, 1, Consent::Unconfirmed) {
             Err(Error::NotFound(_)) => {}
             Err(other) => panic!("expected NotFound, got {other:?}"),
             Ok(()) => panic!("terminating an exited process should not report success"),
@@ -663,7 +802,11 @@ mod tests {
         child.kill().expect("kill");
         child.wait().expect("wait");
 
-        for result in [terminate(key, 1), suspend(key), resume(key)] {
+        for result in [
+            terminate(key, 1, Consent::Unconfirmed),
+            suspend(key, Consent::Unconfirmed),
+            resume(key),
+        ] {
             assert!(
                 !matches!(result, Err(Error::AccessDenied { .. })),
                 "an exited process must not be reported as an elevation problem: {result:?}"
@@ -681,7 +824,7 @@ mod tests {
 
         let stale = ProcessKey::new(real.pid, real.start_time.wrapping_sub(1_000_000));
 
-        let result = terminate(stale, 1);
+        let result = terminate(stale, 1, Consent::Unconfirmed);
         assert!(
             matches!(result, Err(Error::NotFound(_))),
             "a stale key must be refused, got {result:?}"
@@ -698,7 +841,7 @@ mod tests {
         let mut child = spawn_victim();
         let key = key_for(child.id());
 
-        suspend(key).expect("suspend");
+        suspend(key, Consent::Unconfirmed).expect("suspend");
         resume(key).expect("resume");
 
         child.kill().expect("cleanup");
@@ -710,7 +853,7 @@ mod tests {
         // If this ever regresses, the test suite freezes rather than failing,
         // so the guard is checked before any handle is opened.
         let key = key_for(std::process::id());
-        let result = suspend(key);
+        let result = suspend(key, Consent::Unconfirmed);
 
         assert!(
             matches!(result, Err(Error::Refused(_))),
@@ -918,7 +1061,7 @@ mod tests {
             "a fresh process is not suspended"
         );
 
-        suspend(key).expect("suspend our own child");
+        suspend(key, Consent::Unconfirmed).expect("suspend our own child");
         let after_suspend = is_suspended_now(child.id());
         resume(key).expect("resume our own child");
         let after_resume = is_suspended_now(child.id());
@@ -930,5 +1073,70 @@ mod tests {
             !after_resume,
             "a resumed process must read as running again"
         );
+    }
+
+    #[test]
+    fn the_gate_refuses_critical_without_a_human_and_forbidden_always() {
+        let pid = Pid(1234);
+        assert!(gate(Risk::Safe, Consent::Unconfirmed, pid).is_ok());
+        assert!(gate(Risk::Disruptive, Consent::Unconfirmed, pid).is_ok());
+        assert!(matches!(
+            gate(Risk::Critical, Consent::Unconfirmed, pid),
+            Err(Error::Refused(_))
+        ));
+        assert!(gate(Risk::Critical, Consent::Confirmed, pid).is_ok());
+        assert!(matches!(
+            gate(Risk::Forbidden, Consent::Confirmed, pid),
+            Err(Error::Refused(_))
+        ));
+    }
+
+    /// A child whose *image* is named like a critical process. The real
+    /// csrss cannot be touched from a test, but the gate reads the name
+    /// from the handle, so a copy named csrss.exe exercises exactly the
+    /// path a LAN request for the real one would take.
+    fn spawn_named(name: &str) -> (std::process::Child, std::path::PathBuf) {
+        let dir = std::env::temp_dir().join(format!("vitals-gate-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let exe = dir.join(name);
+        let system = std::env::var_os("SystemRoot").unwrap_or_else(|| "C:\\Windows".into());
+        std::fs::copy(
+            std::path::Path::new(&system).join("System32\\cmd.exe"),
+            &exe,
+        )
+        .expect("copy cmd");
+        let child = Command::new(&exe)
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .expect("spawn renamed cmd");
+        (child, dir)
+    }
+
+    #[test]
+    fn a_critical_process_is_refused_at_execution_unless_the_user_confirmed() {
+        // The bug: the risk lived only in the plan, from caller-supplied
+        // facts. LAN, CLI and the elevated child skipped the plan entirely,
+        // so nothing stopped them ending csrss.exe.
+        let (mut child, dir) = spawn_named("csrss.exe");
+        let key = key_for(child.id());
+
+        let unconfirmed = terminate(key, 1, Consent::Unconfirmed);
+        let still_running = child.try_wait().expect("try_wait").is_none();
+        let suspend_unconfirmed = suspend(key, Consent::Unconfirmed);
+        let confirmed = terminate(key, 1, Consent::Confirmed);
+
+        let _ = child.kill();
+        let _ = child.wait();
+        let _ = std::fs::remove_dir_all(dir);
+
+        assert!(
+            matches!(unconfirmed, Err(Error::Refused(_))),
+            "unconfirmed end of a critical-named process must be refused: {unconfirmed:?}"
+        );
+        assert!(still_running, "the refused call must not have ended it");
+        assert!(matches!(suspend_unconfirmed, Err(Error::Refused(_))));
+        assert!(confirmed.is_ok(), "a confirmed end proceeds: {confirmed:?}");
     }
 }

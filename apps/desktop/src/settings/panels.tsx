@@ -17,6 +17,7 @@ import {
 import { SHELL_NS } from '../shell/strings';
 import { hasTauriHost } from '../shell/host';
 import { openWindowsTaskManager, quitApp } from '../lib/settingsSync';
+import { reportFailure } from '../lib/reportFailure';
 import { useTheme } from '../theme/ThemeProvider';
 import { accents, densities, surfaces, themeModes, type Accent } from '../theme/types';
 import { SettingsRow, SettingsSection } from './SettingsRow';
@@ -156,7 +157,7 @@ export function GeneralPanel() {
             variant="secondary"
             disabled={!hasTauriHost()}
             onClick={() => {
-              void openWindowsTaskManager();
+              void reportFailure(openWindowsTaskManager(), t('settings.general.openTaskManager'));
             }}
           >
             {t('settings.general.openTaskManager')}
@@ -170,7 +171,7 @@ export function GeneralPanel() {
             aria-labelledby={labelId}
             variant="secondary"
             onClick={() => {
-              void quitApp();
+              void reportFailure(quitApp(), t('settings.general.quit'));
             }}
           >
             {t('settings.general.quit')}
@@ -474,7 +475,7 @@ export function SamplingPanel() {
               disabled={clearing || usage === null || usage.bytes === 0}
               onClick={() => {
                 setClearing(true);
-                void clearHistory().finally(() => {
+                void reportFailure(clearHistory(), t('settings.history.clear')).finally(() => {
                   setClearing(false);
                   // Bumping the revision is what refreshes the figure above;
                   // a stale "12 MB" beside a button that just deleted it
@@ -497,9 +498,11 @@ export function SamplingPanel() {
               disabled={exporting}
               onClick={() => {
                 setExporting(true);
-                void exportFlightRecording().finally(() => {
-                  setExporting(false);
-                });
+                void reportFailure(exportFlightRecording(), ts('settings.flight.export')).finally(
+                  () => {
+                    setExporting(false);
+                  },
+                );
               }}
             >
               {exporting ? ts('settings.flight.exporting') : ts('settings.flight.save')}
@@ -602,12 +605,24 @@ export function AboutPanel({ version }: { readonly version: string }) {
           {t('settings.about.contributeBody')}
         </p>
         <div className="flex flex-wrap gap-2 pt-1">
-          <Button onClick={() => void openExternal('https://github.com/dragoscv/vitals/issues')}>
+          <Button
+            onClick={() =>
+              void reportFailure(
+                openExternal('https://github.com/dragoscv/vitals/issues'),
+                t('settings.about.openIssues'),
+              )
+            }
+          >
             {t('settings.about.openIssues')}
           </Button>
           <Button
             variant="ghost"
-            onClick={() => void openExternal('https://github.com/dragoscv/vitals')}
+            onClick={() =>
+              void reportFailure(
+                openExternal('https://github.com/dragoscv/vitals'),
+                t('settings.about.viewSource'),
+              )
+            }
           >
             {t('settings.about.viewSource')}
           </Button>

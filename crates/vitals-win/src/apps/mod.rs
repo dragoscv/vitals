@@ -150,6 +150,49 @@ fn read_entry(key: &RegKey, key_name: String, source: AppSource) -> RawUninstall
     }
 }
 
+/// The uninstall command an entry published, read fresh from the registry.
+///
+/// `uninstall_app` used to execute whatever string the webview sent through
+/// `cmd /c` — every other mutating command takes an identity the backend
+/// verifies, and this one took a command line. Now the webview names the
+/// entry (`key_name` + the view it came from) and the command is re-read
+/// here, so nothing but a vendor's own published uninstaller can be run.
+///
+/// # Errors
+///
+/// - [`Error::NotFound`] when the entry is gone (already uninstalled) or
+///   published no `UninstallString`.
+/// - [`Error::Refused`] when the entry sets `NoRemove` or `SystemComponent`:
+///   it declares itself not removable, and the list never offered it.
+pub fn uninstall_command(key_name: &str, source: AppSource) -> Result<String> {
+    // A subkey name never contains a separator; one that does is trying to
+    // walk out of the Uninstall key.
+    if key_name.is_empty() || key_name.contains(['\\', '/']) {
+        return Err(Error::NotFound(format!(
+            "no uninstall entry named {key_name:?}"
+        )));
+    }
+    let hive = if source.is_per_user() {
+        Hive::CurrentUser
+    } else {
+        Hive::LocalMachine
+    };
+    let key = RegKey::open(hive, UNINSTALL_PATH, source.is_wow64())
+        .and_then(|root| root.open_child(key_name))
+        .map_err(|_| Error::NotFound(format!("{key_name} is no longer installed")))?;
+
+    if key.dword_value("NoRemove") == Some(1) || key.dword_value("SystemComponent") == Some(1) {
+        return Err(Error::Refused(format!(
+            "{key_name} declares that it cannot be uninstalled"
+        )));
+    }
+
+    key.string_value("UninstallString")
+        .map(|command| command.trim().to_owned())
+        .filter(|command| !command.is_empty())
+        .ok_or_else(|| Error::NotFound(format!("{key_name} published no uninstall command")))
+}
+
 /// Enumerates MSIX / Microsoft Store packages.
 ///
 /// **Not implemented — always returns [`Error::Unsupported`].**
@@ -177,6 +220,41 @@ pub fn enumerate_store_apps() -> Result<Vec<InstalledApp>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_uninstall_command_is_only_ever_read_from_a_real_registry_entry() {
+        // The webview can name an entry, nothing more. A name that is not
+        // an entry, or that tries to climb out of the Uninstall key, yields
+        // no command at all.
+        for bad in [
+            "",
+            "..\\..\\Run",
+            "a/b",
+            "definitely-not-an-installed-product-7f3a",
+        ] {
+            assert!(
+                matches!(
+                    uninstall_command(bad, AppSource::UserNative),
+                    Err(Error::NotFound(_))
+                ),
+                "{bad:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_listed_app_resolves_to_exactly_the_command_the_list_showed() {
+        let scan = enumerate_installed_apps();
+        let Some(app) = scan.apps.iter().find(|a| a.uninstall_string.is_some()) else {
+            eprintln!("no uninstallable app on this machine; nothing to compare");
+            return;
+        };
+        let resolved = uninstall_command(&app.key_name, app.source).expect("resolves");
+        assert_eq!(
+            Some(resolved.as_str()),
+            app.uninstall_string.as_deref().map(str::trim)
+        );
+    }
 
     #[test]
     fn a_real_machine_has_installed_applications() {

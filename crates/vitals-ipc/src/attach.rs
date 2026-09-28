@@ -306,7 +306,15 @@ struct ClientGuard(Arc<Shared>);
 
 impl Drop for ClientGuard {
     fn drop(&mut self) {
-        self.0.clients.fetch_sub(1, Ordering::SeqCst);
+        // The last one out forgets the view. Frames are only published
+        // while a client is attached, so from here on `current` stops being
+        // updated; left in place, the next `vitals top` was handed that
+        // frozen view — exited processes and all — and `wants_keyframe`
+        // stayed false, so nothing corrected it until the sampler's own
+        // periodic keyframe.
+        if self.0.clients.fetch_sub(1, Ordering::SeqCst) == 1 {
+            *self.0.current.lock() = None;
+        }
     }
 }
 

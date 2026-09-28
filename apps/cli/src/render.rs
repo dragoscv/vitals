@@ -157,12 +157,16 @@ pub fn system(metrics: &SystemMetrics) -> Vec<(&'static str, String)> {
 }
 
 /// A one-line header for `top`.
-pub fn summary_line(metrics: &SystemMetrics, alerts: usize) -> String {
+///
+/// `alerts` is `None` when the list could not be read, and prints as a dash:
+/// "Alerts 0" beside a server that refused the request would be a lie.
+pub fn summary_line(metrics: &SystemMetrics, alerts: Option<usize>) -> String {
     let gpu = metrics
         .gpus
         .iter()
         .find_map(|g| g.utilization)
         .map_or_else(String::new, |u| format!("  GPU {}", percent(u)));
+    let alerts = opt(alerts, |n| n.to_string());
     format!(
         "CPU {}  Mem {} / {}{gpu}  Alerts {alerts}",
         percent(metrics.cpu.total),
@@ -225,7 +229,10 @@ mod tests {
         let rows = system(&metrics);
         let gpu = rows.iter().find(|(k, _)| *k == "GPU").expect("gpu row");
         assert!(gpu.1.ends_with(DASH), "{}", gpu.1);
-        assert!(!summary_line(&metrics, 0).contains("GPU"));
+        assert!(!summary_line(&metrics, Some(0)).contains("GPU"));
+        // An alert list that could not be read is not an empty one.
+        assert!(summary_line(&metrics, None).ends_with(&format!("Alerts {DASH}")));
+        assert!(summary_line(&metrics, Some(0)).ends_with("Alerts 0"));
     }
 
     #[test]

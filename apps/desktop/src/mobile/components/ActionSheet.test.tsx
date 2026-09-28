@@ -66,6 +66,34 @@ describe('ActionSheet', () => {
     expect(onSettled).toHaveBeenCalledWith({ readOnly: true });
   });
 
+  it('does not mark the phone read-only when Windows refused one process (403 access-denied)', async () => {
+    const control = vi.fn(() =>
+      Promise.reject(
+        new VitalsError('forbidden', 'access-denied', {
+          status: 403,
+          detail: { kind: 'access-denied' },
+        }),
+      ),
+    );
+    const onSettled = vi.fn();
+    render(
+      <ActionSheet
+        process={process}
+        control={control}
+        onClose={() => {}}
+        onSettled={onSettled}
+        readOnly={false}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Suspend' }));
+
+    await screen.findByRole('alert');
+    expect(screen.getByRole('alert').textContent).not.toMatch(/read-only|Re-pair/);
+    expect(onSettled).toHaveBeenCalledWith({ readOnly: false });
+    expect(onSettled).not.toHaveBeenCalledWith({ readOnly: true });
+  });
+
   it('hides every control once the machine is known to be read-only', () => {
     render(
       <ActionSheet

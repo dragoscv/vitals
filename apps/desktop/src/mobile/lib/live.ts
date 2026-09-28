@@ -7,7 +7,7 @@
  * would restart from nothing each time.
  */
 
-import { useEffect, useState, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 
 import type { ControlRequest, VitalsClient } from '@vitals/client';
 import type { Alert, Frame } from '@vitals/protocol';
@@ -192,6 +192,12 @@ export function useLiveMachines(
 ): ReadonlyMap<string, LiveMachine> {
   const [machines, setMachines] = useState<ReadonlyMap<string, LiveMachine>>(() => new Map());
   const [tokens, setTokens] = useState<ReadonlyMap<string, string>>(() => new Map());
+  // The unmount cleanup reads this rather than closing over `machines`: an
+  // effect with `[machines]` as its dependency runs its cleanup on every
+  // reconcile, so pairing a second PC closed the first PC's stream and left
+  // its dead `LiveMachine` in the map — "reconnecting" forever.
+  const latest = useRef(machines);
+  latest.current = machines;
 
   useEffect(() => {
     const wanted = new Map(pairings.map((p) => [p.id, p] as const));
@@ -226,9 +232,9 @@ export function useLiveMachines(
   // Close everything on unmount; the effect above only reconciles.
   useEffect(
     () => () => {
-      for (const machine of machines.values()) machine.close();
+      for (const machine of latest.current.values()) machine.close();
     },
-    [machines],
+    [],
   );
 
   return machines;

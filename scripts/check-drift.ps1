@@ -44,9 +44,11 @@ function Get-Rg {
 
 # ts_rs emits camelCase because every export says `rename_all = "camelCase"`.
 # serde is independent and defaults to the Rust field name. The two agree
-# only when the serde attribute also says camelCase. Enums tagged with a
-# discriminator are allowed kebab-case: ts_rs renders their variants as
-# string literals from the serde attribute, so they stay in step.
+# only when the serde attribute also says camelCase. This holds for enums
+# too: ts_rs renders variant literals from ITS OWN rename_all, not serde's,
+# so a kebab-case enum ships `"not-responding"` against a union that says
+# `"notResponding"`. Fourteen enums did exactly that until 2026-09-28; the
+# earlier version of this comment claimed they "stay in step".
 $tsFiles = Get-Rg @('-l', 'derive\(ts_rs::TS\)', 'crates', '--glob', '*.rs')
 foreach ($file in $tsFiles) {
     $lines = Get-Content $file
@@ -63,15 +65,14 @@ foreach ($file in $tsFiles) {
         if ($block -notmatch 'ts_rs::TS') { continue }
 
         $serde = [regex]::Matches($block, 'serde\([^\]]*rename_all\s*=\s*"([a-zA-Z_-]+)"')
-        if ($kind -eq 'struct') {
-            if ($serde.Count -eq 0) {
-                # Newtype/transparent structs have no field names to rename.
-                if ($block -match 'serde\(transparent\)') { continue }
-                $failures.Add("${file}:$($i+1) struct $name derives ts_rs::TS but has no serde rename_all — fields will be snake_case on the wire")
-            }
-            elseif ($serde[0].Groups[1].Value -ne 'camelCase') {
-                $failures.Add("${file}:$($i+1) struct ${name}: serde rename_all is '$($serde[0].Groups[1].Value)' but ts_rs exports camelCase")
-            }
+        if ($serde.Count -eq 0) {
+            # Newtype/transparent structs and untagged enums put no names on
+            # the wire, so there is nothing to rename.
+            if ($block -match 'serde\((transparent|untagged)\)') { continue }
+            $failures.Add("${file}:$($i+1) $kind $name derives ts_rs::TS but has no serde rename_all — names will be Rust-cased on the wire")
+        }
+        elseif ($serde[0].Groups[1].Value -ne 'camelCase') {
+            $failures.Add("${file}:$($i+1) $kind ${name}: serde rename_all is '$($serde[0].Groups[1].Value)' but ts_rs exports camelCase")
         }
     }
 }

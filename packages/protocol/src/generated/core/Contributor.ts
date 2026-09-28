@@ -9,7 +9,12 @@ export type Contributor = { name: string, pid: number,
  */
 share: number, 
 /**
- * The raw reading behind the share, for the tooltip: percent for CPU,
- * bytes for memory, bytes per second for disk.
+ * The raw reading behind the share, for the tooltip: **hundredths of a
+ * percent** for CPU and GPU (an integer, so 55.6 % is `5560` — the
+ * scoring needs integers to sum without float drift), bytes for memory,
+ * bytes per second for disk.
+ *
+ * The unit used to be documented as "percent", and the report printed
+ * "5,560.0 %" for a process at 55.6 %.
  */
 value: number, };

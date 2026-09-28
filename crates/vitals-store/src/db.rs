@@ -347,6 +347,18 @@ impl Store {
         let rows = stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?;
         rows.map(|r| r.map_err(StoreError::from)).collect()
     }
+
+    /// Empties the flight recorder.
+    ///
+    /// Its frames are keyed by the sampler's `seq`, which restarts at 1 each
+    /// launch. Left in place, the previous session's high numbers outrank
+    /// every new frame in the "keep the last N" trim, so each new frame was
+    /// deleted the moment it was written and an export after a restart
+    /// contained only the old session.
+    pub fn clear_flight_frames(&self) -> Result<()> {
+        self.conn.execute("DELETE FROM flight_frames", [])?;
+        Ok(())
+    }
 }
 
 /// SQLite has one integer type, signed 64-bit. Byte counts above 2^63 do not

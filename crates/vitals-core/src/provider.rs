@@ -62,7 +62,7 @@ pub struct HostInfo {
     feature = "ts",
     ts(export, export_to = "core/", rename_all = "camelCase")
 )]
-#[serde(rename_all = "kebab-case")]
+#[serde(rename_all = "camelCase")]
 pub enum CoreClass {
     Performance,
     Efficiency,
@@ -133,7 +133,7 @@ pub trait ProcessProvider: Send + Sync {
     feature = "ts",
     ts(export, export_to = "core/", rename_all = "camelCase")
 )]
-#[serde(rename_all = "kebab-case")]
+#[serde(rename_all = "camelCase")]
 pub enum Priority {
     Idle,
     BelowNormal,
@@ -305,7 +305,7 @@ pub struct Connection {
     feature = "ts",
     ts(export, export_to = "core/", rename_all = "camelCase")
 )]
-#[serde(rename_all = "kebab-case")]
+#[serde(rename_all = "camelCase")]
 pub enum Protocol {
     Tcp,
     Udp,
@@ -319,7 +319,7 @@ pub enum Protocol {
     feature = "ts",
     ts(export, export_to = "core/", rename_all = "camelCase")
 )]
-#[serde(rename_all = "kebab-case")]
+#[serde(rename_all = "camelCase")]
 pub enum ConnectionState {
     Established,
     Listen,
@@ -343,7 +343,7 @@ pub enum ConnectionState {
     feature = "ts",
     ts(export, export_to = "core/", rename_all = "camelCase")
 )]
-#[serde(rename_all = "kebab-case")]
+#[serde(rename_all = "camelCase")]
 pub enum Direction {
     Inbound,
     Outbound,

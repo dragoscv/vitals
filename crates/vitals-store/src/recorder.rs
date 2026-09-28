@@ -40,6 +40,9 @@ impl Recorder {
     /// [`Self::set_history_enabled`] once the user's setting is known.
     pub fn open(path: &Path) -> Result<Self> {
         let store = Store::open(path, RetentionPolicy::default())?;
+        // The flight recorder's lifetime is the process (see the module
+        // docs); a new session starts it empty. See `clear_flight_frames`.
+        store.clear_flight_frames()?;
         Ok(Self {
             store,
             path: path.to_path_buf(),
@@ -137,6 +140,38 @@ fn now_secs() -> i64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_restart_records_the_new_session_not_the_old_one() {
+        // Two "launches" on one file. Before the fix, session one's seq
+        // 1..=200 outranked session two's 1..=3 and every new frame was
+        // trimmed on insert; the export showed only the old session.
+        let dir = std::env::temp_dir().join(format!("vitals-rec-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("history.db");
+        let _ = std::fs::remove_file(&path);
+
+        {
+            let r = Recorder::open(&path).unwrap();
+            for seq in 1..=200 {
+                r.store
+                    .record_frame(seq, seq, b"old", FLIGHT_FRAMES)
+                    .unwrap();
+            }
+        }
+        let r = Recorder::open(&path).unwrap();
+        for seq in 1..=3 {
+            r.store
+                .record_frame(seq, 1_000 + seq, b"new", FLIGHT_FRAMES)
+                .unwrap();
+        }
+        let frames = r.store.flight_frames().unwrap();
+        drop(r);
+        let _ = std::fs::remove_dir_all(&dir);
+
+        assert_eq!(frames.len(), 3, "only this session's frames");
+        assert!(frames.iter().all(|(_, _, f)| f == b"new"));
+    }
 
     #[test]
     fn retention_days_stretches_only_the_coarse_tiers() {

@@ -164,6 +164,62 @@ CSV records the state.
 Every claim of "done" needs a command and its output. Recorded here as work
 lands, newest first.
 
+### 2026-09-28 — S12-16..22 audit: security, honesty and lifecycle gaps
+
+**Ask.** "mai caută bug-uri și gap-uri și rezolvă. gândește-te la toate."
+Read every boundary the way a new client would (AGENTS.md: a new client is
+an audit): loopback auth, the LAN stream lifecycle, the sampler's exit path,
+the IPC attach server, the enum wire contract, the phone, and every
+fire-and-forget button. Twenty-two findings, all fixed at the source, each
+with a test that was mutation-checked red. Grouped:
+
+**Security (S12-16, S12-17).** The loopback bypass keyed on the peer only,
+so any web page could open `ws://127.0.0.1:7330/api/v1/ws` (WebSockets are
+exempt from CORS) and be granted Control with no token; DNS rebinding gave
+the same from a browser tab. Now `is_local_caller` refuses any `Origin` and
+requires a loopback `Host`. Auth ran once per connection, so a revoked
+phone kept streaming every process name until it left; streams re-check
+their token per frame and `stop()` ends them. The risk gate ran at _plan_
+time only; `gate()` re-reads the live facts at execution and needs
+`Consent::Confirmed` for a critical process — carried through the elevated
+child and never granted over LAN.
+
+**Contract (S12-19).** Fourteen enums were kebab-case on the wire against
+camelCase unions. Invisible to every gate because the drift script only
+checked structs and the wire test only swept keys; the Connections table
+showed `state.syn-sent` live. Both gates now cover values.
+
+**Lifecycle (S12-18, S12-20, S12-21).** Quit never stopped the sampler
+(Tauri never drops managed state), so the closing flush was dead code. The
+attach server served a frozen view to the next CLI. Pairing a second phone
+closed the first. A StrictMode-shaped stop→start leaked a frame listener
+for the life of the app.
+
+**Honesty (S12-22).** `Alerts 0` on a failed request, a 2.1 GW battery
+drain from `BATTERY_UNKNOWN_RATE`, six capabilities advertised with no
+code behind them, and a HUD that could be made unclickable with no way
+back.
+
+```text
+cargo clippy --workspace --all-targets -- -D warnings → clean
+cargo test --workspace → all green (vitals-win 607, server api 29, ipc 10, core 144+8, cli 35, desktop 50, store 15)
+pnpm typecheck 6/6 · pnpm lint 6/6 · vitest 89 files 894 tests (desktop) + packages green · prettier · check-drift 0
+protocol:check → only Contributor.ts doc comment regenerated (intended)
+check-size → initial 185.9 KB (+0.2 %), budget raised with approval
+mutations (each restored, verified by rg): IPC clear→FAILED · ProcessState kebab→4 FAILED + drift FAIL · SSE Lagged skip→FAILED ·
+  still_valid always true→FAILED · stop no signal→FAILED · [machines] dep→FAILED · always-install→FAILED
+live over CDP: get_lan_status running=false port=null · capabilities: managePowerPlans/… notImplemented ·
+  Connections renders "Connecting" (was state.syn-sent) · zero raw i18n keys on Connections/Processes/Performance
+```
+
+**Not done, by decision.** Slow sync commands (`get_installed_apps`,
+`get_startup`, `get_sensors`, `get_connections`, `run_benchmarks`) still
+block Tauri's main thread; moving them to `async` commands is a separate
+slice with its own measurement. `vitals serve --control` still has no
+controller (ADR-0004 stands); it now says so when it starts. Mobile memory
+sparkline pushes `0` when `total` is 0 — unreachable for a machine that
+booted, left as is.
+
 ### 2026-09-28 — S12-15 shadows are no longer cut by the edges of scroll regions
 
 **What the user saw.** "Shadows of cards in lists are being cut on the

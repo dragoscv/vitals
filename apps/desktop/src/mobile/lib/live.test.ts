@@ -1,9 +1,11 @@
 import type { Alert } from '@vitals/protocol';
+import { renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { StreamHandler } from '@vitals/client';
 
-import { ALERTS_POLL_MS, LiveMachine, type MobileClient } from './live';
+import { ALERTS_POLL_MS, LiveMachine, type MobileClient, useLiveMachines } from './live';
+import type { Pairing } from './pairing';
 
 const ALERT: Alert = {
   kind: 'diskSpace',
@@ -51,6 +53,64 @@ beforeEach(() => {
 });
 afterEach(() => {
   vi.useRealTimers();
+});
+
+describe('useLiveMachines', () => {
+  function pairing(id: string): Pairing {
+    return {
+      id,
+      baseUrl: `http://${id}:7331`,
+      token: `t-${id}`,
+      name: id,
+      addedAt: 0,
+      readOnly: false,
+    };
+  }
+
+  it('keeps the first PC streaming when a second one is paired', () => {
+    const closed: string[] = [];
+    const makeClient = (p: Pairing): MobileClient => ({
+      health: () => Promise.resolve({ ok: true, version: '0', modelVersion: 1 }),
+      host: () => Promise.resolve(null),
+      control: () => Promise.resolve(),
+      alerts: () => Promise.resolve([]),
+      stream: () => () => {
+        closed.push(p.id);
+      },
+    });
+    const first = [pairing('desk')];
+    const { rerender, unmount } = renderHook(
+      ({ pairings }: { pairings: readonly Pairing[] }) => useLiveMachines(pairings, makeClient),
+      { initialProps: { pairings: first } },
+    );
+
+    rerender({ pairings: [...first, pairing('laptop')] });
+    expect(closed).toEqual([]);
+
+    unmount();
+    expect(closed.sort()).toEqual(['desk', 'laptop']);
+  });
+
+  it('closes a machine whose pairing was removed or re-paired with a new token', () => {
+    const closed: string[] = [];
+    const makeClient = (p: Pairing): MobileClient => ({
+      health: () => Promise.resolve({ ok: true, version: '0', modelVersion: 1 }),
+      host: () => Promise.resolve(null),
+      control: () => Promise.resolve(),
+      alerts: () => Promise.resolve([]),
+      stream: () => () => {
+        closed.push(`${p.id}:${p.token}`);
+      },
+    });
+    const { rerender, result } = renderHook(
+      ({ pairings }: { pairings: readonly Pairing[] }) => useLiveMachines(pairings, makeClient),
+      { initialProps: { pairings: [pairing('desk'), pairing('laptop')] } },
+    );
+
+    rerender({ pairings: [{ ...pairing('desk'), token: 'fresh' }] });
+    expect(closed.sort()).toEqual(['desk:t-desk', 'laptop:t-laptop']);
+    expect([...result.current.keys()]).toEqual(['desk']);
+  });
 });
 
 describe('LiveMachine alerts', () => {

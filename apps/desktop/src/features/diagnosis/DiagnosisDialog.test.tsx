@@ -47,8 +47,9 @@ const busy: Diagnosis = {
     alert: cpuAlert,
     subsystem: 'cpu',
     contributors: [
-      { name: 'chrome.exe', pid: 4242, share: 61, value: 55.6 },
-      { name: 'code.exe', pid: 77, share: 22, value: 20.1 },
+      // Hundredths of a percent, as 	op_contributors sends them: 55.6 %.
+      { name: 'chrome.exe', pid: 4242, share: 61, value: 5560 },
+      { name: 'code.exe', pid: 77, share: 22, value: 2010 },
     ],
     diffuse: false,
   },
@@ -124,6 +125,9 @@ describe('DiagnosisDialog', () => {
     const text = clipboard[0] ?? '';
     expect(text).toContain('Vitals — why is my PC slow?');
     expect(text).toContain('chrome.exe (PID 4242) — 61%');
+    // The reading, not the wire integer: 5560 centi-percent is 55.6 %.
+    expect(text).toMatch(/55\.6\s?%/);
+    expect(text).not.toMatch(/5[,.]?560/);
     expect(text).toContain('Also noticed:');
     expect(text).toContain('C: is nearly full');
     // No JSON, no i18n keys leaking through.

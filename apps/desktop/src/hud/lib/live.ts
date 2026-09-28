@@ -58,13 +58,19 @@ function push(history: readonly number[], value: number | null): readonly number
 /** Subscribes to `vitals://frame`. Returns a disposer. */
 export type FrameSource = (onFrame: (frame: Frame) => void) => () => void;
 
-/** The real source: Tauri's event channel. */
-export function tauriFrames(onFrame: (frame: Frame) => void): () => void {
+/** Matches `SHOWN_EVENT` in `apps/desktop/src-tauri/src/hud.rs`. */
+export const HUD_SHOWN_EVENT = 'vitals://hud-shown';
+
+/** Fires whenever the backend has shown the overlay (and made it clickable). */
+export type ShownSource = (onShown: () => void) => () => void;
+
+/** Subscribes to a Tauri event, tolerating a window that closes mid-`listen`. */
+function tauriEvent<T>(name: string, handler: (payload: T) => void): () => void {
   let unlisten: (() => void) | undefined;
   let live = true;
 
   void import('@tauri-apps/api/event')
-    .then((module) => module.listen<Frame>(FRAME_EVENT, (event) => onFrame(event.payload)))
+    .then((module) => module.listen<T>(name, (event) => handler(event.payload)))
     .then((dispose) => {
       // The window can close before `listen` resolves; without this the
       // listener outlives the component that asked for it.
@@ -80,6 +86,16 @@ export function tauriFrames(onFrame: (frame: Frame) => void): () => void {
     live = false;
     unlisten?.();
   };
+}
+
+/** The real source: Tauri's event channel. */
+export function tauriFrames(onFrame: (frame: Frame) => void): () => void {
+  return tauriEvent<Frame>(FRAME_EVENT, onFrame);
+}
+
+/** The real shown source: the backend's `vitals://hud-shown`. */
+export function tauriShown(onShown: () => void): () => void {
+  return tauriEvent<unknown>(HUD_SHOWN_EVENT, () => onShown());
 }
 
 /** Subscribes a component to the frame stream. */

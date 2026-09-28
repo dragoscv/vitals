@@ -45,6 +45,15 @@ export function ActionSheet({ process, control, onClose, onSettled, readOnly }: 
       onClose();
     } catch (error) {
       setPhase('idle');
+      // Both come back as 403, so read the body: `access-denied` is Windows
+      // refusing THIS process (protected, or another user's), not the token.
+      // Checking `forbidden` first marked the whole phone read-only after a
+      // single failed kill of a system process, hiding every action forever.
+      if (isVitalsError(error) && error.detail?.kind === 'access-denied') {
+        setMessage(t('mobile.action.denied'));
+        onSettled({ readOnly: false });
+        return;
+      }
       if (isVitalsError(error) && error.kind === 'forbidden') {
         setMessage(t('mobile.action.readOnlyBody'));
         onSettled({ readOnly: true });
@@ -52,8 +61,6 @@ export function ActionSheet({ process, control, onClose, onSettled, readOnly }: 
       }
       if (isVitalsError(error) && error.detail?.kind === 'not-found') {
         setMessage(t('mobile.action.notFound'));
-      } else if (isVitalsError(error) && error.detail?.kind === 'access-denied') {
-        setMessage(t('mobile.action.denied'));
       } else {
         setMessage(t('mobile.action.failed'));
       }

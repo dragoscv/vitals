@@ -73,7 +73,7 @@ pub struct CpuMetrics {
     feature = "ts",
     ts(export, export_to = "core/", rename_all = "camelCase")
 )]
-#[serde(rename_all = "kebab-case")]
+#[serde(rename_all = "camelCase")]
 pub enum ThrottleReason {
     Thermal,
     PowerLimit,
@@ -179,7 +179,7 @@ pub struct DiskMetrics {
     feature = "ts",
     ts(export, export_to = "core/", rename_all = "camelCase")
 )]
-#[serde(rename_all = "kebab-case")]
+#[serde(rename_all = "camelCase")]
 pub enum DiskKind {
     Hdd,
     Ssd,
@@ -247,7 +247,7 @@ pub struct NetworkMetrics {
     feature = "ts",
     ts(export, export_to = "core/", rename_all = "camelCase")
 )]
-#[serde(rename_all = "kebab-case")]
+#[serde(rename_all = "camelCase")]
 pub enum NetworkKind {
     Ethernet,
     WiFi,
@@ -317,7 +317,7 @@ pub struct GpuEngine {
     feature = "ts",
     ts(export, export_to = "core/", rename_all = "camelCase")
 )]
-#[serde(rename_all = "kebab-case")]
+#[serde(rename_all = "camelCase")]
 pub enum GpuVendor {
     Nvidia,
     Amd,

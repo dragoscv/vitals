@@ -217,6 +217,9 @@ describe('the confirmation flow', () => {
     expect(actions.runAsAdmin).toHaveBeenCalledWith(
       'terminate',
       expect.objectContaining({ name: 'chrome.exe' }),
+      // The user clicked through the dialog: the elevated child must be told
+      // so, or the execution-time gate refuses a critical process again.
+      true,
     );
     await waitFor(() => expect(screen.queryByTestId('risk-dialog')).toBeNull());
     expect(screen.queryByRole('alert')).toBeNull();

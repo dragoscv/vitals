@@ -298,8 +298,12 @@ impl Controller for DesktopController {
         use vitals_win::actions;
 
         let outcome = match request {
-            ControlRequest::Terminate { key } => actions::terminate(key, 1),
-            ControlRequest::Suspend { key } => actions::suspend(key),
+            // Never confirmed: nobody saw the desktop's risk dialog. A
+            // critical or protected target is refused by the live check.
+            ControlRequest::Terminate { key } => {
+                actions::terminate(key, 1, actions::Consent::Unconfirmed)
+            }
+            ControlRequest::Suspend { key } => actions::suspend(key, actions::Consent::Unconfirmed),
             ControlRequest::Resume { key } => actions::resume(key),
             ControlRequest::SetPriority { key, priority } => {
                 let Some(priority) = parse_priority(&priority) else {
@@ -307,6 +311,12 @@ impl Controller for DesktopController {
                         message: format!("unknown priority {priority:?}"),
                     });
                 };
+                // Realtime starves input handling and makes the machine look
+                // frozen; the desktop menu labels it as such. A phone gets no
+                // such warning, so it does not get the option.
+                if matches!(priority, vitals_win::Priority::Realtime) {
+                    return Err(ControlError::AccessDenied);
+                }
                 actions::set_priority(key, priority)
             }
             ControlRequest::SetEfficiencyMode { key, enabled } => {
@@ -366,6 +376,10 @@ pub struct LanStatus {
     pub tokens: Vec<TokenSummary>,
 }
 
+/// How much of a secret the UI shows: enough to tell two pairings apart in
+/// a list, far too little to use. `revoke_pairing` requires all of it.
+const PREFIX_CHARS: usize = 8;
+
 /// A token as shown in the UI: everything except the secret.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -380,7 +394,7 @@ pub struct TokenSummary {
 impl From<&Token> for TokenSummary {
     fn from(t: &Token) -> Self {
         Self {
-            prefix: t.secret.chars().take(8).collect(),
+            prefix: t.secret.chars().take(PREFIX_CHARS).collect(),
             scope: t.scope,
             label: t.label.clone(),
             created: t.created,
@@ -392,7 +406,12 @@ impl From<&Token> for TokenSummary {
 #[allow(clippy::needless_pass_by_value)]
 pub fn get_lan_status(server: tauri::State<'_, LanServer>) -> LanStatus {
     LanStatus {
-        running: server.is_running(),
+        // The LAN listener only. `is_running` also counts the always-on
+        // loopback API, so this said "on" from the moment the app started:
+        // the Settings switch showed Remote access enabled, clicking it
+        // "stopped" a LAN server that was never running, and the user could
+        // never actually turn it on. `is_running` stays the sampler's gate.
+        running: server.port().is_some(),
         port: server.port(),
         interfaces: vitals_server::interfaces(),
         tokens: server
@@ -564,12 +583,37 @@ pub fn create_pairing(
 }
 
 /// Revokes one token by its prefix, as shown in the list.
+///
+/// Exactly one: `retain(!starts_with(prefix))` with an empty or short prefix
+/// revoked every pairing, and the UI has a separate, deliberately labelled
+/// "revoke all" for that. A prefix shorter than the eight characters the
+/// list shows, or one matching several tokens, revokes nothing.
 #[tauri::command]
 #[allow(clippy::needless_pass_by_value)]
 pub fn revoke_pairing(server: tauri::State<'_, LanServer>, prefix: String) {
     let mut tokens = server.tokens.write();
-    tokens.tokens.retain(|t| !t.secret.starts_with(&prefix));
-    save_tokens(&tokens);
+    if revoke_by_prefix(&mut tokens, &prefix) {
+        save_tokens(&tokens);
+    } else {
+        tracing::warn!("revoke_pairing refused: prefix does not identify exactly one token");
+    }
+}
+
+/// Removes the one token `prefix` identifies. Returns whether it did.
+fn revoke_by_prefix(tokens: &mut TokenSet, prefix: &str) -> bool {
+    if prefix.chars().count() < PREFIX_CHARS {
+        return false;
+    }
+    let matching = tokens
+        .tokens
+        .iter()
+        .filter(|t| t.secret.starts_with(prefix))
+        .count();
+    if matching != 1 {
+        return false;
+    }
+    tokens.tokens.retain(|t| !t.secret.starts_with(prefix));
+    true
 }
 
 #[tauri::command]
@@ -623,6 +667,46 @@ fn embedded_assets(app: tauri::AppHandle) -> vitals_server::StaticAssets {
 mod tests {
     use super::*;
 
+    fn token(secret: &str) -> Token {
+        Token {
+            secret: secret.into(),
+            scope: Scope::Read,
+            label: secret.into(),
+            created: 0,
+        }
+    }
+
+    #[test]
+    fn revoking_by_an_empty_or_short_prefix_removes_nothing() {
+        // `retain(!starts_with(""))` is `retain(false)`: an empty prefix from
+        // a UI glitch revoked every pairing at once.
+        let mut set = TokenSet {
+            tokens: vec![token("aaaaaaaa-one"), token("bbbbbbbb-two")],
+        };
+        assert!(!revoke_by_prefix(&mut set, ""));
+        assert!(!revoke_by_prefix(&mut set, "aaa"));
+        assert_eq!(set.tokens.len(), 2);
+    }
+
+    #[test]
+    fn revoking_by_the_shown_prefix_removes_exactly_that_token() {
+        let mut set = TokenSet {
+            tokens: vec![token("aaaaaaaa-one"), token("bbbbbbbb-two")],
+        };
+        assert!(revoke_by_prefix(&mut set, "aaaaaaaa"));
+        assert_eq!(set.tokens.len(), 1);
+        assert_eq!(set.tokens[0].secret, "bbbbbbbb-two");
+    }
+
+    #[test]
+    fn an_ambiguous_prefix_revokes_nothing_rather_than_both() {
+        let mut set = TokenSet {
+            tokens: vec![token("aaaaaaaa-one"), token("aaaaaaaa-two")],
+        };
+        assert!(!revoke_by_prefix(&mut set, "aaaaaaaa"));
+        assert_eq!(set.tokens.len(), 2);
+    }
+
     #[test]
     fn the_discovery_file_has_the_exact_shape_the_cli_parses() {
         // `{"port":N,"pid":P,"version":"x.y.z"}` is the contract the CLI is
@@ -670,6 +754,12 @@ mod tests {
 
         assert!(server.is_running());
         assert_eq!(server.port(), None, "the LAN port must not report loopback");
+        // What `get_lan_status.running` is derived from: the Settings switch
+        // must read "off" here, or remote access can never be turned on.
+        assert!(
+            server.port().is_none(),
+            "remote access must not look enabled because loopback is up"
+        );
         assert_eq!(server.local_port(), Some(port));
 
         if let Some(mut h) = server.local.lock().take() {

@@ -6,6 +6,7 @@ import { i18n, initI18n } from '@vitals/i18n';
 import { AppsScreen } from './AppsScreen';
 import type { AppsSnapshot, InstalledApp } from './model';
 import { registerAppsStrings } from './strings';
+import type { Uninstaller } from './useApps';
 
 beforeAll(async () => {
   await initI18n();
@@ -45,7 +46,7 @@ function snapshot(overrides: Partial<AppsSnapshot> = {}): AppsSnapshot {
   };
 }
 
-async function mount(data = snapshot(), uninstall = vi.fn<(cmd: string) => Promise<void>>()) {
+async function mount(data = snapshot(), uninstall = vi.fn<Uninstaller>()) {
   uninstall.mockResolvedValue(undefined);
   const reader = vi.fn<() => Promise<AppsSnapshot>>().mockResolvedValue(data);
   render(<AppsScreen reader={reader} uninstall={uninstall} />);
@@ -210,7 +211,7 @@ describe('AppsScreen', () => {
       expect(screen.getByRole('button', { name: 'Close this dialog' })).toBeTruthy();
     });
 
-    it("launches the vendor's own command on confirmation", async () => {
+    it("asks the backend to launch the named entry's own uninstaller on confirmation", async () => {
       const { uninstall } = await mount(
         snapshot({ apps: [app({ uninstallString: '"C:\\Thing\\unins.exe" /silent' })] }),
       );
@@ -218,13 +219,15 @@ describe('AppsScreen', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Uninstall' }));
       fireEvent.click(screen.getByRole('button', { name: 'Open uninstaller' }));
 
-      expect(uninstall).toHaveBeenCalledWith('"C:\\Thing\\unins.exe" /silent');
+      // The identity, not the command line: the backend re-reads the command
+      // from the registry, so the webview cannot ask it to run anything else.
+      expect(uninstall).toHaveBeenCalledWith(
+        expect.objectContaining({ keyName: 'key-Thing', source: 'machineNative' }),
+      );
     });
 
     it('reports a failure to start the uninstaller', async () => {
-      const uninstall = vi
-        .fn<(cmd: string) => Promise<void>>()
-        .mockRejectedValue(new Error('access denied'));
+      const uninstall = vi.fn<Uninstaller>().mockRejectedValue(new Error('access denied'));
       const reader = vi.fn<() => Promise<AppsSnapshot>>().mockResolvedValue(snapshot());
       render(<AppsScreen reader={reader} uninstall={uninstall} />);
       await screen.findByRole('heading', { name: 'Installed apps' });

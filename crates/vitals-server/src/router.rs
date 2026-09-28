@@ -15,7 +15,7 @@ use axum::{Json, Router};
 use futures_util::StreamExt as _;
 use serde::{Deserialize, Serialize};
 use tokio::net::TcpListener;
-use tokio::sync::oneshot;
+use tokio::sync::{oneshot, watch};
 use tokio_stream::wrappers::BroadcastStream;
 
 use crate::auth::Scope;
@@ -33,11 +33,18 @@ const PROMETHEUS_TOP_N: usize = 20;
 pub struct ServeHandle {
     pub addr: SocketAddr,
     stop: Option<oneshot::Sender<()>>,
+    /// Flipped to `true` on stop. Graceful shutdown alone waits for
+    /// in-flight requests, and a stream is an in-flight request that never
+    /// finishes: with only the oneshot, "Stop sharing" left every phone
+    /// receiving live frames until it disconnected on its own.
+    closing: watch::Sender<bool>,
 }
 
 impl ServeHandle {
     /// Asks the server to finish in-flight requests and stop accepting.
+    /// Open streams end at once.
     pub fn stop(&mut self) {
+        let _ = self.closing.send(true);
         if let Some(tx) = self.stop.take() {
             let _ = tx.send(());
         }
@@ -73,11 +80,13 @@ pub async fn serve_on(state: ApiState, addr: SocketAddr) -> std::io::Result<Serv
     let listener = TcpListener::bind(addr).await?;
     let addr = listener.local_addr()?;
     let (stop_tx, stop_rx) = oneshot::channel();
+    let (closing, _) = watch::channel(false);
 
     // The peer address is what `authorise` uses to decide whether the
     // loopback bypass applies, so the connect info must be attached here;
     // without it the extractor fails and every guarded route answers 500.
-    let app = router(state).into_make_service_with_connect_info::<SocketAddr>();
+    let app = router_with_closing(state, closing.subscribe())
+        .into_make_service_with_connect_info::<SocketAddr>();
     tokio::spawn(async move {
         let served = axum::serve(listener, app)
             .with_graceful_shutdown(async {
@@ -92,11 +101,21 @@ pub async fn serve_on(state: ApiState, addr: SocketAddr) -> std::io::Result<Serv
     Ok(ServeHandle {
         addr,
         stop: Some(stop_tx),
+        closing,
     })
 }
 
 /// Builds the router. Public so tests can drive it without a socket.
 pub fn router(state: ApiState) -> Router {
+    let (closing, rx) = watch::channel(false);
+    // Kept alive for as long as the router: dropping the sender would flip
+    // every receiver to "changed" and end streams immediately.
+    std::mem::forget(closing);
+    router_with_closing(state, rx)
+}
+
+/// Every stream handler watches `closing`; `true` ends it.
+fn router_with_closing(state: ApiState, closing: watch::Receiver<bool>) -> Router {
     // `/health` is deliberately outside the auth layer: a client needs to be
     // able to tell "wrong address" from "wrong token", and it exposes only
     // the version and the fact that something is listening.
@@ -110,16 +129,50 @@ pub fn router(state: ApiState) -> Router {
         .route("/api/v1/alerts", get(alerts))
         .route("/api/v1/control", axum::routing::post(control))
         .route("/metrics", get(metrics))
-        .route_layer(middleware::from_fn_with_state(state.clone(), authorise));
+        .route_layer(middleware::from_fn_with_state(state.clone(), authorise))
+        .layer(axum::Extension(Closing(closing)));
 
     public.merge(guarded).fallback(assets).with_state(state)
 }
 
+/// The server's stop signal, shared by every connection.
+#[derive(Debug, Clone)]
+struct Closing(watch::Receiver<bool>);
+
+impl Closing {
+    /// Resolves when the server is stopping. Never, if it is not.
+    async fn closed(mut self) {
+        // `wait_for` returns Err only when the sender is gone, which for a
+        // served router means the server task ended — also a reason to stop.
+        let _ = self.0.wait_for(|closing| *closing).await;
+    }
+}
+
 // ── Auth ───────────────────────────────────────────────────────────────
 
-/// The scope a request was granted, attached to the request extensions.
-#[derive(Debug, Clone, Copy)]
-struct Granted(Scope);
+/// The scope a request was granted, attached to the request extensions,
+/// together with the token it was granted for.
+///
+/// The token is kept so a **stream** can re-check it on every frame. Auth
+/// runs once, at the handshake; without this, a phone whose pairing the user
+/// revoked kept receiving frames — every process name on the machine —
+/// until it happened to disconnect. `None` is the loopback bypass, which
+/// has nothing to revoke.
+#[derive(Debug, Clone)]
+struct Granted {
+    scope: Scope,
+    token: Option<String>,
+}
+
+impl Granted {
+    /// Whether the credential this request was granted on is still valid.
+    fn still_valid(&self, state: &ApiState) -> bool {
+        match &self.token {
+            None => true,
+            Some(token) => state.tokens.read().scope_for(token).is_some(),
+        }
+    }
+}
 
 /// Rejects anything without a valid bearer token, unless the caller is on the
 /// loopback interface and the host has opted into [`ApiState::loopback_scope`].
@@ -139,9 +192,11 @@ async fn authorise(State(state): State<ApiState>, request: Request, next: Next) 
         .extensions()
         .get::<ConnectInfo<SocketAddr>>()
         .map(|ConnectInfo(addr)| *addr);
-    if let Some(scope) = loopback_grant(&state, peer) {
+    if let Some(scope) = loopback_grant(&state, peer).filter(|_| is_local_caller(&request)) {
         let mut request = request;
-        request.extensions_mut().insert(Granted(scope));
+        request
+            .extensions_mut()
+            .insert(Granted { scope, token: None });
         return next.run(request).await;
     }
 
@@ -158,7 +213,10 @@ async fn authorise(State(state): State<ApiState>, request: Request, next: Next) 
     };
 
     let mut request = request;
-    request.extensions_mut().insert(Granted(scope));
+    request.extensions_mut().insert(Granted {
+        scope,
+        token: Some(presented),
+    });
     next.run(request).await
 }
 
@@ -170,6 +228,52 @@ async fn authorise(State(state): State<ApiState>, request: Request, next: Next) 
 fn loopback_grant(state: &ApiState, peer: Option<SocketAddr>) -> Option<Scope> {
     let scope = state.loopback_scope?;
     peer.filter(|addr| addr.ip().is_loopback()).map(|_| scope)
+}
+
+/// Whether a loopback request came from a local program rather than from a
+/// web page the user happens to have open.
+///
+/// The loopback peer check alone proved nothing about *who* is calling: a
+/// browser runs on this machine, so any page can open
+/// `ws://127.0.0.1:7330/api/v1/ws` — `WebSocket`s are exempt from CORS — and
+/// would have been granted control with no token, able to read every
+/// process and end any of them. Two things tell a page apart:
+///
+/// - **`Origin`.** Browsers always send it on a `WebSocket` handshake and on
+///   a cross-origin `fetch`, and a page cannot suppress it. The CLI and
+///   scripts send none. Any `Origin` at all is refused: the desktop webview
+///   talks to the backend over Tauri IPC, never over this socket, so no
+///   legitimate caller of the bypass has one.
+/// - **`Host`.** DNS rebinding points an attacker's name at 127.0.0.1, so
+///   the request arrives from loopback carrying `Host: evil.example`. Only
+///   a loopback host is accepted.
+///
+/// A refused request is not rejected here — it falls through to the token
+/// check like a remote caller, so a page holding a real token (the paired
+/// phone's PWA is served from this same server) still works.
+fn is_local_caller(request: &Request) -> bool {
+    if request.headers().contains_key(header::ORIGIN) {
+        return false;
+    }
+    let host = request
+        .headers()
+        .get(header::HOST)
+        .and_then(|value| value.to_str().ok())
+        .or_else(|| request.uri().host());
+    host.is_some_and(is_loopback_host)
+}
+
+/// `127.0.0.1`, `[::1]` or `localhost`, with or without a port.
+fn is_loopback_host(host: &str) -> bool {
+    let name = if let Some(rest) = host.strip_prefix('[') {
+        rest.split(']').next().unwrap_or_default()
+    } else {
+        host.rsplit_once(':').map_or(host, |(name, _)| name)
+    };
+    name.eq_ignore_ascii_case("localhost")
+        || name
+            .parse::<std::net::IpAddr>()
+            .is_ok_and(|ip| ip.is_loopback())
 }
 
 fn bearer(request: &Request) -> Option<String> {
@@ -284,7 +388,11 @@ async fn metrics(State(state): State<ApiState>) -> Response {
 }
 
 /// Frames as server-sent events.
-async fn stream(State(state): State<ApiState>) -> Response {
+async fn stream(
+    State(state): State<ApiState>,
+    axum::Extension(granted): axum::Extension<Granted>,
+    axum::Extension(closing): axum::Extension<Closing>,
+) -> Response {
     let initial = state.frames.initial();
     let live = BroadcastStream::new(state.frames.subscribe());
 
@@ -292,17 +400,33 @@ async fn stream(State(state): State<ApiState>) -> Response {
     // ticks renders immediately instead of showing a spinner for up to two
     // seconds.
     let head = futures_util::stream::iter(initial.into_iter().map(Ok));
-    let tail = live.filter_map(|received| async move {
-        match received {
-            Ok(frame) => Some(Ok::<_, Infallible>(frame)),
-            // Lagged: this client fell behind and frames were dropped for it.
-            // Skipping is correct for live metrics — it wants the current
-            // numbers, not a backlog.
-            Err(_) => None,
+    let frames = state.frames.clone();
+    let tail = live.filter_map(move |received| {
+        let frames = frames.clone();
+        async move {
+            match received {
+                Ok(frame) => Some(Ok::<_, Infallible>(frame)),
+                // Lagged: frames were dropped for this client. The next one it
+                // would get is a delta against a frame it never saw, and a
+                // delta on top of a missed delta is a process table that
+                // never self-corrects (exited processes linger, new ones are
+                // missing) until the sampler's own keyframe up to thirty
+                // seconds later. Hand it the complete present instead.
+                Err(_) => frames.initial().map(Ok),
+            }
         }
     });
 
-    let events = head.chain(tail).map(|frame: Result<_, Infallible>| {
+    // Revoked token: end the stream at the next frame. Checked per frame
+    // rather than per tick of a timer so an idle server costs nothing.
+    let revoked_state = state.clone();
+    let live_while_valid = head
+        .chain(tail)
+        .take_while(move |_| futures_util::future::ready(granted.still_valid(&revoked_state)));
+    // Server stopping: end the stream now, not at the next frame.
+    let until_closed = live_while_valid.take_until(closing.closed());
+
+    let events = until_closed.map(|frame: Result<_, Infallible>| {
         let frame = frame.unwrap_or_else(|never| match never {});
         Event::default()
             .json_data(&*frame)
@@ -327,14 +451,18 @@ async fn stream(State(state): State<ApiState>) -> Response {
 async fn websocket(
     ws: WebSocketUpgrade,
     State(state): State<ApiState>,
-    axum::Extension(Granted(scope)): axum::Extension<Granted>,
+    axum::Extension(granted): axum::Extension<Granted>,
+    axum::Extension(closing): axum::Extension<Closing>,
 ) -> Response {
-    ws.on_upgrade(move |socket| pump(socket, state, scope))
+    ws.on_upgrade(move |socket| pump(socket, state, granted, closing))
 }
 
 /// Frames out, control commands in.
-async fn pump(mut socket: WebSocket, state: ApiState, scope: Scope) {
+async fn pump(mut socket: WebSocket, state: ApiState, granted: Granted, closing: Closing) {
     let mut rx = state.frames.subscribe();
+    let scope = granted.scope;
+    let closed = closing.closed();
+    let mut closed = std::pin::pin!(closed);
 
     if let Some(frame) = state.frames.initial()
         && send_frame(&mut socket, &frame).await.is_err()
@@ -344,17 +472,36 @@ async fn pump(mut socket: WebSocket, state: ApiState, scope: Scope) {
 
     loop {
         tokio::select! {
+            () = &mut closed => {
+                let _ = socket.send(Message::Close(None)).await;
+                return;
+            }
             received = rx.recv() => match received {
                 Ok(frame) => {
+                    if !granted.still_valid(&state) {
+                        let _ = socket.send(Message::Close(None)).await;
+                        return;
+                    }
                     if send_frame(&mut socket, &frame).await.is_err() {
                         return;
                     }
                 }
-                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {}
+                // Same reasoning as the SSE path: a resync keyframe, not a skip.
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
+                    if let Some(frame) = state.frames.initial()
+                        && send_frame(&mut socket, &frame).await.is_err()
+                    {
+                        return;
+                    }
+                }
                 Err(tokio::sync::broadcast::error::RecvError::Closed) => return,
             },
             incoming = socket.recv() => match incoming {
                 Some(Ok(Message::Text(text))) => {
+                    if !granted.still_valid(&state) {
+                        let _ = socket.send(Message::Close(None)).await;
+                        return;
+                    }
                     let reply = handle_control(&state, scope, &text);
                     if socket.send(Message::Text(reply.into())).await.is_err() {
                         return;
@@ -428,10 +575,10 @@ fn handle_control(state: &ApiState, scope: Scope, text: &str) -> String {
 /// schema.
 async fn control(
     State(state): State<ApiState>,
-    axum::Extension(Granted(scope)): axum::Extension<Granted>,
+    axum::Extension(granted): axum::Extension<Granted>,
     body: axum::body::Bytes,
 ) -> Response {
-    if !scope.allows_control() {
+    if !granted.scope.allows_control() {
         return (StatusCode::FORBIDDEN, Json(ControlError::Forbidden)).into_response();
     }
 

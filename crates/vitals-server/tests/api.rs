@@ -49,6 +49,7 @@ fn frame(seq: u64) -> Frame {
 struct Harness {
     base: String,
     frames: FrameSource,
+    tokens: Arc<ServerLock<TokenSet>>,
     controller: Arc<RecordingController>,
     handle: vitals_server::ServeHandle,
 }
@@ -106,6 +107,7 @@ async fn start_with(loopback_scope: Option<Scope>) -> Harness {
     let frames = FrameSource::new();
     let controller = Arc::new(RecordingController::default());
     let state = state_with(&frames, &controller, loopback_scope);
+    let tokens = Arc::clone(&state.tokens);
 
     // Port 0: the OS picks a free one, so tests never collide with a real
     // server or with each other.
@@ -114,6 +116,7 @@ async fn start_with(loopback_scope: Option<Scope>) -> Harness {
     Harness {
         base,
         frames,
+        tokens,
         controller,
         handle,
     }
@@ -448,6 +451,195 @@ async fn a_client_joining_mid_stream_receives_a_keyframe_not_a_delta() {
     );
 }
 
+#[tokio::test]
+async fn a_stream_client_that_fell_behind_is_resynced_with_a_keyframe_not_left_on_a_stale_delta() {
+    // The broadcast channel holds 16 frames. A client that stalls for longer
+    // than that misses frames; before this test, the server silently skipped
+    // the gap and the next thing the client saw was a delta against a frame
+    // it never received — a process table that stayed wrong until the
+    // sampler's own keyframe, up to thirty seconds later.
+    use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+
+    let h = start().await;
+    h.frames.publish(Arc::new(fixtures::keyframe(
+        1,
+        vec![fixtures::process("old.exe", 100, 5.0)],
+    )));
+
+    let addr = h.base.trim_start_matches("http://");
+    let mut stream = tokio::net::TcpStream::connect(addr).await.expect("connect");
+    let head = format!(
+        "GET /api/v1/stream?token={READ_TOKEN} HTTP/1.1\r\nHost: {addr}\r\nAccept: text/event-stream\r\n\r\n"
+    );
+    stream.write_all(head.as_bytes()).await.expect("write");
+    // Wait for the initial keyframe so the subscription exists before the flood.
+    let mut buf = vec![0u8; 64 * 1024];
+    let mut received = String::new();
+    while !received.contains("\"seq\":1") {
+        let n = stream.read(&mut buf).await.expect("read");
+        assert!(n > 0, "server closed the stream");
+        received.push_str(&String::from_utf8_lossy(&buf[..n]));
+    }
+
+    // Flood: 40 deltas while the client reads nothing. Every one of them
+    // replaces old.exe with new.exe; the last few are what a skip would
+    // deliver, and a delta cannot be applied to the seq-1 view the client has.
+    for seq in 2..42 {
+        h.frames.publish(Arc::new(Frame {
+            seq: vitals_core::sample::FrameSeq(seq),
+            timestamp_ms: seq,
+            elapsed_ms: 1_000,
+            payload: vitals_core::sample::FramePayload::Delta {
+                system: fixtures::system(),
+                changed: vec![fixtures::process("new.exe", 200, 1.0)],
+                exited: vec![Pid(100)],
+            },
+        }));
+    }
+    // Kernel buffers are large, so the frames the client "did not read" are
+    // in fact in flight; what matters is which ones the broadcast dropped.
+    // Read until the newest seq shows up, then inspect the whole transcript.
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
+    while !received.contains("\"seq\":41") {
+        assert!(
+            tokio::time::Instant::now() < deadline,
+            "never saw seq 41:\n{received}"
+        );
+        let n = tokio::time::timeout(std::time::Duration::from_secs(1), stream.read(&mut buf))
+            .await
+            .expect("read timed out")
+            .expect("read");
+        assert!(n > 0, "server closed the stream");
+        received.push_str(&String::from_utf8_lossy(&buf[..n]));
+    }
+
+    let events: Vec<&str> = received
+        .split("\n\n")
+        .filter(|e| e.contains("data:"))
+        .collect();
+    let seqs: Vec<u64> = events
+        .iter()
+        .filter_map(|e| {
+            e.split("\"seq\":")
+                .nth(1)
+                .and_then(|rest| rest.split(',').next())
+                .and_then(|n| n.parse().ok())
+        })
+        .collect();
+    // Find the first gap in what the client received; the frame right
+    // after it must be a keyframe that already reflects every missed delta.
+    let gap = seqs
+        .windows(2)
+        .position(|w| w[1] > w[0] + 1)
+        .expect("the client was meant to fall behind; widen the flood if the channel grew");
+    let after_gap = events[gap + 1];
+    assert!(
+        after_gap.contains("\"kind\":\"keyframe\""),
+        "after a gap the client must be resynced, got: {after_gap}"
+    );
+    assert!(
+        after_gap.contains("new.exe") && !after_gap.contains("old.exe"),
+        "{after_gap}"
+    );
+}
+
+/// Opens `/api/v1/stream` with `token` and reads until the initial keyframe
+/// has arrived, so the subscription is provably live before the test acts.
+async fn open_stream(base: &str, token: &str) -> tokio::net::TcpStream {
+    use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+
+    let h = base.trim_start_matches("http://");
+    let mut stream = tokio::net::TcpStream::connect(h).await.expect("connect");
+    let head = format!(
+        "GET /api/v1/stream?token={token} HTTP/1.1\r\nHost: {h}\r\nAccept: text/event-stream\r\n\r\n"
+    );
+    stream.write_all(head.as_bytes()).await.expect("write");
+    let mut buf = vec![0u8; 16 * 1024];
+    let mut received = String::new();
+    while !received.contains("\"seq\":1") {
+        let n = stream.read(&mut buf).await.expect("read");
+        assert!(n > 0, "server closed the stream early:\n{received}");
+        received.push_str(&String::from_utf8_lossy(&buf[..n]));
+    }
+    stream
+}
+
+/// Reads until the server ends the response — the closing `0\r\n\r\n` chunk
+/// (HTTP keep-alive leaves the socket open) or a socket close — and returns
+/// what arrived. `None` if the response is still open after the timeout.
+async fn read_to_close(stream: &mut tokio::net::TcpStream) -> Option<String> {
+    use tokio::io::AsyncReadExt as _;
+
+    let mut buf = vec![0u8; 16 * 1024];
+    let mut received = String::new();
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(3);
+    loop {
+        if received.ends_with("0\r\n\r\n") {
+            return Some(received);
+        }
+        let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+        match tokio::time::timeout(remaining, stream.read(&mut buf)).await {
+            Ok(Ok(0) | Err(_)) => return Some(received),
+            Ok(Ok(n)) => received.push_str(&String::from_utf8_lossy(&buf[..n])),
+            Err(_) => return None,
+        }
+    }
+}
+
+#[tokio::test]
+async fn revoking_a_token_ends_the_stream_it_opened_instead_of_feeding_it_until_it_leaves() {
+    // Auth ran once at the handshake. Before this test, a revoked phone kept
+    // receiving every process name until it disconnected on its own.
+    let h = start().await;
+    h.frames.publish(Arc::new(frame(1)));
+    let mut stream = open_stream(&h.base, READ_TOKEN).await;
+
+    h.tokens.write().revoke(READ_TOKEN);
+    // The check is per frame, so one more tick is what ends it.
+    h.frames.publish(Arc::new(frame(2)));
+
+    let after = read_to_close(&mut stream)
+        .await
+        .expect("the stream must close after the token is revoked");
+    assert!(
+        !after.contains("\"seq\":2"),
+        "a frame was delivered on a revoked token: {after}"
+    );
+}
+
+#[tokio::test]
+async fn a_control_token_keeps_streaming_when_a_different_token_is_revoked() {
+    // The guard must be per credential, not "any revocation ends everything".
+    let h = start().await;
+    h.frames.publish(Arc::new(frame(1)));
+    let mut stream = open_stream(&h.base, CONTROL_TOKEN).await;
+
+    h.tokens.write().revoke(READ_TOKEN);
+    h.frames.publish(Arc::new(frame(2)));
+
+    let outcome = read_to_close(&mut stream).await;
+    assert!(
+        outcome.is_none(),
+        "the stream closed although its own token is still valid: {outcome:?}"
+    );
+}
+
+#[tokio::test]
+async fn stopping_the_server_ends_open_streams_at_once() {
+    // Graceful shutdown waits for in-flight requests, and a stream is an
+    // in-flight request that never ends: "Stop sharing" left the phone live.
+    let mut h = start().await;
+    h.frames.publish(Arc::new(frame(1)));
+    let mut stream = open_stream(&h.base, READ_TOKEN).await;
+
+    h.handle.stop();
+
+    assert!(
+        read_to_close(&mut stream).await.is_some(),
+        "the stream must close when the server is stopped"
+    );
+}
+
 // ── Loopback bypass ────────────────────────────────────────────────────
 //
 // Every request in this file arrives from 127.0.0.1, so the existing 401
@@ -483,6 +675,83 @@ async fn with_a_control_loopback_scope_a_tokenless_local_caller_reaches_the_cont
     let (status, _) = request(&h.base, "POST", "/api/v1/control", None, Some(control)).await;
     assert_eq!(status, 204);
     assert_eq!(h.controller.calls.load(Ordering::SeqCst), 1);
+}
+
+/// Sends a raw request with the given extra header lines.
+async fn raw(base: &str, head: &str) -> u16 {
+    use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+    let addr = base.trim_start_matches("http://");
+    let mut stream = tokio::net::TcpStream::connect(addr).await.expect("connect");
+    stream.write_all(head.as_bytes()).await.expect("write");
+    let mut buf = [0_u8; 256];
+    let n = stream.read(&mut buf).await.expect("read");
+    String::from_utf8_lossy(&buf[..n])
+        .split_whitespace()
+        .nth(1)
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(0)
+}
+
+#[tokio::test]
+async fn a_web_page_cannot_use_the_loopback_bypass_to_end_a_process() {
+    // The attack: any page the user has open can POST to 127.0.0.1 (a
+    // "simple" request needs no preflight) and the browser connects from
+    // loopback. It carries an Origin the page cannot suppress.
+    let h = start_with(Some(Scope::Control)).await;
+    let addr = h.base.trim_start_matches("http://");
+    let body = r#"{"action":"terminate","key":{"pid":4242,"startTime":1}}"#;
+    let head = format!(
+        "POST /api/v1/control HTTP/1.1\r\nHost: {addr}\r\nOrigin: https://evil.example\r\n\
+         Content-Type: text/plain\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+        body.len()
+    );
+    assert_eq!(raw(&h.base, &head).await, 401);
+    assert_eq!(
+        h.controller.calls.load(Ordering::SeqCst),
+        0,
+        "nothing was ended"
+    );
+}
+
+#[tokio::test]
+async fn a_websocket_handshake_from_a_page_gets_no_tokenless_access() {
+    // WebSockets are exempt from CORS, so this is the path that mattered
+    // most: a page could read every process with its start time, then end
+    // any of them.
+    let h = start_with(Some(Scope::Control)).await;
+    let addr = h.base.trim_start_matches("http://");
+    let head = format!(
+        "GET /api/v1/ws HTTP/1.1\r\nHost: {addr}\r\nOrigin: http://localhost:3000\r\n\
+         Connection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Version: 13\r\n\
+         Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\r\n"
+    );
+    assert_eq!(raw(&h.base, &head).await, 401);
+}
+
+#[tokio::test]
+async fn a_dns_rebound_host_gets_no_tokenless_access() {
+    // Rebinding points an attacker's name at 127.0.0.1: the peer is
+    // loopback, the Host header is not.
+    let h = start_with(Some(Scope::Control)).await;
+    let head = "GET /api/v1/snapshot HTTP/1.1\r\nHost: rebind.evil.example:7330\r\nConnection: close\r\n\r\n";
+    assert_eq!(raw(&h.base, head).await, 401);
+}
+
+#[tokio::test]
+async fn the_cli_shape_of_request_still_gets_the_bypass() {
+    // No Origin, loopback Host in every spelling: this is what the CLI and
+    // scripts send, and it must keep working.
+    let h = start_with(Some(Scope::Read)).await;
+    let port = h.base.rsplit(':').next().expect("port");
+    for host in [
+        format!("127.0.0.1:{port}"),
+        format!("localhost:{port}"),
+        "[::1]".to_owned(),
+    ] {
+        let head =
+            format!("GET /api/v1/snapshot HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\n\r\n");
+        assert_eq!(raw(&h.base, &head).await, 204, "Host: {host}");
+    }
 }
 
 #[tokio::test]

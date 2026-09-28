@@ -20,7 +20,7 @@
 use vitals_core::error::{Error, Result};
 use vitals_core::ids::{Pid, ProcessKey};
 
-use super::process::{plan_suspend, plan_terminate, resume, suspend, terminate};
+use super::process::{Consent, plan_suspend, plan_terminate, resume, suspend, terminate};
 use super::safety::Risk;
 use super::taskmgr::run_elevated;
 
@@ -77,12 +77,16 @@ mod exit {
 
 /// The arguments for one elevated action, in the order [`parse_args`] reads.
 #[must_use]
-pub fn format_args(action: ElevatedAction, key: ProcessKey) -> String {
+pub fn format_args(action: ElevatedAction, key: ProcessKey, consent: Consent) -> String {
     format!(
-        "{PROCESS_ACTION_ARG} {} {} {}",
+        "{PROCESS_ACTION_ARG} {} {} {} {}",
         action.as_arg(),
         key.pid.get(),
-        key.start_time
+        key.start_time,
+        match consent {
+            Consent::Confirmed => "confirmed",
+            Consent::Unconfirmed => "unconfirmed",
+        }
     )
 }
 
@@ -91,7 +95,7 @@ pub fn format_args(action: ElevatedAction, key: ProcessKey) -> String {
 /// `None` for anything malformed. The caller is our own parent, so a bad
 /// argument is a bug, and guessing would mean acting on the wrong process.
 #[must_use]
-pub fn parse_args<I, S>(rest: I) -> Option<(ElevatedAction, ProcessKey)>
+pub fn parse_args<I, S>(rest: I) -> Option<(ElevatedAction, ProcessKey, Consent)>
 where
     I: IntoIterator<Item = S>,
     S: AsRef<str>,
@@ -100,10 +104,15 @@ where
     let action = ElevatedAction::from_arg(rest.next()?.as_ref())?;
     let pid: u32 = rest.next()?.as_ref().parse().ok()?;
     let start_time: u64 = rest.next()?.as_ref().parse().ok()?;
+    let consent = match rest.next()?.as_ref() {
+        "confirmed" => Consent::Confirmed,
+        "unconfirmed" => Consent::Unconfirmed,
+        _ => return None,
+    };
     if rest.next().is_some() {
         return None;
     }
-    Some((action, ProcessKey::new(Pid(pid), start_time)))
+    Some((action, ProcessKey::new(Pid(pid), start_time), consent))
 }
 
 /// Asks for administrator approval and performs `action` on `key`.
@@ -120,8 +129,11 @@ where
 /// - [`Error::AccessDenied`] when even an administrator is refused — a
 ///   protected process the plan could not see.
 /// - [`Error::Os`] for anything else.
-pub fn run_as_admin(action: ElevatedAction, key: ProcessKey) -> Result<()> {
-    let code = run_elevated(&format_args(action, key), "the process was left as it was")?;
+pub fn run_as_admin(action: ElevatedAction, key: ProcessKey, consent: Consent) -> Result<()> {
+    let code = run_elevated(
+        &format_args(action, key, consent),
+        "the process was left as it was",
+    )?;
     from_exit_code(code, key)
 }
 
@@ -154,13 +166,15 @@ where
     I: IntoIterator<Item = S>,
     S: AsRef<str>,
 {
-    let Some((action, key)) = parse_args(rest) else {
+    let Some((action, key, consent)) = parse_args(rest) else {
         return exit::BAD_ARGS;
     };
 
-    // Re-assessed here, not trusted from the parent. The name is not known
-    // without a handle, so the static list is applied through the PID-only
-    // checks (System, Idle, ourselves); the kernel refuses the rest.
+    // A cheap PID-only pre-check (System, Idle, ourselves) before asking for
+    // the debug privilege. The real assessment happens inside `terminate` /
+    // `suspend`, on their own handle, from the live image name, protection
+    // level and BreakOnTermination flag — so a critical process is refused
+    // here too unless the user confirmed the desktop dialog.
     let plan = match action {
         ElevatedAction::Suspend => plan_suspend(key.pid, None, false),
         ElevatedAction::Terminate | ElevatedAction::Resume => plan_terminate(key.pid, None, false),
@@ -179,8 +193,8 @@ where
     let _debug = enable_debug_privilege();
 
     let result = match action {
-        ElevatedAction::Terminate => terminate(key, 1),
-        ElevatedAction::Suspend => suspend(key),
+        ElevatedAction::Terminate => terminate(key, 1, consent),
+        ElevatedAction::Suspend => suspend(key, consent),
         ElevatedAction::Resume => resume(key),
     };
 
@@ -259,10 +273,12 @@ mod tests {
             ElevatedAction::Suspend,
             ElevatedAction::Resume,
         ] {
-            let args = format_args(action, key);
-            let mut parts = args.split(' ');
-            assert_eq!(parts.next(), Some(PROCESS_ACTION_ARG));
-            assert_eq!(parse_args(parts), Some((action, key)));
+            for consent in [Consent::Confirmed, Consent::Unconfirmed] {
+                let args = format_args(action, key, consent);
+                let mut parts = args.split(' ');
+                assert_eq!(parts.next(), Some(PROCESS_ACTION_ARG));
+                assert_eq!(parse_args(parts), Some((action, key, consent)));
+            }
         }
     }
 
@@ -275,7 +291,11 @@ mod tests {
             vec!["kill", "12", "34"],
             vec!["terminate", "-1", "34"],
             vec!["terminate", "12", "x"],
-            vec!["terminate", "12", "34", "extra"],
+            // Consent is required, never defaulted: a missing word must not
+            // silently mean either answer.
+            vec!["terminate", "12", "34"],
+            vec!["terminate", "12", "34", "yes"],
+            vec!["terminate", "12", "34", "confirmed", "extra"],
         ] {
             assert_eq!(parse_args(bad.clone()), None, "{bad:?}");
             assert_eq!(perform(bad.clone()), exit::BAD_ARGS, "{bad:?}");
@@ -286,7 +306,11 @@ mod tests {
     fn the_elevated_pass_refuses_a_forbidden_target_even_when_asked() {
         // PID 4 is System: forbidden by the static assessment. The elevated
         // instance must not become a way round the dialog's refusal.
-        let args = format_args(ElevatedAction::Terminate, ProcessKey::new(Pid(4), 1));
+        let args = format_args(
+            ElevatedAction::Terminate,
+            ProcessKey::new(Pid(4), 1),
+            Consent::Confirmed,
+        );
         assert_eq!(perform(args.split(' ').skip(1)), exit::REFUSED);
     }
 
@@ -295,7 +319,11 @@ mod tests {
         // Our own PID with a wrong start time: identity verification must
         // reject it, so the child reports NotFound and touches nothing.
         let pid = std::process::id();
-        let args = format_args(ElevatedAction::Resume, ProcessKey::new(Pid(pid), 1));
+        let args = format_args(
+            ElevatedAction::Resume,
+            ProcessKey::new(Pid(pid), 1),
+            Consent::Unconfirmed,
+        );
         assert_eq!(perform(args.split(' ').skip(1)), exit::NOT_FOUND);
     }
 

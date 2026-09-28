@@ -33,7 +33,10 @@ pub fn is_quit(key: &KeyEvent) -> bool {
 struct Tick<'a> {
     t: u64,
     system: &'a vitals_core::metrics::SystemMetrics,
-    alerts: usize,
+    /// `null` when the alert list could not be read this tick. A failed read
+    /// is not "no alerts"; printing 0 there is the one thing this project
+    /// exists not to do.
+    alerts: Option<usize>,
     top_processes: Vec<vitals_core::process::Process>,
 }
 
@@ -54,7 +57,7 @@ pub fn run(source: &mut Source, interval: Duration, json: bool) -> Result<()> {
         }
         // Alerts come from a separate route in attached mode; one request
         // per tick is cheap on loopback and keeps the count honest.
-        let alerts = source.alerts().map_or(0, |a| a.len());
+        let alerts = source.alerts().ok().map(|a| a.len());
         let Some(view) = source.next_frame(interval)? else {
             break;
         };
@@ -65,7 +68,7 @@ pub fn run(source: &mut Source, interval: Duration, json: bool) -> Result<()> {
     Ok(())
 }
 
-fn draw(out: &mut impl Write, view: &View, alerts: usize) -> Result<()> {
+fn draw(out: &mut impl Write, view: &View, alerts: Option<usize>) -> Result<()> {
     let list = render::top_by_cpu(view.processes(), ROWS);
     execute!(
         out,
@@ -87,7 +90,7 @@ fn run_json(source: &mut Source, interval: Duration) -> Result<()> {
     let quit = spawn_ctrl_c();
     let mut out = stdout().lock();
     while !quit.load(Ordering::Relaxed) {
-        let alerts = source.alerts().map_or(0, |a| a.len());
+        let alerts = source.alerts().ok().map(|a| a.len());
         let Some(view) = source.next_frame(interval)? else {
             break;
         };

@@ -55,7 +55,7 @@ export function isPercentSubsystem(subsystem: Subsystem): boolean {
 
 /**
  * The raw reading behind a contributor's share, in the unit the subsystem
- * measures. Matches `Contributor::value` in Rust: percent for CPU, bytes for
+ * measures. Matches `Contributor::value` in Rust: hundredths of a percent for CPU and GPU, bytes for
  * memory, bytes per second for disk and network.
  */
 export function formatContributorValue(
@@ -66,13 +66,15 @@ export function formatContributorValue(
   switch (subsystem) {
     case 'cpu':
     case 'thermal':
-      return formatPercent(contributor.value, locale);
+      // Hundredths of a percent on the wire (see `Contributor::value`).
+      return formatPercent(contributor.value / 100, locale);
     case 'memory':
       return formatBytes(contributor.value, locale);
     case 'disk':
     case 'network':
       return formatThroughput(contributor.value, locale);
     case 'gpu':
+      return formatPercent(contributor.value / 100, locale);
     case 'storage':
     case 'battery':
       return formatPercent(contributor.value, locale);

@@ -46,7 +46,7 @@ impl FrameSeq {
     feature = "ts",
     ts(export, export_to = "core/", rename_all = "camelCase")
 )]
-#[serde(rename_all = "kebab-case")]
+#[serde(rename_all = "camelCase")]
 pub enum SampleRate {
     /// 10 Hz — only for a focused realtime graph.
     Realtime,
@@ -105,7 +105,7 @@ impl SampleRate {
     feature = "ts",
     ts(export, export_to = "core/", rename_all = "camelCase")
 )]
-#[serde(tag = "kind", rename_all = "kebab-case")]
+#[serde(tag = "kind", rename_all = "camelCase")]
 pub enum FramePayload {
     /// A complete snapshot. Sent on connect and periodically thereafter.
     Keyframe {

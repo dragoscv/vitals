@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { initI18n } from '@vitals/i18n';
@@ -134,6 +134,27 @@ describe('HudApp', () => {
     // from one that does not, and the user has no way to work out why their
     // clicks are landing somewhere else.
     expect(container.firstElementChild?.className).toContain('border-[var(--color-accent)]');
+  });
+
+  it('drops click-through when the backend reports it re-showed the overlay', () => {
+    // Ctrl+Shift+H is the documented way out of click-through. The backend
+    // clears the cursor flag when it shows the window; the toolbar must
+    // follow, or the icon says "clicks pass through" over a window that
+    // receives them.
+    const win = fakeWindow();
+    let fireShown: (() => void) | undefined;
+    const shown = (onShown: () => void): (() => void) => {
+      fireShown = onShown;
+      return () => {};
+    };
+    const { container } = render(<HudApp source={oneFrame(system())} window={win} shown={shown} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Click-through' }));
+    expect(container.firstElementChild?.className).toContain('border-[var(--color-accent)]');
+
+    act(() => fireShown?.());
+
+    expect(container.firstElementChild?.className).not.toContain('border-[var(--color-accent)]');
+    expect(screen.getByRole('button', { name: 'Click-through' })).toBeTruthy();
   });
 
   it('unpins and repins through the window', () => {

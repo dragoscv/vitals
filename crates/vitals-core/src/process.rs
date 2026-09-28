@@ -10,7 +10,7 @@ use crate::units::{Bytes, BytesPerSec, Percent};
     feature = "ts",
     ts(export, export_to = "core/", rename_all = "camelCase")
 )]
-#[serde(rename_all = "kebab-case")]
+#[serde(rename_all = "camelCase")]
 pub enum ProcessKind {
     /// Has a visible top-level window.
     App,
@@ -30,7 +30,7 @@ pub enum ProcessKind {
     feature = "ts",
     ts(export, export_to = "core/", rename_all = "camelCase")
 )]
-#[serde(rename_all = "kebab-case")]
+#[serde(rename_all = "camelCase")]
 pub enum ProcessState {
     Running,
     /// Every thread is suspended — either by us or by the OS (UWP apps).
@@ -52,7 +52,7 @@ pub enum ProcessState {
     feature = "ts",
     ts(export, export_to = "core/", rename_all = "camelCase")
 )]
-#[serde(rename_all = "kebab-case")]
+#[serde(rename_all = "camelCase")]
 pub enum IntegrityLevel {
     Untrusted,
     Low,
@@ -73,7 +73,7 @@ pub enum IntegrityLevel {
     feature = "ts",
     ts(export, export_to = "core/", rename_all = "camelCase")
 )]
-#[serde(rename_all = "kebab-case")]
+#[serde(rename_all = "camelCase")]
 pub enum ProtectionLevel {
     None,
     /// Protected Process Light.
@@ -336,11 +336,12 @@ pub struct ModuleInfo {
     feature = "ts",
     ts(export, export_to = "core/", rename_all = "camelCase")
 )]
-// camelCase on the wire, unlike the older enums' kebab-case: ts_rs only
-// renames the generated TypeScript, so a kebab-case wire value against a
-// camelCase union means `source === 'allIo'` is never true and the tooltip
-// silently falls through to "not yet known". The drift check only guards
-// structs; verified live before this was changed.
+// camelCase on the wire, matching the ts attribute: ts_rs only renames the
+// generated TypeScript, so a kebab-case wire value against a camelCase union
+// means `source === 'allIo'` is never true and the tooltip silently falls
+// through to "not yet known". Every ts-exported enum in this crate now says
+// camelCase for the same reason; `tests/wire_format.rs` sweeps values for
+// kebab-case so the next one cannot ship.
 #[serde(rename_all = "camelCase")]
 pub enum DiskCounterSource {
     /// Bytes that reached a storage driver — what Task Manager's Disk column

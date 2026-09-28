@@ -15,8 +15,8 @@ pub mod taskmgr;
 
 pub use elevated::{ElevatedAction, PROCESS_ACTION_ARG, run_as_admin};
 pub use process::{
-    ActionPlan, Priority, efficiency_mode, plan_suspend, plan_terminate, resume, set_affinity,
-    set_efficiency_mode, set_priority, suspend, terminate,
+    ActionPlan, Consent, Priority, efficiency_mode, plan_suspend, plan_terminate, resume,
+    set_affinity, set_efficiency_mode, set_priority, suspend, terminate,
 };
 pub use safety::{ProcessFacts, Risk, assess_suspension, assess_termination, consequence_key};
 pub use shell::{executable_path, open_file_location, show_file_properties};

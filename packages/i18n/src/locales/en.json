@@ -38,6 +38,16 @@
     "threads": "Threads",
     "handles": "Handles",
     "uptime": "Uptime",
+    "memoryInUse": "Memory in use",
+    "integrity": "Integrity level",
+    "integrityLevel": {
+      "untrusted": "Untrusted",
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High (administrator)",
+      "system": "System",
+      "protected": "Protected"
+    },
     "count_one": "{{count}} process",
     "count_other": "{{count}} processes",
     "state": {

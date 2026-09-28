@@ -494,12 +494,25 @@ const fn reject_reason(reason: vitals_win::apps::RejectReason) -> &'static str {
 /// raw command line — `"C:\App\unins.exe" /uninstall` — with quoting and
 /// arguments that only a shell parses correctly. Splitting it by hand breaks
 /// on the paths most likely to contain spaces.
+///
+/// # Identity, not a command line
+///
+/// The webview sends the entry's `key_name` and registry view; the command
+/// is re-read from the registry here. It used to take the command itself,
+/// which made this the one mutating command that would run any string the
+/// webview handed it.
+///
+/// `raw_arg`, not `args`: `args` applies C-runtime quoting, which turns a
+/// leading `"C:\Program Files\X\unins.exe" /S` into `\"C:\…` — a path `cmd`
+/// cannot run, so every Inno/NSIS uninstaller with a quoted path failed.
+/// `cmd /s /c "<line>"` strips exactly the outer pair and runs the line
+/// as the vendor wrote it.
 #[tauri::command]
 #[cfg(windows)]
 // Tauri deserialises command arguments into owned values; it cannot hand us a
 // borrow.
 #[allow(clippy::needless_pass_by_value)]
-pub fn uninstall_app(command: String) -> CommandResult<()> {
+pub fn uninstall_app(key_name: String, source: String) -> CommandResult<()> {
     use std::os::windows::process::CommandExt;
     use std::process::Command;
 
@@ -507,14 +520,23 @@ pub fn uninstall_app(command: String) -> CommandResult<()> {
     // uninstaller's own UI still appears, which is the point.
     const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
-    if command.trim().is_empty() {
+    let Some(source) = parse_app_source(&source) else {
         return Err(CommandError::NotFound {
-            message: "this application published no uninstall command".into(),
+            message: format!("unknown installation source {source:?}"),
         });
-    }
+    };
+    let command = vitals_win::apps::uninstall_command(&key_name, source)?;
 
-    Command::new("cmd")
-        .args(["/c", &command])
+    // The shell by absolute path: a bare "cmd" is resolved through the
+    // current directory first, which is a planting risk for anything that
+    // spawns processes.
+    let system = std::env::var_os("SystemRoot").unwrap_or_else(|| "C:\\Windows".into());
+    let cmd = std::path::Path::new(&system)
+        .join("System32")
+        .join("cmd.exe");
+
+    Command::new(cmd)
+        .raw_arg(format!("/d /s /c \"{command}\""))
         .creation_flags(CREATE_NO_WINDOW)
         // Spawned, never waited on. An uninstaller is interactive and can sit
         // on a confirmation dialog for minutes; blocking the command here
@@ -525,6 +547,19 @@ pub fn uninstall_app(command: String) -> CommandResult<()> {
         })?;
 
     Ok(())
+}
+
+/// The inverse of [`app_source`]: the wire name back to the registry view.
+#[cfg(windows)]
+fn parse_app_source(value: &str) -> Option<vitals_win::apps::AppSource> {
+    use vitals_win::apps::AppSource as S;
+    Some(match value {
+        "machineNative" => S::MachineNative,
+        "machineWow64" => S::MachineWow64,
+        "userNative" => S::UserNative,
+        "userWow64" => S::UserWow64,
+        _ => return None,
+    })
 }
 
 #[cfg(windows)]

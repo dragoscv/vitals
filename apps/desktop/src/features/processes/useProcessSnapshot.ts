@@ -12,6 +12,7 @@ import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
 
 import type { Process } from '@vitals/protocol';
 
+import { errorMessage } from '@/lib/commandError';
 import { subscribeToMetrics, type Snapshot } from '@/lib/metrics';
 import { hasTauriHost } from '../../shell/host';
 
@@ -64,7 +65,13 @@ export function createTauriSnapshotSource(): SnapshotSource {
   };
 
   let unlisten: (() => void) | null = null;
-  let disposed = false;
+  // A generation, not a boolean. `disposed = true` then `disposed = false`
+  // on a quick stop→start lets the *first* start's subscription — still in
+  // flight during the stop — resolve into a live-looking source, install
+  // itself, and then be overwritten by the second start's `unlisten`. That
+  // first listener then received every frame for the life of the app and
+  // nobody could ever unregister it. Only the latest generation may install.
+  let generation = 0;
   let firstFrameTimer: ReturnType<typeof setTimeout> | null = null;
 
   /** Leaves `pending` for good, with an error instead of rows. */
@@ -74,12 +81,10 @@ export function createTauriSnapshotSource(): SnapshotSource {
   };
 
   const start = (): void => {
-    // Third copy of the same defect fixed in `useSystemSnapshot` and
-    // `useAlerts`: a restart after the last subscriber left (Activity hiding
-    // the route, StrictMode's double mount) inherited `disposed = true` and
-    // tore the new subscription down on arrival. Found live — the Processes
-    // screen reported "no readings" on a machine that was being sampled.
-    disposed = false;
+    // A restart after the last subscriber left (Activity hiding the route,
+    // StrictMode's double mount) gets its own generation; the stop below
+    // bumps it, so nothing from before can mistake itself for current.
+    const mine = ++generation;
     // No host means no IPC: `listen()` reaches into an internals global that
     // is undefined and throws "Cannot read properties of undefined (reading
     // 'transformCallback')" inside a floating promise.
@@ -120,10 +125,17 @@ export function createTauriSnapshotSource(): SnapshotSource {
         // skeletons would otherwise never resolve, hiding the message.
         publish({ ...value, pending: false, error: message });
       },
-    }).then((stop) => {
-      if (disposed) stop();
-      else unlisten = stop;
-    });
+    })
+      .then((stop) => {
+        if (mine === generation) unlisten = stop;
+        else stop();
+      })
+      .catch((error: unknown) => {
+        // `listen()` itself failed — the plugin is missing or the webview
+        // has no IPC. Unhandled, this was a console line and skeletons that
+        // never resolved.
+        if (mine === generation) giveUp(errorMessage(error));
+      });
   };
 
   return {
@@ -134,7 +146,7 @@ export function createTauriSnapshotSource(): SnapshotSource {
       return () => {
         listeners.delete(listener);
         if (listeners.size === 0) {
-          disposed = true;
+          generation += 1;
           if (firstFrameTimer !== null) {
             clearTimeout(firstFrameTimer);
             firstFrameTimer = null;

@@ -63,7 +63,49 @@ describe('createTauriSnapshotSource', () => {
     expect(source.current().error).toBeNull();
   });
 
-  it('gives up when a host exists but never delivers a frame', () => {
+  it('a subscription still in flight across a stop and restart is torn down, not leaked', async () => {
+    // StrictMode: subscribe, unsubscribe, subscribe again — all before the
+    // first `subscribeToMetrics` has resolved. With a boolean `disposed`
+    // the restart reset it to false, so the FIRST subscription installed
+    // itself as live and was then overwritten by the second; that listener
+    // received every frame for the life of the app with no way to stop it.
+    const resolvers: Array<(stop: () => void) => void> = [];
+    subscribeToMetrics.mockImplementation(
+      () =>
+        new Promise<() => void>((resolve) => {
+          resolvers.push(resolve);
+        }),
+    );
+
+    const source = createTauriSnapshotSource();
+    const unsubscribe = source.subscribe(() => undefined);
+    unsubscribe();
+    const unsubscribeAgain = source.subscribe(() => undefined);
+    expect(resolvers).toHaveLength(2);
+
+    const firstStop = vi.fn();
+    const secondStop = vi.fn();
+    resolvers[0]?.(firstStop);
+    resolvers[1]?.(secondStop);
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(firstStop).toHaveBeenCalledTimes(1);
+    expect(secondStop).not.toHaveBeenCalled();
+
+    unsubscribeAgain();
+    expect(secondStop).toHaveBeenCalledTimes(1);
+  });
+
+  it('a failed listen() surfaces as the error instead of skeletons forever', async () => {
+    subscribeToMetrics.mockRejectedValue(new Error('no IPC'));
+    const source = createTauriSnapshotSource();
+    source.subscribe(() => undefined);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(source.current().pending).toBe(false);
+    expect(source.current().error).toBe('no IPC');
+  });
+
+  it('gives up when a host exists but never delivers a frame (timeout)', () => {
     subscribeToMetrics.mockReturnValue(new Promise(() => undefined));
     const source = createTauriSnapshotSource();
     source.subscribe(() => undefined);

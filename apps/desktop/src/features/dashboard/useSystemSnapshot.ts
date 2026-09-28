@@ -17,6 +17,7 @@ import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
 
 import type { Process, SystemMetrics } from '@vitals/protocol';
 
+import { errorMessage } from '@/lib/commandError';
 import { subscribeToMetrics, type Snapshot } from '@/lib/metrics';
 import { hasTauriHost } from '../../shell/host';
 
@@ -76,7 +77,9 @@ export function createTauriSystemSource(onFrame?: (snapshot: Snapshot) => void):
   };
 
   let unlisten: (() => void) | null = null;
-  let disposed = false;
+  // A generation, not a boolean — see `useProcessSnapshot` for the leak a
+  // boolean allowed on a quick stop→start with a subscription in flight.
+  let generation = 0;
   let firstFrameTimer: ReturnType<typeof setTimeout> | null = null;
 
   /**
@@ -94,11 +97,10 @@ export function createTauriSystemSource(onFrame?: (snapshot: Snapshot) => void):
   const start = (): void => {
     // A restart, not a first start. `<Activity>` hides a route by unmounting
     // its effects and remounting them when it becomes visible again, and
-    // StrictMode does the same on purpose in development. Leaving `disposed`
-    // set from the previous stop made the *new* subscription throw itself
-    // away the moment it resolved — frames kept arriving over IPC and the
-    // dashboard sat on "No readings are arriving" for good.
-    disposed = false;
+    // StrictMode does the same on purpose in development. Each start owns a
+    // generation; a stop bumps it, so an earlier start's subscription that
+    // resolves late stops itself instead of installing over this one.
+    const mine = ++generation;
     // Without a host there is no IPC to listen on, and `listen()` dereferences
     // an internals global that does not exist — throwing
     // "Cannot read properties of undefined (reading 'transformCallback')"
@@ -146,10 +148,14 @@ export function createTauriSystemSource(onFrame?: (snapshot: Snapshot) => void):
         // skeletons will never resolve on their own.
         publish({ ...value, pending: false, error: message });
       },
-    }).then((stop) => {
-      if (disposed) stop();
-      else unlisten = stop;
-    });
+    })
+      .then((stop) => {
+        if (mine === generation) unlisten = stop;
+        else stop();
+      })
+      .catch((error: unknown) => {
+        if (mine === generation) giveUp(errorMessage(error));
+      });
   };
 
   return {
@@ -160,7 +166,7 @@ export function createTauriSystemSource(onFrame?: (snapshot: Snapshot) => void):
       return () => {
         listeners.delete(listener);
         if (listeners.size === 0) {
-          disposed = true;
+          generation += 1;
           if (firstFrameTimer !== null) {
             clearTimeout(firstFrameTimer);
             firstFrameTimer = null;

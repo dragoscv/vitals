@@ -102,8 +102,12 @@ export function ProcessDetails({
         <Field label={t('process.status')} value={t(`process.state.${p.state}`)} />
         <Field label={t('process.uptime')} value={formatUptime(p.uptimeSecs)} />
         <Field
-          label={t('metric.unknown')}
-          value={p.integrity === null ? UNKNOWN : p.integrity}
+          label={t('process.integrity')}
+          value={
+            p.integrity === null
+              ? UNKNOWN
+              : t(`process.integrityLevel.${p.integrity}`, { defaultValue: p.integrity })
+          }
           hidden={p.integrity === null}
         />
       </Section>
@@ -117,7 +121,7 @@ export function ProcessDetails({
           label={t('process.column.memory', fallback('process.column.memory'))}
           value={formatBytes(p.memoryPrivate, locale)}
         />
-        <Field label="Working set" value={formatBytes(p.memoryWorkingSet, locale)} />
+        <Field label={t('process.memoryInUse')} value={formatBytes(p.memoryWorkingSet, locale)} />
         <Field
           label={t('process.column.disk', fallback('process.column.disk'))}
           value={formatThroughput(p.diskRead + p.diskWrite, locale)}

@@ -11,7 +11,7 @@
 //! easiest surface in the product to mistake for something it is not, so it
 //! gets the least it can work with.
 
-use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{Emitter as _, Manager, WebviewUrl, WebviewWindowBuilder};
 
 use crate::commands::CommandError;
 
@@ -28,6 +28,11 @@ pub const LABEL: &str = "hud";
 const WIDTH: f64 = 220.0;
 const HEIGHT: f64 = 96.0;
 
+/// Emitted to the overlay after it has been shown by the shortcut or the
+/// settings switch, so its toolbar state matches the window's real state.
+/// The frontend listens in `hud/lib/live.ts`.
+pub const SHOWN_EVENT: &str = "vitals://hud-shown";
+
 // Click-through is deliberately NOT a command here. The overlay toggles its
 // own cursor pass-through through `core:window:allow-set-ignore-cursor-events`,
 // which its capability already grants, and a command would be a second way to
@@ -40,6 +45,26 @@ fn os_error(context: &str, error: &tauri::Error) -> CommandError {
         context: format!("{context}: {error}"),
         code: 0,
     })
+}
+
+/// Shows the overlay and makes it clickable again.
+///
+/// Click-through is the one HUD state a user cannot undo from the HUD: a
+/// window that ignores the cursor cannot receive the click that would turn
+/// that off. The hint beside the toggle says "Press Ctrl+Shift+H to bring
+/// it back", and before this the shortcut only hid and re-showed a window
+/// that was still ignoring the cursor — the only way out was quitting.
+/// Every show path therefore restores cursor events. Hiding leaves the
+/// flag alone; there is nothing to click while hidden.
+fn show_clickable(window: &tauri::WebviewWindow) -> CommandResult<()> {
+    window
+        .set_ignore_cursor_events(false)
+        .map_err(|e| os_error("restore overlay clicks", &e))?;
+    window.show().map_err(|e| os_error("show overlay", &e))?;
+    // Best effort: the toolbar re-renders its toggle; a lost event leaves a
+    // stale icon, not a stuck window.
+    let _ = window.emit_to(LABEL, SHOWN_EVENT, ());
+    Ok(())
 }
 
 /// Shows the overlay if it is hidden, hides it if it is visible.
@@ -57,7 +82,7 @@ pub fn toggle_hud(app: tauri::AppHandle) -> CommandResult<bool> {
         if visible {
             window.hide().map_err(|e| os_error("hide overlay", &e))?;
         } else {
-            window.show().map_err(|e| os_error("show overlay", &e))?;
+            show_clickable(&window)?;
         }
         return Ok(!visible);
     }
@@ -77,7 +102,7 @@ pub fn toggle_hud(app: tauri::AppHandle) -> CommandResult<bool> {
 pub fn set_hud_visible(app: tauri::AppHandle, visible: bool) -> CommandResult<bool> {
     if let Some(window) = app.get_webview_window(LABEL) {
         if visible {
-            window.show().map_err(|e| os_error("show overlay", &e))?;
+            show_clickable(&window)?;
         } else {
             window.hide().map_err(|e| os_error("hide overlay", &e))?;
         }

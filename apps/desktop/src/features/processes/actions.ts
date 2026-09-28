@@ -59,8 +59,12 @@ export type ProcessPriority = (typeof priorities)[number];
 export interface ProcessActionsApi {
   planTerminate(process: Process): Promise<ActionPlan>;
   planSuspend(process: Process): Promise<ActionPlan>;
-  terminate(process: Process): Promise<void>;
-  suspend(process: Process): Promise<void>;
+  /**
+   * `confirmed`: the user clicked through the risk dialog for this process.
+   * The backend refuses a process it finds critical without it.
+   */
+  terminate(process: Process, confirmed?: boolean): Promise<void>;
+  suspend(process: Process, confirmed?: boolean): Promise<void>;
   resume(process: Process): Promise<void>;
   setPriority(process: Process, priority: ProcessPriority): Promise<void>;
   /**
@@ -105,7 +109,7 @@ export interface ProcessActionsApi {
    * account's. Rejects with `refused` when the prompt is dismissed, which
    * the screen treats as the user's answer rather than a failure.
    */
-  runAsAdmin(action: ElevatedAction, process: Process): Promise<void>;
+  runAsAdmin(action: ElevatedAction, process: Process, confirmed?: boolean): Promise<void>;
 }
 
 /** What can be retried as administrator. Mirrors `ElevatedActionDto`. */
@@ -139,16 +143,18 @@ export const tauriProcessActions: ProcessActionsApi = {
   // The start time travels with every mutation. Between the frame that listed
   // this process and this call it can exit and Windows can hand its PID to
   // something else; acting on the PID alone would kill the newcomer.
-  terminate: (process) =>
+  terminate: (process, confirmed = false) =>
     invoke<void>('terminate_process', {
       pid: process.key.pid,
       startTime: process.key.startTime,
+      confirmed,
     }),
 
-  suspend: (process) =>
+  suspend: (process, confirmed = false) =>
     invoke<void>('suspend_process', {
       pid: process.key.pid,
       startTime: process.key.startTime,
+      confirmed,
     }),
 
   resume: (process) =>
@@ -217,11 +223,12 @@ export const tauriProcessActions: ProcessActionsApi = {
 
   showFileProperties: (path) => invoke<void>('show_file_properties', { path }),
 
-  runAsAdmin: (action, process) =>
+  runAsAdmin: (action, process, confirmed = false) =>
     invoke<void>('process_action_as_admin', {
       action,
       pid: process.key.pid,
       startTime: process.key.startTime,
+      confirmed,
     }),
 };
 

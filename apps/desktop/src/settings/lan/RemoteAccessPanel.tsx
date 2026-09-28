@@ -61,12 +61,10 @@ export function RemoteAccessPanel({ api }: RemoteAccessPanelProps = {}) {
           }
         </SettingsRow>
 
-        {running && (
+        {running && lan.status?.port != null && (
           <SettingsRow label={t('settings.remote.status')}>
             {() => (
-              <Badge tone="ok">
-                {t('settings.remote.listening', { port: lan.status?.port ?? 0 })}
-              </Badge>
+              <Badge tone="ok">{t('settings.remote.listening', { port: lan.status?.port })}</Badge>
             )}
           </SettingsRow>
         )}

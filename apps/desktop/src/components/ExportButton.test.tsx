@@ -7,6 +7,9 @@ import { ExportButton } from './ExportButton';
 import { bundles } from './exportStrings';
 import type { ExportColumn } from '../lib/export';
 
+const toastError = vi.hoisted(() => vi.fn());
+vi.mock('@vitals/ui/toast', () => ({ toast: { error: toastError } }));
+
 beforeAll(async () => {
   await initI18n();
 });
@@ -60,6 +63,30 @@ describe('ExportButton', () => {
     expect(filename).toMatch(/^vitals-probe-.*\.csv$/);
     expect(kind).toBe('csv');
     expect(contents).toBe('\uFEFFName,CPU\r\nchrome.exe,0.0723\r\n');
+  });
+
+  it('tells the user when the save fails instead of closing the menu silently', async () => {
+    const save = vi.fn(() => {
+      throw new Error('disk full');
+    });
+    render(
+      <ExportButton
+        name="probe"
+        rows={[{ name: 'chrome.exe', cpu: 0.0723 }]}
+        columns={columns}
+        save={save}
+      />,
+    );
+
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'Export' }));
+    fireEvent.click(await screen.findByRole('menuitem', { name: /CSV/ }));
+
+    await waitFor(() => {
+      expect(toastError).toHaveBeenCalledWith(
+        'Export',
+        expect.objectContaining({ description: 'disk full' }),
+      );
+    });
   });
 
   it('writes JSON keyed by column id when JSON is chosen', async () => {

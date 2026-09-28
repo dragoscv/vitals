@@ -99,9 +99,14 @@ impl WindowsHost {
             };
         }
 
-        // Privileged mutation: the helper does it, or elevation allows it
-        // directly.
-        let privileged = self.helper_available || self.elevated;
+        // Privileged mutation. None of these has code behind it yet — there
+        // is no `close_connection`, `block_program` or power-plan writer in
+        // this crate and no command exposes one — so they are NotImplemented
+        // whatever the privilege. The earlier form advertised all six as
+        // available the moment the app ran elevated, which is the same
+        // defect the "always available" list above records: a capability
+        // must track what the UI can actually reach. When one is written it
+        // becomes `helper_available || elevated` gated, in that commit.
         for cap in [
             Capability::ManagePowerPlans,
             Capability::ManageServices,
@@ -110,11 +115,7 @@ impl WindowsHost {
             Capability::CloseConnection,
             Capability::DiskCleanup,
         ] {
-            caps = if privileged {
-                caps.with(cap)
-            } else {
-                caps.without(cap, Unavailable::NeedsElevation)
-            };
+            caps = caps.without(cap, Unavailable::NotImplemented);
         }
 
         // Deep sensors come from the optional sidecar; without it we fall
@@ -219,7 +220,29 @@ mod tests {
         .capabilities();
         assert!(caps.has(Capability::PerProcessDiskIo));
         assert!(caps.has(Capability::ShortLivedProcesses));
-        assert!(caps.has(Capability::FirewallControl));
+    }
+
+    #[test]
+    fn unimplemented_privileged_actions_are_not_advertised_just_because_the_app_is_elevated() {
+        // The UI offers what this set says. With nothing behind these, an
+        // elevated session was offered six buttons that could only fail.
+        let caps = WindowsHost {
+            elevated: true,
+            helper_available: true,
+            ..WindowsHost::new()
+        }
+        .capabilities();
+        for cap in [
+            Capability::FirewallControl,
+            Capability::CloseConnection,
+            Capability::ManagePowerPlans,
+            Capability::ManageServices,
+            Capability::ManageScheduledTasks,
+            Capability::DiskCleanup,
+        ] {
+            assert!(!caps.has(cap), "{cap:?} advertised with no implementation");
+            assert_eq!(caps.reason(cap), Some(Unavailable::NotImplemented));
+        }
     }
 
     #[test]
@@ -268,16 +291,19 @@ mod tests {
     }
 
     #[test]
-    fn elevation_alone_unlocks_mutation_but_not_etw() {
-        // Elevation lets us change firewall rules directly, but the ETW
-        // consumer lives in the helper, so tracing stays unavailable.
+    fn elevation_alone_does_not_unlock_etw() {
+        // The ETW consumer lives in the helper, so tracing stays unavailable
+        // however privileged the app itself is.
         let caps = WindowsHost {
             elevated: true,
             ..WindowsHost::new()
         }
         .capabilities();
-        assert!(caps.has(Capability::FirewallControl));
         assert!(!caps.has(Capability::PerProcessDiskIo));
+        assert_eq!(
+            caps.reason(Capability::PerProcessDiskIo),
+            Some(Unavailable::NeedsHelper)
+        );
     }
 
     #[test]

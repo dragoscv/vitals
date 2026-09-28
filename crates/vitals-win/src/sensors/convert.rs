@@ -138,7 +138,14 @@ pub fn health_percent(full_charge_mwh: u32, design_mwh: u32) -> Option<Percent> 
 /// `rate_mw` keeps the miniport's sign convention: negative is discharge.
 #[must_use]
 pub fn seconds_remaining(remaining_mwh: u32, rate_mw: i32) -> Option<u32> {
-    if rate_mw >= 0 {
+    /// `BATTERY_UNKNOWN_RATE`. Negative, so the `>= 0` guard below let it
+    /// through as a 2.1 GW drain and produced "0 s to empty" on a gauge that
+    /// simply had not reported a rate yet.
+    const UNKNOWN_RATE: i32 = i32::MIN;
+    /// `BATTERY_UNKNOWN_CAPACITY`
+    const UNKNOWN_CAPACITY: u32 = u32::MAX;
+
+    if rate_mw >= 0 || rate_mw == UNKNOWN_RATE || remaining_mwh == UNKNOWN_CAPACITY {
         return None;
     }
 
@@ -155,6 +162,13 @@ pub fn seconds_remaining(remaining_mwh: u32, rate_mw: i32) -> Option<u32> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn an_unknown_rate_or_capacity_gives_no_time_to_empty_rather_than_a_tiny_one() {
+        assert_eq!(seconds_remaining(40_000, i32::MIN), None);
+        assert_eq!(seconds_remaining(u32::MAX, -10_000), None);
+        assert_eq!(seconds_remaining(40_000, -10_000), Some(4 * 3600));
+    }
 
     #[test]
     fn acpi_tenths_of_a_kelvin_convert_exactly() {

@@ -11,14 +11,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { hasTauriHost } from '../../shell/host';
-import type { AppsSnapshot } from './model';
+import type { AppsSnapshot, InstalledApp } from './model';
 import { errorMessage } from '../../lib/commandError';
 
 /** Reported when there is no Tauri host, so the screen can explain itself. */
 export const NO_HOST = 'no-host';
 
 export type AppsReader = () => Promise<AppsSnapshot>;
-export type Uninstaller = (command: string) => Promise<void>;
+/**
+ * Launches an entry's own uninstaller. Takes the entry, not its command
+ * line: the backend re-reads `UninstallString` from the registry, so the
+ * webview cannot ask it to run anything else.
+ */
+export type Uninstaller = (app: Pick<InstalledApp, 'keyName' | 'source'>) => Promise<void>;
 
 /** The real reader. Dynamic import so a browser never evaluates the IPC module. */
 export async function readApps(): Promise<AppsSnapshot> {
@@ -26,9 +31,9 @@ export async function readApps(): Promise<AppsSnapshot> {
   return invoke<AppsSnapshot>('get_installed_apps');
 }
 
-export async function runUninstaller(command: string): Promise<void> {
+export async function runUninstaller(app: Pick<InstalledApp, 'keyName' | 'source'>): Promise<void> {
   const { invoke } = await import('@tauri-apps/api/core');
-  return invoke<void>('uninstall_app', { command });
+  return invoke<void>('uninstall_app', { keyName: app.keyName, source: app.source });
 }
 
 export interface AppsState {

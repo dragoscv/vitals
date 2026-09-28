@@ -251,6 +251,11 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 #[allow(clippy::needless_pass_by_value)]
 fn on_run_event(app: &tauri::AppHandle, event: tauri::RunEvent) {
     if matches!(event, tauri::RunEvent::Exit) {
+        // First, so the sampler's final history flush runs while the store
+        // and the state it reads are still alive.
+        if let Some(sampler) = app.try_state::<sampling::SamplerHandle>() {
+            sampler.stop_and_wait(std::time::Duration::from_secs(2));
+        }
         server::stop_local_api(app);
         ipc::stop(app);
     }

@@ -43,8 +43,13 @@ pub struct Contributor {
     pub pid: u32,
     /// Share of the subsystem's total, 0-100. Rounded for display.
     pub share: f32,
-    /// The raw reading behind the share, for the tooltip: percent for CPU,
-    /// bytes for memory, bytes per second for disk.
+    /// The raw reading behind the share, for the tooltip: **hundredths of a
+    /// percent** for CPU and GPU (an integer, so 55.6 % is `5560` — the
+    /// scoring needs integers to sum without float drift), bytes for memory,
+    /// bytes per second for disk.
+    ///
+    /// The unit used to be documented as "percent", and the report printed
+    /// "5,560.0 %" for a process at 55.6 %.
     #[cfg_attr(feature = "ts", ts(type = "number"))]
     pub value: u64,
 }
@@ -252,6 +257,19 @@ mod tests {
     use crate::fixtures;
     use crate::units::{Bytes, BytesPerSec, Percent};
     use std::collections::HashMap;
+
+    #[test]
+    fn a_cpu_contributor_value_is_hundredths_of_a_percent() {
+        // The report divides by 100 (report.ts). Change the unit here and
+        // the report reads 100x off again, as it did: "5,560.0 %".
+        let system = fixtures::system();
+        let processes = vec![
+            fixtures::process("busy.exe", 10, 55.6),
+            fixtures::process("idle.exe", 11, 10.0),
+        ];
+        let top = top_contributors(Subsystem::Cpu, &system, &processes);
+        assert_eq!(top.first().map(|c| c.value), Some(5560));
+    }
 
     fn alert(kind: AlertKind, severity: Severity, since: u64) -> Alert {
         Alert {

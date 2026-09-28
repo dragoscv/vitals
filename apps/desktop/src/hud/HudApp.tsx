@@ -1,12 +1,12 @@
 import { Pin, PinOff, MousePointer2, MousePointerBan, X } from 'lucide-react';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { gpuPercent, memoryPercent } from '@vitals/protocol';
 import { cn } from '@vitals/ui';
 
 import { HudRow } from './components/HudRow';
-import { useHudState, type FrameSource } from './lib/live';
+import { tauriShown, useHudState, type FrameSource, type ShownSource } from './lib/live';
 import { hudWindow, type HudWindow } from './lib/window';
 
 export interface HudAppProps {
@@ -14,6 +14,8 @@ export interface HudAppProps {
   readonly source?: FrameSource;
   /** Injected by tests; defaults to this Tauri window. */
   readonly window?: HudWindow;
+  /** Injected by tests; defaults to the backend's `vitals://hud-shown` event. */
+  readonly shown?: ShownSource;
   readonly locale?: string;
 }
 
@@ -24,11 +26,22 @@ export interface HudAppProps {
  * user screen space they did not choose to give up, so anything that can be
  * read in the main window belongs there instead.
  */
-export function HudApp({ source, window: win = hudWindow, locale = 'en' }: HudAppProps = {}) {
+export function HudApp({
+  source,
+  window: win = hudWindow,
+  shown = tauriShown,
+  locale = 'en',
+}: HudAppProps = {}) {
   const { t } = useTranslation();
   const state = useHudState(source);
   const [pinned, setPinned] = useState(true);
   const [clickThrough, setClickThrough] = useState(false);
+
+  // The backend clears cursor pass-through whenever it shows the overlay
+  // (Ctrl+Shift+H, the settings switch): a click-through window cannot be
+  // clicked out of click-through. Mirror that here or the toggle shows the
+  // wrong icon after the shortcut rescued the window.
+  useEffect(() => shown(() => setClickThrough(false)), [shown]);
 
   const system = state.system;
   const cpu = system?.cpu ?? null;

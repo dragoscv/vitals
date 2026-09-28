@@ -191,6 +191,52 @@ fn the_client_count_is_zero_before_and_after_a_connection_so_the_host_can_skip_w
 }
 
 #[test]
+fn a_client_attaching_after_the_last_one_left_is_not_served_the_view_frozen_at_that_detach() {
+    let name = unique_name();
+    let server = Arc::new(AttachServer::start(&name, "t".into()).expect("bind"));
+
+    // First client: the host publishes while it is attached, then it leaves.
+    {
+        let (client, _) = AttachClient::connect(&name).expect("connect");
+        publish_when_attached(
+            &server,
+            fixtures::keyframe(1, vec![fixtures::process("stale.exe", 5, 1.0)]),
+        );
+        let frame = client.snapshot().expect("snapshot");
+        assert_eq!(process_names(&frame), vec!["stale.exe"]);
+    }
+    let deadline = Instant::now() + Duration::from_secs(2);
+    while server.has_clients() && Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    assert!(!server.has_clients());
+
+    // Nobody attached: the host skips publishing, so stale.exe has long
+    // exited by the time a second client appears. The server must ask for a
+    // fresh keyframe rather than hand over the view it froze at the detach.
+    let feeder = Arc::clone(&server);
+    let feed = std::thread::spawn(move || {
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while !feeder.wants_keyframe() {
+            assert!(
+                Instant::now() < deadline,
+                "server never asked for a keyframe"
+            );
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        feeder.publish(&Arc::new(fixtures::keyframe(
+            2,
+            vec![fixtures::process("fresh.exe", 6, 1.0)],
+        )));
+    });
+    let (client, _) = AttachClient::connect(&name).expect("connect");
+    let frame = client.snapshot().expect("snapshot");
+    feed.join().unwrap();
+    assert_eq!(frame.seq, FrameSeq(2));
+    assert_eq!(process_names(&frame), vec!["fresh.exe"]);
+}
+
+#[test]
 fn a_garbage_request_gets_an_error_reply_and_the_connection_is_closed_not_the_server() {
     use std::io::{BufRead, BufReader, Write};
 

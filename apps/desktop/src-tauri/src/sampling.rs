@@ -27,6 +27,9 @@ pub const ERROR_EVENT: &str = "vitals://sampler-error";
 #[derive(Debug)]
 pub struct SamplerHandle {
     stop: Arc<AtomicBool>,
+    /// Taken by [`Self::stop_and_wait`]. A `Mutex` because the handle lives
+    /// in Tauri's managed state, which hands out `&self` only.
+    thread: parking_lot::Mutex<Option<thread::JoinHandle<()>>>,
 }
 
 impl SamplerHandle {
@@ -36,6 +39,32 @@ impl SamplerHandle {
     /// leak the kernel buffer it was filling.
     pub fn stop(&self) {
         self.stop.store(true, Ordering::Relaxed);
+    }
+
+    /// Stops the sampler and waits for its final flush, up to `limit`.
+    ///
+    /// Called on app exit. Tauri never drops managed state, so the `Drop`
+    /// below never ran and the loop's closing `save_history` / `rec.flush()`
+    /// was dead code: every Quit lost up to a minute of app history. The
+    /// wait is bounded — a sampler stuck in a syscall must not turn Quit
+    /// into a hang — and the loop polls `stop` every 50 ms, so it exits
+    /// well inside the limit in practice.
+    pub fn stop_and_wait(&self, limit: Duration) {
+        self.stop();
+        let Some(handle) = self.thread.lock().take() else {
+            return;
+        };
+        let deadline = Instant::now() + limit;
+        while !handle.is_finished() && Instant::now() < deadline {
+            thread::sleep(Duration::from_millis(10));
+        }
+        if handle.is_finished() {
+            let _ = handle.join();
+        } else {
+            tracing::warn!(
+                "sampler did not stop within {limit:?}; exiting without its final flush"
+            );
+        }
     }
 }
 
@@ -56,7 +85,7 @@ pub fn spawn(app: AppHandle) -> SamplerHandle {
     // Startup, not the hot path: if the OS refuses a thread, aborting with a
     // message is the right outcome — there is nothing to show without it.
     #[allow(clippy::expect_used)]
-    thread::Builder::new()
+    let thread = thread::Builder::new()
         .name("vitals-sampler".into())
         // 512 KiB: the default 2 MiB is wasteful for a thread whose deepest
         // allocation is a process buffer that lives on the heap anyway.
@@ -64,7 +93,10 @@ pub fn spawn(app: AppHandle) -> SamplerHandle {
         .spawn(move || run(&app, &thread_stop))
         .expect("the sampler thread must start; the app is useless without it");
 
-    SamplerHandle { stop }
+    SamplerHandle {
+        stop,
+        thread: parking_lot::Mutex::new(Some(thread)),
+    }
 }
 
 /// The sampling loop.
@@ -83,14 +115,21 @@ fn run(app: &AppHandle, stop: &AtomicBool) {
     // connection lives on the one thread that writes it. A failure to open
     // (read-only profile, corrupt file) disables recording and says so once;
     // it must never stop sampling.
+    let mut applied = crate::state::RecordingSettings::default();
     let mut recorder = match vitals_store::Recorder::open(&crate::state::store_path()) {
-        Ok(r) => Some(r),
+        Ok(mut r) => {
+            // `reconcile_recorder` only pushes a *change*, and `applied`
+            // starts equal to the defaults — so the default "keep 7 days"
+            // was never applied and the store kept its built-in 30 days of
+            // 5-minute and a year of hourly rows. Pushed once here instead.
+            r.set_retention_days(applied.retention_days);
+            Some(r)
+        }
         Err(error) => {
             tracing::warn!(%error, "history store unavailable; recording disabled");
             None
         }
     };
-    let mut applied = crate::state::RecordingSettings::default();
 
     // Backoff so a persistent failure does not spam the UI with a toast per
     // tick. Resets on the first success.
@@ -496,11 +535,49 @@ mod tests {
         {
             let _handle = SamplerHandle {
                 stop: Arc::clone(&stop),
+                thread: parking_lot::Mutex::new(None),
             };
         }
         assert!(
             stop.load(Ordering::Relaxed),
             "dropping the handle should signal stop"
         );
+    }
+
+    #[test]
+    fn stop_and_wait_returns_only_after_the_thread_has_run_its_final_work() {
+        // Quit must wait for the sampler's closing flush, not race it.
+        let stop = Arc::new(AtomicBool::new(false));
+        let flushed = Arc::new(AtomicBool::new(false));
+        let (thread_stop, thread_flushed) = (Arc::clone(&stop), Arc::clone(&flushed));
+        let thread = thread::spawn(move || {
+            while !thread_stop.load(Ordering::Relaxed) {
+                thread::sleep(Duration::from_millis(1));
+            }
+            thread::sleep(Duration::from_millis(30));
+            thread_flushed.store(true, Ordering::Relaxed);
+        });
+        let handle = SamplerHandle {
+            stop,
+            thread: parking_lot::Mutex::new(Some(thread)),
+        };
+        handle.stop_and_wait(Duration::from_secs(2));
+        assert!(
+            flushed.load(Ordering::Relaxed),
+            "returned before the final work ran"
+        );
+    }
+
+    #[test]
+    fn stop_and_wait_gives_up_at_the_limit_rather_than_hanging_quit() {
+        let stop = Arc::new(AtomicBool::new(false));
+        let thread = thread::spawn(|| thread::sleep(Duration::from_secs(3)));
+        let handle = SamplerHandle {
+            stop,
+            thread: parking_lot::Mutex::new(Some(thread)),
+        };
+        let started = Instant::now();
+        handle.stop_and_wait(Duration::from_millis(50));
+        assert!(started.elapsed() < Duration::from_secs(1));
     }
 }

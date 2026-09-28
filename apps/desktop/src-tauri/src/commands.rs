@@ -340,23 +340,36 @@ pub fn plan_suspend_process(pid: u32, name: Option<String>, protected: bool) -> 
 /// Takes the start time as well as the PID: between the frame that listed
 /// the process and this call, it can exit and its PID be reused. Acting on
 /// the PID alone would kill whichever process inherited the number.
+///
+/// `confirmed` is true only when the user confirmed the risk dialog for
+/// this process. The backend re-assesses the live process and refuses a
+/// critical one without it; the flag cannot make a protected one possible.
 #[tauri::command]
 #[cfg(windows)]
-pub fn terminate_process(pid: u32, start_time: u64) -> CommandResult<()> {
+pub fn terminate_process(pid: u32, start_time: u64, confirmed: Option<bool>) -> CommandResult<()> {
     use vitals_core::ids::Pid;
 
-    vitals_win::actions::terminate(ProcessKey::new(Pid(pid), start_time), 1)?;
+    vitals_win::actions::terminate(ProcessKey::new(Pid(pid), start_time), 1, consent(confirmed))?;
     Ok(())
 }
 
 /// Suspends every thread in a process.
 #[tauri::command]
 #[cfg(windows)]
-pub fn suspend_process(pid: u32, start_time: u64) -> CommandResult<()> {
+pub fn suspend_process(pid: u32, start_time: u64, confirmed: Option<bool>) -> CommandResult<()> {
     use vitals_core::ids::Pid;
 
-    vitals_win::actions::suspend(ProcessKey::new(Pid(pid), start_time))?;
+    vitals_win::actions::suspend(ProcessKey::new(Pid(pid), start_time), consent(confirmed))?;
     Ok(())
+}
+
+#[cfg(windows)]
+fn consent(confirmed: Option<bool>) -> vitals_win::actions::Consent {
+    if confirmed == Some(true) {
+        vitals_win::actions::Consent::Confirmed
+    } else {
+        vitals_win::actions::Consent::Unconfirmed
+    }
 }
 
 /// Resumes a suspended process.
@@ -396,6 +409,7 @@ pub async fn process_action_as_admin(
     action: ElevatedActionDto,
     pid: u32,
     start_time: u64,
+    confirmed: Option<bool>,
 ) -> CommandResult<()> {
     use vitals_core::ids::Pid;
     use vitals_win::actions::ElevatedAction;
@@ -406,12 +420,15 @@ pub async fn process_action_as_admin(
         ElevatedActionDto::Resume => ElevatedAction::Resume,
     };
     let key = ProcessKey::new(Pid(pid), start_time);
+    let consent = consent(confirmed);
 
-    tauri::async_runtime::spawn_blocking(move || vitals_win::actions::run_as_admin(action, key))
-        .await
-        .map_err(|err| CommandError::Internal {
-            message: format!("the elevated action was abandoned: {err}"),
-        })??;
+    tauri::async_runtime::spawn_blocking(move || {
+        vitals_win::actions::run_as_admin(action, key, consent)
+    })
+    .await
+    .map_err(|err| CommandError::Internal {
+        message: format!("the elevated action was abandoned: {err}"),
+    })??;
     Ok(())
 }
 
@@ -766,8 +783,9 @@ pub fn process_action_as_admin(
     action: ElevatedActionDto,
     pid: u32,
     start_time: u64,
+    confirmed: Option<bool>,
 ) -> CommandResult<()> {
-    let _ = (action, pid, start_time);
+    let _ = (action, pid, start_time, confirmed);
     Err(unsupported("retrying as administrator"))
 }
 

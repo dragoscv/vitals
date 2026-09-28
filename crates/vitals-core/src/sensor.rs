@@ -14,7 +14,7 @@ use crate::units::{Celsius, Hertz, Percent, Volts, Watts};
     feature = "ts",
     ts(export, export_to = "core/", rename_all = "camelCase")
 )]
-#[serde(rename_all = "kebab-case")]
+#[serde(rename_all = "camelCase")]
 pub enum SensorKind {
     Temperature,
     Fan,
@@ -36,7 +36,7 @@ pub enum SensorKind {
     feature = "ts",
     ts(export, export_to = "core/", rename_all = "camelCase")
 )]
-#[serde(tag = "unit", content = "value", rename_all = "kebab-case")]
+#[serde(tag = "unit", content = "value", rename_all = "camelCase")]
 pub enum SensorReading {
     Celsius(Celsius),
     Rpm(u32),
@@ -76,7 +76,7 @@ impl SensorReading {
     feature = "ts",
     ts(export, export_to = "core/", rename_all = "camelCase")
 )]
-#[serde(rename_all = "kebab-case")]
+#[serde(rename_all = "camelCase")]
 pub enum SensorSource {
     /// OS-provided (WMI, `MSAcpi`, sysfs, `IOKit`).
     OperatingSystem,

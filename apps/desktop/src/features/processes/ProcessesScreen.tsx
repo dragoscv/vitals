@@ -283,54 +283,66 @@ export function ProcessesScreen({
     [focusedId, rowIndex, rows],
   );
 
-  const runPending = useCallback(async () => {
-    const pending = pendingRef.current;
-    if (pending === null) return;
-    setBusy(true);
-    let keepOpen = false;
-    try {
-      // Children first: ending a parent can orphan a child that then
-      // re-parents to the session manager and survives the tree kill.
-      const ordered = [...pending.ids].reverse();
-      for (const id of ordered) {
-        const row = rowsById.current.get(id);
-        if (row === undefined) continue;
-        if (pending.action === 'suspend') await actions.suspend(row.process);
-        else await actions.terminate(row.process);
+  /**
+   * Performs the pending action.
+   *
+   * `confirmed` is true only when the user clicked through the risk dialog.
+   * The backend re-assesses the live process and refuses a critical one
+   * without it — so a process the plan thought safe but the kernel marks
+   * critical is stopped with an explanation instead of bugchecking the
+   * machine because the dialog was skipped.
+   */
+  const runPending = useCallback(
+    async (confirmed = false) => {
+      const pending = pendingRef.current;
+      if (pending === null) return;
+      setBusy(true);
+      let keepOpen = false;
+      try {
+        // Children first: ending a parent can orphan a child that then
+        // re-parents to the session manager and survives the tree kill.
+        const ordered = [...pending.ids].reverse();
+        for (const id of ordered) {
+          const row = rowsById.current.get(id);
+          if (row === undefined) continue;
+          if (pending.action === 'suspend') await actions.suspend(row.process, confirmed);
+          else await actions.terminate(row.process, confirmed);
+        }
+      } catch (error) {
+        // A denial on a single process is the one failure with a next step:
+        // reopen the dialog, marked as denied, so "Retry as administrator" is
+        // one click away instead of a dead-end error line. Trees stay a plain
+        // failure — one prompt per descendant is not an offer worth making.
+        const row = rowsById.current.get(pending.ids[0] ?? '');
+        if (
+          isCommandError(error) &&
+          error.kind === 'access-denied' &&
+          pending.ids.length === 1 &&
+          row !== undefined &&
+          pending.plan !== null &&
+          pending.plan.elevationMightHelp
+        ) {
+          keepOpen = true;
+          setRequest({
+            action: pending.action,
+            plan: pending.plan,
+            processName: row.process.name,
+            childCount: 0,
+            denied: true,
+          });
+        } else {
+          setFailure(errorMessage(error));
+        }
+      } finally {
+        setBusy(false);
+        if (!keepOpen) {
+          setRequest(null);
+          pendingRef.current = null;
+        }
       }
-    } catch (error) {
-      // A denial on a single process is the one failure with a next step:
-      // reopen the dialog, marked as denied, so "Retry as administrator" is
-      // one click away instead of a dead-end error line. Trees stay a plain
-      // failure — one prompt per descendant is not an offer worth making.
-      const row = rowsById.current.get(pending.ids[0] ?? '');
-      if (
-        isCommandError(error) &&
-        error.kind === 'access-denied' &&
-        pending.ids.length === 1 &&
-        row !== undefined &&
-        pending.plan !== null &&
-        pending.plan.elevationMightHelp
-      ) {
-        keepOpen = true;
-        setRequest({
-          action: pending.action,
-          plan: pending.plan,
-          processName: row.process.name,
-          childCount: 0,
-          denied: true,
-        });
-      } else {
-        setFailure(errorMessage(error));
-      }
-    } finally {
-      setBusy(false);
-      if (!keepOpen) {
-        setRequest(null);
-        pendingRef.current = null;
-      }
-    }
-  }, [actions]);
+    },
+    [actions],
+  );
 
   /**
    * Performs the pending action as administrator.
@@ -346,7 +358,9 @@ export function ProcessesScreen({
     const action: ElevatedAction = pending.action === 'suspend' ? 'suspend' : 'terminate';
     setBusy(true);
     try {
-      await actions.runAsAdmin(action, row.process);
+      // Only reachable from the risk dialog, which shows this process's risk
+      // badge and consequence: clicking Retry there is the confirmation.
+      await actions.runAsAdmin(action, row.process, true);
     } catch (error) {
       if (isCommandError(error) && error.kind === 'refused') {
         setFailure(tp('elevation.declined'));
@@ -692,7 +706,7 @@ export function ProcessesScreen({
           pendingRef.current = null;
         }}
         onConfirm={() => {
-          void runPending();
+          void runPending(true);
         }}
         onElevate={() => {
           void runElevated();

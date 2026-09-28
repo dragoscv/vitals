@@ -45,7 +45,9 @@ fn a_process() -> Process {
         parent: None,
         name: "test.exe".into(),
         kind: ProcessKind::App,
-        state: ProcessState::Running,
+        // Multi-word on purpose: `running` spells the same in every casing,
+        // so it cannot catch a kebab-case enum. This one can.
+        state: ProcessState::NotResponding,
         flags: ProcessFlags::empty(),
         integrity: None,
         protection: ProtectionLevel::None,
@@ -115,6 +117,40 @@ fn snake_case_keys(value: &serde_json::Value, path: &str, found: &mut Vec<String
     }
 }
 
+/// Collects every string value that looks like a kebab-case enum variant.
+///
+/// The key sweep above passed for months while fourteen enums shipped
+/// `rename_all = "kebab-case"` beside a `ts_rs` export that says `camelCase`:
+/// `"not-responding"` on the wire, `"notResponding"` in the union. Every
+/// `t('state.' + row.state)` lookup and `=== 'powerLimit'` comparison
+/// downstream silently missed for exactly the multi-word variants. Keys
+/// and values drift independently, so both need a sweep.
+fn kebab_case_values(value: &serde_json::Value, path: &str, found: &mut Vec<String>) {
+    match value {
+        serde_json::Value::Object(map) => {
+            for (key, child) in map {
+                kebab_case_values(child, &format!("{path}.{key}"), found);
+            }
+        }
+        serde_json::Value::Array(items) => {
+            if let Some(first) = items.first() {
+                kebab_case_values(first, &format!("{path}[0]"), found);
+            }
+        }
+        serde_json::Value::String(text) => {
+            // An enum variant is short, lowercase ASCII with an inner dash;
+            // free text (names, paths, versions) is excluded by the charset.
+            let looks_like_variant = text.len() < 24
+                && text.contains('-')
+                && text.chars().all(|c| c.is_ascii_lowercase() || c == '-');
+            if looks_like_variant {
+                found.push(format!("{path} = {text:?}"));
+            }
+        }
+        _ => {}
+    }
+}
+
 /// Asserts a value serialises with no `snake_case` keys anywhere.
 fn assert_camel_case<T: serde::Serialize>(label: &str, value: &T) {
     let json = serde_json::to_value(value).expect("must serialise");
@@ -125,6 +161,14 @@ fn assert_camel_case<T: serde::Serialize>(label: &str, value: &T) {
         found.is_empty(),
         "{label} sends snake_case to a webview expecting camelCase: {found:#?}\n\
          Add #[serde(rename_all = \"camelCase\")] beside the ts_rs attribute."
+    );
+
+    let mut values = Vec::new();
+    kebab_case_values(&json, label, &mut values);
+    assert!(
+        values.is_empty(),
+        "{label} sends kebab-case enum values against a camelCase TypeScript union: {values:#?}\n\
+         The enum's serde rename_all must say camelCase, like its ts attribute."
     );
 }
 
@@ -171,6 +215,47 @@ fn system_metrics_are_camel_case() {
 #[test]
 fn a_process_row_is_camel_case() {
     assert_camel_case("process", &a_process());
+}
+
+#[test]
+fn multi_word_enum_variants_serialise_to_the_literals_the_ui_compares_against() {
+    // Single-word variants spell the same in every casing, so a fixture with
+    // only those proves nothing. These are the variants that differed live:
+    // the connections table showed a raw `state.syn-sent` key, the CPU panel
+    // a raw `throttle.power-limit`, and the process details `state.not-responding`.
+    use vitals_core::metrics::{NetworkKind, ThrottleReason};
+    use vitals_core::process::ProcessState;
+    use vitals_core::provider::{ConnectionState, CoreClass, Priority};
+
+    let cases: [(&str, serde_json::Value); 6] = [
+        (
+            "notResponding",
+            serde_json::to_value(ProcessState::NotResponding).expect("serialise"),
+        ),
+        (
+            "powerLimit",
+            serde_json::to_value(ThrottleReason::PowerLimit).expect("serialise"),
+        ),
+        (
+            "synSent",
+            serde_json::to_value(ConnectionState::SynSent).expect("serialise"),
+        ),
+        (
+            "wiFi",
+            serde_json::to_value(NetworkKind::WiFi).expect("serialise"),
+        ),
+        (
+            "lowPower",
+            serde_json::to_value(CoreClass::LowPower).expect("serialise"),
+        ),
+        (
+            "belowNormal",
+            serde_json::to_value(Priority::BelowNormal).expect("serialise"),
+        ),
+    ];
+    for (expected, actual) in cases {
+        assert_eq!(actual, serde_json::Value::String(expected.into()));
+    }
 }
 
 #[test]

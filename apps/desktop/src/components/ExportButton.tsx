@@ -30,6 +30,7 @@ import {
 } from '@vitals/ui';
 
 import type { ExportColumn, ExportKind } from '../lib/export';
+import { reportFailure } from '../lib/reportFailure';
 import { EXPORT_NS, registerExportStrings } from './exportStrings';
 
 export interface ExportButtonProps<Row> {
@@ -65,12 +66,17 @@ export function ExportButton<Row>({
   const empty = rows.length === 0;
 
   const run = (kind: ExportKind): void => {
-    void import('../lib/export').then((exporter) => {
-      const contents =
-        kind === 'csv' ? exporter.toCsv(rows, columns) : exporter.toJson(rows, columns);
-      const filename = exporter.exportFilename(name, kind);
-      (save ?? exporter.saveExport)(filename, contents, kind);
-    });
+    // A chunk that fails to load or a `save` that throws used to vanish into
+    // the console: the menu closed and nothing downloaded.
+    void reportFailure(
+      import('../lib/export').then((exporter) => {
+        const contents =
+          kind === 'csv' ? exporter.toCsv(rows, columns) : exporter.toJson(rows, columns);
+        const filename = exporter.exportFilename(name, kind);
+        (save ?? exporter.saveExport)(filename, contents, kind);
+      }),
+      t('button'),
+    );
   };
 
   return (

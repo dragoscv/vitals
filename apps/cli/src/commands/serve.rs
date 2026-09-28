@@ -147,6 +147,14 @@ fn sample_forever(frames: &FrameSource, alerts: &ServerLock<Vec<Alert>>) {
 fn announce(port: u16, secret: &str, generated: Option<&str>, control: bool) {
     let scope = if control { "control" } else { "read" };
     eprintln!("serving on 0.0.0.0:{port}  scope: {scope}");
+    if control {
+        // The controller is `NoControl` (see `run`): every control request
+        // answers 501. Saying "scope: control" alone read as a promise.
+        eprintln!(
+            "note: this headless server cannot act on processes; control requests answer 501. \
+             Pair the phone with the desktop app for that."
+        );
+    }
     if let Some(secret) = generated {
         eprintln!("generated token (shown once, not stored): {secret}");
         eprintln!("pass --token next time to keep the same pairing");

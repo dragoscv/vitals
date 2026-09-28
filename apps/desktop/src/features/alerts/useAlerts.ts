@@ -48,7 +48,9 @@ export function createTauriAlertSource(): AlertSource {
   };
 
   let unlisten: (() => void) | null = null;
-  let disposed = false;
+  // A generation, not a boolean — see `useProcessSnapshot` for the leak a
+  // boolean allowed on a quick stop→start with a subscription in flight.
+  let generation = 0;
   /**
    * Whether the channel has already delivered a list. The initial read and
    * the first event race, and the event is the newer of the two.
@@ -57,9 +59,8 @@ export function createTauriAlertSource(): AlertSource {
 
   const start = (): void => {
     // A restart after the last subscriber left (route hidden by `<Activity>`,
-    // StrictMode's deliberate double-mount). Same defect as the metrics
-    // source: a stale `disposed` made the new listener drop itself.
-    disposed = false;
+    // StrictMode's deliberate double-mount) owns a fresh generation.
+    const mine = ++generation;
     seenEvent = false;
     // Without a host there is no IPC: `listen()` dereferences an internals
     // global that does not exist and throws from inside a promise nobody
@@ -80,7 +81,7 @@ export function createTauriAlertSource(): AlertSource {
         seenEvent = true;
         publish(event.payload);
       });
-      if (disposed) {
+      if (mine !== generation) {
         stop();
         return;
       }
@@ -89,7 +90,7 @@ export function createTauriAlertSource(): AlertSource {
       const initial = await invoke<Alert[]>('get_alerts');
       // An event that arrived while the invoke was in flight is newer than
       // its answer. Overwriting it would put the list back a tick.
-      if (!disposed && !seenEvent) publish(initial);
+      if (mine === generation && !seenEvent) publish(initial);
     })().catch(() => {
       // A failed read leaves the empty list, which is what the widget already
       // shows. Blanking or throwing over a missing alert list would take down
@@ -105,7 +106,7 @@ export function createTauriAlertSource(): AlertSource {
       return () => {
         listeners.delete(listener);
         if (listeners.size === 0) {
-          disposed = true;
+          generation += 1;
           unlisten?.();
           unlisten = null;
         }

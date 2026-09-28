@@ -239,6 +239,9 @@ function Field({
 }
 
 function UsersSkeleton() {
+  // `common.*` lives in the default namespace, not in USERS_NS; there is no
+  // fallbackNS, so the wrong `t` renders the key path as the label.
+  const { t } = useTranslation();
   return (
     <div className="flex flex-col gap-4" aria-busy="true">
       <div className="flex justify-between">
@@ -252,7 +255,7 @@ function UsersSkeleton() {
       <Skeleton className="h-4 w-48" />
       <div className="flex flex-col gap-3">
         {[1, 2, 3].map((i) => (
-          <Card key={i} regionLabel="Loading">
+          <Card key={i} regionLabel={t('common.loading')}>
             <CardHeader>
               <Skeleton className="h-6 w-32" />
               <div className="flex gap-2">
