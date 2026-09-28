@@ -39,6 +39,15 @@ describe('parseSettings', () => {
     expect(parseSettings({ theme: { reduceMotion: false } }).theme.reduceMotion).toBe(false);
   });
 
+  it('keeps well-formed device overrides and drops the rest one by one', () => {
+    // A hand-edited value costs that device its override, not every hide.
+    const parsed = parseSettings({
+      resourceVisibility: { 'disk:H:': 'hidden', 'network:WSL': 'shown', 'gpu:X': 'maybe' },
+    });
+    expect(parsed.resourceVisibility).toEqual({ 'disk:H:': 'hidden', 'network:WSL': 'shown' });
+    expect(parseSettings({ resourceVisibility: ['disk:H:'] }).resourceVisibility).toEqual({});
+  });
+
   it('ships every data-emitting option off by default', () => {
     // A system monitor that opts you in to telemetry is not one to trust with
     // process-level visibility. This is a product promise, so it is asserted.

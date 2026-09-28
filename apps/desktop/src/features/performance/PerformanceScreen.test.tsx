@@ -3,6 +3,7 @@ import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { i18n, initI18n } from '@vitals/i18n';
 
+import { resetSettingsForTests, useSettings } from '../../settings/store';
 import { HistoryCollector } from '../dashboard/history';
 import { makeSystem, type SystemOverrides } from '../dashboard/test-fixtures';
 import { createManualSystemSource, NO_SAMPLER } from '../dashboard/useSystemSnapshot';
@@ -16,6 +17,7 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   await i18n.changeLanguage('en');
+  resetSettingsForTests();
 });
 
 function mount(overrides: SystemOverrides = {}) {
@@ -91,7 +93,7 @@ describe('PerformanceScreen', () => {
     expect(cpu.getAttribute('aria-current')).toBe('true');
   });
 
-  it('hides virtual adapters until asked', () => {
+  it('hides virtual adapters until "show hidden" is ticked', () => {
     mount({
       networks: [
         { id: 0, name: 'Ethernet', kind: 'ethernet' },
@@ -102,8 +104,48 @@ describe('PerformanceScreen', () => {
     const rail = screen.getByRole('navigation', { name: 'Resources' });
     expect(within(rail).queryByRole('button', { name: /WSL/ })).toBeNull();
 
-    fireEvent.click(screen.getByRole('checkbox'));
+    fireEvent.click(screen.getByRole('checkbox', { name: /Show hidden devices \(1\)/ }));
     expect(within(rail).getByRole('button', { name: /WSL/ })).toBeTruthy();
+  });
+
+  it('hides a device from its context menu and remembers the choice', () => {
+    mount({
+      disks: [
+        { id: 0, mount: 'C:' },
+        { id: 7, mount: 'H:' },
+      ],
+    });
+
+    const rail = screen.getByRole('navigation', { name: 'Resources' });
+    fireEvent.contextMenu(within(rail).getByRole('button', { name: /H:/ }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Hide' }));
+
+    expect(within(rail).queryByRole('button', { name: /H:/ })).toBeNull();
+    expect(within(rail).getByRole('button', { name: /C:/ })).toBeTruthy();
+    // Persisted by name, so it survives a restart and a renumbered id.
+    expect(useSettings.getState().settings.resourceVisibility).toEqual({ 'disk:H:': 'hidden' });
+  });
+
+  it('shows a hidden device again from its context menu', () => {
+    useSettings.getState().patch({
+      resourceVisibility: { 'disk:H:': 'hidden' },
+      showHiddenResources: true,
+    });
+    mount({ disks: [{ id: 7, mount: 'H:' }] });
+
+    const rail = screen.getByRole('navigation', { name: 'Resources' });
+    fireEvent.contextMenu(within(rail).getByRole('button', { name: /H:/ }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Show' }));
+
+    expect(useSettings.getState().settings.resourceVisibility).toEqual({});
+  });
+
+  it('offers no menu on CPU, which cannot be hidden', () => {
+    mount();
+
+    const rail = screen.getByRole('navigation', { name: 'Resources' });
+    fireEvent.contextMenu(within(rail).getByRole('button', { name: /CPU/ }));
+    expect(screen.queryByRole('menuitem')).toBeNull();
   });
 
   describe('thermals', () => {

@@ -164,6 +164,50 @@ CSV records the state.
 Every claim of "done" needs a command and its output. Recorded here as work
 lands, newest first.
 
+### 2026-09-28 — S12-26 hide devices on the Performance page
+
+**Ask.** Hide the devices that should not be listed, hide any device from a
+right-click menu, and a checkbox that shows everything, hidden ones included.
+
+**Measured before** (this machine, `vitals info --json`): the rail listed
+43 entries — 3 GPUs, 4 disks, 34 network interfaces — of which the user
+recognises about eight. The existing "Show virtual adapters" switch hid
+nothing, and that was a backend bug, not a UI one: `classify()` in
+`vitals-win/src/network/adapters.rs` read only the IANA ifType, and Hyper-V
+switches, `vEthernet`, WAN miniports and Wi-Fi Direct all declare Ethernet
+or 802.11. `NetworkKind::Virtual` was never emitted on Windows. The
+`HardwareInterface` bit was already read, into a field nobody consulted;
+`network_probe` now prints it, and it marks exactly two rows here:
+`Ethernet` and `Wi-Fi`.
+
+**Design.** Fixed at the source: a software Ethernet or 802.11 interface is
+`Virtual` (every consumer — LAN API, SDK, Prometheus labels — now gets the
+truth). The rail (`resources.ts`) builds every entry and flags it
+`hidden`; defaults hide loopback/virtual, a VPN or unknown adapter that is
+down or has never carried a byte (WAN miniports, 6to4, IP-HTTPS — Tailscale
+and a live Teredo stay), and a GPU with no counters at all. Physical
+adapters are never hidden by default. A right-click (Radix `ContextMenu`,
+so Shift+F10 reaches it) toggles Hide/Show; CPU, memory and thermals have
+no menu. "Show hidden devices (N)" reveals the rest dimmed with an eye-off
+mark. Choices persist in settings as `resourceVisibility`, keyed by name or
+mount point rather than by id — a GPU id is half a LUID and an interface
+index is renumbered — and only overrides of the default are stored, so a
+better default later still reaches untouched devices.
+
+```text
+perf-hide-live.mjs (CDP, live app on this machine):
+  default        11 entries  "Show hidden devices (32)"
+  Hide H:        10 entries  "Show hidden devices (33)"
+  show hidden    43 entries  (virtual display, Basic Render, vSwitch x7, WAN miniports ...)
+  Show H: + untick  11 entries, resourceVisibility {}
+cargo test -p vitals-win --lib network::adapters   19 passed
+vitest src/features/performance src/settings       11 files, 103 tests
+mutation: a stored "hidden" ignored -> 4 RED, reverted
+verify.ps1: clippy, rust tests (470 s), drift, bindings, perf budget, typecheck, lint, format,
+  bundle, size PASS; ts tests 1 fail = known AppShell lazy-dialog load flake under the parallel
+  cargo run, then 93 files / 937 tests PASS alone; cargo fmt applied, --check clean
+```
+
 ### 2026-09-28 — S12-25 the dashboard fits the window
 
 **Ask.** Dashboard elements were too large; redesign it to look modern,

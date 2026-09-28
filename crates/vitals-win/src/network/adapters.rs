@@ -183,7 +183,8 @@ pub fn enumerate_adapters() -> Vec<AdapterInfo> {
 
 /// Converts a raw row, skipping interfaces not worth showing.
 fn convert(row: &MibIfRow2) -> Option<AdapterInfo> {
-    let kind = classify(row.Type);
+    let hardware = row.InterfaceAndOperStatusFlags & flags::HARDWARE != 0;
+    let kind = classify(row.Type, hardware);
 
     // Loopback carries no real traffic and would otherwise dominate the
     // interface list on any developer machine.
@@ -216,7 +217,7 @@ fn convert(row: &MibIfRow2) -> Option<AdapterInfo> {
         description,
         kind,
         connected: row.OperStatus == IF_OPER_STATUS_UP,
-        hardware: row.InterfaceAndOperStatusFlags & flags::HARDWARE != 0,
+        hardware,
         // A disconnected interface reports either 0 or u64::MAX depending on
         // the driver. Neither is a speed, so report nothing rather than
         // rendering "18 exabits/s".
@@ -240,8 +241,16 @@ fn convert(row: &MibIfRow2) -> Option<AdapterInfo> {
 }
 
 /// Maps an IANA interface type to our kind.
-fn classify(if_type: u32) -> NetworkKind {
+///
+/// Hyper-V switches, `vEthernet`, WAN miniports and Wi-Fi Direct all declare
+/// themselves Ethernet or 802.11, so the interface type alone called every one
+/// of them a network card. Measured on a Hyper-V host: 34 interfaces, 25 of
+/// them "Ethernet" or "Wi-Fi", two backed by hardware. Without the hardware
+/// flag the UI could not tell them apart, and the Performance page's "virtual
+/// adapters" filter hid nothing because nothing was ever `Virtual`.
+fn classify(if_type: u32, hardware: bool) -> NetworkKind {
     match if_type {
+        IF_TYPE_ETHERNET_CSMACD | IF_TYPE_IEEE80211 if !hardware => NetworkKind::Virtual,
         IF_TYPE_ETHERNET_CSMACD => NetworkKind::Ethernet,
         IF_TYPE_IEEE80211 => NetworkKind::WiFi,
         IF_TYPE_SOFTWARE_LOOPBACK => NetworkKind::Loopback,
@@ -381,6 +390,33 @@ mod tests {
             adapters.iter().any(|a| a.hardware),
             "no hardware-backed interface found; the flag bit is probably misread"
         );
+    }
+
+    #[test]
+    fn software_ethernet_and_wifi_are_virtual_so_the_ui_can_hide_them() {
+        // Hyper-V switches, vEthernet, WAN miniports and Wi-Fi Direct all
+        // declare an Ethernet or 802.11 ifType. Before the hardware flag was
+        // consulted nothing was ever `Virtual`, and the UI's filter hid none.
+        assert_eq!(
+            classify(IF_TYPE_ETHERNET_CSMACD, false),
+            NetworkKind::Virtual
+        );
+        assert_eq!(classify(IF_TYPE_IEEE80211, false), NetworkKind::Virtual);
+        assert_eq!(
+            classify(IF_TYPE_ETHERNET_CSMACD, true),
+            NetworkKind::Ethernet
+        );
+        assert_eq!(classify(IF_TYPE_IEEE80211, true), NetworkKind::WiFi);
+        // A tunnel is never hardware, and must stay a VPN rather than vanish
+        // into the virtual set: it is often the cause of slow traffic.
+        assert_eq!(classify(IF_TYPE_TUNNEL, false), NetworkKind::Vpn);
+    }
+
+    #[test]
+    fn every_hardware_interface_keeps_its_physical_kind() {
+        for a in enumerate_adapters().into_iter().filter(|a| a.hardware) {
+            assert_ne!(a.kind, NetworkKind::Virtual, "{} is hardware", a.alias);
+        }
     }
 
     #[test]

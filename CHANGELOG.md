@@ -7,6 +7,22 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### 2026-09-28 — hide the devices you do not need
+
+#### Added
+
+- **Hide devices on the Performance page** — right-click any disk, GPU or
+  network adapter and choose Hide; "Show hidden devices" brings them all
+  back, dimmed, and the same menu shows one again. The choice is
+  remembered across restarts.
+
+#### Fixed
+
+- **Virtual network adapters are recognised as virtual** — Hyper-V
+  switches, WAN miniports and Wi-Fi Direct reported themselves as Ethernet
+  or Wi-Fi, so they could not be filtered out. They now start hidden, with
+  unused tunnels and displays that report nothing.
+
 ### 2026-09-28 — a dashboard that fits the window
 
 #### Changed

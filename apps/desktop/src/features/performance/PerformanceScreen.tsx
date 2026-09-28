@@ -15,9 +15,22 @@
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { Checkbox, EmptyState, Meter, ScrollArea, Skeleton, cn, formatPercent } from '@vitals/ui';
-import { PlugZap } from 'lucide-react';
+import {
+  Checkbox,
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+  EmptyState,
+  Meter,
+  ScrollArea,
+  Skeleton,
+  cn,
+  formatPercent,
+} from '@vitals/ui';
+import { EyeOff, PlugZap } from 'lucide-react';
 
+import { useSettings } from '../../settings/store';
 import { useHistory } from '../dashboard/useHistory';
 import { history as sharedHistory, type HistoryCollector } from '../dashboard/history';
 import {
@@ -30,7 +43,13 @@ import { CpuPanel } from './panels/CpuPanel';
 import { DiskPanel, GpuPanel, NetworkPanel } from './panels/DevicePanels';
 import { MemoryPanel } from './panels/MemoryPanel';
 import { ThermalsPanel } from './panels/ThermalsPanel';
-import { buildResourceList, resolveSelection, type ResourceEntry } from './resources';
+import {
+  buildResourceList,
+  resolveSelection,
+  setResourceHidden,
+  visibleResources,
+  type ResourceEntry,
+} from './resources';
 import { PERFORMANCE_NS } from './strings';
 
 export interface PerformanceScreenProps {
@@ -59,16 +78,26 @@ export function PerformanceScreen({
   const snapshot = useSystemSnapshot(active);
   const history = useHistory(historyCollector);
 
-  const [showVirtual, setShowVirtual] = useState(false);
+  // Persisted: a device hidden once should stay hidden next launch, or the
+  // feature is a chore repeated every morning.
+  const visibility = useSettings((state) => state.settings.resourceVisibility);
+  const showHidden = useSettings((state) => state.settings.showHiddenResources);
+  const patchSettings = useSettings((state) => state.patch);
   // Held as an id, never an index: an index would silently move the user to a
   // different device the moment one above it was unplugged.
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const entries = useMemo(
-    () => buildResourceList(snapshot.system, { showVirtualAdapters: showVirtual }),
-    [snapshot.system, showVirtual],
+  const all = useMemo(
+    () => buildResourceList(snapshot.system, { visibility }),
+    [snapshot.system, visibility],
   );
+  const entries = useMemo(() => visibleResources(all, showHidden), [all, showHidden]);
+  const hiddenCount = useMemo(() => all.filter((entry) => entry.hidden).length, [all]);
   const selected = useMemo(() => resolveSelection(entries, selectedId), [entries, selectedId]);
+
+  const setHidden = (entry: ResourceEntry, hidden: boolean): void => {
+    patchSettings({ resourceVisibility: setResourceHidden(visibility, entry, hidden) });
+  };
 
   if (snapshot.pending) return <PerformanceSkeleton />;
 
@@ -116,6 +145,9 @@ export function PerformanceScreen({
                     onSelect={() => {
                       setSelectedId(entry.id);
                     }}
+                    onSetHidden={(hidden) => {
+                      setHidden(entry, hidden);
+                    }}
                   />
                 </li>
               ))}
@@ -124,13 +156,16 @@ export function PerformanceScreen({
 
           <label className="mt-2 flex items-center gap-2">
             <Checkbox
-              checked={showVirtual}
+              checked={showHidden}
               onCheckedChange={(next) => {
-                setShowVirtual(next === true);
+                patchSettings({ showHiddenResources: next === true });
               }}
             />
-            <span className="text-2xs text-[var(--color-fg-muted)]">{t('rail.showVirtual')}</span>
+            <span className="text-2xs text-[var(--color-fg-muted)]">
+              {t('rail.showHidden', { count: hiddenCount })}
+            </span>
           </label>
+          <p className="mt-1 text-2xs text-[var(--color-fg-subtle)]">{t('rail.showHiddenHint')}</p>
         </nav>
 
         <section className="screen-scroll min-w-0" aria-live="off">
@@ -148,16 +183,18 @@ function RailButton({
   selected,
   locale,
   onSelect,
+  onSetHidden,
 }: {
   readonly entry: ResourceEntry;
   readonly selected: boolean;
   readonly locale: string;
   readonly onSelect: () => void;
+  readonly onSetHidden: (hidden: boolean) => void;
 }) {
   const { t } = useTranslation(PERFORMANCE_NS);
   const label = entry.name === '' ? t(`${entry.kind}.title`) : entry.name;
 
-  return (
+  const button = (
     <button
       type="button"
       onClick={onSelect}
@@ -168,10 +205,21 @@ function RailButton({
         selected
           ? 'border-[var(--color-accent-border)] bg-[var(--color-accent-subtle)] shadow-[var(--glow-accent-contained)]'
           : 'border-transparent hover:border-[var(--color-border-subtle)] hover:bg-[var(--color-bg-inset)]/60',
+        // Shown only because "show hidden" is on: dimmed so the user can
+        // tell at a glance what the rail normally leaves out.
+        entry.hidden && 'opacity-60',
       )}
     >
       <span className="flex items-baseline justify-between gap-2">
-        <span className="truncate text-sm font-medium">{label}</span>
+        <span className="flex min-w-0 items-center gap-1.5">
+          {entry.hidden && (
+            <EyeOff
+              aria-label={t('rail.hiddenBadge')}
+              className="size-3 shrink-0 text-[var(--color-fg-subtle)]"
+            />
+          )}
+          <span className="truncate text-sm font-medium">{label}</span>
+        </span>
         {/* No reading, no number. Networks have no honest percentage and a
             GPU without counters is unmeasured — see `resources.ts`. */}
         {entry.utilization !== null && (
@@ -197,6 +245,25 @@ function RailButton({
         />
       )}
     </button>
+  );
+
+  // CPU, memory and thermals are not devices and cannot be hidden, so they
+  // get no menu rather than a menu with nothing useful in it.
+  if (entry.key === null) return button;
+
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>{button}</ContextMenuTrigger>
+      <ContextMenuContent className="min-w-40">
+        <ContextMenuItem
+          onSelect={() => {
+            onSetHidden(!entry.hidden);
+          }}
+        >
+          {entry.hidden ? t('rail.show') : t('rail.hide')}
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }
 

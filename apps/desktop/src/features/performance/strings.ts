@@ -18,9 +18,13 @@ const en = {
 
   rail: {
     label: 'Resources',
-    showVirtual: 'Show virtual adapters',
-    showVirtualHint:
-      'Hyper-V switches, WSL, VPNs and loopback. Hidden by default because they are rarely the answer to "why is this slow".',
+    showHidden_one: 'Show hidden devices ({{count}})',
+    showHidden_other: 'Show hidden devices ({{count}})',
+    showHiddenHint:
+      'Virtual switches, unused tunnels and displays with nothing to report start hidden. Right-click any device to hide or show it.',
+    hide: 'Hide',
+    show: 'Show',
+    hiddenBadge: 'Hidden',
   },
 
   cpu: {
@@ -190,9 +194,14 @@ const ro = {
 
   rail: {
     label: 'Resurse',
-    showVirtual: 'Arată adaptoarele virtuale',
-    showVirtualHint:
-      'Switch-uri Hyper-V, WSL, VPN-uri și loopback. Ascunse implicit pentru că rareori explică de ce ceva este lent.',
+    showHidden_one: 'Arată dispozitivele ascunse ({{count}})',
+    showHidden_few: 'Arată dispozitivele ascunse ({{count}})',
+    showHidden_other: 'Arată dispozitivele ascunse ({{count}})',
+    showHiddenHint:
+      'Switch-urile virtuale, tunelurile nefolosite și afișajele fără date sunt ascunse implicit. Clic dreapta pe orice dispozitiv ca să-l ascunzi sau să-l afișezi.',
+    hide: 'Ascunde',
+    show: 'Afișează',
+    hiddenBadge: 'Ascuns',
   },
 
   cpu: {

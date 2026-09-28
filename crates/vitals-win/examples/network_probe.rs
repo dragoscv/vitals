@@ -28,8 +28,8 @@ fn main() {
     let second = enumerate_adapters();
 
     println!(
-        "{:<38}  {:<9}  {:<5}  {:>11}  {:>11}  {:>6}",
-        "ADAPTER", "KIND", "UP", "DOWN", "UP", "ERR/s"
+        "{:<38}  {:<9}  {:<5}  {:<4}  {:>11}  {:>11}  {:>6}",
+        "ADAPTER", "KIND", "UP", "HW", "DOWN", "UP", "ERR/s"
     );
     println!("{}", "-".repeat(96));
 
@@ -41,10 +41,11 @@ fn main() {
         name.truncate(38);
 
         println!(
-            "{:<38}  {:<9}  {:<5}  {}  {}  {:>6}",
+            "{:<38}  {:<9}  {:<5}  {:<4}  {}  {}  {:>6}",
             name,
             format!("{:?}", a.kind),
             if a.connected { "yes" } else { "no" },
+            if a.hardware { "yes" } else { "no" },
             rate(rates.rx.get()),
             rate(rates.tx.get()),
             rates.errors_per_sec

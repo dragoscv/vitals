@@ -42,6 +42,14 @@ export interface AppSettings {
   /** Shell layout. Persisted so the window reopens the way it was left. */
   readonly sidebarCollapsed: boolean;
   readonly lastRoute: RouteId;
+
+  /**
+   * Devices hidden or re-shown on the Performance page, keyed by a name that
+   * survives a reboot. Only overrides of the defaults are stored.
+   */
+  readonly resourceVisibility: Readonly<Record<string, 'hidden' | 'shown'>>;
+  /** The Performance page's "show hidden devices" switch. */
+  readonly showHiddenResources: boolean;
 }
 
 /**
@@ -77,6 +85,9 @@ export const defaultSettings: AppSettings = {
 
   sidebarCollapsed: false,
   lastRoute: defaultRoute,
+
+  resourceVisibility: {},
+  showHiddenResources: false,
 };
 
 function bool(value: unknown, fallback: boolean): boolean {
@@ -93,6 +104,19 @@ function pick<T extends string>(
 
 function isSamplingRate(value: string): value is SamplingRate {
   return (samplingRates as readonly string[]).includes(value);
+}
+
+/**
+ * Keeps only well-formed entries: a hand-edited value other than the two
+ * choices costs that one device its override, not the whole map.
+ */
+function parseVisibility(value: unknown): Readonly<Record<string, 'hidden' | 'shown'>> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return {};
+  const out: Record<string, 'hidden' | 'shown'> = {};
+  for (const [key, choice] of Object.entries(value as Record<string, unknown>)) {
+    if (choice === 'hidden' || choice === 'shown') out[key] = choice;
+  }
+  return out;
 }
 
 /**
@@ -157,5 +181,8 @@ export function parseSettings(raw: unknown): AppSettings {
 
     sidebarCollapsed: bool(record['sidebarCollapsed'], defaultSettings.sidebarCollapsed),
     lastRoute: isRouteId(record['lastRoute']) ? record['lastRoute'] : defaultSettings.lastRoute,
+
+    resourceVisibility: parseVisibility(record['resourceVisibility']),
+    showHiddenResources: bool(record['showHiddenResources'], defaultSettings.showHiddenResources),
   };
 }
