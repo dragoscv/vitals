@@ -38,6 +38,25 @@ console.log(
   `${publicName}@${manifest.version}  deps: ${Object.keys(manifest.dependencies ?? {}).length}`,
 );
 
+// npm refuses to overwrite a published version, forever. A re-run of a
+// release (or a version first published by hand, as 0.9.0-beta.1 was) would
+// otherwise turn the whole channel job red for something already done.
+if (!dryRun) {
+  let published = '';
+  try {
+    published = execFileSync('npm', ['view', `${publicName}@${manifest.version}`, 'version'], {
+      encoding: 'utf8',
+      shell: process.platform === 'win32',
+    }).trim();
+  } catch {
+    // `npm view` exits non-zero with E404 when the version does not exist.
+  }
+  if (published === manifest.version) {
+    console.log(`${publicName}@${manifest.version} is already on npm; nothing to publish.`);
+    process.exit(0);
+  }
+}
+
 const args = ['publish', '--access', 'public'];
 if (!dryRun) args.push('--provenance');
 if (dryRun) args.push('--dry-run');
