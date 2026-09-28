@@ -231,8 +231,9 @@ mod tests {
     fn the_system_drive_is_not_left_unknown() {
         // The Storage screen showed "Unknown type" for every drive because
         // only the sampler refined the kind; the volume list must carry it.
-        // Not on a virtual disk, which truthfully has no kind to report.
-        if super::super::device::is_virtual_bus('C') {
+        // Not on a device that refuses to be classified (an Azure VM disk),
+        // which truthfully has no kind to report.
+        if !super::super::device::is_classifiable('C') {
             return;
         }
         let volumes = enumerate_volumes();

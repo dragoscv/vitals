@@ -9,8 +9,8 @@
 
 use windows_sys::Win32::Foundation::{CloseHandle, FALSE, HANDLE, INVALID_HANDLE_VALUE};
 use windows_sys::Win32::Storage::FileSystem::{
-    BusTypeFileBackedVirtual, BusTypeNvme, BusTypeSd, BusTypeSpaces, BusTypeUsb, BusTypeVirtual,
-    CreateFileW, FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING,
+    BusTypeNvme, BusTypeSd, BusTypeUsb, CreateFileW, FILE_SHARE_READ, FILE_SHARE_WRITE,
+    OPEN_EXISTING,
 };
 use windows_sys::Win32::System::IO::DeviceIoControl;
 use windows_sys::Win32::System::Ioctl::{
@@ -152,39 +152,47 @@ pub fn refine_kind(letter: char, fallback: DiskKind) -> DiskKind {
         })
 }
 
-/// The raw `STORAGE_BUS_TYPE` of a volume's device, if it answers.
+/// What a volume's device answered to the two classification queries: its
+/// bus type, and whether it reports a seek penalty. Either may be `None`.
+///
+/// Exists so a test can tell "the device would not say" from "we failed to
+/// read what it said". An Azure VM disk (the GitHub Actions runner) reports
+/// bus type 10 (SAS) and refuses the seek-penalty query: `Unknown` is the
+/// true answer there, and only a device that *does* answer must be
+/// classified.
 #[must_use]
-pub fn bus_type(letter: char) -> Option<i32> {
-    let handle = VolumeHandle::open(letter)?;
-    let query = STORAGE_PROPERTY_QUERY {
+pub fn classification_answers(letter: char) -> (Option<i32>, Option<bool>) {
+    let Some(handle) = VolumeHandle::open(letter) else {
+        return (None, None);
+    };
+    let device_query = STORAGE_PROPERTY_QUERY {
         PropertyId: StorageDeviceProperty,
         QueryType: PropertyStandardQuery,
         AdditionalParameters: [0],
     };
-    handle
-        .query::<_, STORAGE_DEVICE_DESCRIPTOR>(IOCTL_STORAGE_QUERY_PROPERTY, Some(&query))
-        .map(|d| d.BusType)
+    let seek_query = STORAGE_PROPERTY_QUERY {
+        PropertyId: StorageDeviceSeekPenaltyProperty,
+        QueryType: PropertyStandardQuery,
+        AdditionalParameters: [0],
+    };
+    let bus = handle
+        .query::<_, STORAGE_DEVICE_DESCRIPTOR>(IOCTL_STORAGE_QUERY_PROPERTY, Some(&device_query))
+        .map(|d| d.BusType);
+    let seek = handle
+        .query::<_, DEVICE_SEEK_PENALTY_DESCRIPTOR>(IOCTL_STORAGE_QUERY_PROPERTY, Some(&seek_query))
+        .map(|p| p.IncursSeekPenalty);
+    (bus, seek)
 }
 
-/// Whether the volume sits on a virtual, file-backed or Storage Spaces bus —
-/// the devices that answer neither classification query, so `Unknown` is
-/// the truthful kind for them rather than a failure to look.
+/// Whether the device answered enough to be classified: an `NVMe`, USB or SD
+/// bus decides on its own; anything else needs the seek-penalty answer.
 #[must_use]
-pub fn is_virtual_bus(letter: char) -> bool {
-    let Some(handle) = VolumeHandle::open(letter) else {
-        return false;
-    };
-    let query = STORAGE_PROPERTY_QUERY {
-        PropertyId: StorageDeviceProperty,
-        QueryType: PropertyStandardQuery,
-        AdditionalParameters: [0],
-    };
-    handle
-        .query::<_, STORAGE_DEVICE_DESCRIPTOR>(IOCTL_STORAGE_QUERY_PROPERTY, Some(&query))
-        .is_some_and(|d| {
-            let bus = d.BusType;
-            bus == BusTypeVirtual || bus == BusTypeFileBackedVirtual || bus == BusTypeSpaces
-        })
+pub fn is_classifiable(letter: char) -> bool {
+    match classification_answers(letter) {
+        (_, Some(_)) => true,
+        (Some(bus), None) => bus == BusTypeNvme || bus == BusTypeUsb || bus == BusTypeSd,
+        (None, None) => false,
+    }
 }
 
 #[cfg(test)]
@@ -204,17 +212,18 @@ mod tests {
 
     #[test]
     fn the_system_volume_is_classified_rather_than_left_unknown() {
-        // A hypervisor's virtual disk (CI runners, most VMs) truthfully
-        // answers neither query; the guarantee is about physical media.
-        if is_virtual_bus('C') {
+        // The guarantee: a device that answers is never left Unknown. One
+        // that refuses (an Azure VM disk) is Unknown truthfully.
+        let answers = classification_answers('C');
+        if !is_classifiable('C') {
+            eprintln!("C: does not answer the classification queries ({answers:?})");
             return;
         }
         let kind = refine_kind('C', DiskKind::Unknown);
         assert_ne!(
             kind,
             DiskKind::Unknown,
-            "C: answered neither the bus-type nor the seek-penalty query (bus type {:?})",
-            bus_type('C')
+            "C: answered {answers:?} but was left Unknown"
         );
     }
 
