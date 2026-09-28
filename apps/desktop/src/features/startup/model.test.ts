@@ -25,6 +25,9 @@ function entry(overrides: Partial<StartupEntry> = {}): StartupEntry {
     state: 'enabled',
     pid: null,
     impact: null,
+    company: null,
+    microsoft: false,
+    risk: 'safe',
     ...overrides,
   };
 }
@@ -38,6 +41,10 @@ function service(overrides: Partial<ServiceEntry> = {}): ServiceEntry {
     pid: 1234,
     binaryPath: null,
     svchostGroup: null,
+    company: null,
+    microsoft: false,
+    risk: 'safe',
+    imagePath: null,
     ...overrides,
   };
 }

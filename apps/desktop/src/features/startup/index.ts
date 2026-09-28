@@ -14,3 +14,4 @@ export {
   type StartupSnapshot,
 } from './model';
 export { NO_HOST, prefetchStartup, useStartup, type StartupReader } from './useStartup';
+export { tauriStartupActions, type StartupActions } from './startupActions';

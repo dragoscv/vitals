@@ -228,6 +228,61 @@ check-drift: 0 failure(s), 0 warning(s) - 12 ts_rs files, 67 invokes, 67 command
 Every claim of "done" needs a command and its output. Recorded here as work
 lands, newest first.
 
+### 2026-09-28 — S12-37 Startup and Services row actions
+
+**Ask.** Nothing on the Startup tab could be acted on; add the actions, on
+right-click too. Then: a "Hide all Microsoft services" box, ticked by default.
+
+**What.** Every row on Startup and Services has a right-click menu and a
+visible row-actions button with the same items (one item list feeds both).
+Startup: Enable / Disable. Services: Start / Stop / Restart and a Start type
+submenu. Both: Open file location, Properties, Search online, Copy details.
+A "Hide Microsoft entries/services" box, ticked by default, says how many it
+hid; the export follows the screen.
+
+**How it changes things.**
+
+- Registry and folder entries: the `StartupApproved` record Task Manager
+  writes (`02`/`03` + `FILETIME`), leaving the value where it is — so the two
+  tools agree afterwards and "enable" has something to restore. Scheduled
+  tasks: their own `Enabled` flag. Services: the SCM.
+- Unelevated first; a denial becomes one UAC prompt running
+  `--elevated-startup-action` for exactly that change. Names travel hex-encoded
+  because task paths and value names carry quotes, commas and backslashes that
+  the `ShellExecuteExW` command line would re-parse. The child re-checks risk,
+  so the elevated pass cannot make a change the desktop would refuse.
+- Turning off or stopping a `Degrades`/`SystemCritical` item needs the
+  confirmation; turning one back on never does. `Forbidden` is not offered.
+
+**Microsoft detection.** The image's `CompanyName`, which is what msconfig
+uses — a claim, not a signature, so it is reported as `company` and never as
+`publisher`. Found on this machine: `rundll32.exe`, `svchost.exe` and `cmd.exe`
+declare Microsoft whatever they launch, which hid "Logitech Download
+Assistant" and two bit4id registrations. Launchers are now unknown (unknown
+stays visible); svchost services use their `Parameters\ServiceDll`, falling
+back to the host only when that is unreadable (all such cases here were
+Windows' own: `DoSvc`, `COMSysApp`).
+
+**Evidence.**
+
+- `cargo run -p vitals-win --example prove_startup_control`: 56 of 118
+  startup entries and 295 of 376 services hidden; a throwaway `HKCU\...\Run`
+  value read back `Disabled` then `Enabled`, then was removed.
+- Live app over CDP: Startup 62 rows, 62 action buttons, box checked, "56
+  Microsoft items hidden", right-click menu Disable / Open file location /
+  Properties / Search online / Copy details. Services 81 rows, menu Start
+  (disabled: running) / Stop / Restart / Start type / … . No horizontal scroll.
+- Through the real IPC: `set_startup_enabled` on a probe value went enabled →
+  disabled (record `03 00 00 00` + `FILETIME`) → enabled; an unknown source
+  answered `refused`.
+- Mutation: removing the confirmation guard turned the critical-service test
+  red. That test calls `check`, not `apply`, so a regression on an elevated
+  runner cannot actually stop `RpcSs`.
+
+**Not changed.** The LAN API, CLI and SDK gain none of these: each can raise
+a UAC prompt or change what runs at boot, and a paired phone or a script must
+not be able to do either (same rule as `process_action_as_admin`).
+
 ### 2026-09-28 — S13-12 CI in 8 minutes instead of 49
 
 **Cause.** The Windows leg was one job running clippy (622 s), `cargo test`

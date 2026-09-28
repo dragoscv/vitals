@@ -47,7 +47,8 @@ pub fn run() {
     match mode {
         launch::LaunchMode::SetReplacement { .. }
         | launch::LaunchMode::LaunchRealTaskManager
-        | launch::LaunchMode::ElevatedProcessAction { .. } => {
+        | launch::LaunchMode::ElevatedProcessAction { .. }
+        | launch::LaunchMode::ElevatedStartupAction { .. } => {
             std::process::exit(launch::run_headless(&mode));
         }
         launch::LaunchMode::AsTaskManager => {
@@ -191,6 +192,14 @@ fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
         inventory::get_connections,
         #[cfg(windows)]
         inventory::get_startup,
+        // Startup and service changes. Desktop-only: each may raise a UAC
+        // prompt, and a paired phone must never be able to do that.
+        #[cfg(windows)]
+        inventory::set_startup_enabled,
+        #[cfg(windows)]
+        inventory::control_service,
+        #[cfg(windows)]
+        inventory::set_service_start_type,
         #[cfg(windows)]
         inventory::get_installed_apps,
         #[cfg(windows)]

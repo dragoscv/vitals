@@ -9,6 +9,17 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Act on startup items and services** — right-click a row, or use the
+  button at its end. Startup items switch off and on the way Task Manager
+  does it; services start, stop, restart, and can be set to start
+  automatically, manually or never. Both open the file location, its
+  properties, a web search, or copy their details.
+- **Hide Microsoft services** — ticked by default on Startup and Services,
+  so the lists show what other software added; the hidden count is shown
+  and one click brings them back.
+- **Safe by default** — anything Windows depends on asks before it is
+  switched off, what Windows forbids is not offered, and a change that
+  needs administrator rights asks once, for that change only.
 - **CPU temperature and package power** — install the optional sensors
   service from Devices & sensors (one administrator prompt) and Vitals shows
   the CPU package temperature, the hottest core and the package power draw

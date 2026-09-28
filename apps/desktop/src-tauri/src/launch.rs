@@ -43,6 +43,11 @@ pub enum LaunchMode {
     /// their format; a malformed set is reported by the child's exit code
     /// rather than falling through to a UI launch.
     ElevatedProcessAction { args: Vec<String> },
+    /// Make one startup or service change as administrator and exit.
+    ///
+    /// Same contract as [`LaunchMode::ElevatedProcessAction`]: raw
+    /// arguments, parsed by `vitals-win`, never a window.
+    ElevatedStartupAction { args: Vec<String> },
 }
 
 /// Classifies the arguments this process was started with.
@@ -87,6 +92,12 @@ where
         };
     }
 
+    if first == vitals_win_arg::STARTUP_ACTION {
+        return LaunchMode::ElevatedStartupAction {
+            args: args.map(|arg| arg.as_ref().to_owned()).collect(),
+        };
+    }
+
     // The loader passes the original command line — typically
     // `C:\WINDOWS\system32\taskmgr.exe` or, for the taskbar, the same path
     // with `/4` or `/7` after it — so only the first token is inspected,
@@ -121,6 +132,10 @@ mod vitals_win_arg {
     pub const PROCESS_ACTION: &str = vitals_win::actions::PROCESS_ACTION_ARG;
     #[cfg(not(windows))]
     pub const PROCESS_ACTION: &str = "--elevated-process-action";
+    #[cfg(windows)]
+    pub const STARTUP_ACTION: &str = vitals_win::startup::STARTUP_ACTION_ARG;
+    #[cfg(not(windows))]
+    pub const STARTUP_ACTION: &str = "--elevated-startup-action";
 }
 
 /// Runs a non-UI launch mode to completion.
@@ -135,6 +150,7 @@ pub fn run_headless(mode: &LaunchMode) -> i32 {
         LaunchMode::SetReplacement { enabled } => set_replacement(*enabled),
         LaunchMode::LaunchRealTaskManager => launch_real_taskmgr(),
         LaunchMode::ElevatedProcessAction { args } => elevated_process_action(args),
+        LaunchMode::ElevatedStartupAction { args } => elevated_startup_action(args),
         LaunchMode::Normal | LaunchMode::AsTaskManager => {
             tracing::error!("run_headless called for a UI launch mode");
             2
@@ -191,6 +207,19 @@ fn elevated_process_action(_args: &[String]) -> i32 {
     1
 }
 
+#[cfg(windows)]
+fn elevated_startup_action(args: &[String]) -> i32 {
+    let code = vitals_win::startup::control::perform(args);
+    tracing::info!(?args, code, "elevated startup action finished");
+    i32::try_from(code).unwrap_or(i32::MAX)
+}
+
+#[cfg(not(windows))]
+fn elevated_startup_action(_args: &[String]) -> i32 {
+    tracing::error!("elevated startup actions are a Windows mechanism");
+    1
+}
+
 /// Whether this `AsTaskManager` launch is Task Manager's own elevation hop.
 ///
 /// Not part of [`classify`] because it depends on the process token, not
@@ -242,6 +271,31 @@ mod tests {
         assert_eq!(
             classify([vitals_win_arg::PROCESS_ACTION]),
             LaunchMode::ElevatedProcessAction { args: vec![] }
+        );
+    }
+
+    #[test]
+    fn an_elevated_startup_action_never_becomes_a_window_even_when_malformed() {
+        assert_eq!(
+            classify([
+                vitals_win_arg::STARTUP_ACTION,
+                "service",
+                "53",
+                "stop",
+                "confirmed"
+            ]),
+            LaunchMode::ElevatedStartupAction {
+                args: vec![
+                    "service".into(),
+                    "53".into(),
+                    "stop".into(),
+                    "confirmed".into()
+                ]
+            }
+        );
+        assert_eq!(
+            classify([vitals_win_arg::STARTUP_ACTION]),
+            LaunchMode::ElevatedStartupAction { args: vec![] }
         );
     }
 

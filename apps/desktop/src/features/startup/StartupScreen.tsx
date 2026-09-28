@@ -16,22 +16,32 @@
  * counting them to decide what to disable.
  */
 
-import { RefreshCw, ShieldAlert } from 'lucide-react';
-import { useMemo } from 'react';
+import { MoreHorizontal, RefreshCw, ShieldAlert } from 'lucide-react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import {
   Badge,
   Button,
+  Checkbox,
+  ContextMenu,
+  ContextMenuTrigger,
+  DialogContent,
+  DialogRoot,
+  DropdownMenu,
+  DropdownMenuTrigger,
   EmptyState,
+  IconButton,
   SearchInput,
   SegmentedControl,
   Skeleton,
   cn,
+  focusRing,
   formatBytes,
 } from '@vitals/ui';
 
 import { ExportButton } from '../../components/ExportButton';
+import { errorMessage, isCommandError } from '../../lib/commandError';
 import type { ExportColumn } from '../../lib/export';
 import { oneOf, useUrlState } from '../../lib/useUrlState';
 import {
@@ -40,6 +50,7 @@ import {
   filterServices,
   filterStartup,
   formatCpuSeconds,
+  hideMicrosoft,
   isMachineWide,
   labelFor,
   serviceFilters,
@@ -51,49 +62,139 @@ import {
   type StartupEntry,
   type StartupFilter,
 } from './model';
+import {
+  RowContextMenu,
+  RowDropdownMenu,
+  serviceKey,
+  startupKey,
+  useRowMenus,
+  type ActionRequest,
+  type RowMenuModel,
+} from './RowMenu';
+import { tauriStartupActions, type StartupActions } from './startupActions';
 import { STARTUP_NS } from './strings';
 import { NO_HOST, useStartup, type StartupReader } from './useStartup';
+
+const microsoftModes = ['hide', 'show'] as const;
+type MicrosoftMode = (typeof microsoftModes)[number];
 
 export interface StartupScreenProps {
   /** `services` asks the backend for start types, which costs an SCM call each. */
   readonly mode: 'startup' | 'services';
   /** Injectable so tests and the sampler-less preview need no Tauri host. */
   readonly reader?: StartupReader;
+  /** Injectable for the same reason, and because every call changes the machine. */
+  readonly actions?: StartupActions;
 }
 
-export function StartupScreen({ mode, reader }: StartupScreenProps): React.JSX.Element {
+export function StartupScreen({
+  mode,
+  reader,
+  actions = tauriStartupActions,
+}: StartupScreenProps): React.JSX.Element {
   const { t, i18n } = useTranslation(STARTUP_NS);
   const locale = i18n.language;
   const state = useStartup(mode === 'services', reader);
 
   // One component, two routes, so the fragment is keyed on the mode: a query
   // typed into Services must not reappear when the user opens Startup.
+  // Microsoft entries are hidden by default, as msconfig does: on a stock
+  // install they are most of the list, and they are rarely what slows a
+  // machine down. The default writes no fragment, so only "show" is recorded.
   const [view, patchView] = useUrlState<{
     q: string;
     startup: StartupFilter;
     service: ServiceFilter;
+    ms: MicrosoftMode;
   }>(
     mode,
-    { q: '', startup: 'all', service: 'all' },
-    { startup: oneOf(startupFilters), service: oneOf(serviceFilters) },
+    { q: '', startup: 'all', service: 'all', ms: 'hide' },
+    {
+      startup: oneOf(startupFilters),
+      service: oneOf(serviceFilters),
+      ms: oneOf(microsoftModes),
+    },
   );
   const query = view.q;
   const startupFilter = view.startup;
   const serviceFilter = view.service;
+  const hidingMicrosoft = view.ms === 'hide';
   const setQuery = (q: string): void => {
     patchView({ q });
   };
 
   const snapshot = state.snapshot;
 
-  const startupRows = useMemo(
-    () => sortStartup(filterStartup(snapshot?.entries ?? [], startupFilter, query)),
-    [snapshot, startupFilter, query],
-  );
-  const serviceRows = useMemo(
-    () => sortServices(filterServices(snapshot?.services ?? [], serviceFilter, query)),
-    [snapshot, serviceFilter, query],
-  );
+  // The Microsoft filter runs before the export sees the rows, so a saved
+  // file holds exactly what was on screen rather than a longer list the user
+  // never looked at.
+  const startupView = useMemo(() => {
+    const shown = hideMicrosoft(
+      filterStartup(snapshot?.entries ?? [], startupFilter, query),
+      hidingMicrosoft,
+    );
+    return { rows: sortStartup(shown.rows), hidden: shown.hidden };
+  }, [snapshot, startupFilter, query, hidingMicrosoft]);
+  const serviceView = useMemo(() => {
+    const shown = hideMicrosoft(
+      filterServices(snapshot?.services ?? [], serviceFilter, query),
+      hidingMicrosoft,
+    );
+    return { rows: sortServices(shown.rows), hidden: shown.hidden };
+  }, [snapshot, serviceFilter, query, hidingMicrosoft]);
+  const startupRows = startupView.rows;
+  const serviceRows = serviceView.rows;
+
+  const [busyKey, setBusyKey] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState<ActionRequest | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [failure, setFailure] = useState<string | null>(null);
+
+  const report = (cause: unknown): void => {
+    // A refusal is the user pressing No on UAC, or Windows saying no: its own
+    // message is the whole story, and prefixing "That did not work" would
+    // blame the app for a choice the user made.
+    const message = errorMessage(cause);
+    setFailure(
+      isCommandError(cause) && cause.kind === 'refused' ? message : t('failed', { message }),
+    );
+  };
+
+  const run = (request: ActionRequest, confirmed: boolean): void => {
+    setConfirming(null);
+    setNotice(null);
+    setFailure(null);
+    setBusyKey(request.key);
+    void request
+      .run(confirmed)
+      .then(() => {
+        setNotice(t(`done.${request.verb}`, { name: request.name }));
+        // The list is not polled, so without this the row would keep showing
+        // the state the user just changed.
+        state.refresh();
+      })
+      .catch(report)
+      .finally(() => {
+        setBusyKey(null);
+      });
+  };
+
+  const menus = useRowMenus({
+    actions,
+    busyKey,
+    request: (request) => {
+      // Only a change that makes less run, on something the backend says
+      // matters, is worth interrupting for. Asking before every Enable would
+      // train the user to click through the one dialog that counts.
+      const risky = request.risk === 'degrades' || request.risk === 'systemCritical';
+      if (request.reduces && risky) setConfirming(request);
+      else run(request, false);
+    },
+    attempt: (work) => {
+      setFailure(null);
+      void work().catch(report);
+    },
+  });
 
   const startupColumns = useMemo(
     (): readonly ExportColumn<StartupEntry>[] => [
@@ -146,6 +247,7 @@ export function StartupScreen({ mode, reader }: StartupScreenProps): React.JSX.E
 
   const isServices = mode === 'services';
   const rows = isServices ? serviceRows : startupRows;
+  const hiddenCount = isServices ? serviceView.hidden : startupView.hidden;
 
   return (
     <div className="screen">
@@ -202,20 +304,141 @@ export function StartupScreen({ mode, reader }: StartupScreenProps): React.JSX.E
         )}
       </div>
 
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <Checkbox
+          checked={hidingMicrosoft}
+          onCheckedChange={(checked) => {
+            patchView({ ms: checked === true ? 'hide' : 'show' });
+          }}
+          label={t(isServices ? 'microsoft.hideServices' : 'microsoft.hideStartup')}
+        />
+        {/* Said out loud so a shorter list is never mistaken for a scan
+            that missed things. */}
+        {hiddenCount > 0 && (
+          <p className="text-2xs text-[var(--color-fg-muted)]">
+            {t('microsoft.hidden', { count: hiddenCount })}
+          </p>
+        )}
+      </div>
+
+      {notice !== null && (
+        <p role="status" className="text-2xs text-[var(--color-fg-muted)]">
+          {notice}
+        </p>
+      )}
+      {failure !== null && (
+        <p role="alert" className="text-2xs text-[var(--color-status-danger)]">
+          {failure}
+        </p>
+      )}
+
       {rows.length === 0 ? (
         <EmptyState title={t('empty.title')} description={t('empty.body')} />
       ) : isServices ? (
-        <ServiceTable rows={serviceRows} />
+        <ServiceTable rows={serviceRows} menuFor={menus.service} />
       ) : (
-        <StartupTable rows={startupRows} locale={locale} />
+        <StartupTable rows={startupRows} locale={locale} menuFor={menus.startup} />
       )}
 
       {!isServices && snapshot !== null && (
         <ImpactCaption measuredAtMs={snapshot.impactMeasuredAtMs} locale={locale} />
       )}
+
+      <DialogRoot
+        open={confirming !== null}
+        onOpenChange={(open) => {
+          if (!open) setConfirming(null);
+        }}
+      >
+        {confirming !== null && (
+          <DialogContent
+            title={t(confirmTitleKey(confirming.verb), { name: confirming.name })}
+            closeLabel={t('confirm.close')}
+          >
+            <p className="text-sm">
+              {t(
+                confirming.risk === 'systemCritical'
+                  ? 'confirm.body.systemCritical'
+                  : 'confirm.body.degrades',
+              )}
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setConfirming(null);
+                }}
+              >
+                {t('confirm.cancel')}
+              </Button>
+              <Button
+                variant="danger"
+                onClick={() => {
+                  run(confirming, true);
+                }}
+              >
+                {t('confirm.confirm')}
+              </Button>
+            </div>
+          </DialogContent>
+        )}
+      </DialogRoot>
     </div>
   );
 }
+
+/**
+ * Only reducing verbs reach the dialog, so the others map to the nearest
+ * title rather than a key that would never be shown.
+ */
+function confirmTitleKey(verb: ActionRequest['verb']) {
+  switch (verb) {
+    case 'stop':
+      return 'confirm.title.stop';
+    case 'restart':
+      return 'confirm.title.restart';
+    case 'manual':
+      return 'confirm.title.manual';
+    case 'disabled':
+      return 'confirm.title.disabled';
+    default:
+      return 'confirm.title.disable';
+  }
+}
+
+/**
+ * The trailing "⋯" cell. A right-click menu alone is invisible; this is the
+ * affordance that tells a mouse user the row has actions at all.
+ */
+function ActionsCell({ menu }: { readonly menu: RowMenuModel }) {
+  const { t } = useTranslation(STARTUP_NS);
+  return (
+    <td className="w-8 px-1 py-1.5 text-right">
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <IconButton
+            size="sm"
+            icon={<MoreHorizontal aria-hidden />}
+            label={t('action.rowActions', { name: menu.label })}
+          />
+        </DropdownMenuTrigger>
+        <RowDropdownMenu menu={menu} />
+      </DropdownMenu>
+    </td>
+  );
+}
+
+function ActionsHeader() {
+  const { t } = useTranslation(STARTUP_NS);
+  return (
+    <th scope="col" className="w-8 px-1 py-1.5">
+      <span className="sr-only">{t('action.actions')}</span>
+    </th>
+  );
+}
+
+/** Focusable so Shift+F10 and the Menu key reach the row's context menu. */
+const rowClass = cn('border-t border-[var(--color-border-subtle)]', focusRing);
 
 /**
  * Says which boot the Startup cost column describes, or that none has been
@@ -290,9 +513,11 @@ function Summary({
 function StartupTable({
   rows,
   locale,
+  menuFor,
 }: {
   readonly rows: readonly StartupEntry[];
   readonly locale: string;
+  readonly menuFor: (entry: StartupEntry) => RowMenuModel;
 }) {
   const { t } = useTranslation(STARTUP_NS);
 
@@ -317,69 +542,82 @@ function StartupTable({
             >
               {t('column.impact')}
             </th>
+            <ActionsHeader />
           </tr>
         </thead>
         <tbody>
-          {rows.map((entry) => (
-            <tr
-              key={`${entry.source}:${entry.name}`}
-              className="border-t border-[var(--color-border-subtle)]"
-            >
-              <td className="cell-fill px-2.5 py-1.5">
-                <span className="block truncate text-sm">{labelFor(entry)}</span>
-                {entry.command !== null && (
-                  <span
-                    className="block truncate font-mono text-2xs text-[var(--color-fg-subtle)]"
-                    title={entry.command}
-                  >
-                    {entry.command}
-                  </span>
-                )}
-              </td>
-              <td className="px-2.5 py-1.5 text-2xs">
-                {t(`source.${entry.source}`)}
-                {isMachineWide(entry) && (
-                  <Badge tone="neutral" title={t('allUsersHint')} className="ml-1.5">
-                    {t('allUsers')}
-                  </Badge>
-                )}
-              </td>
-              <td className="px-2.5 py-1.5 text-2xs">
-                <Badge
-                  tone={
-                    entry.state === 'enabled'
-                      ? 'ok'
-                      : entry.state === 'disabled'
-                        ? 'neutral'
-                        : 'warn'
-                  }
-                >
-                  {t(`state.${entry.state}`)}
-                </Badge>
-              </td>
-              <td
-                className="px-2.5 py-1.5 text-right font-mono text-2xs tabular-nums"
-                data-testid="startup-impact"
-                {...(entry.impact === null && { title: t('impact.notSeen') })}
-              >
-                {/* Two figures, both honest: a null impact is an em dash in
+          {rows.map((entry) => {
+            const menu = menuFor(entry);
+            return (
+              <ContextMenu key={startupKey(entry)}>
+                <ContextMenuTrigger asChild>
+                  <tr tabIndex={0} className={rowClass} data-testid="startup-row">
+                    <td className="cell-fill px-2.5 py-1.5">
+                      <span className="block truncate text-sm">{labelFor(entry)}</span>
+                      {entry.command !== null && (
+                        <span
+                          className="block truncate font-mono text-2xs text-[var(--color-fg-subtle)]"
+                          title={entry.command}
+                        >
+                          {entry.command}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-2.5 py-1.5 text-2xs">
+                      {t(`source.${entry.source}`)}
+                      {isMachineWide(entry) && (
+                        <Badge tone="neutral" title={t('allUsersHint')} className="ml-1.5">
+                          {t('allUsers')}
+                        </Badge>
+                      )}
+                    </td>
+                    <td className="px-2.5 py-1.5 text-2xs">
+                      <Badge
+                        tone={
+                          entry.state === 'enabled'
+                            ? 'ok'
+                            : entry.state === 'disabled'
+                              ? 'neutral'
+                              : 'warn'
+                        }
+                      >
+                        {t(`state.${entry.state}`)}
+                      </Badge>
+                    </td>
+                    <td
+                      className="px-2.5 py-1.5 text-right font-mono text-2xs tabular-nums"
+                      data-testid="startup-impact"
+                      {...(entry.impact === null && { title: t('impact.notSeen') })}
+                    >
+                      {/* Two figures, both honest: a null impact is an em dash in
                     each, never a zero. */}
-                <span className="block">
-                  {formatCpuSeconds(entry.impact?.cpuMs ?? null, locale)}
-                </span>
-                <span className="block text-[var(--color-fg-subtle)]">
-                  {formatBytes(entry.impact?.diskBytes ?? null, locale)}
-                </span>
-              </td>
-            </tr>
-          ))}
+                      <span className="block">
+                        {formatCpuSeconds(entry.impact?.cpuMs ?? null, locale)}
+                      </span>
+                      <span className="block text-[var(--color-fg-subtle)]">
+                        {formatBytes(entry.impact?.diskBytes ?? null, locale)}
+                      </span>
+                    </td>
+                    <ActionsCell menu={menu} />
+                  </tr>
+                </ContextMenuTrigger>
+                <RowContextMenu menu={menu} />
+              </ContextMenu>
+            );
+          })}
         </tbody>
       </table>
     </div>
   );
 }
 
-function ServiceTable({ rows }: { readonly rows: readonly ServiceEntry[] }) {
+function ServiceTable({
+  rows,
+  menuFor,
+}: {
+  readonly rows: readonly ServiceEntry[];
+  readonly menuFor: (service: ServiceEntry) => RowMenuModel;
+}) {
   const { t } = useTranslation(STARTUP_NS);
 
   return (
@@ -396,42 +634,54 @@ function ServiceTable({ rows }: { readonly rows: readonly ServiceEntry[] }) {
             <th scope="col" className="px-2.5 py-1.5 font-normal">
               {t('column.startType')}
             </th>
+            <ActionsHeader />
           </tr>
         </thead>
         <tbody>
-          {rows.map((service) => (
-            <tr key={service.name} className="border-t border-[var(--color-border-subtle)]">
-              <td className="cell-fill px-2.5 py-1.5">
-                <span className="block truncate text-sm">{labelFor(service)}</span>
-                <span className="block truncate font-mono text-2xs text-[var(--color-fg-subtle)]">
-                  {service.name}
-                </span>
-              </td>
-              <td className="px-2.5 py-1.5 text-2xs">
-                <Badge tone={service.state === 'running' ? 'ok' : 'neutral'}>
-                  {t(`serviceState.${service.state}`)}
-                </Badge>
-                {/* Grouped services share one process, so their CPU and memory
+          {rows.map((service) => {
+            const menu = menuFor(service);
+            return (
+              <ContextMenu key={serviceKey(service)}>
+                <ContextMenuTrigger asChild>
+                  <tr tabIndex={0} className={rowClass} data-testid="service-row">
+                    <td className="cell-fill px-2.5 py-1.5">
+                      <span className="block truncate text-sm">{labelFor(service)}</span>
+                      <span className="block truncate font-mono text-2xs text-[var(--color-fg-subtle)]">
+                        {service.name}
+                      </span>
+                    </td>
+                    <td className="px-2.5 py-1.5 text-2xs">
+                      <Badge tone={service.state === 'running' ? 'ok' : 'neutral'}>
+                        {t(`serviceState.${service.state}`)}
+                      </Badge>
+                      {/* Grouped services share one process, so their CPU and memory
                     cannot be attributed individually. Saying so beats showing
                     the host's whole footprint against each of a dozen
                     services, which is what Task Manager appears to do. */}
-                {service.svchostGroup !== null && (
-                  <Badge tone="info" title={t('sharedHint')} className="ml-1.5">
-                    {t('shared')}
-                  </Badge>
-                )}
-              </td>
-              <td className="px-2.5 py-1.5 text-2xs">
-                <span
-                  className={
-                    service.startType === 'unknown' ? 'text-[var(--color-status-warn)]' : undefined
-                  }
-                >
-                  {t(`startType.${service.startType}`)}
-                </span>
-              </td>
-            </tr>
-          ))}
+                      {service.svchostGroup !== null && (
+                        <Badge tone="info" title={t('sharedHint')} className="ml-1.5">
+                          {t('shared')}
+                        </Badge>
+                      )}
+                    </td>
+                    <td className="px-2.5 py-1.5 text-2xs">
+                      <span
+                        className={
+                          service.startType === 'unknown'
+                            ? 'text-[var(--color-status-warn)]'
+                            : undefined
+                        }
+                      >
+                        {t(`startType.${service.startType}`)}
+                      </span>
+                    </td>
+                    <ActionsCell menu={menu} />
+                  </tr>
+                </ContextMenuTrigger>
+                <RowContextMenu menu={menu} />
+              </ContextMenu>
+            );
+          })}
         </tbody>
       </table>
     </div>

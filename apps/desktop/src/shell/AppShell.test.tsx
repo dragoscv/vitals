@@ -52,6 +52,10 @@ beforeAll(async () => {
   // is lost with the fallback — so no timeout, however long, finds it. Failed
   // the full suite on origin/main 85d3800 at 87 % CPU (2026-09-28).
   await import('../theme/MotionRuntime');
+  // And the palette, for the same reason: `Ctrl+K opens the command palette`
+  // failed the full suite at 1146 s of machine-wide load (2026-09-28) while
+  // the file alone passed — the lazy chunk was still transforming.
+  await import('./CommandPalette');
 });
 
 beforeEach(async () => {

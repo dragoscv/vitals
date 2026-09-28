@@ -210,6 +210,14 @@ pub struct StartupEntryDto {
     /// running in the first two minutes after boot, or the executable never
     /// ran while it was. Never a zero standing in for either.
     pub impact: Option<vitals_core::startup::StartupImpact>,
+    /// `CompanyName` from the image's version resource — a claim the file
+    /// makes, not a verified signer, which is why it is not `publisher`.
+    pub company: Option<String>,
+    /// Drives "Hide Microsoft entries". True only when confirmed; an entry
+    /// whose company could not be read stays visible.
+    pub microsoft: bool,
+    /// How risky switching this off is. Translation key.
+    pub risk: &'static str,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -228,6 +236,11 @@ pub struct ServiceDto {
     /// showing the host's whole footprint against each of a dozen services —
     /// which is what Task Manager's Details tab appears to do.
     pub svchost_group: Option<String>,
+    /// The executable `binary_path` resolves to, for the shell actions.
+    pub image_path: Option<String>,
+    pub company: Option<String>,
+    pub microsoft: bool,
+    pub risk: &'static str,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -284,6 +297,7 @@ fn collect_startup(
     use vitals_win::startup;
 
     let inventory = startup::collect(with_service_config)?;
+    let mut companies = startup::CompanyCache::default();
 
     Ok(StartupSnapshot {
         entries: inventory
@@ -299,6 +313,12 @@ fn collect_startup(
                 // from it has no reliable executable to match — guessing one
                 // would attach another program's figures to this row.
                 let impact = image_path.as_deref().and_then(|key| impact.lookup(key));
+                let company = image_path.as_deref().and_then(|path| companies.get(path));
+                // A task under `\Microsoft\` is Windows' own even when its
+                // action is `rundll32` or a COM handler with no image to read.
+                let microsoft = startup::is_microsoft(company.as_deref())
+                    || (entry.source == startup::StartupSource::ScheduledTask
+                        && entry.name.to_ascii_lowercase().starts_with(r"\microsoft\"));
                 StartupEntryDto {
                     name: entry.name.clone(),
                     display_name: entry.display_name.clone(),
@@ -309,24 +329,185 @@ fn collect_startup(
                     state: startup_state(entry.state),
                     pid: entry.pid,
                     impact,
+                    company,
+                    microsoft,
+                    risk: disable_risk(startup::assess_entry(entry, None)),
                 }
             })
             .collect(),
         services: inventory
             .services
             .iter()
-            .map(|service| ServiceDto {
-                name: service.name.clone(),
-                display_name: service.display_name.clone(),
-                state: service_state(service.state),
-                start_type: start_type(service.start_type),
-                pid: service.pid,
-                binary_path: service.binary_path.clone(),
-                svchost_group: service.svchost_group.clone(),
+            .map(|service| {
+                let image_path = service
+                    .binary_path
+                    .as_deref()
+                    .and_then(startup::extract_image_path)
+                    .map(startup::registry::expand_environment);
+                let company = companies.for_service(&service.name, image_path.as_deref());
+                ServiceDto {
+                    name: service.name.clone(),
+                    display_name: service.display_name.clone(),
+                    state: service_state(service.state),
+                    start_type: start_type(service.start_type),
+                    pid: service.pid,
+                    binary_path: service.binary_path.clone(),
+                    svchost_group: service.svchost_group.clone(),
+                    microsoft: startup::is_microsoft(company.as_deref()),
+                    image_path,
+                    company,
+                    risk: disable_risk(startup::assess_disable(startup::EntryFacts {
+                        source: startup::StartupSource::Service,
+                        name: &service.name,
+                        image_file_name: None,
+                        kernel_critical: None,
+                    })),
+                }
             })
             .collect(),
         unreadable_tasks: inventory.unreadable_tasks,
         impact_measured_at_ms: impact.measured_at_ms(),
+    })
+}
+
+#[cfg(windows)]
+const fn disable_risk(risk: vitals_win::startup::DisableRisk) -> &'static str {
+    use vitals_win::startup::DisableRisk as R;
+    match risk {
+        R::Safe => "safe",
+        R::Degrades => "degrades",
+        R::SystemCritical => "systemCritical",
+        R::Forbidden => "forbidden",
+    }
+}
+
+/// What the webview may ask a service to do.
+#[cfg(windows)]
+#[derive(Debug, Clone, Copy, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ServiceControlDto {
+    Start,
+    Stop,
+    Restart,
+}
+
+/// The start types the webview may choose.
+#[cfg(windows)]
+#[derive(Debug, Clone, Copy, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum StartTypeDto {
+    Automatic,
+    Manual,
+    Disabled,
+}
+
+/// Runs one startup change off the IPC thread, raising a UAC prompt when
+/// the unelevated attempt is denied.
+#[cfg(windows)]
+async fn run_change(
+    change: vitals_win::startup::StartupChange,
+    confirmed: Option<bool>,
+) -> CommandResult<()> {
+    let consent = if confirmed == Some(true) {
+        vitals_win::actions::Consent::Confirmed
+    } else {
+        vitals_win::actions::Consent::Unconfirmed
+    };
+    tauri::async_runtime::spawn_blocking(move || {
+        vitals_win::startup::apply_or_elevate(&change, consent)
+    })
+    .await
+    .map_err(|err| CommandError::Internal {
+        message: format!("the startup change was abandoned: {err}"),
+    })??;
+    Ok(())
+}
+
+/// Enables or disables a startup entry, the way Task Manager does.
+///
+/// `source` is the translation key the snapshot carried; an unknown one is
+/// refused rather than guessed. Desktop-only: a phone must never be able to
+/// raise a UAC prompt or change what runs on the machine it watches.
+#[tauri::command]
+#[cfg(windows)]
+pub async fn set_startup_enabled(
+    source: String,
+    name: String,
+    enabled: bool,
+    confirmed: Option<bool>,
+) -> CommandResult<()> {
+    let source = parse_startup_source(&source).ok_or_else(|| CommandError::Refused {
+        message: format!("{source} is not a startup source this build knows"),
+    })?;
+    run_change(
+        vitals_win::startup::StartupChange::SetEnabled {
+            source,
+            name,
+            enabled,
+        },
+        confirmed,
+    )
+    .await
+}
+
+/// Starts, stops or restarts a service.
+#[tauri::command]
+#[cfg(windows)]
+pub async fn control_service(
+    name: String,
+    action: ServiceControlDto,
+    confirmed: Option<bool>,
+) -> CommandResult<()> {
+    use vitals_win::startup::ServiceControl as C;
+    let control = match action {
+        ServiceControlDto::Start => C::Start,
+        ServiceControlDto::Stop => C::Stop,
+        ServiceControlDto::Restart => C::Restart,
+    };
+    run_change(
+        vitals_win::startup::StartupChange::Service { name, control },
+        confirmed,
+    )
+    .await
+}
+
+/// Changes when a service starts.
+#[tauri::command]
+#[cfg(windows)]
+pub async fn set_service_start_type(
+    name: String,
+    start_type: StartTypeDto,
+    confirmed: Option<bool>,
+) -> CommandResult<()> {
+    use vitals_win::startup::SettableStartType as S;
+    let start_type = match start_type {
+        StartTypeDto::Automatic => S::Automatic,
+        StartTypeDto::Manual => S::Manual,
+        StartTypeDto::Disabled => S::Disabled,
+    };
+    run_change(
+        vitals_win::startup::StartupChange::StartType { name, start_type },
+        confirmed,
+    )
+    .await
+}
+
+/// The inverse of [`startup_source`].
+#[cfg(windows)]
+fn parse_startup_source(key: &str) -> Option<vitals_win::startup::StartupSource> {
+    use vitals_win::startup::StartupSource as S;
+    Some(match key {
+        "machineRun" => S::MachineRun,
+        "machineRun32" => S::MachineRun32,
+        "machineRunOnce" => S::MachineRunOnce,
+        "machineRunOnce32" => S::MachineRunOnce32,
+        "userRun" => S::UserRun,
+        "userRunOnce" => S::UserRunOnce,
+        "commonStartupFolder" => S::CommonStartupFolder,
+        "userStartupFolder" => S::UserStartupFolder,
+        "scheduledTask" => S::ScheduledTask,
+        "service" => S::Service,
+        _ => return None,
     })
 }
 

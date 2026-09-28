@@ -39,6 +39,7 @@
 
 pub mod approved;
 pub mod classify;
+pub mod control;
 pub mod entry;
 pub mod impact;
 pub mod registry;
@@ -46,14 +47,19 @@ pub mod run_keys;
 pub mod services;
 pub mod taskcom;
 pub mod tasks;
+pub mod version_info;
 
 pub use approved::ApprovalIndex;
 pub use classify::{DisableRisk, EntryFacts, assess_disable, assess_entry, extract_image_path};
+pub use control::{STARTUP_ACTION_ARG, StartupChange, apply, apply_or_elevate};
 pub use entry::{StartupEntry, StartupSource, StartupState};
 pub use impact::{BOOT_WINDOW_SECS, ImpactAccumulator, MeasuredWindow, Observation};
 pub use run_keys::{scan_run_keys, scan_startup_folders};
-pub use services::{ServiceInfo, ServiceState, StartType, enumerate_services};
+pub use services::{
+    ServiceControl, ServiceInfo, ServiceState, SettableStartType, StartType, enumerate_services,
+};
 pub use tasks::{TaskInfo, TaskScan, TaskTrigger, scan_tasks};
+pub use version_info::{CompanyCache, is_microsoft};
 
 use vitals_core::error::Result;
 

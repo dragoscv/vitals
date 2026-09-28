@@ -94,6 +94,27 @@ impl StartupSource {
             Self::Service => "service",
         }
     }
+
+    /// The inverse of [`as_str`](Self::as_str).
+    ///
+    /// Used by the elevated child, which receives the source as text; an
+    /// unrecognised key is `None` so nothing is written on a guess.
+    #[must_use]
+    pub fn from_key(key: &str) -> Option<Self> {
+        Some(match key {
+            "hklm-run" => Self::MachineRun,
+            "hklm-run-wow64" => Self::MachineRun32,
+            "hklm-runonce" => Self::MachineRunOnce,
+            "hklm-runonce-wow64" => Self::MachineRunOnce32,
+            "hkcu-run" => Self::UserRun,
+            "hkcu-runonce" => Self::UserRunOnce,
+            "common-startup-folder" => Self::CommonStartupFolder,
+            "user-startup-folder" => Self::UserStartupFolder,
+            "scheduled-task" => Self::ScheduledTask,
+            "service" => Self::Service,
+            _ => return None,
+        })
+    }
 }
 
 /// Whether an entry will actually run at the next logon.

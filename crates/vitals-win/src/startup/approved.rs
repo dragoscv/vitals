@@ -25,9 +25,11 @@ use super::{StartupSource, StartupState};
 /// Note that the folder entries share one key regardless of whether the
 /// shortcut is per-user or all-users; the two are distinguished by which
 /// hive the record lives in, not by the sub-key name.
-const RUN: &str = r"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run";
-const RUN32: &str = r"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run32";
-const FOLDER: &str =
+pub(crate) const RUN: &str =
+    r"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run";
+pub(crate) const RUN32: &str =
+    r"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run32";
+pub(crate) const FOLDER: &str =
     r"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\StartupFolder";
 
 /// Interprets a `StartupApproved` blob.

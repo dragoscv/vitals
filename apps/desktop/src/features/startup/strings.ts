@@ -131,6 +131,69 @@ const en = {
     body: 'Vitals cannot reach the part of itself that reads startup entries. Nothing is wrong with the machine — restarting Vitals usually fixes this.',
   },
   stale: 'Showing the last successful reading. {{message}}',
+
+  microsoft: {
+    hideStartup: 'Hide Microsoft entries',
+    hideServices: 'Hide Microsoft services',
+    hidden_one: '{{count}} Microsoft item hidden',
+    hidden_other: '{{count}} Microsoft items hidden',
+  },
+
+  action: {
+    actions: 'Actions',
+    rowActions: 'Actions for {{name}}',
+    enable: 'Enable',
+    disable: 'Disable',
+    start: 'Start',
+    stop: 'Stop',
+    restart: 'Restart',
+    startType: 'Start type',
+    automatic: 'Automatic',
+    manual: 'Manual',
+    disabled: 'Disabled',
+    openLocation: 'Open file location',
+    properties: 'Properties',
+    searchOnline: 'Search online',
+    copyDetails: 'Copy details',
+  },
+
+  reason: {
+    noPath: 'Vitals could not find the file this runs',
+    runOnce: 'Run-once entries delete themselves after running',
+    forbidden: 'Windows does not allow this to be changed',
+    elevation: 'Windows will ask for administrator permission',
+  },
+
+  confirm: {
+    title: {
+      disable: 'Disable {{name}}?',
+      stop: 'Stop {{name}}?',
+      restart: 'Restart {{name}}?',
+      manual: 'Set {{name}} to start manually?',
+      disabled: 'Set {{name}} to Disabled?',
+    },
+    body: {
+      degrades: 'Something that relies on it may stop working until you turn it back on.',
+      systemCritical:
+        'Windows depends on this. Turning it off can break sign-in, networking or the desktop.',
+    },
+    confirm: 'Continue',
+    cancel: 'Cancel',
+    close: 'Close this dialog',
+  },
+
+  done: {
+    enable: 'Enabled {{name}}',
+    disable: 'Disabled {{name}}',
+    start: 'Started {{name}}',
+    stop: 'Stopped {{name}}',
+    restart: 'Restarted {{name}}',
+    automatic: '{{name}} now starts automatically',
+    manual: '{{name}} now starts only when needed',
+    disabled: '{{name}} is now disabled',
+  },
+
+  failed: 'That did not work. {{message}}',
 } as const;
 
 const ro = {
@@ -257,6 +320,70 @@ const ro = {
     body: 'Vitals nu poate ajunge la partea din el care citește elementele de pornire. Nu este nimic în neregulă cu mașina — de obicei repornirea aplicației Vitals rezolvă asta.',
   },
   stale: 'Se afișează ultima citire reușită. {{message}}',
+
+  microsoft: {
+    hideStartup: 'Ascunde elementele Microsoft',
+    hideServices: 'Ascunde serviciile Microsoft',
+    hidden_one: '{{count}} element Microsoft ascuns',
+    hidden_few: '{{count}} elemente Microsoft ascunse',
+    hidden_other: '{{count}} de elemente Microsoft ascunse',
+  },
+
+  action: {
+    actions: 'Acțiuni',
+    rowActions: 'Acțiuni pentru {{name}}',
+    enable: 'Activează',
+    disable: 'Dezactivează',
+    start: 'Pornește',
+    stop: 'Oprește',
+    restart: 'Repornește',
+    startType: 'Tip de pornire',
+    automatic: 'Automat',
+    manual: 'Manual',
+    disabled: 'Dezactivat',
+    openLocation: 'Deschide locația fișierului',
+    properties: 'Proprietăți',
+    searchOnline: 'Caută online',
+    copyDetails: 'Copiază detaliile',
+  },
+
+  reason: {
+    noPath: 'Vitals nu a găsit fișierul pe care îl rulează',
+    runOnce: 'Elementele care rulează o singură dată se șterg singure după rulare',
+    forbidden: 'Windows nu permite modificarea acestui element',
+    elevation: 'Windows va cere permisiunea de administrator',
+  },
+
+  confirm: {
+    title: {
+      disable: 'Dezactivezi {{name}}?',
+      stop: 'Oprești {{name}}?',
+      restart: 'Repornești {{name}}?',
+      manual: 'Setezi {{name}} să pornească manual?',
+      disabled: 'Setezi {{name}} ca dezactivat?',
+    },
+    body: {
+      degrades: 'Ceva ce depinde de el poate să nu mai funcționeze până când îl activezi din nou.',
+      systemCritical:
+        'Windows depinde de acesta. Oprirea lui poate strica autentificarea, rețeaua sau desktopul.',
+    },
+    confirm: 'Continuă',
+    cancel: 'Anulează',
+    close: 'Închide acest dialog',
+  },
+
+  done: {
+    enable: 'S-a activat {{name}}',
+    disable: 'S-a dezactivat {{name}}',
+    start: 'S-a pornit {{name}}',
+    stop: 'S-a oprit {{name}}',
+    restart: 'S-a repornit {{name}}',
+    automatic: '{{name}} pornește acum automat',
+    manual: '{{name}} pornește acum doar la nevoie',
+    disabled: '{{name}} este acum dezactivat',
+  },
+
+  failed: 'Nu a funcționat. {{message}}',
 } as const;
 
 /**

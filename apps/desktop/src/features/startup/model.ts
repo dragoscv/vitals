@@ -52,6 +52,15 @@ export type ServiceStateKey =
 export type StartTypeKey = 'boot' | 'system' | 'automatic' | 'manual' | 'disabled' | 'unknown';
 
 /**
+ * How much turning an item off is likely to hurt, as judged by the backend.
+ *
+ * `forbidden` is not a stronger warning but a refusal: Windows itself will not
+ * let the item be changed, so the UI disables the action rather than letting
+ * the user click through to a guaranteed failure.
+ */
+export type DisableRiskKey = 'safe' | 'degrades' | 'systemCritical' | 'forbidden';
+
+/**
  * What an entry measurably cost at boot — see `impact.rs`.
  *
  * `null` on the entry means nothing was measured for it: Vitals was not
@@ -70,6 +79,15 @@ export interface StartupEntry {
   readonly state: StartupStateKey;
   readonly pid: number | null;
   readonly impact: StartupImpact | null;
+  /** CompanyName from the image's version info; `null` when unknown. */
+  readonly company: string | null;
+  /**
+   * True only when Microsoft is confirmed, never inferred from a path. A
+   * false positive here hides a third-party entry behind the default filter,
+   * which is the one place a user would never think to look for it.
+   */
+  readonly microsoft: boolean;
+  readonly risk: DisableRiskKey;
 }
 
 export interface ServiceEntry {
@@ -80,6 +98,11 @@ export interface ServiceEntry {
   readonly pid: number | null;
   readonly binaryPath: string | null;
   readonly svchostGroup: string | null;
+  readonly company: string | null;
+  readonly microsoft: boolean;
+  readonly risk: DisableRiskKey;
+  /** The executable `binaryPath` resolves to, without its arguments. */
+  readonly imagePath: string | null;
 }
 
 export interface StartupSnapshot {
@@ -127,6 +150,37 @@ const MACHINE_WIDE: ReadonlySet<StartupSourceKey> = new Set([
 
 export function isMachineWide(entry: StartupEntry): boolean {
   return MACHINE_WIDE.has(entry.source);
+}
+
+const RUN_ONCE: ReadonlySet<StartupSourceKey> = new Set([
+  'machineRunOnce',
+  'machineRunOnce32',
+  'userRunOnce',
+]);
+
+/**
+ * A run-once entry is deleted by Windows after it runs, so there is no
+ * `StartupApproved` switch to flip — disabling it would mean deleting it,
+ * which is not what the menu promises.
+ */
+export function isRunOnce(entry: StartupEntry): boolean {
+  return RUN_ONCE.has(entry.source);
+}
+
+/**
+ * Rows left after the "Hide Microsoft" box, plus how many it removed.
+ *
+ * The count is returned alongside so the screen can say the list is shorter
+ * on purpose; a filter that silently drops two hundred rows reads as a
+ * broken scan.
+ */
+export function hideMicrosoft<Row extends { readonly microsoft: boolean }>(
+  rows: readonly Row[],
+  hide: boolean,
+): { readonly rows: readonly Row[]; readonly hidden: number } {
+  if (!hide) return { rows, hidden: 0 };
+  const kept = rows.filter((row) => !row.microsoft);
+  return { rows: kept, hidden: rows.length - kept.length };
 }
 
 /** The label to show: the friendly name when there is one, else the key. */

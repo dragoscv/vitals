@@ -129,6 +129,23 @@ unsafe extern "system" {
         buffer_size: u32,
         bytes_needed: *mut u32,
     ) -> i32;
+    fn StartServiceW(service: ScHandle, argc: u32, argv: *const *const u16) -> i32;
+    fn ControlService(service: ScHandle, control: u32, status: *mut ServiceStatus) -> i32;
+    fn QueryServiceStatus(service: ScHandle, status: *mut ServiceStatus) -> i32;
+    #[allow(clippy::too_many_arguments)] // the Win32 signature, not a design choice
+    fn ChangeServiceConfigW(
+        service: ScHandle,
+        service_type: u32,
+        start_type: u32,
+        error_control: u32,
+        binary_path: *const u16,
+        load_order_group: *const u16,
+        tag_id: *mut u32,
+        dependencies: *const u16,
+        start_name: *const u16,
+        password: *const u16,
+        display_name: *const u16,
+    ) -> i32;
 }
 
 #[link(name = "kernel32")]
@@ -530,6 +547,247 @@ pub fn parse_svchost_group(command: &str) -> Option<String> {
     }
 
     None
+}
+
+/// `SERVICE_STATUS` — seven `DWORD`s.
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
+struct ServiceStatus {
+    service_type: u32,
+    current_state: u32,
+    controls_accepted: u32,
+    win32_exit_code: u32,
+    service_specific_exit_code: u32,
+    check_point: u32,
+    wait_hint: u32,
+}
+
+const SERVICE_CHANGE_CONFIG: u32 = 0x0002;
+const SERVICE_QUERY_STATUS: u32 = 0x0004;
+const SERVICE_START: u32 = 0x0010;
+const SERVICE_STOP: u32 = 0x0020;
+const SERVICE_CONTROL_STOP: u32 = 0x0000_0001;
+const SERVICE_NO_CHANGE: u32 = 0xFFFF_FFFF;
+
+const ERROR_DEPENDENT_SERVICES_RUNNING: i32 = 1051;
+const ERROR_SERVICE_ALREADY_RUNNING: i32 = 1056;
+const ERROR_SERVICE_DISABLED: i32 = 1058;
+const ERROR_SERVICE_DOES_NOT_EXIST: i32 = 1060;
+const ERROR_SERVICE_CANNOT_ACCEPT_CTRL: i32 = 1061;
+const ERROR_SERVICE_NOT_ACTIVE: i32 = 1062;
+
+/// What the user asked a service to do.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ServiceControl {
+    Start,
+    Stop,
+    Restart,
+}
+
+/// The start types a user may choose.
+///
+/// Narrower than [`StartType`] on purpose: `Boot` and `System` are driver
+/// start types, and offering them for a Win32 service would let the user
+/// write a value the SCM rejects — or, worse, accepts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SettableStartType {
+    Automatic,
+    Manual,
+    Disabled,
+}
+
+impl SettableStartType {
+    const fn raw(self) -> u32 {
+        match self {
+            Self::Automatic => start::AUTO,
+            Self::Manual => start::DEMAND,
+            Self::Disabled => start::DISABLED,
+        }
+    }
+}
+
+/// How long a stop may take before a restart gives up waiting.
+///
+/// Long enough for a database service flushing to disk; short enough that a
+/// service stuck in `StopPending` produces an answer instead of a spinner
+/// that never ends.
+const STOP_WAIT: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// Starts, stops or restarts a service.
+///
+/// Already-in-the-requested-state is success, not an error: a user who asks
+/// to stop a service that stopped a moment ago got what they wanted, and an
+/// error would make them retry something that is already done.
+///
+/// # Errors
+///
+/// - [`Error::AccessDenied`] when the service cannot be opened for control —
+///   the normal case unelevated, which the caller answers with a UAC prompt.
+/// - [`Error::NotFound`] when no service has that key name.
+/// - [`Error::Refused`] when the SCM declines: dependants still running, the
+///   service is disabled, or it does not accept a stop.
+/// - [`Error::Os`] for anything else.
+pub fn control_service(name: &str, control: ServiceControl) -> Result<()> {
+    let scm = open_scm()?;
+    let service = open_service(
+        &scm,
+        name,
+        SERVICE_START | SERVICE_STOP | SERVICE_QUERY_STATUS,
+    )?;
+
+    match control {
+        ServiceControl::Start => start_service(&service, name),
+        ServiceControl::Stop => stop_service(&service, name),
+        ServiceControl::Restart => {
+            stop_service(&service, name)?;
+            wait_until_stopped(&service, name)?;
+            start_service(&service, name)
+        }
+    }
+}
+
+/// Changes when a service starts.
+///
+/// # Errors
+///
+/// As [`control_service`], with [`Error::AccessDenied`] for an unelevated
+/// caller, which is every caller on a standard desktop.
+pub fn set_start_type(name: &str, start_type: SettableStartType) -> Result<()> {
+    let scm = open_scm()?;
+    let service = open_service(&scm, name, SERVICE_CHANGE_CONFIG)?;
+
+    // SAFETY: `service.0` is live; every `SERVICE_NO_CHANGE` / null argument
+    // is the documented "leave this field alone".
+    let ok = unsafe {
+        ChangeServiceConfigW(
+            service.0,
+            SERVICE_NO_CHANGE,
+            start_type.raw(),
+            SERVICE_NO_CHANGE,
+            std::ptr::null(),
+            std::ptr::null(),
+            std::ptr::null_mut(),
+            std::ptr::null(),
+            std::ptr::null(),
+            std::ptr::null(),
+            std::ptr::null(),
+        )
+    };
+    if ok == 0 {
+        return Err(scm_error(last_error(), name, "change the start type of"));
+    }
+    Ok(())
+}
+
+fn open_scm() -> Result<ServiceHandle> {
+    // SAFETY: nulls request the local active database.
+    let scm = unsafe { OpenSCManagerW(std::ptr::null(), std::ptr::null(), SC_MANAGER_CONNECT) };
+    if scm.is_null() {
+        return Err(scm_error(last_error(), "", "connect to"));
+    }
+    Ok(ServiceHandle(scm))
+}
+
+fn open_service(scm: &ServiceHandle, name: &str, access: u32) -> Result<ServiceHandle> {
+    let wide: Vec<u16> = name.encode_utf16().chain(Some(0)).collect();
+    // SAFETY: `wide` is NUL-terminated and alive; `scm.0` is live.
+    let service = unsafe { OpenServiceW(scm.0, wide.as_ptr(), access) };
+    if service.is_null() {
+        return Err(scm_error(last_error(), name, "open"));
+    }
+    Ok(ServiceHandle(service))
+}
+
+fn start_service(service: &ServiceHandle, name: &str) -> Result<()> {
+    // SAFETY: no arguments are passed to the service.
+    let ok = unsafe { StartServiceW(service.0, 0, std::ptr::null()) };
+    if ok == 0 {
+        let code = last_error();
+        if code == ERROR_SERVICE_ALREADY_RUNNING {
+            return Ok(());
+        }
+        return Err(scm_error(code, name, "start"));
+    }
+    Ok(())
+}
+
+fn stop_service(service: &ServiceHandle, name: &str) -> Result<()> {
+    let mut status = ServiceStatus::default();
+    // SAFETY: `status` is a live out-parameter of the documented size.
+    let ok = unsafe { ControlService(service.0, SERVICE_CONTROL_STOP, &raw mut status) };
+    if ok == 0 {
+        let code = last_error();
+        if code == ERROR_SERVICE_NOT_ACTIVE {
+            return Ok(());
+        }
+        return Err(scm_error(code, name, "stop"));
+    }
+    Ok(())
+}
+
+/// Polls until the service reports `Stopped`.
+///
+/// `StartServiceW` on a service still in `StopPending` fails with
+/// "already running", which the start path treats as success — so without
+/// this wait a restart would quietly do only its first half.
+fn wait_until_stopped(service: &ServiceHandle, name: &str) -> Result<()> {
+    let deadline = std::time::Instant::now() + STOP_WAIT;
+    loop {
+        let mut status = ServiceStatus::default();
+        // SAFETY: `status` is a live out-parameter of the documented size.
+        if unsafe { QueryServiceStatus(service.0, &raw mut status) } == 0 {
+            return Err(scm_error(last_error(), name, "query"));
+        }
+        if status.current_state == state::STOPPED {
+            return Ok(());
+        }
+        if std::time::Instant::now() >= deadline {
+            return Err(Error::Refused(format!(
+                "{name} did not stop within {} seconds, so it was not started again",
+                STOP_WAIT.as_secs()
+            )));
+        }
+        std::thread::sleep(std::time::Duration::from_millis(200));
+    }
+}
+
+/// Maps an SCM failure to the error the UI branches on.
+fn scm_error(code: i32, name: &str, verb: &str) -> Error {
+    match code {
+        ERROR_ACCESS_DENIED => Error::AccessDenied {
+            operation: format!("{verb} the service {name}"),
+        },
+        ERROR_SERVICE_DOES_NOT_EXIST => Error::NotFound(format!("no service is named {name}")),
+        ERROR_DEPENDENT_SERVICES_RUNNING => Error::Refused(format!(
+            "other services that depend on {name} are running; stop them first"
+        )),
+        ERROR_SERVICE_DISABLED => Error::Refused(format!(
+            "{name} is disabled; set its start type to Manual or Automatic first"
+        )),
+        ERROR_SERVICE_CANNOT_ACCEPT_CTRL => {
+            Error::Refused(format!("{name} is not accepting that request right now"))
+        }
+        code => Error::Os {
+            context: format!("{verb} the service {name}"),
+            code,
+        },
+    }
+}
+
+/// The DLL a shared-host service actually runs, from
+/// `HKLM\SYSTEM\CurrentControlSet\Services\<name>\Parameters\ServiceDll`.
+///
+/// A `svchost.exe` service's image is always Microsoft's svchost, whoever
+/// wrote the service; the DLL is where its code — and its company — lives.
+/// `None` when the value is absent or unreadable, which is then *unknown*.
+#[must_use]
+pub fn service_dll(name: &str) -> Option<String> {
+    use super::registry::{Hive, KEY_WOW64_64KEY, RegKey, decode_string};
+
+    let path = format!(r"SYSTEM\CurrentControlSet\Services\{name}\Parameters");
+    let key = RegKey::open(Hive::LocalMachine, &path, KEY_WOW64_64KEY).ok()?;
+    let (value_type, data) = key.value("ServiceDll")?;
+    decode_string(value_type, &data).filter(|dll| !dll.trim().is_empty())
 }
 
 /// Converts a NUL-terminated wide pointer to a `String`.
