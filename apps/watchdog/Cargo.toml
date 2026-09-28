@@ -25,7 +25,7 @@ vitals-win = { workspace = true }
 # Already in the tree through tauri-plugin-notification, so no new download:
 # the toast XML, the WinRT notifier and the Activated handler that carries a
 # button's argument back into this process.
-tauri-winrt-notification = "0.7.3"
+tauri-winrt-notification = "0.8.1"
 windows-sys = { version = "0.61.2", features = [
         "Win32_Foundation",
         "Win32_Security",
