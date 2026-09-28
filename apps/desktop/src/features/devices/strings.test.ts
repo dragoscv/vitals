@@ -60,7 +60,13 @@ describe('devices translations', () => {
   it('names every sensor source, unit-bearing quality and charge state', () => {
     const paths = new Set(keyPaths(bundles.en));
 
-    for (const key of ['acpiThermalZone', 'batteryMiniport', 'systemPowerStatus', 'kernelDriver']) {
+    for (const key of [
+      'acpiThermalZone',
+      'batteryMiniport',
+      'systemPowerStatus',
+      'kernelDriver',
+      'storageDevice',
+    ]) {
       expect(paths, `missing source.${key}`).toContain(`source.${key}`);
     }
     for (const key of ['measured', 'derived', 'nameplate']) {

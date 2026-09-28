@@ -110,10 +110,14 @@ the one component that runs as SYSTEM. It is installed only when the user
 presses **Install sensors service** on Devices & sensors, after one
 administrator prompt, and it can be removed from the same place.
 
-- **Read only.** It reads CPU temperature and package-energy registers
-  through the signed PawnIO driver, whose sandboxed modules expose only the
-  registers they declare. It writes no register and takes no input: the pipe
-  is outbound only, and a client can do nothing except read one line.
+- **Read only.** It reads CPU temperature and package-energy registers, and
+  the motherboard's fan tachometers, through the signed PawnIO driver, whose
+  sandboxed modules expose only the registers or ports they declare. It
+  writes no sensor, fan or voltage register — only the Super-I/O protocol
+  bytes (config entry/exit, register index, bank select) needed to read — and
+  takes no input: the pipe is outbound only, and a client can do nothing
+  except read one line. Super-I/O access holds the shared ISA-bus mutex other
+  monitoring tools use.
 - **Pipe:** `\\.\pipe\vitals-sensors`, remote clients rejected. The DACL
   gives SYSTEM and Administrators full access and interactive/authenticated
   users read access. The first instance is created with

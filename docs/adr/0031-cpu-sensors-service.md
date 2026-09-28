@@ -69,3 +69,29 @@ aplică la fel").
 - A pipe-reader bug found by the prover — std reports a disconnect after the
   line as OS error 233 — is fixed in `vitals_sensors::read_line`. codai's
   `read_pipe` has the same shape and should be checked for the same bug.
+
+## Addendum 2026-09-28 (S12-32): board fan speeds
+
+The same service now reads motherboard fan tachometers from the Super-I/O
+chip, through the signed PawnIO.Modules 0.2.11 **`LpcIO`** module (embedded,
+SHA-256-pinned like the CPU modules; release zip digest checked against the
+GitHub release before vendoring).
+
+- `LpcIO` only allows the chip's config port pair and the base addresses it
+  discovers itself; the PCI config ports are blocklisted by the module. The
+  service writes only protocol bytes — config-mode entry/exit, logical-device
+  and bank select, register _indexes_ — and, on Nuvoton, the one lock bit
+  the Linux driver also clears. No fan, PWM or voltage register is written.
+- Every Super-I/O transaction holds the global `Access_ISABUS.HTP.Method`
+  mutex, which LibreHardwareMonitor, FanControl and HWiNFO use, so concurrent
+  tools do not interleave each other's multi-write sequences.
+- Supported: ITE chips with 16-bit fan counters (IT8613E…IT8696E, IT8792E,
+  IT87952E) and Nuvoton NCT6791D–NCT6799D. Refused, reported as "no
+  supported chip": 8-bit-divisor ITE parts and MSI's NCT668x EC-space parts.
+  Register maps from Linux `it87.c`/`nct6775.c` and LibreHardwareMonitor.
+- A header with no tachometer signal is omitted; a fan the chip reports as
+  stopped is 0 RPM. Fans reach the frame as `SystemMetrics.fans`
+  (`#[serde(default)]`, so older frames load), Prometheus `vitals_fan_rpm`,
+  the Thermals panel, and the Devices readings table.
+- Header names are the chip's numbering (`Fan 1`…), not the board's
+  silkscreen (`CPU_FAN`, `SYS_FAN2`): the chip cannot know the mapping.

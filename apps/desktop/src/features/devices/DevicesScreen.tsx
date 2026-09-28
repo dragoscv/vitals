@@ -34,6 +34,10 @@ import {
   CardTitle,
   EmptyState,
   Skeleton,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
   cn,
   formatCount,
   formatPercent,
@@ -60,6 +64,9 @@ import {
   type SensorsSnapshot,
 } from './model';
 import { DEVICES_NS } from './strings';
+import { DeviceTreePanel } from './DeviceTreePanel';
+import { HardwarePanel } from './HardwarePanel';
+import { tauriHardwareApi, type HardwareApi } from './hardwareApi';
 import {
   serviceAction,
   tauriSensorsService,
@@ -73,9 +80,15 @@ export interface DevicesScreenProps {
   readonly reader?: SensorsReader;
   /** Injectable for the same reason; `null` hides the service panel. */
   readonly service?: SensorsServiceApi | null;
+  /** Hardware inventory and device list; `null` hides those tabs. */
+  readonly hardware?: HardwareApi | null;
 }
 
-export function DevicesScreen({ reader, service }: DevicesScreenProps): React.JSX.Element {
+export function DevicesScreen({
+  reader,
+  service,
+  hardware,
+}: DevicesScreenProps): React.JSX.Element {
   const { t, i18n } = useTranslation(DEVICES_NS);
   const state = useSensors(reader);
   const snapshot = state.snapshot;
@@ -87,6 +100,16 @@ export function DevicesScreen({ reader, service }: DevicesScreenProps): React.JS
       : reader === undefined && hasTauriHost()
         ? tauriSensorsService
         : null;
+  const hardwareApi =
+    hardware !== undefined
+      ? hardware
+      : reader === undefined && hasTauriHost()
+        ? tauriHardwareApi
+        : null;
+  // The tab's data is read the first time it is opened, not on screen
+  // mount: the device list and inventory are hundreds of milliseconds of
+  // WMI and SetupAPI that the Sensors tab does not need.
+  const [tab, setTab] = useState('sensors');
 
   const updatedLabel = useMemo(() => {
     if (state.updatedAt === null) return null;
@@ -124,37 +147,63 @@ export function DevicesScreen({ reader, service }: DevicesScreenProps): React.JS
       )}
 
       {snapshot !== null && (
-        <>
-          <p className="text-2xs text-[var(--color-fg-subtle)]">
-            {updatedLabel !== null && `${t('updated', { time: updatedLabel })} · `}
-            {t('cadence', { seconds: Math.round(snapshot.cadenceMs / 1000) })}{' '}
-            {t('cost', { ms: Math.round(snapshot.elapsedMs) })}
-          </p>
+        <Tabs
+          value={tab}
+          onValueChange={setTab}
+          activationMode="manual"
+          className="flex min-h-0 flex-1 flex-col gap-2"
+        >
+          <TabsList aria-label={t('tabs.label')}>
+            <TabsTrigger value="sensors">{t('tabs.sensors')}</TabsTrigger>
+            {hardwareApi !== null && (
+              <>
+                <TabsTrigger value="hardware">{t('tabs.hardware')}</TabsTrigger>
+                <TabsTrigger value="devices">{t('tabs.devices')}</TabsTrigger>
+              </>
+            )}
+          </TabsList>
+          <TabsContent value="sensors" className="flex min-h-0 flex-1 flex-col gap-2">
+            <p className="text-2xs text-[var(--color-fg-subtle)]">
+              {updatedLabel !== null && `${t('updated', { time: updatedLabel })} · `}
+              {t('cadence', { seconds: Math.round(snapshot.cadenceMs / 1000) })}{' '}
+              {t('cost', { ms: Math.round(snapshot.elapsedMs) })}
+            </p>
 
-          {/*
-           * The short, fixed facts (power, battery, thermal zones) are a row
-           * of separate cards at their own height: they are a handful of
-           * values and must never scroll (S12-29 — stacked in one scrolling
-           * column, the zones were cut off below the power card). The two
-           * open-ended lists share the rest of the height side by side and
-           * scroll inside themselves, so their titles and the table header
-           * stay put. A window too short for that stacks everything and
-           * the body scrolls as one (`.screen-body`).
-           */}
-          <div className="devices-body screen-body">
-            <div className="devices-facts">
-              <PowerSection snapshot={snapshot} />
-              <ThermalSection snapshot={snapshot} />
-              {snapshot.batteries.length > 0 && <BatterySection snapshot={snapshot} />}
+            {/*
+             * The short, fixed facts (power, battery, thermal zones) are a row
+             * of separate cards at their own height: they are a handful of
+             * values and must never scroll (S12-29 — stacked in one scrolling
+             * column, the zones were cut off below the power card). The two
+             * open-ended lists share the rest of the height side by side and
+             * scroll inside themselves, so their titles and the table header
+             * stay put. A window too short for that stacks everything and
+             * the body scrolls as one (`.screen-body`).
+             */}
+            <div className="devices-body screen-body">
+              <div className="devices-facts">
+                <PowerSection snapshot={snapshot} />
+                <ThermalSection snapshot={snapshot} />
+                {snapshot.batteries.length > 0 && <BatterySection snapshot={snapshot} />}
+              </div>
+              <ReadingsSection snapshot={snapshot} />
+              <GapsSection
+                gaps={snapshot.gaps}
+                service={serviceApi}
+                onServiceChanged={state.refresh}
+              />
             </div>
-            <ReadingsSection snapshot={snapshot} />
-            <GapsSection
-              gaps={snapshot.gaps}
-              service={serviceApi}
-              onServiceChanged={state.refresh}
-            />
-          </div>
-        </>
+          </TabsContent>
+          {hardwareApi !== null && (
+            <>
+              <TabsContent value="hardware" className="flex min-h-0 flex-1 flex-col">
+                {tab === 'hardware' && <HardwarePanel api={hardwareApi} />}
+              </TabsContent>
+              <TabsContent value="devices" className="flex min-h-0 flex-1 flex-col">
+                {tab === 'devices' && <DeviceTreePanel api={hardwareApi} />}
+              </TabsContent>
+            </>
+          )}
+        </Tabs>
       )}
     </div>
   );

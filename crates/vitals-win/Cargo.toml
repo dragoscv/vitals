@@ -37,6 +37,14 @@ windows = { version = "0.62.2", features = [
 	"Win32_System_Com_Urlmon",
 	"Win32_System_Ole",
 	"Win32_System_Variant",
+	# Hardware inventory (hardware/): Win32_Processor, Win32_PhysicalMemory, MSFT_PhysicalDisk.
+	"Win32_System_Wmi",
+	# Device Manager list (devices/): SetupDi, CM_Get_DevNode_Status, DEVPKEY properties.
+	"Win32_Devices_DeviceAndDriverInstallation",
+	"Win32_Devices_Properties",
+	# Drive temperature (hardware/drive_temp): IOCTL_STORAGE_QUERY_PROPERTY.
+	"Win32_System_IO",
+	"Win32_System_Ioctl",
 	# Adapter names and dedicated VRAM for devices the D3DKMT registry query
 	# does not name (virtual displays, render-only adapters).
 	"Win32_Graphics_Dxgi",

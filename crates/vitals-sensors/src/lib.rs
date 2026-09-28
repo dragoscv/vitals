@@ -58,14 +58,30 @@ pub const MSR_AMD_PKG_ENERGY_STATUS: u32 = 0xC001_029B;
 /// AMD Zen `THM_TCON_CUR_TMP` (SMN address).
 pub const AMD_SMN_THM_TCON_CUR_TMP: u32 = 0x0005_9800;
 
+/// `PawnIO.Modules` 0.2.11 `LpcIO`: Super-I/O port access, restricted by the
+/// module to the chip's config ports and the BARs it discovers.
+pub const LPCIO_MODULE_SHA256: &str =
+    "B3896A1CAB0D808FCA31FE2EBCAE045D59DAC690DA87B17C858BB8DA357EB45E";
+
+/// One fan header's tachometer. `rpm` is `0.0` only when the chip says the
+/// fan is stopped; a header the chip does not count is omitted entirely.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Fan {
+    pub name: String,
+    pub rpm: f32,
+}
+
 /// One snapshot, written as one JSON line on the pipe.
 ///
-/// ok:    `{"v":1,"ok":true,"vendor":"intel","packageC":57.0,"hottestCoreC":61.0,"tjMaxC":100,"packageW":41.5,"source":"pawnio"}`
+/// ok:    `{"v":1,"ok":true,"vendor":"intel","packageC":57.0,"hottestCoreC":61.0,"tjMaxC":100,"packageW":41.5,"superIo":"IT8689E","fans":[{"name":"Fan 1","rpm":812.0}],"source":"pawnio"}`
 /// error: `{"v":1,"ok":false,"error":"..."}`
 ///
 /// Every reading is optional on its own: a CPU whose module refuses the
 /// energy register still reports its temperature, and the absent figure is
 /// `null`, never `0`.
+///
+/// `superIo` and `fans` were added within v1: both are optional, so an older
+/// reader ignores them and a newer reader of an older service sees none.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Reading {
@@ -81,6 +97,11 @@ pub struct Reading {
     pub tj_max_c: Option<u32>,
     #[serde(default, rename = "packageW")]
     pub package_w: Option<f32>,
+    /// The board's monitoring chip, when one was recognised.
+    #[serde(default, rename = "superIo")]
+    pub super_io: Option<String>,
+    #[serde(default)]
+    pub fans: Vec<Fan>,
     #[serde(default)]
     pub source: Option<String>,
     #[serde(default)]
@@ -98,6 +119,8 @@ impl Reading {
             hottest_core_c,
             tj_max_c: None,
             package_w: None,
+            super_io: None,
+            fans: Vec::new(),
             source: Some("pawnio".to_owned()),
             error: None,
         }
@@ -113,6 +136,8 @@ impl Reading {
             hottest_core_c: None,
             tj_max_c: None,
             package_w: None,
+            super_io: None,
+            fans: Vec::new(),
             source: None,
             error: Some(error.into()),
         }
@@ -155,6 +180,12 @@ impl Serialize for Reading {
             m.serialize_entry("hottestCoreC", &self.hottest_core_c)?;
             m.serialize_entry("tjMaxC", &self.tj_max_c)?;
             m.serialize_entry("packageW", &self.package_w)?;
+            if let Some(chip) = &self.super_io {
+                m.serialize_entry("superIo", chip)?;
+            }
+            if !self.fans.is_empty() {
+                m.serialize_entry("fans", &self.fans)?;
+            }
             m.serialize_entry("source", &self.source)?;
         } else {
             m.serialize_entry("error", self.error.as_deref().unwrap_or("unknown error"))?;
@@ -239,6 +270,128 @@ pub fn rapl_watts(previous: u64, current: u64, unit_joules: f64, seconds: f64) -
     }
     let delta = (current as u32).wrapping_sub(previous as u32);
     Some((f64::from(delta) * unit_joules / seconds) as f32)
+}
+
+/// A Super-I/O chip family whose fan tachometers this build decodes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SuperIoFamily {
+    /// ITE IT86xx/IT87xx environment controller.
+    Ite {
+        fans: usize,
+        /// IT8665E/IT8625E keep the sixth fan's counter at 0x93/0x94.
+        alt_sixth: bool,
+    },
+    /// Nuvoton `NCT67xx` hardware monitor with banked registers.
+    Nuvoton { fans: usize },
+}
+
+/// Identifies an ITE chip from its 16-bit ID (config registers 0x20/0x21).
+///
+/// Only chips with 16-bit fan counters are accepted: the older 8-bit
+/// divisor path needs per-board divisor handling this build does not do,
+/// and a guessed divisor produces a confident, wrong RPM.
+#[must_use]
+pub fn ite_chip(id: u16) -> Option<(&'static str, SuperIoFamily)> {
+    let (name, fans, alt_sixth) = match id {
+        0x8613 => ("IT8613E", 5, false),
+        0x8620 => ("IT8620E", 5, false),
+        0x8625 => ("IT8625E", 6, true),
+        0x8628 => ("IT8628E", 6, false),
+        0x8631 => ("IT8631E", 2, false),
+        0x8638 => ("IT8638E", 2, false),
+        0x8655 => ("IT8655E", 3, false),
+        0x8665 => ("IT8665E", 6, true),
+        0x8686 => ("IT8686E", 6, false),
+        0x8688 => ("IT8688E", 6, false),
+        0x8689 => ("IT8689E", 6, false),
+        0x8696 => ("IT8696E", 6, false),
+        0x8721 => ("IT8721F", 5, false),
+        0x8728 => ("IT8728F", 5, false),
+        0x8771 => ("IT8771E", 5, false),
+        0x8772 => ("IT8772E", 5, false),
+        0x8733 => ("IT8792E", 3, false),
+        0x8695 => ("IT87952E", 3, false),
+        _ => return None,
+    };
+    Some((name, SuperIoFamily::Ite { fans, alt_sixth }))
+}
+
+/// Identifies a Nuvoton chip from its ID and revision (0x20/0x21).
+///
+/// Only the NCT679x/NCT6799 line with the 13-bit fan count registers at
+/// bank 4 (0x4B0..) is accepted; the `NCT668x` EC-space parts (MSI) use a
+/// different access protocol entirely.
+#[must_use]
+pub fn nuvoton_chip(id: u8, revision: u8) -> Option<(&'static str, SuperIoFamily)> {
+    let (name, fans) = match (id, revision) {
+        (0xC8, 0x03) => ("NCT6791D", 6),
+        (0xC9, 0x11) => ("NCT6792D", 6),
+        (0xC9, 0x13) => ("NCT6792D-A", 6),
+        (0xD1, 0x21) => ("NCT6793D", 6),
+        (0xD3, 0x52) => ("NCT6795D", 6),
+        (0xD4, 0x23) => ("NCT6796D", 6),
+        (0xD4, 0x2A) => ("NCT6796D-R", 7),
+        (0xD4, 0x51) => ("NCT6797D", 7),
+        (0xD4, 0x2B) => ("NCT6798D", 7),
+        (0xD8, 0x02) => ("NCT6799D", 7),
+        _ => return None,
+    };
+    Some((name, SuperIoFamily::Nuvoton { fans }))
+}
+
+/// ITE: fan tachometer low bytes, one per header.
+pub const ITE_FAN_LOW: [u8; 6] = [0x0D, 0x0E, 0x0F, 0x80, 0x82, 0x4C];
+/// ITE: fan tachometer high bytes (16-bit mode).
+pub const ITE_FAN_HIGH: [u8; 6] = [0x18, 0x19, 0x1A, 0x81, 0x83, 0x4D];
+/// ITE IT8665E/IT8625E: the sixth fan lives elsewhere.
+pub const ITE_FAN_LOW_ALT6: u8 = 0x93;
+pub const ITE_FAN_HIGH_ALT6: u8 = 0x94;
+/// ITE: bits 4/5 (fans 4/5) and 2 (fan 6) enable the 16-bit counters.
+pub const ITE_FAN_16BIT_ENABLE: u8 = 0x0C;
+/// Nuvoton: 13-bit fan count registers (bank in the high byte).
+pub const NUVOTON_FAN_COUNT: [u16; 7] = [0x4B0, 0x4B2, 0x4B4, 0x4B6, 0x4B8, 0x4BA, 0x4CC];
+
+/// RPM from an ITE 16-bit tachometer count.
+///
+/// `None` below 0x40 (no signal: the header is unconnected or the count is
+/// noise); `Some(0.0)` at 0xFFFF, which the chip uses for a stopped fan.
+#[must_use]
+pub fn ite_rpm(count: u16) -> Option<f32> {
+    match count {
+        0..=0x3F => None,
+        0xFFFF => Some(0.0),
+        n => Some(1.35e6 / (f32::from(n) * 2.0)),
+    }
+}
+
+/// Whether ITE header `index` has its 16-bit counter enabled.
+///
+/// Headers 1–3 always count in 16-bit mode on these chips; 4–6 each have an
+/// enable bit, and a disabled header reads a stale count that must not be
+/// reported as a fan.
+#[must_use]
+pub const fn ite_fan_enabled(index: usize, enable_register: u8) -> bool {
+    match index {
+        0..=2 => true,
+        3 => enable_register & (1 << 4) != 0,
+        4 => enable_register & (1 << 5) != 0,
+        5 => enable_register & (1 << 2) != 0,
+        _ => false,
+    }
+}
+
+/// RPM from a Nuvoton 13-bit count (high byte, then low byte's 5 bits).
+///
+/// `Some(0.0)` at the counter's maximum (stopped); `None` below 0x15, where
+/// the count cannot come from a spinning fan.
+#[must_use]
+pub fn nuvoton_rpm(high: u8, low: u8) -> Option<f32> {
+    let count = (u32::from(high) << 5) | u32::from(low & 0x1F);
+    match count {
+        0x1FFF.. => Some(0.0),
+        0..0x15 => None,
+        n => Some(1.35e6 / n as f32),
+    }
 }
 
 /// Uppercase hex SHA-256.
@@ -500,6 +653,69 @@ mod tests {
     fn a_disconnect_before_any_data_is_an_error() {
         let mut src = DisconnectAfter(Vec::new(), true);
         assert!(read_line(&mut src).is_err());
+    }
+
+    #[test]
+    fn ite_rpm_is_half_the_tach_frequency_over_the_count() {
+        // 1.35 MHz / (count * 2): 830 counts ≈ 813 RPM.
+        let rpm = ite_rpm(830).expect("spinning");
+        assert!((rpm - 813.25).abs() < 0.1, "{rpm}");
+    }
+
+    #[test]
+    fn ite_distinguishes_no_signal_from_a_stopped_fan() {
+        assert_eq!(ite_rpm(0), None, "unconnected header is not a fan");
+        assert_eq!(ite_rpm(0x3F), None);
+        assert_eq!(ite_rpm(0xFFFF), Some(0.0), "stopped fan is a real zero");
+    }
+
+    #[test]
+    fn ite_headers_four_to_six_need_their_enable_bit() {
+        assert!(ite_fan_enabled(0, 0));
+        assert!(!ite_fan_enabled(3, 0));
+        assert!(ite_fan_enabled(3, 1 << 4));
+        assert!(ite_fan_enabled(4, 1 << 5));
+        assert!(ite_fan_enabled(5, 1 << 2));
+        assert!(!ite_fan_enabled(5, 1 << 4));
+    }
+
+    #[test]
+    fn nuvoton_rpm_decodes_the_13_bit_count() {
+        // count = (0x13 << 5) | 0x0A = 618 -> 2184.5 RPM
+        let rpm = nuvoton_rpm(0x13, 0x0A).expect("spinning");
+        assert!((rpm - 2184.47).abs() < 0.1, "{rpm}");
+        assert_eq!(nuvoton_rpm(0xFF, 0x1F), Some(0.0));
+        assert_eq!(nuvoton_rpm(0, 3), None);
+    }
+
+    #[test]
+    fn only_chips_with_known_register_maps_are_accepted() {
+        assert_eq!(ite_chip(0x8689).map(|c| c.0), Some("IT8689E"));
+        assert_eq!(ite_chip(0x8705), None, "8-bit divisor chips are refused");
+        assert_eq!(nuvoton_chip(0xD4, 0x2B).map(|c| c.0), Some("NCT6798D"));
+        assert_eq!(
+            nuvoton_chip(0xD4, 0x40),
+            None,
+            "NCT6686D EC space is refused"
+        );
+    }
+
+    #[test]
+    fn fans_are_omitted_from_the_line_when_there_are_none() {
+        let r = Reading::success("intel", Some(50.0), None);
+        assert!(!r.to_json().contains("fans"));
+        let mut r = r;
+        r.super_io = Some("IT8689E".to_owned());
+        r.fans = vec![Fan {
+            name: "Fan 1".to_owned(),
+            rpm: 812.0,
+        }];
+        let j = r.to_json();
+        assert!(
+            j.contains(r#""superIo":"IT8689E","fans":[{"name":"Fan 1","rpm":812.0}]"#),
+            "{j}"
+        );
+        assert_eq!(Reading::parse(&j).expect("parses"), r);
     }
 
     #[test]

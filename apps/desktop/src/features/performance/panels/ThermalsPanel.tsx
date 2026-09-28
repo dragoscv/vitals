@@ -95,7 +95,10 @@ export function ThermalsPanel({
         </div>
       )}
 
-      <Gaps cpuMeasured={system.cpu.temperature !== null} />
+      <Gaps
+        cpuMeasured={system.cpu.temperature !== null}
+        fansMeasured={(system.fans ?? []).length > 0}
+      />
     </div>
   );
 }
@@ -163,7 +166,14 @@ export function collectReadings(system: SystemMetrics, t: TranslateFn): readonly
 }
 
 function collectFans(system: SystemMetrics) {
-  return system.gpus
+  // `?? []`: a phone paired with an older desktop receives frames without it.
+  const board = (system.fans ?? []).map((fan, index) => ({
+    key: `board:${index}`,
+    label: fan.name,
+    rpm: fan.rpm,
+    percent: 0,
+  }));
+  const gpus = system.gpus
     .filter((gpu) => gpu.fanRpm !== null || gpu.fanPercent !== null)
     .map((gpu) => ({
       key: `fan:${gpu.id}`,
@@ -171,6 +181,7 @@ function collectFans(system: SystemMetrics) {
       rpm: gpu.fanRpm,
       percent: gpu.fanPercent !== null ? Math.round(gpu.fanPercent) : 0,
     }));
+  return [...board, ...gpus];
 }
 
 /**
@@ -183,25 +194,36 @@ function collectFans(system: SystemMetrics) {
  * would be silly.
  */
 const CPU_GAP = 'Per-core CPU temperature';
+const CPU_FAN_GAP = 'CPU fan speed';
+const CASE_FAN_GAP = 'Case fan speeds';
+const FAN_GAPS: readonly string[] = [CPU_FAN_GAP, CASE_FAN_GAP];
 
 const GAPS: readonly string[] = [
   CPU_GAP,
-  'CPU fan speed',
+  CPU_FAN_GAP,
   'Motherboard and VRM temperatures',
   'Rail voltages',
-  'Case fan speeds',
+  CASE_FAN_GAP,
 ];
 
 /**
- * `cpuMeasured`: the optional sensors service (ADR-0031) supplies CPU
- * temperature, and listing it as unmeasurable under a chart of it would
- * contradict the chart.
+ * The optional sensors service (ADR-0031) supplies CPU temperature and, on
+ * a board with a supported Super-I/O chip, fan speeds; listing either as
+ * unmeasurable beside its own reading would contradict the screen.
  */
-export function gapsFor(cpuMeasured: boolean): readonly string[] {
-  return cpuMeasured ? GAPS.filter((gap) => gap !== CPU_GAP) : GAPS;
+export function gapsFor(cpuMeasured: boolean, fansMeasured = false): readonly string[] {
+  return GAPS.filter(
+    (gap) => !(cpuMeasured && gap === CPU_GAP) && !(fansMeasured && FAN_GAPS.includes(gap)),
+  );
 }
 
-function Gaps({ cpuMeasured }: { readonly cpuMeasured: boolean }) {
+function Gaps({
+  cpuMeasured,
+  fansMeasured,
+}: {
+  readonly cpuMeasured: boolean;
+  readonly fansMeasured: boolean;
+}) {
   const { t } = useTranslation(PERFORMANCE_NS);
 
   return (
@@ -209,7 +231,7 @@ function Gaps({ cpuMeasured }: { readonly cpuMeasured: boolean }) {
       <summary className="cursor-pointer text-sm font-medium">{t('thermals.gaps')}</summary>
       <p className="mt-1.5 text-2xs text-[var(--color-fg-muted)]">{t('thermals.gapsHint')}</p>
       <ul className="mt-1.5 list-disc pl-4 text-2xs text-[var(--color-fg-subtle)]">
-        {gapsFor(cpuMeasured).map((gap) => (
+        {gapsFor(cpuMeasured, fansMeasured).map((gap) => (
           <li key={gap}>{gap}</li>
         ))}
       </ul>

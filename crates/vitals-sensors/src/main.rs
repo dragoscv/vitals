@@ -1,4 +1,5 @@
-//! `vitals-sensors.exe` — read-only CPU temperature and package power service.
+//! `vitals-sensors.exe` — read-only CPU temperature, package power and board
+//! fan speed service.
 //!
 //! Commands: `service` | `read` | `install [--pawnio-setup <path>]` |
 //! `uninstall` | `version`.
@@ -13,6 +14,8 @@ mod sensor;
 mod server;
 #[cfg(windows)]
 mod service;
+#[cfg(windows)]
+mod superio;
 
 const USAGE: &str =
     "usage: vitals-sensors <service|read|install [--pawnio-setup <path>]|uninstall|version>";
@@ -76,11 +79,24 @@ fn run(args: &[String]) -> i32 {
 fn read_once() -> i32 {
     use vitals_sensors::{Reading, exit};
 
-    let r = sensor::Sensor::open().and_then(|mut s| {
+    let mut r = sensor::Sensor::open().and_then(|mut s| {
         let _ = s.read()?;
         std::thread::sleep(std::time::Duration::from_secs(1));
         s.read()
     });
+    if let Ok(reading) = r.as_mut() {
+        match superio::SuperIo::open() {
+            Ok(Some(chip)) => {
+                reading.super_io = Some(chip.name().to_owned());
+                match chip.fans() {
+                    Ok(fans) => reading.fans = fans,
+                    Err(e) => eprintln!("fans: {e}"),
+                }
+            }
+            Ok(None) => eprintln!("fans: no supported Super-I/O chip"),
+            Err(e) => eprintln!("fans: {e}"),
+        }
+    }
     let r = r.unwrap_or_else(Reading::failure);
     println!("{}", r.to_json());
     if r.ok {

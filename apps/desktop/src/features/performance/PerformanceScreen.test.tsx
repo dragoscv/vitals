@@ -239,6 +239,19 @@ describe('PerformanceScreen', () => {
       fireEvent.click(within(rail).getByRole('button', { name: /Thermals/ }));
 
       expect(screen.getByText('Per-core CPU temperature')).toBeTruthy();
+      expect(screen.getByText('Case fan speeds')).toBeTruthy();
+    });
+
+    it('shows board fans and stops calling fan speed unmeasurable', () => {
+      mount({ fans: [{ name: 'Fan 1', rpm: 1467 }] });
+
+      const rail = screen.getByRole('navigation', { name: 'Resources' });
+      fireEvent.click(within(rail).getByRole('button', { name: /Thermals/ }));
+
+      expect(screen.getByText('Fan 1')).toBeTruthy();
+      expect(screen.getByText(/1[,.\s]?467 RPM/)).toBeTruthy();
+      expect(screen.queryByText('Case fan speeds')).toBeNull();
+      expect(screen.queryByText('CPU fan speed')).toBeNull();
     });
 
     it('separates GPU hotspot from core', () => {

@@ -93,7 +93,10 @@ impl ThermalZone {
     pub fn as_reading(&self, index: usize) -> SensorReading {
         SensorReading::new(
             format!("acpi.tz.{index}"),
-            format!("Thermal zone {index}"),
+            // Named for what it is: a firmware zone, usually the chipset or
+            // the board. Labelled plain "Thermal zone 0" at 28 °C beside a
+            // CPU running at 80 °C, it read as a wrong CPU temperature.
+            format!("Board thermal zone {} ({})", index, self.instance),
             SensorValue::Temperature(self.temperature),
             SensorSource::AcpiThermalZone,
             Quality::Measured,

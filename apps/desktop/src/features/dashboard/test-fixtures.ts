@@ -157,6 +157,7 @@ export interface SystemOverrides {
   readonly gpus?: readonly Deep<GpuMetrics>[];
   readonly battery?: Deep<BatteryMetrics> | null;
   readonly powerDraw?: number | null;
+  readonly fans?: SystemMetrics['fans'];
 }
 
 /** A healthy idle desktop, unless a test says otherwise. */
@@ -168,6 +169,7 @@ export function makeSystem(overrides: SystemOverrides = {}): SystemMetrics {
     networks: (overrides.networks ?? [{}]).map(makeNetwork),
     gpus: (overrides.gpus ?? [{}]).map(makeGpu),
     powerDraw: overrides.powerDraw ?? null,
+    fans: overrides.fans ?? [],
     battery:
       overrides.battery === null
         ? null

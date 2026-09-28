@@ -29,6 +29,7 @@ use windows::Win32::System::Pipes::{
 use windows::core::HSTRING;
 
 use crate::sensor::Sensor;
+use crate::superio::SuperIo;
 
 /// SYSTEM and Administrators full; interactive and authenticated users read
 /// only. Outbound-only pipe, so "read" is all a client can do anyway — the
@@ -138,6 +139,10 @@ fn spawn_refresher(
             let mut sensor: Option<Sensor> = None;
             let mut last_open: Option<Instant> = None;
             let mut open_error = String::from("not opened yet");
+            // Fans on their own PawnIO handle: one handle holds one module,
+            // and a board without a supported chip must still report CPU.
+            // Probed once; `None` after probing means "no supported chip".
+            let mut super_io: Option<Option<SuperIo>> = None;
             while !stop.load(Ordering::SeqCst) {
                 if sensor.is_none() && last_open.is_none_or(|t| t.elapsed() >= REOPEN) {
                     last_open = Some(Instant::now());
@@ -146,7 +151,7 @@ fn spawn_refresher(
                         Err(e) => open_error = e,
                     }
                 }
-                let reading = match sensor.as_mut().map(Sensor::read) {
+                let mut reading = match sensor.as_mut().map(Sensor::read) {
                     Some(Ok(r)) => r,
                     Some(Err(e)) => {
                         // Drop the device; it is reopened on the slow schedule.
@@ -156,6 +161,22 @@ fn spawn_refresher(
                     }
                     None => Reading::failure(open_error.clone()),
                 };
+                if reading.ok {
+                    let chip = super_io.get_or_insert_with(|| SuperIo::open().ok().flatten());
+                    if let Some(chip) = chip.as_ref() {
+                        reading.super_io = Some(chip.name().to_owned());
+                        // A busy bus skips this second's fans rather than
+                        // reporting none: keep the previous list.
+                        match chip.fans() {
+                            Ok(fans) => reading.fans = fans,
+                            Err(_) => {
+                                if let Ok(prev) = latest.lock() {
+                                    reading.fans.clone_from(&prev.fans);
+                                }
+                            }
+                        }
+                    }
+                }
                 if let Ok(mut g) = latest.lock() {
                     *g = reading;
                 }

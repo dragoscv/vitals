@@ -1,63 +1,64 @@
-//! Proves disk throughput, drive kinds and GPU names through the real sampler.
+//! Proves the Device Manager inventory against this machine.
 //!
-//! Two ticks a second apart through `SystemSampler`, so what is printed is
-//! exactly what the dashboard receives — not the output of a helper that the
-//! sampler might not call.
+//! Reads the tree twice — present devices only, then including the ones
+//! Windows remembers but which are disconnected — and prints what a screen
+//! would receive, so the counts can be checked against PowerShell:
+//! `(Get-PnpDevice -PresentOnly).Count` and `(Get-PnpDevice).Count`.
 //!
 //! Run with: `cargo run -p vitals-win --example prove_devices`
 
-use std::thread::sleep;
-use std::time::Duration;
+#[cfg(not(windows))]
+fn main() {}
 
-use vitals_win::sampler::SystemSampler;
-
+#[cfg(windows)]
 fn main() {
-    let mut sampler = SystemSampler::new();
-    if let Err(error) = sampler.sample() {
-        eprintln!("priming tick failed: {error}");
-        return;
-    }
-    // Some load so a zero is distinguishable from "never measured".
-    let _ = std::fs::read_dir(std::env::temp_dir()).map(Iterator::count);
-    sleep(Duration::from_secs(1));
+    use vitals_win::devices::{DeviceStatus, problem_description, read_devices};
 
-    let sample = match sampler.sample() {
-        Ok(sample) => sample,
-        Err(error) => {
-            eprintln!("second tick failed: {error}");
-            return;
-        }
-    };
-
-    println!(
-        "{:<5} {:<14} {:<10} {:>12} {:>12} {:>7} {:>9}",
-        "MOUNT", "NAME", "KIND", "READ/s", "WRITE/s", "ACTIVE", "RESP ms"
-    );
-    for disk in &sample.system.disks {
+    let present = read_devices(false);
+    for class in &present.classes {
         println!(
-            "{:<5} {:<14} {:<10} {:>12} {:>12} {:>6.1}% {:>9}",
-            disk.mount.as_deref().unwrap_or("-"),
-            disk.name,
-            format!("{:?}", disk.kind),
-            disk.read.get(),
-            disk.write.get(),
-            disk.active_time.get(),
-            disk.response_ms
-                .map_or_else(|| "-".to_owned(), |ms| format!("{ms:.2}")),
+            "{} ({})  [{}]",
+            class.description,
+            class.devices.len(),
+            class.name
         );
+        for device in &class.devices {
+            let status = match device.status {
+                DeviceStatus::Ok => "ok".to_owned(),
+                DeviceStatus::Disabled => "disabled".to_owned(),
+                DeviceStatus::Problem { code } => {
+                    format!("problem {code}: {}", problem_description(code))
+                }
+                DeviceStatus::NotPresent => "not present".to_owned(),
+            };
+            println!(
+                "    {:<60} {:<10} {:<22} {} {}{}",
+                device.name,
+                device.enumerator.as_deref().unwrap_or("-"),
+                device.driver_version.as_deref().unwrap_or("-"),
+                device.driver_date.as_deref().unwrap_or("-"),
+                status,
+                if device.hidden { " (hidden)" } else { "" },
+            );
+        }
     }
 
-    println!();
-    for gpu in &sample.system.gpus {
+    let all = read_devices(true);
+    for (label, inventory) in [("present", &present), ("all", &all)] {
+        let devices = || inventory.classes.iter().flat_map(|c| c.devices.iter());
+        let hidden = devices().filter(|d| d.hidden).count();
+        let problems = devices()
+            .filter(|d| matches!(d.status, DeviceStatus::Problem { .. }))
+            .count();
+        let disabled = devices()
+            .filter(|d| d.status == DeviceStatus::Disabled)
+            .count();
+        let absent = devices().filter(|d| !d.present).count();
         println!(
-            "GPU {:<44} util {:>5.1}%  vram {}",
-            gpu.name,
-            gpu.utilization
-                .map_or(f32::NAN, vitals_core::units::Percent::get),
-            gpu.memory_total.map_or_else(
-                || "-".to_owned(),
-                |b| format!("{:.1} GB", b.get() as f64 / 1e9)
-            ),
+            "{label:<8} {} devices in {} classes, {:.1} ms; hidden {hidden}, problem {problems}, disabled {disabled}, not present {absent}",
+            devices().count(),
+            inventory.classes.len(),
+            inventory.elapsed.as_secs_f64() * 1000.0,
         );
     }
 }

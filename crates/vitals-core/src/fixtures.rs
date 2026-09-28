@@ -118,6 +118,10 @@ pub fn system() -> SystemMetrics {
         networks: vec![network()],
         gpus: Vec::new(),
         power_draw: None,
+        fans: vec![crate::metrics::FanMetrics {
+            name: "Fan 1".to_owned(),
+            rpm: 1467,
+        }],
         battery: None,
     }
 }

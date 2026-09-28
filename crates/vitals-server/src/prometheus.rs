@@ -241,6 +241,23 @@ pub fn render(system: &SystemMetrics, processes: &[Process], top_n: usize) -> St
             },
         );
     }
+    if !system.fans.is_empty() {
+        gauge(
+            &mut out,
+            "vitals_fan_rpm",
+            "Motherboard fan speed, from the optional sensors service.",
+            |o| {
+                for fan in &system.fans {
+                    let _ = writeln!(
+                        o,
+                        "vitals_fan_rpm{{fan=\"{}\"}} {}",
+                        escape(&fan.name),
+                        fan.rpm
+                    );
+                }
+            },
+        );
+    }
     if let Some(power) = system.power_draw {
         gauge(
             &mut out,
@@ -399,6 +416,13 @@ mod tests {
         with_power.cpu.power = Some(vitals_core::units::Watts(142.25));
         let out = render(&with_power, &[], 0);
         assert!(out.contains("vitals_cpu_power_watts 142.250"), "{out}");
+
+        let out = render(&fixtures::system(), &[], 0);
+        assert!(out.contains(r#"vitals_fan_rpm{fan="Fan 1"} 1467"#), "{out}");
+        let mut no_fans = fixtures::system();
+        no_fans.fans.clear();
+        let out = render(&no_fans, &[], 0);
+        assert!(!out.contains("vitals_fan_rpm"), "no fans means no series");
     }
 
     #[test]

@@ -9,6 +9,7 @@ pub mod alerts;
 pub mod benchmarks;
 pub mod commands;
 pub mod crashlog;
+pub mod hardware;
 pub mod history;
 pub mod hud;
 pub mod inventory;
@@ -199,6 +200,12 @@ fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
         inventory::get_sensors_service,
         #[cfg(windows)]
         inventory::setup_sensors_service,
+        // Hardware inventory and the Device Manager list, on demand from the
+        // Devices screen. Desktop-only: both identify the machine.
+        #[cfg(windows)]
+        hardware::get_hardware,
+        #[cfg(windows)]
+        hardware::get_device_tree,
         // Storage. `scan_storage` and `find_cleanup_candidates` are
         // async so the synchronous command thread stays free — otherwise
         // `cancel_storage_scan` would queue behind the very scan it is

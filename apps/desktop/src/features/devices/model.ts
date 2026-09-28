@@ -38,7 +38,12 @@ export type PowerModeKey = 'bestPowerEfficiency' | 'balanced' | 'bestPerformance
 export type SensorUnit = 'temperature' | 'power' | 'voltage' | 'fanSpeed' | 'charge' | 'percent';
 
 export type SensorSourceKey =
-  'acpiThermalZone' | 'batteryMiniport' | 'systemPowerStatus' | 'vendorLibrary' | 'kernelDriver';
+  | 'acpiThermalZone'
+  | 'batteryMiniport'
+  | 'systemPowerStatus'
+  | 'vendorLibrary'
+  | 'kernelDriver'
+  | 'storageDevice';
 
 export type SensorQuality = 'measured' | 'derived' | 'nameplate';
 

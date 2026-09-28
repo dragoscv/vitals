@@ -27,6 +27,7 @@ input. A background thread refreshes the reading once a second.
 
 ```json
 {"v":1,"ok":true,"vendor":"intel","packageC":57.0,"hottestCoreC":61.0,"tjMaxC":100,"packageW":41.5,"source":"pawnio"}
+{"v":1,"ok":true,"vendor":"intel","packageC":81.0,"hottestCoreC":81.0,"tjMaxC":100,"packageW":179.4,"superIo":"IT8689E","fans":[{"name":"Fan 1","rpm":1467.0},{"name":"Fan 6","rpm":2170.0}],"source":"pawnio"}
 {"v":1,"ok":true,"vendor":"amd","packageC":48.5,"hottestCoreC":null,"tjMaxC":null,"packageW":null,"source":"pawnio"}
 {"v":1,"ok":false,"error":"..."}
 ```
@@ -45,5 +46,11 @@ embedded in the exe and SHA-256-pinned in `src/lib.rs`.
 - Intel: `TjMax` 0x1A2, package 0x1B1, hottest core 0x19C on every logical
   CPU, RAPL 0x606/0x611.
 - AMD 17h–1Ah: `Tctl` from SMN 0x59800, RAPL 0xC0010299/0xC001029B.
+- Fans: `modules/LpcIO.bin` (same release) for Super-I/O port access, under
+  the global `Access_ISABUS.HTP.Method` mutex. ITE: 16-bit counters at
+  0x0D–0x0F/0x80/0x82/0x4C (low) and 0x18–0x1A/0x81/0x83/0x4D (high),
+  RPM = 1.35e6 / (2 × count). Nuvoton NCT679x: 13-bit counts at bank 4
+  0x4B0…0x4CC, RPM = 1.35e6 / count. `superIo` and `fans` are omitted when
+  no supported chip is found.
 
 Prover: `cargo run -p vitals-win --example prove_sensors_service`.

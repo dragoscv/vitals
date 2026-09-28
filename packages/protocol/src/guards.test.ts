@@ -45,6 +45,7 @@ const EMPTY_SYSTEM = {
   gpus: [],
   powerDraw: null,
   battery: null,
+  fans: [],
 } satisfies SystemMetrics;
 
 function process(pid: number, startTime: number, name = 'test.exe'): Process {

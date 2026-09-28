@@ -294,6 +294,21 @@
   .devices-body {
     grid-template-rows: auto minmax(0, 1fr);
   }
+  /*
+   * Devices → Hardware: CPU, memory, graphics, drives, board as a card
+   * grid that scrolls as one pane (the page never does). Columns follow the
+   * width `main` gets; each card stays wide enough for a memory table row.
+   */
+  .hardware-grid {
+    display: grid;
+    gap: 0.75rem;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 26rem), 1fr));
+    align-content: start;
+    align-items: start;
+    /* Room for card shadows inside the scroller's clip, as `.pane-stack`. */
+    margin: calc(-1 * var(--scroll-gutter-y)) calc(-1 * var(--scroll-gutter-x));
+    padding: var(--scroll-gutter-y) var(--scroll-gutter-x);
+  }
   .devices-facts {
     display: grid;
     gap: 0.75rem;

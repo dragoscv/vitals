@@ -30,11 +30,16 @@ const FRESH: Duration = Duration::from_millis(900);
 const ABSENT_BACKOFF: Duration = Duration::from_secs(10);
 
 /// What the service measured. Each figure is independently optional.
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct CpuSensors {
     pub package_celsius: Option<f32>,
     pub hottest_core_celsius: Option<f32>,
     pub package_watts: Option<f32>,
+    /// The board's monitoring chip, e.g. `IT8689E`.
+    pub super_io: Option<String>,
+    /// Board fan headers the chip counts. A stopped fan is `0`; a header
+    /// with no tachometer signal is absent.
+    pub fans: Vec<(String, u32)>,
 }
 
 impl CpuSensors {
@@ -53,6 +58,14 @@ impl CpuSensors {
             package_celsius: temp(r.package_c),
             hottest_core_celsius: temp(r.hottest_core_c),
             package_watts: watts,
+            super_io: r.super_io.clone(),
+            // Above 20 000 RPM is a counter glitch, not a fan.
+            fans: r
+                .fans
+                .iter()
+                .filter(|f| f.rpm.is_finite() && (0.0..=20_000.0).contains(&f.rpm))
+                .map(|f| (f.name.clone(), f.rpm.round() as u32))
+                .collect(),
         })
     }
 
@@ -82,7 +95,7 @@ pub fn latest() -> Option<CpuSensors> {
     if let Some(c) = guard.as_ref() {
         let ttl = if c.absent { ABSENT_BACKOFF } else { FRESH };
         if c.at.elapsed() < ttl {
-            return c.value;
+            return c.value.clone();
         }
     }
     let answer = read_pipe(Duration::ZERO);
@@ -90,7 +103,7 @@ pub fn latest() -> Option<CpuSensors> {
     let value = answer.ok().as_ref().and_then(CpuSensors::from_reading);
     *guard = Some(Cache {
         at: Instant::now(),
-        value,
+        value: value.clone(),
         absent,
     });
     value

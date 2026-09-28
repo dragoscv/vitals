@@ -77,6 +77,8 @@ pub struct SensorSample {
     pub nvidia: Vec<NvidiaGpu>,
     /// CPU package temperature and power from the optional sensors service.
     pub cpu: Option<cpu_service::CpuSensors>,
+    /// At least one drive reported its temperature.
+    pub drives_measured: bool,
     /// Every zone and battery flattened into one list for the sensors table.
     pub readings: Vec<SensorReading>,
     /// Wall-clock cost of producing this sample.
@@ -205,6 +207,19 @@ pub fn read_all() -> SensorSample {
     for gpu in &nvidia {
         readings.extend(nvidia_readings(gpu));
     }
+    // Drives answer for an ordinary user through a zero-access handle, two
+    // IOCTLs each and no COM (hardware::drive_temp) — cheap enough for the
+    // five-second sensors cadence.
+    let drives = crate::hardware::read_drive_temperatures();
+    for (index, celsius) in &drives {
+        readings.push(SensorReading::new(
+            format!("drive.{index}.temperature"),
+            format!("Drive {index} temperature"),
+            SensorValue::Temperature(vitals_core::units::Celsius(*celsius)),
+            SensorSource::StorageDevice,
+            Quality::Measured,
+        ));
+    }
 
     for (index, pack) in batteries.iter().enumerate() {
         readings.extend(battery_readings(index, pack));
@@ -216,6 +231,7 @@ pub fn read_all() -> SensorSample {
         power,
         nvidia,
         cpu,
+        drives_measured: !drives.is_empty(),
         readings,
         elapsed: started.elapsed(),
     }
@@ -287,6 +303,16 @@ fn cpu_readings(cpu: &cpu_service::CpuSensors) -> Vec<SensorReading> {
             SensorValue::Power(Watts(w)),
             SensorSource::KernelDriver,
             // Energy over an interval, from a counter: measured, not modelled.
+            Quality::Measured,
+        ));
+    }
+    let chip = cpu.super_io.as_deref().unwrap_or("board");
+    for (index, (name, rpm)) in cpu.fans.iter().enumerate() {
+        out.push(SensorReading::new(
+            format!("board.fan.{index}"),
+            format!("{name} ({chip})"),
+            SensorValue::FanSpeed(vitals_core::units::Rpm(*rpm)),
+            SensorSource::KernelDriver,
             Quality::Measured,
         ));
     }
@@ -518,6 +544,7 @@ mod tests {
             power: read_power_state(),
             nvidia: Vec::new(),
             cpu: None,
+            drives_measured: false,
             readings: Vec::new(),
             elapsed: Duration::ZERO,
         };
@@ -536,6 +563,7 @@ mod tests {
             power: read_power_state(),
             nvidia: Vec::new(),
             cpu: None,
+            drives_measured: false,
             readings: Vec::new(),
             elapsed: Duration::ZERO,
         };

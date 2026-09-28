@@ -193,6 +193,57 @@ run failed with "A public key has been found, but no private key"); a
 guard: clean tree GREEN; planted #[ignore] in vitals-core RED
 ```
 
+### 2026-09-28 — S12-33 Hardware, Device Manager and fan speeds
+
+**Ask.** Show the hardware details (CPU, RAM, GPU, SSD, HDD) that Windows
+knows; Devices reported temperatures wrongly; list every device Device
+Manager lists, grouped; then add fan speeds.
+
+**What.** Devices & sensors has three tabs, each read only when opened:
+
+- **Sensors**: the table gains drive temperatures, read unelevated with a
+  zero-access handle and `IOCTL_STORAGE_QUERY_PROPERTY` (the SATA
+  temperature property, or the NVMe health log), and motherboard fans.
+  ACPI zones are now "Board thermal zone 0 (TZ00)": at 28 °C beside an 81 °C
+  CPU, "Thermal zone 0" read as a wrong CPU temperature, which is what
+  "not reported correctly" was.
+- **Hardware** (`vitals-win::hardware`, WMI on demand, ~0.7 s): CPU, memory
+  modules, GPUs (VRAM from the driver registry, since `AdapterRAM` caps at
+  4 GiB), drives, board and BIOS. OEM placeholders become "Not available".
+  A board maximum smaller than what is installed (128 GiB with 192 GiB
+  fitted) and all-zero SPD serials are dropped. Serials reach the webview as
+  their last four characters only, and there is no LAN route.
+- **Device Manager** (`vitals-win::devices`, SetupAPI): every node grouped by
+  setup class, with the driver provider, version and date, and problem codes
+  in Windows' wording. A class with a problem opens by itself. There is
+  search, and disconnected devices can be shown on request.
+
+**Fans.** The sensors service now also loads PawnIO's signed `LpcIO`
+module, finds the board's Super-I/O chip (IT8689E here) and reads its fan
+tachometers under the shared `Access_ISABUS.HTP.Method` mutex. It writes only
+protocol bytes, never a fan register. The fans reach `SystemMetrics.fans`
+(serde default), Prometheus `vitals_fan_rpm`, Thermals and Devices. The "Fan
+speed (RPM)" and "Drive temperature" gaps close when measured.
+
+**Found live, not by tests.** Reinstalling from a dev build put a
+two-hour-old helper without fan support back as the SYSTEM service. The
+helper lookup preferred `resource_dir()/sensors`, which is `target/debug/sensors`,
+a copy tauri-build makes once and never refreshes. The source-tree staging
+directory is now first for dev builds. The check is the hash of
+`C:\Program Files\Vitals Sensors\vitals-sensors.exe`.
+
+```text
+elevated read: superIo IT8689E, fans Fan 1 1467 RPM, Fan 6 2170 RPM, 2-5 at 0
+live Devices after UI reinstall: Fan 1 1,464 · Fan 6 2,163 RPM · CPU 81/84 °C 189 W · drives 40/45/39 °C
+Hardware tab: i9-14900K 24C/32T · 4 × 48 GB DDR5-5200 Corsair · RTX 3060 Ti 8 GB · 4 drives · Z790 AORUS ELITE AX
+Device Manager tab: 513 devices in 29 groups · 2 with a problem
+page-scroll-audit devices: page=0 at 720x560 1024x640 1280x800 1920x1080
+clippy -D warnings · vitest devices+performance+mobile 161 · check-drift 0 (62 invokes, 62 commands)
+```
+
+**Still listed:** VRM/board temperatures and rail voltages, which need
+per-board sensor maps a wrong guess of which is a plausible lie.
+
 ### 2026-09-28 — S12-31 CPU temperature and package power through PawnIO
 
 **Ask.** "See how it was implemented in the codai desktop app and apply it

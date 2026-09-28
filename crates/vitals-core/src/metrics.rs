@@ -20,6 +20,32 @@ pub struct SystemMetrics {
     /// Total system power draw where measurable (laptops, some desktops).
     pub power_draw: Option<Watts>,
     pub battery: Option<BatteryMetrics>,
+    /// Motherboard fan headers the board's monitoring chip counts.
+    ///
+    /// Empty unless the optional sensors service is installed and the board
+    /// has a supported Super-I/O chip — an empty list means "not measured",
+    /// never "no fans". A header with no tachometer signal is left out; a
+    /// fan the chip reports as stopped is present at 0 RPM.
+    ///
+    /// `default` so frames recorded before this field existed still load.
+    #[serde(default)]
+    pub fans: Vec<FanMetrics>,
+}
+
+/// One motherboard fan header.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(
+    feature = "ts",
+    ts(export, export_to = "core/", rename_all = "camelCase")
+)]
+#[serde(rename_all = "camelCase")]
+pub struct FanMetrics {
+    /// The chip's header name, e.g. `Fan 1`. Boards label their headers
+    /// differently (`CPU_FAN`, `SYS_FAN2`), and the chip cannot know which is
+    /// which, so this is the chip's numbering, not the silkscreen.
+    pub name: String,
+    pub rpm: u32,
 }
 
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]

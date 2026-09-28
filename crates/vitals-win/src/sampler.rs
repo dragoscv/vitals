@@ -215,11 +215,16 @@ impl SystemSampler {
         // are computed before the process list is consumed below.
         // A pipe read of tens of microseconds, backed off when the service is
         // absent — within the tick budget, unlike WMI (sensors::cpu_service).
-        let cpu = build_cpu_metrics(
-            &cpu_usage,
-            &raw_processes,
-            crate::sensors::cpu_service::latest(),
-        );
+        let service = crate::sensors::cpu_service::latest();
+        let cpu = build_cpu_metrics(&cpu_usage, &raw_processes, service.as_ref());
+        let cpu_fans = service
+            .map(|s| {
+                s.fans
+                    .into_iter()
+                    .map(|(name, rpm)| vitals_core::metrics::FanMetrics { name, rpm })
+                    .collect()
+            })
+            .unwrap_or_default();
 
         // App history folds in from the same enumeration rather than running
         // its own, which would double the most expensive part of the tick for
@@ -247,6 +252,7 @@ impl SystemSampler {
                 // EC/ACPI read behind a driver; neither exists here, so it
                 // stays unavailable rather than becoming a plausible zero.
                 power_draw: None,
+                fans: cpu_fans,
                 battery: build_battery_metrics(),
             },
             processes,
@@ -584,7 +590,7 @@ fn vendor_from_name(name: &str) -> GpuVendor {
 fn build_cpu_metrics(
     per_core: &[crate::cpu::CpuUsage],
     processes: &[RawProcess],
-    cpu_sensors: Option<crate::sensors::cpu_service::CpuSensors>,
+    cpu_sensors: Option<&crate::sensors::cpu_service::CpuSensors>,
 ) -> CpuMetrics {
     let cores = per_core.len().max(1) as f32;
 
@@ -604,7 +610,7 @@ fn build_cpu_metrics(
         effective_clock: None,
         max_clock: None,
         temperature: cpu_sensors
-            .and_then(|s| s.temperature())
+            .and_then(crate::sensors::cpu_service::CpuSensors::temperature)
             .map(vitals_core::units::Celsius),
         power: cpu_sensors
             .and_then(|s| s.package_watts)

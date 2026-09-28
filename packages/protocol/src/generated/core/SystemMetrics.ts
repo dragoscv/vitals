@@ -2,6 +2,7 @@
 import type { BatteryMetrics } from "./BatteryMetrics";
 import type { CpuMetrics } from "./CpuMetrics";
 import type { DiskMetrics } from "./DiskMetrics";
+import type { FanMetrics } from "./FanMetrics";
 import type { GpuMetrics } from "./GpuMetrics";
 import type { MemoryMetrics } from "./MemoryMetrics";
 import type { NetworkMetrics } from "./NetworkMetrics";
@@ -14,4 +15,15 @@ export type SystemMetrics = { cpu: CpuMetrics, memory: MemoryMetrics, disks: Arr
 /**
  * Total system power draw where measurable (laptops, some desktops).
  */
-powerDraw: Watts | null, battery: BatteryMetrics | null, };
+powerDraw: Watts | null, battery: BatteryMetrics | null, 
+/**
+ * Motherboard fan headers the board's monitoring chip counts.
+ *
+ * Empty unless the optional sensors service is installed and the board
+ * has a supported Super-I/O chip — an empty list means "not measured",
+ * never "no fans". A header with no tachometer signal is left out; a
+ * fan the chip reports as stopped is present at 0 RPM.
+ *
+ * `default` so frames recorded before this field existed still load.
+ */
+fans: Array<FanMetrics>, };

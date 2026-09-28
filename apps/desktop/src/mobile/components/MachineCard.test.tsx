@@ -27,6 +27,7 @@ function system(overrides: Partial<SystemMetrics>): SystemMetrics {
     gpus: [],
     powerDraw: null,
     battery: null,
+    fans: [],
     ...overrides,
   };
 }

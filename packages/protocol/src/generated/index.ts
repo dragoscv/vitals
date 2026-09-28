@@ -26,6 +26,7 @@ export type * from './core/DiskHealth';
 export type * from './core/DiskId';
 export type * from './core/DiskKind';
 export type * from './core/DiskMetrics';
+export type * from './core/FanMetrics';
 export type * from './core/Frame';
 export type * from './core/FramePayload';
 export type * from './core/FrameSeq';

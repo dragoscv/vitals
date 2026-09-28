@@ -877,6 +877,8 @@ fn closed_by(
             .and_then(vitals_win::sensors::cpu_service::CpuSensors::temperature)
             .is_some(),
         "CPU package power" => cpu.and_then(|c| c.package_watts).is_some(),
+        "Fan speed (RPM)" => cpu.is_some_and(|c| !c.fans.is_empty()),
+        "Drive temperature" => sample.drives_measured,
         _ => false,
     }
 }
@@ -915,6 +917,14 @@ fn sensors_helper(app: &tauri::AppHandle) -> Option<std::path::PathBuf> {
     use tauri::Manager;
 
     let mut dirs = Vec::new();
+    // A dev build looks in the source tree FIRST, where
+    // `scripts/bundle-sensors.ps1` stages the helper. Its `resource_dir` is
+    // `target/debug`, holding the copy tauri-build made on the first build
+    // and never refreshes: it came first here once, and a reinstall put a
+    // two-hour-old helper without fan support back as the SYSTEM service.
+    if cfg!(debug_assertions) {
+        dirs.push(std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("sensors"));
+    }
     if let Ok(resources) = app.path().resource_dir() {
         dirs.push(resources.join("sensors"));
     }
@@ -923,11 +933,6 @@ fn sensors_helper(app: &tauri::AppHandle) -> Option<std::path::PathBuf> {
         .and_then(|e| e.parent().map(std::path::Path::to_path_buf))
     {
         dirs.push(exe_dir);
-    }
-    // A dev build: `resource_dir` is the target directory, and the helper
-    // is staged by `scripts/bundle-sensors.ps1` in the source tree instead.
-    if cfg!(debug_assertions) {
-        dirs.push(std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("sensors"));
     }
     vitals_win::sensors::cpu_service::find_helper(&dirs)
 }
@@ -1084,6 +1089,7 @@ const fn sensor_source(source: vitals_win::sensors::SensorSource) -> &'static st
         S::SystemPowerStatus => "systemPowerStatus",
         S::VendorLibrary => "vendorLibrary",
         S::KernelDriver => "kernelDriver",
+        S::StorageDevice => "storageDevice",
     }
 }
 
@@ -1571,6 +1577,7 @@ mod sensors_service_tests {
             power: read_power_state(),
             nvidia: Vec::new(),
             cpu,
+            drives_measured: false,
             readings: Vec::new(),
             elapsed: std::time::Duration::ZERO,
         }
@@ -1595,17 +1602,25 @@ mod sensors_service_tests {
             package_celsius: Some(52.0),
             hottest_core_celsius: None,
             package_watts: None,
+            ..CpuSensors::default()
         }));
         assert!(closed_by(gap("CPU core temperature"), &temp_only));
         assert!(!closed_by(gap("CPU package power"), &temp_only));
+        assert!(
+            !closed_by(gap("Fan speed (RPM)"), &temp_only),
+            "a service that read no fan has not measured fans"
+        );
 
         let both = sample(Some(CpuSensors {
             package_celsius: None,
             hottest_core_celsius: Some(70.0),
             package_watts: Some(40.0),
+            super_io: Some("IT8689E".to_owned()),
+            fans: vec![("Fan 1".to_owned(), 1467)],
         }));
         assert!(closed_by(gap("CPU core temperature"), &both));
         assert!(closed_by(gap("CPU package power"), &both));
+        assert!(closed_by(gap("Fan speed (RPM)"), &both));
     }
 
     #[test]

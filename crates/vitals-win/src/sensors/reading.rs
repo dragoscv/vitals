@@ -76,6 +76,9 @@ pub enum SensorSource {
     /// A signed kernel driver — today `PawnIO`, read through the optional
     /// `vitals-sensors` service ([`crate::sensors::cpu_service`]).
     KernelDriver,
+    /// The drive's own sensor, asked through the storage stack
+    /// (`IOCTL_STORAGE_QUERY_PROPERTY`, see [`crate::hardware`]).
+    StorageDevice,
 }
 
 impl SensorSource {
@@ -88,6 +91,7 @@ impl SensorSource {
             Self::SystemPowerStatus => "OS power status",
             Self::VendorLibrary => "vendor driver library",
             Self::KernelDriver => "kernel driver",
+            Self::StorageDevice => "drive",
         }
     }
 }
