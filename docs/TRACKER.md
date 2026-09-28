@@ -153,6 +153,7 @@ Status values: `todo`, `doing`, `done`, `blocked`, `dropped`.
 | S10   | Docs, ADRs, CI, supply-chain audits                                  | done except S10-12 (ARM64 leg unproven — needs a run on `windows-11-arm`, and agents never push)   |
 | S11   | Task Manager replacement, HUD overlay                                | done                                                                                               |
 | S12   | Look-and-feel redesign + the four backend truths it exposed          | done (S12-11 measured in CPU cycles: 23–24 ms on S12, 22–25 ms on the commit before it)            |
+| S14   | Storage: fast complete scans, navigation, cleanup, Turbo, extras     | doing (S14-01 engine done; 02 navigation next)                                                     |
 
 Per-item status lives in `tracker.csv`. This file records the reasoning; the
 CSV records the state.
@@ -160,6 +161,83 @@ CSV records the state.
 ---
 
 ## Verification log
+
+### 2026-09-29 — S14-01 A storage scan that counts everything, in seconds
+
+**Ask.** Storage was incomplete and slow; the user wants ultra-fast scans,
+navigation, smart cleanup and a modern UI, decided together (two question
+rounds, 2026-09-28). Slice 1 of S14 is the engine and the correctness it was
+missing. Navigation, cleanup, Turbo (MFT) and the extras are S14-02..07.
+
+**Measured before changing anything** (release build, unelevated, same
+machine, other agents' builds keeping it busy):
+
+| Root               | Old walker                        | New engine                           |
+| ------------------ | --------------------------------- | ------------------------------------ |
+| `C:\Program Files` | 581,445 files, 474.7 s, 1,225 f/s | 581,447 files, 5.9 s, 98,600 f/s     |
+| all of `C:`        | 340 f/s, unfinished after 17 min  | 8,066,836 files, 421.6 s, 19,134 f/s |
+
+Same logical total on `Program Files` to within 5 KB (232,744,681,171 vs
+232,744,676,177 bytes; two files written in between), same 17 skipped
+folders, same 103 hard links suppressed.
+
+The full `C:` scan: 1,866,492 folders, 2.71 TB allocated of the 2.88 TB the
+volume reports used, 197,580 hard links suppressed (24.83 GB not counted
+twice), 228 MB of tree in memory.
+
+**What was wrong, and the fix at the source.**
+
+- _The default scan dropped data._ "Quick (3 levels)" was the default and
+  every byte below level three was missing from every total. The depth
+  option is gone: a full scan is now faster than the old preview.
+- _One thread, three system calls per file._ `FindFirstFileExW`, plus
+  `CreateFileW` + `GetFileInformationByHandle` + `CloseHandle` on every file
+  for hard-link identity, plus `GetCompressedFileSizeW` on compressed ones.
+  Now `GetFileInformationByHandleEx(FileIdExtdDirectoryInfo)` with a 256 KB
+  buffer returns hundreds of entries per call _with_ allocation size, file ID
+  and reparse tag; no file is opened. Up to 16 scoped worker threads list
+  directories; the calling thread alone owns the tree and merges each
+  listing, so the tree needs no locks.
+- _OneDrive was missing._ Every reparse-point folder was skipped, including
+  cloud-provider folders, which hold this volume's own files. Cloud tags are
+  now entered; junctions, symlinks and mount points are still recorded and
+  never followed. A symlink to a file now occupies 0 (it used to be charged
+  its target's size, possibly from another volume).
+- _A stopped scan said "already visited"._ Unread folders were labelled
+  `Cycle`. Now `Cancelled`, and `DepthLimit`/`Cycle` are gone.
+- _Scan and cleanup shared one cancel flag._ "Stop the scan" also stopped
+  the cleanup search, and starting a cleanup search cleared a pending stop.
+  Each has its own token and an in-flight claim; a second concurrent request
+  is refused instead of halving both.
+- _No progress._ `scan_storage` emits `vitals://storage/scan-progress` ten
+  times a second: files, bytes, rate and the folder being read. The bar is a
+  real fraction of the drive's used space when the root is a drive.
+
+- _Links were reported as unreadable folders._ The full `C:` run skipped
+  97,293 reparse points; 95,160 were under
+  `ProgramData\Microsoft\Windows\Containers\Layers`, container placeholders
+  (tag `0x80000018`) that are not data on this volume. A link not followed
+  is not a hole in the total, so `is_complete()` now counts only skips that
+  leave one (`SkipReason::leaves_a_gap`): access denied, vanished, error,
+  cancelled. Links are shown as their own line, "N links not followed". What
+  remained on this machine unelevated: 961 access-denied folders.
+
+**Hard links.** The listing gives the 128-bit file ID but not the link count,
+so every ID is remembered for the scan's length (sharded, about 20 bytes a
+file) to count a multiply-linked file once. The old per-file open cost more
+than the whole new scan.
+
+**Tests.** `vitals-win` storage 79/79 in 62 s. New: a private tree proves a
+file five levels down is counted; 1 and 8 threads agree byte for byte; a hard
+link counts once (and twice with detection off); a mid-scan cancel names the
+unread folders; a junction back to its own parent (made with `mklink /J`) is
+recorded and nothing behind it counted twice; progress carries the path. The
+old junction test scanned the whole user profile: 270 s of the suite, gone.
+Desktop vitest storage 71/71 (live progress, progress for another root
+ignored, drive choice locked during a scan, no depth choice, cleanup has its
+own stop and it does not stop a scan, links are not called unreadable).
+`vitals-desktop` 60/60; clippy `-D warnings`; drift 0 (68 invokes, 68
+commands).
 
 ### 2026-09-28 — S12-36 S12-31..35 land on main
 

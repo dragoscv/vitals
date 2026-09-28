@@ -29,8 +29,7 @@ export type ScanStrategyKey = 'mftAssisted' | 'directoryWalk';
 
 export type DiskKindKey = 'hdd' | 'ssd' | 'nvme' | 'removable' | 'network' | 'optical' | 'unknown';
 
-export type SkipReasonKey =
-  'accessDenied' | 'reparsePoint' | 'depthLimit' | 'cycle' | 'vanished' | 'osError';
+export type SkipReasonKey = 'accessDenied' | 'reparsePoint' | 'cancelled' | 'vanished' | 'osError';
 
 export type SafetyKey = 'safe' | 'review' | 'risky';
 
@@ -75,6 +74,17 @@ export interface SkippedPath {
   readonly elevationFixable: boolean;
 }
 
+/** What a running scan has seen so far (`ScanProgressDto`). */
+export interface ScanProgress {
+  readonly root: string;
+  readonly filesSeen: number;
+  readonly directoriesSeen: number;
+  readonly bytesSeen: number;
+  readonly elapsedMs: number;
+  /** The folder most recently read. */
+  readonly currentPath: string;
+}
+
 export interface ScanSnapshot {
   readonly root: string;
   readonly largest: readonly DirectoryEntry[];
@@ -92,6 +102,8 @@ export interface ScanSnapshot {
   /** A bounded sample; `skippedTotal` holds the real count. */
   readonly skipped: readonly SkippedPath[];
   readonly skippedTotal: number;
+  /** Links recorded rather than followed; not gaps in the totals. */
+  readonly linksNotFollowed: number;
 }
 
 export interface CleanupCandidate {

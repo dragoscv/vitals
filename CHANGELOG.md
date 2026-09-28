@@ -7,6 +7,24 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **Storage scans are about 80 times faster and count everything** — a whole
+  drive of eight million files is read in about seven minutes instead of
+  never finishing, and `Program Files` in six seconds instead of eight
+  minutes. There is no depth choice any more: every folder is counted, at
+  every depth, and the scan shows live progress and the folder it is reading.
+
+### Fixed
+
+- **OneDrive folders are counted** in storage scans; they used to be skipped.
+- **Stopping a scan no longer stops a cleanup search** (or the other way
+  round) — each has its own Stop button.
+- **Links are no longer reported as unreadable folders** — a scan that only
+  passed over shortcuts to other places is complete, and says how many it did
+  not follow.
+- **A shortcut to a file no longer counts as the file's size.**
+
 ### Added
 
 - **Act on startup items and services** — right-click a row, or use the

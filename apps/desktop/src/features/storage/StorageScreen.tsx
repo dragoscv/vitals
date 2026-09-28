@@ -44,6 +44,7 @@ import {
   formatBytes,
   formatCount,
 } from '@vitals/ui';
+import { AnimatedValue } from '@vitals/ui';
 
 import { ExportButton } from '../../components/ExportButton';
 import type { ExportColumn } from '../../lib/export';
@@ -63,25 +64,11 @@ import {
   type CleanupCandidate,
   type DirectoryEntry,
   type DirectorySort,
+  type ScanProgress,
   type ScanSnapshot,
   type Volume,
 } from './model';
 import { NO_HOST, useStorage, type StorageSource } from './useStorage';
-
-/**
- * Depth presets.
- *
- * Offered because a full walk of `C:\` is minutes and a three-level preview
- * is seconds, and someone hunting for a runaway folder usually finds it in
- * the first three levels. `null` means unlimited.
- */
-const DEPTHS = [
-  { id: 'shallow', depth: 3 },
-  { id: 'medium', depth: 6 },
-  { id: 'full', depth: null },
-] as const;
-
-type DepthId = (typeof DEPTHS)[number]['id'];
 
 export interface StorageScreenProps {
   /** Injectable so tests and the sampler-less preview need no Tauri host. */
@@ -94,10 +81,9 @@ export function StorageScreen({ source }: StorageScreenProps = {}): React.JSX.El
 
   const state = useStorage(source);
   const [selected, setSelected] = useState<string | null>(null);
-  const [depth, setDepth] = useState<DepthId>('shallow');
-  // Only the result table's view goes in the URL. The chosen volume and depth
-  // are scan parameters, not view state: restoring them from a link would
-  // imply the scan itself was restored, and it is not.
+  // Only the result table's view goes in the URL. The chosen volume is a scan
+  // parameter, not view state: restoring it from a link would imply the scan
+  // itself was restored, and it is not.
   const [view, patchView] = useUrlState<{ q: string; sort: DirectorySort }>(
     'storage',
     { q: '', sort: 'allocated' },
@@ -123,8 +109,6 @@ export function StorageScreen({ source }: StorageScreenProps = {}): React.JSX.El
       <EmptyState icon={<HardDrive />} title={t('noHost.title')} description={t('noHost.body')} />
     );
   }
-
-  const activeDepth = DEPTHS.find((entry) => entry.id === depth)?.depth ?? null;
 
   return (
     <div className="screen">
@@ -162,20 +146,10 @@ export function StorageScreen({ source }: StorageScreenProps = {}): React.JSX.El
             activeMount={activeMount}
             locale={locale}
             onSelect={setSelected}
+            disabled={state.scanning}
           />
 
           <div className="flex flex-wrap items-center gap-2">
-            <SegmentedControl
-              value={depth}
-              ariaLabel={t('scan.depthLabel')}
-              onValueChange={(next) => {
-                setDepth(next);
-              }}
-              options={DEPTHS.map((entry) => ({
-                value: entry.id,
-                label: t(`scan.depth.${entry.id}`),
-              }))}
-            />
             {state.scanning ? (
               <Button
                 variant="ghost"
@@ -192,7 +166,7 @@ export function StorageScreen({ source }: StorageScreenProps = {}): React.JSX.El
                 size="sm"
                 disabled={activeMount === null}
                 onClick={() => {
-                  if (activeMount !== null) state.scan(activeMount, activeDepth);
+                  if (activeMount !== null) state.scan(activeMount);
                 }}
               >
                 {state.snapshot === null ? t('scan.start') : t('scan.rescan')}
@@ -211,17 +185,12 @@ export function StorageScreen({ source }: StorageScreenProps = {}): React.JSX.El
           )}
 
           {state.scanning && (
-            <div role="status" className="flex flex-col gap-1.5">
-              <p className="text-sm">{t('scan.running', { root: state.scanRoot ?? '' })}</p>
-              <p className="text-2xs text-[var(--color-fg-muted)]">{t('scan.runningDetail')}</p>
-              {/* Indeterminate on purpose: the scanner reports files seen, not a
-              fraction of a total it cannot know before walking. A percentage
-              here would be invented. */}
-              <ProgressBar
-                indeterminate
-                label={t('scan.running', { root: state.scanRoot ?? '' })}
-              />
-            </div>
+            <ScanRunning
+              root={state.scanRoot ?? ''}
+              progress={state.progress}
+              volume={volumes.find((volume) => volume.mount === state.scanRoot) ?? null}
+              locale={locale}
+            />
           )}
         </div>
 
@@ -253,8 +222,73 @@ export function StorageScreen({ source }: StorageScreenProps = {}): React.JSX.El
           error={state.cleanupError}
           locale={locale}
           onScan={state.findCleanup}
+          onCancel={state.cancelCleanup}
         />
       </div>
+    </div>
+  );
+}
+
+/**
+ * The running scan: files, bytes and rate, climbing as they arrive.
+ *
+ * Measured against the drive's used space when the scan root is a whole
+ * drive, so the bar is real. For a folder there is no known total, and the
+ * bar stays indeterminate rather than invent one. The fraction can overshoot
+ * a little — hard links and compression make the walk's figure differ from
+ * the volume's — so it is capped rather than trusted to the last percent.
+ */
+function ScanRunning({
+  root,
+  progress,
+  volume,
+  locale,
+}: {
+  readonly root: string;
+  readonly progress: ScanProgress | null;
+  readonly volume: Volume | null;
+  readonly locale: string;
+}) {
+  const { t } = useTranslation(STORAGE_NS);
+  const used = volume === null ? 0 : usedBytes(volume);
+  const fraction = progress !== null && used > 0 ? Math.min(0.99, progress.bytesSeen / used) : null;
+  const rate =
+    progress !== null && progress.elapsedMs > 0
+      ? Math.round((progress.filesSeen * 1000) / progress.elapsedMs)
+      : null;
+
+  return (
+    <div role="status" className="flex flex-col gap-1.5">
+      <p className="text-sm">{t('scan.running', { root })}</p>
+      {/* Visible figures roll; the live region above names only the root so
+          it is announced once, not ten times a second. */}
+      <p aria-hidden className="tnum text-2xs text-[var(--color-fg-muted)]">
+        {progress === null || rate === null ? (
+          t('scan.progressStarting')
+        ) : (
+          <AnimatedValue
+            value={t('scan.progress', {
+              files: formatCount(progress.filesSeen, locale),
+              size: formatBytes(progress.bytesSeen, locale),
+              rate: formatCount(rate, locale),
+            })}
+          />
+        )}
+      </p>
+      <ProgressBar
+        {...(fraction === null ? { indeterminate: true } : { value: fraction * 100 })}
+        label={t('scan.running', { root })}
+      />
+      {progress !== null && (
+        <p
+          aria-hidden
+          className="truncate font-mono text-2xs text-[var(--color-fg-subtle)]"
+          title={progress.currentPath}
+        >
+          {t('scan.now', { path: progress.currentPath })}
+        </p>
+      )}
+      <p className="text-2xs text-[var(--color-fg-muted)]">{t('scan.runningDetail')}</p>
     </div>
   );
 }
@@ -264,11 +298,14 @@ function Volumes({
   activeMount,
   locale,
   onSelect,
+  disabled,
 }: {
   readonly volumes: readonly Volume[];
   readonly activeMount: string | null;
   readonly locale: string;
   readonly onSelect: (mount: string) => void;
+  /** While a scan runs: changing the selection would detach it from the scan. */
+  readonly disabled: boolean;
 }) {
   const { t } = useTranslation(STORAGE_NS);
 
@@ -289,6 +326,7 @@ function Volumes({
               key={volume.mount}
               type="button"
               aria-pressed={active}
+              disabled={disabled}
               onClick={() => {
                 onSelect(volume.mount);
               }}
@@ -416,6 +454,15 @@ function ScanResult({
           </div>
         )}
 
+        {snapshot.linksNotFollowed > 0 && (
+          <p className="text-2xs text-[var(--color-fg-subtle)]" title={t('result.linksHint')}>
+            {t('result.links', {
+              count: snapshot.linksNotFollowed,
+              n: formatCount(snapshot.linksNotFollowed, locale),
+            })}
+          </p>
+        )}
+
         {snapshot.hardLinkDuplicates > 0 && (
           <p className="text-2xs text-[var(--color-fg-subtle)]">
             {t('result.dedup', {
@@ -516,12 +563,14 @@ function Cleanup({
   error,
   locale,
   onScan,
+  onCancel,
 }: {
   readonly candidates: readonly CleanupCandidate[] | null;
   readonly running: boolean;
   readonly error: string | null;
   readonly locale: string;
   readonly onScan: () => void;
+  readonly onCancel: () => void;
 }) {
   const { t } = useTranslation(STORAGE_NS);
   const total = useMemo(() => reclaimableTotal(candidates ?? []), [candidates]);
@@ -531,10 +580,17 @@ function Cleanup({
     <Card className="pane">
       <CardHeader
         actions={
-          <Button variant="ghost" size="sm" disabled={running} onClick={onScan}>
-            <Sparkles aria-hidden className="size-4" />
-            {candidates === null ? t('cleanup.scan') : t('cleanup.rescan')}
-          </Button>
+          running ? (
+            <Button variant="ghost" size="sm" onClick={onCancel}>
+              <X aria-hidden className="size-4" />
+              {t('cleanup.cancel')}
+            </Button>
+          ) : (
+            <Button variant="ghost" size="sm" onClick={onScan}>
+              <Sparkles aria-hidden className="size-4" />
+              {candidates === null ? t('cleanup.scan') : t('cleanup.rescan')}
+            </Button>
+          )
         }
       >
         <CardTitle level={3}>{t('cleanup.heading')}</CardTitle>
@@ -549,7 +605,8 @@ function Cleanup({
         {running && (
           <div role="status">
             <p className="text-sm">{t('cleanup.running')}</p>
-            <ProgressBar indeterminate label={t('cleanup.running')} className="mt-1.5" />
+            {/* Labelled by the line above: one announcement, not two. */}
+            <ProgressBar indeterminate label={t('cleanup.heading')} className="mt-1.5" />
           </div>
         )}
 

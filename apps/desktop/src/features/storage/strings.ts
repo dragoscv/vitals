@@ -24,7 +24,7 @@ const en = {
     free: '{{free}} free',
     unknownCapacity: 'Capacity not reported',
     label: '{{mount}} {{label}}',
-    scanHint: 'Scanning a whole drive walks every folder on it and can take several minutes.',
+    scanHint: 'A scan reads every folder on the drive, several at once, and counts every file.',
     fast: 'Fast discovery available',
     fastHint:
       'This drive supports reading its file index directly, which finds folders in seconds. Sizes still come from the full walk, so the scan is not instant.',
@@ -46,17 +46,14 @@ const en = {
     rescan: 'Scan again',
     cancel: 'Stop the scan',
     running: 'Scanning {{root}}…',
-    runningDetail: 'This walks every folder. You can stop at any time and keep what was found.',
+    runningDetail: 'You can stop at any time and keep what was found.',
+    progress: '{{files}} files · {{size}} · {{rate}} files a second',
+    progressStarting: 'Starting…',
+    now: 'Reading {{path}}',
     idleTitle: 'Nothing scanned yet',
     idleBody: 'Pick a drive above and start a scan to see which folders are using the space.',
     failed: 'The scan did not finish. {{message}}',
     stale: 'Showing the last completed scan. {{message}}',
-    depthLabel: 'How deep to look',
-    depth: {
-      shallow: 'Quick (3 levels)',
-      medium: 'Deeper (6 levels)',
-      full: 'Everything',
-    },
   },
 
   result: {
@@ -67,6 +64,10 @@ const en = {
       'Two figures because they measure different things. "On disk" is the space that would actually be freed: files are rounded up to whole clusters, and a file stored once but linked from several folders is counted once. "As file sizes" is the plain sum of file lengths, which is what File Explorer shows.',
     elapsed: 'Scanned in {{seconds}}s',
     dedup: 'Counted {{count}} linked files once, which kept {{size}} out of the total.',
+    links_one: '{{n}} link to another folder was not followed.',
+    links_other: '{{n}} links to other folders were not followed.',
+    linksHint:
+      'Shortcuts such as "My Documents" or "All Users" point at folders that are counted where they really are. Following them would count the same files twice, or never finish.',
     noCluster:
       'The cluster size of this drive could not be read, so files were not rounded up. The totals are slightly lower than the real on-disk figure.',
     cancelled: 'You stopped this scan, so every figure below is a lower bound.',
@@ -103,8 +104,7 @@ const en = {
   skip: {
     accessDenied: 'permission denied',
     reparsePoint: 'it is a link to somewhere else, which was not followed',
-    depthLimit: 'the depth limit was reached',
-    cycle: 'it was already counted through another path',
+    cancelled: 'the scan was stopped before it got there',
     vanished: 'it was removed while the scan was running',
     osError: 'Windows refused to open it',
   },
@@ -114,6 +114,7 @@ const en = {
     scan: 'Look for reclaimable space',
     rescan: 'Check again',
     running: 'Measuring caches and temporary files…',
+    cancel: 'Stop checking',
     failed: 'Could not check for reclaimable space. {{message}}',
     total: 'About {{size}} looks reclaimable',
     totalFloor: 'At least {{size}} looks reclaimable',
@@ -207,7 +208,7 @@ const ro = {
     unknownCapacity: 'Capacitatea nu este raportată',
     label: '{{mount}} {{label}}',
     scanHint:
-      'Scanarea unei unități întregi parcurge fiecare folder de pe ea și poate dura câteva minute.',
+      'O scanare citește fiecare folder de pe unitate, mai multe deodată, și numără fiecare fișier.',
     fast: 'Descoperire rapidă disponibilă',
     fastHint:
       'Această unitate permite citirea directă a indexului de fișiere, ceea ce găsește folderele în câteva secunde. Dimensiunile vin tot din parcurgerea completă, deci scanarea nu este instantanee.',
@@ -229,18 +230,14 @@ const ro = {
     rescan: 'Scanează din nou',
     cancel: 'Oprește scanarea',
     running: 'Se scanează {{root}}…',
-    runningDetail:
-      'Se parcurge fiecare folder. Poți opri oricând și păstrezi ce s-a găsit până atunci.',
+    runningDetail: 'Poți opri oricând și păstrezi ce s-a găsit până atunci.',
+    progress: '{{files}} fișiere · {{size}} · {{rate}} fișiere pe secundă',
+    progressStarting: 'Se pornește…',
+    now: 'Se citește {{path}}',
     idleTitle: 'Nu s-a scanat încă nimic',
     idleBody: 'Alege o unitate mai sus și pornește o scanare ca să vezi ce foldere ocupă spațiul.',
     failed: 'Scanarea nu s-a terminat. {{message}}',
     stale: 'Se afișează ultima scanare finalizată. {{message}}',
-    depthLabel: 'Cât de adânc să caute',
-    depth: {
-      shallow: 'Rapid (3 niveluri)',
-      medium: 'Mai adânc (6 niveluri)',
-      full: 'Tot',
-    },
   },
 
   result: {
@@ -252,6 +249,11 @@ const ro = {
     elapsed: 'Scanat în {{seconds}} s',
     dedup:
       'S-au numărat o singură dată {{count}} fișiere legate, ceea ce a scos {{size}} din total.',
+    links_one: '{{n}} legătură către alt folder nu a fost urmată.',
+    links_few: '{{n}} legături către alte foldere nu au fost urmate.',
+    links_other: '{{n}} de legături către alte foldere nu au fost urmate.',
+    linksHint:
+      'Scurtături precum „My Documents” sau „All Users” duc la foldere care sunt numărate acolo unde se află de fapt. Urmarea lor ar număra aceleași fișiere de două ori sau nu s-ar termina niciodată.',
     noCluster:
       'Dimensiunea clusterului acestei unități nu a putut fi citită, deci fișierele nu au fost rotunjite. Totalurile sunt puțin mai mici decât cifra reală de pe disc.',
     cancelled: 'Ai oprit această scanare, deci fiecare cifră de mai jos este o limită inferioară.',
@@ -295,8 +297,7 @@ const ro = {
   skip: {
     accessDenied: 'permisiune refuzată',
     reparsePoint: 'este o legătură către altundeva, care nu a fost urmată',
-    depthLimit: 's-a atins limita de adâncime',
-    cycle: 'a fost deja numărat pe altă cale',
+    cancelled: 'scanarea a fost oprită înainte să ajungă acolo',
     vanished: 'a fost șters în timpul scanării',
     osError: 'Windows a refuzat să îl deschidă',
   },
@@ -306,6 +307,7 @@ const ro = {
     scan: 'Caută spațiu recuperabil',
     rescan: 'Verifică din nou',
     running: 'Se măsoară cache-urile și fișierele temporare…',
+    cancel: 'Oprește verificarea',
     failed: 'Nu s-a putut verifica spațiul recuperabil. {{message}}',
     total: 'Aproximativ {{size}} par recuperabili',
     totalFloor: 'Cel puțin {{size}} par recuperabili',

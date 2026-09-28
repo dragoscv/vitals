@@ -70,6 +70,7 @@ function snapshot(overrides: Partial<ScanSnapshot> = {}): ScanSnapshot {
     elapsedMs: 1200,
     skipped: [],
     skippedTotal: 0,
+    linksNotFollowed: 0,
     ...overrides,
   };
 }

@@ -62,7 +62,7 @@ describe('storage translations', () => {
   });
 
   it('names every skip reason the scanner can emit', () => {
-    const reasons = ['accessDenied', 'reparsePoint', 'depthLimit', 'cycle', 'vanished', 'osError'];
+    const reasons = ['accessDenied', 'reparsePoint', 'cancelled', 'vanished', 'osError'];
     const paths = new Set(keyPaths(bundles.en));
 
     for (const reason of reasons) {

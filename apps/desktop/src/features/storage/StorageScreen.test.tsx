@@ -1,10 +1,10 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { i18n, initI18n } from '@vitals/i18n';
 
 import { StorageScreen } from './StorageScreen';
-import type { CleanupCandidate, DirectoryEntry, ScanSnapshot, Volume } from './model';
+import type { CleanupCandidate, DirectoryEntry, ScanProgress, ScanSnapshot, Volume } from './model';
 import { registerStorageStrings } from './strings';
 import type { StorageSource } from './useStorage';
 
@@ -59,6 +59,7 @@ function snapshot(overrides: Partial<ScanSnapshot> = {}): ScanSnapshot {
     elapsedMs: 1500,
     skipped: [],
     skippedTotal: 0,
+    linksNotFollowed: 0,
     ...overrides,
   };
 }
@@ -83,7 +84,13 @@ interface SourceOverrides {
   readonly cleanup?: StorageSource['cleanup'];
 }
 
-function makeSource(overrides: SourceOverrides = {}): StorageSource {
+type ProgressListener = Parameters<StorageSource['onProgress']>[0];
+
+/** A source whose progress events a test can fire by hand. */
+type TestSource = StorageSource & { emit: (progress: ScanProgress) => void };
+
+function makeSource(overrides: SourceOverrides = {}): TestSource {
+  const listeners = new Set<ProgressListener>();
   return {
     volumes:
       overrides.readVolumes ??
@@ -91,6 +98,28 @@ function makeSource(overrides: SourceOverrides = {}): StorageSource {
     scan: overrides.scan ?? vi.fn<StorageSource['scan']>().mockResolvedValue(snapshot()),
     cancelScan: vi.fn<StorageSource['cancelScan']>().mockResolvedValue(undefined),
     cleanup: overrides.cleanup ?? vi.fn<StorageSource['cleanup']>().mockResolvedValue([]),
+    cancelCleanup: vi.fn<StorageSource['cancelCleanup']>().mockResolvedValue(undefined),
+    onProgress: (listener) => {
+      listeners.add(listener);
+      return Promise.resolve(() => {
+        listeners.delete(listener);
+      });
+    },
+    emit: (progress) => {
+      for (const listener of listeners) listener(progress);
+    },
+  };
+}
+
+function progress(overrides: Partial<ScanProgress> = {}): ScanProgress {
+  return {
+    root: 'C:\\',
+    filesSeen: 120_000,
+    directoriesSeen: 9_000,
+    bytesSeen: 30 * GB,
+    elapsedMs: 4_000,
+    currentPath: 'C:\\Users\\me\\Documents',
+    ...overrides,
   };
 }
 
@@ -168,6 +197,71 @@ describe('StorageScreen', () => {
 
       expect(await screen.findByText(/Scanning C:\\/)).toBeTruthy();
       expect(screen.getByRole('button', { name: /Stop the scan/ })).toBeTruthy();
+    });
+
+    it('shows files, bytes and a real fraction of the drive as the scan climbs', async () => {
+      // The drive fixture has 75 GB used; 30 GB seen is 40 %.
+      const source = makeSource({
+        scan: vi.fn<StorageSource['scan']>(() => new Promise(() => undefined)),
+      });
+      await mount(source);
+      fireEvent.click(screen.getByRole('button', { name: /Scan this drive/ }));
+      expect(await screen.findByText('Starting…')).toBeTruthy();
+
+      act(() => {
+        source.emit(progress());
+      });
+
+      const bar = await screen.findByRole('progressbar');
+      expect(bar.getAttribute('aria-valuenow')).toBe('40');
+      expect(screen.getAllByText(/120,000 files/).length).toBeGreaterThan(0);
+      expect(screen.getByText(/Reading C:\\Users\\me\\Documents/)).toBeTruthy();
+    });
+
+    it('ignores progress from a scan of a different root', async () => {
+      const source = makeSource({
+        scan: vi.fn<StorageSource['scan']>(() => new Promise(() => undefined)),
+      });
+      await mount(source);
+      fireEvent.click(screen.getByRole('button', { name: /Scan this drive/ }));
+      await screen.findByText('Starting…');
+
+      act(() => {
+        source.emit(progress({ root: 'D:\\' }));
+      });
+
+      expect(screen.getByText('Starting…')).toBeTruthy();
+    });
+
+    it('locks the drive choice while a scan runs', async () => {
+      // Changing the selection mid-scan would leave the running scan with no
+      // visible owner and the next result under the wrong drive.
+      const source = makeSource({
+        scan: vi.fn<StorageSource['scan']>(() => new Promise(() => undefined)),
+      });
+      await mount(source);
+      fireEvent.click(screen.getByRole('button', { name: /Scan this drive/ }));
+      await screen.findByRole('button', { name: /Stop the scan/ });
+
+      const drive = screen.getByRole('button', { pressed: true });
+      expect((drive as HTMLButtonElement).disabled).toBe(true);
+    });
+
+    it('scans the whole drive: there is no depth choice to make', async () => {
+      const source = makeSource();
+      await mount(source);
+      expect(screen.queryByText(/levels/)).toBeNull();
+      fireEvent.click(screen.getByRole('button', { name: /Scan this drive/ }));
+      await screen.findByRole('heading', { name: 'Largest folders' });
+      expect(source.scan).toHaveBeenCalledWith('C:\\');
+    });
+
+    it('does not call links that were not followed unreadable folders', async () => {
+      // A full C: scan records ~97,000 links. They are counted where they
+      // point; only unreadable folders make the total a floor.
+      await scanned(snapshot({ linksNotFollowed: 97_293 }));
+      expect(screen.queryByText(/could not be read/)).toBeNull();
+      expect(screen.getByText(/97,293 links/)).toBeTruthy();
     });
 
     it('asks the backend to stop when cancel is pressed', async () => {
@@ -396,6 +490,21 @@ describe('StorageScreen', () => {
       expect(screen.queryByRole('progressbar')).toBeNull();
     });
 
+    it('offers its own stop, and stopping it leaves any scan alone', async () => {
+      // They shared one cancel flag: "Stop the scan" stopped this too, and
+      // starting this cleared a stop the user had asked for.
+      const source = makeSource({
+        cleanup: vi.fn<StorageSource['cleanup']>(() => new Promise(() => undefined)),
+      });
+      await mount(source);
+
+      fireEvent.click(screen.getByRole('button', { name: /Look for reclaimable space/ }));
+      fireEvent.click(await screen.findByRole('button', { name: /Stop checking/ }));
+
+      expect(source.cancelCleanup).toHaveBeenCalledOnce();
+      expect(source.cancelScan).not.toHaveBeenCalled();
+    });
+
     it('says so when there is genuinely nothing to reclaim', async () => {
       await withCleanup([]);
       expect(await screen.findByText('Nothing to reclaim')).toBeTruthy();
@@ -408,7 +517,7 @@ describe('StorageScreen', () => {
     render(<StorageScreen source={source} />);
 
     expect(await screen.findByRole('heading', { name: 'Stocare' })).toBeTruthy();
-    expect(screen.getByRole('radio', { name: 'Rapid (3 niveluri)' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Scanează această unitate' })).toBeTruthy();
     expect(screen.getByText('Unități')).toBeTruthy();
     // A missing key renders as its own path, which is the failure this guards.
     expect(document.body.textContent).not.toMatch(/storage\.|cleanup\.|kindLabel\./);

@@ -2,8 +2,9 @@
  * Reads volumes, runs directory scans, and measures cleanup candidates.
  *
  * Nothing here is polled. Volumes change when media is attached; a scan is
- * an explicit multi-minute operation the user starts. Re-running either on a
- * timer would burn a whole disk's worth of IO to produce the same answer.
+ * an explicit operation the user starts, which reports its own progress as
+ * events while it runs. Re-running either on a timer would burn a whole
+ * disk's worth of IO to produce the same answer.
  *
  * # Every loading state must be able to end
  *
@@ -20,7 +21,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { peekPrefetched, prefetch, takePrefetched } from '../../lib/prefetch';
 import { hasTauriHost } from '../../shell/host';
-import type { CleanupCandidate, ScanSnapshot, Volume } from './model';
+import type { CleanupCandidate, ScanProgress, ScanSnapshot, Volume } from './model';
 import { errorMessage } from '../../lib/commandError';
 
 /** Reported when there is no Tauri host, so the screen can explain itself. */
@@ -29,11 +30,17 @@ export const NO_HOST = 'no-host';
 /** How many directory rows the backend returns. A table, not a database. */
 export const TOP_N = 200;
 
+/** Emitted by `scan_storage` about ten times a second while it runs. */
+export const SCAN_PROGRESS_EVENT = 'vitals://storage/scan-progress';
+
 export interface StorageSource {
   readonly volumes: () => Promise<readonly Volume[]>;
-  readonly scan: (path: string, maxDepth: number | null) => Promise<ScanSnapshot>;
+  readonly scan: (path: string) => Promise<ScanSnapshot>;
   readonly cancelScan: () => Promise<void>;
   readonly cleanup: () => Promise<readonly CleanupCandidate[]>;
+  readonly cancelCleanup: () => Promise<void>;
+  /** Subscribes to scan progress; resolves to the unsubscribe function. */
+  readonly onProgress: (listener: (progress: ScanProgress) => void) => Promise<() => void>;
 }
 
 /** The real source. Dynamic imports so a browser never evaluates the IPC module. */
@@ -42,9 +49,9 @@ export const tauriSource: StorageSource = {
     const { invoke } = await import('@tauri-apps/api/core');
     return invoke<readonly Volume[]>('get_volumes');
   },
-  scan: async (path, maxDepth) => {
+  scan: async (path) => {
     const { invoke } = await import('@tauri-apps/api/core');
-    return invoke<ScanSnapshot>('scan_storage', { path, maxDepth, topN: TOP_N });
+    return invoke<ScanSnapshot>('scan_storage', { path, topN: TOP_N });
   },
   cancelScan: async () => {
     const { invoke } = await import('@tauri-apps/api/core');
@@ -53,6 +60,16 @@ export const tauriSource: StorageSource = {
   cleanup: async () => {
     const { invoke } = await import('@tauri-apps/api/core');
     return invoke<readonly CleanupCandidate[]>('find_cleanup_candidates');
+  },
+  cancelCleanup: async () => {
+    const { invoke } = await import('@tauri-apps/api/core');
+    return invoke<void>('cancel_cleanup_search');
+  },
+  onProgress: async (listener) => {
+    const { listen } = await import('@tauri-apps/api/event');
+    return listen<ScanProgress>(SCAN_PROGRESS_EVENT, (event) => {
+      listener(event.payload);
+    });
   },
 };
 
@@ -76,14 +93,17 @@ export interface StorageState {
   readonly scanning: boolean;
   readonly scanRoot: string | null;
   readonly scanError: string | null;
+  /** Latest progress of the running scan; `null` before the first report. */
+  readonly progress: ScanProgress | null;
 
   readonly candidates: readonly CleanupCandidate[] | null;
   readonly cleanupRunning: boolean;
   readonly cleanupError: string | null;
 
-  scan: (path: string, maxDepth: number | null) => void;
+  scan: (path: string) => void;
   cancelScan: () => void;
   findCleanup: () => void;
+  cancelCleanup: () => void;
   refreshVolumes: () => void;
 }
 
@@ -104,6 +124,7 @@ export function useStorage(source?: StorageSource): StorageState {
   const [scanning, setScanning] = useState(false);
   const [scanRoot, setScanRoot] = useState<string | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
+  const [progress, setProgress] = useState<ScanProgress | null>(null);
 
   const [candidates, setCandidates] = useState<readonly CleanupCandidate[] | null>(null);
   const [cleanupRunning, setCleanupRunning] = useState(false);
@@ -133,18 +154,28 @@ export function useStorage(source?: StorageSource): StorageState {
     }
   }, [injected]);
 
-  const scan = useCallback((path: string, maxDepth: number | null) => {
-    // Guarded rather than queued: the backend shares one cancellation flag,
-    // so a second concurrent scan would be cancellable only as a pair.
+  const scan = useCallback((path: string) => {
+    // Guarded rather than queued: the backend refuses a second concurrent
+    // scan, and the screen could only show one of them anyway.
     if (scanInFlight.current) return;
     scanInFlight.current = true;
 
     setScanning(true);
     setScanRoot(path);
     setScanError(null);
+    setProgress(null);
+
+    // Subscribed before the scan starts, so the first report is not missed.
+    // Reports for another root (a scan started from a second window) are
+    // not this one's progress.
+    const unsubscribe = sourceRef.current
+      .onProgress((next) => {
+        if (mounted.current && next.root === path) setProgress(next);
+      })
+      .catch(() => () => undefined);
 
     void sourceRef.current
-      .scan(path, maxDepth)
+      .scan(path)
       .then((next) => {
         if (!mounted.current) return;
         setSnapshot(next);
@@ -157,9 +188,15 @@ export function useStorage(source?: StorageSource): StorageState {
       })
       .finally(() => {
         scanInFlight.current = false;
+        void unsubscribe.then((stop) => {
+          stop();
+        });
         // Cleared on both paths. An error that sets a message without
         // clearing `scanning` renders skeletons on top of the message.
-        if (mounted.current) setScanning(false);
+        if (mounted.current) {
+          setScanning(false);
+          setProgress(null);
+        }
       });
   }, []);
 
@@ -196,6 +233,14 @@ export function useStorage(source?: StorageSource): StorageState {
       });
   }, []);
 
+  const cancelCleanup = useCallback(() => {
+    // Same contract as `cancelScan`: the search resolves with what it has.
+    void sourceRef.current.cancelCleanup().catch((cause: unknown) => {
+      if (!mounted.current) return;
+      setCleanupError(errorMessage(cause));
+    });
+  }, []);
+
   const refreshVolumes = useCallback(() => {
     void loadVolumes();
   }, [loadVolumes]);
@@ -228,12 +273,14 @@ export function useStorage(source?: StorageSource): StorageState {
     scanning,
     scanRoot,
     scanError,
+    progress,
     candidates,
     cleanupRunning,
     cleanupError,
     scan,
     cancelScan,
     findCleanup,
+    cancelCleanup,
     refreshVolumes,
   };
 }

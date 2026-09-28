@@ -6,6 +6,8 @@
 //! it by tens of gigabytes.
 
 use std::collections::HashSet;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Mutex, PoisonError};
 
 /// A file's two sizes, which are not the same number and must never be
 /// conflated.
@@ -112,58 +114,76 @@ pub const fn reconcile_reported(reported: u64, cluster_bytes: u64) -> u64 {
 /// by two names. `C:\Windows\WinSxS` is built almost entirely from hard links
 /// into `System32`, so a scanner that adds both copies reports a Windows
 /// directory roughly twice its true size.
+///
+/// The 128-bit file ID the directory query returns. It is unique only within
+/// one volume, which is enough: a scan never crosses a volume boundary,
+/// because mount points and symbolic links are recorded rather than entered.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct FileIdentity {
-    pub volume_serial: u32,
-    pub file_index: u64,
+pub struct FileIdentity(pub u128);
+
+/// Shards in [`LinkTracker`]. A power of two, and enough that 32 workers
+/// rarely wait on the same lock.
+const LINK_SHARDS: usize = 64;
+
+/// Remembers which files have already been counted, from many threads.
+///
+/// The directory query that makes the scan fast returns every file's ID but
+/// not its link count, so the only way to notice a second name is to have
+/// seen the first. Every ID is therefore kept for the length of the scan:
+/// about 20 bytes a file, 40 MB for two million, released when it ends. The
+/// alternative — opening each file to read its link count — was what held
+/// the old walker to a few hundred files a second.
+#[derive(Debug)]
+pub struct LinkTracker {
+    shards: Vec<Mutex<HashSet<FileIdentity>>>,
+    duplicates: AtomicU64,
+    duplicate_bytes: AtomicU64,
 }
 
-/// Remembers which multiply-linked files have already been counted.
-///
-/// Only files with a link count above one are tracked. That matters for
-/// memory: a volume with two million files but three thousand hard links
-/// holds three thousand entries, not two million.
-#[derive(Debug, Default)]
-pub struct LinkTracker {
-    seen: HashSet<FileIdentity>,
-    duplicates: u64,
-    duplicate_bytes: u64,
+impl Default for LinkTracker {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl LinkTracker {
     #[must_use]
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            shards: (0..LINK_SHARDS)
+                .map(|_| Mutex::new(HashSet::new()))
+                .collect(),
+            duplicates: AtomicU64::new(0),
+            duplicate_bytes: AtomicU64::new(0),
+        }
     }
 
     /// Records a file and says whether its size should be counted.
     ///
-    /// `link_count` of one — the normal case — is always counted and never
-    /// stored. Repeat sightings of a multiply-linked file return `false`;
-    /// the first sighting still counts, so the bytes appear exactly once and
-    /// under whichever name was reached first.
-    pub fn should_count(
-        &mut self,
-        identity: FileIdentity,
-        link_count: u32,
-        allocated: u64,
-    ) -> bool {
-        if link_count <= 1 {
-            return true;
-        }
-        if self.seen.insert(identity) {
+    /// The first sighting counts; every later one returns `false`, so the
+    /// bytes appear exactly once. Which name "owns" them depends on which
+    /// worker got there first, so a hard-linked file's bytes may land under a
+    /// different folder from one scan to the next. The volume total does not
+    /// move.
+    pub fn should_count(&self, identity: FileIdentity, allocated: u64) -> bool {
+        let shard = (identity.0 as usize) & (LINK_SHARDS - 1);
+        let first = self.shards[shard]
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .insert(identity);
+        if first {
             true
         } else {
-            self.duplicates += 1;
-            self.duplicate_bytes = self.duplicate_bytes.saturating_add(allocated);
+            self.duplicates.fetch_add(1, Ordering::Relaxed);
+            self.duplicate_bytes.fetch_add(allocated, Ordering::Relaxed);
             false
         }
     }
 
     /// How many directory entries were suppressed as repeat hard links.
     #[must_use]
-    pub const fn duplicates(&self) -> u64 {
-        self.duplicates
+    pub fn duplicates(&self) -> u64 {
+        self.duplicates.load(Ordering::Relaxed)
     }
 
     /// How many bytes were *not* double-counted because of that suppression.
@@ -172,14 +192,17 @@ impl LinkTracker {
     /// total will be smaller than one produced by `Get-ChildItem`, and a user
     /// comparing the two deserves the explanation.
     #[must_use]
-    pub const fn duplicate_bytes(&self) -> u64 {
-        self.duplicate_bytes
+    pub fn duplicate_bytes(&self) -> u64 {
+        self.duplicate_bytes.load(Ordering::Relaxed)
     }
 
-    /// Distinct multiply-linked files tracked so far.
+    /// Distinct files tracked so far.
     #[must_use]
     pub fn tracked(&self) -> usize {
-        self.seen.len()
+        self.shards
+            .iter()
+            .map(|shard| shard.lock().unwrap_or_else(PoisonError::into_inner).len())
+            .sum()
     }
 }
 
@@ -192,10 +215,8 @@ pub enum SkipReason {
     /// another volume's bytes against this one or, if it points at an
     /// ancestor, never terminate.
     ReparsePoint,
-    /// The configured depth limit was reached.
-    DepthLimit,
-    /// Already visited through a different path during this scan.
-    Cycle,
+    /// The scan was stopped before this directory was read.
+    Cancelled,
     /// It disappeared between being listed and being opened.
     Vanished,
     /// The OS refused for some other reason; the raw code is kept so the
@@ -210,8 +231,7 @@ impl SkipReason {
         match self {
             Self::AccessDenied => "access denied",
             Self::ReparsePoint => "reparse point not followed",
-            Self::DepthLimit => "depth limit reached",
-            Self::Cycle => "already visited",
+            Self::Cancelled => "scan stopped first",
             Self::Vanished => "removed during scan",
             Self::OsError(_) => "OS error",
         }
@@ -221,6 +241,18 @@ impl SkipReason {
     #[must_use]
     pub const fn is_elevation_fixable(self) -> bool {
         matches!(self, Self::AccessDenied)
+    }
+
+    /// Whether this leaves bytes out of the totals.
+    ///
+    /// A link that was not followed does not: whatever it points at is
+    /// counted where it really lives, or is on another volume and not this
+    /// scan's to count. Treating links as gaps made a full scan of `C:` say
+    /// "98,254 folders could not be read" when 961 could not — 95,160 of the
+    /// rest were Windows container layer placeholders.
+    #[must_use]
+    pub const fn leaves_a_gap(self) -> bool {
+        !matches!(self, Self::ReparsePoint)
     }
 }
 
@@ -343,55 +375,63 @@ mod tests {
     }
 
     #[test]
-    fn single_linked_files_always_count() {
-        let mut tracker = LinkTracker::new();
-        let id = FileIdentity {
-            volume_serial: 1,
-            file_index: 42,
-        };
-        assert!(tracker.should_count(id, 1, 4096));
-        assert!(tracker.should_count(id, 1, 4096));
-        assert_eq!(tracker.tracked(), 0, "unlinked files must not be stored");
+    fn distinct_files_all_count() {
+        let tracker = LinkTracker::new();
+        for id in 0..1000_u128 {
+            assert!(tracker.should_count(FileIdentity(id), 4096));
+        }
+        assert_eq!(tracker.duplicates(), 0);
+        assert_eq!(tracker.tracked(), 1000);
     }
 
     #[test]
     fn a_hard_linked_file_counts_once_and_only_once() {
-        let mut tracker = LinkTracker::new();
-        let id = FileIdentity {
-            volume_serial: 7,
-            file_index: 900,
-        };
-        assert!(tracker.should_count(id, 3, 8192), "first sighting counts");
-        assert!(!tracker.should_count(id, 3, 8192), "second must not");
-        assert!(!tracker.should_count(id, 3, 8192), "third must not");
+        let tracker = LinkTracker::new();
+        let id = FileIdentity(900);
+        assert!(tracker.should_count(id, 8192), "first sighting counts");
+        assert!(!tracker.should_count(id, 8192), "second must not");
+        assert!(!tracker.should_count(id, 8192), "third must not");
         assert_eq!(tracker.duplicates(), 2);
         assert_eq!(tracker.duplicate_bytes(), 16_384);
     }
 
     #[test]
-    fn identical_indices_on_different_volumes_are_different_files() {
-        let mut tracker = LinkTracker::new();
-        let c = FileIdentity {
-            volume_serial: 1,
-            file_index: 5,
-        };
-        let d = FileIdentity {
-            volume_serial: 2,
-            file_index: 5,
-        };
-        assert!(tracker.should_count(c, 2, 100));
-        assert!(
-            tracker.should_count(d, 2, 100),
-            "a file index is only unique within a volume"
-        );
-        assert_eq!(tracker.duplicates(), 0);
+    fn concurrent_sightings_of_one_file_count_it_exactly_once() {
+        let tracker = LinkTracker::new();
+        let counted = AtomicU64::new(0);
+        std::thread::scope(|scope| {
+            for _ in 0..16 {
+                scope.spawn(|| {
+                    for id in 0..500_u128 {
+                        if tracker.should_count(FileIdentity(id), 1) {
+                            counted.fetch_add(1, Ordering::Relaxed);
+                        }
+                    }
+                });
+            }
+        });
+        assert_eq!(counted.load(Ordering::Relaxed), 500);
+        assert_eq!(tracker.duplicates(), 15 * 500);
     }
 
     #[test]
     fn skip_reasons_distinguish_the_fixable_from_the_permanent() {
         assert!(SkipReason::AccessDenied.is_elevation_fixable());
         assert!(!SkipReason::ReparsePoint.is_elevation_fixable());
-        assert!(!SkipReason::Cycle.is_elevation_fixable());
+        assert!(!SkipReason::Cancelled.is_elevation_fixable());
+    }
+
+    #[test]
+    fn a_link_not_followed_is_not_a_gap_in_the_totals() {
+        assert!(!SkipReason::ReparsePoint.leaves_a_gap());
+        for reason in [
+            SkipReason::AccessDenied,
+            SkipReason::Cancelled,
+            SkipReason::Vanished,
+            SkipReason::OsError(5),
+        ] {
+            assert!(reason.leaves_a_gap(), "{reason:?}");
+        }
     }
 
     #[test]

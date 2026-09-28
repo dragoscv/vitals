@@ -114,6 +114,7 @@ fn print_scan_stats(result: &ScanResult) {
     println!("  files                 {:>14}", result.files_scanned);
     println!("  directories           {:>14}", result.directories_scanned);
     println!("  elapsed               {:>11} ms", result.elapsed_ms);
+    println!("  threads               {:>14}", result.threads);
     match result.files_per_second() {
         Some(rate) => println!("  rate                  {rate:>11.0} files/s"),
         None => println!("  rate                       too fast to measure"),
@@ -159,6 +160,13 @@ fn print_skipped(result: &ScanResult) {
         "== skipped ({} directories, excluded from totals) ==",
         skipped.len()
     );
+    let mut by_reason: std::collections::BTreeMap<&str, usize> = std::collections::BTreeMap::new();
+    for item in skipped {
+        *by_reason.entry(item.reason.as_str()).or_default() += 1;
+    }
+    for (reason, count) in &by_reason {
+        println!("  {count:>8}  {reason}");
+    }
     for item in skipped.iter().take(15) {
         println!("  {:<28}  {}", item.reason.as_str(), item.path);
     }
@@ -212,7 +220,11 @@ fn main() {
     print_scan_stats(&result);
     print_largest(&result);
     print_skipped(&result);
-    print_cleanup(&cancel);
+    // Off with VITALS_PROBE_NO_CLEANUP=1, so a timing run measures the scan
+    // and not seconds of cache sizing after it.
+    if std::env::var_os("VITALS_PROBE_NO_CLEANUP").is_none() {
+        print_cleanup(&cancel);
+    }
 
     println!("Cross-check the LOGICAL total (not the allocated one) with:");
     println!(

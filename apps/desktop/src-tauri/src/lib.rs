@@ -142,6 +142,9 @@ fn init_logging() {
 /// clippy's line budget, and because `scripts/check-drift.ps1` reads this
 /// exact `generate_handler![...]` block to compare against the frontend's
 /// `invoke` calls — keep the macro call shape intact.
+// The body is one macro call listing every command; splitting it would mean
+// two handlers, which Tauri does not support, and the list only grows.
+#[allow(clippy::too_many_lines)]
 fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
     tauri::generate_handler![
         commands::get_host_info,
@@ -224,10 +227,8 @@ fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
         watchdog::set_watchdog_config,
         #[cfg(windows)]
         watchdog::test_watchdog_sound,
-        // Storage. `scan_storage` and `find_cleanup_candidates` are
-        // async so the synchronous command thread stays free — otherwise
-        // `cancel_storage_scan` would queue behind the very scan it is
-        // meant to stop.
+        // Storage. Scan and cleanup are async so their cancel commands never
+        // queue behind the very operation they are meant to stop.
         #[cfg(windows)]
         inventory::get_volumes,
         #[cfg(windows)]
@@ -236,6 +237,8 @@ fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
         inventory::cancel_storage_scan,
         #[cfg(windows)]
         inventory::find_cleanup_candidates,
+        #[cfg(windows)]
+        inventory::cancel_cleanup_search,
         // Benchmarks. The extreme case of the on-demand argument above:
         // a suite occupies every core for seconds, so it is only ever
         // started by the user from its own screen.

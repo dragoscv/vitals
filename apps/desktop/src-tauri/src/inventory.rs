@@ -1393,19 +1393,82 @@ mod sensor_tests {
 // Storage
 // ---------------------------------------------------------------------------
 
-/// Cancellation token shared by the scan and cleanup commands.
+/// One storage operation's cancel token and in-flight flag.
 ///
-/// One flag rather than one per request because the UI only ever runs one
-/// scan: the screen disables the control while a scan is in flight, and a
-/// second concurrent walk of the same volume would halve the throughput of
-/// both. A handle map would buy per-request cancellation that nothing asks
-/// for, at the cost of leaking an entry every time a webview reloads
-/// mid-scan.
-///
-/// Cleared at the start of every operation, so a cancel left set by an
-/// abandoned scan cannot make the next one return instantly-and-empty.
+/// The scan and the cleanup search each have their own. They used to share a
+/// single flag, so "Stop the scan" also stopped a cleanup search, and
+/// starting a cleanup search cleared a stop the user had just asked for.
 #[cfg(windows)]
-static SCAN_CANCEL: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+struct Operation {
+    cancel: std::sync::atomic::AtomicBool,
+    busy: std::sync::atomic::AtomicBool,
+}
+
+#[cfg(windows)]
+impl Operation {
+    const fn new() -> Self {
+        Self {
+            cancel: std::sync::atomic::AtomicBool::new(false),
+            busy: std::sync::atomic::AtomicBool::new(false),
+        }
+    }
+
+    /// Claims the operation, or refuses if one is already running.
+    ///
+    /// A second concurrent walk of the same volume would halve the speed of
+    /// both, and the UI that asked for it would be showing the wrong one.
+    fn begin(&'static self, what: &str) -> CommandResult<OperationGuard> {
+        use std::sync::atomic::Ordering;
+        if self
+            .busy
+            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+            .is_err()
+        {
+            return Err(CommandError::Refused {
+                message: format!("{what} is already running"),
+            });
+        }
+        // Cleared only once the claim is ours, so a stop meant for a running
+        // operation is never erased by a refused second request.
+        self.cancel.store(false, Ordering::Release);
+        Ok(OperationGuard(self))
+    }
+}
+
+/// Releases the operation when the command ends, however it ends.
+#[cfg(windows)]
+struct OperationGuard(&'static Operation);
+
+#[cfg(windows)]
+impl Drop for OperationGuard {
+    fn drop(&mut self) {
+        self.0
+            .busy
+            .store(false, std::sync::atomic::Ordering::Release);
+    }
+}
+
+#[cfg(windows)]
+static SCAN: Operation = Operation::new();
+#[cfg(windows)]
+static CLEANUP: Operation = Operation::new();
+
+/// Event carrying [`ScanProgressDto`] while a scan runs.
+#[cfg(windows)]
+pub const SCAN_PROGRESS_EVENT: &str = "vitals://storage/scan-progress";
+
+/// What a running scan has seen so far.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScanProgressDto {
+    pub root: String,
+    pub files_seen: u64,
+    pub directories_seen: u64,
+    pub bytes_seen: u64,
+    pub elapsed_ms: u64,
+    /// The folder most recently read, for "now reading …".
+    pub current_path: String,
+}
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -1522,6 +1585,9 @@ pub struct ScanSnapshot {
     /// UI shows a count plus a sample. `skipped_total` keeps the real figure.
     pub skipped: Vec<SkippedPathDto>,
     pub skipped_total: usize,
+    /// Links (junctions, symlinks, mount points) recorded rather than
+    /// followed. Not gaps: their targets are counted where they live.
+    pub links_not_followed: usize,
 }
 
 /// How many skipped paths travel over the wire.
@@ -1540,17 +1606,19 @@ const SKIPPED_SAMPLE: usize = 50;
 /// serviced while this is running. Without that the cancel button would
 /// deadlock behind the scan it is trying to stop.
 ///
-/// `top_n` bounds the response, not the walk. The whole tree is measured;
-/// only the largest `top_n` directories are returned, because a table of
-/// 400 000 rows is not a UI.
+/// `top_n` bounds the response, not the walk. The whole tree is measured,
+/// at every depth; only the largest `top_n` directories are returned,
+/// because a table of 400 000 rows is not a UI.
+///
+/// Progress arrives as [`SCAN_PROGRESS_EVENT`] about ten times a second.
 #[tauri::command]
 #[cfg(windows)]
 pub async fn scan_storage(
+    app: tauri::AppHandle,
     path: String,
-    max_depth: Option<u32>,
     top_n: usize,
 ) -> CommandResult<ScanSnapshot> {
-    use std::sync::atomic::Ordering;
+    use tauri::Emitter as _;
     use vitals_win::storage::{ScanControl, ScanOptions, largest_directories, scan_directory};
 
     if path.trim().is_empty() {
@@ -1559,29 +1627,38 @@ pub async fn scan_storage(
         });
     }
 
-    // Cleared first: a flag left set by a scan the user abandoned would make
-    // this one return instantly and empty, which looks like a broken volume.
-    SCAN_CANCEL.store(false, Ordering::Relaxed);
+    let guard = SCAN.begin("a storage scan")?;
 
     let root = path.clone();
-    // `spawn_blocking`, not inline: a multi-minute synchronous walk on an
+    // `spawn_blocking`, not inline: a multi-second synchronous walk on an
     // async runtime worker starves every other task on it.
     let handle = tauri::async_runtime::spawn_blocking(move || {
+        let _guard = guard;
+        let progress_root = root.clone();
+        let mut on_progress = |p: vitals_win::storage::ScanProgress| {
+            // A dropped event is a skipped animation frame, not an error.
+            let _ = app.emit(
+                SCAN_PROGRESS_EVENT,
+                ScanProgressDto {
+                    root: progress_root.clone(),
+                    files_seen: p.files_seen,
+                    directories_seen: p.directories_seen,
+                    bytes_seen: p.bytes_seen,
+                    elapsed_ms: p.elapsed_ms,
+                    current_path: p.current_path,
+                },
+            );
+        };
         let mut control = ScanControl {
-            cancel: Some(&SCAN_CANCEL),
-            progress: None,
+            cancel: Some(&SCAN.cancel),
+            progress: Some(&mut on_progress),
         };
         let result = scan_directory(
             std::path::Path::new(&root),
-            ScanOptions {
-                max_depth,
-                // Worth the halved scan rate on a Windows volume: `WinSxS` is
-                // built almost entirely from links into `System32`, and a
-                // naive walk reports it at close to twice its real size.
-                detect_hard_links: true,
-                resolve_compressed: true,
-                ..Default::default()
-            },
+            // Hard links on: `WinSxS` is built almost entirely from links
+            // into `System32`, and a naive walk reports it at close to twice
+            // its real size. The file ID comes free with the listing.
+            ScanOptions::default(),
             &mut control,
         );
         let largest = largest_directories(&result, top_n);
@@ -1592,7 +1669,16 @@ pub async fn scan_storage(
         message: format!("the scan thread did not finish: {err}"),
     })?;
 
-    let skipped = result.tree.skipped();
+    // Only what leaves bytes out travels as "skipped": a link that was not
+    // followed is counted where it points, and listing 95,000 of them as
+    // unreadable folders told the user a complete scan was incomplete.
+    let skipped: Vec<_> = result
+        .tree
+        .skipped()
+        .iter()
+        .filter(|entry| entry.reason.leaves_a_gap())
+        .collect();
+    let links_not_followed = result.tree.skipped().len() - skipped.len();
 
     Ok(ScanSnapshot {
         root,
@@ -1626,6 +1712,7 @@ pub async fn scan_storage(
             })
             .collect(),
         skipped_total: skipped.len(),
+        links_not_followed,
     })
 }
 
@@ -1640,8 +1727,7 @@ const fn skip_reason(reason: vitals_win::storage::SkipReason) -> &'static str {
     match reason {
         R::AccessDenied => "accessDenied",
         R::ReparsePoint => "reparsePoint",
-        R::DepthLimit => "depthLimit",
-        R::Cycle => "cycle",
+        R::Cancelled => "cancelled",
         R::Vanished => "vanished",
         R::OsError(_) => "osError",
     }
@@ -1649,15 +1735,27 @@ const fn skip_reason(reason: vitals_win::storage::SkipReason) -> &'static str {
 
 /// Stops the running scan.
 ///
-/// Sets the flag and returns at once rather than waiting: the scan checks it
-/// once per directory and returns a partial, honestly-flagged result, which
+/// Sets the flag and returns at once rather than waiting: every worker checks
+/// it between listing batches and the scan returns a partial,
+/// honestly-flagged result, which
 /// arrives as the resolution of the in-flight `scan_storage` call. Blocking
 /// here would make the cancel button appear frozen for exactly as long as
 /// the operation the user just asked to abandon.
 #[tauri::command]
 #[cfg(windows)]
 pub fn cancel_storage_scan() {
-    SCAN_CANCEL.store(true, std::sync::atomic::Ordering::Relaxed);
+    SCAN.cancel
+        .store(true, std::sync::atomic::Ordering::Release);
+}
+
+/// Stops a running cleanup search. Separate from [`cancel_storage_scan`], so
+/// stopping one never stops the other.
+#[tauri::command]
+#[cfg(windows)]
+pub fn cancel_cleanup_search() {
+    CLEANUP
+        .cancel
+        .store(true, std::sync::atomic::Ordering::Release);
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -1695,12 +1793,11 @@ pub struct CleanupCandidateDto {
 #[tauri::command]
 #[cfg(windows)]
 pub async fn find_cleanup_candidates() -> CommandResult<Vec<CleanupCandidateDto>> {
-    use std::sync::atomic::Ordering;
+    let guard = CLEANUP.begin("a search for reclaimable space")?;
 
-    SCAN_CANCEL.store(false, Ordering::Relaxed);
-
-    let found = tauri::async_runtime::spawn_blocking(|| {
-        vitals_win::storage::find_cleanup_candidates(Some(&SCAN_CANCEL))
+    let found = tauri::async_runtime::spawn_blocking(move || {
+        let _guard = guard;
+        vitals_win::storage::find_cleanup_candidates(Some(&CLEANUP.cancel))
     })
     .await
     .map_err(|err| CommandError::Internal {

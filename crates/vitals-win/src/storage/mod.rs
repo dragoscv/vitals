@@ -6,8 +6,8 @@
 //!
 //! # The two scanners
 //!
-//! - [`scan`] — `FindFirstFileEx`. Works on any path, any filesystem, no
-//!   elevation. Returns sizes. Slow: a whole volume takes minutes.
+//! - [`scan`] — bulk directory-information queries on parallel workers.
+//!   Works on any path, any filesystem, no elevation, and returns sizes.
 //! - [`mft`] — `FSCTL_ENUM_USN_DATA`. Reads the entire NTFS namespace in
 //!   seconds, but needs elevation and **returns no sizes at all**, because a
 //!   USN record does not carry one. See that module for why, and for why
@@ -156,11 +156,9 @@ fn size_of_directory(path: &Path, cancel: Option<&AtomicBool>) -> Option<Bytes> 
     let result = scan_directory(
         path,
         ScanOptions {
-            max_depth: None,
-            // A cache directory has no hard links worth the halved scan rate.
+            // A cache directory has no hard links worth remembering IDs for.
             detect_hard_links: false,
-            resolve_compressed: true,
-            progress_every: u64::MAX,
+            ..ScanOptions::default()
         },
         &mut control,
     );
@@ -211,7 +209,6 @@ mod tests {
         let result = scan_directory(
             Path::new("C:\\Windows\\System32\\drivers"),
             ScanOptions {
-                max_depth: Some(2),
                 detect_hard_links: false,
                 ..Default::default()
             },
