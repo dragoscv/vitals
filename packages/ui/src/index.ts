@@ -87,6 +87,7 @@ export {
 } from './components/SegmentedControl';
 export { Select, type SelectGroup, type SelectOption, type SelectProps } from './components/Select';
 export { Separator, type SeparatorProps } from './components/Separator';
+export { InfoPopover, type InfoPopoverProps } from './components/InfoPopover';
 export { Skeleton, type SkeletonProps } from './components/Skeleton';
 export { Spinner, type SpinnerProps } from './components/Spinner';
 export { StatList, type Stat, type StatListProps } from './components/StatList';

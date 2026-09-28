@@ -186,6 +186,24 @@ describe('PerformanceScreen', () => {
     expect(list?.className).toMatch(/\bpb-4\b/);
   });
 
+  it('puts "show hidden" above the list, where a 43-entry rail cannot bury it', () => {
+    mount();
+
+    const rail = screen.getByRole('navigation', { name: 'Resources' });
+    const checkbox = within(rail).getByRole('checkbox', { name: /Show hidden devices/ });
+    const list = within(rail).getByRole('list');
+    expect(checkbox.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('explains hidden devices in a popover behind the (i), not inline', async () => {
+    mount();
+    const hint = /Right-click any device to hide or show it/;
+    expect(screen.queryByText(hint)).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'About hidden devices' }));
+    expect(await screen.findByText(hint)).toBeTruthy();
+  });
+
   describe('thermals', () => {
     it('is absent when the machine reports no temperature', () => {
       mount({

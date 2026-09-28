@@ -7,6 +7,14 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### 2026-09-28 — "show hidden devices" at the top of the list
+
+#### Changed
+
+- **The "Show hidden devices" switch is at the top of the device list** on
+  the Performance page, so it is in reach however long the list gets. Its
+  explanation opens from the (i) beside it.
+
 ### 2026-09-28 — the network chart shows the adapter you chose
 
 #### Fixed

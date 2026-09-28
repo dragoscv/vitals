@@ -22,6 +22,7 @@ import {
   ContextMenuItem,
   ContextMenuTrigger,
   EmptyState,
+  InfoPopover,
   Meter,
   ScrollArea,
   Skeleton,
@@ -131,6 +132,25 @@ export function PerformanceScreen({
        */}
       <div className="flex min-h-0 flex-1 flex-col gap-4 lg:flex-row">
         <nav aria-label={t('rail.label')} className="flex shrink-0 flex-col lg:min-h-0 lg:w-56">
+          {/* Above the list, not below it: with every device shown the list
+              is 43 entries long and the switch that shortens it was only
+              reachable by scrolling to the end. The explanation lives behind
+              the (i) so the rail does not lose three lines to it. */}
+          <div className="mb-2 flex items-center gap-1">
+            <label className="flex min-w-0 items-center gap-2">
+              <Checkbox
+                checked={showHidden}
+                onCheckedChange={(next) => {
+                  patchSettings({ showHiddenResources: next === true });
+                }}
+              />
+              <span className="truncate text-2xs text-[var(--color-fg-muted)]">
+                {t('rail.showHidden', { count: hiddenCount })}
+              </span>
+            </label>
+            <InfoPopover label={t('rail.showHiddenInfo')}>{t('rail.showHiddenHint')}</InfoPopover>
+          </div>
+
           {/* The list is padded inside the viewport, and the ScrollArea pulled
               out by the same amount, so the selected item's glow has room to
               paint without the rail shifting off the column edge. */}
@@ -157,19 +177,6 @@ export function PerformanceScreen({
               ))}
             </ul>
           </ScrollArea>
-
-          <label className="mt-2 flex items-center gap-2">
-            <Checkbox
-              checked={showHidden}
-              onCheckedChange={(next) => {
-                patchSettings({ showHiddenResources: next === true });
-              }}
-            />
-            <span className="text-2xs text-[var(--color-fg-muted)]">
-              {t('rail.showHidden', { count: hiddenCount })}
-            </span>
-          </label>
-          <p className="mt-1 text-2xs text-[var(--color-fg-subtle)]">{t('rail.showHiddenHint')}</p>
         </nav>
 
         <section className="screen-scroll min-w-0" aria-live="off">

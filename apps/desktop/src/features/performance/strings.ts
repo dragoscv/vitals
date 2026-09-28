@@ -20,6 +20,7 @@ const en = {
     label: 'Resources',
     showHidden_one: 'Show hidden devices ({{count}})',
     showHidden_other: 'Show hidden devices ({{count}})',
+    showHiddenInfo: 'About hidden devices',
     showHiddenHint:
       'Virtual switches, unused tunnels and displays with nothing to report start hidden. Right-click any device to hide or show it.',
     hide: 'Hide',
@@ -197,6 +198,7 @@ const ro = {
     showHidden_one: 'Arată dispozitivele ascunse ({{count}})',
     showHidden_few: 'Arată dispozitivele ascunse ({{count}})',
     showHidden_other: 'Arată dispozitivele ascunse ({{count}})',
+    showHiddenInfo: 'Despre dispozitivele ascunse',
     showHiddenHint:
       'Switch-urile virtuale, tunelurile nefolosite și afișajele fără date sunt ascunse implicit. Clic dreapta pe orice dispozitiv ca să-l ascunzi sau să-l afișezi.',
     hide: 'Ascunde',

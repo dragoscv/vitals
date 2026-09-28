@@ -164,6 +164,32 @@ CSV records the state.
 Every claim of "done" needs a command and its output. Recorded here as work
 lands, newest first.
 
+### 2026-09-28 — S12-29 show-hidden switch above the rail, explanation behind (i)
+
+**Ask.** Put "Show hidden devices" above the list, and its description in a
+popover on an info icon.
+
+**Why it was wrong.** Below the list, the switch that shortens a 43-entry
+rail was reachable only by scrolling to the end of it, and the description
+took three lines of a 224 px column.
+
+**Change.** The switch heads the rail; the text opens from an (i) next to
+it. New `InfoPopover` in `@vitals/ui` on Radix Popover — a popover, not a
+`Tooltip`, because the text is a paragraph the user opens on purpose and a
+tooltip is hover-only and one sentence wide. Radix supplies Enter/Space to
+open, Escape and outside click to close, focus returned to the (i), and
+`aria-expanded` with `aria-haspopup="dialog"`; the icon button is named
+"About hidden devices" / "Despre dispozitivele ascunse".
+
+```text
+rail-info.mjs (CDP, tauri dev): switch top 122 px, first entry 150 px,
+  hint not inline; (i) click -> aria-expanded true, popover 288x77 with the text;
+  Escape -> closed
+InfoPopover.test (3) + PerformanceScreen.test (2 new);
+  mutation: switch moved back below the list -> RED, restored
+vitest desktop performance 57 · ui 3 · tsc desktop + ui · eslint · prettier · drift 0
+```
+
 ### 2026-09-28 — S12-27 network chart follows the selected adapter
 
 **Ask.** The network chart did not change when switching adapters, and the
