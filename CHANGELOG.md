@@ -7,6 +7,20 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- The macOS build compiles again: the desktop overlay is transparent on
+  Windows and Linux only, because on macOS a transparent window needs Tauri's
+  private-API feature. macOS is built on every release but not yet published.
+
+### Changed
+
+- CI takes about 8 minutes instead of 49: the Windows checks run as three
+  parallel jobs with their own caches, and a push that only changes the
+  website or prose skips the Rust jobs.
+- Scoop is available (`scoop bucket add vitals https://github.com/dragoscv/scoop-vitals`);
+  winget and Chocolatey are submitted and awaiting their moderators.
+
 ## [0.9.0-beta.1] — 2026-09-28
 
 The first public release. A beta: every screen works against live data on
