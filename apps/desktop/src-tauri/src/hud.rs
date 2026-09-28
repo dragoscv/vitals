@@ -115,12 +115,17 @@ pub fn set_hud_visible(app: tauri::AppHandle, visible: bool) -> CommandResult<bo
         return Ok(false);
     }
 
-    WebviewWindowBuilder::new(&app, LABEL, WebviewUrl::App("hud.html".into()))
-        // On Windows a transparent webview needs the window itself
-        // undecorated; a decorated frame paints an opaque client area behind
-        // the page whatever the page's own background says. `macOSPrivateApi`
-        // is not needed here — it is a macOS-only requirement.
-        .transparent(true)
+    let builder = WebviewWindowBuilder::new(&app, LABEL, WebviewUrl::App("hud.html".into()));
+    // On Windows a transparent webview needs the window itself undecorated; a
+    // decorated frame paints an opaque client area behind the page whatever
+    // the page's own background says. On macOS the method exists only behind
+    // tauri's `macos-private-api` feature, which also bars an App Store
+    // listing — not worth it for a port that is not yet published (ADR 0007),
+    // so the overlay is opaque there. Without this gate the macOS build does
+    // not compile at all.
+    #[cfg(not(target_os = "macos"))]
+    let builder = builder.transparent(true);
+    builder
         .decorations(false)
         .always_on_top(true)
         // Absent from Alt+Tab and the taskbar: an overlay is a readout, not a
