@@ -164,6 +164,46 @@ CSV records the state.
 Every claim of "done" needs a command and its output. Recorded here as work
 lands, newest first.
 
+### 2026-09-28 — S12-15 shadows are no longer cut by the edges of scroll regions
+
+**What the user saw.** "Shadows of cards in lists are being cut on the
+sides by other elements." Not a z-index problem: `overflow: auto` clips at
+the padding box, and S12-12 made every screen scroll inside a region with an
+8 / 4 px gutter. Measured with `.copilot-tmp/shadow-audit.mjs` (every element
+with an outer shadow, against its nearest clipping ancestor, visible reach =
+0.7 x blur + spread, i.e. where the Gaussian tail drops under 5 % opacity):
+21 clipped shadows across 12 sections, in four places —
+
+1. **Card sides and hover lift** in every `.screen-scroll` (Users, Storage,
+   Devices, Benchmarks, Dashboard). Gutter is now `--scroll-gutter-x` 20 px
+   sideways and `--scroll-gutter-end` 40 px after the last item — sized to
+   `--shadow-card-hover` (20 px sideways, 40 px below in dark). The column's
+   own padding is derived from the same token so the negative margin can
+   never reach `<main>`'s horizontal clip.
+2. **Meter fill glow** sliced flat by the track's `overflow-hidden`. The
+   track no longer clips; the fill cannot escape because its ratio is
+   clamped to 0..1.
+3. **Sidebar active pill** — `--glow-accent` reaches ~11 px sideways inside
+   an 8 px list padding. New `--glow-accent-contained` (≈4 px) for items in
+   narrow scrollers.
+4. **Performance rail** selected item, cut 16 px by the ScrollArea viewport:
+   contained glow plus padding inside the viewport, pulled out by `-m-2`.
+
+```text
+shadow-audit before (1280x820, dark)  → TOTAL clipped 21
+shadow-audit after, resting           → 0 at 720x520, 1280x820, 1920x1080, 3440x1440
+shadow-audit after, hover lift forced → 0 at 720x520, 1280x820, 3440x1440 (override proven applied)
+light theme, resting + hover          → 0
+last list item scrolled to end (Network) → 12 px room, then 40 px after the gutter change
+layout-audit 720x520, 1280x820        → document and main scroll 0 in both axes (no regression)
+styles.test.ts scroll gutters (new, 2 tests) → pass; mutation --scroll-gutter-x 0.5rem → FAILED; restored
+pnpm typecheck 6/6 · pnpm lint 6/6 · pnpm test → green · prettier · drift 0
+check-size.ps1 → within budget after the documented raise (see size-budget.json)
+```
+
+Not changed: Dialog, Toaster and menus paint `--shadow-overlay` from a
+portal at the document root, outside every scroller, so nothing clips them.
+
 ### 2026-09-28 — S12-14 "Retry as administrator" performs the action, one UAC prompt each
 
 The risk dialog has shown the button since it was written; `RiskDialog`

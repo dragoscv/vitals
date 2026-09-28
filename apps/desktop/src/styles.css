@@ -56,6 +56,30 @@
 :root {
   --content-max: 240rem;
   --reading-max: 90rem;
+  /*
+   * Room a scroll region leaves around its content so shadows are not cut.
+   *
+   * `overflow: auto` clips at the padding box, so anything that paints
+   * outside its own box — a card shadow, a hover lift, an accent glow, a
+   * focus ring — is sliced flat at the scroller's edge unless the scroller
+   * has padding at least as wide as that paint. Measured, dark theme (the
+   * larger of the two): --shadow-card-hover reaches 0.7 × 48 − 14 ≈ 20 px to
+   * each side and ≈ 40 px below (its 20 px y-offset), where it has faded
+   * under 5 % opacity; the resting card shadow reaches 21 px below.
+   * The old 8 px / 4 px gutter cut every card's sides and every lift's top
+   * (found live 2026-09-28: 21 clipped shadows across 12 sections).
+   *
+   * The side gutter is cancelled by a negative margin, so content keeps its
+   * alignment; it must stay within the content column's own padding (24 px),
+   * or the scroller would reach past it. The end gutter is not cancelled —
+   * it is space after the last item, only seen when scrolled to the end.
+   *
+   * Tied to the shadow tokens by styles.test.ts, not by arithmetic here:
+   * CSS cannot derive a length from a box-shadow value.
+   */
+  --scroll-gutter-x: 1.25rem;
+  --scroll-gutter-y: 0.75rem;
+  --scroll-gutter-end: 2.5rem;
 }
 
 /*
@@ -72,9 +96,9 @@
  * it, so filtering a 600-row list means scrolling back to the top first; and
  * a table header that scrolls away leaves columns of numbers with no name.
  *
- * `.screen-scroll` pads itself and cancels the padding with a negative
- * margin. `overflow: auto` clips at the padding box, and without the room a
- * card's shadow and a focused control's ring are cut off at the edge.
+ * `.screen-scroll` pads itself by `--scroll-gutter-*` and cancels the padding
+ * with a negative margin, so the content column keeps its alignment while
+ * shadows have somewhere to paint. See the token for why.
  */
 @layer components {
   .screen {
@@ -94,8 +118,8 @@
   }
 
   .screen-scroll {
-    margin: -0.25rem -0.5rem;
-    padding: 0.25rem 0.5rem;
+    margin: calc(-1 * var(--scroll-gutter-y)) calc(-1 * var(--scroll-gutter-x));
+    padding: var(--scroll-gutter-y) var(--scroll-gutter-x) var(--scroll-gutter-end);
   }
 
   /*

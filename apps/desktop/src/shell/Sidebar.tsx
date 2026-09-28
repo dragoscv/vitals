@@ -173,7 +173,8 @@ export function Sidebar({
             data-nav-indicator
             className={cn(
               'pointer-events-none absolute inset-x-2 top-0 rounded-[var(--radius-control)]',
-              'bg-[var(--color-accent-subtle)] shadow-[var(--glow-accent)]',
+              // Contained: the list scrolls, so it clips at its 8 px padding.
+              'bg-[var(--color-accent-subtle)] shadow-[var(--glow-accent-contained)]',
               animate &&
                 'transition-[transform,height] duration-(--duration-slow) ease-(--ease-spring)',
             )}

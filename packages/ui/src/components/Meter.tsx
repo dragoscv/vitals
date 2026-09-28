@@ -82,7 +82,10 @@ export const Meter = forwardRef<HTMLDivElement, MeterProps>(function Meter(
         aria-valuemax={max}
         aria-valuenow={value}
         aria-valuetext={valueText}
-        className="h-2 w-full overflow-hidden rounded-full bg-[var(--color-bg-inset)] shadow-[inset_0_1px_2px_oklch(0_0_0/0.15)]"
+        // No `overflow-hidden`: it sliced the fill's glow flat along the
+        // track's edges, which read as a rendering bug. The fill cannot
+        // escape — `ratio` is clamped to 0..1 and the fill is itself rounded.
+        className="h-2 w-full rounded-full bg-[var(--color-bg-inset)] shadow-[inset_0_1px_2px_oklch(0_0_0/0.15)]"
       >
         <div
           data-testid="meter-fill"

@@ -62,7 +62,10 @@ export function Content({
        * its content and this `<main>` scrolled instead — 14 765 px of it on
        * Installed apps, with the search box scrolled away.
        */}
-      <div className="@container/main mx-auto flex h-full min-h-0 w-full max-w-[var(--content-max)] flex-col px-4 py-4 sm:px-6 sm:py-5">
+      {/* Horizontal padding is the scroll gutter plus 4 px: a scroll region
+          pulls itself out by the gutter so shadows have room, and must stay
+          inside this column or `main`'s overflow-x clip cuts them again. */}
+      <div className="@container/main mx-auto flex h-full min-h-0 w-full max-w-[var(--content-max)] flex-col px-[calc(var(--scroll-gutter-x)+0.25rem)] py-4 sm:py-5">
         {children}
       </div>
     </main>

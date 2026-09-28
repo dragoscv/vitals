@@ -102,8 +102,11 @@ export function PerformanceScreen({
        */}
       <div className="flex min-h-0 flex-1 flex-col gap-4 lg:flex-row">
         <nav aria-label={t('rail.label')} className="flex shrink-0 flex-col lg:min-h-0 lg:w-56">
-          <ScrollArea orientation="both" className="lg:min-h-0 lg:flex-1">
-            <ul className="flex gap-1.5 lg:flex-col">
+          {/* The list is padded inside the viewport, and the ScrollArea pulled
+              out by the same amount, so the selected item's glow has room to
+              paint without the rail shifting off the column edge. */}
+          <ScrollArea orientation="both" className="-m-2 lg:min-h-0 lg:flex-1">
+            <ul className="flex gap-1.5 p-2 lg:flex-col">
               {entries.map((entry) => (
                 <li key={entry.id} className="min-w-40 flex-1 lg:min-w-0">
                   <RailButton
@@ -163,7 +166,7 @@ function RailButton({
         'w-full rounded-[var(--radius-control)] border px-2.5 py-2 text-left',
         'transition-[background-color,border-color,box-shadow] duration-(--duration-fast) ease-(--ease-out-quart)',
         selected
-          ? 'border-[var(--color-accent-border)] bg-[var(--color-accent-subtle)] shadow-[var(--glow-accent)]'
+          ? 'border-[var(--color-accent-border)] bg-[var(--color-accent-subtle)] shadow-[var(--glow-accent-contained)]'
           : 'border-transparent hover:border-[var(--color-border-subtle)] hover:bg-[var(--color-bg-inset)]/60',
       )}
     >

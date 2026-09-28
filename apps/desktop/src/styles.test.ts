@@ -62,3 +62,70 @@ describe('ultrawide breakpoints', () => {
     expect(Number(content?.[1])).toBeGreaterThan(Number(reading?.[1]));
   });
 });
+
+/**
+ * How far a box-shadow paints past its box on each side, in px, ignoring
+ * inset layers. A CSS blur is a Gaussian with sigma = blur / 2, so beyond
+ * 0.7 × blur the tail is under ~8 % of peak; at the ≤ 0.65 alpha these tokens
+ * use that is under 5 % opacity — the point where a cut edge stops showing.
+ */
+function reach(shadow: string): { side: number; bottom: number } {
+  let side = 0;
+  let bottom = 0;
+  for (const layer of shadow.split(/,(?![^(]*\))/)) {
+    if (/inset|var\(/.test(layer)) continue;
+    const lengths = layer.replace(/oklch\([^)]*\)/g, '').match(/-?[\d.]+(?:px)?/g);
+    if (lengths === null || lengths.length < 2) continue;
+    const [x = 0, y = 0, blur = 0, spread = 0] = lengths.map(Number.parseFloat);
+    const extent = 0.7 * blur + spread;
+    side = Math.max(side, extent + Math.abs(x));
+    bottom = Math.max(bottom, extent + y);
+  }
+  return { side, bottom };
+}
+
+/** Every value a token takes, light and dark, from the source. */
+function tokenValues(css: string, name: string): string[] {
+  return [...css.matchAll(new RegExp(`--${name}:([^;]+);`, 'g'))].map((m) => m[1] ?? '');
+}
+
+describe('scroll gutters', () => {
+  it('are wide enough that no card shadow or hover lift is cut at a scroll region edge', async () => {
+    // Found live 2026-09-28: the 8/4 px gutter sliced 21 shadows across 12
+    // sections. `overflow: auto` clips at the padding box, so the gutter must
+    // cover the reach of the largest shadow a scrolled item can wear.
+    const app = await readFile(resolve(here, 'styles.css'), 'utf8');
+    const theme = await readFile(
+      resolve(here, '../../../packages/ui/src/styles/theme.css'),
+      'utf8',
+    );
+    const rem = (name: string): number =>
+      16 * Number(new RegExp(`--${name}:\\s*([\\d.]+)rem`).exec(app)?.[1] ?? Number.NaN);
+    const gutterX = rem('scroll-gutter-x');
+    const gutterEnd = rem('scroll-gutter-end');
+    expect(gutterX).toBeGreaterThan(0);
+    expect(gutterEnd).toBeGreaterThan(0);
+
+    const shadows = [
+      ...tokenValues(theme, 'shadow-card'),
+      ...tokenValues(theme, 'shadow-card-hover'),
+    ];
+    expect(shadows.length).toBeGreaterThanOrEqual(4);
+    for (const shadow of shadows) {
+      const { side, bottom } = reach(shadow);
+      expect(side, shadow).toBeLessThanOrEqual(gutterX);
+      // The bottom of the last item sits against the scroller's padding too.
+      expect(bottom, shadow).toBeLessThanOrEqual(gutterEnd);
+    }
+  });
+
+  it('leave the contained accent glow inside the 8 px a nav list has', async () => {
+    const theme = await readFile(
+      resolve(here, '../../../packages/ui/src/styles/theme.css'),
+      'utf8',
+    );
+    const values = tokenValues(theme, 'glow-accent-contained');
+    expect(values.length).toBe(2);
+    for (const value of values) expect(reach(value).side, value).toBeLessThanOrEqual(8);
+  });
+});
