@@ -40,7 +40,8 @@
         "types": "./dist/index.d.ts",
         "import": "./dist/index.js"
       }
-    }
+    },
+    "name": "@vitals-app/client"
   },
   "scripts": {
     "build": "tsup && tsc -p tsconfig.build.json && node scripts/inline-protocol.mjs",

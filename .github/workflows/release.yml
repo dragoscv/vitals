@@ -681,7 +681,7 @@ jobs:
   # and later steps key off its output.
 
   npm:
-    name: npm (@vitals/client)
+    name: npm (@vitals-app/client)
     needs: [plan, publish]
     if: needs.plan.outputs.is_release == 'true' && vars.PUBLISH_NPM == 'true'
     runs-on: ubuntu-latest
@@ -717,12 +717,11 @@ jobs:
       - if: steps.gate.outputs.ok == 'true'
         run: pnpm install --frozen-lockfile
 
-      # Correct once packages/client is made publishable (not private, built
-      # to JS, `exports` pointing at the build) — a separate change. Until
-      # then pnpm refuses a private package, which is why PUBLISH_NPM stays
-      # off.
+      # Packs the SDK, renames it to its public name (@vitals-app/client; the
+      # @vitals scope belongs to another project) and uploads the tarball.
+      # Prereleases go to the `next` dist-tag. scripts/npm-release.mjs has the why.
       - if: steps.gate.outputs.ok == 'true'
-        run: pnpm --filter @vitals/client publish --access public --no-git-checks --provenance
+        run: node scripts/npm-release.mjs
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
