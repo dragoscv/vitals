@@ -10,7 +10,6 @@
 
 #![allow(clippy::expect_used, clippy::unwrap_used)]
 
-use std::collections::HashMap;
 use std::path::PathBuf;
 
 use vitals_core::MachineSample;
@@ -178,7 +177,7 @@ fn writes_the_android_contract_fixtures() {
         }],
     );
 
-    let mut values = HashMap::new();
+    let mut values = std::collections::BTreeMap::new();
     values.insert("percent".to_owned(), AlertValue::Number(97.0));
     values.insert("name".to_owned(), AlertValue::Text("C:".into()));
     write(

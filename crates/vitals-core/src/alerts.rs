@@ -41,7 +41,7 @@
 //! ("the disk has been saturated for a minute") rather than verdicts. The one
 //! exception is SMART, which is the drive's own assessment of itself.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use serde::{Deserialize, Serialize};
 
@@ -151,7 +151,10 @@ pub struct Alert {
     pub title: String,
     /// Key into `dashboard.alert.<kind>.<cause>` — the "why".
     pub cause: String,
-    pub values: HashMap<String, AlertValue>,
+    /// Sorted by key so the same alert serialises to the same bytes: with a
+    /// `HashMap` the order changed per process, so the Android contract
+    /// fixture rewrote itself on every test run and `check-drift` flapped.
+    pub values: BTreeMap<String, AlertValue>,
     pub route: Option<AlertRoute>,
     /// Sample index at which this alert was raised, for "for 4 minutes".
     #[cfg_attr(feature = "ts", ts(type = "number"))]
@@ -887,5 +890,32 @@ mod tests {
             let name = json.trim_matches('"');
             assert_eq!(serde_variant_name(kind), name);
         }
+    }
+
+    #[test]
+    fn values_serialise_in_key_order_whatever_order_they_were_added_in() {
+        // A HashMap here made the Android contract fixture rewrite itself
+        // on every run, so the drift gate failed on an untouched tree.
+        let make = |pairs: &[(&str, AlertValue)]| {
+            let alert = alert(
+                AlertKind::DiskSpace,
+                Severity::Warning,
+                "C:",
+                "hot",
+                pairs.to_vec(),
+                None,
+            );
+            serde_json::to_string(&alert).expect("serialise")
+        };
+        let forward = make(&[
+            ("percent", AlertValue::Number(97.0)),
+            ("name", AlertValue::Text("C:".into())),
+        ]);
+        let backward = make(&[
+            ("name", AlertValue::Text("C:".into())),
+            ("percent", AlertValue::Number(97.0)),
+        ]);
+        assert_eq!(forward, backward);
+        assert!(forward.find("\"name\"") < forward.find("\"percent\""));
     }
 }

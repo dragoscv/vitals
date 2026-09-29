@@ -256,7 +256,7 @@ mod tests {
     use crate::alerts::{AlertValue, Engine, Severity};
     use crate::fixtures;
     use crate::units::{Bytes, BytesPerSec, Percent};
-    use std::collections::HashMap;
+    use std::collections::BTreeMap;
 
     #[test]
     fn a_cpu_contributor_value_is_hundredths_of_a_percent() {
@@ -278,7 +278,7 @@ mod tests {
             subject: String::new(),
             title: "t".into(),
             cause: "c".into(),
-            values: HashMap::<String, AlertValue>::new(),
+            values: BTreeMap::<String, AlertValue>::new(),
             route: None,
             since_sample: since,
         }

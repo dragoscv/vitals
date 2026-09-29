@@ -25,7 +25,13 @@ title: string,
 /**
  * Key into `dashboard.alert.<kind>.<cause>` — the "why".
  */
-cause: string, values: { [key in string]: AlertValue }, route: AlertRoute | null, 
+cause: string, 
+/**
+ * Sorted by key so the same alert serialises to the same bytes: with a
+ * `HashMap` the order changed per process, so the Android contract
+ * fixture rewrote itself on every test run and `check-drift` flapped.
+ */
+values: { [key in string]: AlertValue }, route: AlertRoute | null, 
 /**
  * Sample index at which this alert was raised, for "for 4 minutes".
  */
