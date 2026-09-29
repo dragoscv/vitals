@@ -248,6 +248,9 @@ fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
         // to move this machine's files, even into the Recycle Bin.
         #[cfg(windows)]
         inventory::recycle_storage_items,
+        // Windows' own cleanup tools, one UAC prompt per action. Desktop-only
+        // for the same reason as the basket.
+        #[cfg(windows)]
         inventory::run_windows_cleanup,
         #[cfg(windows)]
         inventory::get_file_holders,
