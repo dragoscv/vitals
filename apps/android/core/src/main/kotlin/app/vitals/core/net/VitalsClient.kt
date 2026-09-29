@@ -59,6 +59,15 @@ inline fun <T, R> ApiResult<T>.map(f: (T) -> R): ApiResult<R> = when (this) {
 
 fun <T> ApiResult<T>.getOrNull(): T? = (this as? ApiResult.Ok)?.value
 
+/** What `POST /api/v1/pair` returns for a valid code: a normal bearer token and the scope the PC chose. */
+data class PairGrant(val token: String, val scope: app.vitals.core.pairing.Scope)
+
+@kotlinx.serialization.Serializable
+private data class PairRequestWire(val code: String, val label: String)
+
+@kotlinx.serialization.Serializable
+private data class PairReplyWire(val token: String, val scope: String)
+
 /**
  * The LAN API of one PC (`docs/api/openapi.yaml`).
  *
@@ -189,6 +198,31 @@ class VitalsClient(
 
     companion object {
         private val JSON = "application/json".toMediaType()
+
+        /**
+         * Trades a six-digit code for a token. Unauthenticated by design: the
+         * code is the credential, the PC allows five wrong guesses in total,
+         * and a wrong, expired or burnt code all answer the same `403`.
+         */
+        suspend fun redeem(baseUrl: String, code: String, label: String, http: OkHttpClient = shared): ApiResult<PairGrant> {
+            val body = WireJson.Lenient.encodeToString(PairRequestWire.serializer(), PairRequestWire(code, label.take(64)))
+                .toRequestBody(JSON)
+            val req = Request.Builder().url("$baseUrl/api/v1/pair").post(body).build()
+            return VitalsClient(baseUrl, "", http).execute(req) { response ->
+                when (response.code) {
+                    200 -> runCatching {
+                        val reply = WireJson.Lenient.decodeFromString(PairReplyWire.serializer(), response.body.string())
+                        val scope = when (reply.scope) {
+                            "control" -> app.vitals.core.pairing.Scope.Control
+                            "read" -> app.vitals.core.pairing.Scope.Read
+                            else -> app.vitals.core.pairing.Scope.Unknown
+                        }
+                        ApiResult.Ok(PairGrant(reply.token, scope))
+                    }.getOrElse { ApiResult.Err(ApiFailure.Incompatible(-1)) }
+                    else -> ApiResult.Err(ApiFailure.Http(response.code))
+                }
+            }
+        }
 
         /**
          * Short timeouts: on a LAN a PC either answers in milliseconds or is

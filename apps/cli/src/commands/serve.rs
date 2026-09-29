@@ -13,7 +13,7 @@ use std::time::Duration;
 use anyhow::{Context, Result};
 use vitals_core::alerts::Alert;
 use vitals_server::state::ServerLock;
-use vitals_server::{ApiState, FrameSource, Scope, Token, TokenSet};
+use vitals_server::{ApiState, FrameSource, PairingDesk, Scope, Token, TokenSet};
 
 use crate::source::Direct;
 
@@ -45,16 +45,22 @@ pub fn tokens(options: &Options) -> (TokenSet, String, Option<String>) {
     let set = TokenSet {
         tokens: vec![Token::new(
             &secret,
-            if options.control {
-                Scope::Control
-            } else {
-                Scope::Read
-            },
+            scope(options),
             "vitals serve",
             unix_now(),
         )],
     };
     (set, secret, generated)
+}
+
+/// The scope both the token and the TV pairing code grant: one switch, so a
+/// TV can never end up with more than the command line asked for.
+fn scope(options: &Options) -> Scope {
+    if options.control {
+        Scope::Control
+    } else {
+        Scope::Read
+    }
 }
 
 fn unix_now() -> i64 {
@@ -76,6 +82,11 @@ pub fn run(options: &Options) -> Result<()> {
 
     let frames = FrameSource::new();
     let alerts: Arc<ServerLock<Vec<Alert>>> = Arc::new(ServerLock::new(Vec::new()));
+    // A no-op persist: the headless server keeps no token file (its own
+    // token comes from the command line), so a TV paired here is forgotten
+    // on exit, exactly like the generated token.
+    let desk = Arc::new(PairingDesk::new(Arc::new(|_| {})));
+    let code = desk.create(scope(options));
 
     let state = ApiState {
         frames: frames.clone(),
@@ -98,6 +109,7 @@ pub fn run(options: &Options) -> Result<()> {
         sensors: Arc::new(Vec::new),
         version: env!("CARGO_PKG_VERSION").to_owned(),
         loopback_scope: None,
+        pairing: Some(desk),
     };
 
     let runtime = tokio::runtime::Builder::new_multi_thread()
@@ -112,6 +124,13 @@ pub fn run(options: &Options) -> Result<()> {
         let port = handle.addr.port();
 
         announce(port, &secret, generated.as_deref(), options.control);
+        // stderr, like the token above, never `tracing`: a code is a
+        // credential for five minutes and must not reach a log file.
+        eprintln!(
+            "TV pairing code (valid 5 minutes, single use): {} {}",
+            &code.code[..3],
+            &code.code[3..]
+        );
 
         std::thread::spawn(move || sample_forever(&frames, &alerts));
 

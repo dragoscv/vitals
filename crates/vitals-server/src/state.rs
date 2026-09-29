@@ -9,6 +9,7 @@ use vitals_core::sample::Frame;
 
 use crate::auth::{Scope, TokenSet};
 use crate::control::Controller;
+use crate::pairing::PairingDesk;
 
 /// Where frames come from.
 ///
@@ -249,6 +250,11 @@ pub struct ApiState {
     /// against the connecting peer, not the listener, so a LAN request can
     /// never qualify.
     pub loopback_scope: Option<Scope>,
+    /// Short-code pairing for devices that cannot scan a QR code (a TV).
+    /// `None` — the prover, or any host that does not offer it — makes
+    /// `POST /api/v1/pair` answer 404. Shared by every listener a host runs,
+    /// so a code shown once is redeemable on whichever the TV reaches.
+    pub pairing: Option<Arc<PairingDesk>>,
 }
 
 impl std::fmt::Debug for ApiState {
@@ -257,6 +263,7 @@ impl std::fmt::Debug for ApiState {
             .field("version", &self.version)
             .field("has_assets", &self.assets.is_some())
             .field("loopback_scope", &self.loopback_scope)
+            .field("has_pairing", &self.pairing.is_some())
             .finish_non_exhaustive()
     }
 }

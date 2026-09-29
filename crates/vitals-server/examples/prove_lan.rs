@@ -34,6 +34,7 @@ async fn main() {
         sensors: Arc::new(Vec::new),
         version: "prove".into(),
         loopback_scope: None,
+        pairing: None,
     };
 
     let handle = vitals_server::serve(state, 0).await.expect("bind");

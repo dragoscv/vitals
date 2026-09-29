@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The Leanback launcher banner, 320 × 180 dp. The glyph is the launcher
+     icon's heartbeat; the wordmark is drawn as paths so no font is needed
+     and the banner looks the same on every TV. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="320dp"
+    android:height="180dp"
+    android:viewportWidth="320"
+    android:viewportHeight="180">
+    <path android:fillColor="#0B1A2E" android:pathData="M0,0h320v180h-320z" />
+    <path
+        android:fillColor="#0072DA"
+        android:pathData="M42,58h52a14,14 0,0 1,14 14v36a14,14 0,0 1,-14 14h-52a14,14 0,0 1,-14 -14v-36a14,14 0,0 1,14 -14z" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M36,92h14l6,-14l9,28l8,-22l5,8h22" />
+    <!-- V -->
+    <path android:fillColor="#00000000" android:strokeColor="#FFFFFF" android:strokeWidth="7" android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M128,68l13,44l13,-44" />
+    <!-- i -->
+    <path android:fillColor="#00000000" android:strokeColor="#FFFFFF" android:strokeWidth="7" android:strokeLineCap="round"
+        android:pathData="M167,84v28M167,70v1" />
+    <!-- t -->
+    <path android:fillColor="#00000000" android:strokeColor="#FFFFFF" android:strokeWidth="7" android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M184,70v34a8,8 0,0 0,8 8h4M178,84h16" />
+    <!-- a -->
+    <path android:fillColor="#00000000" android:strokeColor="#FFFFFF" android:strokeWidth="7" android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M226,98a11,13 0,1 1,-22 0a11,13 0,1 1,22 0M226,85v27" />
+    <!-- l -->
+    <path android:fillColor="#00000000" android:strokeColor="#FFFFFF" android:strokeWidth="7" android:strokeLineCap="round"
+        android:pathData="M243,66v46" />
+    <!-- s -->
+    <path android:fillColor="#00000000" android:strokeColor="#FFFFFF" android:strokeWidth="7" android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M276,88c-3,-4 -16,-6 -17,2c-1,8 18,6 17,14c-1,9 -15,8 -19,3" />
+</vector>

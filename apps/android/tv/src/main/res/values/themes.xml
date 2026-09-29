@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="launcher_background">#0B1A2E</color>
+    <color name="tv_background">#111318</color>
+
+    <!-- Compose draws everything; the window only needs to be dark from the first frame. -->
+    <style name="Theme.VitalsTv" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/tv_background</item>
+        <item name="android:colorBackground">@color/tv_background</item>
+    </style>
+</resources>

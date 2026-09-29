@@ -548,7 +548,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v5
 
       - name: Contract and unit tests
-        run: ./gradlew :core:testDebugUnitTest :device:testDebugUnitTest :shared-ui:testDebugUnitTest --console=plain
+        run: ./gradlew :core:testDebugUnitTest :device:testDebugUnitTest :shared-ui:testDebugUnitTest :tv:lintDebug --console=plain
 
       - name: Upload key
         env:
@@ -566,7 +566,7 @@ jobs:
           # Monotonic across tags and nightlies; Play and Obtainium both
           # refuse an update whose versionCode is not higher.
           VITALS_VERSION_CODE: ${{ github.run_number }}
-        run: ./gradlew :app:assembleRelease :wear:assembleRelease :app:bundleRelease :wear:bundleRelease --console=plain
+        run: ./gradlew :app:assembleRelease :wear:assembleRelease :app:bundleRelease :wear:bundleRelease :tv:assembleRelease :tv:bundleRelease --console=plain
 
       - name: Collect
         env:
@@ -575,9 +575,11 @@ jobs:
           mkdir -p "$GITHUB_WORKSPACE/dist/android"
           cp app/build/outputs/apk/release/app-release.apk "$GITHUB_WORKSPACE/dist/android/Vitals_${VITALS_VERSION}_android.apk"
           cp wear/build/outputs/apk/release/wear-release.apk "$GITHUB_WORKSPACE/dist/android/Vitals_${VITALS_VERSION}_wear.apk"
+          cp tv/build/outputs/apk/release/tv-release.apk "$GITHUB_WORKSPACE/dist/android/Vitals_${VITALS_VERSION}_tv.apk"
           mkdir -p "$GITHUB_WORKSPACE/play"
           cp app/build/outputs/bundle/release/app-release.aab "$GITHUB_WORKSPACE/play/vitals-android.aab"
           cp wear/build/outputs/bundle/release/wear-release.aab "$GITHUB_WORKSPACE/play/vitals-wear.aab"
+          cp tv/build/outputs/bundle/release/tv-release.aab "$GITHUB_WORKSPACE/play/vitals-tv.aab"
           rm -f "$RUNNER_TEMP/upload.jks"
 
       - uses: actions/attest-build-provenance@v4
@@ -842,6 +844,15 @@ jobs:
           packageName: app.vitals
           releaseFiles: play/vitals-wear.aab
           track: wear:qa
+          status: completed
+      # Android TV has its own form-factor track too: `tv:qa` is its internal
+      # testing, as `wear:qa` is the watch's.
+      - uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJson: ${{ steps.gcp.outputs.credentials_file_path }}
+          packageName: app.vitals
+          releaseFiles: play/vitals-tv.aab
+          track: tv:qa
           status: completed
 
   winget:

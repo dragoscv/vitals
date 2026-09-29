@@ -1,0 +1,339 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Vitals</string>
+
+    <!-- Navigation -->
+    <string name="nav_overview">Overview</string>
+    <string name="nav_tv">This TV</string>
+    <string name="nav_pcs">PCs</string>
+    <string name="nav_add">Add a PC</string>
+    <string name="nav_settings">Settings</string>
+    <string name="back">Back</string>
+
+    <!-- Overview -->
+    <string name="overview_title">Vitals</string>
+    <string name="overview_tv">This TV</string>
+    <string name="overview_pcs">Your PCs</string>
+    <string name="overview_no_pcs">No PCs paired yet. Choose Add a PC to watch one from here.</string>
+
+    <!-- States -->
+    <string name="state_connecting">Connecting…</string>
+    <string name="state_unreachable">Can’t reach this PC</string>
+    <string name="state_unreachable_hint">It may be asleep, off, or on another network.</string>
+    <string name="state_unauthorised">This PC no longer accepts this TV. Pair it again.</string>
+    <string name="state_incompatible">This PC runs a version of Vitals this app does not understand. Update both.</string>
+    <string name="last_seen">Last seen %1$s</string>
+    <string name="alert_count_title">What needs attention</string>
+    <plurals name="alert_count">
+        <item quantity="one">%d warning</item>
+        <item quantity="other">%d warnings</item>
+    </plurals>
+    <string name="reconnect">Reconnect</string>
+
+    <!-- Metric labels -->
+    <string name="metric_cpu">CPU</string>
+    <string name="metric_memory">Memory in use</string>
+    <string name="metric_memory_short">Memory</string>
+    <string name="metric_gpu">Graphics</string>
+    <string name="metric_temp">CPU heat</string>
+    <string name="metric_disk">Disks</string>
+    <string name="metric_network">Network</string>
+    <string name="metric_fans">Fans</string>
+    <string name="metric_battery">Battery</string>
+    <string name="metric_power">Power draw</string>
+
+    <!-- PC detail -->
+    <string name="tab_now">Now</string>
+    <string name="tab_programs">Programs</string>
+    <string name="tab_sensors">Sensors</string>
+    <string name="tab_history">History</string>
+    <string name="tab_about">About</string>
+    <string name="cpu_clock">Speed</string>
+    <string name="cpu_temperature">Temperature</string>
+    <string name="cpu_power">Power</string>
+    <string name="cpu_throttled">Slowed down</string>
+    <string name="cpu_not_throttled">Running at full speed</string>
+    <string name="cpu_cores">Each core</string>
+    <string name="cpu_uptime">Up for</string>
+    <string name="cpu_processes">Programs running</string>
+    <string name="throttle_thermal">because it is too hot</string>
+    <string name="throttle_power">to stay within its power limit</string>
+    <string name="throttle_current">to stay within its current limit</string>
+    <string name="throttle_voltage">because the voltage dropped</string>
+    <string name="throttle_policy">by the power plan</string>
+    <string name="throttle_unknown">for an unknown reason</string>
+    <string name="memory_used_of">%1$s of %2$s</string>
+    <string name="memory_available">Free to use</string>
+    <string name="memory_cached">Kept for speed</string>
+    <string name="memory_committed">Promised to programs</string>
+    <string name="gpu_memory">Video memory</string>
+    <string name="gpu_temperature">Temperature</string>
+    <string name="gpu_power">Power</string>
+    <string name="gpu_fan">Fan</string>
+    <string name="disk_free">%1$s free of %2$s</string>
+    <string name="disk_activity">Busy</string>
+    <string name="disk_read_write">Read %1$s · Write %2$s</string>
+    <string name="disk_health_failing">This drive reports it is failing. Back up now.</string>
+    <string name="disk_life">Life left</string>
+    <string name="net_down_up">Down %1$s · Up %2$s</string>
+    <string name="net_disconnected">Not connected</string>
+    <string name="battery_charging">Charging</string>
+    <string name="battery_discharging">On battery</string>
+    <string name="battery_time_left">Time left</string>
+    <string name="battery_health">Health</string>
+    <string name="host_os">Windows</string>
+    <string name="host_cpu">Processor</string>
+    <string name="host_board">Motherboard</string>
+    <string name="host_bios">BIOS</string>
+    <string name="host_vm">Virtual machine</string>
+    <string name="host_started">Started</string>
+
+    <!-- Sensors -->
+    <string name="sensors_empty">This PC reports no sensors.</string>
+    <string name="sensors_group_temperature">Temperatures</string>
+    <string name="sensors_group_fan">Fans</string>
+    <string name="sensors_group_power">Power</string>
+    <string name="sensors_group_voltage">Voltages</string>
+    <string name="sensors_group_percent">Levels</string>
+    <string name="sensors_group_other">Other</string>
+    <string name="sensors_unavailable">Sensors are not available right now.</string>
+
+    <!-- History -->
+    <string name="history_1h">1 hour</string>
+    <string name="history_24h">24 hours</string>
+    <string name="history_7d">7 days</string>
+    <string name="history_empty">No history recorded for this period. History is kept by the desktop app, not the headless server.</string>
+    <string name="history_loading">Loading history…</string>
+    <string name="history_peak">Peak %1$s</string>
+
+    <!-- Wake-on-LAN -->
+    <string name="wake">Wake up</string>
+    <string name="wake_sent">Wake-up signal sent. Whether the PC wakes depends on its settings.</string>
+    <string name="wake_no_mac">This PC has not been seen awake yet, so there is no address to wake.</string>
+    <string name="wake_failed">Could not send the wake-up signal.</string>
+
+    <!-- Programs -->
+    <string name="sort_cpu">CPU</string>
+    <string name="sort_memory">Memory</string>
+    <string name="sort_name">Name</string>
+    <string name="processes_none">No programs match.</string>
+    <string name="processes_waiting">Waiting for the PC…</string>
+    <string name="processes_shown">Showing %1$d of %2$d</string>
+    <string name="process_pid">Process ID</string>
+    <string name="process_user">Run by</string>
+    <string name="process_threads">Threads</string>
+    <string name="process_uptime">Running for</string>
+    <string name="process_disk">Disk</string>
+    <string name="process_state_suspended">Paused</string>
+    <string name="process_state_not_responding">Not responding</string>
+    <string name="process_protected">Windows protects this program, so it cannot be changed from here.</string>
+    <string name="process_read_only">This TV was paired to look, not to change anything.</string>
+    <string name="action_end">End task</string>
+    <string name="action_end_confirm">Press again to end</string>
+    <string name="action_suspend">Pause</string>
+    <string name="action_resume">Resume</string>
+    <string name="action_priority">Priority</string>
+    <string name="action_efficiency">Efficiency mode</string>
+    <string name="action_efficiency_body">Runs it slower to save power and keep other programs responsive.</string>
+    <string name="priority_idle">Lowest</string>
+    <string name="priority_below_normal">Below normal</string>
+    <string name="priority_normal">Normal</string>
+    <string name="priority_above_normal">Above normal</string>
+    <string name="priority_high">High</string>
+    <string name="priority_realtime">Real-time</string>
+    <string name="control_done">Done.</string>
+    <string name="control_forbidden">This TV is paired read-only, so it cannot change programs.</string>
+    <string name="control_access_denied">Windows refused. This program needs administrator rights to change.</string>
+    <string name="control_not_found">That program has already closed.</string>
+    <string name="control_unsupported">This PC cannot do that: %1$s</string>
+    <string name="control_internal">Something went wrong on the PC: %1$s</string>
+    <string name="control_unreachable">Could not reach the PC.</string>
+    <string name="control_failed">That did not work (%1$d).</string>
+
+    <!-- Add a PC -->
+    <string name="add_title">Add a PC</string>
+    <string name="add_how">On the PC, open Vitals, go to Settings, Remote access, and choose Pair a TV. It shows a six-digit code.</string>
+    <string name="add_nearby">PCs on this network</string>
+    <string name="add_searching">Looking for PCs on this network…</string>
+    <string name="add_none_found">No PCs found yet. Remote access must be on, and the PC on the same network as this TV.</string>
+    <string name="add_manual">Enter the address yourself</string>
+    <string name="add_code_title">Code from %1$s</string>
+    <string name="add_code_body">Type the six digits the PC shows, with the remote’s number keys or the keypad below.</string>
+    <string name="add_code_delete">Delete</string>
+    <string name="add_use_token">Use a token instead</string>
+    <string name="add_token_body">Type or paste the 43-character token from the PC. The Google TV app on your phone can paste it for you.</string>
+    <string name="field_address">Address</string>
+    <string name="field_address_hint">192.168.1.20:7331</string>
+    <string name="field_token">Token</string>
+    <string name="pair">Pair</string>
+    <string name="next">Next</string>
+    <string name="tv_label">Living room TV</string>
+    <string name="pairing_checking">Checking the PC…</string>
+    <string name="pairing_not_private">That address is on the internet, not your home network. Vitals only talks to PCs on the local network.</string>
+    <string name="pairing_bad_address">That does not look like an address.</string>
+    <string name="pairing_bad_token">The token should be 43 letters and numbers.</string>
+    <string name="pairing_bad_code">That code did not work. Codes last five minutes, and five wrong tries use one up. Ask the PC for a new one.</string>
+    <string name="pairing_unreachable">Nothing answered at that address.</string>
+    <string name="pairing_unauthorised">The PC refused the token. Check it, or create a new one.</string>
+    <string name="pairing_incompatible">That PC runs a version of Vitals this app does not understand.</string>
+    <string name="pairing_not_ready">The PC is starting up. Try again in a moment.</string>
+    <string name="pairing_failed">Pairing failed (%1$d).</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_pcs">Paired PCs</string>
+    <string name="settings_remove">Remove</string>
+    <string name="settings_remove_confirm">Press again to remove</string>
+    <string name="settings_read_only">Look only</string>
+    <string name="settings_can_control">Can change programs</string>
+    <string name="settings_unknown_scope">Not yet known</string>
+    <string name="settings_tv">This TV</string>
+    <string name="settings_device_history">Record history</string>
+    <string name="settings_device_history_body">A reading every 15 minutes, kept for a week. Uses almost nothing.</string>
+    <string name="settings_access_usage">Usage access</string>
+    <string name="settings_access_files">All-files access</string>
+    <string name="settings_access_on">Allowed</string>
+    <string name="settings_access_off">Not allowed</string>
+    <string name="settings_language">Language</string>
+    <string name="settings_language_system">Same as the TV</string>
+    <string name="settings_language_en">English</string>
+    <string name="settings_language_ro">Română</string>
+    <string name="settings_about">About</string>
+    <string name="settings_version">Version %1$s</string>
+    <string name="settings_about_body">Vitals measures this TV and, if you pair one, a Windows PC on your home network. No ads, no account, no analytics: nothing is sent to the developer.</string>
+    <string name="settings_privacy">Privacy policy: vitals.dragoscatalin.ro/privacy</string>
+    <string name="settings_source">Source code: github.com/dragoscv/vitals</string>
+
+    <!-- Alerts (the desktop's alert kinds, in plain words) -->
+    <string name="alert_cpu_sustained">The processor has been busy for a while</string>
+    <string name="alert_cpu_throttled">The processor is being slowed down</string>
+    <string name="alert_memory_pressure">Memory is nearly full</string>
+    <string name="alert_memory_commit">Programs have asked for almost all memory</string>
+    <string name="alert_disk_saturated">A disk is flat out</string>
+    <string name="alert_disk_latency">A disk is slow to respond</string>
+    <string name="alert_disk_space">A disk is running out of space</string>
+    <string name="alert_disk_health">A disk reports a health problem</string>
+    <string name="alert_gpu_throttled">The graphics card is being slowed down</string>
+    <string name="alert_thermal_cpu">The processor is too hot</string>
+    <string name="alert_network_errors">The network connection is dropping data</string>
+    <string name="alert_battery_low">The battery is low</string>
+    <string name="alert_battery_health">The battery is wearing out</string>
+
+    <!-- This TV (ADR-0035) -->
+    <string name="device_tab_storage">Storage</string>
+    <string name="device_tab_apps">Apps</string>
+    <string name="device_access_title">Needs your permission</string>
+    <string name="device_access_grant">Open settings</string>
+    <string name="device_access_usage_body">Allow usage access to see how much space apps take, and how long each app was on screen. Vitals reads the numbers only; nothing leaves the TV.</string>
+    <string name="device_access_files_body">To find what fills the storage, Vitals needs access to all files. It only measures sizes and deletes only what you confirm.</string>
+    <string name="device_alert_thermal">The TV is slowing down to cool off</string>
+    <string name="device_alert_battery_hot">The battery is hot</string>
+    <string name="device_alert_storage_low">Storage is almost full</string>
+    <string name="device_apps_window">Over the last 24 hours</string>
+    <string name="device_images">Photos and images</string>
+    <string name="device_video">Videos</string>
+    <string name="device_audio">Audio</string>
+    <string name="device_other_files">Other files</string>
+    <string name="device_system">System and other</string>
+    <string name="device_band">Band</string>
+    <string name="device_chip">Chip</string>
+    <string name="device_clean_apk">Installer file</string>
+    <string name="device_clean_app_cache">App cache</string>
+    <string name="device_clean_empty_folder">Empty folder</string>
+    <string name="device_clean_large_file">Large file</string>
+    <string name="device_clean_thumbnails">Photo thumbnails</string>
+    <string name="device_cleanup_title">What you could free up</string>
+    <string name="device_cleanup_empty">Nothing worth removing was found.</string>
+    <string name="device_cleanup_needs_access">Give Vitals file or usage access to look for space to free.</string>
+    <string name="device_cluster_prime">Prime core</string>
+    <string name="device_cluster_performance">Performance cores</string>
+    <string name="device_cluster_efficiency">Efficiency cores</string>
+    <string name="device_codename">Codename</string>
+    <string name="device_connection">Connection</string>
+    <string name="device_core_offline">Off</string>
+    <string name="device_cpu_estimate">Android does not let apps read exact CPU use, so Vitals estimates it from how fast each core is running.</string>
+    <string name="device_data_used">Data used</string>
+    <string name="device_delete_confirm">Press again to delete</string>
+    <string name="device_delete_failed">Could not delete it</string>
+    <string name="device_deleted">Freed %1$s</string>
+    <string name="device_density">Density</string>
+    <string name="device_display">Screen</string>
+    <string name="device_hardware_sensors">Hardware sensors (%1$d)</string>
+    <string name="device_headroom">Heat headroom used</string>
+    <string name="device_history_empty">No history yet. Vitals records a point every 15 minutes, and every minute while this screen is open.</string>
+    <string name="device_history_off">History is off. Turn it on in Settings.</string>
+    <string name="device_kernel">Kernel</string>
+    <string name="device_last_used">Last used</string>
+    <string name="device_link_speed">Link speed</string>
+    <string name="device_load">Load</string>
+    <string name="device_low_memory">Memory is short: Android is closing apps in the background.</string>
+    <string name="device_low_ram">Low-memory device</string>
+    <string name="device_manufacturer">Manufacturer</string>
+    <string name="device_max_clock">Top speed</string>
+    <string name="device_metered">Metered</string>
+    <string name="device_model">Model</string>
+    <string name="device_net_cellular">Mobile data</string>
+    <string name="device_net_ethernet">Ethernet</string>
+    <string name="device_net_vpn">VPN</string>
+    <string name="device_net_wifi">Wi-Fi</string>
+    <string name="device_no">No</string>
+    <string name="device_yes">Yes</string>
+    <string name="device_mains">Mains powered</string>
+    <string name="device_mains_body">This TV has no battery; it runs from the wall.</string>
+    <string name="device_open_app_info">Clear in Settings</string>
+    <string name="device_perf_class">Performance class</string>
+    <string name="device_rating_safe">Safe to remove</string>
+    <string name="device_rating_review">Check before removing</string>
+    <string name="device_refresh">Refresh rate</string>
+    <string name="device_resolution">Resolution</string>
+    <string name="device_scan_title">What fills the storage</string>
+    <string name="device_scan_body">Measure every folder to find what takes the most space.</string>
+    <string name="device_scan_start">Scan storage</string>
+    <string name="device_scan_again">Scan again</string>
+    <string name="device_scan_took">Took %1$.1f s</string>
+    <string name="device_screen_time">Screen time</string>
+    <string name="device_security_patch">Security update</string>
+    <string name="device_sensor_power">Power use</string>
+    <string name="device_signal">Signal</string>
+    <string name="device_since_boot">Since start-up</string>
+    <string name="device_soc">Chipset</string>
+    <string name="device_sort_data">Data</string>
+    <string name="device_sort_screen_time">Screen time</string>
+    <string name="device_sort_storage">Storage</string>
+    <string name="device_standard">Standard</string>
+    <string name="device_storage_used">Storage used</string>
+    <string name="device_swap">Swap in use</string>
+    <string name="device_thermal">Heat</string>
+    <string name="device_thermal_none">Not throttling</string>
+    <string name="device_thermal_light">Slightly warm</string>
+    <string name="device_thermal_moderate">Slowing down a little</string>
+    <string name="device_thermal_severe">Slowing down to cool off</string>
+    <string name="device_thermal_critical">Too hot: heavily slowed</string>
+    <string name="device_throttling">Speed</string>
+    <string name="device_value">Reading</string>
+    <string name="device_zone_camera">Camera</string>
+    <string name="device_zone_modem">Modem</string>
+    <string name="device_zone_npu">AI engine</string>
+    <string name="device_zone_skin">Case</string>
+    <string name="device_zone_memory">Memory</string>
+    <string name="device_zones_hidden">This TV does not share its temperature sensors with apps.</string>
+    <string name="device_loading">Loading…</string>
+    <string name="device_total_memory">Memory</string>
+    <string name="device_started">Started</string>
+    <string name="device_core_count">Cores</string>
+    <string name="device_each_core">Each core</string>
+    <string name="device_hdr">HDR</string>
+    <plurals name="device_cores_count">
+        <item quantity="one">%d core</item>
+        <item quantity="other">%d cores</item>
+    </plurals>
+    <plurals name="host_threads">
+        <item quantity="one">%d thread</item>
+        <item quantity="other">%d threads</item>
+    </plurals>
+    <plurals name="device_scan_files">
+        <item quantity="one">%d file</item>
+        <item quantity="other">%d files</item>
+    </plurals>
+    <string name="device_scan_progress">%1$s so far</string>
+</resources>

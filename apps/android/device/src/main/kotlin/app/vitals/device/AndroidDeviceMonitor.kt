@@ -110,6 +110,7 @@ class AndroidDeviceMonitor(context: Context) : DeviceMonitor {
                 clusters = c.clusters,
                 load = c.load,
                 temperature = t.zones.filter { it.group == "cpu" }.maxOfOrNull { it.celsius },
+                measured = c.measured,
             ),
             gpu = gpu.sample(),
             memory = infoReader.memory(),

@@ -20,7 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.vitals.device.model.DeviceSnapshot
 import app.vitals.phone.R
-import app.vitals.phone.data.DeviceLive
+import app.vitals.ui.DeviceLive
 import app.vitals.phone.graph
 import app.vitals.phone.ui.components.FillBar
 import app.vitals.phone.ui.components.InfoRow
@@ -102,11 +102,13 @@ private fun Hero(live: DeviceLive, s: DeviceSnapshot) {
         Sparkline(live.memory, Palette.Memory)
         if (live.gpu.size > 0) Sparkline(live.gpu, Palette.Gpu)
         if (live.temperature.size > 0) Sparkline(live.temperature, Palette.Thermal, max = 110f)
-        Text(
-            stringResource(R.string.device_cpu_estimate),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        if (!s.cpu.measured) {
+            Text(
+                stringResource(R.string.device_cpu_estimate),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 

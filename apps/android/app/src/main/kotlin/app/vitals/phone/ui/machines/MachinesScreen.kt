@@ -49,7 +49,7 @@ import app.vitals.core.model.Severity
 import app.vitals.core.net.WakeOnLan
 import app.vitals.core.pairing.Pairing
 import app.vitals.phone.R
-import app.vitals.phone.data.LiveState
+import app.vitals.ui.LiveState
 import app.vitals.phone.graph
 import app.vitals.phone.ui.LocalNavigator
 import app.vitals.phone.ui.LocalSnackbar

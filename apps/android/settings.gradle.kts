@@ -16,4 +16,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "vitals-android"
 
-include(":core", ":device", ":shared-ui", ":app", ":wear")
+include(":core", ":device", ":shared-ui", ":app", ":wear", ":tv")

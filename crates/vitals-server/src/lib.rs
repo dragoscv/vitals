@@ -12,6 +12,7 @@
 //! | `GET /api/v1/ws`       | WebSocket: frames out, control commands in     |
 //! | `GET /api/v1/host`     | Host facts                                      |
 //! | `GET /api/v1/health`   | Liveness, unauthenticated                       |
+//! | `POST /api/v1/pair`    | Six-digit code for a token, unauthenticated     |
 //! | `GET /metrics`         | Prometheus text exposition                     |
 //! | `/*`                   | The mobile web app (static, from the caller)   |
 //!
@@ -20,8 +21,9 @@
 //! The announcement lives exactly as long as the listener does.
 //!
 //! **Off by default.** Nothing here binds a socket until the host application
-//! decides to. When it does, every route except `/health` requires a bearer
-//! token, compared in constant time. Tokens carry a scope: `read` can see,
+//! decides to. When it does, every route except `/health` and `/pair`
+//! requires a bearer token, compared in constant time. `/pair` is how a TV,
+//! which cannot scan the QR code, obtains one: see [`pairing`]. Tokens carry a scope: `read` can see,
 //! `control` can also act.
 //!
 //! Framework choice: axum rather than actix-web, because Tauri already runs a
@@ -37,6 +39,7 @@ pub mod auth;
 pub mod control;
 pub mod lan;
 pub mod mdns;
+pub mod pairing;
 pub mod prometheus;
 pub mod router;
 pub mod state;
@@ -45,5 +48,6 @@ pub use auth::{Scope, Token, TokenSet};
 pub use control::{ControlError, ControlRequest, Controller};
 pub use lan::{Interface, interfaces, pairing_qr_svg, pairing_url};
 pub use mdns::{Advertisement, advertise};
+pub use pairing::{IssuedCode, PairingDesk, PairingStatus};
 pub use router::{ServeHandle, serve, serve_on};
 pub use state::{ApiState, FrameSource, StaticAssets};

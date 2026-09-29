@@ -1,71 +1,23 @@
 package app.vitals.phone.data
 
-import androidx.compose.runtime.Immutable
-import app.vitals.core.MachineView
-import app.vitals.core.model.Alert
 import app.vitals.core.model.Summary
 import app.vitals.core.net.ApiFailure
-import app.vitals.core.net.ApiResult
-import app.vitals.core.net.Backoff
-import app.vitals.core.net.StreamClosed
 import app.vitals.core.pairing.Pairing
 import app.vitals.core.pairing.Scope
 import app.vitals.core.wear.PcState
+import app.vitals.ui.LiveState
+import app.vitals.ui.PcStream
 import app.vitals.ui.Readings
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.channelFlow
-import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.shareIn
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.ConcurrentHashMap
-
-/** The last [CAPACITY] readings of one metric. `NaN` marks a sample where it was not measured. */
-@Immutable
-class Series private constructor(private val values: FloatArray, val size: Int) {
-    operator fun get(i: Int): Float = values[i]
-
-    fun plus(v: Float?): Series {
-        val next = FloatArray(CAPACITY)
-        val keep = minOf(size, CAPACITY - 1)
-        System.arraycopy(values, size - keep, next, 0, keep)
-        next[keep] = v ?: Float.NaN
-        return Series(next, keep + 1)
-    }
-
-    companion object {
-        const val CAPACITY = 60
-        val Empty = Series(FloatArray(CAPACITY), 0)
-    }
-}
-
-@Immutable
-data class LiveState(
-    val view: MachineView? = null,
-    val cpu: Series = Series.Empty,
-    val memory: Series = Series.Empty,
-    val gpu: Series = Series.Empty,
-    val temperature: Series = Series.Empty,
-    val alerts: List<Alert> = emptyList(),
-    /** Consecutive failed connection attempts; three or more reads as "unreachable". */
-    val failures: Int = 0,
-    val unauthorised: Boolean = false,
-    val incompatible: Boolean = false,
-    val lastSeenMs: Long? = null,
-) {
-    val unreachable: Boolean get() = failures >= UNREACHABLE_AFTER
-
-    companion object {
-        const val UNREACHABLE_AFTER = 3
-    }
-}
 
 /**
  * One live stream per paired PC, shared by every screen that shows it.
@@ -97,75 +49,11 @@ class LiveHub(private val graph: AppGraph) {
             stream(p).shareIn(graph.scope, SharingStarted.WhileSubscribed(STOP_GRACE_MS), replay = 1)
         }
 
-    private fun stream(p: Pairing): Flow<LiveState> = channelFlow {
-        val client = graph.client(p)
-        val lock = Mutex()
-        var state = LiveState()
-
-        suspend fun update(f: (LiveState) -> LiveState) = lock.withLock {
-            state = f(state)
-            send(state)
+    private fun stream(p: Pairing): Flow<LiveState> =
+        PcStream.stream(graph.client(p), wait = { ms -> waitOrKick(p.id, ms) }) { state ->
+            relay(p, state)
+            rememberMac(p, state)
         }
-
-        send(state)
-
-        // Alerts are a separate, slow poll: the stream carries metrics only.
-        launch {
-            while (true) {
-                when (val r = client.alerts()) {
-                    is ApiResult.Ok -> update { it.copy(alerts = r.value) }
-                    is ApiResult.Err -> Unit
-                }
-                waitOrKick(p.id, ALERT_POLL_MS)
-            }
-        }
-
-        val backoff = Backoff()
-        while (true) {
-            try {
-                client.frames().collect { frame ->
-                    backoff.reset()
-                    update { s ->
-                        val view = MachineView.fold(s.view, frame) ?: return@update s
-                        val system = view.system
-                        s.copy(
-                            view = view,
-                            cpu = s.cpu.plus(system.cpu.total),
-                            memory = s.memory.plus(Readings.memoryPercent(system)),
-                            gpu = s.gpu.plus(Readings.primaryGpu(system)?.utilization),
-                            temperature = s.temperature.plus(Readings.cpuTemperature(system)),
-                            failures = 0,
-                            unauthorised = false,
-                            lastSeenMs = System.currentTimeMillis(),
-                        )
-                    }
-                    relay(p, state)
-                    rememberMac(p, state)
-                }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: StreamClosed) {
-                handleClosed(client, e) { f -> update(f) }
-            }
-            waitOrKick(p.id, backoff.next())
-        }
-    }.conflate()
-
-    private suspend fun handleClosed(
-        client: app.vitals.core.net.VitalsClient,
-        closed: StreamClosed,
-        update: suspend ((LiveState) -> LiveState) -> Unit,
-    ) {
-        // A WebSocket upgrade refused with 401 surfaces as a failure with the
-        // response code; ask /health to tell "off" from "wrong version".
-        if (closed.code == 401) {
-            update { it.copy(unauthorised = true, failures = it.failures + 1) }
-            return
-        }
-        val health = client.health()
-        val incompatible = health is ApiResult.Err && health.failure is ApiFailure.Incompatible
-        update { it.copy(failures = it.failures + 1, incompatible = incompatible) }
-    }
 
     /** The PC is off exactly when Wake-on-LAN is needed, so its MAC is copied while it is on. */
     private suspend fun rememberMac(p: Pairing, s: LiveState) {
@@ -201,7 +89,6 @@ class LiveHub(private val graph: AppGraph) {
 
     companion object {
         private const val STOP_GRACE_MS = 5_000L
-        private const val ALERT_POLL_MS = 15_000L
         private const val RELAY_EVERY_MS = 15_000L
     }
 }

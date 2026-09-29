@@ -14,7 +14,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.vitals.phone.R
-import app.vitals.phone.data.DeviceLive
+import app.vitals.ui.DeviceLive
 import app.vitals.phone.graph
 import app.vitals.phone.ui.components.FillBar
 import app.vitals.phone.ui.components.InfoRow

@@ -33,6 +33,8 @@ data class CpuState(
     val load: Float?,
     /** Hottest CPU thermal zone, °C. */
     val temperature: Float?,
+    /** True when [load] is measured from cpuidle residency; false when estimated from frequency. */
+    val measured: Boolean = false,
 )
 
 @Serializable

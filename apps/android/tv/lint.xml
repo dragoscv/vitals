@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Each exception says why; anything not listed here is left at lint's default. -->
+<lint>
+    <!-- targetSdk 36 on purpose, as on the phone and the watch: 37 is a
+         compileSdk requirement of Compose 1.12, not a behaviour change this
+         app has been tested against. -->
+    <issue id="OldTargetApi" severity="ignore" />
+    <!-- The LAN API is plain HTTP by design (ADR-0003); LanAddress.isPrivate
+         refuses every public address before a request is made. -->
+    <issue id="InsecureBaseConfiguration" severity="ignore" />
+    <!-- The Leanback banner is 320 × 180 dp by specification and drawn once
+         by the launcher, not per frame. -->
+    <issue id="VectorRaster">
+        <ignore path="src/main/res/drawable/tv_banner.xml" />
+    </issue>
+</lint>

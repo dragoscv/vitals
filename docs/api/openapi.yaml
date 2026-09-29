@@ -33,13 +33,18 @@ info:
 
     ## Authentication: a bearer token from QR pairing
 
-    Every route except `GET /api/v1/health` (and the static mobile web app)
-    requires a token. The desktop mints one per pairing — 32 bytes from the
+    Every route except `GET /api/v1/health`, `POST /api/v1/pair` (and the
+    static mobile web app) requires a token. The desktop mints one per pairing — 32 bytes from the
     OS CSPRNG, base64url without padding, so always 43 characters — and shows
     it once as a QR code. The QR encodes
     `http://<address>:<port>/mobile.html#t=<token>`; the token lives in the
     URL **fragment**, which browsers never send to a server, so it cannot land
     in a request line or an access log.
+
+    A device without a camera — a TV — pairs with a **six-digit code**
+    instead: the desktop shows one for five minutes and the device exchanges
+    it at `POST /api/v1/pair` for an ordinary token, found by browsing
+    `_vitals._tcp.local.` over mDNS.
 
     Present it either way:
 
@@ -98,7 +103,9 @@ servers:
 
 tags:
   - name: health
-    description: The one unauthenticated call.
+    description: The one unauthenticated read.
+  - name: pairing
+    description: Getting a token without scanning a QR code.
   - name: metrics
     description: Reading the machine.
   - name: control
@@ -126,6 +133,73 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Health'
+
+  /api/v1/pair:
+    post:
+      tags: [pairing]
+      summary: Exchange a six-digit pairing code for a bearer token.
+      description: |
+        For a TV or any device that cannot scan the QR code. The user presses
+        **Pair a TV** in Settings → Remote access and the desktop shows six
+        digits for five minutes; the device finds the PC over mDNS and sends
+        them here. The answer is an ordinary token, identical in every way to
+        one from a QR pairing, with the scope chosen when the code was shown.
+
+        Outside the auth layer, because a caller without a token is exactly
+        who needs it. The code carries its own limits instead:
+
+        - at most **one** code is active per server — showing a new one
+          replaces the old;
+        - **five** wrong codes in total, from any caller, burn it; the right
+          code is refused afterwards and the user must show a new one;
+        - it expires after **five minutes** and works **once**;
+        - codes are uniform over `000000`–`999999` from the OS CSPRNG and
+          compared in constant time.
+
+        **Every refusal is byte-identical** — no code active, expired, wrong
+        or burnt all answer the same `403` body. Telling them apart would tell
+        a guesser how its budget stands.
+
+        A body that is not a well-formed request is `400` and does **not**
+        spend an attempt, so a client bug cannot burn the user's code.
+      operationId: pair
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PairRequest'
+            example: { code: '482913', label: Living room TV }
+      responses:
+        '200':
+          description: Paired. The token is shown here once and never again.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PairReply'
+        '400':
+          description: Not valid JSON, no `code`, or a `code` that is not exactly six ASCII digits. No attempt was spent.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              example: { error: code must be exactly six digits }
+        '403':
+          description: |
+            The code was not accepted. Identical whether none is active, it
+            expired, it is wrong, or it was burnt by wrong attempts.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              example: { error: invalid pairing code }
+        '404':
+          description: This server does not offer pairing codes (a build or host without the feature).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
 
   /api/v1/snapshot:
     get:
@@ -561,6 +635,32 @@ components:
       properties:
         error:
           type: string
+
+    PairRequest:
+      type: object
+      required: [code]
+      properties:
+        code:
+          type: string
+          pattern: '^[0-9]{6}$'
+          description: The six digits on the desktop, leading zeros kept, no spaces.
+        label:
+          type: string
+          description: |
+            What the device is called in the paired-devices list. Trimmed and
+            cut to 64 characters; missing or blank becomes `TV`.
+
+    PairReply:
+      type: object
+      required: [token, scope]
+      properties:
+        token:
+          type: string
+          pattern: '^[A-Za-z0-9_-]{43}$'
+          description: A bearer token, exactly like one from a QR pairing. Store it; it is not shown again.
+        scope:
+          type: string
+          enum: [read, control]
 
     Frame:
       type: object

@@ -11,7 +11,7 @@
 
 #![allow(clippy::expect_used, clippy::unwrap_used)]
 
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
 use vitals_core::fixtures;
@@ -19,8 +19,8 @@ use vitals_core::ids::{Pid, ProcessKey};
 use vitals_core::sample::Frame;
 use vitals_server::state::ServerLock;
 use vitals_server::{
-    ApiState, ControlError, ControlRequest, Controller, FrameSource, Scope, Token, TokenSet, serve,
-    serve_on,
+    ApiState, ControlError, ControlRequest, Controller, FrameSource, PairingDesk, Scope, Token,
+    TokenSet, serve, serve_on,
 };
 
 const READ_TOKEN: &str = "read-token-value";
@@ -106,6 +106,7 @@ fn state_with(
         }),
         version: "0.0.0-test".into(),
         loopback_scope,
+        pairing: None,
     }
 }
 
@@ -817,6 +818,232 @@ async fn a_non_loopback_peer_is_refused_even_when_the_bypass_is_on() {
     .await;
     assert_eq!(status, 204);
     handle.stop();
+}
+
+// ── Short-code pairing ─────────────────────────────────────────────────────────────────
+
+struct PairingHarness {
+    base: String,
+    desk: Arc<PairingDesk>,
+    now: Arc<AtomicU64>,
+    saves: Arc<AtomicUsize>,
+    tokens: Arc<ServerLock<TokenSet>>,
+    handle: vitals_server::ServeHandle,
+}
+
+impl Drop for PairingHarness {
+    fn drop(&mut self) {
+        self.handle.stop();
+    }
+}
+
+const PAIR_START_MS: u64 = 1_700_000_000_000;
+
+async fn start_pairing() -> PairingHarness {
+    let frames = FrameSource::new();
+    let controller = Arc::new(RecordingController::default());
+    let mut state = state_with(&frames, &controller, None);
+    let now = Arc::new(AtomicU64::new(PAIR_START_MS));
+    let saves = Arc::new(AtomicUsize::new(0));
+    let desk = {
+        let now = Arc::clone(&now);
+        let saves = Arc::clone(&saves);
+        Arc::new(PairingDesk::with_clock(
+            Arc::new(move |_| {
+                saves.fetch_add(1, Ordering::SeqCst);
+            }),
+            Arc::new(move || now.load(Ordering::SeqCst)),
+        ))
+    };
+    state.pairing = Some(Arc::clone(&desk));
+    let tokens = Arc::clone(&state.tokens);
+    let handle = serve(state, 0).await.expect("bind");
+    PairingHarness {
+        base: format!("http://127.0.0.1:{}", handle.addr.port()),
+        desk,
+        now,
+        saves,
+        tokens,
+        handle,
+    }
+}
+
+async fn pair(base: &str, body: &str) -> (u16, String) {
+    request(base, "POST", "/api/v1/pair", None, Some(body)).await
+}
+
+fn pair_body(code: &str) -> String {
+    format!(r#"{{"code":"{code}","label":"Living room TV"}}"#)
+}
+
+/// A well-formed code that is certainly not `code`.
+fn other_code(code: &str) -> String {
+    let first = code.as_bytes()[0];
+    let other = if first == b'9' {
+        '0'
+    } else {
+        char::from(first + 1)
+    };
+    format!("{other}{}", &code[1..])
+}
+
+#[tokio::test]
+async fn five_wrong_codes_over_the_network_burn_the_code_so_the_right_one_is_then_refused() {
+    let h = start_pairing().await;
+    let issued = h.desk.create(Scope::Read);
+    for _ in 0..5 {
+        let (status, _) = pair(&h.base, &pair_body(&other_code(&issued.code))).await;
+        assert_eq!(status, 403);
+    }
+    let (status, body) = pair(&h.base, &pair_body(&issued.code)).await;
+    assert_eq!(status, 403, "a burnt code must not pair: {body}");
+    assert_eq!(h.saves.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
+async fn an_expired_code_is_refused_over_the_network() {
+    let h = start_pairing().await;
+    let issued = h.desk.create(Scope::Read);
+    h.now.store(issued.expires_at_ms, Ordering::SeqCst);
+    let (status, _) = pair(&h.base, &pair_body(&issued.code)).await;
+    assert_eq!(status, 403);
+}
+
+#[tokio::test]
+async fn a_code_pairs_exactly_once() {
+    let h = start_pairing().await;
+    let issued = h.desk.create(Scope::Read);
+    let (first, _) = pair(&h.base, &pair_body(&issued.code)).await;
+    let (second, _) = pair(&h.base, &pair_body(&issued.code)).await;
+    assert_eq!(first, 200);
+    assert_eq!(second, 403);
+    assert_eq!(
+        h.tokens.read().tokens.len(),
+        3,
+        "two fixtures plus one pairing"
+    );
+}
+
+#[tokio::test]
+async fn every_refused_pairing_gets_a_byte_identical_answer_whatever_the_cause() {
+    // No code, expired, wrong, burnt: if any of these differed a guesser
+    // could learn which state the desk is in.
+    let h = start_pairing().await;
+    let (s_none, none) = pair(&h.base, &pair_body("123456")).await;
+
+    let issued = h.desk.create(Scope::Read);
+    let (s_wrong, wrong) = pair(&h.base, &pair_body(&other_code(&issued.code))).await;
+    for _ in 0..4 {
+        let _ = pair(&h.base, &pair_body(&other_code(&issued.code))).await;
+    }
+    let (s_burnt, burnt) = pair(&h.base, &pair_body(&issued.code)).await;
+
+    let issued = h.desk.create(Scope::Read);
+    h.now.store(issued.expires_at_ms + 1, Ordering::SeqCst);
+    let (s_expired, expired) = pair(&h.base, &pair_body(&issued.code)).await;
+
+    for status in [s_none, s_wrong, s_burnt, s_expired] {
+        assert_eq!(status, 403);
+    }
+    assert_eq!(none, r#"{"error":"invalid pairing code"}"#);
+    assert_eq!(none, wrong);
+    assert_eq!(none, burnt);
+    assert_eq!(none, expired);
+}
+
+#[tokio::test]
+async fn a_malformed_pairing_body_is_a_400_and_spends_no_attempt() {
+    let h = start_pairing().await;
+    let issued = h.desk.create(Scope::Read);
+    // Ten malformed bodies, twice the attempt budget: if any of them counted,
+    // the right code would be refused at the end.
+    for body in [
+        "not json",
+        "{}",
+        r#"{"label":"TV"}"#,
+        r#"{"code":123456}"#,
+        r#"{"code":"12345"}"#,
+        r#"{"code":"1234567"}"#,
+        r#"{"code":"12a456"}"#,
+        r#"{"code":" 23456"}"#,
+        r#"{"code":""}"#,
+        "",
+    ] {
+        let (status, reply) = pair(&h.base, body).await;
+        assert_eq!(status, 400, "{body:?} -> {reply}");
+        assert!(reply.contains("\"error\""), "{reply}");
+    }
+    let (status, _) = pair(&h.base, &pair_body(&issued.code)).await;
+    assert_eq!(status, 200);
+}
+
+#[tokio::test]
+async fn a_redeemed_token_reads_with_exactly_the_codes_scope_and_a_read_one_cannot_control() {
+    let h = start_pairing().await;
+    let issued = h.desk.create(Scope::Read);
+    let (status, body) = pair(&h.base, &pair_body(&issued.code)).await;
+    assert_eq!(status, 200, "{body}");
+    let reply: serde_json::Value = serde_json::from_str(&body).expect("json");
+    assert_eq!(reply["scope"], "read");
+    let token = reply["token"].as_str().expect("token").to_owned();
+    assert_eq!(token.len(), 43);
+    assert_eq!(h.saves.load(Ordering::SeqCst), 1, "the set is persisted");
+    let label = h.tokens.read().tokens.last().map(|t| t.label.clone());
+    assert_eq!(label.as_deref(), Some("Living room TV"));
+
+    let (status, _) = request(&h.base, "GET", "/api/v1/summary", Some(&token), None).await;
+    assert_eq!(status, 204, "authenticated: nothing sampled yet, not 401");
+    let control = r#"{"action":"suspend","key":{"pid":4242,"startTime":1}}"#;
+    let (status, _) = request(
+        &h.base,
+        "POST",
+        "/api/v1/control",
+        Some(&token),
+        Some(control),
+    )
+    .await;
+    assert_eq!(status, 403);
+}
+
+#[tokio::test]
+async fn a_control_code_redeems_for_a_token_that_reaches_the_controller() {
+    let h = start_pairing().await;
+    let issued = h.desk.create(Scope::Control);
+    let (_, body) = pair(&h.base, &format!(r#"{{"code":"{}"}}"#, issued.code)).await;
+    let reply: serde_json::Value = serde_json::from_str(&body).expect("json");
+    assert_eq!(reply["scope"], "control");
+    let token = reply["token"].as_str().expect("token").to_owned();
+    let label = h.tokens.read().tokens.last().map(|t| t.label.clone());
+    assert_eq!(
+        label.as_deref(),
+        Some("TV"),
+        "a missing label defaults to TV"
+    );
+
+    let control = r#"{"action":"suspend","key":{"pid":4242,"startTime":1}}"#;
+    let (status, _) = request(
+        &h.base,
+        "POST",
+        "/api/v1/control",
+        Some(&token),
+        Some(control),
+    )
+    .await;
+    assert_eq!(status, 204);
+}
+
+#[tokio::test]
+async fn the_pair_route_answers_404_on_a_host_without_pairing_codes() {
+    let h = start().await;
+    let (status, body) = request(
+        &h.base,
+        "POST",
+        "/api/v1/pair",
+        None,
+        Some(r#"{"code":"123456"}"#),
+    )
+    .await;
+    assert_eq!(status, 404, "{body}");
 }
 
 #[tokio::test]

@@ -36,6 +36,17 @@ export interface Pairing {
   readonly token: TokenSummary;
 }
 
+/** A six-digit code a TV exchanges for a token. Holds a live credential. */
+export interface PairingCode {
+  readonly code: string;
+  readonly expiresAtMs: number;
+}
+
+export interface PairingCodeStatus {
+  readonly active: boolean;
+  readonly expiresAtMs: number | null;
+}
+
 export interface LanApi {
   status(): Promise<LanStatus>;
   start(port?: number): Promise<number>;
@@ -43,6 +54,9 @@ export interface LanApi {
   pair(request: { label: string; scope: Scope; address?: string }): Promise<Pairing>;
   revoke(prefix: string): Promise<void>;
   revokeAll(): Promise<void>;
+  createCode(scope: Scope): Promise<PairingCode>;
+  cancelCode(): Promise<void>;
+  codeStatus(): Promise<PairingCodeStatus>;
 }
 
 async function invoke<T>(command: string, args?: Record<string, unknown>): Promise<T> {
@@ -64,6 +78,9 @@ export const tauriLanApi: LanApi = {
     }),
   revoke: (prefix) => invoke<void>('revoke_pairing', { prefix }),
   revokeAll: () => invoke<void>('revoke_all_pairings'),
+  createCode: (scope) => invoke<PairingCode>('create_pairing_code', { scope }),
+  cancelCode: () => invoke<void>('cancel_pairing_code'),
+  codeStatus: () => invoke<PairingCodeStatus>('pairing_code_status'),
 };
 
 /**
@@ -79,6 +96,9 @@ export const noHostLanApi: LanApi = {
   pair: () => Promise.reject(new Error('no host')),
   revoke: () => Promise.resolve(),
   revokeAll: () => Promise.resolve(),
+  createCode: () => Promise.reject(new Error('no host')),
+  cancelCode: () => Promise.resolve(),
+  codeStatus: () => Promise.resolve({ active: false, expiresAtMs: null }),
 };
 
 export function defaultLanApi(): LanApi {

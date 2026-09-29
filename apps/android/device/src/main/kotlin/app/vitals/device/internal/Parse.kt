@@ -47,6 +47,21 @@ internal fun clusterLoad(previous: LongArray, current: LongArray): Float? {
     return (weighted / total * 100.0).toFloat().coerceIn(0f, 100f)
 }
 
+/**
+ * Busy share of [cores] over an interval, 0..100, from the growth of their
+ * summed cpuidle `stateN/time` (microseconds idle). This is real utilisation,
+ * not an estimate: a core is either in an idle state or running. Null when
+ * the interval is empty or a counter went backwards (a core was hot-plugged
+ * and its counters reset).
+ */
+internal fun idleBusy(previousIdleUs: Long, currentIdleUs: Long, wallUs: Long, cores: Int): Float? {
+    if (wallUs <= 0 || cores <= 0) return null
+    val idle = currentIdleUs - previousIdleUs
+    if (idle < 0) return null
+    val capacity = wallUs.toDouble() * cores
+    return ((1.0 - idle / capacity) * 100.0).toFloat().coerceIn(0f, 100f)
+}
+
 /** A kernel cpu list: "0-7", "0 1 2 3 4 5", "0-3,6". */
 internal fun parseCpuList(text: String): List<Int> {
     val out = ArrayList<Int>()

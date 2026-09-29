@@ -94,6 +94,25 @@ curl.exe -s "http://127.0.0.1:$($d.port)/api/v1/snapshot"
 4. The token is shown **once**. Afterwards Settings shows only its first eight
    characters. Lose it and you revoke that pairing and make a new one.
 
+### Without a camera: the six-digit code
+
+A TV cannot scan the QR code. Under **Pair a TV** the desktop shows six digits
+for five minutes (same read/control switch as the QR). The device finds the PC
+by browsing `_vitals._tcp.local.` over mDNS and exchanges the digits for an
+ordinary token at the one other route that needs no token:
+
+```powershell
+curl.exe -s -X POST -H "Content-Type: application/json" `
+  -d '{"code":"482913","label":"Living room TV"}' "$V/api/v1/pair"
+# {"token":"<43-character-token>","scope":"read"}
+```
+
+The code works once, and five wrong codes in total — from anyone — burn it.
+Every refusal is the same `403 {"error":"invalid pairing code"}`, whether the
+code is wrong, expired, burnt or was never shown. A body that is not
+`{"code":"<six digits>"}` is `400` and costs no attempt. `vitals serve` prints
+a code at start-up beside its token.
+
 Below, `$T` is your token and `$V` is the base URL. In PowerShell:
 
 ```powershell

@@ -128,7 +128,13 @@ fn router_with_closing(state: ApiState, closing: watch::Receiver<bool>) -> Route
     // `/health` is deliberately outside the auth layer: a client needs to be
     // able to tell "wrong address" from "wrong token", and it exposes only
     // the version and the fact that something is listening.
-    let public = Router::new().route("/api/v1/health", get(health));
+    //
+    // `/pair` is public for the same kind of reason: it is how a caller
+    // without a token gets one. Its own budget (one code, five guesses, five
+    // minutes) is the protection, not the bearer layer.
+    let public = Router::new()
+        .route("/api/v1/health", get(health))
+        .route("/api/v1/pair", axum::routing::post(pair));
 
     let guarded = Router::new()
         .route("/api/v1/snapshot", get(snapshot))
@@ -676,6 +682,72 @@ async fn control(
 }
 
 #[derive(Debug, Deserialize)]
+struct PairBody {
+    code: String,
+    #[serde(default)]
+    label: Option<String>,
+}
+
+#[derive(Serialize)]
+struct PairReply {
+    token: String,
+    scope: Scope,
+}
+
+/// The one body every refused redemption gets. A constant, so "no code",
+/// "expired", "wrong" and "burnt" cannot drift apart and become an oracle.
+const PAIR_REFUSED: &str = "invalid pairing code";
+
+/// Exchanges a six-digit code for a bearer token (see [`crate::pairing`]).
+///
+/// The body is parsed by hand from `Bytes`, as in [`control`], so the order
+/// of checks is ours: "does this host pair at all" first, then "is this a
+/// code" — a malformed body is a 400 and spends none of the five attempts —
+/// and only then the guess itself.
+async fn pair(State(state): State<ApiState>, body: axum::body::Bytes) -> Response {
+    let Some(desk) = state.pairing.as_ref() else {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(ApiError {
+                error: "this server does not offer pairing codes".to_owned(),
+            }),
+        )
+            .into_response();
+    };
+
+    let request = match serde_json::from_slice::<PairBody>(&body) {
+        Ok(request) if crate::pairing::is_well_formed(&request.code) => request,
+        Ok(_) => return bad_request("code must be exactly six digits"),
+        Err(_) => return bad_request("expected {\"code\": \"123456\"}"),
+    };
+
+    match desk.redeem(&request.code, request.label.as_deref(), &state.tokens) {
+        Ok(redeemed) => Json(PairReply {
+            token: redeemed.secret,
+            scope: redeemed.scope,
+        })
+        .into_response(),
+        Err(crate::pairing::Refused) => (
+            StatusCode::FORBIDDEN,
+            Json(ApiError {
+                error: PAIR_REFUSED.to_owned(),
+            }),
+        )
+            .into_response(),
+    }
+}
+
+fn bad_request(message: &str) -> Response {
+    (
+        StatusCode::BAD_REQUEST,
+        Json(ApiError {
+            error: message.to_owned(),
+        }),
+    )
+        .into_response()
+}
+
+#[derive(Debug, Deserialize)]
 struct AssetQuery {
     #[allow(dead_code)]
     token: Option<String>,
@@ -762,6 +834,7 @@ mod tests {
             sensors: Arc::new(Vec::new),
             version: "test".into(),
             loopback_scope,
+            pairing: None,
         }
     }
 

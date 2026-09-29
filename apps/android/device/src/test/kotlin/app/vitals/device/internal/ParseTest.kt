@@ -49,6 +49,27 @@ class ParseTest {
         assertEquals(listOf(0, 1, 2, 3, 6), parseCpuList("0-3,6"))
     }
 
+    // Read as app.vitals on the Chromecast with Google TV, 2026-09-29: four
+    // cores over 3.0 s summed 9.05 s idle, while top said 24 % busy. The
+    // frequency estimate on the same interval claimed 64 %.
+    @Test
+    fun idle_residency_on_the_chromecast_reads_what_top_reads() {
+        val busy = idleBusy(previousIdleUs = 36_450_209_717, currentIdleUs = 36_450_209_717 + 9_050_000, wallUs = 3_000_000, cores = 4)!!
+        assertEquals(24.6f, busy, 0.1f)
+    }
+
+    @Test
+    fun a_core_idle_for_the_whole_interval_is_zero_and_one_never_idle_is_one_hundred() {
+        assertEquals(0f, idleBusy(0, 1_000_000, 1_000_000, 1)!!, 0.01f)
+        assertEquals(100f, idleBusy(5, 5, 1_000_000, 1)!!, 0.01f)
+    }
+
+    @Test
+    fun an_idle_counter_that_went_backwards_is_unmeasured_not_fully_busy() {
+        assertNull(idleBusy(1_000_000, 10, 1_000_000, 1))
+        assertNull(idleBusy(0, 0, 0, 1))
+    }
+
     @Test
     fun samsung_gpu_busy_percent_parses() {
         assertEquals(37f, parseGpuBusy("37 %\n")!!, 0.01f)

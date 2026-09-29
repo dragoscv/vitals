@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { initI18n } from '@vitals/i18n';
 
 import { registerShellStrings } from '../../shell/strings';
-import type { LanApi, LanStatus, Pairing } from './api';
+import type { LanApi, LanStatus, Pairing, PairingCode, PairingCodeStatus } from './api';
 import { RemoteAccessPanel } from './RemoteAccessPanel';
 
 const OFF: LanStatus = { running: false, port: null, interfaces: [], tokens: [] };
@@ -33,9 +33,23 @@ function fakeApi(overrides: Partial<LanApi> = {}, status: LanStatus = OFF): LanA
     pair: () => Promise.resolve(PAIRING),
     revoke: () => Promise.resolve(),
     revokeAll: () => Promise.resolve(),
+    createCode: () => Promise.resolve(code()),
+    cancelCode: () => Promise.resolve(),
+    codeStatus: () => Promise.resolve(ACTIVE),
     ...overrides,
   };
 }
+
+function code(expiresInMs = 5 * 60 * 1000): PairingCode {
+  return { code: '482913', expiresAtMs: Date.now() + expiresInMs };
+}
+
+const ACTIVE: PairingCodeStatus = { active: true, expiresAtMs: Date.now() + 300_000 };
+const INACTIVE: PairingCodeStatus = { active: false, expiresAtMs: null };
+const TV = { prefix: 'TVTVTVTV', scope: 'read' as const, label: 'Living room TV', created: 0 };
+
+/** Polls fast so a test waits milliseconds, not the real two seconds. */
+const FAST_POLL = 20;
 
 beforeEach(async () => {
   await initI18n('en');
@@ -106,6 +120,110 @@ describe('RemoteAccessPanel', () => {
     // The scope must be legible: "can watch and control" is a different
     // thing to consent to than "can watch".
     expect(screen.getByText(/can watch and control/i)).toBeTruthy();
+  });
+
+  it('shows a TV code grouped three and three with a countdown, created read-only by default', async () => {
+    const createCode = vi.fn<LanApi['createCode']>(() => Promise.resolve(code()));
+    render(<RemoteAccessPanel api={fakeApi({ createCode }, RUNNING)} codePollMs={FAST_POLL} />);
+
+    (await screen.findByRole('button', { name: /pair a tv/i })).click();
+
+    expect(await screen.findByText('482 913')).toBeTruthy();
+    // Read one digit at a time by a screen reader, not as "four hundred
+    // and eighty-two thousand".
+    expect(screen.getByLabelText('Pairing code 4 8 2 9 1 3')).toBeTruthy();
+    expect(screen.getByText(/expires in [45]:\d\d/i)).toBeTruthy();
+    expect(screen.getByRole('status').textContent).toMatch(/waiting for the tv/i);
+    expect(createCode).toHaveBeenCalledWith('read');
+  });
+
+  it('creates a control code only when the control switch is on', async () => {
+    const createCode = vi.fn<LanApi['createCode']>(() => Promise.resolve(code()));
+    render(<RemoteAccessPanel api={fakeApi({ createCode }, RUNNING)} codePollMs={FAST_POLL} />);
+
+    (await screen.findByRole('switch', { name: /allow this device to end processes/i })).click();
+    await waitFor(() => {
+      expect(
+        screen
+          .getByRole('switch', { name: /allow this device to end processes/i })
+          .getAttribute('aria-checked'),
+      ).toBe('true');
+    });
+    screen.getByRole('button', { name: /pair a tv/i }).click();
+
+    await waitFor(() => {
+      expect(createCode).toHaveBeenCalledWith('control');
+    });
+  });
+
+  it('says the TV paired and lists it when the code is used before it expires', async () => {
+    let used = false;
+    const api = fakeApi({
+      status: () => Promise.resolve(used ? { ...RUNNING, tokens: [TV] } : RUNNING),
+      codeStatus: () => Promise.resolve(used ? INACTIVE : ACTIVE),
+    });
+    render(<RemoteAccessPanel api={api} codePollMs={FAST_POLL} />);
+    (await screen.findByRole('button', { name: /pair a tv/i })).click();
+    await screen.findByText('482 913');
+
+    used = true;
+
+    await waitFor(() => {
+      expect(screen.getByRole('status').textContent).toMatch(/the tv is paired/i);
+    });
+    expect(screen.getByText('Living room TV')).toBeTruthy();
+    // The digits are a spent credential now; leaving them up invites
+    // someone to try them.
+    expect(screen.queryByText('482 913')).toBeNull();
+  });
+
+  it('does not claim a pairing when the code died without adding a device', async () => {
+    // Five wrong guesses burn the code early. Inactive-before-expiry alone
+    // would read as "paired"; only a new token proves it.
+    let burnt = false;
+    const api = fakeApi(
+      {
+        codeStatus: () => Promise.resolve(burnt ? INACTIVE : ACTIVE),
+      },
+      RUNNING,
+    );
+    render(<RemoteAccessPanel api={api} codePollMs={FAST_POLL} />);
+    (await screen.findByRole('button', { name: /pair a tv/i })).click();
+    await screen.findByText('482 913');
+
+    burnt = true;
+
+    await waitFor(() => {
+      expect(screen.getByRole('status').textContent).toMatch(/too many wrong attempts/i);
+    });
+    expect(screen.queryByText(/the tv is paired/i)).toBeNull();
+  });
+
+  it('says a code expired rather than waiting forever', async () => {
+    const api = fakeApi({ createCode: () => Promise.resolve(code(-1)) }, RUNNING);
+    render(<RemoteAccessPanel api={api} codePollMs={FAST_POLL} />);
+    (await screen.findByRole('button', { name: /pair a tv/i })).click();
+
+    await waitFor(() => {
+      expect(screen.getByRole('status').textContent).toMatch(/expired/i);
+    });
+    expect(screen.queryByText('482 913')).toBeNull();
+  });
+
+  it('cancelling withdraws the code on the server and removes it from the screen', async () => {
+    const cancelCode = vi.fn<LanApi['cancelCode']>(() => Promise.resolve());
+    render(<RemoteAccessPanel api={fakeApi({ cancelCode }, RUNNING)} codePollMs={FAST_POLL} />);
+    (await screen.findByRole('button', { name: /pair a tv/i })).click();
+    await screen.findByText('482 913');
+
+    screen.getByRole('button', { name: /^cancel$/i }).click();
+
+    await waitFor(() => {
+      expect(cancelCode).toHaveBeenCalledTimes(1);
+    });
+    await waitFor(() => {
+      expect(screen.queryByText('482 913')).toBeNull();
+    });
   });
 
   it('surfaces a failure to start rather than silently staying off', async () => {

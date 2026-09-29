@@ -637,6 +637,52 @@ A51 cold start          536-1013 ms (first launch after install 2988 ms)
 **Not done here.** Play listing and upload (S15-07), the release workflow run
 (S15-06), Google TV (S15-08) and Tizen (S15-09).
 
+### 2026-09-29 — S15-08 Vitals on Google TV
+
+**What.** There is a new `:tv` module, built with Compose for TV (`tv-material` 1.1.0, no Leanback). It has five screens:
+
+- **Overview:** this TV and every paired PC.
+- **This TV:** Now, Storage, Apps, Sensors, History and About, all read through `:device`.
+- **PCs:** each PC's Now, Programs (with end task, pause and resume, priority and efficiency mode), Sensors, History and About.
+- **Add a PC:** a six-digit code, found by mDNS or typed as an address, with a pasted token as the fallback.
+- **Settings:** paired PCs, history recording, special access, language and About.
+
+All text is in English and Romanian. The stream, the history series, the pairing check and the chart canvases moved into `:core` and `:shared-ui`, and the phone uses them too (ADR-0036).
+
+There is a new server route, `POST /api/v1/pair`: one code at a time, valid for five minutes, used once, burnt after five wrong guesses. Every refusal is the same `403`. It comes with a desktop "Pair a TV" panel, the CLI and `serve_dev` print a code, and it is in OpenAPI and docs/api.
+
+**Found by the TV, fixed at the source.** The CPU load estimated from `time_in_state` read 64 % on the Chromecast while `/proc/stat` read 20 %, because its governor parks the cores at their _top_ frequency. `:device` now measures load from cpuidle residency, summed per cluster over five samples, because the kernel credits idle time only when a core wakes; one-second per-core deltas read 32–41 %. It falls back to the estimate only where cpuidle is hidden, and says which source it used, so the phone shows its "estimate" caption only when the load really is an estimate.
+
+The D-pad walk also found three focus traps, all fixed:
+
+- Choosing a drawer item left focus in the drawer.
+- Opening a PC removed the focused card, so focus dropped back to the drawer.
+- A single-line text field swallowed Down, so Next could not be reached.
+
+**Verification.**
+
+```
+Chromecast with Google TV (sabrina, Android 14), adb 192.168.100.31:33807
+  install tv-debug.apk: Success; banner + LEANBACK_LAUNCHER listed by katniss
+  Overview: CPU 27-28 %   | /proc/stat same 5 s: 23.7-28.2 %
+            Memory 64-66 % | /proc/meminfo: 63.5-65 % used (MemAvailable)
+            Graphics —, CPU heat — (no GPU node; thermal zones denied to apps)
+  This TV: 1.2 GB of 1.9 GB, swap 391/484 MB; Wi-Fi 5 GHz; "does not share its
+           temperature sensors"; storage/apps show the usage-access card
+  D-pad: drawer → Add a PC → address → Next → code 395 661 typed on number keys
+         → paired (POST /api/v1/pair 200) → PC screen opened with focus on Now
+  PC 192.168.100.61 (this machine): CPU 97-100 % (Windows utility 145 %, i.e.
+         saturated), Memory 80 % (Windows 80.7 %), RTX 3060 Ti 12 %, 1096 programs
+  Programs: → Code - Insiders.exe → panel → focus on End task
+gradle :core/:device/:shared-ui tests: 44 passed; :app/:wear/:tv lintDebug clean;
+  :tv:minifyReleaseWithR8 ok; allWarningsAsErrors on every module
+mutation: idleBusy without the core count → idle_residency_on_the_chromecast FAILED
+cargo test -p vitals-server: 61 + 1 + 43 + 4 + 3 passed; clippy -D warnings clean
+vitest src/settings/lan: 12 passed; check-drift: 0 failures (79 invokes, 79 commands)
+```
+
+**Not verified yet.** The Play Android TV form factor and the `tv:qa` release are still open: they wait for the signed bundle from a build-only release run, and the `play` job's `tv:qa` upload only runs on the next `v*` tag. The phone and watch builds compile against the new shared code and their unit tests pass, but they have not been reinstalled on the A51 or the watch.
+
 ### 2026-09-29 — S15-07 Vitals is on Google Play internal testing
 
 **What.** Every Play Console declaration, the store listing in English and

@@ -256,10 +256,10 @@ private fun PhoneCard() {
             onChange = { on -> scope.launch { graph.settings.setDeviceHistory(on) } },
         )
         AccessRow(stringResource(R.string.settings_access_usage), access.usageStats) {
-            app.vitals.phone.ui.device.SpecialAccess.usage(context)
+            app.vitals.device.SpecialAccess.usage(context)
         }
         AccessRow(stringResource(R.string.settings_access_files), access.allFiles) {
-            app.vitals.phone.ui.device.SpecialAccess.allFiles(context)
+            app.vitals.device.SpecialAccess.allFiles(context)
         }
     }
 }

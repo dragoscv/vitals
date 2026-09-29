@@ -1,10 +1,5 @@
 package app.vitals.phone.ui.device
 
-import android.content.Context
-import android.content.Intent
-import android.net.Uri
-import android.os.Build
-import android.provider.Settings
 import androidx.annotation.StringRes
 import app.vitals.phone.R
 
@@ -98,35 +93,4 @@ fun cleanupKind(kind: String): Int = when (kind) {
     "emptyFolder" -> R.string.device_clean_empty_folder
     "thumbnails" -> R.string.device_clean_thumbnails
     else -> R.string.sensors_group_other
-}
-
-/** Opens the system screen for one special access; each has its own intent and none can be requested in-app. */
-object SpecialAccess {
-    fun usage(context: Context) = open(
-        context,
-        Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS, Uri.parse("package:${context.packageName}")),
-        Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS),
-    )
-
-    fun allFiles(context: Context) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return appInfo(context, context.packageName)
-        open(
-            context,
-            Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:${context.packageName}")),
-            Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION),
-        )
-    }
-
-    fun appInfo(context: Context, pkg: String) = open(
-        context,
-        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$pkg")),
-        Intent(Settings.ACTION_MANAGE_APPLICATIONS_SETTINGS),
-    )
-
-    /** Some OEM builds lack the per-app form of an intent; the list form always exists. */
-    private fun open(context: Context, first: Intent, fallback: Intent) {
-        val flags = Intent.FLAG_ACTIVITY_NEW_TASK
-        runCatching { context.startActivity(first.addFlags(flags)) }
-            .onFailure { runCatching { context.startActivity(fallback.addFlags(flags)) } }
-    }
 }

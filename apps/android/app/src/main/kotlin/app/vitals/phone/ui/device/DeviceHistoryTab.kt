@@ -26,7 +26,7 @@ import app.vitals.phone.R
 import app.vitals.phone.graph
 import app.vitals.phone.ui.detail.ChartCard
 import app.vitals.phone.ui.detail.Span
-import app.vitals.phone.ui.detail.chart
+import app.vitals.ui.chart
 import app.vitals.ui.Format
 import app.vitals.ui.Palette
 

@@ -39,7 +39,7 @@ import app.vitals.core.model.Process
 import app.vitals.core.model.ProcessState
 import app.vitals.core.pairing.Pairing
 import app.vitals.phone.R
-import app.vitals.phone.data.LiveState
+import app.vitals.ui.LiveState
 import app.vitals.phone.graph
 import app.vitals.phone.ui.components.GlassScaffold
 import app.vitals.ui.Format

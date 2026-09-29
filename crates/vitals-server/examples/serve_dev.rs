@@ -6,6 +6,10 @@
 //! pointing the pairing at `http://localhost:7332` — or simply open
 //! `http://localhost:7332/mobile.html#t=dev` once `dist/` exists.
 //!
+//! It also prints a six-digit pairing code (`control` scope) at startup and
+//! a fresh one every four and a half minutes, so a TV client can be paired
+//! with `POST /api/v1/pair` without the desktop app.
+//!
 //! Run with: `cargo run -p vitals-server --example serve_dev`
 
 #![allow(clippy::expect_used, clippy::print_stdout)]
@@ -23,6 +27,7 @@ async fn main() {
     // of a real token (43 base64url characters) before it will pair, so a
     // native client needs a real-looking one: set VITALS_DEV_TOKEN.
     let secret = std::env::var("VITALS_DEV_TOKEN").unwrap_or_else(|_| "dev".into());
+    let desk = Arc::new(vitals_server::PairingDesk::new(Arc::new(|_| {})));
 
     let state = ApiState {
         frames: frames.clone(),
@@ -59,6 +64,9 @@ async fn main() {
         }),
         version: "dev".into(),
         loopback_scope: None,
+        // Nothing persists: a TV paired against this example is forgotten
+        // when it exits, which is what a development server should do.
+        pairing: Some(Arc::clone(&desk)),
     };
 
     let handle = vitals_server::serve(state, 7332).await.expect("bind 7332");
@@ -67,6 +75,21 @@ async fn main() {
         handle.addr.port(),
         secret.chars().take(8).collect::<String>()
     );
+
+    // A fresh code every four and a half minutes, so there is always a live
+    // one on screen for a TV client under development — codes last five.
+    tokio::spawn(async move {
+        let mut every = tokio::time::interval(Duration::from_secs(270));
+        loop {
+            every.tick().await;
+            let issued = desk.create(Scope::Control);
+            println!(
+                "pairing code (control, POST /api/v1/pair): {} {}",
+                &issued.code[..3],
+                &issued.code[3..]
+            );
+        }
+    });
 
     #[cfg(windows)]
     {

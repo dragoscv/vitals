@@ -26,6 +26,7 @@ protolayout = "1.4.2"
 complications = "1.3.0"
 wear-ongoing = "1.1.0"
 play-wearable = "20.0.1"
+tv-material = "1.1.0"
 profileinstaller = "1.4.1"
 baselineprofile = "1.5.0"
 benchmark = "1.5.0"
@@ -82,6 +83,7 @@ wear-protolayout-expression = { module = "androidx.wear.protolayout:protolayout-
 wear-complications = { module = "androidx.wear.watchface:watchface-complications-data-source-ktx", version.ref = "complications" }
 wear-ongoing = { module = "androidx.wear:wear-ongoing", version.ref = "wear-ongoing" }
 play-wearable = { module = "com.google.android.gms:play-services-wearable", version.ref = "play-wearable" }
+tv-material = { module = "androidx.tv:tv-material", version.ref = "tv-material" }
 profileinstaller = { module = "androidx.profileinstaller:profileinstaller", version.ref = "profileinstaller" }
 benchmark-macro = { module = "androidx.benchmark:benchmark-macro-junit4", version.ref = "benchmark" }
 uiautomator = { module = "androidx.test.uiautomator:uiautomator", version.ref = "uiautomator" }

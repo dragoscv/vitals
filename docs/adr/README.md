@@ -43,6 +43,7 @@ D-numbers refer to the decision table in [`../TRACKER.md`](../TRACKER.md).
 | [0033](0033-native-android-and-wear-os.md)                 | Native Android and Wear OS apps beside the PWA          | S15     |
 | [0034](0034-cpu-sensors-service.md)                        | CPU sensors through an optional PawnIO service          | S12-31  |
 | [0035](0035-on-device-monitor.md)                          | The phone and the watch monitor themselves              | S15-04  |
+| [0036](0036-google-tv-app-and-pairing-codes.md)            | A Google TV app, and pairing by six-digit code          | S15-08  |
 
 ## Writing a new one
 

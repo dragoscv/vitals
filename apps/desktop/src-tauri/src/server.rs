@@ -26,7 +26,7 @@ use serde::{Deserialize, Serialize};
 use vitals_server::state::ServerLock;
 use vitals_server::{
     Advertisement, ApiState, ControlError, ControlRequest, Controller, FrameSource, Interface,
-    Scope, ServeHandle, Token, TokenSet,
+    IssuedCode, PairingDesk, PairingStatus, Scope, ServeHandle, Token, TokenSet,
 };
 
 use crate::commands::CommandError;
@@ -67,6 +67,9 @@ pub struct LanServer {
     /// the two can only ever be started and stopped together.
     advertisement: Mutex<Option<Advertisement>>,
     controller: Arc<dyn Controller>,
+    /// The TV pairing code. One desk shared by both listeners, so a code
+    /// shown in Settings is the only one either of them will accept.
+    pairing: Arc<PairingDesk>,
 }
 
 impl std::fmt::Debug for LanServer {
@@ -95,6 +98,9 @@ impl LanServer {
             local: Mutex::new(None),
             advertisement: Mutex::new(None),
             controller: Arc::new(DesktopController),
+            // Redeemed tokens go through the same `save_tokens` as a QR
+            // pairing, so a paired TV survives a restart like a phone does.
+            pairing: Arc::new(PairingDesk::new(Arc::new(save_tokens))),
         }
     }
 
@@ -163,6 +169,7 @@ impl LanServer {
             sensors: Arc::new(crate::inventory::lan_sensor_lines),
             version: app.package_info().version.to_string(),
             loopback_scope,
+            pairing: Some(Arc::clone(&self.pairing)),
         }
     }
 }
@@ -531,6 +538,9 @@ pub fn stop_lan_server(server: tauri::State<'_, LanServer>) {
         handle.stop();
         tracing::info!("LAN server stopped");
     }
+    // A code outliving the switch would still be redeemable over the
+    // loopback listener, and would be waiting when sharing is turned back on.
+    server.pairing.cancel();
 }
 
 /// A freshly minted pairing: the QR the phone scans and the URL behind it.
@@ -597,6 +607,41 @@ pub fn create_pairing(
         qr_svg,
         token: summary,
     })
+}
+
+/// Shows a six-digit code a TV can exchange for a token of `scope` at
+/// `POST /api/v1/pair`, replacing any code already shown.
+///
+/// Refused while the LAN server is off, like [`create_pairing`]: a code for
+/// a server nobody on the network can reach is a promise that cannot be kept.
+/// The code is returned to the webview and never logged.
+#[tauri::command]
+#[allow(clippy::needless_pass_by_value)]
+pub fn create_pairing_code(
+    server: tauri::State<'_, LanServer>,
+    scope: Scope,
+) -> CommandResult<IssuedCode> {
+    if server.port().is_none() {
+        return Err(CommandError::Unsupported {
+            message: "start the LAN server before pairing".into(),
+        });
+    }
+    Ok(server.pairing.create(scope))
+}
+
+/// Withdraws the code on screen. Harmless when there is none.
+#[tauri::command]
+#[allow(clippy::needless_pass_by_value)]
+pub fn cancel_pairing_code(server: tauri::State<'_, LanServer>) {
+    server.pairing.cancel();
+}
+
+/// Whether the code on screen can still be used. Settings polls this: a
+/// code that turns inactive before its expiry was redeemed by the TV.
+#[tauri::command]
+#[allow(clippy::needless_pass_by_value)]
+pub fn pairing_code_status(server: tauri::State<'_, LanServer>) -> PairingStatus {
+    server.pairing.status()
 }
 
 /// Revokes one token by its prefix, as shown in the list.
@@ -754,6 +799,7 @@ mod tests {
                 sensors: Arc::new(Vec::new),
                 version: "test".into(),
                 loopback_scope: Some(Scope::Control),
+                pairing: None,
             };
             vitals_server::serve_on(state, "127.0.0.1:0".parse().unwrap())
                 .await

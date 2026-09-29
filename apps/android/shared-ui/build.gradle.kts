@@ -20,8 +20,11 @@ kotlin {
 
 dependencies {
     api(project(":core"))
+    api(project(":device"))
     api(platform(libs.compose.bom))
     api(libs.compose.ui.graphics)
     api(libs.compose.runtime)
+    implementation(libs.compose.foundation)
+    implementation(libs.compose.animation)
     testImplementation(libs.junit)
 }

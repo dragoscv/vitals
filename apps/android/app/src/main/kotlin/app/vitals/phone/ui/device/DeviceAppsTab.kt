@@ -22,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import app.vitals.device.SpecialAccess
 import app.vitals.device.model.AppUsage
 import app.vitals.phone.R
 import app.vitals.phone.graph

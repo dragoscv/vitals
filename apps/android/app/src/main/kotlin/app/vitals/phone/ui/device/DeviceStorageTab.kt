@@ -34,6 +34,7 @@ import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import app.vitals.device.ScanProgress
+import app.vitals.device.SpecialAccess
 import app.vitals.device.model.CleanupItem
 import app.vitals.device.model.FolderSize
 import app.vitals.device.model.StorageVolume
