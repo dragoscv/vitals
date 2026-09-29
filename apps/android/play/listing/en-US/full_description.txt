@@ -18,6 +18,6 @@ Pair a Windows PC running Vitals by scanning its QR code. See its processor, gra
 
 HONEST BY DESIGN
 • If a reading cannot be measured, Vitals shows a dash, never a made-up zero
-• No ads, no analytics, no account, no tracking
+• No ads, no account, no tracking; the only diagnostics are Google ML Kit's own, when you scan a QR code
 • Usage access and all-files access are optional; each feature that needs one says so and stays empty until you grant it
 • Free and open source (MIT): github.com/dragoscv/vitals

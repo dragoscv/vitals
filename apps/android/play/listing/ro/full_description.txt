@@ -18,6 +18,6 @@ Asociază un PC cu Windows care rulează Vitals scanând codul QR. Vezi procesor
 
 ONEST DIN CONSTRUCȚIE
 • Dacă o valoare nu poate fi măsurată, Vitals arată o liniuță, nu un zero inventat
-• Fără reclame, fără analiză, fără cont, fără urmărire
+• Fără reclame, fără cont, fără urmărire; singurele date de diagnosticare sunt cele ale Google ML Kit, când scanezi un cod QR
 • Accesul la utilizare și accesul la toate fișierele sunt opționale; fiecare funcție care are nevoie de ele spune asta și rămâne goală până le acorzi
 • Gratuit și open source (MIT): github.com/dragoscv/vitals

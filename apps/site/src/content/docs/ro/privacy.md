@@ -24,7 +24,7 @@ dacă cele două diferă vreodată, se aplică aceea.
 
 ## Aplicațiile pentru Android și Wear OS
 
-- **Fără analiză, reclame sau cont.** Aplicațiile comunică doar cu PC-urile asociate de tine, în
+- **Fără reclame, fără cont, fără analiză proprie.** Aplicațiile comunică doar cu PC-urile asociate de tine, în
   rețeaua locală, și cu ceasul tău prin serviciile Google Play.
 - **Accesul special îl acorzi tu.** Accesul la utilizare (timp și date pe aplicație) și accesul la
   toate fișierele (harta stocării și curățarea) sunt oprite până le pornești din setările Android;
