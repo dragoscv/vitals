@@ -8,11 +8,29 @@ text per locale in the layout Gradle Play Publisher and fastlane read
 - **App:** `app.vitals`, id 4973500332718114251. One listing, two form
   factors: the phone APK and the Wear OS APK share the application id and the
   signing key, which the Wearable Data Layer requires (ADR-0033).
-- **Privacy policy:** <https://github.com/dragoscv/vitals/blob/main/PRIVACY.md>
-  — its "Vitals for Android and Wear OS" section is the part Play reads.
+- **Privacy policy:** <https://vitals.dragoscatalin.ro/privacy/> (the URL
+  Play has, also linked from Settings → About), summarising
+  [PRIVACY.md](../../../PRIVACY.md), whose "Vitals for Android and Wear OS"
+  section is authoritative.
 - **Bundles:** the `play-bundles` artefact of `release.yml` (signed AABs).
   Play App Signing holds the app key; the key in `ANDROID_KEYSTORE_B64` is the
   upload key, which also signs the APKs published on GitHub for Obtainium.
+
+## Publishing
+
+| What                   | Where                                                                                                                               |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Internal testers       | Email list "Hobby apps testers", shared with the other hobby apps; attached to both the phone and the Wear OS internal tracks       |
+| Phone internal track   | Track 4701269647694141701 (`qa` in the API); first release versionCode 8, 2026-09-29                                                |
+| Wear OS internal track | Track 4697898405601153351 (`wear:qa`); first release versionCode 1000008, 2026-09-29; Wear OS form factor opted in                  |
+| CI upload              | `play` job in `release.yml`: `v*` tags only, when repo variable `PUBLISH_PLAY` is `true`; both tracks, status completed             |
+| CI identity            | `vitals-play@hai-small-apps.iam.gserviceaccount.com` through Workload Identity Federation, provider `github/vitals`; no key exists  |
+| Its Play permissions   | This app only: view app information, release to testing tracks. It cannot release to production — promotion stays a person's action |
+
+The provider's attribute condition is
+`assertion.repository == 'dragoscv/vitals' && assertion.ref.startsWith('refs/tags/v')`,
+so a branch push or a pull request cannot obtain a token even if the job were
+changed to run there.
 
 ## App content answers
 

@@ -801,6 +801,49 @@ jobs:
       # to the `next` dist-tag. scripts/npm-release.mjs has the why.
       - run: node scripts/npm-release.mjs
 
+  play:
+    name: Google Play (internal)
+    needs: [plan, android, publish]
+    if: needs.plan.outputs.is_release == 'true' && vars.PUBLISH_PLAY == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Workload Identity Federation: GitHub's OIDC token is exchanged for a
+      # one-hour credential of vitals-play@hai-small-apps. No key exists to
+      # leak, and the provider only accepts refs/tags/v* of this repo.
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: play-bundles
+          path: play
+      - uses: google-github-actions/auth@v3
+        id: gcp
+        with:
+          workload_identity_provider: projects/98856543199/locations/global/workloadIdentityPools/github/providers/vitals
+          service_account: vitals-play@hai-small-apps.iam.gserviceaccount.com
+          create_credentials_file: true
+      # Internal only: the account may release to testing tracks and no
+      # further, so promotion to production is always a person's decision.
+      - uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJson: ${{ steps.gcp.outputs.credentials_file_path }}
+          packageName: app.vitals
+          releaseFiles: play/vitals-android.aab
+          track: internal
+          status: completed
+      # Phone and watch share one application id but not one track: Wear OS
+      # has its own form-factor track. The API calls internal testing `qa`,
+      # and a form-factor track is `<prefix>:<name>`, so this is `wear:qa`
+      # (developers.google.com/android-publisher/tracks), not `wear:internal`.
+      - uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJson: ${{ steps.gcp.outputs.credentials_file_path }}
+          packageName: app.vitals
+          releaseFiles: play/vitals-wear.aab
+          track: wear:qa
+          status: completed
+
   winget:
     name: winget
     needs: [plan, publish]
