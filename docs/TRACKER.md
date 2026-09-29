@@ -155,6 +155,7 @@ Status values: `todo`, `doing`, `done`, `blocked`, `dropped`.
 | S12   | Look-and-feel redesign + the four backend truths it exposed          | done (S12-11 measured in CPU cycles: 23–24 ms on S12, 22–25 ms on the commit before it)            |
 | S14   | Storage: fast complete scans, navigation, cleanup, Turbo, extras     | doing (01 engine, 02 explore, 03 recycle basket, 04 Windows cleanup done; 05 Turbo next)           |
 | S15   | Android phone, Wear OS watch, TV: native apps + on-device monitor    | doing (01-06 done; Play, Google TV, Tizen open)                                                    |
+| S16   | Hardening: latest deps, security, gates, dynamic tests               | done (01 deps, 02 security, 03 CI/repo, 04 gates, 05 tests)                                        |
 
 Per-item status lives in `tracker.csv`. This file records the reasoning; the
 CSV records the state.
@@ -162,6 +163,38 @@ CSV records the state.
 ---
 
 ## Verification log
+
+### 2026-09-29 — S16 Hardening: latest dependencies, security, gates, dynamic tests
+
+**What changed and why.** An audit of what reached main found gaps every
+local gate had passed: a Windows-only command that broke Linux, an Android
+fixture that rewrote itself because alert values were a `HashMap`, a local
+API that gave any Windows account on the PC control of this user's
+processes, and a release path with no protection at all.
+
+**Evidence.**
+
+- Dependencies: Tauri 2.12 family on both sides, sha2 0.11, @types/node 26 and
+  the rest at latest stable. The failures seen during the first gate run were
+  load, not code: `a_busy_benchmark_does_not_taint_itself` read 96.8 % at
+  100 % CPU and passed at 23 % on this tree and on `main`.
+- Security: `LOCAL_SCOPE` is `Scope::Read` with a test; the LAN server's
+  headers, 16 KiB limits and the complete anonymous sweep are tested over a
+  real socket; the attach pipe's DACL is read back from the live pipe.
+- Gates: the cfg-parity check was mutation-tested (red with the exact message
+  when one handler loses its `#[cfg(windows)]`, green restored).
+- Tests: desktop 1,058/1,058, coverage 78.1 % statements / 80.0 % lines, the
+  Playwright suite over 75 cases. It found two real defects on its first run
+  against this tree, both fixed: two routes marked `data-route-visible` at
+  once (the marker sat inside `<Activity>`, whose updates React defers) and
+  `signalReady` invoking with no Tauri host.
+
+**A trap worth recording.** The first two Playwright rounds tested another
+checkout: `reuseExistingServer` picked up a dev server on :5273 started from
+the shared clone. The suite now runs on its own port with no reuse.
+
+**Not done here.** windows-core 0.100 (its own slice); owner-only steps in
+[repository-security.md](repository-security.md).
 
 ### 2026-09-29 — S14-04 Windows-managed space, freed by Windows' own tools
 
@@ -2190,6 +2223,38 @@ features: the Privacy panel and README claimed "nothing listens" while
 plain text on disk. Both are fixed at the source.
 
 ### Verification log
+
+### 2026-09-29 — S16 Hardening: latest dependencies, security, gates, dynamic tests
+
+**What changed and why.** An audit of what reached main found gaps every
+local gate had passed: a Windows-only command that broke Linux, an Android
+fixture that rewrote itself because alert values were a `HashMap`, a local
+API that gave any Windows account on the PC control of this user's
+processes, and a release path with no protection at all.
+
+**Evidence.**
+
+- Dependencies: Tauri 2.12 family on both sides, sha2 0.11, @types/node 26 and
+  the rest at latest stable. The failures seen during the first gate run were
+  load, not code: `a_busy_benchmark_does_not_taint_itself` read 96.8 % at
+  100 % CPU and passed at 23 % on this tree and on `main`.
+- Security: `LOCAL_SCOPE` is `Scope::Read` with a test; the LAN server's
+  headers, 16 KiB limits and the complete anonymous sweep are tested over a
+  real socket; the attach pipe's DACL is read back from the live pipe.
+- Gates: the cfg-parity check was mutation-tested (red with the exact message
+  when one handler loses its `#[cfg(windows)]`, green restored).
+- Tests: desktop 1,058/1,058, coverage 78.1 % statements / 80.0 % lines, the
+  Playwright suite over 75 cases. It found two real defects on its first run
+  against this tree, both fixed: two routes marked `data-route-visible` at
+  once (the marker sat inside `<Activity>`, whose updates React defers) and
+  `signalReady` invoking with no Tauri host.
+
+**A trap worth recording.** The first two Playwright rounds tested another
+checkout: `reuseExistingServer` picked up a dev server on :5273 started from
+the shared clone. The suite now runs on its own port with no reuse.
+
+**Not done here.** windows-core 0.100 (its own slice); owner-only steps in
+[repository-security.md](repository-security.md).
 
 - Gates in a clean worktree at 4f6f283 before any change: all green except a
   doctest resolution error introduced mid-slice (fixed); perf budget median

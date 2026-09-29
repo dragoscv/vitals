@@ -7,6 +7,22 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Security
+
+- **The local API is read-only** — `127.0.0.1:7330` no longer lets a
+  program end or pause your processes without a token. Another Windows
+  account on the same PC could reach it; the `vitals` CLI now acts on your
+  own machine through Windows directly, with your own rights.
+- **The CLI pipe is locked to your account** — an explicit access list
+  (you, SYSTEM, administrators) replaces the Windows default, which also let
+  everyone read it.
+- **The phone page is harder to attack** — every response from the LAN
+  server carries a content security policy and refuses to be framed; request
+  bodies and WebSocket messages are capped.
+- **Releases wait for the owner** — publishing needs approval, release tags
+  can only be created by the owner, and every build action is pinned to an
+  exact version.
+
 ### Added
 
 - **Vitals for Android and Wear OS** — native phone and watch apps. The phone
