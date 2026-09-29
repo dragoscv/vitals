@@ -256,6 +256,13 @@ Pruned 11 incremental units unused for 7 days    prune exit=0, 0 left
 Budgets set from that measurement: 15 GB (about 1.5x a fresh build) and 10
 units per crate.
 
+**Found on first real use (2026-09-30).** The first verify after main bumped
+every dependency (S16-01) failed the gate: 16.50 GB, 14 units for
+`vitals_sensors`. The old dependency graph's units were only hours old, so the
+7-day rule kept them. `-Prune` now also drops every unit not used since
+`Cargo.lock` (or a `rust-toolchain` file) last changed: 141 units, 2.42 GB,
+leaving 14.08 GB and 7 units, within budget.
+
 ### 2026-09-29 — S16 Hardening: latest dependencies, security, gates, dynamic tests
 
 **What changed and why.** An audit of what reached main found gaps every
