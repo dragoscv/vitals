@@ -144,7 +144,55 @@ fn router_with_closing(state: ApiState, closing: watch::Receiver<bool>) -> Route
         .route_layer(middleware::from_fn_with_state(state.clone(), authorise))
         .layer(axum::Extension(Closing(closing)));
 
-    public.merge(guarded).fallback(assets).with_state(state)
+    public
+        .merge(guarded)
+        .fallback(assets)
+        .layer(axum::extract::DefaultBodyLimit::max(MAX_BODY_BYTES))
+        .layer(middleware::map_response(security_headers))
+        .with_state(state)
+}
+
+/// The largest request body accepted. `/control` is the only route with a
+/// body and its largest request is well under 1 KiB; axum's 2 MB default was
+/// three orders of magnitude of free memory for an authenticated caller.
+const MAX_BODY_BYTES: usize = 16 * 1024;
+
+/// The largest `WebSocket` message accepted from a client. Clients send only
+/// control requests; frames go the other way.
+pub const MAX_WS_MESSAGE_BYTES: usize = 16 * 1024;
+
+/// Headers every response carries, errors included.
+///
+/// The phone page keeps its token in `localStorage`, so a script injected
+/// into `http://<ip>:7331` would own the token: the CSP allows only this
+/// origin's own scripts. `connect-src` cannot be `'self'`: one phone page
+/// monitors several paired PCs, each at its own LAN address, and a CSP has
+/// no way to say "private addresses only". `frame-ancestors 'none'` stops a
+/// page elsewhere on the LAN framing the two-tap control confirmation.
+/// `no-store` keeps process lists out of the browser's disk cache.
+async fn security_headers(mut response: Response) -> Response {
+    let headers = response.headers_mut();
+    headers.insert(
+        header::CONTENT_SECURITY_POLICY,
+        HeaderValue::from_static(
+            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; \
+             img-src 'self' data: blob:; connect-src 'self' http: ws:; frame-ancestors 'none'; \
+             base-uri 'none'; form-action 'none'; object-src 'none'",
+        ),
+    );
+    headers.insert(
+        header::X_CONTENT_TYPE_OPTIONS,
+        HeaderValue::from_static("nosniff"),
+    );
+    headers.insert(header::X_FRAME_OPTIONS, HeaderValue::from_static("DENY"));
+    headers.insert(
+        header::REFERRER_POLICY,
+        HeaderValue::from_static("no-referrer"),
+    );
+    headers
+        .entry(header::CACHE_CONTROL)
+        .or_insert(HeaderValue::from_static("no-store"));
+    response
 }
 
 /// The server's stop signal, shared by every connection.
@@ -520,7 +568,9 @@ async fn websocket(
     axum::Extension(granted): axum::Extension<Granted>,
     axum::Extension(closing): axum::Extension<Closing>,
 ) -> Response {
-    ws.on_upgrade(move |socket| pump(socket, state, granted, closing))
+    ws.max_message_size(MAX_WS_MESSAGE_BYTES)
+        .max_frame_size(MAX_WS_MESSAGE_BYTES)
+        .on_upgrade(move |socket| pump(socket, state, granted, closing))
 }
 
 /// Frames out, control commands in.

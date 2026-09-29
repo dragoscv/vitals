@@ -14,9 +14,13 @@
 //! The **local API** is different: it listens on `127.0.0.1` from startup so
 //! the `vitals` CLI can attach to the running app without any setup. It is
 //! unreachable from the network by construction — the bind address is the
-//! mechanism, not a filter — and grants a loopback caller `control` without
-//! a token, because a process on this machine as this user already owns the
-//! app (see `ApiState::loopback_scope`).
+//! mechanism, not a filter — and grants a tokenless loopback caller `read`
+//! only (see `ApiState::loopback_scope`). It used to grant `control`, on the
+//! reasoning that a local process already owns the app; but loopback TCP is
+//! shared by every account on the machine, so another user (fast user
+//! switching, RDP, a service) could end this user's processes. The CLI acts
+//! on its own machine through the OS instead, where Windows checks the
+//! caller's own rights.
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -42,6 +46,10 @@ pub const DEFAULT_PORT: u16 = 7331;
 /// two are easy to tell apart in `netstat`. If it is taken the OS picks
 /// another and the discovery file says which.
 pub const LOCAL_PORT: u16 = 7330;
+
+/// What a tokenless caller on the local API may do. `Read`, never `Control`:
+/// loopback TCP is shared by every account on the machine (module docs).
+pub const LOCAL_SCOPE: Scope = Scope::Read;
 
 /// What the CLI reads to find the running app.
 ///
@@ -190,7 +198,7 @@ pub fn start_local_api(app: &tauri::AppHandle) {
         return;
     }
 
-    let state = server.api_state(app, None, Some(Scope::Control));
+    let state = server.api_state(app, None, Some(LOCAL_SCOPE));
     let version = app.package_info().version.to_string();
     let app = app.clone();
 
@@ -682,6 +690,13 @@ mod tests {
 
     fn token(secret: &str) -> Token {
         Token::new(secret, Scope::Read, secret, 0)
+    }
+
+    #[test]
+    fn the_local_api_never_grants_control_to_a_tokenless_caller() {
+        // Another Windows account on the same PC reaches 127.0.0.1 too; a
+        // Control grant here let it end this user's processes.
+        assert_eq!(LOCAL_SCOPE, Scope::Read);
     }
 
     #[test]

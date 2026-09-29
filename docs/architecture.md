@@ -96,7 +96,7 @@ packages/
 
 | Thing              | When                    | Where / scope                                          |
 | ------------------ | ----------------------- | ------------------------------------------------------ |
-| Local API          | always, while running   | `127.0.0.1:7330`, loopback only, tokenless control     |
+| Local API          | always, while running   | `127.0.0.1:7330`, loopback only, tokenless read        |
 | Attach pipe        | always, while running   | `\\.\pipe\vitals-<USERNAME>`, default per-user DACL    |
 | LAN server         | only when switched on   | `0.0.0.0:7331`, bearer token, mDNS `_vitals._tcp`      |
 | Flight recorder    | always                  | last 120 frames in `history.sqlite`, no owners or MACs |

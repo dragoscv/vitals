@@ -317,3 +317,35 @@ fn a_server_error_line_is_surfaced_with_the_servers_words() {
     );
     fake.join().unwrap();
 }
+
+/// Reads the live pipe's DACL through .NET, the same way an auditor would,
+/// rather than trusting the SDDL constant: the constant can be right and the
+/// listener can still be built without it (which is what shipped before).
+#[cfg(windows)]
+#[test]
+fn the_pipe_grants_only_system_administrators_and_its_owner_never_everyone() {
+    let name = unique_name();
+    let _server = AttachServer::start(&name, "t".into()).expect("bind");
+    // .NET rather than Get-Acl: Windows PowerShell launched from a pwsh 7
+    // environment inherits its PSModulePath and cannot load the module that
+    // defines Get-Acl, so the probe failed while the pipe was fine.
+    let script = format!(
+        "$c = [System.IO.Pipes.NamedPipeClientStream]::new('.', '{name}', 'InOut'); \
+         $c.Connect(2000); $c.GetAccessControl().GetSecurityDescriptorSddlForm('Access'); $c.Dispose()"
+    );
+    let out = std::process::Command::new("powershell")
+        .env_remove("PSModulePath")
+        .args(["-NoProfile", "-NonInteractive", "-Command", &script])
+        .output()
+        .expect("powershell runs");
+    let sddl = String::from_utf8_lossy(&out.stdout).trim().to_owned();
+    assert!(
+        sddl.contains("D:P"),
+        "DACL is not protected: {sddl:?} {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    for forbidden in [";;;WD)", ";;;AN)", ";;;BU)", ";;;AU)", ";;;IU)"] {
+        assert!(!sddl.contains(forbidden), "pipe grants {forbidden}: {sddl}");
+    }
+    assert!(sddl.contains(";;;SY)"), "SYSTEM missing: {sddl}");
+}

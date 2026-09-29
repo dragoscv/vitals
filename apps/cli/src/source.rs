@@ -307,20 +307,23 @@ impl Source {
         }
     }
 
-    /// Acts on a process: through the desktop's controller when attached over
-    /// HTTP, so the app's own risk checks apply; through the platform actions
-    /// directly otherwise. The pipe is read-only by design — it carries
-    /// frames out and nothing in beyond the three requests — so a piped
-    /// source acts locally, exactly as direct mode does on the same machine.
+    /// Acts on a process: through a remote desktop's controller when attached
+    /// over HTTP to another machine; through the platform actions directly
+    /// on this one. The pipe is read-only by design, and the local API grants
+    /// a tokenless caller `read` only — loopback TCP is reachable from every
+    /// account on the PC — so on the same machine the CLI acts with its own
+    /// rights, which Windows enforces per user.
     ///
     /// # Errors
     /// The host refused (read-only scope, protected process, PID recycled),
     /// or this platform has no process backend.
     pub fn control(&mut self, request: ControlRequest) -> Result<()> {
+        if self.is_local() {
+            return Direct::local_control(request);
+        }
         match self {
-            Self::Piped(_) => Direct::local_control(request),
             Self::Attached(a) => a.client.control(&request),
-            Self::Direct(direct) => direct.control(request),
+            Self::Piped(_) | Self::Direct(_) => Direct::local_control(request),
         }
     }
 
@@ -423,11 +426,6 @@ impl Direct {
         self.active_alerts()
     }
 
-    #[allow(clippy::unused_self)]
-    fn control(&self, request: ControlRequest) -> Result<()> {
-        Self::local_control(request)
-    }
-
     fn local_control(request: ControlRequest) -> Result<()> {
         use vitals_win::actions;
         match request {
@@ -484,11 +482,6 @@ impl Direct {
     #[allow(clippy::unused_self)]
     fn alerts(&self) -> Vec<Alert> {
         Vec::new()
-    }
-
-    #[allow(clippy::unused_self, clippy::needless_pass_by_value)]
-    fn control(&self, _request: ControlRequest) -> Result<()> {
-        anyhow::bail!("no process backend on this platform")
     }
 
     #[allow(clippy::needless_pass_by_value)]

@@ -190,18 +190,108 @@ async fn every_data_route_refuses_an_anonymous_request() {
     let h = start().await;
     h.frames.publish(Arc::new(frame(1)));
 
-    for path in [
-        "/api/v1/snapshot",
-        "/api/v1/summary",
-        "/api/v1/history",
-        "/api/v1/sensors",
-        "/api/v1/stream",
-        "/api/v1/host",
-        "/metrics",
-    ] {
-        let (status, body) = request(&h.base, "GET", path, None, None).await;
+    for (method, path) in GUARDED_ROUTES {
+        let body =
+            (*method == "POST").then_some(r#"{"action":"suspend","key":{"pid":1,"startTime":1}}"#);
+        let (status, body) = request(&h.base, method, path, None, body).await;
         assert_eq!(status, 401, "{path} allowed an anonymous request: {body}");
     }
+    assert_eq!(h.controller.calls.load(Ordering::SeqCst), 0);
+}
+
+/// Every route behind the auth layer. Checked against `router.rs` by
+/// `the_anonymous_sweep_covers_every_guarded_route`, so a new route cannot be
+/// added without being swept.
+const GUARDED_ROUTES: &[(&str, &str)] = &[
+    ("GET", "/api/v1/snapshot"),
+    ("GET", "/api/v1/summary"),
+    ("GET", "/api/v1/history"),
+    ("GET", "/api/v1/sensors"),
+    ("GET", "/api/v1/stream"),
+    ("GET", "/api/v1/ws"),
+    ("GET", "/api/v1/host"),
+    ("GET", "/api/v1/alerts"),
+    ("POST", "/api/v1/control"),
+    ("GET", "/metrics"),
+];
+
+#[test]
+fn the_anonymous_sweep_covers_every_guarded_route() {
+    let source = include_str!("../src/router.rs");
+    let start = source
+        .find("let guarded = Router::new()")
+        .expect("guarded router");
+    let end = start + source[start..].find(".route_layer(").expect("auth layer");
+    let declared: Vec<&str> = source[start..end]
+        .split(".route(\"")
+        .skip(1)
+        .filter_map(|s| s.split('"').next())
+        .collect();
+    assert!(!declared.is_empty());
+    for path in &declared {
+        assert!(
+            GUARDED_ROUTES.iter().any(|(_, p)| p == path),
+            "{path} is guarded in router.rs but missing from the anonymous sweep"
+        );
+    }
+    assert_eq!(declared.len(), GUARDED_ROUTES.len(), "{declared:?}");
+}
+
+/// The response head, for header assertions.
+async fn head(base: &str, path: &str) -> String {
+    use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+    let addr = base.trim_start_matches("http://");
+    let mut stream = tokio::net::TcpStream::connect(addr).await.expect("connect");
+    let req = format!("GET {path} HTTP/1.1\r\nHost: {addr}\r\nConnection: close\r\n\r\n");
+    stream.write_all(req.as_bytes()).await.expect("write");
+    let mut raw = Vec::new();
+    stream.read_to_end(&mut raw).await.expect("read");
+    let text = String::from_utf8_lossy(&raw).to_ascii_lowercase();
+    text.split_once("\r\n\r\n")
+        .map_or(text.clone(), |(h, _)| h.to_owned())
+}
+
+#[tokio::test]
+async fn every_response_carries_the_security_headers_errors_included() {
+    // The refusal matters as much as the page: a 401 without nosniff or a
+    // frame ban is still a response a hostile page can embed.
+    let h = start().await;
+    for path in [
+        "/api/v1/health",
+        "/api/v1/snapshot",
+        "/mobile.html",
+        "/does-not-exist",
+    ] {
+        let head = head(&h.base, path).await;
+        for header in [
+            "content-security-policy: default-src 'self'",
+            "frame-ancestors 'none'",
+            "x-content-type-options: nosniff",
+            "x-frame-options: deny",
+            "referrer-policy: no-referrer",
+            "cache-control:",
+        ] {
+            assert!(head.contains(header), "{path} lacks {header}:\n{head}");
+        }
+    }
+}
+
+#[tokio::test]
+async fn an_oversized_control_body_is_refused_before_the_controller_sees_it() {
+    let h = start().await;
+    let padding = "x".repeat(64 * 1024);
+    let body =
+        format!(r#"{{"action":"suspend","key":{{"pid":1,"startTime":1}},"pad":"{padding}"}}"#);
+    let (status, _) = request(
+        &h.base,
+        "POST",
+        "/api/v1/control",
+        Some(CONTROL_TOKEN),
+        Some(&body),
+    )
+    .await;
+    assert_eq!(status, 413);
+    assert_eq!(h.controller.calls.load(Ordering::SeqCst), 0);
 }
 
 #[tokio::test]

@@ -42,13 +42,15 @@ While the desktop app runs it also serves the same routes on
 `http://127.0.0.1:7330`, for scripts and the `vitals` CLI on the same
 machine. Two things differ from the LAN server:
 
-- **No token is needed from `127.0.0.1`.** A process running as you on this
-  machine already owns Vitals — it can read the token file or end the app —
-  so a token would buy nothing and would make `vitals ps` unusable until you
-  had paired with your own computer. Loopback callers are granted **control**
-  scope. The LAN server never does this: the decision is made on the
-  connecting address, so a request over the network still needs a token even
-  on a machine where the local API is up.
+- **No token is needed from `127.0.0.1`, and it is read-only.** Requiring a
+  token would make `vitals ps` unusable until you had paired with your own
+  computer, so loopback callers are granted **read** scope without one.
+  `POST /api/v1/control` from loopback without a token is refused with 403:
+  loopback is shared by every account on the machine, so a tokenless control
+  grant would let another user end your processes. The `vitals` CLI acts on
+  local processes through Windows directly instead. The LAN server never
+  grants anything tokenless: the decision is made on the connecting address,
+  so a request over the network still needs a token.
 - **It is not on the network.** The listener is bound to `127.0.0.1` only;
   there is no firewall prompt, no mDNS announcement and nothing in Settings.
 

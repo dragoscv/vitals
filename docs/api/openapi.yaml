@@ -23,8 +23,8 @@ info:
     Independently of Remote access, a running desktop serves these routes on
     the loopback interface only, so the `vitals` CLI and local scripts can
     attach without pairing. A caller connecting from `127.0.0.1` is granted
-    `control` scope with no token: a process running as the same user on the
-    same machine already owns the app, and a token would buy nothing. The
+    `read` scope with no token — never `control`, because loopback is shared
+    by every account on the machine. The
     listener is bound to loopback, is never advertised over mDNS, and the
     grant is decided on the connecting address — a request over the LAN still
     needs a token. If port 7330 is taken the OS picks another; the app writes
