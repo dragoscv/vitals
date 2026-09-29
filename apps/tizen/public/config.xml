@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Tizen widget manifest. Copied into dist by Vite (it lives in public/).
+  `access origin="*"` plus the internet privilege is what lets the packaged
+  app (origin file://) talk to a PC's LAN API without that server sending
+  CORS headers: proven on an Odyssey G8, Tizen 9, 2026-09-29.
+  The package id must be exactly ten alphanumeric characters.
+-->
+<widget xmlns="http://www.w3.org/ns/widgets" xmlns:tizen="http://tizen.org/ns/widgets" id="https://vitals.dragoscatalin.ro/tv" version="0.9.0" viewmodes="maximized">
+  <tizen:application id="VitalsTv01.Vitals" package="VitalsTv01" required_version="6.0"/>
+  <tizen:profile name="tv-samsung"/>
+  <content src="index.html"/>
+  <icon src="icon.png"/>
+  <name>Vitals</name>
+  <description>See how your Windows PCs are doing, from the sofa.</description>
+  <author href="https://vitals.dragoscatalin.ro">Dragos Catalin Vladulescu</author>
+  <access origin="*" subdomains="true"/>
+  <tizen:privilege name="http://tizen.org/privilege/internet"/>
+  <tizen:privilege name="http://tizen.org/privilege/tv.inputdevice"/>
+  <tizen:metadata key="http://samsung.com/tv/metadata/use.network" value="true"/>
+  <tizen:setting screen-orientation="landscape" context-menu="disable" background-support="disable" encryption="disable" install-location="auto" hwkey-event="enable"/>
+</widget>

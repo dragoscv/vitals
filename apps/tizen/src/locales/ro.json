@@ -1,0 +1,274 @@
+{
+  "nav": {
+    "overview": "Pe scurt",
+    "tv": "Televizorul",
+    "pcs": "PC-uri",
+    "add": "Adaugă un PC",
+    "settings": "Setări",
+    "back": "Înapoi"
+  },
+  "overview": {
+    "title": "Vitals",
+    "tv": "Televizorul",
+    "pcs": "PC-urile tale",
+    "noPcs": "Niciun PC asociat încă. Alege Adaugă un PC ca să urmărești unul de aici."
+  },
+  "state": {
+    "connecting": "Se conectează…",
+    "unreachable": "PC-ul nu răspunde",
+    "unreachableHint": "Poate fi în repaus, oprit sau în altă rețea.",
+    "unauthorised": "Acest PC nu mai acceptă televizorul. Asociază-l din nou.",
+    "incompatible": "Pe acest PC rulează o versiune de Vitals pe care aplicația nu o înțelege. Actualizează-le pe amândouă.",
+    "lastSeen": "Văzut ultima dată {{when}}",
+    "alertCount_one": "{{count}} avertisment",
+    "alertCount_few": "{{count}} avertismente",
+    "alertCount_other": "{{count}} de avertismente"
+  },
+  "metric": {
+    "cpu": "Procesor",
+    "memory": "Memorie folosită",
+    "memoryShort": "Memorie",
+    "gpu": "Placă video",
+    "temp": "Căldură procesor",
+    "disk": "Discuri",
+    "network": "Rețea",
+    "fans": "Ventilatoare",
+    "battery": "Baterie",
+    "power": "Consum"
+  },
+  "tab": {
+    "now": "Acum",
+    "programs": "Programe",
+    "sensors": "Senzori",
+    "history": "Istoric",
+    "about": "Despre"
+  },
+  "cpu": {
+    "clock": "Frecvență",
+    "state": "Stare",
+    "temperature": "Temperatură",
+    "power": "Putere",
+    "throttled": "Încetinit {{reason}}",
+    "notThrottled": "Merge la viteză maximă",
+    "cores": "Fiecare nucleu",
+    "uptime": "Pornit de",
+    "processes": "Programe pornite"
+  },
+  "throttle": {
+    "thermal": "pentru că e prea cald",
+    "powerLimit": "ca să rămână în limita de putere",
+    "currentLimit": "ca să rămână în limita de curent",
+    "voltageDrop": "pentru că a scăzut tensiunea",
+    "powerPolicy": "de planul de alimentare",
+    "unknown": "dintr-un motiv necunoscut"
+  },
+  "memory": {
+    "usedOf": "{{used}} din {{total}}",
+    "available": "Liberă de folosit",
+    "cached": "Păstrată pentru viteză",
+    "committed": "Promisă programelor"
+  },
+  "gpu": {
+    "memory": "Memorie video",
+    "temperature": "Temperatură",
+    "power": "Putere",
+    "fan": "Ventilator"
+  },
+  "disk": {
+    "free": "{{free}} liberi din {{total}}",
+    "activity": "Ocupat",
+    "readWrite": "Citire {{read}} · Scriere {{write}}",
+    "failing": "Discul raportează că se defectează. Fă o copie de siguranță acum.",
+    "life": "Viață rămasă"
+  },
+  "net": {
+    "downUp": "Descărcare {{down}} · Încărcare {{up}}",
+    "disconnected": "Neconectat"
+  },
+  "battery": {
+    "charging": "Se încarcă",
+    "discharging": "Pe baterie",
+    "timeLeft": "Timp rămas",
+    "health": "Sănătate"
+  },
+  "host": {
+    "name": "Nume",
+    "os": "Windows",
+    "cpu": "Procesor",
+    "cores": "{{physical}} nuclee, {{logical}} fire de execuție",
+    "memory": "Memorie",
+    "board": "Placă de bază",
+    "bios": "BIOS",
+    "vm": "Mașină virtuală",
+    "started": "Pornit",
+    "version": "Vitals pe PC",
+    "notProbed": "PC-ul nu și-a descris încă componentele. Încearcă din nou peste câteva clipe.",
+    "yes": "Da",
+    "no": "Nu"
+  },
+  "sensors": {
+    "empty": "Acest PC nu raportează niciun senzor.",
+    "unavailable": "Senzorii nu sunt disponibili acum.",
+    "loading": "Se încarcă senzorii…",
+    "group": {
+      "temperature": "Temperaturi",
+      "fanSpeed": "Ventilatoare",
+      "power": "Putere",
+      "voltage": "Tensiuni",
+      "percent": "Niveluri",
+      "other": "Altele"
+    }
+  },
+  "history": {
+    "1h": "1 oră",
+    "24h": "24 de ore",
+    "7d": "7 zile",
+    "empty": "Nu există istoric pentru această perioadă. Istoricul îl păstrează aplicația de pe PC, nu serverul fără interfață.",
+    "loading": "Se încarcă istoricul…",
+    "failed": "Istoricul nu este disponibil acum.",
+    "peak": "Maxim {{value}}"
+  },
+  "wake": {
+    "notPossible": "Trezirea unui PC în repaus are nevoie de un mesaj trimis întregii rețele, iar o aplicație web de televizor nu are voie să-l trimită. Folosește aplicația Vitals de pe Google TV sau de pe telefon ca să-l trezești."
+  },
+  "sort": {
+    "label": "Ordonează după",
+    "cpu": "Procesor",
+    "memory": "Memorie",
+    "name": "Nume"
+  },
+  "processes": {
+    "none": "Niciun program nu se potrivește.",
+    "waiting": "Se așteaptă PC-ul…",
+    "shown": "Se afișează {{shown}} din {{total}}",
+    "pick": "Alege un program ca să vezi mai multe și să acționezi asupra lui.",
+    "pid": "ID proces",
+    "user": "Pornit de",
+    "threads": "Fire de execuție",
+    "uptime": "Rulează de",
+    "disk": "Disc",
+    "suspended": "În pauză",
+    "notResponding": "Nu răspunde",
+    "protected": "Windows protejează acest program, deci nu poate fi schimbat de aici.",
+    "readOnly": "Televizorul a fost asociat doar pentru a privi, nu pentru a schimba ceva."
+  },
+  "action": {
+    "end": "Închide",
+    "endConfirm": "Apasă din nou pentru a închide",
+    "suspend": "Pauză",
+    "resume": "Reia",
+    "priority": "Prioritate",
+    "efficiency": "Mod eficiență",
+    "efficiencyOn": "Pornește",
+    "efficiencyOff": "Oprește",
+    "efficiencyBody": "Îl rulează mai încet ca să economisească energie și să lase celelalte programe să răspundă."
+  },
+  "priority": {
+    "idle": "Cea mai mică",
+    "below-normal": "Sub normal",
+    "normal": "Normală",
+    "above-normal": "Peste normal",
+    "high": "Mare"
+  },
+  "control": {
+    "done": "Gata.",
+    "forbidden": "Televizorul e asociat doar pentru citire, deci nu poate schimba programe.",
+    "accessDenied": "Windows a refuzat. Programul are nevoie de drepturi de administrator.",
+    "notFound": "Programul s-a închis deja.",
+    "unsupported": "PC-ul nu poate face asta: {{reason}}",
+    "internal": "Ceva nu a mers pe PC: {{reason}}",
+    "unreachable": "PC-ul nu a putut fi contactat.",
+    "failed": "Nu a funcționat ({{status}})."
+  },
+  "add": {
+    "title": "Adaugă un PC",
+    "how": "Pe PC, deschide Vitals, mergi la Setări, Acces la distanță, și alege Asociază un televizor. Va afișa un cod din șase cifre.",
+    "addressBody": "Introdu adresa PC-ului. PC-ul o afișează la Setări, Acces la distanță.",
+    "codeTitle": "Codul de pe {{pc}}",
+    "codeBody": "Introdu cele șase cifre afișate pe PC, cu tastele numerice ale telecomenzii sau cu tastatura de mai jos.",
+    "codeDelete": "Șterge",
+    "useToken": "Folosește un token",
+    "useCode": "Folosește un cod",
+    "tokenBody": "Scrie sau lipește tokenul de 43 de caractere de pe PC.",
+    "address": "Adresă",
+    "addressHint": "192.168.1.20:7331",
+    "token": "Token",
+    "pair": "Asociază",
+    "next": "Continuă",
+    "change": "Schimbă adresa",
+    "paired": "Asociat cu {{pc}}.",
+    "tvLabel": "Televizor din sufragerie"
+  },
+  "pairing": {
+    "checking": "Se verifică PC-ul…",
+    "notPrivate": "Adresa este pe internet, nu în rețeaua de acasă. Vitals vorbește doar cu PC-uri din rețeaua locală.",
+    "badAddress": "Nu pare a fi o adresă.",
+    "badToken": "Tokenul trebuie să aibă 43 de litere și cifre.",
+    "badCode": "Codul nu a mers. Un cod ține cinci minute, iar cinci încercări greșite îl consumă. Cere PC-ului unul nou.",
+    "unreachable": "Nu a răspuns nimic la această adresă.",
+    "unauthorised": "PC-ul a refuzat tokenul. Verifică-l sau creează unul nou.",
+    "incompatible": "Pe acel PC rulează o versiune de Vitals pe care aplicația nu o înțelege.",
+    "olderPc": "Versiunea Vitals de pe acel PC e prea veche pentru coduri de asociere. Actualizeaz-o sau folosește un token.",
+    "notReady": "PC-ul pornește. Încearcă din nou peste câteva clipe.",
+    "failed": "Asocierea a eșuat ({{status}})."
+  },
+  "settings": {
+    "title": "Setări",
+    "pcs": "PC-uri asociate",
+    "none": "Niciun PC asociat.",
+    "remove": "Elimină",
+    "removeConfirm": "Apasă din nou pentru a elimina",
+    "readOnly": "Doar privire",
+    "canControl": "Poate schimba programe",
+    "unknownScope": "Încă necunoscut",
+    "language": "Limbă",
+    "languageSystem": "Ca a televizorului",
+    "languageEn": "English",
+    "languageRo": "Română",
+    "about": "Despre",
+    "version": "Versiunea {{version}}",
+    "aboutBody": "Vitals măsoară acest televizor și, dacă asociezi unul, un PC cu Windows din rețeaua de acasă. Fără reclame, fără cont, fără analiză: dezvoltatorul nu primește nimic.",
+    "privacy": "Politica de confidențialitate: vitals.dragoscatalin.ro/privacy",
+    "source": "Codul sursă: github.com/dragoscv/vitals",
+    "storage": "Asocierile sunt păstrate pe acest televizor, în aplicația Vitals. Dacă ștergi aplicația, se șterg și ele."
+  },
+  "device": {
+    "loading": "Se încarcă…",
+    "unavailable": "Nu este disponibil în afara unui televizor Samsung.",
+    "cpu": "Procesor",
+    "load": "Încărcare",
+    "memory": "Memorie",
+    "memoryFree": "Liberă",
+    "storage": "Spațiu de stocare",
+    "storageInternal": "Stocare internă",
+    "storageRemovable": "Stocare detașabilă",
+    "storageFree": "{{free}} liberi din {{total}}",
+    "network": "Rețea",
+    "connection": "Conexiune",
+    "ipAddress": "Adresă IP",
+    "signal": "Semnal",
+    "ssid": "Rețea Wi-Fi",
+    "display": "Ecran",
+    "resolution": "Rezoluție",
+    "model": "Model",
+    "manufacturer": "Producător",
+    "platform": "Versiune Tizen",
+    "firmware": "Software",
+    "netType": {
+      "NONE": "Neconectat",
+      "2G": "Date mobile",
+      "2.5G": "Date mobile",
+      "3G": "Date mobile",
+      "4G": "Date mobile",
+      "5G": "Date mobile",
+      "WIFI": "Wi-Fi",
+      "ETHERNET": "Ethernet",
+      "NET_PROXY": "Proxy",
+      "UNKNOWN": "Necunoscută"
+    },
+    "limits": "O aplicație web de televizor poate citi doar ce oferă interfața Samsung pentru informații de sistem: încărcare, memorie, stocare, rețea și ecran. Temperaturile și cifrele pe aplicație nu îi sunt disponibile."
+  },
+  "common": {
+    "dash": "—"
+  }
+}

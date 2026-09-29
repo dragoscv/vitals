@@ -1,0 +1,33 @@
+{
+  "name": "@vitals/tizen",
+  "version": "0.9.0-beta.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "deploy:tv": "pwsh -NoProfile -File scripts/tv-deploy.ps1",
+    "clean": "rimraf dist"
+  },
+  "dependencies": {
+    "@vitals/client": "workspace:*",
+    "@vitals/protocol": "workspace:*",
+    "i18next": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "react-i18next": "catalog:"
+  },
+  "devDependencies": {
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@vitals/config": "workspace:*",
+    "@vitejs/plugin-react": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  }
+}

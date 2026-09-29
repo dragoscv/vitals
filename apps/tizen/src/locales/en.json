@@ -1,0 +1,273 @@
+{
+  "nav": {
+    "overview": "Overview",
+    "tv": "This TV",
+    "pcs": "PCs",
+    "add": "Add a PC",
+    "settings": "Settings",
+    "back": "Back"
+  },
+  "overview": {
+    "title": "Vitals",
+    "tv": "This TV",
+    "pcs": "Your PCs",
+    "noPcs": "No PCs paired yet. Choose Add a PC to watch one from here."
+  },
+  "state": {
+    "connecting": "Connecting…",
+    "unreachable": "Can’t reach this PC",
+    "unreachableHint": "It may be asleep, off, or on another network.",
+    "unauthorised": "This PC no longer accepts this TV. Pair it again.",
+    "incompatible": "This PC runs a version of Vitals this app does not understand. Update both.",
+    "lastSeen": "Last seen {{when}}",
+    "alertCount_one": "{{count}} warning",
+    "alertCount_other": "{{count}} warnings"
+  },
+  "metric": {
+    "cpu": "CPU",
+    "memory": "Memory in use",
+    "memoryShort": "Memory",
+    "gpu": "Graphics",
+    "temp": "CPU heat",
+    "disk": "Disks",
+    "network": "Network",
+    "fans": "Fans",
+    "battery": "Battery",
+    "power": "Power draw"
+  },
+  "tab": {
+    "now": "Now",
+    "programs": "Programs",
+    "sensors": "Sensors",
+    "history": "History",
+    "about": "About"
+  },
+  "cpu": {
+    "clock": "Speed",
+    "state": "State",
+    "temperature": "Temperature",
+    "power": "Power",
+    "throttled": "Slowed down {{reason}}",
+    "notThrottled": "Running at full speed",
+    "cores": "Each core",
+    "uptime": "Up for",
+    "processes": "Programs running"
+  },
+  "throttle": {
+    "thermal": "because it is too hot",
+    "powerLimit": "to stay within its power limit",
+    "currentLimit": "to stay within its current limit",
+    "voltageDrop": "because the voltage dropped",
+    "powerPolicy": "by the power plan",
+    "unknown": "for an unknown reason"
+  },
+  "memory": {
+    "usedOf": "{{used}} of {{total}}",
+    "available": "Free to use",
+    "cached": "Kept for speed",
+    "committed": "Promised to programs"
+  },
+  "gpu": {
+    "memory": "Video memory",
+    "temperature": "Temperature",
+    "power": "Power",
+    "fan": "Fan"
+  },
+  "disk": {
+    "free": "{{free}} free of {{total}}",
+    "activity": "Busy",
+    "readWrite": "Read {{read}} · Write {{write}}",
+    "failing": "This drive reports it is failing. Back up now.",
+    "life": "Life left"
+  },
+  "net": {
+    "downUp": "Down {{down}} · Up {{up}}",
+    "disconnected": "Not connected"
+  },
+  "battery": {
+    "charging": "Charging",
+    "discharging": "On battery",
+    "timeLeft": "Time left",
+    "health": "Health"
+  },
+  "host": {
+    "name": "Name",
+    "os": "Windows",
+    "cpu": "Processor",
+    "cores": "{{physical}} cores, {{logical}} threads",
+    "memory": "Memory",
+    "board": "Motherboard",
+    "bios": "BIOS",
+    "vm": "Virtual machine",
+    "started": "Started",
+    "version": "Vitals on the PC",
+    "notProbed": "The PC has not described its hardware yet. Try again in a moment.",
+    "yes": "Yes",
+    "no": "No"
+  },
+  "sensors": {
+    "empty": "This PC reports no sensors.",
+    "unavailable": "Sensors are not available right now.",
+    "loading": "Loading sensors…",
+    "group": {
+      "temperature": "Temperatures",
+      "fanSpeed": "Fans",
+      "power": "Power",
+      "voltage": "Voltages",
+      "percent": "Levels",
+      "other": "Other"
+    }
+  },
+  "history": {
+    "1h": "1 hour",
+    "24h": "24 hours",
+    "7d": "7 days",
+    "empty": "No history recorded for this period. History is kept by the desktop app, not the headless server.",
+    "loading": "Loading history…",
+    "failed": "History is not available right now.",
+    "peak": "Peak {{value}}"
+  },
+  "wake": {
+    "notPossible": "Waking a sleeping PC needs a network broadcast, which a TV web app is not allowed to send. Use the Vitals app on Google TV or on a phone to wake it."
+  },
+  "sort": {
+    "label": "Sort by",
+    "cpu": "CPU",
+    "memory": "Memory",
+    "name": "Name"
+  },
+  "processes": {
+    "none": "No programs match.",
+    "waiting": "Waiting for the PC…",
+    "shown": "Showing {{shown}} of {{total}}",
+    "pick": "Choose a program to see more and act on it.",
+    "pid": "Process ID",
+    "user": "Run by",
+    "threads": "Threads",
+    "uptime": "Running for",
+    "disk": "Disk",
+    "suspended": "Paused",
+    "notResponding": "Not responding",
+    "protected": "Windows protects this program, so it cannot be changed from here.",
+    "readOnly": "This TV was paired to look, not to change anything."
+  },
+  "action": {
+    "end": "End task",
+    "endConfirm": "Press again to end",
+    "suspend": "Pause",
+    "resume": "Resume",
+    "priority": "Priority",
+    "efficiency": "Efficiency mode",
+    "efficiencyOn": "Turn on",
+    "efficiencyOff": "Turn off",
+    "efficiencyBody": "Runs it slower to save power and keep other programs responsive."
+  },
+  "priority": {
+    "idle": "Lowest",
+    "below-normal": "Below normal",
+    "normal": "Normal",
+    "above-normal": "Above normal",
+    "high": "High"
+  },
+  "control": {
+    "done": "Done.",
+    "forbidden": "This TV is paired read-only, so it cannot change programs.",
+    "accessDenied": "Windows refused. This program needs administrator rights to change.",
+    "notFound": "That program has already closed.",
+    "unsupported": "This PC cannot do that: {{reason}}",
+    "internal": "Something went wrong on the PC: {{reason}}",
+    "unreachable": "Could not reach the PC.",
+    "failed": "That did not work ({{status}})."
+  },
+  "add": {
+    "title": "Add a PC",
+    "how": "On the PC, open Vitals, go to Settings, Remote access, and choose Pair a TV. It shows a six-digit code.",
+    "addressBody": "Type the PC’s address. The PC shows it under Settings, Remote access.",
+    "codeTitle": "Code from {{pc}}",
+    "codeBody": "Type the six digits the PC shows, with the remote’s number keys or the keypad below.",
+    "codeDelete": "Delete",
+    "useToken": "Use a token instead",
+    "useCode": "Use a code instead",
+    "tokenBody": "Type or paste the 43-character token from the PC.",
+    "address": "Address",
+    "addressHint": "192.168.1.20:7331",
+    "token": "Token",
+    "pair": "Pair",
+    "next": "Next",
+    "change": "Change address",
+    "paired": "Paired with {{pc}}.",
+    "tvLabel": "Living room TV"
+  },
+  "pairing": {
+    "checking": "Checking the PC…",
+    "notPrivate": "That address is on the internet, not your home network. Vitals only talks to PCs on the local network.",
+    "badAddress": "That does not look like an address.",
+    "badToken": "The token should be 43 letters and numbers.",
+    "badCode": "That code did not work. Codes last five minutes, and five wrong tries use one up. Ask the PC for a new one.",
+    "unreachable": "Nothing answered at that address.",
+    "unauthorised": "The PC refused the token. Check it, or create a new one.",
+    "incompatible": "That PC runs a version of Vitals this app does not understand.",
+    "olderPc": "That PC’s Vitals is too old for pairing codes. Update it, or use a token instead.",
+    "notReady": "The PC is starting up. Try again in a moment.",
+    "failed": "Pairing failed ({{status}})."
+  },
+  "settings": {
+    "title": "Settings",
+    "pcs": "Paired PCs",
+    "none": "No PCs paired.",
+    "remove": "Remove",
+    "removeConfirm": "Press again to remove",
+    "readOnly": "Look only",
+    "canControl": "Can change programs",
+    "unknownScope": "Not yet known",
+    "language": "Language",
+    "languageSystem": "Same as the TV",
+    "languageEn": "English",
+    "languageRo": "Română",
+    "about": "About",
+    "version": "Version {{version}}",
+    "aboutBody": "Vitals measures this TV and, if you pair one, a Windows PC on your home network. No ads, no account, no analytics: nothing is sent to the developer.",
+    "privacy": "Privacy policy: vitals.dragoscatalin.ro/privacy",
+    "source": "Source code: github.com/dragoscv/vitals",
+    "storage": "Pairings are kept on this TV, inside the Vitals app. Removing the app removes them."
+  },
+  "device": {
+    "loading": "Loading…",
+    "unavailable": "Not available outside a Samsung TV.",
+    "cpu": "Processor",
+    "load": "Load",
+    "memory": "Memory",
+    "memoryFree": "Free",
+    "storage": "Storage",
+    "storageInternal": "Built-in storage",
+    "storageRemovable": "Removable storage",
+    "storageFree": "{{free}} free of {{total}}",
+    "network": "Network",
+    "connection": "Connection",
+    "ipAddress": "IP address",
+    "signal": "Signal",
+    "ssid": "Wi-Fi network",
+    "display": "Screen",
+    "resolution": "Resolution",
+    "model": "Model",
+    "manufacturer": "Manufacturer",
+    "platform": "Tizen version",
+    "firmware": "Software",
+    "netType": {
+      "NONE": "Not connected",
+      "2G": "Mobile data",
+      "2.5G": "Mobile data",
+      "3G": "Mobile data",
+      "4G": "Mobile data",
+      "5G": "Mobile data",
+      "WIFI": "Wi-Fi",
+      "ETHERNET": "Ethernet",
+      "NET_PROXY": "Proxy",
+      "UNKNOWN": "Unknown"
+    },
+    "limits": "A TV web app may read only what Samsung’s system information API offers: load, memory, storage, network and screen. Temperatures and per-app figures are not available to it."
+  },
+  "common": {
+    "dash": "—"
+  }
+}

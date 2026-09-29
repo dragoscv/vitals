@@ -1,0 +1,696 @@
+/*
+ * The TV's whole look. Sized in rem, and the rem is a fraction of the
+ * viewport HEIGHT: a 1920×1080 TV and the 3440×1440 ultrawide panel of an
+ * Odyssey G8 both get the same number of lines on screen, and the extra
+ * width of the ultrawide becomes more columns rather than giant text.
+ *
+ * Text colours are chosen for at least 4.5:1 on the darkest surface they sit
+ * on (checked by hand against --surface): the metric palette itself is only
+ * guaranteed 3:1 and is used for rings, bars and lines, never for body text.
+ */
+
+:root {
+  --bg: #0e1116;
+  --surface: #171b22;
+  --surface-2: #1f242d;
+  --text: #eceef1;
+  --muted: #aab1bb;
+  --accent: #52a9fe;
+  --ok-text: #3cc56f;
+  --warn-text: #f0ae2a;
+  --danger-text: #ff7479;
+  --danger: #ee343b;
+  --focus: #ffffff;
+  /* Overscan-safe margins: 5 % of each edge, as Samsung's guidelines ask. */
+  --safe-x: 5vw;
+  --safe-y: 5vh;
+  color-scheme: dark;
+}
+
+html {
+  /* 20 px at 1080 lines, 26.7 px at 1440. Measured on the Odyssey G8's
+   * Chromium 120, `calc(100vh / 54)` on the root resolved to the 16 px
+   * default, so main.tsx also sets it from innerHeight; this line is kept
+   * for the desktop browser used in development. */
+  font-size: calc(100vh / 54);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family:
+    'SamsungOne',
+    'Samsung Sans',
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+  font-size: 1rem;
+  line-height: 1.35;
+}
+
+h1,
+h2,
+h3,
+h4,
+p {
+  margin: 0;
+}
+
+button,
+input {
+  font: inherit;
+  color: inherit;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+/* ── Focus: white 3 px ring plus a slight lift. Never colour alone. ── */
+
+button,
+input {
+  outline: none;
+  transition:
+    transform 120ms ease-out,
+    box-shadow 120ms ease-out;
+}
+
+button:focus-visible,
+button:focus,
+input:focus {
+  box-shadow: 0 0 0 0.15rem var(--focus);
+  transform: scale(1.03);
+  z-index: 1;
+  position: relative;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  button,
+  input {
+    transition: none;
+  }
+}
+
+/* ── Shell ── */
+
+.shell {
+  display: flex;
+  height: 100vh;
+  padding: var(--safe-y) var(--safe-x);
+  gap: 1.6rem;
+}
+
+.rail {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 11rem;
+  flex: none;
+}
+
+.brand img {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 0.6rem;
+  margin: 0 0 1rem 0.6rem;
+}
+
+.rail-item {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 0.7rem 0.9rem;
+  border: 0;
+  border-radius: 0.8rem;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.rail-item.is-selected {
+  background: var(--surface-2);
+  /* A bar as well as the fill, so selection is not told by colour alone. */
+  box-shadow: inset 0.2rem 0 0 var(--accent);
+}
+
+.rail-item.is-selected:focus {
+  box-shadow:
+    inset 0.2rem 0 0 var(--accent),
+    0 0 0 0.15rem var(--focus);
+}
+
+.rail-icon {
+  width: 1.4rem;
+  text-align: center;
+  font-size: 1.3rem;
+}
+
+.content {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  /* Room for the focus ring and scale at the edges of the scroll area. */
+  padding: 0.4rem 0.6rem 2rem;
+  scrollbar-width: none;
+}
+
+.content::-webkit-scrollbar {
+  display: none;
+}
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.screen-title {
+  font-size: 2.2rem;
+  font-weight: 700;
+}
+
+h2 {
+  font-size: 1.4rem;
+  font-weight: 600;
+  margin-top: 0.4rem;
+}
+
+h3 {
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+h4 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--muted);
+  margin-top: 0.4rem;
+}
+
+.hint {
+  color: var(--muted);
+  max-width: 60rem;
+}
+
+.tone-ok {
+  color: var(--ok-text);
+}
+
+.tone-warn {
+  color: var(--warn-text);
+}
+
+.tone-danger {
+  color: var(--danger-text);
+}
+
+.outcome {
+  font-weight: 600;
+}
+
+/* ── Cards ── */
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  padding: 1.2rem 1.4rem;
+  border: 0;
+  border-radius: 1rem;
+  background: var(--surface);
+  text-align: left;
+  cursor: pointer;
+}
+
+.card-title {
+  font-size: 1.3rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.card-row {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+}
+
+.card-rings {
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.card-sparks {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.card-line {
+  color: var(--muted);
+}
+
+.card-strip {
+  display: flex;
+  gap: 1.2rem;
+  overflow-x: auto;
+  padding: 0.4rem;
+  scrollbar-width: none;
+}
+
+.card-pc {
+  width: 26rem;
+  flex: none;
+}
+
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(26rem, 1fr));
+  gap: 1.2rem;
+  padding: 0.4rem;
+}
+
+.card-grid .card-pc {
+  width: auto;
+}
+
+/* ── Rings and charts ── */
+
+.ring {
+  position: relative;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.ring svg {
+  width: 6.5rem;
+  height: 6.5rem;
+}
+
+.ring-small svg {
+  width: 4.8rem;
+  height: 4.8rem;
+}
+
+.ring-track {
+  fill: none;
+  stroke: var(--surface-2);
+  stroke-width: 10;
+}
+
+.ring-value {
+  fill: none;
+  stroke-width: 10;
+  stroke-linecap: round;
+}
+
+.ring-number {
+  position: absolute;
+  top: 3.25rem;
+  transform: translateY(-50%);
+  font-size: 1.35rem;
+  font-weight: 700;
+}
+
+.ring-small .ring-number {
+  top: 2.4rem;
+  font-size: 1.05rem;
+}
+
+.ring figcaption {
+  color: var(--muted);
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.spark {
+  width: 100%;
+  height: 2.4rem;
+  display: block;
+}
+
+.spark-large {
+  height: 6rem;
+}
+
+.spark path {
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.bar {
+  height: 0.5rem;
+  border-radius: 0.25rem;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.bar-fill {
+  height: 100%;
+  border-radius: 0.25rem;
+}
+
+.cores {
+  display: flex;
+  gap: 0.2rem;
+  height: 3rem;
+  align-items: flex-end;
+}
+
+.core {
+  flex: 1;
+  height: 100%;
+  background: var(--surface-2);
+  border-radius: 0.15rem;
+  display: flex;
+  align-items: flex-end;
+  overflow: hidden;
+}
+
+.core-fill {
+  width: 100%;
+  background: #0088f2;
+}
+
+/* ── Panels and rows ── */
+
+.grid-2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(30rem, 1fr));
+  gap: 1rem;
+}
+
+.grid-3 {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(24rem, 1fr));
+  gap: 1rem;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1rem 1.2rem;
+  border-radius: 1rem;
+  background: var(--surface);
+  border-top: 0.25rem solid var(--accent);
+}
+
+.panel-row {
+  display: flex;
+  align-items: center;
+  gap: 1.4rem;
+}
+
+.panel-stop {
+  display: block;
+  width: 100%;
+  padding: 0.3rem 0.4rem;
+  border: 0;
+  border-radius: 0.6rem;
+  background: transparent;
+  text-align: left;
+}
+
+.panel-stop:focus {
+  transform: none;
+  background: var(--surface-2);
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.15rem 0;
+}
+
+.info-label {
+  color: var(--muted);
+}
+
+.info-value {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.text-stop {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  text-align: left;
+  padding: 0.6rem;
+  border-radius: 0.6rem;
+  max-width: 60rem;
+}
+
+.text-stop:focus {
+  transform: none;
+}
+
+/* ── Controls ── */
+
+.tabs,
+.choice-row {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  padding: 0.3rem;
+}
+
+.choice-row.wrap {
+  flex-wrap: wrap;
+}
+
+.choice-label {
+  color: var(--muted);
+  margin-right: 0.4rem;
+}
+
+.choice,
+.action {
+  padding: 0.55rem 1.2rem;
+  border-radius: 2rem;
+  border: 0.1rem solid #3a4250;
+  background: var(--surface);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+/* Selected is a filled chip with a check-like underline: shape, not only hue. */
+.choice.is-selected {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #06121f;
+  font-weight: 700;
+}
+
+.action.is-danger {
+  border-color: var(--danger);
+  color: var(--danger-text);
+  font-weight: 600;
+}
+
+button:disabled {
+  opacity: 0.5;
+}
+
+.title-row {
+  display: flex;
+  align-items: baseline;
+  gap: 1.4rem;
+  flex-wrap: wrap;
+}
+
+.tab-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* ── Programs ── */
+
+.programs {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  gap: 1.2rem;
+  align-items: start;
+}
+
+.programs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.3rem;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.45rem 0.9rem;
+  border: 0;
+  border-radius: 0.6rem;
+  background: var(--surface);
+  text-align: left;
+}
+
+.row:focus {
+  transform: scale(1.015);
+}
+
+.row.is-selected {
+  box-shadow: inset 0.2rem 0 0 var(--accent);
+  background: var(--surface-2);
+}
+
+.row.is-selected:focus {
+  box-shadow:
+    inset 0.2rem 0 0 var(--accent),
+    0 0 0 0.15rem var(--focus);
+}
+
+.row-name {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.row-name em {
+  font-style: normal;
+}
+
+.row-num {
+  width: 4.5rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.row-num.wide {
+  width: 6.5rem;
+}
+
+.programs-panel {
+  position: sticky;
+  top: 0;
+}
+
+/* ── Add a PC ── */
+
+.form {
+  max-width: 44rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.field span {
+  color: var(--muted);
+}
+
+.field input {
+  padding: 0.7rem 1rem;
+  border-radius: 0.6rem;
+  border: 0.1rem solid #3a4250;
+  background: var(--surface);
+  font-size: 1.2rem;
+}
+
+.field input:focus {
+  transform: none;
+}
+
+.code {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.code-cell {
+  width: 3.2rem;
+  height: 4rem;
+  display: grid;
+  place-items: center;
+  border-radius: 0.6rem;
+  background: var(--surface);
+  border: 0.1rem solid #3a4250;
+  font-size: 2rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.code-cell.is-next {
+  border-color: var(--accent);
+  border-width: 0.15rem;
+}
+
+.keypad {
+  display: grid;
+  grid-template-columns: repeat(5, 4rem);
+  gap: 0.6rem;
+}
+
+.key {
+  height: 3.4rem;
+  border-radius: 0.6rem;
+  border: 0.1rem solid #3a4250;
+  background: var(--surface);
+  font-size: 1.4rem;
+  font-weight: 600;
+}
+
+.key-wide {
+  grid-column: span 2;
+  font-size: 1rem;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.settings-row .info-row {
+  flex: 1;
+}

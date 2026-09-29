@@ -714,6 +714,58 @@ A51 cold start          536-1013 ms (first launch after install 2988 ms)
 **Not done here.** Play listing and upload (S15-07), the release workflow run
 (S15-06), Google TV (S15-08) and Tizen (S15-09).
 
+### 2026-09-30 — S15-09 Vitals on Samsung TVs (Tizen)
+
+**What.** A new Tizen web app, `apps/tizen` (React 19, i18next, `@vitals/client`),
+packaged as a signed `.wgt`. Same scope and wording as the Google TV app:
+
+- **Overview:** this TV and every paired PC as focusable cards.
+- **This TV:** what `tizen.systeminfo` reports: CPU load, memory, storage,
+  network and screen. Anything it does not report (temperatures, per-app
+  figures) is not shown as a number.
+- **PCs:** Now, Programs (end task in two presses, pause and resume, priority),
+  Sensors, History and About.
+- **Add a PC:** the address, then the six-digit code from the desktop's
+  _Pair a TV_ over `POST /api/v1/pair`, typed on the remote's number keys or an
+  on-screen keypad, with a token as the fallback.
+- **Settings:** paired PCs, language (EN/RO) and About.
+
+D-pad navigation is its own small spatial-focus rule (`src/lib/spatial.ts`,
+pure over rectangles, unit-tested) wired to the remote in `src/ui/focus.ts`.
+
+**Found on the TV, fixed.** A packaged `.wgt` may call the LAN server with an
+`Authorization` header although the server sends no CORS headers; that was
+proven with a probe package first (readable 401 and 400 from `file://`), so
+the server did not change. WebSocket from the app failed (close 1006), so live
+frames use the client's server-sent events with the token in the query string,
+the documented browser fallback. The D-pad walk found that Down from Settings'
+right-hand Remove skipped the left-aligned language row for the full-width About
+panel below it, so Română was unreachable: vertical moves now use Android's
+`beamBeats` rule (an element in the beam wins only if it starts before an
+off-beam one ends). `tv-deploy.ps1` also retries a debug launch that prints no
+port, which happens when the previous instance is still closing.
+
+**Verification.**
+
+```
+Samsung Odyssey G8 LS34DG850SU, Tizen 9.0 (Chromium 120), sdb 192.168.100.135:26101
+  tv-deploy: Vitals.wgt 121974 bytes, signed with mixai-samsung, install + run exit 0
+  running bundle file:///assets/index-CTygPqju.js (the fresh build)
+  probe: auth fetch 401 readable, pair POST 400 readable, ws close 1006
+  Overview: This TV 14-56 % CPU, 69-70 % memory, Wi-Fi 192.168.100.135;
+            PC 192.168.100.61 CPU 98-100 %, memory 49-84 %, graphics 1-20 %, 78-83 °C
+  D-pad: rail → Settings → Down lands on Română → OK: lang=ro, rail reads
+         "Pe scurt · Televizorul · PC-uri · Adaugă un PC · Setări"; back to English,
+         pairing kept
+  screenshots 01-16: overview, add (address, code), PC Now, Programs (armed,
+         paused), Sensors, History 1 h / 24 h, About, This TV, Settings EN and RO
+vitest apps/tizen: 9 files, 45 tests passed; tsc and eslint clean; vite build ok
+mutation: beam always wins → "moves down from a right-hand button …" FAILED
+```
+
+**Not done here.** A store listing: Samsung's Seller Office is a separate
+account and review, and this build is signed for this one TV's DUID only.
+
 ### 2026-09-29 — S15-08 Vitals on Google TV
 
 **What.** There is a new `:tv` module, built with Compose for TV (`tv-material` 1.1.0, no Leanback). It has five screens:
