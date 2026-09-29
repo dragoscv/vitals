@@ -739,7 +739,12 @@ jobs:
       # nothing. The title says "(public beta)" instead. Only the nightly,
       # which must never become "latest", is a pre-release.
       - name: Publish release
-        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
+        # v2.6.2, not v3: v3 fails "create a release" with 403 "Resource not
+        # accessible by integration" under the same contents: write token
+        # (nightly 36616112094, 2026-09-29; upstream softprops/action-gh-release
+        # #836). v2.6.2 is the exact commit the v0.9.0-beta.1 publish used.
+        # Dependabot is told to skip v3 in .github/dependabot.yml.
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           files: publish/*
           body_path: release-notes.md

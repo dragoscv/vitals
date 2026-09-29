@@ -28,6 +28,11 @@ updates:
     schedule:
       interval: weekly
       day: monday
+    # v3 breaks release creation with a 403 (upstream issue #836); stay on
+    # v2.6.2 until that is fixed, then delete this block.
+    ignore:
+      - dependency-name: softprops/action-gh-release
+        versions: ['>=3']
     groups:
       actions:
         patterns: ['*']
