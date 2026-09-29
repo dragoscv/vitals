@@ -27,7 +27,7 @@ Set-Location $root
 $hooksDir = Join-Path (git rev-parse --git-dir) 'hooks'
 New-Item -ItemType Directory -Force -Path $hooksDir | Out-Null
 
-$hooks = @('pre-commit')
+$hooks = @('pre-commit', 'pre-push')
 
 foreach ($hook in $hooks) {
     $target = Join-Path $hooksDir $hook
@@ -56,4 +56,5 @@ if (-not $Uninstall) {
     Write-Host ''
     Write-Host 'pre-commit runs in seconds: staged-file formatting, contract drift,' -ForegroundColor DarkGray
     Write-Host 'secrets, and debug leftovers. Full gates: scripts/verify.ps1' -ForegroundColor DarkGray
+    Write-Host 'pre-push: drift + cfg parity, rustfmt, notices, cargo-deny (under a minute).' -ForegroundColor DarkGray
 }

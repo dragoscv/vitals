@@ -80,6 +80,9 @@ $checks = @(
     # CI's supply-chain job runs this; without it here a new crate passed
     # every local gate and failed on GitHub (S12-36, 2026-09-28).
     @{ Name = 'notices: current'; Script = 'pwsh -NoProfile -File scripts/third-party-notices.ps1 -Check' }
+    # Same licence/source policy CI enforces (deny.toml). A missing tool is a
+    # failure with the install command, never a silent pass.
+    @{ Name = 'deps: licences + sources'; Script = 'if (-not (Get-Command cargo-deny -ErrorAction SilentlyContinue)) { Write-Host "cargo-deny missing: cargo binstall cargo-deny"; exit 1 }; cargo deny --all-features check licenses bans sources' }
 )
 
 $rust = @(
