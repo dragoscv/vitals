@@ -30,6 +30,8 @@
 //!   under-reported by hundreds of gigabytes while saying it was incomplete.
 //!   A fast full scan makes the preview unnecessary.
 
+use std::cmp::Reverse;
+use std::collections::BinaryHeap;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::mpsc;
@@ -84,6 +86,12 @@ pub struct ScanOptions {
     pub threads: Option<usize>,
     /// Minimum time between progress callbacks.
     pub progress_interval: Duration,
+    /// How many of the largest individual files to remember, by name.
+    ///
+    /// Files have no tree nodes (see [`SizeTree::add_file`]), so this bounded
+    /// list is the only place a file's name survives the scan. Zero keeps
+    /// none and costs nothing.
+    pub largest_files: usize,
 }
 
 impl Default for ScanOptions {
@@ -92,6 +100,7 @@ impl Default for ScanOptions {
             detect_hard_links: true,
             threads: None,
             progress_interval: Duration::from_millis(100),
+            largest_files: 1000,
         }
     }
 }
@@ -178,9 +187,35 @@ pub struct ScanResult {
     pub elapsed_ms: u64,
     /// Worker threads the scan used.
     pub threads: usize,
+    /// The largest individual files, largest first, at most
+    /// [`ScanOptions::largest_files`].
+    pub largest_files: Vec<LargeFile>,
+}
+
+/// One of the largest files a scan saw.
+///
+/// Addressed by its folder's node plus its own name rather than a full path:
+/// the path is rebuilt only for the rows a UI shows.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LargeFile {
+    pub dir: NodeId,
+    pub name: String,
+    pub allocated: Bytes,
+    pub logical: Bytes,
 }
 
 impl ScanResult {
+    /// The full path of one of [`ScanResult::largest_files`].
+    #[must_use]
+    pub fn path_of_file(&self, file: &LargeFile) -> String {
+        let dir = self.tree.path_of(file.dir);
+        if dir.ends_with('\\') {
+            format!("{dir}{}", file.name)
+        } else {
+            format!("{dir}\\{}", file.name)
+        }
+    }
+
     /// Files per second achieved, or `None` if the scan was too quick to
     /// measure.
     #[must_use]
@@ -304,6 +339,23 @@ fn is_dot_entry(name: &[u16]) -> bool {
     matches!(name, [0x2E] | [0x2E, 0x2E])
 }
 
+/// The root a caller meant, as a path that cannot be misread.
+///
+/// `C:` without a backslash is not the drive: Windows reads it as *the
+/// current directory on C*, which for a GUI process is wherever it was
+/// launched from. The drive list reports mounts as `C:`, so the Scan button
+/// walked some unrelated folder and reported its eight files as the drive
+/// (found live, 2026-09-29). Fixed here rather than in the UI so every caller
+/// — CLI, LAN, a future one — gets the drive it asked for.
+fn normalise_root(root: &str) -> String {
+    let bytes = root.as_bytes();
+    if bytes.len() == 2 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':' {
+        format!("{root}\\")
+    } else {
+        root.to_owned()
+    }
+}
+
 /// Whether a directory's reparse point should be traversed.
 ///
 /// Only cloud-provider folders are: they hold this volume's own files. Every
@@ -317,6 +369,23 @@ fn is_traversable_reparse(tag: u32) -> bool {
 struct ListedFile {
     allocated: u64,
     logical: u64,
+    /// Kept only when the file may be among the largest; see [`ListContext`].
+    name: Option<Box<str>>,
+}
+
+/// What every worker needs to list a directory, shared read-only.
+#[derive(Clone, Copy)]
+struct ListContext<'a> {
+    links: Option<&'a LinkTracker>,
+    cluster: u64,
+    cancel: Option<&'a AtomicBool>,
+    /// The smallest size that can still enter the largest-files list.
+    ///
+    /// Raised by the merging thread as the list fills; workers read it with
+    /// `Relaxed` because a stale, lower value only means one extra name is
+    /// copied, never that a large file is missed — the floor only rises, so
+    /// any file above the final floor was above every earlier one.
+    name_floor: &'a AtomicU64,
 }
 
 /// A subdirectory found while listing.
@@ -345,9 +414,7 @@ fn list_directory(
     node: NodeId,
     path: String,
     buffer: &mut [u64],
-    links: Option<&LinkTracker>,
-    cluster: u64,
-    cancel: Option<&AtomicBool>,
+    context: ListContext<'_>,
 ) -> Listing {
     let mut listing = Listing {
         node,
@@ -378,7 +445,10 @@ fn list_directory(
 
     let byte_len = u32::try_from(std::mem::size_of_val(buffer)).unwrap_or(u32::MAX);
     loop {
-        if cancel.is_some_and(|flag| flag.load(Ordering::Relaxed)) {
+        if context
+            .cancel
+            .is_some_and(|flag| flag.load(Ordering::Relaxed))
+        {
             listing.interrupted = true;
             break;
         }
@@ -402,14 +472,14 @@ fn list_directory(
             }
             break;
         }
-        parse_batch(buffer, &mut listing, links, cluster);
+        parse_batch(buffer, &mut listing, context);
     }
 
     listing
 }
 
 /// Walks the records of one filled buffer.
-fn parse_batch(buffer: &[u64], listing: &mut Listing, links: Option<&LinkTracker>, cluster: u64) {
+fn parse_batch(buffer: &[u64], listing: &mut Listing, context: ListContext<'_>) {
     let base = buffer.as_ptr().cast::<u8>();
     let limit = std::mem::size_of_val(buffer);
     let mut offset = 0_usize;
@@ -444,7 +514,7 @@ fn parse_batch(buffer: &[u64], listing: &mut Listing, links: Option<&LinkTracker
                 unsafe { base.add(name_offset + i * 2).cast::<u16>().read_unaligned() }
             })
             .collect();
-        classify(&record, &name, listing, links, cluster);
+        classify(&record, &name, listing, context);
 
         if record.NextEntryOffset == 0 {
             break;
@@ -458,8 +528,7 @@ fn classify(
     record: &FILE_ID_EXTD_DIR_INFO,
     name: &[u16],
     listing: &mut Listing,
-    links: Option<&LinkTracker>,
-    cluster: u64,
+    context: ListContext<'_>,
 ) {
     if is_dot_entry(name) {
         return;
@@ -486,23 +555,33 @@ fn classify(
     } else {
         // NTFS reports whole clusters already, including for compressed and
         // sparse files; ReFS and redirectors may not, hence the reconcile.
-        reconcile_reported(u64::try_from(record.AllocationSize).unwrap_or(0), cluster)
+        reconcile_reported(
+            u64::try_from(record.AllocationSize).unwrap_or(0),
+            context.cluster,
+        )
     };
 
-    let counted = links.is_none_or(|tracker| {
+    let counted = context.links.is_none_or(|tracker| {
         tracker.should_count(
             FileIdentity(u128::from_le_bytes(record.FileId.Identifier)),
             allocated,
         )
     });
     // A repeat hard link is still a file the user can see; it is its bytes
-    // that are not counted twice.
+    // that are not counted twice — and it cannot be listed as a large file,
+    // or one file would fill the list under every name it has.
     listing.files.push(if counted {
-        ListedFile { allocated, logical }
+        let candidate = allocated > 0 && allocated >= context.name_floor.load(Ordering::Relaxed);
+        ListedFile {
+            allocated,
+            logical,
+            name: candidate.then(|| String::from_utf16_lossy(name).into_boxed_str()),
+        }
     } else {
         ListedFile {
             allocated: 0,
             logical: 0,
+            name: None,
         }
     });
 }
@@ -616,6 +695,71 @@ struct Totals {
     bytes: u64,
 }
 
+/// The `capacity` largest files seen so far, owned by the merging thread.
+///
+/// A min-heap of fixed size: each candidate costs O(log k), and the smallest
+/// member is the floor workers compare against before copying a name.
+struct LargestFiles<'a> {
+    /// Ordered by size, then logical size, then name, so ties at the boundary
+    /// resolve the same way whatever order the workers deliver listings in.
+    /// The folder node is last and is the one key that depends on that order;
+    /// it decides only between same-named files of identical size.
+    heap: BinaryHeap<Reverse<(u64, u64, Box<str>, u32)>>,
+    capacity: usize,
+    floor: &'a AtomicU64,
+}
+
+impl<'a> LargestFiles<'a> {
+    fn new(capacity: usize, floor: &'a AtomicU64) -> Self {
+        // Nothing can enter a zero-capacity list, so no worker copies names.
+        floor.store(if capacity == 0 { u64::MAX } else { 0 }, Ordering::Relaxed);
+        Self {
+            heap: BinaryHeap::with_capacity(capacity.min(4096) + 1),
+            capacity,
+            floor,
+        }
+    }
+
+    fn offer(&mut self, dir: NodeId, allocated: u64, logical: u64, name: Box<str>) {
+        if self.capacity == 0 {
+            return;
+        }
+        let entry = (allocated, logical, name, dir.0);
+        if self.heap.len() < self.capacity {
+            self.heap.push(Reverse(entry));
+        } else if self
+            .heap
+            .peek()
+            .is_some_and(|Reverse(smallest)| entry > *smallest)
+        {
+            self.heap.pop();
+            self.heap.push(Reverse(entry));
+        } else {
+            return;
+        }
+        if self.heap.len() == self.capacity
+            && let Some(Reverse(smallest)) = self.heap.peek()
+        {
+            // Equal, not above: a file the same size can still win the tie.
+            self.floor.store(smallest.0, Ordering::Relaxed);
+        }
+    }
+
+    fn into_sorted(self) -> Vec<LargeFile> {
+        // `into_sorted_vec` on `Reverse` is largest-first already.
+        self.heap
+            .into_sorted_vec()
+            .into_iter()
+            .map(|Reverse((allocated, logical, name, dir))| LargeFile {
+                dir: NodeId(dir),
+                name: name.into_string(),
+                allocated: Bytes(allocated),
+                logical: Bytes(logical),
+            })
+            .collect()
+    }
+}
+
 /// Scans a directory tree.
 ///
 /// # Errors
@@ -630,7 +774,8 @@ pub fn scan_directory(
     control: &mut ScanControl<'_>,
 ) -> ScanResult {
     let started = Instant::now();
-    let root_display = root.to_string_lossy().into_owned();
+    let root_display = normalise_root(&root.to_string_lossy());
+    let root = Path::new(&root_display);
     let cluster_bytes = cluster_size(root);
     let cluster = cluster_bytes.unwrap_or(0);
     let threads = options.worker_count();
@@ -640,8 +785,15 @@ pub fn scan_directory(
     let queue = WorkQueue::new();
     let active = AtomicUsize::new(0);
     let listed = AtomicU64::new(0);
+    let name_floor = AtomicU64::new(0);
+    let mut largest = LargestFiles::new(options.largest_files, &name_floor);
     let cancel = control.cancel;
-    let tracker = options.detect_hard_links.then_some(&links);
+    let context = ListContext {
+        links: options.detect_hard_links.then_some(&links),
+        cluster,
+        cancel,
+        name_floor: &name_floor,
+    };
 
     if cancel.is_some_and(|flag| flag.load(Ordering::Relaxed)) {
         tree.mark_skipped(tree.root(), root_display, SkipReason::Cancelled);
@@ -656,6 +808,7 @@ pub fn scan_directory(
             cancelled: true,
             elapsed_ms: started.elapsed().as_millis() as u64,
             threads,
+            largest_files: Vec::new(),
         };
     }
 
@@ -676,7 +829,7 @@ pub fn scan_directory(
                 let mut buffer = vec![0_u64; LIST_BUFFER_BYTES / 8];
                 while let Some((node, path)) = queue.pop() {
                     active.fetch_add(1, Ordering::Relaxed);
-                    let listing = list_directory(node, path, &mut buffer, tracker, cluster, cancel);
+                    let listing = list_directory(node, path, &mut buffer, context);
                     listed.fetch_add(1, Ordering::Relaxed);
                     active.fetch_sub(1, Ordering::Relaxed);
                     if sender.send(listing).is_err() {
@@ -690,8 +843,11 @@ pub fn scan_directory(
         cancelled = merge_listings(
             &receiver,
             &queue,
-            &mut tree,
-            &mut totals,
+            Sink {
+                tree: &mut tree,
+                totals: &mut totals,
+                largest: &mut largest,
+            },
             control,
             started,
             options.progress_interval,
@@ -722,7 +878,15 @@ pub fn scan_directory(
         cancelled,
         elapsed_ms: started.elapsed().as_millis() as u64,
         threads,
+        largest_files: largest.into_sorted(),
     }
+}
+
+/// Everything a merged listing writes into, owned by the merging thread.
+struct Sink<'s, 'f> {
+    tree: &'s mut SizeTree,
+    totals: &'s mut Totals,
+    largest: &'s mut LargestFiles<'f>,
 }
 
 /// Merges listings into the tree until the walk ends or is cancelled.
@@ -731,12 +895,16 @@ pub fn scan_directory(
 fn merge_listings(
     receiver: &mpsc::Receiver<Listing>,
     queue: &WorkQueue,
-    tree: &mut SizeTree,
-    totals: &mut Totals,
+    sink: Sink<'_, '_>,
     control: &mut ScanControl<'_>,
     started: Instant,
     interval: Duration,
 ) -> bool {
+    let Sink {
+        tree,
+        totals,
+        largest,
+    } = sink;
     let mut last_report = Instant::now();
     let mut last_path = String::new();
 
@@ -757,7 +925,16 @@ fn merge_listings(
         };
 
         let interrupted = listing.interrupted;
-        merge_one(listing, queue, tree, totals, &mut last_path);
+        merge_one(
+            listing,
+            queue,
+            Sink {
+                tree: &mut *tree,
+                totals: &mut *totals,
+                largest: &mut *largest,
+            },
+            &mut last_path,
+        );
 
         if interrupted
             || control
@@ -785,13 +962,12 @@ fn merge_listings(
 }
 
 /// Adds one directory's listing to the tree and queues its subdirectories.
-fn merge_one(
-    listing: Listing,
-    queue: &WorkQueue,
-    tree: &mut SizeTree,
-    totals: &mut Totals,
-    last_path: &mut String,
-) {
+fn merge_one(listing: Listing, queue: &WorkQueue, sink: Sink<'_, '_>, last_path: &mut String) {
+    let Sink {
+        tree,
+        totals,
+        largest,
+    } = sink;
     totals.directories += 1;
 
     if listing.interrupted {
@@ -806,11 +982,14 @@ fn merge_one(
         return;
     }
 
-    for file in &listing.files {
+    totals.files += listing.files.len() as u64;
+    for file in listing.files {
         tree.add_file(listing.node, file.allocated, file.logical);
         totals.bytes = totals.bytes.saturating_add(file.allocated);
+        if let Some(name) = file.name {
+            largest.offer(listing.node, file.allocated, file.logical, name);
+        }
     }
-    totals.files += listing.files.len() as u64;
 
     let base = listing.path.trim_end_matches('\\');
     let mut next = Vec::with_capacity(listing.dirs.len());
@@ -880,6 +1059,46 @@ mod tests {
         assert!(is_dot_entry(&wide("..")));
         assert!(!is_dot_entry(&wide("...weird but legal")));
         assert!(!is_dot_entry(&wide(".git")));
+    }
+
+    #[test]
+    fn a_bare_drive_letter_means_the_drive_not_its_current_directory() {
+        assert_eq!(normalise_root("C:"), "C:\\");
+        assert_eq!(normalise_root("d:"), "d:\\");
+        assert_eq!(normalise_root("C:\\"), "C:\\");
+        assert_eq!(normalise_root("C:\\Users"), "C:\\Users");
+        assert_eq!(normalise_root("\\\\server\\share"), "\\\\server\\share");
+    }
+
+    #[test]
+    fn scanning_a_bare_drive_letter_walks_the_drive_root() {
+        // The system drive's root holds `Windows`; the test process's current
+        // directory on C: (the crate folder, or wherever cargo ran) does not.
+        // Cancelled after the first listing so this reads one folder, not a
+        // drive.
+        let Ok(system) = std::env::var("SystemDrive") else {
+            return;
+        };
+        let cancel = AtomicBool::new(false);
+        let mut stop = |_: ScanProgress| cancel.store(true, Ordering::Relaxed);
+        let mut control = ScanControl {
+            cancel: Some(&cancel),
+            progress: Some(&mut stop),
+        };
+        let options = ScanOptions {
+            threads: Some(1),
+            progress_interval: Duration::ZERO,
+            ..ScanOptions::default()
+        };
+        let result = scan_directory(Path::new(&system), options, &mut control);
+        let tree = &result.tree;
+        assert_eq!(tree.path_of(tree.root()), format!("{system}\\"));
+        let names: Vec<_> = tree
+            .children(tree.root())
+            .iter()
+            .map(|id| tree.name_of(*id).to_ascii_lowercase())
+            .collect();
+        assert!(names.iter().any(|n| n == "windows"), "{names:?}");
     }
 
     #[test]
@@ -973,6 +1192,109 @@ mod tests {
         assert_eq!(one.allocated(), many.allocated());
         assert_eq!(one.logical(), many.logical());
         assert_eq!(one.tree.len(), many.tree.len());
+        assert_eq!(
+            one.largest_files
+                .iter()
+                .map(|f| one.path_of_file(f))
+                .collect::<Vec<_>>(),
+            many.largest_files
+                .iter()
+                .map(|f| many.path_of_file(f))
+                .collect::<Vec<_>>(),
+            "the largest-files list must not depend on which worker read what"
+        );
+    }
+
+    #[test]
+    fn the_largest_files_are_named_largest_first_and_bounded() {
+        let fixture = Fixture::new("largest");
+        let result = scan(
+            &fixture.root,
+            ScanOptions {
+                largest_files: 2,
+                ..Default::default()
+            },
+        );
+        let paths: Vec<_> = result
+            .largest_files
+            .iter()
+            .map(|f| result.path_of_file(f))
+            .collect();
+        assert_eq!(
+            paths,
+            [
+                fixture.root.join("top.bin").to_string_lossy().into_owned(),
+                fixture
+                    .root
+                    .join("a\\b\\c\\d\\e\\deep.bin")
+                    .to_string_lossy()
+                    .into_owned(),
+            ],
+            "the file five levels down must still be found"
+        );
+        assert_eq!(result.largest_files[0].logical.get(), 10_000);
+
+        let none = scan(
+            &fixture.root,
+            ScanOptions {
+                largest_files: 0,
+                ..Default::default()
+            },
+        );
+        assert!(none.largest_files.is_empty());
+    }
+
+    #[test]
+    fn a_hard_linked_file_is_listed_under_one_name_only() {
+        let fixture = Fixture::new("largest-links");
+        std::fs::hard_link(
+            fixture.root.join("top.bin"),
+            fixture.root.join("wide\\link.bin"),
+        )
+        .expect("hard link");
+        let result = scan(&fixture.root, ScanOptions::default());
+        let big = result
+            .largest_files
+            .iter()
+            .filter(|f| f.logical.get() == 10_000)
+            .count();
+        assert_eq!(big, 1, "{:?}", result.largest_files);
+    }
+
+    #[test]
+    fn children_come_largest_first_and_ancestry_leads_back_to_the_root() {
+        let fixture = Fixture::new("navigate");
+        let result = scan(&fixture.root, ScanOptions::default());
+        let tree = &result.tree;
+        let children = tree.children_by_size(tree.root());
+        let sizes: Vec<_> = children
+            .iter()
+            .map(|id| tree.node(*id).expect("child").allocated())
+            .collect();
+        // Tiny files may live inside the MFT record and occupy nothing, so
+        // which of `a` and `wide` is larger depends on the volume; the order
+        // must follow whatever the sizes are.
+        assert_eq!(children.len(), 2);
+        assert!(sizes[0] >= sizes[1], "{sizes:?}");
+        let root = tree.node(tree.root()).expect("root");
+        assert_eq!(root.own_files(), 1, "top.bin is the root's own file");
+
+        let mut deepest = tree.root();
+        while let Some(child) = tree
+            .children_by_size(deepest)
+            .into_iter()
+            .find(|id| tree.name_of(*id) != "wide")
+        {
+            deepest = child;
+        }
+        let chain: Vec<_> = tree
+            .ancestry(deepest)
+            .iter()
+            .skip(1)
+            .map(|id| tree.name_of(*id))
+            .collect();
+        assert_eq!(chain, ["a", "b", "c", "d", "e"]);
+        assert_eq!(tree.ancestry(tree.root()), [tree.root()]);
     }
 
     #[test]

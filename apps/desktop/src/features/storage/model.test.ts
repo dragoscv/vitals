@@ -71,6 +71,9 @@ function snapshot(overrides: Partial<ScanSnapshot> = {}): ScanSnapshot {
     skipped: [],
     skippedTotal: 0,
     linksNotFollowed: 0,
+    scanId: 1,
+    rootNode: 0,
+    largestFiles: [],
     ...overrides,
   };
 }

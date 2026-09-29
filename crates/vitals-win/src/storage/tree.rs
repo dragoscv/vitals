@@ -121,6 +121,39 @@ impl Node {
     pub const fn skipped(&self) -> Option<SkipReason> {
         self.skipped
     }
+
+    /// The directory above this one; `None` for the root.
+    #[must_use]
+    pub const fn parent(&self) -> Option<NodeId> {
+        self.parent
+    }
+
+    /// Whether this directory has any subdirectory recorded.
+    #[must_use]
+    pub const fn has_children(&self) -> bool {
+        self.first_child.is_some()
+    }
+
+    /// On-disk bytes of the files directly inside this directory, not below.
+    ///
+    /// A map needs it as its own block: a folder holding 40 GB of videos and
+    /// two small subfolders would otherwise draw as two small subfolders.
+    #[must_use]
+    pub const fn own_allocated(&self) -> Bytes {
+        Bytes(self.own_allocated)
+    }
+
+    /// Logical bytes of the files directly inside this directory.
+    #[must_use]
+    pub const fn own_logical(&self) -> Bytes {
+        Bytes(self.own_logical)
+    }
+
+    /// Files directly inside this directory.
+    #[must_use]
+    pub const fn own_files(&self) -> u64 {
+        self.own_files
+    }
 }
 
 /// A scanned directory hierarchy.
@@ -351,6 +384,42 @@ impl SizeTree {
                 .get(child.0 as usize)
                 .and_then(|n| n.next_sibling);
         }
+        out
+    }
+
+    /// This node's own name (the last path component; the full root path for
+    /// the root).
+    #[must_use]
+    pub fn name_of(&self, id: NodeId) -> &str {
+        self.nodes
+            .get(id.0 as usize)
+            .map_or("", |node| self.interner.resolve(node.name))
+    }
+
+    /// Immediate subdirectories, largest first, ties by name so the order is
+    /// stable between calls.
+    #[must_use]
+    pub fn children_by_size(&self, id: NodeId) -> Vec<NodeId> {
+        let mut out = self.children(id);
+        out.sort_by(|a, b| {
+            let size = |n: &NodeId| self.node(*n).map_or(0, |node| node.total_allocated);
+            size(b)
+                .cmp(&size(a))
+                .then_with(|| self.name_of(*a).cmp(self.name_of(*b)))
+        });
+        out
+    }
+
+    /// The chain from the root down to `id`, root first.
+    #[must_use]
+    pub fn ancestry(&self, id: NodeId) -> Vec<NodeId> {
+        let mut out = Vec::new();
+        let mut cursor = self.node(id).map(|_| id);
+        while let Some(current) = cursor {
+            out.push(current);
+            cursor = self.node(current).and_then(Node::parent);
+        }
+        out.reverse();
         out
     }
 

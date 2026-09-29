@@ -49,6 +49,7 @@ import { AnimatedValue } from '@vitals/ui';
 import { ExportButton } from '../../components/ExportButton';
 import type { ExportColumn } from '../../lib/export';
 import { oneOf, useUrlState } from '../../lib/useUrlState';
+import { Explorer, exploreViews, type ExploreView } from './Explorer';
 import { STORAGE_NS } from './strings';
 import {
   directorySorts,
@@ -68,7 +69,7 @@ import {
   type ScanSnapshot,
   type Volume,
 } from './model';
-import { NO_HOST, useStorage, type StorageSource } from './useStorage';
+import { NO_HOST, tauriSource, useStorage, type StorageSource } from './useStorage';
 
 export interface StorageScreenProps {
   /** Injectable so tests and the sampler-less preview need no Tauri host. */
@@ -84,10 +85,10 @@ export function StorageScreen({ source }: StorageScreenProps = {}): React.JSX.El
   // Only the result table's view goes in the URL. The chosen volume is a scan
   // parameter, not view state: restoring it from a link would imply the scan
   // itself was restored, and it is not.
-  const [view, patchView] = useUrlState<{ q: string; sort: DirectorySort }>(
+  const [view, patchView] = useUrlState<{ q: string; sort: DirectorySort; view: ExploreView }>(
     'storage',
-    { q: '', sort: 'allocated' },
-    { sort: oneOf(directorySorts) },
+    { q: '', sort: 'allocated', view: 'icicle' },
+    { sort: oneOf(directorySorts), view: oneOf(exploreViews) },
   );
   const query = view.q;
   const sort = view.sort;
@@ -139,7 +140,10 @@ export function StorageScreen({ source }: StorageScreenProps = {}): React.JSX.El
        * Clean-up button was below the fold as soon as a scan had results.
        * Small windows stack everything and the body scrolls instead.
        */}
-      <div className="screen-body grid-rows-[auto_minmax(0,1fr)_minmax(0,1fr)] @5xl/main:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] @5xl/main:grid-rows-[auto_minmax(0,1fr)]">
+      {/* Stacked (narrow) the explorer takes three shares to the clean-up
+          card's one: a map needs height to be read, a list of caches does
+          not. Side by side each has the full height. */}
+      <div className="screen-body grid-rows-[auto_minmax(0,3fr)_minmax(0,1fr)] @5xl/main:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] @5xl/main:grid-rows-[auto_minmax(0,1fr)]">
         <div className="flex flex-col gap-3 @5xl/main:col-span-2">
           <Volumes
             volumes={volumes}
@@ -202,8 +206,13 @@ export function StorageScreen({ source }: StorageScreenProps = {}): React.JSX.El
           )
         ) : (
           <ScanResult
+            source={source ?? tauriSource}
             snapshot={state.snapshot}
             locale={locale}
+            view={view.view}
+            onViewChange={(next) => {
+              patchView({ view: next });
+            }}
             query={query}
             onQueryChange={(q) => {
               patchView({ q });
@@ -386,16 +395,22 @@ function Volumes({
 }
 
 function ScanResult({
+  source,
   snapshot,
   locale,
+  view,
+  onViewChange,
   query,
   onQueryChange,
   sort,
   onSortChange,
   rows,
 }: {
+  readonly source: StorageSource;
   readonly snapshot: ScanSnapshot;
   readonly locale: string;
+  readonly view: ExploreView;
+  readonly onViewChange: (view: ExploreView) => void;
   readonly query: string;
   readonly onQueryChange: (value: string) => void;
   readonly sort: DirectorySort;
@@ -422,9 +437,9 @@ function ScanResult({
   return (
     <Card className="pane">
       <CardHeader>
-        <CardTitle level={3}>{t('result.heading')}</CardTitle>
+        <CardTitle level={3}>{t('explore.heading')}</CardTitle>
       </CardHeader>
-      <CardBody className="flex min-h-0 flex-1 flex-col gap-3">
+      <CardBody className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
         <div>
           <p className="text-sm">
             {t('result.total', {
@@ -472,86 +487,100 @@ function ScanResult({
           </p>
         )}
 
-        <div className="flex flex-wrap items-center gap-2">
-          <SearchInput
-            value={query}
-            onValueChange={onQueryChange}
-            placeholder={t('search')}
-            aria-label={t('search')}
-            clearLabel={t('clear')}
-            className="min-w-56 flex-1"
-          />
-          <SegmentedControl
-            value={sort}
-            ariaLabel={t('sortLabel')}
-            onValueChange={(next) => {
-              onSortChange(next);
-            }}
-            options={directorySorts.map((id) => ({ value: id, label: t(`sort.${id}`) }))}
-          />
-          <ExportButton name="storage" rows={rows} columns={exportColumns} />
-        </div>
+        <Explorer
+          source={source}
+          snapshot={snapshot}
+          locale={locale}
+          view={view}
+          onViewChange={onViewChange}
+          largest={
+            <>
+              <div className="flex flex-wrap items-center gap-2">
+                <SearchInput
+                  value={query}
+                  onValueChange={onQueryChange}
+                  placeholder={t('search')}
+                  aria-label={t('search')}
+                  clearLabel={t('clear')}
+                  className="min-w-56 flex-1"
+                />
+                <SegmentedControl
+                  value={sort}
+                  ariaLabel={t('sortLabel')}
+                  onValueChange={(next) => {
+                    onSortChange(next);
+                  }}
+                  options={directorySorts.map((id) => ({ value: id, label: t(`sort.${id}`) }))}
+                />
+                <ExportButton name="storage" rows={rows} columns={exportColumns} />
+              </div>
 
-        {rows.length === 0 ? (
-          <EmptyState
-            title={query === '' ? t('result.emptyTitle') : t('result.filterEmpty')}
-            description={query === '' ? t('result.emptyBody') : t('result.filterEmptyBody')}
-          />
-        ) : (
-          <div className="pane-scroll rounded-md border border-[var(--color-border-subtle)]">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="text-2xs text-[var(--color-fg-muted)]">
-                  <th scope="col" className="cell-fill px-2.5 py-1.5 font-normal">
-                    {t('column.path')}
-                  </th>
-                  <th scope="col" className="px-2.5 py-1.5 text-right font-normal">
-                    {t('column.allocated')}
-                  </th>
-                  <th scope="col" className="px-2.5 py-1.5 text-right font-normal">
-                    {t('column.logical')}
-                  </th>
-                  <th scope="col" className="px-2.5 py-1.5 text-right font-normal">
-                    {t('column.files')}
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((entry) => (
-                  <tr key={entry.path} className="border-t border-[var(--color-border-subtle)]">
-                    <td className="cell-fill px-2.5 py-1.5">
-                      <span className="block truncate text-sm" title={entry.path}>
-                        {entry.path}
-                      </span>
-                      {/* Per-row, not just in the header count: the summary
-                          cannot tell the user WHICH figure is a floor. */}
-                      {entry.incomplete !== null && (
-                        <Badge
-                          tone="warn"
-                          className="mt-0.5"
-                          title={t('incompleteHint', {
-                            reason: t(`skip.${entry.incomplete}`),
-                          })}
+              {rows.length === 0 ? (
+                <EmptyState
+                  title={query === '' ? t('result.emptyTitle') : t('result.filterEmpty')}
+                  description={query === '' ? t('result.emptyBody') : t('result.filterEmptyBody')}
+                />
+              ) : (
+                <div className="pane-scroll rounded-md border border-[var(--color-border-subtle)]">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="text-2xs text-[var(--color-fg-muted)]">
+                        <th scope="col" className="cell-fill px-2.5 py-1.5 font-normal">
+                          {t('column.path')}
+                        </th>
+                        <th scope="col" className="px-2.5 py-1.5 text-right font-normal">
+                          {t('column.allocated')}
+                        </th>
+                        <th scope="col" className="px-2.5 py-1.5 text-right font-normal">
+                          {t('column.logical')}
+                        </th>
+                        <th scope="col" className="px-2.5 py-1.5 text-right font-normal">
+                          {t('column.files')}
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map((entry) => (
+                        <tr
+                          key={entry.path}
+                          className="border-t border-[var(--color-border-subtle)]"
                         >
-                          {t('incomplete')}
-                        </Badge>
-                      )}
-                    </td>
-                    <td className="tnum px-2.5 py-1.5 text-right font-mono text-2xs">
-                      {formatBytes(entry.allocated, locale)}
-                    </td>
-                    <td className="tnum px-2.5 py-1.5 text-right font-mono text-2xs text-[var(--color-fg-subtle)]">
-                      {formatBytes(entry.logical, locale)}
-                    </td>
-                    <td className="tnum px-2.5 py-1.5 text-right font-mono text-2xs">
-                      {formatCount(entry.files, locale)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                          <td className="cell-fill px-2.5 py-1.5">
+                            <span className="block truncate text-sm" title={entry.path}>
+                              {entry.path}
+                            </span>
+                            {/* Per-row, not just in the header count: the summary
+                              cannot tell the user WHICH figure is a floor. */}
+                            {entry.incomplete !== null && (
+                              <Badge
+                                tone="warn"
+                                className="mt-0.5"
+                                title={t('incompleteHint', {
+                                  reason: t(`skip.${entry.incomplete}`),
+                                })}
+                              >
+                                {t('incomplete')}
+                              </Badge>
+                            )}
+                          </td>
+                          <td className="tnum px-2.5 py-1.5 text-right font-mono text-2xs">
+                            {formatBytes(entry.allocated, locale)}
+                          </td>
+                          <td className="tnum px-2.5 py-1.5 text-right font-mono text-2xs text-[var(--color-fg-subtle)]">
+                            {formatBytes(entry.logical, locale)}
+                          </td>
+                          <td className="tnum px-2.5 py-1.5 text-right font-mono text-2xs">
+                            {formatCount(entry.files, locale)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
+          }
+        />
       </CardBody>
     </Card>
   );

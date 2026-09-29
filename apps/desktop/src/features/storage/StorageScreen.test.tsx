@@ -1,10 +1,19 @@
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { i18n, initI18n } from '@vitals/i18n';
 
 import { StorageScreen } from './StorageScreen';
-import type { CleanupCandidate, DirectoryEntry, ScanProgress, ScanSnapshot, Volume } from './model';
+import type {
+  CleanupCandidate,
+  DirectoryEntry,
+  MapCell,
+  ScanProgress,
+  ScanSnapshot,
+  StorageListing,
+  StorageNode,
+  Volume,
+} from './model';
 import { registerStorageStrings } from './strings';
 import type { StorageSource } from './useStorage';
 
@@ -17,6 +26,8 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   await i18n.changeLanguage('en');
+  // View state lives in the hash; one test's view must not leak into the next.
+  history.replaceState(null, '', location.pathname);
 });
 
 function volume(overrides: Partial<Volume> = {}): Volume {
@@ -60,6 +71,61 @@ function snapshot(overrides: Partial<ScanSnapshot> = {}): ScanSnapshot {
     skipped: [],
     skippedTotal: 0,
     linksNotFollowed: 0,
+    scanId: 1,
+    rootNode: 0,
+    largestFiles: [],
+    ...overrides,
+  };
+}
+
+function node(overrides: Partial<StorageNode> = {}): StorageNode {
+  return {
+    node: 0,
+    name: 'C:\\',
+    path: 'C:\\',
+    allocated: 10 * GB,
+    logical: 9 * GB,
+    files: 1000,
+    ownAllocated: 0,
+    ownFiles: 0,
+    hasChildren: true,
+    incomplete: null,
+    ...overrides,
+  };
+}
+
+const ROOT = node();
+const USERS = node({ node: 1, name: 'Users', path: 'C:\\Users', allocated: 6 * GB });
+const WINDOWS = node({ node: 2, name: 'Windows', path: 'C:\\Windows', allocated: 4 * GB });
+const ME = node({
+  node: 3,
+  name: 'me',
+  path: 'C:\\Users\\me',
+  allocated: 6 * GB,
+  hasChildren: false,
+});
+
+/** A two-level tree: C:\ -> Users -> me, and Windows. */
+function listingFor(id: number): StorageListing {
+  if (id === 1) return { ancestry: [ROOT, USERS], children: [ME] };
+  if (id === 2) return { ancestry: [ROOT, WINDOWS], children: [] };
+  return { ancestry: [ROOT], children: [USERS, WINDOWS] };
+}
+
+function cell(overrides: Partial<MapCell> = {}): MapCell {
+  return {
+    kind: 'directory',
+    node: 1,
+    depth: 1,
+    x0: 0,
+    y0: 0.2,
+    x1: 0.6,
+    y1: 0.4,
+    allocated: 6 * GB,
+    count: 10,
+    openable: true,
+    name: 'Users',
+    incomplete: null,
     ...overrides,
   };
 }
@@ -82,6 +148,7 @@ interface SourceOverrides {
   readonly readVolumes?: StorageSource['volumes'];
   readonly scan?: StorageSource['scan'];
   readonly cleanup?: StorageSource['cleanup'];
+  readonly children?: StorageSource['children'];
 }
 
 type ProgressListener = Parameters<StorageSource['onProgress']>[0];
@@ -99,6 +166,11 @@ function makeSource(overrides: SourceOverrides = {}): TestSource {
     cancelScan: vi.fn<StorageSource['cancelScan']>().mockResolvedValue(undefined),
     cleanup: overrides.cleanup ?? vi.fn<StorageSource['cleanup']>().mockResolvedValue([]),
     cancelCleanup: vi.fn<StorageSource['cancelCleanup']>().mockResolvedValue(undefined),
+    children:
+      overrides.children ??
+      vi.fn<StorageSource['children']>((_scan, id) => Promise.resolve(listingFor(id))),
+    map: vi.fn<StorageSource['map']>().mockResolvedValue([cell()]),
+    reveal: vi.fn<StorageSource['reveal']>().mockResolvedValue(undefined),
     onProgress: (listener) => {
       listeners.add(listener);
       return Promise.resolve(() => {
@@ -133,7 +205,14 @@ async function scanned(data = snapshot()) {
   const source = makeSource({ scan: vi.fn<StorageSource['scan']>().mockResolvedValue(data) });
   await mount(source);
   fireEvent.click(screen.getByRole('button', { name: /Scan this drive/ }));
-  await screen.findByRole('heading', { name: 'Largest folders' });
+  await screen.findByRole('heading', { name: 'Explore' });
+  return source;
+}
+
+/** Scans, then switches to the flat largest-folders table. */
+async function tabled(data = snapshot()) {
+  const source = await scanned(data);
+  fireEvent.click(screen.getByRole('radio', { name: 'Largest folders' }));
   return source;
 }
 
@@ -252,7 +331,7 @@ describe('StorageScreen', () => {
       await mount(source);
       expect(screen.queryByText(/levels/)).toBeNull();
       fireEvent.click(screen.getByRole('button', { name: /Scan this drive/ }));
-      await screen.findByRole('heading', { name: 'Largest folders' });
+      await screen.findByRole('heading', { name: 'Explore' });
       expect(source.scan).toHaveBeenCalledWith('C:\\');
     });
 
@@ -287,13 +366,13 @@ describe('StorageScreen', () => {
       await mount(source);
 
       fireEvent.click(screen.getByRole('button', { name: /Scan this drive/ }));
-      await screen.findByRole('heading', { name: 'Largest folders' });
+      await screen.findByRole('heading', { name: 'Explore' });
 
       fireEvent.click(screen.getByRole('button', { name: /Scan again/ }));
 
       expect(await screen.findByRole('alert')).toBeTruthy();
       expect(screen.getByText(/last completed scan/)).toBeTruthy();
-      expect(screen.getByText('C:\\Windows\\WinSxS')).toBeTruthy();
+      expect(await screen.findByRole('button', { name: 'Open Users' })).toBeTruthy();
       expect(document.querySelector('[aria-busy="true"]')).toBeNull();
     });
 
@@ -314,18 +393,18 @@ describe('StorageScreen', () => {
     it('shows both the on-disk and the file-size figure', async () => {
       // Only one of the two, compared against Explorer, makes the user
       // conclude Vitals is wrong. They measure different things.
-      await scanned();
+      await tabled();
       expect(screen.getByText('10.0 GB')).toBeTruthy();
       expect(screen.getByText('9.00 GB')).toBeTruthy();
     });
 
     it('marks a folder that could not be fully read', async () => {
-      await scanned(snapshot({ largest: [entry({ incomplete: 'accessDenied' })] }));
+      await tabled(snapshot({ largest: [entry({ incomplete: 'accessDenied' })] }));
       expect(screen.getByText('Incomplete')).toBeTruthy();
     });
 
     it('sorts by the chosen column', async () => {
-      await scanned(
+      await tabled(
         snapshot({
           largest: [
             entry({ path: 'C:\\Small', allocated: GB, files: 9000 }),
@@ -346,7 +425,7 @@ describe('StorageScreen', () => {
     });
 
     it('filters by path', async () => {
-      await scanned(
+      await tabled(
         snapshot({ largest: [entry({ path: 'C:\\Games' }), entry({ path: 'C:\\Users' })] }),
       );
 
@@ -354,6 +433,73 @@ describe('StorageScreen', () => {
 
       expect(screen.getByText('C:\\Games')).toBeTruthy();
       expect(screen.queryByText('C:\\Users')).toBeNull();
+    });
+  });
+
+  describe('exploring a finished scan', () => {
+    it('opens the scanned root largest first, with a breadcrumb', async () => {
+      const source = await scanned();
+      const users = await screen.findByRole('button', { name: 'Open Users' });
+      const windows = screen.getByRole('button', { name: 'Open Windows' });
+      // Largest first, in document order.
+      expect(
+        users.compareDocumentPosition(windows) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+      expect(source.children).toHaveBeenCalledWith(1, 0);
+      const crumbs = screen.getByRole('navigation', { name: 'Where you are' });
+      expect(crumbs.textContent).toContain('C:\\');
+    });
+
+    it('goes into a folder and back up through the breadcrumb', async () => {
+      const source = await scanned();
+      fireEvent.click(await screen.findByRole('button', { name: 'Open Users' }));
+      expect(await screen.findByRole('button', { name: 'me' })).toBeTruthy();
+      expect(source.children).toHaveBeenLastCalledWith(1, 1);
+      const crumbs = screen.getByRole('navigation', { name: 'Where you are' });
+      expect(crumbs.querySelector('[aria-current="location"]')?.textContent).toBe('Users');
+
+      fireEvent.click(screen.getByRole('button', { name: 'Up one level' }));
+      expect(await screen.findByRole('button', { name: 'Open Windows' })).toBeTruthy();
+      expect(source.children).toHaveBeenLastCalledWith(1, 0);
+    });
+
+    it('asks for the map of the folder in view, in the chosen shape', async () => {
+      const source = await scanned();
+      await screen.findByRole('img', { name: /Map of C:/ });
+      expect(source.map).toHaveBeenCalledWith(1, 0, 'icicle', expect.any(Number));
+      fireEvent.click(screen.getByRole('radio', { name: 'Blocks' }));
+      await vi.waitFor(() => {
+        expect(source.map).toHaveBeenCalledWith(1, 0, 'treemap', expect.any(Number));
+      });
+    });
+
+    it('explains a released scan instead of showing an error', async () => {
+      // The backend lets go of the tree after fifteen idle minutes and answers
+      // not-found. That is a state to explain, not a failure in red.
+      await scanned();
+      cleanup();
+      const source = makeSource({
+        children: vi
+          .fn<StorageSource['children']>()
+          .mockRejectedValue({ kind: 'not-found', message: 'gone' }),
+      });
+      await mount(source);
+      fireEvent.click(screen.getByRole('button', { name: /Scan this drive/ }));
+      expect(await screen.findByText(/no longer in memory/)).toBeTruthy();
+      expect(screen.queryByRole('alert')).toBeNull();
+    });
+
+    it('lists the largest files and reveals one in Explorer', async () => {
+      const source = await scanned(
+        snapshot({
+          largestFiles: [
+            { path: 'C:\\Users\\me\\big.iso', allocated: 5 * GB, logical: 5 * GB, dirNode: 3 },
+          ],
+        }),
+      );
+      fireEvent.click(screen.getByRole('radio', { name: 'Largest files' }));
+      fireEvent.click(await screen.findByText('big.iso'));
+      expect(source.reveal).toHaveBeenCalledWith('C:\\Users\\me\\big.iso');
     });
   });
 

@@ -32,6 +32,7 @@
 
 pub mod cleanup;
 mod ffi;
+pub mod layout;
 pub mod mft;
 pub mod scan;
 pub mod sizing;
@@ -45,8 +46,9 @@ use vitals_core::units::Bytes;
 pub use cleanup::{
     CleanupCandidate, CleanupKind, Safety, candidate_locations, reclaimable_total, unmeasured_count,
 };
+pub use layout::{Cell, CellKind, Detail, icicle, treemap};
 pub use mft::{MftEntry, VolumeNamespace};
-pub use scan::{ScanControl, ScanOptions, ScanProgress, ScanResult, scan_directory};
+pub use scan::{LargeFile, ScanControl, ScanOptions, ScanProgress, ScanResult, scan_directory};
 pub use sizing::{
     AllocationHints, FileIdentity, FileSize, LinkTracker, SkipReason, SkippedPath,
     round_up_to_cluster, top_n_by,

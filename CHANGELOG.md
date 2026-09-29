@@ -7,25 +7,15 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-### Changed
-
-- **Storage scans are about 80 times faster and count everything** — a whole
-  drive of eight million files is read in about seven minutes instead of
-  never finishing, and `Program Files` in six seconds instead of eight
-  minutes. There is no depth choice any more: every folder is counted, at
-  every depth, and the scan shows live progress and the folder it is reading.
-
-### Fixed
-
-- **OneDrive folders are counted** in storage scans; they used to be skipped.
-- **Stopping a scan no longer stops a cleanup search** (or the other way
-  round) — each has its own Stop button.
-- **Links are no longer reported as unreadable folders** — a scan that only
-  passed over shortcuts to other places is complete, and says how many it did
-  not follow.
-- **A shortcut to a file no longer counts as the file's size.**
-
 ### Added
+
+- **Explore a storage scan** — after a scan, a map shows every folder sized by
+  the space it takes, as layers or as blocks. Click a block to go inside, use
+  the breadcrumb or Up to come back, and hover for its size and share. A list
+  beside it can be driven with the keyboard, and every row can be opened,
+  shown in File Explorer or have its path copied.
+- **Largest files** — the thousand biggest files on the scanned drive, each one
+  click away from File Explorer.
 
 - **Act on startup items and services** — right-click a row, or use the
   button at its end. Startup items switch off and on the way Task Manager
@@ -65,7 +55,31 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   of Windows' notification sounds, none, or your own audio file with a
   volume, and a Test button.
 
+### Changed
+
+- **Storage scans are about 80 times faster and count everything** — a whole
+  drive of eight million files is read in about seven minutes instead of
+  never finishing, and `Program Files` in six seconds instead of eight
+  minutes. There is no depth choice any more: every folder is counted, at
+  every depth, and the scan shows live progress and the folder it is reading.
+
+- CI takes about 8 minutes instead of 49: the Windows checks run as three
+  parallel jobs with their own caches, and a push that only changes the
+  website or prose skips the Rust jobs.
+- Scoop is available (`scoop bucket add vitals https://github.com/dragoscv/scoop-vitals`);
+  winget and Chocolatey are submitted and awaiting their moderators.
+
 ### Fixed
+
+- **OneDrive folders are counted** in storage scans; they used to be skipped.
+- **Stopping a scan no longer stops a cleanup search** (or the other way
+  round) — each has its own Stop button.
+- **Links are no longer reported as unreadable folders** — a scan that only
+  passed over shortcuts to other places is complete, and says how many it did
+  not follow.
+- **A shortcut to a file no longer counts as the file's size.**
+- **Scanning a drive scans the drive** — choosing C: could scan whichever
+  folder Vitals was started from instead.
 
 - The board's thermal zones are labelled as such, so a 28 °C chipset
   reading is no longer mistaken for the CPU temperature.
@@ -74,14 +88,6 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - The macOS build compiles again: the desktop overlay is transparent on
   Windows and Linux only, because on macOS a transparent window needs Tauri's
   private-API feature. macOS is built on every release but not yet published.
-
-### Changed
-
-- CI takes about 8 minutes instead of 49: the Windows checks run as three
-  parallel jobs with their own caches, and a push that only changes the
-  website or prose skips the Rust jobs.
-- Scoop is available (`scoop bucket add vitals https://github.com/dragoscv/scoop-vitals`);
-  winget and Chocolatey are submitted and awaiting their moderators.
 
 ## [0.9.0-beta.1] — 2026-09-28
 

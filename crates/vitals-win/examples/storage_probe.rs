@@ -17,8 +17,8 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicBool;
 
 use vitals_win::storage::{
-    ScanControl, ScanOptions, ScanProgress, ScanResult, ScanStrategy, find_cleanup_candidates,
-    largest_directories, scan_directory, strategy_for,
+    CellKind, Detail, ScanControl, ScanOptions, ScanProgress, ScanResult, ScanStrategy,
+    find_cleanup_candidates, icicle, largest_directories, scan_directory, strategy_for, treemap,
 };
 
 fn human(bytes: u64) -> String {
@@ -67,7 +67,20 @@ fn run_scan(root: &Path, cancel: &AtomicBool) -> ScanResult {
         progress: Some(&mut on_progress),
     };
 
-    scan_directory(root, ScanOptions::default(), &mut control)
+    // VITALS_PROBE_LARGEST=0 turns the largest-files list off, for an A/B of
+    // what keeping it costs.
+    let largest_files = std::env::var("VITALS_PROBE_LARGEST")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(ScanOptions::default().largest_files);
+    scan_directory(
+        root,
+        ScanOptions {
+            largest_files,
+            ..ScanOptions::default()
+        },
+        &mut control,
+    )
 }
 
 fn print_totals(result: &ScanResult) {
@@ -176,6 +189,61 @@ fn print_skipped(result: &ScanResult) {
     println!();
 }
 
+fn print_largest_files(result: &ScanResult) {
+    println!(
+        "== top 10 of the {} largest files kept ==",
+        result.largest_files.len()
+    );
+    for (i, file) in result.largest_files.iter().take(10).enumerate() {
+        println!(
+            "  {:>2}. {:>10}  {}",
+            i + 1,
+            human(file.allocated.get()),
+            result.path_of_file(file)
+        );
+    }
+    println!();
+}
+
+/// What the navigator costs: layout time and cell count at the root, and at
+/// the largest child, for both shapes. The UI asks for exactly these.
+fn print_maps(result: &ScanResult) {
+    println!("== map layouts (what the navigator is sent) ==");
+    let tree = &result.tree;
+    let mut foci = vec![tree.root()];
+    if let Some(first) = tree.children_by_size(tree.root()).first() {
+        foci.push(*first);
+    }
+    for focus in foci {
+        for shape in ["icicle", "treemap"] {
+            let started = std::time::Instant::now();
+            let cells = if shape == "icicle" {
+                icicle(tree, focus, Detail::default())
+            } else {
+                treemap(
+                    tree,
+                    focus,
+                    1.8,
+                    Detail {
+                        max_depth: 4,
+                        ..Detail::default()
+                    },
+                )
+            };
+            let elapsed = started.elapsed();
+            let smaller = cells.iter().filter(|c| c.kind == CellKind::Smaller).count();
+            println!(
+                "  {:<8} {:>5} cells ({smaller} folded) in {:>6.2} ms  at {}",
+                shape,
+                cells.len(),
+                elapsed.as_secs_f64() * 1000.0,
+                tree.path_of(focus)
+            );
+        }
+    }
+    println!();
+}
+
 fn print_cleanup(cancel: &AtomicBool) {
     println!("== cleanup candidates (report only — nothing is deleted) ==");
     let candidates = find_cleanup_candidates(Some(cancel));
@@ -220,6 +288,8 @@ fn main() {
     print_scan_stats(&result);
     print_largest(&result);
     print_skipped(&result);
+    print_largest_files(&result);
+    print_maps(&result);
     // Off with VITALS_PROBE_NO_CLEANUP=1, so a timing run measures the scan
     // and not seconds of cache sizing after it.
     if std::env::var_os("VITALS_PROBE_NO_CLEANUP").is_none() {

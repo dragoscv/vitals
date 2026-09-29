@@ -153,7 +153,7 @@ Status values: `todo`, `doing`, `done`, `blocked`, `dropped`.
 | S10   | Docs, ADRs, CI, supply-chain audits                                  | done except S10-12 (ARM64 leg unproven — needs a run on `windows-11-arm`, and agents never push)   |
 | S11   | Task Manager replacement, HUD overlay                                | done                                                                                               |
 | S12   | Look-and-feel redesign + the four backend truths it exposed          | done (S12-11 measured in CPU cycles: 23–24 ms on S12, 22–25 ms on the commit before it)            |
-| S14   | Storage: fast complete scans, navigation, cleanup, Turbo, extras     | doing (S14-01 engine done; 02 navigation next)                                                     |
+| S14   | Storage: fast complete scans, navigation, cleanup, Turbo, extras     | doing (S14-01 engine, S14-02 explore done; 03 recycle next)                                        |
 
 Per-item status lives in `tracker.csv`. This file records the reasoning; the
 CSV records the state.
@@ -161,6 +161,81 @@ CSV records the state.
 ---
 
 ## Verification log
+
+### 2026-09-29 — S14-02 Explore a finished scan: map, breadcrumb, list, largest files
+
+**Ask.** Slice 2 of S14: navigate the scan instead of reading a flat list.
+Decided with the user: the tree stays in Rust; icicle by default, treemap
+optional, a virtual list; Canvas 2D with the layout and level of detail
+computed in Rust (at most about 5,000 rectangles). Two more choices this
+slice (askQuestions): keep the tree until the next scan and release it after
+fifteen idle minutes; keep the 1,000 largest files.
+
+**What was built.**
+
+- _The tree is kept._ `scan_storage` stores the `ScanResult` (released
+  before the next walk starts, so two trees never coexist, and by a timer
+  after 15 minutes without a navigation request) and returns a `scanId`.
+  `get_storage_children(scanId, node)` answers the breadcrumb and the
+  subfolders largest first; `get_storage_map(scanId, node, shape, aspect)`
+  answers laid-out cells. A stale `scanId` is `not-found`, which the UI
+  explains ("no longer in memory") instead of showing an error.
+- _Layout in Rust_ (`storage/layout.rs`): an icicle and a squarified treemap
+  (Bruls et al.), each with a folder's own files as one block and folders too
+  small to see folded into "N smaller folders" rather than dropped, capped at
+  5,000 cells, breadth-first so the cap drops the deepest detail first.
+- _Largest files._ Files have no tree nodes, so the scan keeps a bounded
+  min-heap of the 1,000 largest by name. Workers copy a name only when the
+  file is at least the heap's current floor (an `AtomicU64` the merging
+  thread raises), so millions of small files never allocate a string. A
+  repeat hard link is never listed. Ties resolve by size, logical size, name,
+  so the list does not depend on which worker read what (tested: 1 vs 8
+  threads identical).
+- _UI_ (`Explorer.tsx`, `mapDraw.ts`): five views (Layers, Blocks, List,
+  Largest folders, Largest files); a breadcrumb with Up; a canvas map with a
+  hover line (name, size, share of the folder), an eased zoom onto the clicked
+  block (skipped under reduced motion), colours from the theme's chart tokens;
+  a virtualised folder list with share bars and a right-click menu (open,
+  show in File Explorer, copy path). The canvas is `role="img"`; every action
+  is also on the list, which is real buttons.
+
+**Found by looking at it** (debug build under its own identifier, CDP):
+
+- _Scanning "C:" walked the wrong folder._ The drive list reports `C:`
+  without a backslash, which Windows reads as the current directory on C, so
+  the Scan button reported eight files as the whole drive. Fixed at the
+  source: `scan_directory` normalises a bare drive letter to its root, for
+  every caller; tested against the real system drive (its root holds
+  `Windows`).
+- _The map received no clicks._ A fixed-height map overflowed its card and
+  the Clean-up card covered it. The map and list now share the card by flex,
+  and stacked the explorer gets three shares to Clean-up's one.
+- _Clicking a leaf in the icicle did nothing._ In an icicle the parent is in
+  the row above, not under the pointer; `openTarget` finds the openable
+  folder spanning the column (icicle) or containing the rectangle (treemap).
+
+**Measured** (this machine, unelevated):
+
+| What                            | Figure                                                            |
+| ------------------------------- | ----------------------------------------------------------------- |
+| `C:\Program Files` layout, root | icicle 408 cells 0.31 ms, treemap 2,465 cells 0.84 ms (Rust)      |
+| same, over IPC in the live app  | icicle 10 ms / 74 KB, treemap 35 ms / 451 KB                      |
+| largest-files cost, A/B x2      | 3,636 / 3,597 ms with vs 3,476 / 4,282 ms without: noise          |
+| whole `D:` through the UI       | 203,844 files, 767 GB of 770 GB used, 2.7 s                       |
+| storage chunk (gzip)            | 16.6 KB; all assets 405.4 of 417.7 KB, initial 191.5 KB unchanged |
+
+**Tests.** `vitals-win` storage 90/90 (layout: widths follow size, folded
+bytes still in the row total, hard cap, squarify tiles without overlap and
+under 3:1, children inside parents; largest files ordered, bounded, deep file
+found, off when 0, one name per hard link, thread-count independent; bare
+drive letter). Desktop vitest storage 82/82 (navigation, breadcrumb up, map shape
+requested, released scan explained, largest files reveal, map geometry and
+click targets). Mutation: removing `onOpen` from a list row turns "goes into a
+folder and back up" red. `verify.ps1 -SkipPerf` all gates; drift 0 (73/73).
+
+**Not in this slice** (their own slices): delete/recycle (S14-03), cleanup
+catalogue (S14-04), MFT Turbo and the saved index (S14-05), duplicates, types
+and old files (S14-06).
 
 ### 2026-09-29 — S14-01 A storage scan that counts everything, in seconds
 

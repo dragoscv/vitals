@@ -193,6 +193,39 @@ const en = {
     title: 'No readings are arriving',
     body: 'Vitals cannot reach the part of itself that reads the disk. Nothing is wrong with the machine — restarting Vitals usually fixes this.',
   },
+
+  explore: {
+    heading: 'Explore',
+    views: 'How to show the folders',
+    view: {
+      icicle: 'Layers',
+      treemap: 'Blocks',
+      list: 'List',
+      largest: 'Largest folders',
+      files: 'Largest files',
+    },
+    breadcrumb: 'Where you are',
+    up: 'Up one level',
+    open: 'Open {{name}}',
+    ownFiles_one: '{{n}} file directly in this folder',
+    ownFiles_other: '{{n}} files directly in this folder',
+    smaller_one: '{{n}} smaller folder',
+    smaller_other: '{{n}} smaller folders',
+    share: '{{percent}} of {{parent}}',
+    released:
+      'This scan is no longer in memory, so it cannot be explored. Vitals lets go of it after fifteen minutes unused. Scan again to explore.',
+    loading: 'Laying out…',
+    failed: 'Could not show this folder. {{message}}',
+    mapLabel:
+      'Map of {{path}}. Each block is a folder, sized by the space it uses. Use the list below to move with the keyboard.',
+    emptyFolder: 'This folder has no subfolders. Its files are counted in the total above.',
+    menu: {
+      open: 'Open here',
+      reveal: 'Show in File Explorer',
+      copy: 'Copy path',
+    },
+    filesEmpty: 'No files were large enough to list.',
+  },
 } as const;
 
 const ro = {
@@ -389,6 +422,42 @@ const ro = {
   noHost: {
     title: 'Nu sosesc măsurători',
     body: 'Vitals nu poate ajunge la partea din el care citește discul. Nu este nimic în neregulă cu mașina — de obicei repornirea aplicației Vitals rezolvă asta.',
+  },
+
+  explore: {
+    heading: 'Explorează',
+    views: 'Cum să fie afișate folderele',
+    view: {
+      icicle: 'Straturi',
+      treemap: 'Blocuri',
+      list: 'Listă',
+      largest: 'Cele mai mari foldere',
+      files: 'Cele mai mari fișiere',
+    },
+    breadcrumb: 'Unde te afli',
+    up: 'Un nivel mai sus',
+    open: 'Deschide {{name}}',
+    ownFiles_one: '{{n}} fișier direct în acest folder',
+    ownFiles_few: '{{n}} fișiere direct în acest folder',
+    ownFiles_other: '{{n}} de fișiere direct în acest folder',
+    smaller_one: '{{n}} folder mai mic',
+    smaller_few: '{{n}} foldere mai mici',
+    smaller_other: '{{n}} de foldere mai mici',
+    share: '{{percent}} din {{parent}}',
+    released:
+      'Această scanare nu mai este în memorie, așa că nu poate fi explorată. Vitals o eliberează după cincisprezece minute de nefolosire. Scanează din nou pentru a explora.',
+    loading: 'Se așază…',
+    failed: 'Folderul nu poate fi afișat. {{message}}',
+    mapLabel:
+      'Harta pentru {{path}}. Fiecare bloc este un folder, dimensionat după spațiul pe care îl ocupă. Folosește lista de mai jos pentru a naviga cu tastatura.',
+    emptyFolder:
+      'Acest folder nu are subfoldere. Fișierele lui sunt incluse în totalul de mai sus.',
+    menu: {
+      open: 'Deschide aici',
+      reveal: 'Arată în File Explorer',
+      copy: 'Copiază calea',
+    },
+    filesEmpty: 'Niciun fișier nu a fost destul de mare pentru a fi listat.',
   },
 } as const;
 

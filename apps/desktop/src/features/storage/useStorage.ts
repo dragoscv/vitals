@@ -21,7 +21,15 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { peekPrefetched, prefetch, takePrefetched } from '../../lib/prefetch';
 import { hasTauriHost } from '../../shell/host';
-import type { CleanupCandidate, ScanProgress, ScanSnapshot, Volume } from './model';
+import type {
+  CleanupCandidate,
+  MapCell,
+  MapShape,
+  ScanProgress,
+  ScanSnapshot,
+  StorageListing,
+  Volume,
+} from './model';
 import { errorMessage } from '../../lib/commandError';
 
 /** Reported when there is no Tauri host, so the screen can explain itself. */
@@ -41,6 +49,17 @@ export interface StorageSource {
   readonly cancelCleanup: () => Promise<void>;
   /** Subscribes to scan progress; resolves to the unsubscribe function. */
   readonly onProgress: (listener: (progress: ScanProgress) => void) => Promise<() => void>;
+  /** Opens one folder of the kept scan. Rejects once the scan is released. */
+  readonly children: (scanId: number, node: number) => Promise<StorageListing>;
+  /** Lays out the map of one folder; `aspect` is width over height. */
+  readonly map: (
+    scanId: number,
+    node: number,
+    shape: MapShape,
+    aspect: number,
+  ) => Promise<readonly MapCell[]>;
+  /** Opens File Explorer with the item selected. */
+  readonly reveal: (path: string) => Promise<void>;
 }
 
 /** The real source. Dynamic imports so a browser never evaluates the IPC module. */
@@ -70,6 +89,18 @@ export const tauriSource: StorageSource = {
     return listen<ScanProgress>(SCAN_PROGRESS_EVENT, (event) => {
       listener(event.payload);
     });
+  },
+  children: async (scanId, node) => {
+    const { invoke } = await import('@tauri-apps/api/core');
+    return invoke<StorageListing>('get_storage_children', { scanId, node });
+  },
+  map: async (scanId, node, shape, aspect) => {
+    const { invoke } = await import('@tauri-apps/api/core');
+    return invoke<readonly MapCell[]>('get_storage_map', { scanId, node, shape, aspect });
+  },
+  reveal: async (path) => {
+    const { invoke } = await import('@tauri-apps/api/core');
+    return invoke<void>('open_file_location', { path });
   },
 };
 

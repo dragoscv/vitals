@@ -1453,6 +1453,90 @@ static SCAN: Operation = Operation::new();
 #[cfg(windows)]
 static CLEANUP: Operation = Operation::new();
 
+/// The last scan's tree, kept so it can be navigated without scanning again.
+///
+/// A full `C:` is about 230 MB of tree, so it is not kept forever: it goes
+/// when the next scan starts (before that scan allocates its own, so two
+/// never coexist) and after [`KEEP_IDLE`] without a navigation request. The
+/// user decided this trade on 2026-09-29: instant navigation while in use,
+/// normal memory once the app sits in the tray.
+#[cfg(windows)]
+struct StoredScan {
+    id: u64,
+    result: vitals_win::storage::ScanResult,
+    last_used: std::time::Instant,
+}
+
+#[cfg(windows)]
+static STORED: std::sync::Mutex<Option<StoredScan>> = std::sync::Mutex::new(None);
+#[cfg(windows)]
+static NEXT_SCAN_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+#[cfg(windows)]
+const KEEP_IDLE: std::time::Duration = std::time::Duration::from_secs(15 * 60);
+
+#[cfg(windows)]
+fn stored() -> std::sync::MutexGuard<'static, Option<StoredScan>> {
+    STORED
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
+/// Runs `f` against the stored scan if `scan_id` is still the one kept.
+#[cfg(windows)]
+fn with_scan<T>(
+    scan_id: u64,
+    f: impl FnOnce(&vitals_win::storage::ScanResult) -> CommandResult<T>,
+) -> CommandResult<T> {
+    let mut guard = stored();
+    match guard.as_mut() {
+        Some(scan) if scan.id == scan_id => {
+            scan.last_used = std::time::Instant::now();
+            f(&scan.result)
+        }
+        // A node id means nothing in another tree, so a stale request is
+        // refused rather than answered from whichever scan is current.
+        _ => Err(CommandError::NotFound {
+            message: "this scan is no longer in memory; scan again to explore it".into(),
+        }),
+    }
+}
+
+/// Keeps `result` and starts the idle timer that will release it.
+#[cfg(windows)]
+fn keep_scan(result: vitals_win::storage::ScanResult) -> u64 {
+    let id = NEXT_SCAN_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    *stored() = Some(StoredScan {
+        id,
+        result,
+        last_used: std::time::Instant::now(),
+    });
+    // One janitor per kept scan; it exits as soon as its scan is replaced.
+    // A minute's resolution is plenty for a fifteen-minute deadline.
+    let spawned = std::thread::Builder::new()
+        .name("vitals-storage-release".into())
+        .spawn(move || {
+            loop {
+                std::thread::sleep(std::time::Duration::from_secs(60));
+                let mut guard = stored();
+                match guard.as_ref() {
+                    Some(scan) if scan.id == id => {
+                        if scan.last_used.elapsed() >= KEEP_IDLE {
+                            *guard = None;
+                            return;
+                        }
+                    }
+                    _ => return,
+                }
+            }
+        });
+    if let Err(err) = spawned {
+        // Without the timer the tree stays until the next scan: more memory,
+        // never a wrong answer.
+        tracing::warn!(%err, "storage release timer did not start");
+    }
+    id
+}
+
 /// Event carrying [`ScanProgressDto`] while a scan runs.
 #[cfg(windows)]
 pub const SCAN_PROGRESS_EVENT: &str = "vitals://storage/scan-progress";
@@ -1588,6 +1672,23 @@ pub struct ScanSnapshot {
     /// Links (junctions, symlinks, mount points) recorded rather than
     /// followed. Not gaps: their targets are counted where they live.
     pub links_not_followed: usize,
+    /// Identifies the kept tree for [`get_storage_children`] and
+    /// [`get_storage_map`]. A node id only means something inside its scan.
+    pub scan_id: u64,
+    /// The root directory's node, where navigation starts.
+    pub root_node: u32,
+    /// The largest individual files anywhere under the root, largest first.
+    pub largest_files: Vec<LargeFileDto>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LargeFileDto {
+    pub path: String,
+    pub allocated: u64,
+    pub logical: u64,
+    /// The folder it is in, so the UI can open the map there.
+    pub dir_node: u32,
 }
 
 /// How many skipped paths travel over the wire.
@@ -1628,6 +1729,9 @@ pub async fn scan_storage(
     }
 
     let guard = SCAN.begin("a storage scan")?;
+    // Released before the walk, not after: otherwise the old tree and the
+    // new one would both be in memory at the end of a full-drive scan.
+    *stored() = None;
 
     let root = path.clone();
     // `spawn_blocking`, not inline: a multi-second synchronous walk on an
@@ -1680,7 +1784,10 @@ pub async fn scan_storage(
         .collect();
     let links_not_followed = result.tree.skipped().len() - skipped.len();
 
-    Ok(ScanSnapshot {
+    let largest_files = large_file_dtos(&result);
+    let root_node = result.tree.root().0;
+
+    let snapshot = ScanSnapshot {
         root,
         largest: largest
             .iter()
@@ -1713,7 +1820,31 @@ pub async fn scan_storage(
             .collect(),
         skipped_total: skipped.len(),
         links_not_followed,
+        scan_id: 0,
+        root_node,
+        largest_files,
+    };
+    drop(skipped);
+    let scan_id = keep_scan(result);
+    Ok(ScanSnapshot {
+        scan_id,
+        ..snapshot
     })
+}
+
+/// The scan's largest files with their full paths rebuilt.
+#[cfg(windows)]
+fn large_file_dtos(result: &vitals_win::storage::ScanResult) -> Vec<LargeFileDto> {
+    result
+        .largest_files
+        .iter()
+        .map(|file| LargeFileDto {
+            path: result.path_of_file(file),
+            allocated: file.allocated.0,
+            logical: file.logical.0,
+            dir_node: file.dir.0,
+        })
+        .collect()
 }
 
 /// Stable translation key for a skip reason.
@@ -1756,6 +1887,171 @@ pub fn cancel_cleanup_search() {
     CLEANUP
         .cancel
         .store(true, std::sync::atomic::Ordering::Release);
+}
+
+/// One folder as the navigator shows it.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StorageNodeDto {
+    pub node: u32,
+    pub name: String,
+    pub path: String,
+    pub allocated: u64,
+    pub logical: u64,
+    pub files: u64,
+    /// Bytes in files directly inside this folder, not below it.
+    pub own_allocated: u64,
+    pub own_files: u64,
+    pub has_children: bool,
+    pub incomplete: Option<&'static str>,
+}
+
+/// A folder, the way to it, and what it contains.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StorageListingDto {
+    /// Root first, ending with the folder itself — the breadcrumb.
+    pub ancestry: Vec<StorageNodeDto>,
+    /// Subfolders, largest first. Every one: a virtual list draws only what
+    /// is visible, and a folder with 40,000 subfolders is real
+    /// (`WinSxS` has 25,000).
+    pub children: Vec<StorageNodeDto>,
+}
+
+#[cfg(windows)]
+fn node_dto(
+    tree: &vitals_win::storage::SizeTree,
+    id: vitals_win::storage::NodeId,
+) -> Option<StorageNodeDto> {
+    let node = tree.node(id)?;
+    Some(StorageNodeDto {
+        node: id.0,
+        name: tree.name_of(id).to_owned(),
+        path: tree.path_of(id),
+        allocated: node.allocated().0,
+        logical: node.logical().0,
+        files: node.file_count(),
+        own_allocated: node.own_allocated().0,
+        own_files: node.own_files(),
+        has_children: node.has_children(),
+        incomplete: node.skipped().map(skip_reason),
+    })
+}
+
+#[cfg(windows)]
+fn unknown_node() -> CommandError {
+    CommandError::NotFound {
+        message: "that folder is not part of this scan".into(),
+    }
+}
+
+/// Opens one folder of the kept scan.
+#[tauri::command]
+#[cfg(windows)]
+pub fn get_storage_children(scan_id: u64, node: u32) -> CommandResult<StorageListingDto> {
+    use vitals_win::storage::NodeId;
+    with_scan(scan_id, |result| {
+        let tree = &result.tree;
+        let id = NodeId(node);
+        tree.node(id).ok_or_else(unknown_node)?;
+        Ok(StorageListingDto {
+            ancestry: tree
+                .ancestry(id)
+                .into_iter()
+                .filter_map(|a| node_dto(tree, a))
+                .collect(),
+            children: tree
+                .children_by_size(id)
+                .into_iter()
+                .filter_map(|c| node_dto(tree, c))
+                .collect(),
+        })
+    })
+}
+
+/// One rectangle of the map. Coordinates are fractions of the area.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MapCellDto {
+    /// `directory` | `files` | `smaller`.
+    pub kind: &'static str,
+    pub node: u32,
+    pub depth: u16,
+    pub x0: f32,
+    pub y0: f32,
+    pub x1: f32,
+    pub y1: f32,
+    pub allocated: u64,
+    pub count: u64,
+    pub openable: bool,
+    /// Only for directories: the tooltip and the list both need it, and a
+    /// few thousand short names are cheap next to a second round trip.
+    pub name: Option<String>,
+    pub incomplete: Option<&'static str>,
+}
+
+/// Lays out the map of one folder of the kept scan.
+///
+/// `shape` is `icicle` or `treemap`; `aspect` is the canvas width over its
+/// height, which only the treemap needs. Level of detail is decided here: at
+/// most 5,000 cells, anything narrower than about two pixels folded into one.
+#[tauri::command]
+#[cfg(windows)]
+pub fn get_storage_map(
+    scan_id: u64,
+    node: u32,
+    shape: &str,
+    aspect: f64,
+) -> CommandResult<Vec<MapCellDto>> {
+    use vitals_win::storage::{CellKind, Detail, NodeId, icicle, treemap};
+    with_scan(scan_id, |result| {
+        let tree = &result.tree;
+        let id = NodeId(node);
+        tree.node(id).ok_or_else(unknown_node)?;
+        let cells = match shape {
+            "icicle" => icicle(tree, id, Detail::default()),
+            "treemap" => treemap(
+                tree,
+                id,
+                aspect,
+                Detail {
+                    max_depth: 4,
+                    ..Detail::default()
+                },
+            ),
+            other => {
+                return Err(CommandError::NotFound {
+                    message: format!("unknown map shape {other:?}"),
+                });
+            }
+        };
+        // Fractions go out as f32: a 4-byte float resolves a 16,000-pixel
+        // canvas to well under a pixel, and it halves the payload.
+        #[allow(clippy::cast_possible_truncation)]
+        let to_f32 = |v: f64| v as f32;
+        Ok(cells
+            .into_iter()
+            .map(|cell| MapCellDto {
+                kind: match cell.kind {
+                    CellKind::Directory => "directory",
+                    CellKind::Files => "files",
+                    CellKind::Smaller => "smaller",
+                },
+                name: (cell.kind == CellKind::Directory)
+                    .then(|| tree.name_of(cell.node).to_owned()),
+                node: cell.node.0,
+                depth: cell.depth,
+                x0: to_f32(cell.x0),
+                y0: to_f32(cell.y0),
+                x1: to_f32(cell.x1),
+                y1: to_f32(cell.y1),
+                allocated: cell.allocated,
+                count: cell.count,
+                openable: cell.openable,
+                incomplete: cell.incomplete.map(skip_reason),
+            })
+            .collect())
+    })
 }
 
 #[derive(Debug, Clone, Serialize)]

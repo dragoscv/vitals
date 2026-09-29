@@ -239,6 +239,10 @@ fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
         inventory::find_cleanup_candidates,
         #[cfg(windows)]
         inventory::cancel_cleanup_search,
+        #[cfg(windows)]
+        inventory::get_storage_children,
+        #[cfg(windows)]
+        inventory::get_storage_map,
         // Benchmarks. The extreme case of the on-demand argument above:
         // a suite occupies every core for seconds, so it is only ever
         // started by the user from its own screen.

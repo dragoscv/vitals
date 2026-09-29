@@ -104,6 +104,64 @@ export interface ScanSnapshot {
   readonly skippedTotal: number;
   /** Links recorded rather than followed; not gaps in the totals. */
   readonly linksNotFollowed: number;
+  /** Identifies the tree kept in memory for navigation. */
+  readonly scanId: number;
+  /** Where navigation starts. */
+  readonly rootNode: number;
+  /** The largest individual files anywhere under the root, largest first. */
+  readonly largestFiles: readonly LargeFile[];
+}
+
+export interface LargeFile {
+  readonly path: string;
+  readonly allocated: number;
+  readonly logical: number;
+  /** The folder it is in, for "show in map". */
+  readonly dirNode: number;
+}
+
+/** One folder of a kept scan (`StorageNodeDto`). */
+export interface StorageNode {
+  readonly node: number;
+  readonly name: string;
+  readonly path: string;
+  readonly allocated: number;
+  readonly logical: number;
+  readonly files: number;
+  /** Files directly inside this folder, not below it. */
+  readonly ownAllocated: number;
+  readonly ownFiles: number;
+  readonly hasChildren: boolean;
+  readonly incomplete: SkipReasonKey | null;
+}
+
+export interface StorageListing {
+  /** Root first, ending with the folder itself. */
+  readonly ancestry: readonly StorageNode[];
+  /** Largest first. */
+  readonly children: readonly StorageNode[];
+}
+
+export type MapShape = 'icicle' | 'treemap';
+export const mapShapes: readonly MapShape[] = ['icicle', 'treemap'];
+
+export type MapCellKind = 'directory' | 'files' | 'smaller';
+
+/** One rectangle; coordinates are fractions of the drawing area. */
+export interface MapCell {
+  readonly kind: MapCellKind;
+  readonly node: number;
+  readonly depth: number;
+  readonly x0: number;
+  readonly y0: number;
+  readonly x1: number;
+  readonly y1: number;
+  readonly allocated: number;
+  /** Files for a folder or files block; folders for a "smaller" block. */
+  readonly count: number;
+  readonly openable: boolean;
+  readonly name: string | null;
+  readonly incomplete: SkipReasonKey | null;
 }
 
 export interface CleanupCandidate {
