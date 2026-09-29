@@ -92,6 +92,10 @@ if (-not $SkipPerf) {
     # measure the compiler's lack of optimisation rather than our code.
     $rust += @{ Name = 'rust: perf budget'; Script = 'cargo test -p vitals-win --release --test overhead -- --nocapture' }
 }
+# Last in the lane, after every cargo command has written what it will.
+# Pruning here is what keeps target/ from growing without bound; the gate
+# then fails only on what pruning cannot fix (a real regression).
+$rust += @{ Name = 'rust: target size budget'; Script = 'pwsh -NoProfile -File scripts/check-target-size.ps1 -Prune' }
 
 $ts = @(
     @{ Name = 'ts: typecheck + lint + tests'; Script = "pnpm exec turbo run typecheck lint test --output-logs=errors-only $forceFlag" }

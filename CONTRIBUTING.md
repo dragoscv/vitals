@@ -54,6 +54,7 @@ cargo fmt --all; cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 pnpm exec turbo run typecheck lint test   # in parallel, cached; then pnpm format:check
 pwsh -NoProfile -File scripts/check-size.ps1 -SkipInstaller
+pwsh -NoProfile -File scripts/check-target-size.ps1 -Prune   # target/ budget; drops units unused 7 days
 ```
 
 `check-drift.ps1` looks for the things two separately-compiled sides cannot

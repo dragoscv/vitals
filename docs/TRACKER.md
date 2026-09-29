@@ -163,6 +163,50 @@ CSV records the state.
 
 ## Verification log
 
+### 2026-09-29 — S13-14 target/ size: why it reached 90 GB, and the gate
+
+**Ask.** Find out why `target/` folders were enormous (90.8 GB in the main
+clone, 41 GB in HIDE, 29 GB in a worktree a day old) and fix it with a budget
+gate rather than a one-off delete.
+
+**Root cause, measured on the 29 GB worktree.** `incremental` was 15.3 GB in
+389 unit folders, up to 24 for a single crate. Each `<crate>-<hash>` folder is
+one compilation unit; rustc garbage-collects old sessions _inside_ a unit, but
+a new rustc, a dependency bump or a feature change produces a new hash and the
+old unit is abandoned for ever. Second cause: `apps/desktop/src-tauri` built
+as `staticlib` + `cdylib` + `rlib`, so every build linked the whole app into a
+1.26 GB `.lib` and a 491 MB library twice more. Those crate types exist for
+Tauri's mobile targets, which Vitals does not build.
+
+**Fix.** `crate-type = ["rlib"]`; `[profile.dev.package."*"] debug =
+"line-tables-only"` (backtraces keep file and line, the DWARF for other
+people's crates goes); `scripts/check-target-size.ps1`, last gate of the Rust
+lane in `verify.ps1`, prunes units untouched for 7 days and fails over the
+`targetDebugBytes` / `incrementalSessionsPerCrate` budgets in
+`size-budget.json`, or when `vitals_desktop_lib.lib` reappears. Keeping only
+the newest unit per crate (the first draft) would have been wrong: a crate's
+clippy, lib and test builds are separate live units, and a fresh build has
+eight of them for `vitals_sensors`.
+
+**Verification.**
+
+```text
+fresh target: clippy 434 s, test build 656 s, app build 829 s
+target/debug: 9,87 GB
+  incremental  3,13 GB
+  deps         4,53 GB
+  build        1,08 GB
+  examples     502 MB
+  most incremental units: vitals_sensors x8
+Within budget.                                   baseline exit=0
+vitals_desktop_lib.lib exists ...                staticlib exit=1
+vitals_fake has 11 incremental units (budget 10) units exit=1
+Pruned 11 incremental units unused for 7 days    prune exit=0, 0 left
+```
+
+Budgets set from that measurement: 15 GB (about 1.5x a fresh build) and 10
+units per crate.
+
 ### 2026-09-29 — S14-04 Windows-managed space, freed by Windows' own tools
 
 **Ask.** Slice 4 of S14: from the "Reclaimable space" card, free the space

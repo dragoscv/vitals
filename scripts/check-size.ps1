@@ -183,6 +183,15 @@ if ($Update -or -not (Test-Path $budgetFile)) {
         $budget[$key] = [math]::Ceiling($measured[$key] * 1.05)
     }
 
+    # Budgets this script does not measure (check-target-size.ps1 owns
+    # `targetDebugBytes` and `incrementalSessionsPerCrate`) survive a rewrite.
+    if (Test-Path $budgetFile) {
+        $existing = Get-Content $budgetFile -Raw | ConvertFrom-Json
+        foreach ($prop in $existing.PSObject.Properties) {
+            if (-not $budget.Contains($prop.Name)) { $budget[$prop.Name] = $prop.Value }
+        }
+    }
+
     $budget | ConvertTo-Json | Set-Content -Encoding utf8 $budgetFile
     Write-Host "Budgets written to $budgetFile (current + 5% headroom)." -ForegroundColor Yellow
     if (-not $Update) { Write-Host 'Re-run without -Update to check against them.' }
