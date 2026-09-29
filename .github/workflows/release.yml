@@ -830,7 +830,7 @@ jobs:
           status: completed
       # Android TV has its own form-factor track too: `tv:qa` is its internal
       # testing, as `wear:qa` is the watch's.
-      - uses: r0adkll/upload-google-play@v1
+      - uses: r0adkll/upload-google-play@e738b9dd8f2476ea806d921b64aacd24f34515a5 # v1
         with:
           serviceAccountJson: ${{ steps.gcp.outputs.credentials_file_path }}
           packageName: app.vitals
