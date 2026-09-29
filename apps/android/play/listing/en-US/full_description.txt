@@ -1,0 +1,23 @@
+Vitals shows what your phone, your watch and your PC are really doing, in words a person can read, and never invents a number it could not measure.
+
+THIS PHONE
+• Processor load per core cluster, clock speeds and temperature
+• Graphics load and clock where the phone reports them
+• Memory in use and how close Android is to closing apps
+• Battery: charge, health, temperature, voltage, current and charge cycles
+• Storage: a map of what fills your phone, the largest folders and files, and a cleanup you review before anything is deleted
+• Apps: time on screen and data used by each app over the last 24 hours
+• Every sensor the phone has, live
+• A week of history and alerts when something runs hot, low or full
+
+YOUR WATCH
+The Wear OS app monitors the watch itself, with a tile and complications, and shows your PCs on your wrist.
+
+YOUR PC (optional)
+Pair a Windows PC running Vitals by scanning its QR code. See its processor, graphics, memory, temperatures and processes, get alerts, wake it from sleep, and with a control pairing end or suspend a process that has stopped responding. Everything stays on your local network.
+
+HONEST BY DESIGN
+• If a reading cannot be measured, Vitals shows a dash, never a made-up zero
+• No ads, no analytics, no account, no tracking
+• Usage access and all-files access are optional; each feature that needs one says so and stays empty until you grant it
+• Free and open source (MIT): github.com/dragoscv/vitals
