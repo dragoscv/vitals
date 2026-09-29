@@ -16,14 +16,14 @@ The standard texts: [MIT](https://opensource.org/license/mit),
 Microsoft Edge WebView2 is a component of Windows, installed and licensed by
 Microsoft; Vitals does not redistribute it.
 
-## Rust crates (388)
+## Rust crates (387)
 
 | Component | Version | Licence |
 | --- | --- | --- |
 | [adler2](https://github.com/oyvindln/adler2) | 2.0.1 | 0BSD OR MIT OR Apache-2.0 |
 | [aho-corasick](https://github.com/BurntSushi/aho-corasick) | 1.1.5 | Unlicense OR MIT |
-| [alloc-no-stdlib](https://github.com/dropbox/rust-alloc-no-stdlib) | 2.0.4 | BSD-3-Clause |
-| [alloc-stdlib](https://github.com/dropbox/rust-alloc-no-stdlib) | 0.2.4 | BSD-3-Clause |
+| [alloc-no-stdlib](https://github.com/dropbox/rust-alloc-no-stdlib) | 3.0.0 | BSD-3-Clause |
+| [alloc-stdlib](https://github.com/dropbox/rust-alloc-no-stdlib) | 0.3.0 | BSD-3-Clause |
 | [anstream](https://github.com/rust-cli/anstyle.git) | 1.0.0 | MIT OR Apache-2.0 |
 | [anstyle](https://github.com/rust-cli/anstyle.git) | 1.0.14 | MIT OR Apache-2.0 |
 | [anstyle-parse](https://github.com/rust-cli/anstyle.git) | 1.0.0 | MIT OR Apache-2.0 |
@@ -41,8 +41,9 @@ Microsoft; Vitals does not redistribute it.
 | [bitflags](https://github.com/bitflags/bitflags) | 1.3.2 | MIT OR Apache-2.0 |
 | [bitflags](https://github.com/bitflags/bitflags) | 2.13.2 | MIT OR Apache-2.0 |
 | [block-buffer](https://github.com/RustCrypto/utils) | 0.10.4 | MIT OR Apache-2.0 |
-| [brotli](https://github.com/dropbox/rust-brotli) | 8.0.4 | BSD-3-Clause AND MIT |
-| [brotli-decompressor](https://github.com/dropbox/rust-brotli-decompressor) | 5.0.3 | BSD-3-Clause OR MIT |
+| [block-buffer](https://github.com/RustCrypto/utils) | 0.12.1 | MIT OR Apache-2.0 |
+| [brotli](https://github.com/dropbox/rust-brotli) | 9.0.0 | BSD-3-Clause AND MIT |
+| [brotli-decompressor](https://github.com/dropbox/rust-brotli-decompressor) | 6.0.1 | BSD-3-Clause OR MIT |
 | [bs58](https://github.com/Nullus157/bs58-rs) | 0.5.1 | MIT OR Apache-2.0 |
 | [bytemuck](https://github.com/Lokathor/bytemuck) | 1.25.2 | Zlib OR Apache-2.0 OR MIT |
 | [byteorder](https://github.com/BurntSushi/byteorder) | 1.5.0 | Unlicense OR MIT |
@@ -51,29 +52,32 @@ Microsoft; Vitals does not redistribute it.
 | [camino](https://github.com/camino-rs/camino) | 1.2.5 | MIT OR Apache-2.0 |
 | [cargo_metadata](https://github.com/oli-obk/cargo_metadata) | 0.19.2 | MIT |
 | [cargo-platform](https://github.com/rust-lang/cargo) | 0.1.9 | MIT OR Apache-2.0 |
+| [cfb](https://github.com/mdsteele/rust-cfb) | 0.14.0 | MIT |
 | [cfb](https://github.com/mdsteele/rust-cfb) | 0.7.3 | MIT |
 | [cfg-if](https://github.com/rust-lang/cfg-if) | 1.0.4 | MIT OR Apache-2.0 |
 | [chrono](https://github.com/chronotope/chrono) | 0.4.45 | MIT OR Apache-2.0 |
-| [clap](https://github.com/clap-rs/clap) | 4.6.6 | MIT OR Apache-2.0 |
-| [clap_builder](https://github.com/clap-rs/clap) | 4.6.6 | MIT OR Apache-2.0 |
-| [clap_derive](https://github.com/clap-rs/clap) | 4.6.4 | MIT OR Apache-2.0 |
+| [clap](https://github.com/clap-rs/clap) | 4.6.7 | MIT OR Apache-2.0 |
+| [clap_builder](https://github.com/clap-rs/clap) | 4.6.7 | MIT OR Apache-2.0 |
+| [clap_derive](https://github.com/clap-rs/clap) | 4.6.7 | MIT OR Apache-2.0 |
 | [clap_lex](https://github.com/clap-rs/clap) | 1.1.0 | MIT OR Apache-2.0 |
 | [colorchoice](https://github.com/rust-cli/anstyle.git) | 1.0.5 | MIT OR Apache-2.0 |
-| [comfy-table](https://github.com/nukesor/comfy-table) | 8.0.0 | MIT |
+| [comfy-table](https://github.com/nukesor/comfy-table) | 8.0.1 | MIT |
+| [const-oid](https://github.com/RustCrypto/formats) | 0.10.2 | Apache-2.0 OR MIT |
 | [convert_case](https://github.com/rutrum/convert-case) | 0.10.0 | MIT |
 | [cookie](https://github.com/SergioBenitez/cookie-rs) | 0.18.2 | MIT OR Apache-2.0 |
 | [cookie_store](https://github.com/pfernie/cookie_store) | 0.22.1 | MIT OR Apache-2.0 |
 | [cpufeatures](https://github.com/RustCrypto/utils) | 0.2.17 | MIT OR Apache-2.0 |
+| [cpufeatures](https://github.com/RustCrypto/utils) | 0.3.1 | MIT OR Apache-2.0 |
 | [crc32fast](https://github.com/srijs/rust-crc32fast) | 1.5.1 | MIT OR Apache-2.0 |
 | [crossbeam-channel](https://github.com/crossbeam-rs/crossbeam) | 0.5.17 | MIT OR Apache-2.0 |
 | [crossbeam-utils](https://github.com/crossbeam-rs/crossbeam) | 0.8.23 | MIT OR Apache-2.0 |
 | [crossterm](https://github.com/crossterm-rs/crossterm) | 0.29.0 | MIT |
 | [crossterm_winapi](https://github.com/crossterm-rs/crossterm-winapi) | 0.9.1 | MIT |
 | [crypto-common](https://github.com/RustCrypto/traits) | 0.1.7 | MIT OR Apache-2.0 |
-| [cssparser](https://github.com/servo/rust-cssparser) | 0.36.0 | MPL-2.0 |
-| [cssparser-macros](https://github.com/servo/rust-cssparser) | 0.6.1 | MPL-2.0 |
-| [ctor](https://github.com/mmastrac/rust-ctor) | 0.8.0 | Apache-2.0 OR MIT |
-| [ctor-proc-macro](https://github.com/mmastrac/rust-ctor) | 0.0.7 | Apache-2.0 OR MIT |
+| [crypto-common](https://github.com/RustCrypto/traits) | 0.2.2 | MIT OR Apache-2.0 |
+| [cssparser](https://github.com/servo/rust-cssparser) | 0.37.0 | MPL-2.0 |
+| [cssparser-macros](https://github.com/servo/rust-cssparser) | 0.7.1 | MPL-2.0 |
+| [ctor](https://github.com/mmastrac/linktime) | 1.0.13 | Apache-2.0 OR MIT |
 | [darling](https://github.com/TedDriggs/darling) | 0.24.1 | MIT |
 | [darling_core](https://github.com/TedDriggs/darling) | 0.24.1 | MIT |
 | [darling_macro](https://github.com/TedDriggs/darling) | 0.24.1 | MIT |
@@ -85,17 +89,16 @@ Microsoft; Vitals does not redistribute it.
 | [derive_more](https://github.com/JelteF/derive_more) | 2.1.1 | MIT |
 | [derive_more-impl](https://github.com/JelteF/derive_more) | 2.1.1 | MIT |
 | [digest](https://github.com/RustCrypto/traits) | 0.10.7 | MIT OR Apache-2.0 |
-| [dirs](https://github.com/soc/dirs-rs) | 6.0.0 | MIT OR Apache-2.0 |
+| [digest](https://github.com/RustCrypto/traits) | 0.11.3 | MIT OR Apache-2.0 |
+| [dirs](https://codeberg.org/dirs/dirs-rs) | 7.0.0 | MIT OR Apache-2.0 |
 | [dirs-sys](https://github.com/dirs-dev/dirs-sys-rs) | 0.5.0 | MIT OR Apache-2.0 |
 | [displaydoc](https://github.com/yaahc/displaydoc) | 0.2.7 | MIT OR Apache-2.0 |
 | [doctest-file](https://codeberg.org/Goat7658/doctest-file) | 1.1.1 | 0BSD |
 | [document-features](https://github.com/slint-ui/document-features) | 0.2.12 | MIT OR Apache-2.0 |
-| [dom_query](https://github.com/niklak/dom_query) | 0.27.0 | MIT |
+| [dom_query](https://github.com/niklak/dom_query) | 0.28.0 | MIT |
 | [dpi](https://github.com/rust-windowing/winit) | 0.1.2 | Apache-2.0 AND MIT |
 | [dtoa](https://github.com/dtolnay/dtoa) | 1.0.11 | MIT OR Apache-2.0 |
 | [dtoa-short](https://github.com/upsuper/dtoa-short) | 0.3.5 | MPL-2.0 |
-| [dtor](https://github.com/mmastrac/rust-ctor) | 0.3.0 | Apache-2.0 OR MIT |
-| [dtor-proc-macro](https://github.com/mmastrac/rust-ctor) | 0.0.6 | Apache-2.0 OR MIT |
 | [dunce](https://gitlab.com/kornelski/dunce) | 1.0.5 | CC0-1.0 OR MIT-0 OR Apache-2.0 |
 | [dyn-clone](https://github.com/dtolnay/dyn-clone) | 1.0.20 | MIT OR Apache-2.0 |
 | [equivalent](https://github.com/indexmap-rs/equivalent) | 1.0.2 | Apache-2.0 OR MIT |
@@ -127,12 +130,13 @@ Microsoft; Vitals does not redistribute it.
 | [hashlink](https://github.com/djc/hashlink) | 0.12.2 | MIT OR Apache-2.0 |
 | [heck](https://github.com/withoutboats/heck) | 0.5.0 | MIT OR Apache-2.0 |
 | [hex](https://github.com/KokaKiwi/rust-hex) | 0.4.3 | MIT OR Apache-2.0 |
-| [html5ever](https://github.com/servo/html5ever) | 0.38.0 | MIT OR Apache-2.0 |
+| [html5ever](https://github.com/servo/html5ever) | 0.39.0 | MIT OR Apache-2.0 |
 | [http](https://github.com/hyperium/http) | 1.5.0 | MIT OR Apache-2.0 |
 | [http-body](https://github.com/hyperium/http-body) | 1.1.0 | MIT |
 | [http-body-util](https://github.com/hyperium/http-body) | 0.1.5 | MIT |
 | [httparse](https://github.com/seanmonstar/httparse) | 1.10.1 | MIT OR Apache-2.0 |
 | [httpdate](https://github.com/pyfisch/httpdate) | 1.0.3 | MIT OR Apache-2.0 |
+| [hybrid-array](https://github.com/RustCrypto/hybrid-array) | 0.4.15 | MIT OR Apache-2.0 |
 | [hyper](https://github.com/hyperium/hyper) | 1.11.1 | MIT |
 | [hyper-rustls](https://github.com/rustls/hyper-rustls) | 0.27.9 | Apache-2.0 OR ISC OR MIT |
 | [hyper-util](https://github.com/hyperium/hyper-util) | 0.1.20 | MIT |
@@ -152,6 +156,7 @@ Microsoft; Vitals does not redistribute it.
 | [indexmap](https://github.com/bluss/indexmap) | 1.9.3 | Apache-2.0 OR MIT |
 | [indexmap](https://github.com/indexmap-rs/indexmap) | 2.14.2 | Apache-2.0 OR MIT |
 | [infer](https://github.com/bojand/infer) | 0.19.0 | MIT |
+| [infer](https://github.com/bojand/infer) | 0.22.0 | MIT |
 | [interprocess](https://github.com/kotauskas/interprocess) | 2.4.4 | 0BSD OR Apache-2.0 |
 | [ipnet](https://github.com/krisprice/ipnet) | 2.12.2 | MIT OR Apache-2.0 |
 | [is_terminal_polyfill](https://github.com/polyfill-rs/is_terminal_polyfill) | 1.70.2 | MIT OR Apache-2.0 |
@@ -160,9 +165,9 @@ Microsoft; Vitals does not redistribute it.
 | [jiff-core](https://github.com/BurntSushi/jiff) | 0.1.0 | Unlicense OR MIT |
 | [jiff-tzdb](https://github.com/BurntSushi/jiff) | 0.1.8 | Unlicense OR MIT |
 | [jiff-tzdb-platform](https://github.com/BurntSushi/jiff) | 0.1.3 | Unlicense OR MIT |
-| [json-patch](https://github.com/idubrov/json-patch) | 3.0.1 | MIT OR Apache-2.0 |
-| [jsonptr](https://github.com/chanced/jsonptr) | 0.6.3 | MIT OR Apache-2.0 |
-| [keyboard-types](https://github.com/pyfisch/keyboard-types) | 0.7.0 | MIT OR Apache-2.0 |
+| [json-patch](https://github.com/idubrov/json-patch) | 4.2.0 | MIT OR Apache-2.0 |
+| [jsonptr](https://github.com/chanced/jsonptr) | 0.7.1 | MIT OR Apache-2.0 |
+| [keyboard-types](https://github.com/rust-windowing/keyboard-types) | 0.8.3 | MIT OR Apache-2.0 |
 | [lazy_static](https://github.com/rust-lang-nursery/lazy-static.rs) | 1.5.0 | MIT OR Apache-2.0 |
 | [libc](https://github.com/rust-lang/libc) | 0.2.189 | MIT OR Apache-2.0 |
 | [libsqlite3-sys](https://github.com/rusqlite/rusqlite) | 0.38.2 | MIT |
@@ -171,10 +176,10 @@ Microsoft; Vitals does not redistribute it.
 | [local-ip-address](https://github.com/LeoBorai/local-ip-address) | 0.6.13 | MIT OR Apache-2.0 |
 | [lock_api](https://github.com/Amanieu/parking_lot) | 0.4.14 | MIT OR Apache-2.0 |
 | [log](https://github.com/rust-lang/log) | 0.4.34 | MIT OR Apache-2.0 |
-| [markup5ever](https://github.com/servo/html5ever) | 0.38.0 | MIT OR Apache-2.0 |
+| [markup5ever](https://github.com/servo/html5ever) | 0.39.0 | MIT OR Apache-2.0 |
 | [matchers](https://github.com/hawkw/matchers) | 0.2.0 | MIT |
 | [matchit](https://github.com/ibraheemdev/matchit) | 0.8.4 | MIT AND BSD-3-Clause |
-| [mdns-sd](https://github.com/keepsimple1/mdns-sd) | 0.21.3 | Apache-2.0 OR MIT |
+| [mdns-sd](https://github.com/keepsimple1/mdns-sd) | 0.21.4 | Apache-2.0 OR MIT |
 | [memchr](https://github.com/BurntSushi/memchr) | 2.8.3 | Unlicense OR MIT |
 | [mime](https://github.com/hyperium/mime) | 0.3.17 | MIT OR Apache-2.0 |
 | [minisign-verify](https://github.com/jedisct1/rust-minisign-verify) | 0.2.5 | MIT |
@@ -182,7 +187,7 @@ Microsoft; Vitals does not redistribute it.
 | [miniz_oxide](https://github.com/Frommi/miniz_oxide/tree/master/miniz_oxide) | 0.9.1 | MIT OR Zlib OR Apache-2.0 |
 | [mio](https://github.com/tokio-rs/mio) | 1.2.3 | MIT |
 | [moxcms](https://github.com/awxkee/moxcms.git) | 0.8.1 | BSD-3-Clause OR Apache-2.0 |
-| [muda](https://github.com/tauri-apps/muda) | 0.19.3 | Apache-2.0 OR MIT |
+| [muda](https://github.com/tauri-apps/muda) | 0.20.0 | Apache-2.0 OR MIT |
 | [new_debug_unreachable](https://github.com/mbrubeck/rust-debug-unreachable) | 1.0.6 | MIT |
 | [notify-rust](https://github.com/hoodie/notify-rust) | 4.18.0 | MIT OR Apache-2.0 |
 | [nu-ansi-term](https://github.com/nushell/nu-ansi-term) | 0.50.3 | MIT |
@@ -239,7 +244,7 @@ Microsoft; Vitals does not redistribute it.
 | [schemars](https://github.com/GREsau/schemars) | 1.2.2 | MIT |
 | [schemars_derive](https://github.com/GREsau/schemars) | 0.8.22 | MIT |
 | [scopeguard](https://github.com/bluss/scopeguard) | 1.2.0 | MIT OR Apache-2.0 |
-| [selectors](https://github.com/servo/stylo) | 0.36.1 | MPL-2.0 |
+| [selectors](https://github.com/servo/stylo) | 0.38.0 | MPL-2.0 |
 | [semver](https://github.com/dtolnay/semver) | 1.0.28 | MIT OR Apache-2.0 |
 | [serde](https://github.com/serde-rs/serde) | 1.0.229 | MIT OR Apache-2.0 |
 | [serde_core](https://github.com/serde-rs/serde) | 1.0.229 | MIT OR Apache-2.0 |
@@ -258,6 +263,7 @@ Microsoft; Vitals does not redistribute it.
 | [servo_arc](https://github.com/servo/stylo) | 0.4.3 | MIT OR Apache-2.0 |
 | [sha1](https://github.com/RustCrypto/hashes) | 0.10.7 | MIT OR Apache-2.0 |
 | [sha2](https://github.com/RustCrypto/hashes) | 0.10.9 | MIT OR Apache-2.0 |
+| [sha2](https://github.com/RustCrypto/hashes) | 0.11.0 | MIT OR Apache-2.0 |
 | [sharded-slab](https://github.com/hawkw/sharded-slab) | 0.1.7 | MIT |
 | [simd-adler32](https://github.com/mcountryman/simd-adler32) | 0.3.10 | MIT |
 | [siphasher](https://github.com/jedisct1/rust-siphash) | 1.0.3 | MIT OR Apache-2.0 |
@@ -276,31 +282,31 @@ Microsoft; Vitals does not redistribute it.
 | [sync_wrapper](https://github.com/Actyx/sync_wrapper) | 1.0.2 | Apache-2.0 |
 | [synstructure](https://github.com/mystor/synstructure) | 0.13.2 | MIT |
 | [sys-locale](https://github.com/1Password/sys-locale) | 0.3.2 | MIT OR Apache-2.0 |
-| [tao](https://github.com/tauri-apps/tao) | 0.35.3 | Apache-2.0 |
-| [tauri](https://github.com/tauri-apps/tauri) | 2.11.5 | Apache-2.0 OR MIT |
-| [tauri-codegen](https://github.com/tauri-apps/tauri) | 2.6.3 | Apache-2.0 OR MIT |
-| [tauri-macros](https://github.com/tauri-apps/tauri) | 2.6.3 | Apache-2.0 OR MIT |
-| [tauri-plugin-autostart](https://github.com/tauri-apps/plugins-workspace) | 2.5.1 | Apache-2.0 OR MIT |
-| [tauri-plugin-dialog](https://github.com/tauri-apps/plugins-workspace) | 2.7.3 | Apache-2.0 OR MIT |
-| [tauri-plugin-fs](https://github.com/tauri-apps/plugins-workspace) | 2.5.2 | Apache-2.0 OR MIT |
-| [tauri-plugin-notification](https://github.com/tauri-apps/plugins-workspace) | 2.4.0 | Apache-2.0 OR MIT |
-| [tauri-plugin-opener](https://github.com/tauri-apps/plugins-workspace) | 2.5.5 | Apache-2.0 OR MIT |
-| [tauri-plugin-os](https://github.com/tauri-apps/plugins-workspace) | 2.3.2 | Apache-2.0 OR MIT |
-| [tauri-plugin-process](https://github.com/tauri-apps/plugins-workspace) | 2.3.1 | Apache-2.0 OR MIT |
-| [tauri-plugin-single-instance](https://github.com/tauri-apps/plugins-workspace) | 2.4.4 | Apache-2.0 OR MIT |
-| [tauri-plugin-store](https://github.com/tauri-apps/plugins-workspace) | 2.4.4 | Apache-2.0 OR MIT |
-| [tauri-plugin-updater](https://github.com/tauri-apps/plugins-workspace) | 2.11.0 | Apache-2.0 OR MIT |
-| [tauri-runtime](https://github.com/tauri-apps/tauri) | 2.11.3 | Apache-2.0 OR MIT |
-| [tauri-runtime-wry](https://github.com/tauri-apps/tauri) | 2.11.4 | Apache-2.0 OR MIT |
-| [tauri-utils](https://github.com/tauri-apps/tauri) | 2.9.3 | Apache-2.0 OR MIT |
+| [tao](https://github.com/tauri-apps/tao) | 0.37.1 | Apache-2.0 |
+| [tauri](https://github.com/tauri-apps/tauri) | 2.12.0 | Apache-2.0 OR MIT |
+| [tauri-codegen](https://github.com/tauri-apps/tauri) | 2.7.0 | Apache-2.0 OR MIT |
+| [tauri-macros](https://github.com/tauri-apps/tauri) | 2.7.0 | Apache-2.0 OR MIT |
+| [tauri-plugin-autostart](https://github.com/tauri-apps/plugins-workspace) | 2.6.0 | Apache-2.0 OR MIT |
+| [tauri-plugin-dialog](https://github.com/tauri-apps/plugins-workspace) | 2.8.0 | Apache-2.0 OR MIT |
+| [tauri-plugin-fs](https://github.com/tauri-apps/plugins-workspace) | 2.6.0 | Apache-2.0 OR MIT |
+| [tauri-plugin-notification](https://github.com/tauri-apps/plugins-workspace) | 2.5.0 | Apache-2.0 OR MIT |
+| [tauri-plugin-opener](https://github.com/tauri-apps/plugins-workspace) | 2.6.0 | Apache-2.0 OR MIT |
+| [tauri-plugin-os](https://github.com/tauri-apps/plugins-workspace) | 2.4.0 | Apache-2.0 OR MIT |
+| [tauri-plugin-process](https://github.com/tauri-apps/plugins-workspace) | 2.4.0 | Apache-2.0 OR MIT |
+| [tauri-plugin-single-instance](https://github.com/tauri-apps/plugins-workspace) | 2.5.0 | Apache-2.0 OR MIT |
+| [tauri-plugin-store](https://github.com/tauri-apps/plugins-workspace) | 2.5.0 | Apache-2.0 OR MIT |
+| [tauri-plugin-updater](https://github.com/tauri-apps/plugins-workspace) | 2.13.0 | Apache-2.0 OR MIT |
+| [tauri-runtime](https://github.com/tauri-apps/tauri) | 2.12.0 | Apache-2.0 OR MIT |
+| [tauri-runtime-wry](https://github.com/tauri-apps/tauri) | 2.12.0 | Apache-2.0 OR MIT |
+| [tauri-utils](https://github.com/tauri-apps/tauri) | 2.10.0 | Apache-2.0 OR MIT |
 | [tauri-winrt-notification](https://github.com/tauri-apps/winrt-notification) | 0.7.3 | MIT OR Apache-2.0 |
 | [tempfile](https://github.com/Stebalien/tempfile) | 3.27.0 | MIT OR Apache-2.0 |
 | [tendril](https://github.com/servo/html5ever) | 0.5.1 | MIT OR Apache-2.0 |
 | [termcolor](https://github.com/BurntSushi/termcolor) | 1.4.1 | Unlicense OR MIT |
 | [thiserror](https://github.com/dtolnay/thiserror) | 1.0.69 | MIT OR Apache-2.0 |
-| [thiserror](https://github.com/dtolnay/thiserror) | 2.0.20 | MIT OR Apache-2.0 |
+| [thiserror](https://github.com/dtolnay/thiserror) | 2.0.21 | MIT OR Apache-2.0 |
 | [thiserror-impl](https://github.com/dtolnay/thiserror) | 1.0.69 | MIT OR Apache-2.0 |
-| [thiserror-impl](https://github.com/dtolnay/thiserror) | 2.0.20 | MIT OR Apache-2.0 |
+| [thiserror-impl](https://github.com/dtolnay/thiserror) | 2.0.21 | MIT OR Apache-2.0 |
 | [thread_local](https://github.com/Amanieu/thread_local-rs) | 1.1.10 | MIT OR Apache-2.0 |
 | [time](https://github.com/time-rs/time) | 0.3.55 | MIT OR Apache-2.0 |
 | [time-core](https://github.com/time-rs/time) | 0.1.9 | MIT OR Apache-2.0 |
@@ -328,26 +334,21 @@ Microsoft; Vitals does not redistribute it.
 | [tracing-core](https://github.com/tokio-rs/tracing) | 0.1.36 | MIT |
 | [tracing-log](https://github.com/tokio-rs/tracing) | 0.2.0 | MIT |
 | [tracing-subscriber](https://github.com/tokio-rs/tracing) | 0.3.23 | MIT |
-| [tray-icon](https://github.com/tauri-apps/tray-icon) | 0.24.2 | MIT OR Apache-2.0 |
+| [tray-icon](https://github.com/tauri-apps/tray-icon) | 0.25.1 | MIT OR Apache-2.0 |
 | [try-lock](https://github.com/seanmonstar/try-lock) | 0.2.5 | MIT |
 | [ts-rs](https://github.com/Aleph-Alpha/ts-rs) | 12.0.1 | MIT |
 | [ts-rs-macros](https://github.com/Aleph-Alpha/ts-rs) | 12.0.1 | MIT |
 | [tungstenite](https://github.com/snapview/tungstenite-rs) | 0.29.0 | MIT OR Apache-2.0 |
 | [typeid](https://github.com/dtolnay/typeid) | 1.0.3 | MIT OR Apache-2.0 |
 | [typenum](https://github.com/paholg/typenum) | 1.20.1 | MIT OR Apache-2.0 |
-| [unic-char-property](https://github.com/open-i18n/rust-unic/) | 0.9.0 | MIT OR Apache-2.0 |
-| [unic-char-range](https://github.com/open-i18n/rust-unic/) | 0.9.0 | MIT OR Apache-2.0 |
-| [unic-common](https://github.com/open-i18n/rust-unic/) | 0.9.0 | MIT OR Apache-2.0 |
-| [unic-ucd-ident](https://github.com/open-i18n/rust-unic/) | 0.9.0 | MIT OR Apache-2.0 |
-| [unic-ucd-version](https://github.com/open-i18n/rust-unic/) | 0.9.0 | MIT OR Apache-2.0 |
 | [unicode-ident](https://github.com/dtolnay/unicode-ident) | 1.0.24 | (MIT OR Apache-2.0) AND Unicode-3.0 |
 | [unicode-segmentation](https://github.com/unicode-rs/unicode-segmentation) | 1.13.3 | MIT OR Apache-2.0 |
 | [unicode-width](https://github.com/unicode-rs/unicode-width) | 0.2.2 | MIT OR Apache-2.0 |
 | [untrusted](https://github.com/briansmith/untrusted) | 0.9.0 | ISC |
-| [ureq](https://github.com/algesten/ureq) | 3.4.1 | MIT OR Apache-2.0 |
-| [ureq-proto](https://github.com/algesten/ureq-proto) | 0.6.2 | MIT OR Apache-2.0 |
+| [ureq](https://github.com/algesten/ureq) | 3.4.2 | MIT OR Apache-2.0 |
+| [ureq-proto](https://github.com/algesten/ureq-proto) | 0.6.4 | MIT OR Apache-2.0 |
 | [url](https://github.com/servo/rust-url) | 2.5.8 | MIT OR Apache-2.0 |
-| [urlpattern](https://github.com/denoland/rust-urlpattern) | 0.3.0 | MIT |
+| [urlpattern](https://github.com/denoland/rust-urlpattern) | 0.6.0 | MIT |
 | [utf8_iter](https://github.com/hsivonen/utf8_iter) | 1.0.4 | Apache-2.0 OR MIT |
 | [utf8-zero](https://github.com/algesten/utf8-zero) | 0.8.1 | MIT OR Apache-2.0 |
 | [utf8parse](https://github.com/alacritty/vte) | 0.2.2 | Apache-2.0 OR MIT |
@@ -355,16 +356,16 @@ Microsoft; Vitals does not redistribute it.
 | [walkdir](https://github.com/BurntSushi/walkdir) | 2.5.0 | Unlicense OR MIT |
 | [want](https://github.com/seanmonstar/want) | 0.3.1 | MIT |
 | [web_atoms](https://github.com/servo/html5ever) | 0.2.6 | MIT OR Apache-2.0 |
-| [webview2-com](https://github.com/wravery/webview2-rs) | 0.38.2 | MIT |
+| [web-time](https://github.com/daxpedda/web-time) | 1.1.0 | MIT OR Apache-2.0 |
+| [webview2-com](https://github.com/wravery/webview2-rs) | 0.39.1 | MIT |
 | [webview2-com-macros](https://github.com/wravery/webview2-rs) | 0.8.1 | MIT |
-| [webview2-com-sys](https://github.com/wravery/webview2-rs) | 0.38.2 | MIT |
+| [webview2-com-sys](https://github.com/wravery/webview2-rs) | 0.39.1 | MIT |
 | [widestring](https://github.com/VoidStarKat/widestring-rs) | 1.2.1 | MIT OR Apache-2.0 |
 | [winapi](https://github.com/retep998/winapi-rs) | 0.3.9 | MIT OR Apache-2.0 |
 | [winapi-util](https://github.com/BurntSushi/winapi-util) | 0.1.11 | Unlicense OR MIT |
-| [window-vibrancy](https://github.com/tauri-apps/tauri-plugin-vibrancy) | 0.6.0 | Apache-2.0 OR MIT |
+| [window-vibrancy](https://github.com/tauri-apps/tauri-plugin-vibrancy) | 0.8.1 | Apache-2.0 OR MIT |
 | [windows](https://github.com/microsoft/windows-rs) | 0.61.3 | MIT OR Apache-2.0 |
 | [windows](https://github.com/microsoft/windows-rs) | 0.62.2 | MIT OR Apache-2.0 |
-| [windows_x86_64_msvc](https://github.com/microsoft/windows-rs) | 0.52.6 | MIT OR Apache-2.0 |
 | [windows_x86_64_msvc](https://github.com/microsoft/windows-rs) | 0.53.1 | MIT OR Apache-2.0 |
 | [windows-collections](https://github.com/microsoft/windows-rs) | 0.2.0 | MIT OR Apache-2.0 |
 | [windows-collections](https://github.com/microsoft/windows-rs) | 0.3.2 | MIT OR Apache-2.0 |
@@ -384,10 +385,8 @@ Microsoft; Vitals does not redistribute it.
 | [windows-service](https://github.com/mullvad/windows-service-rs) | 0.8.1 | MIT OR Apache-2.0 |
 | [windows-strings](https://github.com/microsoft/windows-rs) | 0.4.2 | MIT OR Apache-2.0 |
 | [windows-strings](https://github.com/microsoft/windows-rs) | 0.5.1 | MIT OR Apache-2.0 |
-| [windows-sys](https://github.com/microsoft/windows-rs) | 0.59.0 | MIT OR Apache-2.0 |
 | [windows-sys](https://github.com/microsoft/windows-rs) | 0.60.2 | MIT OR Apache-2.0 |
 | [windows-sys](https://github.com/microsoft/windows-rs) | 0.61.2 | MIT OR Apache-2.0 |
-| [windows-targets](https://github.com/microsoft/windows-rs) | 0.52.6 | MIT OR Apache-2.0 |
 | [windows-targets](https://github.com/microsoft/windows-rs) | 0.53.5 | MIT OR Apache-2.0 |
 | [windows-threading](https://github.com/microsoft/windows-rs) | 0.1.0 | MIT OR Apache-2.0 |
 | [windows-threading](https://github.com/microsoft/windows-rs) | 0.2.1 | MIT OR Apache-2.0 |
@@ -395,7 +394,7 @@ Microsoft; Vitals does not redistribute it.
 | [winnow](https://github.com/winnow-rs/winnow) | 1.0.4 | MIT |
 | [winreg](https://github.com/gentoo90/winreg-rs) | 0.10.1 | MIT |
 | [writeable](https://github.com/unicode-org/icu4x) | 0.6.4 | Unicode-3.0 |
-| [wry](https://github.com/tauri-apps/wry) | 0.55.1 | Apache-2.0 OR MIT |
+| [wry](https://github.com/tauri-apps/wry) | 0.57.0 | Apache-2.0 OR MIT |
 | [yoke](https://github.com/unicode-org/icu4x) | 0.8.3 | Unicode-3.0 |
 | [yoke-derive](https://github.com/unicode-org/icu4x) | 0.8.2 | Unicode-3.0 |
 | [zerocopy](https://github.com/google/zerocopy) | 0.8.57 | BSD-2-Clause OR Apache-2.0 OR MIT |
@@ -414,29 +413,29 @@ Microsoft; Vitals does not redistribute it.
 | Component | Version | Licence |
 | --- | --- | --- |
 | [@babel/runtime](https://babel.dev/docs/en/next/babel-runtime) | 7.29.7 | MIT |
-| [@tanstack/react-virtual](https://tanstack.com/virtual) | 3.14.11 | MIT |
-| [@tanstack/virtual-core](https://tanstack.com/virtual) | 3.17.9 | MIT |
-| [@tauri-apps/api](https://github.com/tauri-apps/tauri#readme) | 2.11.1 | Apache-2.0 OR MIT |
-| [@tauri-apps/plugin-autostart](https://github.com/tauri-apps/plugins-workspace#readme) | 2.5.1 | MIT OR Apache-2.0 |
-| [@tauri-apps/plugin-dialog](https://github.com/tauri-apps/plugins-workspace#readme) | 2.7.3 | MIT OR Apache-2.0 |
-| [@tauri-apps/plugin-global-shortcut](https://github.com/tauri-apps/plugins-workspace#readme) | 2.3.2 | MIT OR Apache-2.0 |
-| [@tauri-apps/plugin-notification](https://github.com/tauri-apps/plugins-workspace#readme) | 2.4.0 | MIT OR Apache-2.0 |
-| [@tauri-apps/plugin-opener](https://github.com/tauri-apps/plugins-workspace#readme) | 2.5.5 | MIT OR Apache-2.0 |
-| [@tauri-apps/plugin-os](https://github.com/tauri-apps/plugins-workspace#readme) | 2.3.2 | MIT OR Apache-2.0 |
-| [@tauri-apps/plugin-process](https://github.com/tauri-apps/plugins-workspace#readme) | 2.3.1 | MIT OR Apache-2.0 |
-| [@tauri-apps/plugin-store](https://github.com/tauri-apps/plugins-workspace#readme) | 2.4.4 | MIT OR Apache-2.0 |
-| [@tauri-apps/plugin-updater](https://github.com/tauri-apps/plugins-workspace#readme) | 2.11.0 | MIT OR Apache-2.0 |
-| [framer-motion](https://www.npmjs.com/package/framer-motion) | 13.2.0 | MIT |
+| [@tanstack/react-virtual](https://tanstack.com/virtual) | 3.14.13 | MIT |
+| [@tanstack/virtual-core](https://tanstack.com/virtual) | 3.17.11 | MIT |
+| [@tauri-apps/api](https://github.com/tauri-apps/tauri#readme) | 2.12.0 | Apache-2.0 OR MIT |
+| [@tauri-apps/plugin-autostart](https://github.com/tauri-apps/plugins-workspace#readme) | 2.6.0 | MIT OR Apache-2.0 |
+| [@tauri-apps/plugin-dialog](https://github.com/tauri-apps/plugins-workspace#readme) | 2.8.0 | MIT OR Apache-2.0 |
+| [@tauri-apps/plugin-global-shortcut](https://github.com/tauri-apps/plugins-workspace#readme) | 2.4.0 | MIT OR Apache-2.0 |
+| [@tauri-apps/plugin-notification](https://github.com/tauri-apps/plugins-workspace#readme) | 2.5.0 | MIT OR Apache-2.0 |
+| [@tauri-apps/plugin-opener](https://github.com/tauri-apps/plugins-workspace#readme) | 2.6.0 | MIT OR Apache-2.0 |
+| [@tauri-apps/plugin-os](https://github.com/tauri-apps/plugins-workspace#readme) | 2.4.0 | MIT OR Apache-2.0 |
+| [@tauri-apps/plugin-process](https://github.com/tauri-apps/plugins-workspace#readme) | 2.4.0 | MIT OR Apache-2.0 |
+| [@tauri-apps/plugin-store](https://github.com/tauri-apps/plugins-workspace#readme) | 2.5.0 | MIT OR Apache-2.0 |
+| [@tauri-apps/plugin-updater](https://github.com/tauri-apps/plugins-workspace#readme) | 2.13.0 | MIT OR Apache-2.0 |
+| [framer-motion](https://www.npmjs.com/package/framer-motion) | 13.4.6 | MIT |
 | [html-parse-stringify](https://github.com/i18next/html-parse-stringify) | 4.0.1 | MIT |
 | [i18next](https://www.i18next.com) | 26.4.2 | MIT |
-| [lucide-react](https://lucide.dev) | 1.44.0 | ISC |
-| [motion](https://github.com/motiondivision/motion#readme) | 13.2.0 | MIT |
-| [motion-dom](https://github.com/motiondivision/motion#readme) | 13.2.0 | MIT |
-| [motion-utils](https://github.com/motiondivision/motion#readme) | 13.0.0 | MIT |
+| [lucide-react](https://lucide.dev) | 1.48.0 | ISC |
+| [motion](https://github.com/motiondivision/motion#readme) | 13.4.6 | MIT |
+| [motion-dom](https://github.com/motiondivision/motion#readme) | 13.4.5 | MIT |
+| [motion-utils](https://github.com/motiondivision/motion#readme) | 13.3.0 | MIT |
 | [qrcode.react](http://zpao.github.io/qrcode.react) | 4.2.0 | ISC |
 | [react](https://react.dev/) | 19.3.0 | MIT |
 | [react-dom](https://react.dev/) | 19.3.0 | MIT |
-| [react-i18next](https://github.com/i18next/react-i18next) | 17.0.13 | MIT |
+| [react-i18next](https://github.com/i18next/react-i18next) | 17.0.15 | MIT |
 | [scheduler](https://react.dev/) | 0.28.0 | MIT |
 | [sonner](https://sonner.emilkowal.ski/) | 2.0.8 | MIT |
 | [tslib](https://www.typescriptlang.org/) | 2.8.1 | 0BSD |
