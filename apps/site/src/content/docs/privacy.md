@@ -22,6 +22,18 @@ two ever differ, that one applies.
   `%LOCALAPPDATA%\Vitals` and are never uploaded. They leave the machine only if you send them
   yourself, for example by attaching a log to a bug report.
 
+## The Android and Wear OS apps
+
+- **No analytics, no ads, no account.** The apps talk only to the PCs you pair, on your local
+  network, and to your watch through Google Play services.
+- **Special access is yours to grant.** Usage access (time and data per app) and all-files access
+  (the storage map and cleanup) are off until you turn them on in Android's settings; the watch
+  requests neither. What they reveal stays on the device.
+- **One Google component.** The QR scanner uses Google ML Kit, which sends Google anonymous
+  diagnostics about the scanner. The camera image stays on the phone.
+- **Everything is deleted when you uninstall.** Paired PCs are encrypted with an Android Keystore
+  key and excluded from backup; device history keeps 7 days.
+
 ## This website
 
 The site is hosted on GitHub Pages. It sets **no cookies** and uses **no analytics**. GitHub, as the

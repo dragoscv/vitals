@@ -9,6 +9,14 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Vitals for Android and Wear OS** — native phone and watch apps. The phone
+  opens on This phone: processor, graphics, memory, battery, temperatures,
+  storage with a folder map and cleanup, per-app time and data, sensors, a
+  week of history and alerts, all read through Android's public interfaces.
+  Pair a PC with a QR code to see it, its processes and sensors, wake it and,
+  with a control token, end or suspend processes. The watch monitors itself
+  and your PCs, with a tile and complications. Signed APKs ship with every
+  release, so Obtainium can follow them.
 - **Free Windows' own space with Windows' own tools** — in Reclaimable space,
   the Windows Update cache, system temporary files, the thumbnail cache, crash
   dumps, the component store, the previous Windows installation, the Recycle
@@ -77,6 +85,9 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **Privacy policy** covers the Android and Wear OS apps: the two kinds of
+  special access and what they stay on, the phone-to-watch link, and the
+  diagnostics Google ML Kit sends when the QR scanner opens.
 - **Storage scans are about 80 times faster and count everything** — a whole
   drive of eight million files is read in about seven minutes instead of
   never finishing, and `Program Files` in six seconds instead of eight

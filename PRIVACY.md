@@ -1,12 +1,14 @@
 # Privacy Policy
 
-**Effective date:** 28 September 2026 · **Applies to:** Vitals 0.9.0-beta.1 and
-later, for Windows · [Politica de confidențialitate în limba română](#politica-de-confidențialitate)
+**Effective date:** 29 September 2026 · **Applies to:** Vitals 0.9.0-beta.1 and
+later, for Windows, Android and Wear OS · [Politica de confidențialitate în limba română](#politica-de-confidențialitate)
 
 **For app store reviewers:** Vitals collects no personal data, has no
 telemetry, analytics, accounts or crash reporting, and the developer receives
 no data. The only automatic network request is an update check to GitHub,
-which the user can turn off.
+which the user can turn off. On Android, the QR scanner (Google ML Kit) sends
+Google anonymous diagnostics about itself; see
+[Vitals for Android and Wear OS](#vitals-for-android-and-wear-os).
 
 ## In short
 
@@ -67,7 +69,8 @@ When remote access is on:
 - A token with control scope can also end, suspend and resume processes and
   set their priority. New pairings are read-only by default.
 - Tokens are stored on the PC only as SHA-256 hashes (`lan-tokens.json`). On
-  the phone the token is kept in the browser's local storage.
+  the phone the token is kept in the browser's local storage, or, in the
+  Android app, in a file encrypted with a key held in the Android Keystore.
 - Traffic is plain HTTP and is **not** end-to-end encrypted. Anyone able to
   watch your local network can read it. Use remote access only on networks
   you trust.
@@ -91,6 +94,52 @@ Everything below stays on your computer. Unless noted, files are under
 | Exports (CSV, JSON, flight recordings)       | What you chose to export                                                                         | Only when you export                         | Wherever you saved them                                  |
 
 Nothing in these files is sent anywhere by Vitals.
+
+## Vitals for Android and Wear OS
+
+The Android phone app and the Wear OS watch app monitor the device they run
+on and, if you pair one, a PC running Vitals on your local network.
+
+**What the apps read on the device.** Processor, graphics, memory, battery,
+temperature, storage, network and sensor readings, through Android's public
+interfaces. Two readings need special access that you grant yourself in
+Android's settings, and each stays empty until you do:
+
+| Access                                       | What it enables                                                  | Where it stays |
+| -------------------------------------------- | ---------------------------------------------------------------- | -------------- |
+| Usage access (`PACKAGE_USAGE_STATS`)         | Time in each app and each app's data use, on the Apps tab        | On the device  |
+| All-files access (`MANAGE_EXTERNAL_STORAGE`) | The storage map, largest folders and cleanup of files you choose | On the device  |
+
+The watch app does not request either. Deleting a file is always your
+explicit action, confirmed on screen.
+
+**Network connections.**
+
+| Connection                            | When                                  | What the other side receives                                                                                                                                                                                                                                                                                       |
+| ------------------------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| To a PC you paired                    | While a screen or widget shows it     | The pairing token; plain HTTP on your local network, as described under remote access above                                                                                                                                                                                                                        |
+| mDNS discovery (`_vitals._tcp`)       | On the Add PC screen                  | Devices on your local network see the query                                                                                                                                                                                                                                                                        |
+| Wake-on-LAN                           | Only when you tap Wake up             | A broadcast packet on your local network containing the PC's MAC address                                                                                                                                                                                                                                           |
+| Google ML Kit diagnostics             | When you open the QR scanner          | Google receives device model and OS version, app package and version, a per-installation identifier not meant to identify you, and performance and error data about the scanner. The camera image never leaves the device. See [Google's disclosure](https://developers.google.com/ml-kit/android-data-disclosure) |
+| Phone to watch (Google Play services) | When a watch is paired with the phone | Your paired PCs and their latest readings, sent through the Wearable Data Layer, device to device                                                                                                                                                                                                                  |
+
+The apps contain no analytics, advertising or crash reporting of their own
+and make no other connections. Google Play and Android may collect data
+about app installs under Google's own privacy policy.
+
+**What the apps store.** All in the app's private storage, excluded from
+Android backup and deleted when you uninstall:
+
+| Data                                                          | Contents                                                                                                                                                            | Retention                            |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
+| Paired PCs                                                    | Address, name and token, encrypted with an Android Keystore key                                                                                                     | Until you remove the PC or uninstall |
+| Device history (on by default, can be turned off in Settings) | Machine-wide readings of this device (processor, memory, battery, network), one a minute while the app is open and every 15 minutes in the background; no app names | 7 days                               |
+| Settings and widget cache                                     | Your choices and the last values a widget showed                                                                                                                    | Until you uninstall                  |
+
+**Permissions.** Camera (only to scan the pairing QR code), notifications
+(alerts you set up), network state and Wi-Fi multicast (discovery),
+vibration, and a foreground service that runs only while you watch a PC in
+the background.
 
 ## Changes Vitals makes to Windows, only when you ask
 
@@ -128,6 +177,7 @@ the authority in the EU country where you live.
 Uninstalling Vitals keeps your data. To delete it, remove the
 `%LOCALAPPDATA%\Vitals` folder after uninstalling. Revoke any remote-access
 tokens first, and clear the site data for Vitals in your phone's browser.
+On Android and Wear OS, uninstalling the app deletes everything it stored.
 
 ## The website
 
@@ -150,13 +200,16 @@ ships.
 
 # Politica de confidențialitate
 
-**Data intrării în vigoare:** 28 septembrie 2026 · **Se aplică:** Vitals
-0.9.0-beta.1 și versiunile ulterioare, pentru Windows
+**Data intrării în vigoare:** 29 septembrie 2026 · **Se aplică:** Vitals
+0.9.0-beta.1 și versiunile ulterioare, pentru Windows, Android și Wear OS
 
 **Pentru evaluatorii magazinelor de aplicații:** Vitals nu colectează date
 personale, nu are telemetrie, analiză, conturi sau raportare a erorilor, iar
 dezvoltatorul nu primește nicio dată. Singura cerere automată în rețea este
 verificarea actualizărilor pe GitHub, pe care utilizatorul o poate dezactiva.
+Pe Android, scanerul de coduri QR (Google ML Kit) trimite către Google date de
+diagnosticare anonime despre el însuși; vedeți
+[Vitals pentru Android și Wear OS](#vitals-pentru-android-și-wear-os).
 
 ## Pe scurt
 
@@ -221,7 +274,8 @@ Când accesul la distanță este pornit:
   doar de citire.
 - Pe PC, tokenurile sunt stocate doar ca hash-uri SHA-256
   (`lan-tokens.json`). Pe telefon, tokenul este păstrat în stocarea locală a
-  browserului.
+  browserului sau, în aplicația Android, într-un fișier criptat cu o cheie
+  păstrată în Android Keystore.
 - Traficul este HTTP simplu și **nu** este criptat end-to-end. Oricine poate
   urmări rețeaua locală îl poate citi. Folosiți accesul la distanță doar în
   rețele în care aveți încredere.
@@ -245,6 +299,53 @@ fișierele se află în `%LOCALAPPDATA%\Vitals`.
 | Exporturi (CSV, JSON, înregistrări de zbor)               | Ce ați ales să exportați                                                                             | Doar când exportați                                  | Unde le-ați salvat                                       |
 
 Vitals nu trimite nicăieri nimic din aceste fișiere.
+
+## Vitals pentru Android și Wear OS
+
+Aplicația pentru telefon Android și aplicația pentru ceas Wear OS
+monitorizează dispozitivul pe care rulează și, dacă asociați unul, un PC cu
+Vitals din rețeaua locală.
+
+**Ce citesc aplicațiile pe dispozitiv.** Procesor, placă grafică, memorie,
+baterie, temperatură, stocare, rețea și senzori, prin interfețele publice ale
+Android. Două citiri au nevoie de acces special, pe care îl acordați
+dumneavoastră din setările Android; fiecare rămâne goală până atunci:
+
+| Acces                                                | Ce permite                                                                       | Unde rămâne   |
+| ---------------------------------------------------- | -------------------------------------------------------------------------------- | ------------- |
+| Acces la utilizare (`PACKAGE_USAGE_STATS`)           | Timpul petrecut în fiecare aplicație și datele folosite de ea, în fila Aplicații | Pe dispozitiv |
+| Acces la toate fișierele (`MANAGE_EXTERNAL_STORAGE`) | Harta stocării, cele mai mari dosare și curățarea fișierelor alese de dvs.       | Pe dispozitiv |
+
+Aplicația pentru ceas nu le cere. Ștergerea unui fișier este mereu o acțiune
+explicită a dvs., confirmată pe ecran.
+
+**Conexiuni în rețea.**
+
+| Conexiune                                 | Când                                        | Ce primește cealaltă parte                                                                                                                                                                                                                                                                                                   |
+| ----------------------------------------- | ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Către un PC asociat                       | Cât timp un ecran sau un widget îl afișează | Tokenul de asociere; HTTP simplu în rețeaua locală, ca la accesul la distanță de mai sus                                                                                                                                                                                                                                     |
+| Descoperire mDNS (`_vitals._tcp`)         | Pe ecranul Adaugă PC                        | Dispozitivele din rețeaua locală văd interogarea                                                                                                                                                                                                                                                                             |
+| Wake-on-LAN                               | Doar când apăsați Trezește                  | Un pachet broadcast în rețeaua locală, cu adresa MAC a PC-ului                                                                                                                                                                                                                                                               |
+| Diagnosticare Google ML Kit               | Când deschideți scanerul QR                 | Google primește modelul și versiunea sistemului, pachetul și versiunea aplicației, un identificator per instalare care nu vă identifică și date de performanță și erori ale scanerului. Imaginea camerei nu părăsește dispozitivul. Vedeți [declarația Google](https://developers.google.com/ml-kit/android-data-disclosure) |
+| Telefon către ceas (servicii Google Play) | Când un ceas este asociat cu telefonul      | PC-urile asociate și ultimele lor valori, prin Wearable Data Layer, de la dispozitiv la dispozitiv                                                                                                                                                                                                                           |
+
+Aplicațiile nu conțin instrumente proprii de analiză, publicitate sau
+raportare a erorilor și nu fac alte conexiuni. Google Play și Android pot
+colecta date despre instalări conform politicii de confidențialitate Google.
+
+**Ce stochează aplicațiile.** Totul în stocarea privată a aplicației, exclusă
+din backupul Android și ștearsă la dezinstalare:
+
+| Date                                                                 | Conținut                                                                                                                                                                  | Păstrare                              |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| PC-uri asociate                                                      | Adresa, numele și tokenul, criptate cu o cheie Android Keystore                                                                                                           | Până eliminați PC-ul sau dezinstalați |
+| Istoricul dispozitivului (pornit implicit, se poate opri din Setări) | Valori la nivelul întregului dispozitiv (procesor, memorie, baterie, rețea), una pe minut cât aplicația este deschisă și la 15 minute în fundal; fără numele aplicațiilor | 7 zile                                |
+| Setări și cache pentru widgeturi                                     | Alegerile dvs. și ultimele valori afișate de un widget                                                                                                                    | Până la dezinstalare                  |
+
+**Permisiuni.** Camera (doar pentru scanarea codului QR de asociere),
+notificări (alertele pe care le configurați), starea rețelei și multicast
+Wi-Fi (descoperire), vibrații și un serviciu în prim-plan care rulează doar
+cât urmăriți un PC în fundal.
 
 ## Modificări pe care Vitals le face în Windows, doar la cererea dvs.
 
@@ -289,6 +390,7 @@ Dezinstalarea Vitals păstrează datele. Pentru a le șterge, eliminați dosarul
 `%LOCALAPPDATA%\Vitals` după dezinstalare. Revocați mai întâi tokenurile de
 acces la distanță și ștergeți datele site-ului Vitals din browserul
 telefonului.
+Pe Android și Wear OS, dezinstalarea aplicației șterge tot ce a stocat.
 
 ## Site-ul
 

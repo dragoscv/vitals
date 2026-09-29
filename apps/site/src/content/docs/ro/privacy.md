@@ -22,6 +22,18 @@ dacă cele două diferă vreodată, se aplică aceea.
   sunt stocate în `%LOCALAPPDATA%\Vitals` și nu sunt încărcate nicăieri. Pleacă de pe calculator doar
   dacă le trimiți tu, de exemplu atașând un jurnal la un raport de eroare.
 
+## Aplicațiile pentru Android și Wear OS
+
+- **Fără analiză, reclame sau cont.** Aplicațiile comunică doar cu PC-urile asociate de tine, în
+  rețeaua locală, și cu ceasul tău prin serviciile Google Play.
+- **Accesul special îl acorzi tu.** Accesul la utilizare (timp și date pe aplicație) și accesul la
+  toate fișierele (harta stocării și curățarea) sunt oprite până le pornești din setările Android;
+  ceasul nu le cere. Ce dezvăluie rămâne pe dispozitiv.
+- **O singură componentă Google.** Scanerul QR folosește Google ML Kit, care trimite către Google
+  date de diagnosticare anonime despre scaner. Imaginea camerei rămâne pe telefon.
+- **La dezinstalare se șterge tot.** PC-urile asociate sunt criptate cu o cheie Android Keystore și
+  excluse din backup; istoricul dispozitivului păstrează 7 zile.
+
 ## Acest site
 
 Site-ul este găzduit pe GitHub Pages. **Nu setează cookie-uri** și **nu folosește statistici de
