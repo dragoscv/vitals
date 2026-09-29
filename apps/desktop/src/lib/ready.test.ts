@@ -1,9 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const invoke = vi.fn((_command: string) => Promise.resolve());
+let host = true;
 
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: (command: string) => invoke(command),
+}));
+vi.mock('../shell/host', () => ({
+  hasTauriHost: () => host,
 }));
 
 const { resetReadyForTests, signalReady } = await import('./ready');
@@ -19,6 +23,7 @@ describe('signalReady', () => {
   beforeEach(() => {
     invoke.mockClear();
     invoke.mockImplementation(() => Promise.resolve());
+    host = true;
     resetReadyForTests();
 
     // jsdom's rAF is slow and real; a synchronous stand-in keeps the test
@@ -71,5 +76,17 @@ describe('signalReady', () => {
 
     await flushFrames();
     expect(invoke).toHaveBeenCalled();
+  });
+
+  it('does nothing in a plain browser, where there is no window to reveal', async () => {
+    // The dev server and the Playwright suite run without Tauri; invoking
+    // there logged "failed to reveal the main window" on every launch.
+    host = false;
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    signalReady();
+    await flushFrames();
+    expect(invoke).not.toHaveBeenCalled();
+    expect(consoleError).not.toHaveBeenCalled();
+    consoleError.mockRestore();
   });
 });

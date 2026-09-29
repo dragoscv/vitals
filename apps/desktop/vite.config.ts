@@ -105,9 +105,24 @@ export default defineConfig(({ command }) => ({
     maxWorkers: '25%',
     coverage: {
       provider: 'v8',
-      reporter: ['text-summary', 'lcov'],
+      // `json-summary` is the machine-readable one a CI step can read and
+      // compare; the other two are for people.
+      reporter: ['text-summary', 'lcov', 'json-summary'],
+      reportsDirectory: 'coverage',
       include: ['src/**/*.{ts,tsx}'],
-      exclude: ['src/**/*.{test,spec}.{ts,tsx}', 'src/test/**', 'src/**/strings.ts'],
+      // Entry files are excluded because they run at import time and only
+      // `main.test.ts` boots one; counting them would punish the suite for
+      // code that is exercised by launching the app, not by a unit test.
+      exclude: [
+        'src/**/*.{test,spec}.{ts,tsx}',
+        'src/test/**',
+        'src/**/strings.ts',
+        'src/**/generated/**',
+        'src/**/*.d.ts',
+        'src/main.tsx',
+        'src/hud/main.tsx',
+        'src/mobile/main.tsx',
+      ],
       // A floor, not a target. Raise it when it is comfortably exceeded;
       // never lower it to make a run pass.
       thresholds: { statements: 70, branches: 70, functions: 70, lines: 70 },

@@ -120,6 +120,45 @@ foreach ($name in $registered) {
     }
 }
 
+# ── 3b. a Windows-only command registered for every platform ───────────
+
+# A `#[cfg(windows)] #[tauri::command] fn x` listed in generate_handler!
+# without its own `#[cfg(windows)]` compiles on Windows and fails every other
+# target with E0433 `__tauri_command_name_x`. Every local gate runs on
+# Windows, so only the Linux CI leg noticed (3f0588a -> cc0a647, 2026-09-29).
+# Rule: an ungated handler entry must have a definition that is not
+# preceded by `#[cfg(windows)]` (a non-Windows stub counts).
+$srcRoot = 'apps/desktop/src-tauri/src'
+$handlerLines = $handlerBlock -split "`n"
+for ($i = 0; $i -lt $handlerLines.Count; $i++) {
+    $line = ($handlerLines[$i] -replace '//.*$', '').Trim()
+    if ($line -notmatch '^(?:(\w+)::)?(\w+)\s*,$') { continue }
+    $module = $Matches[1]; $fn = $Matches[2]
+    $prev = if ($i -gt 0) { ($handlerLines[$i - 1] -replace '//.*$', '').Trim() } else { '' }
+    if ($prev -match '^#\[cfg\(windows\)\]$') { continue }
+    $file = if ($module) { Join-Path $srcRoot "$module.rs" } else { Join-Path $srcRoot 'lib.rs' }
+    if (-not (Test-Path $file)) { $file = Join-Path $srcRoot "$module/mod.rs" }
+    if (-not (Test-Path $file)) { continue }
+    $src = Get-Content $file
+    $defs = @()
+    for ($j = 0; $j -lt $src.Count; $j++) {
+        if ($src[$j] -match "^\s*(pub(\([^)]*\))?\s+)?(async\s+)?fn\s+$fn\b") { $defs += $j }
+    }
+    if ($defs.Count -eq 0) { continue }
+    $portable = $false
+    foreach ($d in $defs) {
+        # Walk up through the attribute block above the fn.
+        $windowsOnly = $false
+        for ($k = $d - 1; $k -ge 0 -and $src[$k].Trim() -match '^(#\[|///|//)'; $k--) {
+            if ($src[$k].Trim() -eq '#[cfg(windows)]') { $windowsOnly = $true }
+        }
+        if (-not $windowsOnly) { $portable = $true }
+    }
+    if (-not $portable) {
+        $failures.Add("'$fn' is #[cfg(windows)] in $file but registered in generate_handler! without #[cfg(windows)]: Linux and macOS fail E0433")
+    }
+}
+
 # ── 4. locale parity ───────────────────────────────────────────────────
 
 function Get-LeafKeys {

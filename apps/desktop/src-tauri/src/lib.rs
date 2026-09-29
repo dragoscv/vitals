@@ -27,6 +27,7 @@ pub mod tray;
 pub mod updates;
 pub mod users;
 pub mod watchdog;
+pub mod webview_log;
 
 use tauri::Manager;
 
@@ -154,6 +155,9 @@ fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
         commands::set_sample_rate,
         commands::get_launch_options,
         commands::show_main_window,
+        // Webview errors into the capped log file. No `cfg`: every build has
+        // a webview that can throw, and every window may report its own.
+        webview_log::log_webview,
         #[cfg(windows)]
         commands::plan_terminate_process,
         #[cfg(windows)]

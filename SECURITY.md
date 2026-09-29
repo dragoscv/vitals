@@ -7,13 +7,15 @@ Remote access is enabled:
 
 - **The local API on `127.0.0.1:7330`.** Bound to loopback only, so it cannot
   be reached from the network. It serves the same routes as the LAN server
-  without a token, for the `vitals` CLI; see "Loopback is trusted" below.
-- **A per-user named pipe, `vitals-<USERNAME>`.** Created with the default
-  security descriptor, which grants access to your account and to
-  administrators; two users on one machine get two pipes.
+  without a token, **read-only**, for the `vitals` CLI; see "Loopback reads,
+  never controls" below.
+- **A per-user named pipe, `vitals-<USERNAME>`.** Created with an explicit
+  security descriptor that grants access to your account, SYSTEM and
+  administrators only, and refuses remote clients; two users on one machine
+  get two pipes. It carries metrics out and accepts no actions.
 
-Any process running as you can read metrics and control processes through
-them.
+Any process on this machine can read metrics through the local API; only a
+process running as you can open the pipe. Neither can act on a process.
 
 ## What is exposed today: the LAN server
 
@@ -54,11 +56,15 @@ the request schema by watching 403 turn into 422.
 to the server, so it never appears in a request line or an access log; the
 page reads it, stores it locally and strips it from the address bar.
 
-**Loopback is trusted.** On the machine itself, `127.0.0.1:7330` serves the
-same routes without a token, for the `vitals` CLI. A process already running
-as you owns the machine — it could read the token store or end the app — so
-a token would add ceremony and no security. The decision is made on the
-connecting address; a request from the network still needs a token.
+**Loopback reads, never controls.** On the machine itself, `127.0.0.1:7330`
+serves the same routes without a token, for the `vitals` CLI, with _read_
+scope only. Loopback TCP is not per-user on Windows: another account on the
+same PC (fast user switching, Remote Desktop, a service) reaches it too, so a
+tokenless _control_ grant would let that account end your processes. The CLI
+acts on processes on its own machine through Windows directly, which checks
+the caller's own rights. A page in a browser gets nothing tokenless: any
+`Origin` header or a non-loopback `Host` is refused. The decision is made on
+the connecting address; a request from the network still needs a token.
 
 ### What it does not do
 

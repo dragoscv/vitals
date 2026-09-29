@@ -11,10 +11,12 @@
 //!
 //! The LAN server hands out bearer tokens because a socket bound to an
 //! interface is reachable by every machine on the network. This pipe is not:
-//! `interprocess` creates a Windows named pipe with the default security
-//! descriptor, which grants access to the creating user's SID and to
-//! administrators, and the name carries the user's account so two users on
-//! one machine get two pipes. A process that can open it already runs as you
+//! it is created with an explicit security descriptor ([`PIPE_SDDL`]) that
+//! grants SYSTEM, administrators and the pipe's owner — the creating user —
+//! and nobody else, `interprocess` rejects remote clients, and the name
+//! carries the user's account so two users on one machine get two pipes.
+//! The Windows default descriptor was not enough: it also grants Everyone
+//! and Anonymous read access. A process that can open it already runs as you
 //! and could read the same counters itself. A token would prove nothing the
 //! kernel has not already checked, and would make `vitals ps` unusable until
 //! the user had copied one out of the app.
@@ -95,6 +97,33 @@ pub fn default_pipe_name() -> String {
 
 fn resolve(name: &str) -> io::Result<Name<'static>> {
     name.to_owned().to_ns_name::<GenericNamespaced>()
+}
+
+/// The attach pipe's DACL: protected (no inherited entries), full access for
+/// SYSTEM, the Administrators group and `OW` — owner rights, i.e. whoever
+/// created the pipe. Nothing for Everyone, Anonymous or other users.
+///
+/// `OW` rather than the user's SID so no token lookup is needed: the owner of
+/// a pipe created without an explicit owner is the creating token's default
+/// owner, which is the user (or Administrators when elevated, also granted).
+pub const PIPE_SDDL: &str = "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;OW)";
+
+#[cfg(windows)]
+fn listener_options(name: Name<'static>) -> io::Result<ListenerOptions<'static>> {
+    use interprocess::os::windows::local_socket::ListenerOptionsExt as _;
+    use interprocess::os::windows::security_descriptor::SecurityDescriptor;
+    let sddl = widestring::U16CString::from_str(PIPE_SDDL)
+        .map_err(|error| io::Error::new(io::ErrorKind::InvalidInput, error))?;
+    let sd = SecurityDescriptor::deserialize(&sddl)?;
+    Ok(ListenerOptions::new().name(name).security_descriptor(sd))
+}
+
+#[cfg(not(windows))]
+#[allow(clippy::unnecessary_wraps)] // Same signature as the Windows builder.
+fn listener_options(name: Name<'static>) -> io::Result<ListenerOptions<'static>> {
+    // A Unix domain socket in the user's own runtime directory; its mode is
+    // the access control.
+    Ok(ListenerOptions::new().name(name))
 }
 
 // ── Protocol ─────────────────────────────────────────────────────────────
@@ -337,7 +366,7 @@ impl AttachServer {
     /// The name is invalid or already bound — a second desktop instance for
     /// this user, which the single-instance plugin should already prevent.
     pub fn start(name: &str, version: String) -> io::Result<Self> {
-        let listener = ListenerOptions::new().name(resolve(name)?).create_sync()?;
+        let listener = listener_options(resolve(name)?)?.create_sync()?;
         let shared = Arc::new(Shared::default());
         let accept_shared = Arc::clone(&shared);
         thread::Builder::new()

@@ -5,6 +5,7 @@ import { initI18n } from '@vitals/i18n';
 
 import { App } from './App';
 import { registerDashboardStrings } from './features/dashboard';
+import { installGlobalErrorLogging, reportToLog } from './lib/logToFile';
 import { registerShellStrings } from './shell/strings';
 import './styles.css';
 
@@ -68,6 +69,7 @@ async function bootstrap(): Promise<void> {
  */
 function reportStartupFailure(error: unknown): void {
   console.error('Vitals failed to start', error);
+  reportToLog('error', error, 'main:startup');
 
   const splash = document.getElementById('splash');
   if (!splash) return;
@@ -94,4 +96,8 @@ function reportStartupFailure(error: unknown): void {
   splash.append(heading, detail);
 }
 
+// First, before anything can throw: an error during bootstrap that escapes
+// the catch below (a throw inside the rAF, say) is otherwise lost in a
+// release build.
+installGlobalErrorLogging('main');
 void bootstrap().catch(reportStartupFailure);

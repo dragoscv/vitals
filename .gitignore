@@ -54,3 +54,5 @@ apps/desktop/src-tauri/target/
 
 # Vitest 5 writes reporter output here
 .vitest/
+# Playwright HTML report (apps/desktop)
+e2e-report/

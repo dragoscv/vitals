@@ -1,0 +1,11 @@
+{
+  "extends": "@vitals/config/tsconfig/base",
+  "compilerOptions": {
+    // DOM for the callbacks passed to `page.evaluate`, which run in the page;
+    // Node for everything else, which runs in the Playwright worker. Kept
+    // apart from the app's tsconfig so the app never sees Node's globals.
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": ["node"]
+  },
+  "include": ["**/*.ts"]
+}

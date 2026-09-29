@@ -23,6 +23,12 @@ const ALLOWED_PACKAGES =
 /** The overlay's own window controls; nothing else from Tauri is permitted. */
 const ALLOWED_TAURI = /^@tauri-apps\/api\/(window|event)$/;
 const IMPORT = /from\s+['"]([^'"]+)['"]/g;
+/**
+ * The one module outside the tree the overlay may use: the log forwarder,
+ * without which the overlay's errors go nowhere. It imports only
+ * `@tauri-apps/api/core`, so it carries no desktop bundle with it.
+ */
+const ALLOWED_OUTSIDE = new Set([resolve(HUD_ROOT, '..', 'lib', 'logToFile')]);
 
 function walk(dir: string): string[] {
   return readdirSync(dir).flatMap((entry) => {
@@ -35,6 +41,7 @@ function walk(dir: string): string[] {
 export function violation(file: string, specifier: string): string | undefined {
   if (specifier.startsWith('.')) {
     const target = resolve(dirname(file), specifier);
+    if (ALLOWED_OUTSIDE.has(target)) return undefined;
     const inside = target === HUD_ROOT || target.startsWith(HUD_ROOT + sep);
     return inside ? undefined : `relative import escapes src/hud: ${specifier}`;
   }
@@ -75,6 +82,8 @@ describe('hud import boundary', () => {
     expect(violation(file, '@tauri-apps/plugin-store')).toMatch(/tauri/);
     expect(violation(file, 'zustand')).toMatch(/allow list/);
     expect(violation(file, '../lib/live')).toBeUndefined();
+    expect(violation(join(HUD_ROOT, 'main.tsx'), '../lib/logToFile')).toBeUndefined();
+    expect(violation(join(HUD_ROOT, 'main.tsx'), '../lib/metrics')).toMatch(/escapes/);
     expect(violation(file, '@tauri-apps/api/window')).toBeUndefined();
     expect(violation(file, '@vitals/ui')).toBeUndefined();
   });
