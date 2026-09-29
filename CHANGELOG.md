@@ -9,6 +9,16 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Free Windows' own space with Windows' own tools** — in Reclaimable space,
+  the Windows Update cache, system temporary files, the thumbnail cache, crash
+  dumps, the component store, the previous Windows installation, the Recycle
+  Bin and the hibernation file now have a button that runs the tool Windows
+  provides for each (Disk Cleanup, DISM or powercfg). Windows asks for
+  administrator approval once, for that action only; you see what it is doing
+  while it works, and afterwards how much space was actually freed, measured
+  before and after. Emptying the bin, removing the previous Windows and
+  turning hibernation off say what cannot be undone and need a tick first.
+
 - **Free space from a storage scan** — put folders and files in review with
   the + beside them (or right-click on the map), check the list and its
   total, and send them to the Recycle Bin in one step, from where any of them

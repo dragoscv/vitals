@@ -5,9 +5,9 @@
  *
  * Items picked in the explorer go into a review basket, and a confirmed
  * basket goes to the Recycle Bin, from where every item can be restored (see
- * `Basket.tsx`). The cleanup catalogue still measures and explains only; its
- * Delete control is rendered disabled with the reason attached until it gets
- * its own Windows-managed path. A button that looks live and does nothing is
+ * `Basket.tsx`). In the cleanup catalogue, space Windows manages is freed by
+ * Windows' own tool (see `WindowsCleanup.tsx`); the rest has no action here
+ * and says to use the basket. A button that looks live and does nothing is
  * worse than one that says why it cannot.
  *
  * # Unmeasured is stated, never drawn as zero
@@ -54,6 +54,7 @@ import { oneOf, useUrlState } from '../../lib/useUrlState';
 import { BasketBar, BasketDialog } from './Basket';
 import { Explorer, exploreViews, type ExploreView } from './Explorer';
 import { STORAGE_NS } from './strings';
+import { WindowsCleanupDialog } from './WindowsCleanup';
 import {
   directorySorts,
   filterDirectories,
@@ -89,6 +90,7 @@ export function StorageScreen({ source }: StorageScreenProps = {}): React.JSX.El
   const state = useStorage(source);
   const [selected, setSelected] = useState<string | null>(null);
   const [reviewing, setReviewing] = useState(false);
+  const [freeing, setFreeing] = useState<CleanupCandidate | null>(null);
   // Only the result table's view goes in the URL. The chosen volume is a scan
   // parameter, not view state: restoring it from a link would imply the scan
   // itself was restored, and it is not.
@@ -252,8 +254,26 @@ export function StorageScreen({ source }: StorageScreenProps = {}): React.JSX.El
           locale={locale}
           onScan={state.findCleanup}
           onCancel={state.cancelCleanup}
+          busy={state.windowsRun?.running === true}
+          onFree={(candidate) => {
+            state.dismissWindowsRun();
+            setFreeing(candidate);
+          }}
         />
       </div>
+
+      <WindowsCleanupDialog
+        candidate={freeing}
+        run={state.windowsRun}
+        locale={locale}
+        onConfirm={(confirmed) => {
+          if (freeing !== null) void state.runWindowsCleanup(freeing.path, confirmed);
+        }}
+        onClose={() => {
+          setFreeing(null);
+          state.dismissWindowsRun();
+        }}
+      />
 
       <BasketDialog
         open={reviewing}
@@ -683,6 +703,8 @@ function Cleanup({
   locale,
   onScan,
   onCancel,
+  busy,
+  onFree,
 }: {
   readonly candidates: readonly CleanupCandidate[] | null;
   readonly running: boolean;
@@ -690,6 +712,8 @@ function Cleanup({
   readonly locale: string;
   readonly onScan: () => void;
   readonly onCancel: () => void;
+  readonly busy: boolean;
+  readonly onFree: (candidate: CleanupCandidate) => void;
 }) {
   const { t } = useTranslation(STORAGE_NS);
   const total = useMemo(() => reclaimableTotal(candidates ?? []), [candidates]);
@@ -762,7 +786,13 @@ function Cleanup({
                 </p>
                 <ul className="flex flex-col gap-1.5">
                   {group.items.map((candidate) => (
-                    <CandidateRow key={candidate.path} candidate={candidate} locale={locale} />
+                    <CandidateRow
+                      key={candidate.path}
+                      candidate={candidate}
+                      locale={locale}
+                      busy={busy}
+                      onFree={onFree}
+                    />
                   ))}
                 </ul>
               </section>
@@ -777,9 +807,13 @@ function Cleanup({
 function CandidateRow({
   candidate,
   locale,
+  busy,
+  onFree,
 }: {
   readonly candidate: CleanupCandidate;
   readonly locale: string;
+  readonly busy: boolean;
+  readonly onFree: (candidate: CleanupCandidate) => void;
 }) {
   const { t } = useTranslation(STORAGE_NS);
   const reason = unmeasuredReason(candidate);
@@ -810,12 +844,24 @@ function CandidateRow({
           {candidate.size === null ? t('cleanup.unknownSize') : formatBytes(candidate.size, locale)}
         </span>
         {candidate.needsElevation && <Badge tone="warn">{t('cleanup.needsElevation')}</Badge>}
-        {/* Disabled with the reason attached rather than hidden or faked.
-            There is no deletion backend, and a live-looking button that does
-            nothing teaches the user the app is broken. */}
-        <Button variant="ghost" size="sm" disabled title={t('cleanup.deleteUnavailable')}>
-          {t('cleanup.delete')}
-        </Button>
+        {candidate.tool !== null ? (
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={busy}
+            onClick={() => {
+              onFree(candidate);
+            }}
+          >
+            {t(`cleanup.free.${candidate.tool}`)}
+          </Button>
+        ) : (
+          // Disabled with the reason attached rather than hidden: this is
+          // not Windows-managed space, and the basket is the way to free it.
+          <Button variant="ghost" size="sm" disabled title={t('cleanup.deleteUnavailable')}>
+            {t('cleanup.delete')}
+          </Button>
+        )}
       </div>
     </li>
   );

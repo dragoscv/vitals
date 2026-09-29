@@ -2328,20 +2328,25 @@ pub struct CleanupCandidateDto {
     pub size: Option<u64>,
     /// `safe` | `review` | `risky`.
     pub safety: &'static str,
-    /// Whether a UI may offer this behind a single confirmation. Currently
-    /// advisory everywhere, because no deletion backend exists.
+    /// Whether a UI may offer this behind a single confirmation.
     pub allows_one_click: bool,
     pub needs_elevation: bool,
+    /// The Windows tool that frees it — `diskCleanup` | `componentCleanup`
+    /// | `hibernateOff` — or `null` when the space is not Windows-managed
+    /// and goes through the review basket instead.
+    pub tool: Option<&'static str>,
+    /// Whether running the tool cannot be undone, so it needs its own
+    /// confirmation stating the consequence.
+    pub irreversible: bool,
 }
 
 /// Finds and sizes reclaimable locations.
 ///
 /// # This never deletes anything
 ///
-/// There is no removal command, here or anywhere else in Vitals. Sizing a
-/// cache is a read; emptying one is an irreversible write, and the two do not
-/// belong behind the same button. The UI renders the action as unavailable
-/// rather than pretending.
+/// Sizing a cache is a read; emptying one is a write, and the two do not
+/// belong behind the same button. Windows-managed space is freed by
+/// [`run_windows_cleanup`], through Windows' own tools.
 ///
 /// Async and `spawn_blocking` for the same reason as [`scan_storage`]: each
 /// candidate is sized with a bounded directory walk, and a multi-gigabyte
@@ -2369,8 +2374,138 @@ pub async fn find_cleanup_candidates() -> CommandResult<Vec<CleanupCandidateDto>
             safety: candidate.safety.as_str(),
             allows_one_click: candidate.safety.allows_one_click(),
             needs_elevation: candidate.needs_elevation,
+            tool: vitals_win::storage::tool_for(candidate.kind, &candidate.path)
+                .map(vitals_win::storage::ManagedTool::family),
+            irreversible: vitals_win::storage::tool_for(candidate.kind, &candidate.path)
+                .is_some_and(vitals_win::storage::ManagedTool::is_risky),
         })
         .collect())
+}
+
+/// Emitted about twice a second while a Windows cleanup tool runs.
+#[cfg(windows)]
+const CLEANUP_PROGRESS_EVENT: &str = "vitals://storage/cleanup-progress";
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WindowsCleanupProgressDto {
+    pub path: String,
+    /// `measuring` | `approval` | `running` | `remeasuring`.
+    pub stage: &'static str,
+    pub elapsed_ms: u64,
+    /// Free space the drive has gained so far; `null` when unreadable.
+    pub drive_freed: Option<i64>,
+}
+
+/// What one run of a Windows tool measured.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WindowsCleanupReportDto {
+    pub path: String,
+    /// `done` | `needsRestart` | `toolFailed`.
+    pub outcome: &'static str,
+    /// Only for `toolFailed`: the tool's own exit code.
+    pub code: Option<u32>,
+    /// On-disk bytes at the location, before and after; `null` when it could
+    /// not be read (or, for the component store, is not walked on purpose).
+    pub location_before: Option<u64>,
+    pub location_after: Option<u64>,
+    /// How much smaller the location got, measured. Negative if it grew.
+    pub location_freed: Option<i64>,
+    /// How much free space the drive gained, measured. Includes anything
+    /// else writing to the drive meanwhile, which is why both are shown.
+    pub drive_freed: Option<i64>,
+    pub elapsed_ms: u64,
+}
+
+#[cfg(windows)]
+static MANAGED: Operation = Operation::new();
+
+/// Frees one Windows-managed location with Windows' own tool.
+///
+/// # Nothing is deleted by Vitals
+///
+/// The location is looked up again in the candidate list, so the webview can
+/// name a location but never a tool or an arbitrary path; the tool is the one
+/// `tool_for` assigns. It runs in a short-lived elevated instance (one UAC
+/// prompt, for this action only), and the figures in the report are read
+/// before and after it, never estimated. `confirmed` must be true for a tool
+/// whose effect cannot be undone; the elevated instance checks it again.
+///
+/// Desktop-only, like recycling: a paired phone must not free space.
+#[tauri::command]
+#[cfg(windows)]
+pub async fn run_windows_cleanup(
+    app: tauri::AppHandle,
+    path: String,
+    confirmed: bool,
+) -> CommandResult<WindowsCleanupReportDto> {
+    use tauri::Emitter as _;
+    use vitals_win::storage::managed::{self, Consent, Finished};
+
+    let target = std::path::PathBuf::from(&path);
+    let tool = managed_tool_for(&target)?;
+    let consent = if confirmed {
+        Consent::Confirmed
+    } else {
+        Consent::Unconfirmed
+    };
+    let guard = MANAGED.begin("a Windows cleanup")?;
+
+    let report = tauri::async_runtime::spawn_blocking(move || {
+        let _guard = guard;
+        let progress_path = path.clone();
+        let mut on_progress = |p: managed::Progress| {
+            let _ = app.emit(
+                CLEANUP_PROGRESS_EVENT,
+                WindowsCleanupProgressDto {
+                    path: progress_path.clone(),
+                    stage: p.stage.key(),
+                    elapsed_ms: u64::try_from(p.elapsed.as_millis()).unwrap_or(u64::MAX),
+                    drive_freed: p.drive_freed,
+                },
+            );
+        };
+        managed::run(tool, &target, consent, &mut on_progress).map(|r| (path, r))
+    })
+    .await
+    .map_err(|err| CommandError::Internal {
+        message: format!("the cleanup thread did not finish: {err}"),
+    })?;
+    let (path, report) = report?;
+
+    let (outcome, code) = match report.finished {
+        Finished::Done => ("done", None),
+        Finished::NeedsRestart => ("needsRestart", None),
+        Finished::ToolFailed(code) => ("toolFailed", Some(code)),
+    };
+    Ok(WindowsCleanupReportDto {
+        path,
+        outcome,
+        code,
+        location_before: report.location_before,
+        location_after: report.location_after,
+        location_freed: report.location_freed(),
+        drive_freed: report.drive_freed(),
+        elapsed_ms: u64::try_from(report.elapsed.as_millis()).unwrap_or(u64::MAX),
+    })
+}
+
+/// The tool for a location the candidate list itself produced, else a
+/// refusal: the webview names a location, never a tool or an arbitrary path.
+#[cfg(windows)]
+fn managed_tool_for(target: &std::path::Path) -> CommandResult<vitals_win::storage::ManagedTool> {
+    vitals_win::storage::candidate_locations()
+        .into_iter()
+        .find(|(candidate, _)| {
+            candidate
+                .as_os_str()
+                .eq_ignore_ascii_case(target.as_os_str())
+        })
+        .and_then(|(candidate, kind)| vitals_win::storage::tool_for(kind, &candidate))
+        .ok_or_else(|| CommandError::Refused {
+            message: "that location is not one Windows cleans up, so nothing was run".into(),
+        })
 }
 
 /// Stable translation key. The reason and label live in the UI bundle rather
@@ -2390,6 +2525,7 @@ const fn cleanup_kind(kind: vitals_win::storage::CleanupKind) -> &'static str {
         K::PackageManagerCache => "packageManagerCache",
         K::ThumbnailCache => "thumbnailCache",
         K::DeliveryOptimisation => "deliveryOptimisation",
+        K::ComponentStore => "componentStore",
     }
 }
 
@@ -2516,5 +2652,35 @@ mod recycle_tests {
         let many = vec![r"C:\nowhere".to_owned(); RECYCLE_MAX + 1];
         let big = tauri::async_runtime::block_on(recycle_storage_items(many, None));
         assert!(matches!(big, Err(CommandError::Refused { .. })));
+    }
+
+    #[test]
+    fn a_windows_cleanup_runs_only_for_a_location_the_candidate_list_produced() {
+        // The webview names a location; a path it made up — or the user's
+        // own temp folder, which is the basket's job — never reaches a tool.
+        for path in [r"C:\Users", r"C:\Windows\System32", r"D:\anything", ""] {
+            assert!(
+                matches!(
+                    managed_tool_for(std::path::Path::new(path)),
+                    Err(CommandError::Refused { .. })
+                ),
+                "{path:?}"
+            );
+        }
+        if let Ok(temp) = std::env::var("TEMP") {
+            assert!(managed_tool_for(std::path::Path::new(&temp)).is_err());
+        }
+        let root = std::env::var("SystemRoot").expect("SystemRoot");
+        assert_eq!(
+            managed_tool_for(&std::path::Path::new(&root).join("WinSxS")).ok(),
+            Some(vitals_win::storage::ManagedTool::ComponentCleanup)
+        );
+        let drive = std::env::var("SystemDrive").expect("SystemDrive");
+        assert_eq!(
+            managed_tool_for(std::path::Path::new(&format!("{drive}\\hiberfil.sys")))
+                .map(vitals_win::storage::ManagedTool::is_risky)
+                .ok(),
+            Some(true)
+        );
     }
 }

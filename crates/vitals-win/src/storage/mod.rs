@@ -33,6 +33,7 @@
 pub mod cleanup;
 mod ffi;
 pub mod layout;
+pub mod managed;
 pub mod mft;
 pub mod protect;
 pub mod recycle;
@@ -49,6 +50,7 @@ pub use cleanup::{
     CleanupCandidate, CleanupKind, Safety, candidate_locations, reclaimable_total, unmeasured_count,
 };
 pub use layout::{Cell, CellKind, Detail, icicle, treemap};
+pub use managed::{ManagedTool, tool_for};
 pub use mft::{MftEntry, VolumeNamespace};
 pub use protect::{Protection, Rules, Vetted, vet};
 pub use recycle::{Holder, HolderKind, Outcome, holders_of, recycle};
@@ -127,7 +129,8 @@ pub fn largest_directories(result: &ScanResult, n: usize) -> Vec<DirectoryEntry>
 /// the second is how a cleanup tool talks a user out of reclaiming 8 GB.
 ///
 /// **Nothing here deletes anything.** Removal is a separate, explicitly
-/// confirmed action that does not exist yet.
+/// confirmed action: [`managed`] for Windows-managed space, the basket for
+/// the rest.
 #[must_use]
 pub fn find_cleanup_candidates(cancel: Option<&AtomicBool>) -> Vec<CleanupCandidate> {
     let mut out = Vec::new();
@@ -140,7 +143,12 @@ pub fn find_cleanup_candidates(cancel: Option<&AtomicBool>) -> Vec<CleanupCandid
             continue;
         };
 
-        let size = if metadata.is_file() {
+        let size = if kind == CleanupKind::ComponentStore {
+            // A walk would count 10 GB of hard links into System32 as the
+            // store's own; what can go is known only to an elevated DISM.
+            // Unknown, not a wrong number.
+            None
+        } else if metadata.is_file() {
             Some(Bytes(metadata.len()))
         } else {
             size_of_directory(&path, cancel)
@@ -242,6 +250,12 @@ mod tests {
                 candidate.path.display()
             );
             assert!(!candidate.reason.is_empty());
+            if candidate.kind == CleanupKind::ComponentStore {
+                assert_eq!(
+                    candidate.size, None,
+                    "a walk of WinSxS counts hard links into System32 as its own"
+                );
+            }
         }
 
         // A location whose size could not be measured must not silently

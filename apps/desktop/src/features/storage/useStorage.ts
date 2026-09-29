@@ -32,9 +32,11 @@ import type {
   ScanSnapshot,
   StorageListing,
   Volume,
+  WindowsCleanupProgress,
+  WindowsCleanupReport,
 } from './model';
 import { addToBasket, removeFromBasket } from './model';
-import { errorMessage } from '../../lib/commandError';
+import { errorMessage, isCommandError } from '../../lib/commandError';
 
 /** Reported when there is no Tauri host, so the screen can explain itself. */
 export const NO_HOST = 'no-host';
@@ -44,6 +46,9 @@ export const TOP_N = 200;
 
 /** Emitted by `scan_storage` about ten times a second while it runs. */
 export const SCAN_PROGRESS_EVENT = 'vitals://storage/scan-progress';
+
+/** Emitted by `run_windows_cleanup` about twice a second while a tool runs. */
+export const CLEANUP_PROGRESS_EVENT = 'vitals://storage/cleanup-progress';
 
 export interface StorageSource {
   readonly volumes: () => Promise<readonly Volume[]>;
@@ -71,6 +76,14 @@ export interface StorageSource {
   readonly recycle: (paths: readonly string[], scanId: number | null) => Promise<RecycleReport>;
   /** Which programs have a file, or a file in a folder, open. */
   readonly holders: (path: string) => Promise<readonly Holder[]>;
+  /**
+   * Frees one Windows-managed location with Windows' own tool, after one
+   * UAC prompt. `confirmed` is required for a tool that cannot be undone.
+   */
+  readonly windowsCleanup: (path: string, confirmed: boolean) => Promise<WindowsCleanupReport>;
+  readonly onCleanupProgress: (
+    listener: (progress: WindowsCleanupProgress) => void,
+  ) => Promise<() => void>;
 }
 
 /** The real source. Dynamic imports so a browser never evaluates the IPC module. */
@@ -121,6 +134,16 @@ export const tauriSource: StorageSource = {
     const { invoke } = await import('@tauri-apps/api/core');
     return invoke<readonly Holder[]>('get_file_holders', { path });
   },
+  windowsCleanup: async (path, confirmed) => {
+    const { invoke } = await import('@tauri-apps/api/core');
+    return invoke<WindowsCleanupReport>('run_windows_cleanup', { path, confirmed });
+  },
+  onCleanupProgress: async (listener) => {
+    const { listen } = await import('@tauri-apps/api/event');
+    return listen<WindowsCleanupProgress>(CLEANUP_PROGRESS_EVENT, (event) => {
+      listener(event.payload);
+    });
+  },
 };
 
 const PREFETCH_KEY = 'storage:volumes';
@@ -162,6 +185,9 @@ export interface StorageState {
    */
   readonly revision: number;
 
+  /** The Windows cleanup in flight or last finished; `null` before any. */
+  readonly windowsRun: WindowsRun | null;
+
   scan: (path: string) => void;
   cancelScan: () => void;
   findCleanup: () => void;
@@ -173,6 +199,20 @@ export interface StorageState {
   /** Sends the whole basket; resolves when the report is in. */
   recycleBasket: () => Promise<void>;
   dismissReport: () => void;
+  /** Runs the candidate's Windows tool; resolves when its report is in. */
+  runWindowsCleanup: (path: string, confirmed: boolean) => Promise<void>;
+  dismissWindowsRun: () => void;
+}
+
+/** One Windows cleanup: its progress while it runs, then its report or error. */
+export interface WindowsRun {
+  readonly path: string;
+  readonly running: boolean;
+  readonly progress: WindowsCleanupProgress | null;
+  readonly report: WindowsCleanupReport | null;
+  readonly error: string | null;
+  /** The UAC prompt was dismissed or the action refused: a decision, not a fault. */
+  readonly declined: boolean;
 }
 
 export function useStorage(source?: StorageSource): StorageState {
@@ -203,6 +243,8 @@ export function useStorage(source?: StorageSource): StorageState {
   const [report, setReport] = useState<RecycleReport | null>(null);
   const [recycleError, setRecycleError] = useState<string | null>(null);
   const [revision, setRevision] = useState(0);
+  const [windowsRun, setWindowsRun] = useState<WindowsRun | null>(null);
+  const windowsInFlight = useRef(false);
   const recycleInFlight = useRef(false);
   const snapshotRef = useRef<ScanSnapshot | null>(null);
   snapshotRef.current = snapshot;
@@ -376,6 +418,64 @@ export function useStorage(source?: StorageSource): StorageState {
     }
   }, []);
 
+  const runWindowsCleanup = useCallback(async (path: string, confirmed: boolean) => {
+    // One at a time: the backend refuses a second, and each is its own UAC
+    // prompt the user should see answered before the next.
+    if (windowsInFlight.current) return;
+    windowsInFlight.current = true;
+    setWindowsRun({
+      path,
+      running: true,
+      progress: null,
+      report: null,
+      error: null,
+      declined: false,
+    });
+
+    const unsubscribe = sourceRef.current
+      .onCleanupProgress((next) => {
+        if (!mounted.current || next.path !== path) return;
+        setWindowsRun((run) =>
+          run?.path === path && run.running ? { ...run, progress: next } : run,
+        );
+      })
+      .catch(() => () => undefined);
+
+    try {
+      const report = await sourceRef.current.windowsCleanup(path, confirmed);
+      if (!mounted.current) return;
+      setWindowsRun({ path, running: false, progress: null, report, error: null, declined: false });
+      // The row shows what is there now, as measured after the tool exited.
+      if (report.locationAfter !== null) {
+        const after = report.locationAfter;
+        setCandidates((current) =>
+          current === null
+            ? current
+            : current.map((c) => (c.path === path ? { ...c, size: after } : c)),
+        );
+      }
+    } catch (cause: unknown) {
+      if (!mounted.current) return;
+      setWindowsRun({
+        path,
+        running: false,
+        progress: null,
+        report: null,
+        error: errorMessage(cause),
+        declined: isCommandError(cause) && cause.kind === 'refused',
+      });
+    } finally {
+      windowsInFlight.current = false;
+      void unsubscribe.then((stop) => {
+        stop();
+      });
+    }
+  }, []);
+
+  const dismissWindowsRun = useCallback(() => {
+    if (!windowsInFlight.current) setWindowsRun(null);
+  }, []);
+
   useEffect(() => {
     mounted.current = true;
 
@@ -413,6 +513,7 @@ export function useStorage(source?: StorageSource): StorageState {
     report,
     recycleError,
     revision,
+    windowsRun,
     scan,
     cancelScan,
     findCleanup,
@@ -423,5 +524,7 @@ export function useStorage(source?: StorageSource): StorageState {
     clearBasket,
     recycleBasket,
     dismissReport,
+    runWindowsCleanup,
+    dismissWindowsRun,
   };
 }

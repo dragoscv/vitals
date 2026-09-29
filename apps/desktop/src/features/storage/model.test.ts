@@ -7,6 +7,7 @@ import {
   groupBySafety,
   inBasket,
   leafName,
+  measuredFreed,
   needsQualifier,
   reclaimableTotal,
   removeFromBasket,
@@ -95,6 +96,8 @@ function candidate(overrides: Partial<CleanupCandidate> = {}): CleanupCandidate 
     size: GB,
     safety: 'safe',
     allowsOneClick: true,
+    tool: null,
+    irreversible: false,
     needsElevation: false,
     ...overrides,
   };
@@ -302,5 +305,43 @@ describe('needsQualifier', () => {
     // No cluster size means no rounding, so the totals are an under-count.
     // Presenting them as exact would be a small lie repeated on every row.
     expect(needsQualifier(snapshot({ clusterBytes: null }))).toBe(true);
+  });
+});
+
+describe('measuredFreed', () => {
+  const base = {
+    path: 'C:\\x',
+    outcome: 'done',
+    code: null,
+    locationBefore: 10,
+    locationAfter: 4,
+    locationFreed: 6,
+    driveFreed: 9,
+    elapsedMs: 1,
+  } as const;
+
+  it('prefers what the location lost over what the drive gained', () => {
+    expect(measuredFreed(base)).toEqual({ bytes: 6, from: 'location' });
+    expect(measuredFreed({ ...base, locationFreed: null })).toEqual({ bytes: 9, from: 'drive' });
+  });
+
+  it('falls back to the drive when the location did not shrink', () => {
+    // Update Cleanup trims the component store, not the folder shown.
+    expect(measuredFreed({ ...base, locationFreed: 0 })).toEqual({ bytes: 9, from: 'drive' });
+    expect(measuredFreed({ ...base, locationFreed: 0, driveFreed: null })).toEqual({
+      bytes: 0,
+      from: 'location',
+    });
+  });
+
+  it('is unknown, not zero, when neither was measured', () => {
+    expect(measuredFreed({ ...base, locationFreed: null, driveFreed: null })).toBeNull();
+  });
+
+  it('never reports a negative figure as space freed', () => {
+    expect(measuredFreed({ ...base, locationFreed: -5, driveFreed: -3 })).toEqual({
+      bytes: 0,
+      from: 'drive',
+    });
   });
 });

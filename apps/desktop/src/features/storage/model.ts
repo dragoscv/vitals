@@ -44,7 +44,17 @@ export type CleanupKindKey =
   | 'hibernation'
   | 'packageManagerCache'
   | 'thumbnailCache'
-  | 'deliveryOptimisation';
+  | 'deliveryOptimisation'
+  | 'componentStore';
+
+/** The Windows tool that frees a candidate (`CleanupCandidateDto.tool`). */
+export type WindowsToolKey = 'diskCleanup' | 'componentCleanup' | 'hibernateOff';
+
+export const windowsTools: readonly WindowsToolKey[] = [
+  'diskCleanup',
+  'componentCleanup',
+  'hibernateOff',
+];
 
 export interface Volume {
   /** Mount point, e.g. `C:\`. Also the scan root and the React key. */
@@ -172,6 +182,61 @@ export interface CleanupCandidate {
   readonly safety: SafetyKey;
   readonly allowsOneClick: boolean;
   readonly needsElevation: boolean;
+  /** `null` when the space is not Windows-managed (the basket's job). */
+  readonly tool: WindowsToolKey | null;
+  /** The tool's effect cannot be undone; it needs its own confirmation. */
+  readonly irreversible: boolean;
+}
+
+export type CleanupStageKey = 'measuring' | 'approval' | 'running' | 'remeasuring';
+
+export const cleanupStages: readonly CleanupStageKey[] = [
+  'measuring',
+  'approval',
+  'running',
+  'remeasuring',
+];
+
+/** `WindowsCleanupProgressDto`, about twice a second while a tool runs. */
+export interface WindowsCleanupProgress {
+  readonly path: string;
+  readonly stage: CleanupStageKey;
+  readonly elapsedMs: number;
+  /** Free space the drive has gained so far; `null` when unreadable. */
+  readonly driveFreed: number | null;
+}
+
+export type WindowsCleanupOutcomeKey = 'done' | 'needsRestart' | 'toolFailed';
+
+/** `WindowsCleanupReportDto`: the figures read before and after, not estimates. */
+export interface WindowsCleanupReport {
+  readonly path: string;
+  readonly outcome: WindowsCleanupOutcomeKey;
+  readonly code: number | null;
+  readonly locationBefore: number | null;
+  readonly locationAfter: number | null;
+  readonly locationFreed: number | null;
+  readonly driveFreed: number | null;
+  readonly elapsedMs: number;
+}
+
+/**
+ * The one figure to headline, and which measurement it is: what the location
+ * lost when it shrank, else what the drive gained. Some Windows handlers act
+ * beyond the folder shown (Update Cleanup trims the component store), so a
+ * location that did not move is not proof nothing was freed. Never below
+ * zero, and `null` when neither was measured — "we could not read it" is not
+ * "nothing was freed".
+ */
+export function measuredFreed(
+  report: WindowsCleanupReport,
+): { readonly bytes: number; readonly from: 'location' | 'drive' } | null {
+  if (report.locationFreed !== null && report.locationFreed > 0) {
+    return { bytes: report.locationFreed, from: 'location' };
+  }
+  if (report.driveFreed !== null) return { bytes: Math.max(0, report.driveFreed), from: 'drive' };
+  if (report.locationFreed !== null) return { bytes: 0, from: 'location' };
+  return null;
 }
 
 /** Something the user chose to review for the Recycle Bin. */

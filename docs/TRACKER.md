@@ -153,7 +153,7 @@ Status values: `todo`, `doing`, `done`, `blocked`, `dropped`.
 | S10   | Docs, ADRs, CI, supply-chain audits                                  | done except S10-12 (ARM64 leg unproven — needs a run on `windows-11-arm`, and agents never push)   |
 | S11   | Task Manager replacement, HUD overlay                                | done                                                                                               |
 | S12   | Look-and-feel redesign + the four backend truths it exposed          | done (S12-11 measured in CPU cycles: 23–24 ms on S12, 22–25 ms on the commit before it)            |
-| S14   | Storage: fast complete scans, navigation, cleanup, Turbo, extras     | doing (S14-01 engine, 02 explore, 03 recycle basket done; 04 Windows cleanup next)                 |
+| S14   | Storage: fast complete scans, navigation, cleanup, Turbo, extras     | doing (01 engine, 02 explore, 03 recycle basket, 04 Windows cleanup done; 05 Turbo next)           |
 | S15   | Android phone, Wear OS watch, TV: native apps + on-device monitor    | doing (01-05 done; release pipeline, Play, Google TV, Tizen open)                                  |
 
 Per-item status lives in `tracker.csv`. This file records the reasoning; the
@@ -162,6 +162,106 @@ CSV records the state.
 ---
 
 ## Verification log
+
+### 2026-09-29 — S14-04 Windows-managed space, freed by Windows' own tools
+
+**Ask.** Slice 4 of S14: from the "Reclaimable space" card, free the space
+Windows manages with the tool Windows provides — Disk Cleanup, DISM component
+cleanup, `powercfg /h off` — elevated once for that action only, with
+progress and the space actually freed, measured before and after. Nothing is
+removed by a Vitals file delete; the irreversible ones need their own
+confirmation stating the consequence.
+
+**What was built.**
+
+- _One tool per location_ (`storage/managed.rs`). `tool_for(kind, path)`
+  maps system temp, the Windows Update cache, Delivery Optimisation, the
+  thumbnail cache, the bin, `Windows.old`, minidumps and `MEMORY.DMP` to
+  one Disk Cleanup handler each; the new `ComponentStore` candidate
+  (`WinSxS`) to `DISM /Online /Cleanup-Image /StartComponentCleanup`
+  (no `/ResetBase`, so installed updates stay uninstallable); the
+  hibernation file to `powercfg /hibernate off`. Your own temp, browser and
+  package caches and live kernel reports have no Windows tool and keep the
+  disabled button that points to the basket. `WinSxS` is never walked for a
+  size: most of it is hard links into `System32`, so it shows "Not measured".
+- _Elevated once, for that action_. The app re-launches itself under
+  `runas` with `--elevated-storage-cleanup <tool> <consent>`
+  (`LaunchMode::ElevatedStorageCleanup`, never a window). The child accepts
+  only a closed list of tools — a crafted `cleanmgr.downloadsFolder` (the
+  handler that empties Downloads) is refused — resolves each program from
+  `%SystemRoot%\System32`, never `PATH`, and refuses a risky tool without
+  `confirmed`. Disk Cleanup runs `/sagerun:7331` with exactly one handler's
+  `StateFlags7331` set, cleared again afterwards (and every handler's cleared
+  first, in case an earlier run died). The tool's exit code passes through;
+  Vitals' own failures use `0xE5C0_000x`; 3010 is "restart to finish".
+- _Progress while it runs_. `spawn_program_elevated` returns once the UAC
+  prompt is answered, and the command polls the child every 500 ms, emitting
+  `vitals://storage/cleanup-progress` with the stage (measuring, approval,
+  running, remeasuring), the elapsed time and the free space the drive has
+  gained so far.
+- _Freed is measured_. The location and the drive's free space are read
+  before the prompt and after the tool exits; the report carries all four
+  figures. The headline is what the location lost; when it did not shrink or
+  could not be read (the component store), the drive's gain, labelled as that.
+- _The command names a location, never a tool_. `run_windows_cleanup`
+  looks the path up in the candidate list; a path the list did not produce
+  (`C:\Users`, your temp folder) is refused before anything runs.
+  Desktop-only, like recycling.
+- _UI_ (`WindowsCleanup.tsx`). "Clean up…" / "Turn off…" on each
+  Windows-managed row opens one dialog: what Windows will do, that approval is
+  asked once for this action, then the stage and elapsed time. The bin,
+  `Windows.old` and hibernation state their consequence and need "I
+  understand this cannot be undone" ticked before the (danger) button works.
+  The report shows the freed figure, before/after for the location, the drive
+  change, and "measured, not estimated"; the row's size is updated from the
+  after-measurement. A declined prompt says nothing was cleaned and is titled
+  so.
+
+**Found by looking at it** (probe app, CDP, user approving each prompt):
+
+- _A declined prompt was titled "what Windows freed"._ Caught by the vitest
+  for a refused elevation; now "nothing was run".
+- _`powercfg /h off` exits 0 and frees nothing here._ Hibernation on this
+  machine is already off ("An internal system component has disabled
+  hibernation", `HibernateEnabled` 0), yet `C:\hiberfil.sys` is
+  76.7 GB. powercfg reports success in about a second and the file
+  stays. The report read "Done · 0 B", which looks like success; it now says
+  "Nothing changed" and that Windows decides what it removes, and Vitals
+  removes nothing in its place.
+
+**Live, this machine:** unconfirmed hibernation over IPC → `refused`, no
+prompt; `C:\Users` → `refused`. Thumbnail cache through the UI, prompt
+approved: 147 MB → 3.14 MB in 258 s
+(independently `Get-ChildItem` sum 3,235,509 bytes after), row updated
+to 3.14 MB, no `StateFlags7331` left in the registry. The drive line
+read "1.36 GB less free space" because other agents' builds were writing to C:
+meanwhile, which is why the location figure is the headline. Hibernation,
+ticked and approved: "Nothing changed", 76.7 GB before and after.
+
+**Tests.** `vitals-win` storage 126 (managed 13) (managed: arguments round
+trip for all ten tools; a handler outside the list and malformed arguments are
+BAD_ARGS; every risky tool unconfirmed is REFUSED in the child; exactly the
+bin, `Windows.old` and hibernation are risky; every Windows-managed kind has
+a tool and app caches do not, live kernel reports have none; an unconfirmed
+risky tool never reaches the launcher; a declined prompt stops after
+Measuring, Approval; freed is the before/after of a real folder a fake tool
+shrank; a tool that frees nothing reports 0; exit-code mapping incl. 3010 and
+an HRESULT; tools resolve from System32; the component store is never sized).
+`vitals-desktop` 66 (the command refuses a location the
+candidate list did not produce; the elevated child never starts a window).
+Vitest storage 114 (one confirmation then the tool for that path only;
+measured report and the row updated; stage and freed-so-far while running,
+Cancel disabled; a declined prompt changes nothing; Cancel runs nothing; an
+irreversible tool states its consequence and is disabled until ticked, then
+sends `confirmed`; drive figure labelled when the location is unreadable,
+restart note; a tool failure shows its code; "Nothing changed"; Romanian
+dialog; every tool, stage, outcome and consequence has a string in both
+locales). Mutation: removing the elevated child's risky-needs-confirmation check turns the_child_refuses_a_risky_tool_that_was_not_confirmed red (cleanmgr.recycleBin unconfirmed ran), restored 13/13. `verify.ps1 -SkipPerf`: 10 of 10 gates, 1,213 Rust tests (two earlier runs failed only S14-03's Restart Manager holder tests with RmGetList error 5 under concurrent load; base 2e7941e and this tree both pass them alone).
+
+**Not in this slice:** `Windows.old`, the bin, minidumps and Delivery
+Optimisation were not run live (absent or empty here); their handlers are the
+same code path as the thumbnail cache. The LAN API, CLI, SDK and Home
+Assistant are not touched: freeing space is desktop-only on purpose.
 
 ### 2026-09-29 — S14-03 A review basket that sends items to the Recycle Bin, and "why can't I delete this"
 

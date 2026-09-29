@@ -14,6 +14,8 @@ import type {
   StorageListing,
   StorageNode,
   Volume,
+  WindowsCleanupProgress,
+  WindowsCleanupReport,
 } from './model';
 import { registerStorageStrings } from './strings';
 import type { StorageSource } from './useStorage';
@@ -139,6 +141,22 @@ function candidate(overrides: Partial<CleanupCandidate> = {}): CleanupCandidate 
     safety: 'safe',
     allowsOneClick: true,
     needsElevation: false,
+    tool: null,
+    irreversible: false,
+    ...overrides,
+  };
+}
+
+function windowsReport(overrides: Partial<WindowsCleanupReport> = {}): WindowsCleanupReport {
+  return {
+    path: 'C:\\Windows\\SoftwareDistribution\\Download',
+    outcome: 'done',
+    code: null,
+    locationBefore: 113 * 1024 * 1024,
+    locationAfter: 1024 * 1024,
+    locationFreed: 112 * 1024 * 1024,
+    driveFreed: 115 * 1024 * 1024,
+    elapsedMs: 4200,
     ...overrides,
   };
 }
@@ -151,15 +169,20 @@ interface SourceOverrides {
   readonly cleanup?: StorageSource['cleanup'];
   readonly children?: StorageSource['children'];
   readonly recycle?: StorageSource['recycle'];
+  readonly windowsCleanup?: StorageSource['windowsCleanup'];
 }
 
 type ProgressListener = Parameters<StorageSource['onProgress']>[0];
 
 /** A source whose progress events a test can fire by hand. */
-type TestSource = StorageSource & { emit: (progress: ScanProgress) => void };
+type TestSource = StorageSource & {
+  emit: (progress: ScanProgress) => void;
+  emitCleanup: (progress: WindowsCleanupProgress) => void;
+};
 
 function makeSource(overrides: SourceOverrides = {}): TestSource {
   const listeners = new Set<ProgressListener>();
+  const cleanupListeners = new Set<(progress: WindowsCleanupProgress) => void>();
   return {
     volumes:
       overrides.readVolumes ??
@@ -189,6 +212,18 @@ function makeSource(overrides: SourceOverrides = {}): TestSource {
         }),
       ),
     holders: vi.fn<StorageSource['holders']>().mockResolvedValue([]),
+    windowsCleanup:
+      overrides.windowsCleanup ??
+      vi.fn<StorageSource['windowsCleanup']>((path) => Promise.resolve(windowsReport({ path }))),
+    onCleanupProgress: (listener) => {
+      cleanupListeners.add(listener);
+      return Promise.resolve(() => {
+        cleanupListeners.delete(listener);
+      });
+    },
+    emitCleanup: (progress) => {
+      for (const listener of cleanupListeners) listener(progress);
+    },
     onProgress: (listener) => {
       listeners.add(listener);
       return Promise.resolve(() => {
@@ -801,10 +836,10 @@ describe('StorageScreen', () => {
       expect(screen.getByText(/1 location could not be measured/)).toBeTruthy();
     });
 
-    it('offers deletion as unavailable rather than faking it', async () => {
-      // The catalogue has no removal path of its own yet (Windows-managed
-      // cleanup is its own slice). A live-looking button that does nothing
-      // teaches the user the app is broken; the tooltip points to the basket.
+    it('offers deletion as unavailable for space Windows does not manage', async () => {
+      // Your own temp folder has no Windows tool; a live-looking button that
+      // does nothing teaches the user the app is broken, so it points to the
+      // basket instead.
       await withCleanup([candidate()]);
 
       const remove = await screen.findByRole('button', { name: 'Delete' });
@@ -842,6 +877,232 @@ describe('StorageScreen', () => {
     it('says so when there is genuinely nothing to reclaim', async () => {
       await withCleanup([]);
       expect(await screen.findByText('Nothing to reclaim')).toBeTruthy();
+    });
+  });
+
+  describe('Windows-managed cleanup', () => {
+    const UPDATE = 'C:\\Windows\\SoftwareDistribution\\Download';
+    const HIBER = 'C:\\hiberfil.sys';
+
+    function updateCache(overrides: Partial<CleanupCandidate> = {}) {
+      return candidate({
+        path: UPDATE,
+        kind: 'windowsUpdateCache',
+        safety: 'review',
+        size: 113 * 1024 * 1024,
+        tool: 'diskCleanup',
+        ...overrides,
+      });
+    }
+
+    function hibernation() {
+      return candidate({
+        path: HIBER,
+        kind: 'hibernation',
+        safety: 'risky',
+        size: 34 * GB,
+        tool: 'hibernateOff',
+        irreversible: true,
+      });
+    }
+
+    async function withCandidates(
+      items: readonly CleanupCandidate[],
+      windowsCleanup?: StorageSource['windowsCleanup'],
+    ) {
+      const source = makeSource({
+        cleanup: vi.fn<StorageSource['cleanup']>().mockResolvedValue(items),
+        ...(windowsCleanup !== undefined && { windowsCleanup }),
+      });
+      await mount(source);
+      fireEvent.click(screen.getByRole('button', { name: /Look for reclaimable space/ }));
+      await screen.findByText(/looks reclaimable/);
+      return source;
+    }
+
+    it('runs the Windows tool for that location only after one confirmation', async () => {
+      const source = await withCandidates([updateCache()]);
+      fireEvent.click(screen.getByRole('button', { name: 'Clean up…' }));
+
+      const dialog = await screen.findByRole('dialog');
+      expect(dialog.textContent).toMatch(/Disk Cleanup runs with only this item ticked/);
+      expect(dialog.textContent).toMatch(/administrator approval once/);
+      expect(source.windowsCleanup).not.toHaveBeenCalled();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Run Disk Cleanup' }));
+      expect(source.windowsCleanup).toHaveBeenCalledExactlyOnceWith(UPDATE, false);
+    });
+
+    it('reports the space measured before and after, and updates the row', async () => {
+      await withCandidates([updateCache()]);
+      fireEvent.click(screen.getByRole('button', { name: 'Clean up…' }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Run Disk Cleanup' }));
+
+      expect(await screen.findByText('112 MB freed')).toBeTruthy();
+      expect(screen.getByText('113 MB before, 1.00 MB after')).toBeTruthy();
+      expect(screen.getByText('115 MB more free space')).toBeTruthy();
+      expect(screen.getByText(/Measured before and after/)).toBeTruthy();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Done' }));
+      expect(await screen.findByText('1.00 MB')).toBeTruthy();
+    });
+
+    it('shows the stage and the space freed so far while Windows works', async () => {
+      let finish: (report: WindowsCleanupReport) => void = () => undefined;
+      const source = await withCandidates(
+        [updateCache()],
+        vi.fn<StorageSource['windowsCleanup']>(
+          () =>
+            new Promise((done) => {
+              finish = done;
+            }),
+        ),
+      );
+      fireEvent.click(screen.getByRole('button', { name: 'Clean up…' }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Run Disk Cleanup' }));
+
+      await act(async () => {
+        await Promise.resolve();
+        source.emitCleanup({
+          path: UPDATE,
+          stage: 'running',
+          elapsedMs: 3000,
+          driveFreed: 50 * 1024 * 1024,
+        });
+      });
+      expect(screen.getAllByText('Windows is cleaning up…').length).toBeGreaterThan(0);
+      expect(screen.getByText(/50.0 MB freed on the drive so far/)).toBeTruthy();
+      expect(screen.getByRole('button', { name: 'Cancel' }).hasAttribute('disabled')).toBe(true);
+
+      await act(async () => {
+        finish(windowsReport());
+        await Promise.resolve();
+      });
+      expect(await screen.findByText('112 MB freed')).toBeTruthy();
+    });
+
+    it('a declined administrator prompt says nothing was cleaned and changes nothing', async () => {
+      await withCandidates(
+        [updateCache()],
+        vi.fn<StorageSource['windowsCleanup']>().mockRejectedValue({
+          kind: 'refused',
+          message: 'administrator approval was declined, so nothing was cleaned',
+        }),
+      );
+      fireEvent.click(screen.getByRole('button', { name: 'Clean up…' }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Run Disk Cleanup' }));
+
+      expect(
+        await screen.findByText(/Nothing was cleaned. administrator approval was declined/),
+      ).toBeTruthy();
+      expect(screen.queryByText(/freed/)).toBeNull();
+      fireEvent.click(screen.getByRole('button', { name: 'Done' }));
+      expect(await screen.findByText('113 MB')).toBeTruthy();
+    });
+
+    it('cancelling the dialog runs nothing', async () => {
+      const source = await withCandidates([updateCache()]);
+      fireEvent.click(screen.getByRole('button', { name: 'Clean up…' }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Cancel' }));
+      expect(screen.queryByRole('dialog')).toBeNull();
+      expect(source.windowsCleanup).not.toHaveBeenCalled();
+    });
+
+    it('an irreversible tool states the consequence and needs its own tick', async () => {
+      const source = await withCandidates([hibernation()]);
+      fireEvent.click(screen.getByRole('button', { name: 'Turn off…' }));
+
+      const dialog = await screen.findByRole('dialog');
+      expect(dialog.textContent).toMatch(/fast startup is turned off too/);
+      const go = screen.getByRole('button', { name: 'Turn hibernation off' });
+      expect(go.hasAttribute('disabled')).toBe(true);
+      fireEvent.click(go);
+      expect(source.windowsCleanup).not.toHaveBeenCalled();
+
+      fireEvent.click(screen.getByRole('checkbox', { name: /cannot be undone/ }));
+      fireEvent.click(go);
+      expect(source.windowsCleanup).toHaveBeenCalledExactlyOnceWith(HIBER, true);
+    });
+
+    it('when the location cannot be read, the drive figure is shown and labelled as such', async () => {
+      await withCandidates(
+        [
+          candidate({
+            path: 'C:\\Windows\\WinSxS',
+            kind: 'componentStore',
+            size: null,
+            tool: 'componentCleanup',
+          }),
+        ],
+        vi.fn<StorageSource['windowsCleanup']>().mockResolvedValue(
+          windowsReport({
+            path: 'C:\\Windows\\WinSxS',
+            outcome: 'needsRestart',
+            locationBefore: null,
+            locationAfter: null,
+            locationFreed: null,
+            driveFreed: 2 * GB,
+          }),
+        ),
+      );
+      fireEvent.click(screen.getByRole('button', { name: 'Clean up…' }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Run component cleanup' }));
+      expect(await screen.findByText('2.00 GB more free on the drive')).toBeTruthy();
+      expect(screen.getByText(/next time the computer restarts/)).toBeTruthy();
+    });
+
+    it('a tool failure shows its code and what was still freed', async () => {
+      await withCandidates(
+        [updateCache()],
+        vi.fn<StorageSource['windowsCleanup']>().mockResolvedValue(
+          windowsReport({
+            outcome: 'toolFailed',
+            code: 0x800f081f,
+            locationFreed: 0,
+            locationAfter: 113 * 1024 * 1024,
+            driveFreed: 0,
+          }),
+        ),
+      );
+      fireEvent.click(screen.getByRole('button', { name: 'Clean up…' }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Run Disk Cleanup' }));
+      expect(await screen.findByText(/code 0x800F081F/)).toBeTruthy();
+      expect(screen.getByText('0 B more free on the drive')).toBeTruthy();
+    });
+
+    it('a tool that finished but freed nothing says so instead of "Done"', async () => {
+      // Seen live: powercfg /h off exited 0 and hiberfil.sys stayed 76.7 GB.
+      await withCandidates(
+        [hibernation()],
+        vi.fn<StorageSource['windowsCleanup']>().mockResolvedValue(
+          windowsReport({
+            path: HIBER,
+            locationBefore: 34 * GB,
+            locationAfter: 34 * GB,
+            locationFreed: 0,
+            driveFreed: -4096,
+          }),
+        ),
+      );
+      fireEvent.click(screen.getByRole('button', { name: 'Turn off…' }));
+      fireEvent.click(await screen.findByRole('checkbox', { name: /cannot be undone/ }));
+      fireEvent.click(screen.getByRole('button', { name: 'Turn hibernation off' }));
+      expect(await screen.findByText('Nothing changed')).toBeTruthy();
+      expect(screen.getByText(/nothing measurable was freed here/)).toBeTruthy();
+      expect(screen.queryByText(/^Done$/, { selector: 'span' })).toBeNull();
+    });
+
+    it('renders the dialog in Romanian without key paths', async () => {
+      await i18n.changeLanguage('ro');
+      const source = makeSource({
+        cleanup: vi.fn<StorageSource['cleanup']>().mockResolvedValue([hibernation()]),
+      });
+      render(<StorageScreen source={source} />);
+      fireEvent.click(await screen.findByRole('button', { name: 'Caută spațiu recuperabil' }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Dezactivează…' }));
+      const dialog = await screen.findByRole('dialog');
+      expect(dialog.textContent).toMatch(/pornirea rapidă/);
+      expect(dialog.textContent).not.toMatch(/windows\.|consequence\./);
     });
   });
 

@@ -13,6 +13,9 @@
 //! - `--elevated-process-action <action> <pid> <start>` — we are the
 //!   **elevated child** a running instance spawned under UAC to end, pause
 //!   or resume one process it was refused. Do that, exit with the result.
+//! - `--elevated-storage-cleanup <tool> <consent>` — the elevated child that
+//!   runs one Windows cleanup tool (Disk Cleanup with one handler, DISM
+//!   component cleanup, `powercfg /h off`) and exits with its code.
 //! - `<anything ending in taskmgr.exe>` as the first argument — Windows
 //!   launched us **as the debugger for Task Manager** because the hook is
 //!   on. This is the taskbar menu or Ctrl+Shift+Esc; proceed to normal
@@ -48,6 +51,11 @@ pub enum LaunchMode {
     /// Same contract as [`LaunchMode::ElevatedProcessAction`]: raw
     /// arguments, parsed by `vitals-win`, never a window.
     ElevatedStartupAction { args: Vec<String> },
+    /// Run one Windows cleanup tool as administrator and exit.
+    ///
+    /// Same contract again: raw arguments, parsed by `vitals-win`, never a
+    /// window.
+    ElevatedStorageCleanup { args: Vec<String> },
 }
 
 /// Classifies the arguments this process was started with.
@@ -98,6 +106,12 @@ where
         };
     }
 
+    if first == vitals_win_arg::STORAGE_CLEANUP {
+        return LaunchMode::ElevatedStorageCleanup {
+            args: args.map(|arg| arg.as_ref().to_owned()).collect(),
+        };
+    }
+
     // The loader passes the original command line — typically
     // `C:\WINDOWS\system32\taskmgr.exe` or, for the taskbar, the same path
     // with `/4` or `/7` after it — so only the first token is inspected,
@@ -136,6 +150,10 @@ mod vitals_win_arg {
     pub const STARTUP_ACTION: &str = vitals_win::startup::STARTUP_ACTION_ARG;
     #[cfg(not(windows))]
     pub const STARTUP_ACTION: &str = "--elevated-startup-action";
+    #[cfg(windows)]
+    pub const STORAGE_CLEANUP: &str = vitals_win::storage::managed::STORAGE_CLEANUP_ARG;
+    #[cfg(not(windows))]
+    pub const STORAGE_CLEANUP: &str = "--elevated-storage-cleanup";
 }
 
 /// Runs a non-UI launch mode to completion.
@@ -151,6 +169,7 @@ pub fn run_headless(mode: &LaunchMode) -> i32 {
         LaunchMode::LaunchRealTaskManager => launch_real_taskmgr(),
         LaunchMode::ElevatedProcessAction { args } => elevated_process_action(args),
         LaunchMode::ElevatedStartupAction { args } => elevated_startup_action(args),
+        LaunchMode::ElevatedStorageCleanup { args } => elevated_storage_cleanup(args),
         LaunchMode::Normal | LaunchMode::AsTaskManager => {
             tracing::error!("run_headless called for a UI launch mode");
             2
@@ -217,6 +236,21 @@ fn elevated_startup_action(args: &[String]) -> i32 {
 #[cfg(not(windows))]
 fn elevated_startup_action(_args: &[String]) -> i32 {
     tracing::error!("elevated startup actions are a Windows mechanism");
+    1
+}
+
+#[cfg(windows)]
+fn elevated_storage_cleanup(args: &[String]) -> i32 {
+    let code = vitals_win::storage::managed::perform(args);
+    tracing::info!(?args, code, "elevated storage cleanup finished");
+    // The tool's code passes through unchanged (DISM returns HRESULTs), so
+    // the bits are reinterpreted rather than clamped.
+    code.cast_signed()
+}
+
+#[cfg(not(windows))]
+fn elevated_storage_cleanup(_args: &[String]) -> i32 {
+    tracing::error!("Windows cleanup tools are a Windows mechanism");
     1
 }
 
@@ -367,6 +401,29 @@ mod tests {
         assert_eq!(
             vitals_win_arg::SET_REPLACEMENT,
             vitals_win::actions::SET_REPLACEMENT_ARG
+        );
+    }
+
+    #[test]
+    fn the_elevated_cleanup_child_never_starts_a_window_even_when_malformed() {
+        assert_eq!(
+            classify([
+                vitals_win_arg::STORAGE_CLEANUP,
+                "dism.components",
+                "unconfirmed"
+            ]),
+            LaunchMode::ElevatedStorageCleanup {
+                args: vec!["dism.components".into(), "unconfirmed".into()]
+            }
+        );
+        assert_eq!(
+            classify([vitals_win_arg::STORAGE_CLEANUP]),
+            LaunchMode::ElevatedStorageCleanup { args: vec![] }
+        );
+        assert_eq!(
+            vitals_win_arg::STORAGE_CLEANUP,
+            "--elevated-storage-cleanup",
+            "the non-Windows spelling must match vitals-win's"
         );
     }
 }

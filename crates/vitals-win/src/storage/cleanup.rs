@@ -3,9 +3,10 @@
 //! **This module reports. It never deletes.** There is no filesystem
 //! mutation anywhere in it, by design: a wrong suggestion costs the user a
 //! moment's judgement, whereas a wrong deletion costs them their data. The
-//! classification below is therefore free to be a little cautious, and the
-//! act of removal belongs to a separate, explicitly-confirmed code path that
-//! does not exist yet.
+//! classification below is therefore free to be a little cautious. Removal
+//! belongs to separate, explicitly confirmed paths: Windows' own tools for
+//! the space Windows manages ([`super::managed`]), the review basket and the
+//! Recycle Bin for everything else ([`super::recycle`]).
 
 use std::path::{Path, PathBuf};
 
@@ -60,6 +61,9 @@ pub enum CleanupKind {
     PackageManagerCache,
     ThumbnailCache,
     DeliveryOptimisation,
+    /// `WinSxS`. Most of it is hard links into `System32`; only superseded
+    /// components can go, and only DISM knows which.
+    ComponentStore,
 }
 
 impl CleanupKind {
@@ -72,7 +76,10 @@ impl CleanupKind {
             Self::UserTemp
             | Self::SystemTemp
             | Self::ThumbnailCache
-            | Self::DeliveryOptimisation => Safety::Safe,
+            | Self::DeliveryOptimisation
+            // DISM without `/ResetBase` is what Windows' own maintenance
+            // task runs; installed updates stay uninstallable.
+            | Self::ComponentStore => Safety::Safe,
             // Recoverable, but the user pays for it: signed-out sessions,
             // re-downloaded updates, a rebuilt package cache.
             Self::BrowserCache
@@ -137,6 +144,11 @@ impl CleanupKind {
                 "Update fragments cached for peer-to-peer sharing with other machines on \
                  the network. Purely a bandwidth optimisation."
             }
+            Self::ComponentStore => {
+                "Superseded versions of Windows components kept after updates. Only DISM \
+                 can tell which are no longer needed; the folder itself must never be \
+                 deleted by hand."
+            }
         }
     }
 
@@ -154,6 +166,7 @@ impl CleanupKind {
             Self::PackageManagerCache => "Package manager cache",
             Self::ThumbnailCache => "Thumbnail cache",
             Self::DeliveryOptimisation => "Delivery Optimisation cache",
+            Self::ComponentStore => "Windows component store",
         }
     }
 }
@@ -225,6 +238,11 @@ const LOCATIONS: &[Location] = &[
         env: Some("SystemRoot"),
         suffix: "SoftwareDistribution\\DeliveryOptimization",
         kind: CleanupKind::DeliveryOptimisation,
+    },
+    Location {
+        env: Some("SystemRoot"),
+        suffix: "WinSxS",
+        kind: CleanupKind::ComponentStore,
     },
     Location {
         env: Some("SystemRoot"),
@@ -448,6 +466,7 @@ mod tests {
             CleanupKind::PackageManagerCache,
             CleanupKind::ThumbnailCache,
             CleanupKind::DeliveryOptimisation,
+            CleanupKind::ComponentStore,
         ] {
             assert!(!kind.reason().is_empty(), "{kind:?} has no reason");
             assert!(!kind.label().is_empty(), "{kind:?} has no label");

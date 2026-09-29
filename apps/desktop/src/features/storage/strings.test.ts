@@ -3,7 +3,14 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { i18n, initI18n } from '@vitals/i18n';
 
 import { STORAGE_NS, bundles, registerStorageStrings } from './strings';
-import { directorySorts, protections, recycleOutcomes, safetyOrder } from './model';
+import {
+  cleanupStages,
+  directorySorts,
+  protections,
+  recycleOutcomes,
+  safetyOrder,
+  windowsTools,
+} from './model';
 
 function keyPaths(value: unknown, prefix = ''): string[] {
   if (typeof value !== 'object' || value === null) return [prefix];
@@ -52,6 +59,7 @@ describe('storage translations', () => {
       'packageManagerCache',
       'thumbnailCache',
       'deliveryOptimisation',
+      'componentStore',
     ];
     const paths = new Set(keyPaths(bundles.en));
 
@@ -99,6 +107,38 @@ describe('storage translations', () => {
     expect(bundles.en.basket.confirmTitle).toMatch(/Recycle Bin/);
     expect(bundles.ro.basket.confirmTitle).toMatch(/Coșul de reciclare/);
     expect(bundles.en.basket.confirmBody).not.toMatch(/\bdelete/i);
+  });
+
+  it('names every Windows tool, stage and outcome the backend can send', () => {
+    const paths = new Set(keyPaths(bundles.en));
+    for (const tool of windowsTools) {
+      for (const key of [
+        `cleanup.free.${tool}`,
+        `windows.tool.${tool}`,
+        `windows.confirm.${tool}`,
+      ]) {
+        expect(paths, `missing ${key}`).toContain(key);
+      }
+    }
+    for (const stage of cleanupStages) {
+      expect(paths, `missing windows.stage.${stage}`).toContain(`windows.stage.${stage}`);
+    }
+    for (const outcome of ['done', 'needsRestart', 'toolFailed']) {
+      expect(paths, `missing windows.outcome.${outcome}`).toContain(`windows.outcome.${outcome}`);
+    }
+  });
+
+  it('states the consequence of every irreversible Windows cleanup in both languages', () => {
+    // These three cannot be undone; the dialog shows this sentence above the
+    // tick box, and a missing one would ask for consent to nothing.
+    for (const bundle of [bundles.en, bundles.ro]) {
+      for (const kind of ['recycleBin', 'previousWindows', 'hibernation'] as const) {
+        expect(bundle.consequence[kind].length, kind).toBeGreaterThan(40);
+      }
+    }
+    expect(bundles.en.consequence.hibernation).toMatch(/fast startup/);
+    expect(bundles.en.consequence.previousWindows).toMatch(/no longer be able to go back/);
+    expect(bundles.en.consequence.recycleBin).toMatch(/cannot be restored/);
   });
 
   it('distinguishes an exact total from a floor', () => {

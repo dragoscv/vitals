@@ -48,7 +48,8 @@ pub fn run() {
         launch::LaunchMode::SetReplacement { .. }
         | launch::LaunchMode::LaunchRealTaskManager
         | launch::LaunchMode::ElevatedProcessAction { .. }
-        | launch::LaunchMode::ElevatedStartupAction { .. } => {
+        | launch::LaunchMode::ElevatedStartupAction { .. }
+        | launch::LaunchMode::ElevatedStorageCleanup { .. } => {
             std::process::exit(launch::run_headless(&mode));
         }
         launch::LaunchMode::AsTaskManager => {
@@ -247,6 +248,7 @@ fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
         // to move this machine's files, even into the Recycle Bin.
         #[cfg(windows)]
         inventory::recycle_storage_items,
+        inventory::run_windows_cleanup,
         #[cfg(windows)]
         inventory::get_file_holders,
         // Benchmarks. The extreme case of the on-demand argument above:

@@ -287,6 +287,73 @@ pub fn run_elevated(args: &str, declined: &str) -> Result<u32> {
 ///
 /// As [`run_elevated`].
 pub fn run_program_elevated(program: &Path, args: &str, declined: &str) -> Result<u32> {
+    let mut child = spawn_program_elevated(program, args, declined)?;
+    loop {
+        if let Some(code) = child.wait(None)? {
+            return Ok(code);
+        }
+    }
+}
+
+/// An elevated instance that is still running.
+///
+/// Returned by [`spawn_program_elevated`] for callers that report progress
+/// while it works — a component-store cleanup takes minutes, and a dialog
+/// that sits still for that long reads as a hang. Closes its handle on drop.
+#[derive(Debug)]
+pub struct ElevatedProcess(HANDLE);
+
+// SAFETY: a process handle is a kernel object reference, usable from any
+// thread; nothing here is tied to the thread that opened it.
+unsafe impl Send for ElevatedProcess {}
+
+impl ElevatedProcess {
+    /// Waits up to `timeout` (`None` = until it exits). `Ok(None)` while it
+    /// is still running, `Ok(Some(code))` once it has exited.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Os`] when the wait or the exit-code read fails.
+    pub fn wait(&mut self, timeout: Option<std::time::Duration>) -> Result<Option<u32>> {
+        const WAIT_TIMEOUT: u32 = 0x102;
+        let millis = timeout.map_or(INFINITE, |t| {
+            u32::try_from(t.as_millis()).unwrap_or(INFINITE)
+        });
+        // SAFETY: `self.0` is a live process handle owned by this value.
+        let waited = unsafe { WaitForSingleObject(self.0, millis) };
+        if waited == WAIT_TIMEOUT {
+            return Ok(None);
+        }
+        let mut code: u32 = 0;
+        // SAFETY: the handle is valid and `code` is a live out-pointer.
+        if unsafe { GetExitCodeProcess(self.0, &raw mut code) } == 0 {
+            return Err(Error::Os {
+                context: "GetExitCodeProcess on the elevated instance".to_owned(),
+                code: 0,
+            });
+        }
+        Ok(Some(code))
+    }
+}
+
+impl Drop for ElevatedProcess {
+    fn drop(&mut self) {
+        // SAFETY: the handle came from ShellExecuteExW and is closed once.
+        unsafe { CloseHandle(self.0) };
+    }
+}
+
+/// Starts `program` elevated and returns as soon as it is running — that is,
+/// once the UAC prompt has been answered — without waiting for it to finish.
+///
+/// # Errors
+///
+/// As [`run_elevated`].
+pub fn spawn_program_elevated(
+    program: &Path,
+    args: &str,
+    declined: &str,
+) -> Result<ElevatedProcess> {
     let exe_w = wide(program.to_str().ok_or_else(|| Error::Os {
         context: format!("{} is not representable as UTF-8", program.display()),
         code: 0,
@@ -333,38 +400,15 @@ pub fn run_program_elevated(program: &Path, args: &str, declined: &str) -> Resul
         });
     }
 
-    wait_for(info.hProcess)
-}
-
-/// Waits for the elevated child and returns its exit code.
-fn wait_for(process: HANDLE) -> Result<u32> {
-    if process.is_null() {
+    if info.hProcess.is_null() {
         return Err(Error::Os {
             context: "the elevated instance started but returned no handle to wait on".to_owned(),
             code: 0,
         });
     }
-
-    // SAFETY: `process` is a live handle from ShellExecuteExW, closed below
-    // on every path out. Every elevated pass is one bounded operation (a
-    // registry value, one process action), so there is no plausible hang to
-    // bound — and a timeout would mean reading a result not yet produced.
-    unsafe { WaitForSingleObject(process, INFINITE) };
-
-    let mut code: u32 = 0;
-    // SAFETY: the handle is valid and `code` is a live out-pointer.
-    let read = unsafe { GetExitCodeProcess(process, &raw mut code) };
-    // SAFETY: the handle came from ShellExecuteExW and is closed once.
-    unsafe { CloseHandle(process) };
-
-    if read == 0 {
-        return Err(Error::Os {
-            context: "GetExitCodeProcess on the elevated instance".to_owned(),
-            code: 0,
-        });
-    }
-
-    Ok(code)
+    // Every elevated pass is one bounded operation, so callers wait without
+    // a deadline: a timeout would mean reading a result not yet produced.
+    Ok(ElevatedProcess(info.hProcess))
 }
 
 /// Starts the real Task Manager, bypassing our own hook.

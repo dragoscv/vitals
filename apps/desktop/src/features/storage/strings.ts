@@ -131,7 +131,12 @@ const en = {
 
     delete: 'Delete',
     deleteUnavailable:
-      'Not from here yet. These locations are emptied through Windows’ own tools, which Vitals does not run yet. To free space now, add folders to review in Explore and send them to the Recycle Bin.',
+      'Not from here. This is not space Windows manages, so no Windows tool empties it. Add its folders to review in Explore and send them to the Recycle Bin.',
+    free: {
+      diskCleanup: 'Clean up…',
+      componentCleanup: 'Clean up…',
+      hibernateOff: 'Turn off…',
+    },
     unknownSize: 'Not measured',
     reasonNeedsElevation:
       'This location exists but cannot be read without administrator rights, so its size is unknown — not zero.',
@@ -163,6 +168,7 @@ const en = {
     packageManagerCache: 'Package manager cache',
     thumbnailCache: 'Thumbnail cache',
     deliveryOptimisation: 'Delivery Optimisation cache',
+    componentStore: 'Windows component store',
   },
 
   kindReason: {
@@ -187,6 +193,73 @@ const en = {
     thumbnailCache: "Explorer's thumbnail and icon database. Regenerated as you browse folders.",
     deliveryOptimisation:
       'Update fragments cached for sharing with other machines on your network. Purely a bandwidth optimisation.',
+    componentStore:
+      'Old versions of Windows components kept after updates. Only Windows can tell which are no longer needed, so its size is not measured here — never delete this folder by hand.',
+  },
+
+  consequence: {
+    recycleBin:
+      'This empties the Recycle Bin on every drive. Everything in it is then gone for good and cannot be restored.',
+    previousWindows:
+      'This removes the previous Windows installation. You will no longer be able to go back to the Windows version you had before the last feature update.',
+    hibernation:
+      'This turns hibernation off. The computer can no longer hibernate, and fast startup is turned off too, so it may start more slowly. You can turn it back on later with powercfg /h on.',
+  },
+
+  windows: {
+    confirmTitle: 'Free {{label}} with Windows?',
+    reportTitle: '{{label}}: what Windows freed',
+    notRunTitle: '{{label}}: nothing was run',
+    tool: {
+      diskCleanup:
+        'Windows Disk Cleanup runs with only this item ticked. Vitals deletes nothing itself.',
+      componentCleanup:
+        'Windows removes the component versions it no longer needs (DISM component cleanup). Installed updates stay uninstallable. This can take several minutes.',
+      hibernateOff:
+        'Windows turns hibernation off with powercfg, and removes the hibernation file itself.',
+    },
+    confirm: {
+      diskCleanup: 'Run Disk Cleanup',
+      componentCleanup: 'Run component cleanup',
+      hibernateOff: 'Turn hibernation off',
+    },
+    elevation:
+      'Windows will ask for administrator approval once, for this action only. Vitals itself keeps running without administrator rights.',
+    understood: 'I understand this cannot be undone',
+    running: 'Windows is working…',
+    stage: {
+      measuring: 'Measuring what is there now…',
+      approval: 'Waiting for administrator approval…',
+      running: 'Windows is cleaning up…',
+      remeasuring: 'Measuring what is left…',
+    },
+    elapsed: '{{seconds}} s',
+    soFar: '{{size}} freed on the drive so far',
+    outcome: {
+      done: 'Done',
+      needsRestart: 'Restart to finish',
+      toolFailed: 'Windows reported a problem',
+    },
+    freed: '{{size}} freed',
+    freedDrive: '{{size}} more free on the drive',
+    freedUnknown: 'How much was freed could not be measured',
+    unchangedBadge: 'Nothing changed',
+    unchanged:
+      'Windows finished without an error, but nothing measurable was freed here. Windows decides what it removes; Vitals does not remove anything in its place.',
+    needsRestart: 'Windows finishes this the next time the computer restarts.',
+    toolFailed:
+      'The Windows tool ended with code {{code}}. Whatever it managed to free is counted above.',
+    location: 'This location',
+    beforeAfter: '{{before}} before, {{after}} after',
+    drive: 'The drive',
+    driveGained: '{{size}} more free space',
+    driveLost: '{{size}} less free space (something else wrote to the drive meanwhile)',
+    measuredNote: 'Measured before and after Windows ran, not estimated.',
+    declined: 'Nothing was cleaned. {{message}}',
+    failed: 'Nothing was cleaned. {{message}}',
+    cancel: 'Cancel',
+    close: 'Close',
+    done: 'Done',
   },
 
   noHost: {
@@ -438,7 +511,12 @@ const ro = {
 
     delete: 'Șterge',
     deleteUnavailable:
-      'Încă nu de aici. Aceste locații se golesc prin uneltele proprii ale Windows, pe care Vitals nu le rulează încă. Ca să eliberezi spațiu acum, adaugă foldere la verificare în Explorează și trimite-le în Coșul de reciclare.',
+      'Nu de aici. Acesta nu este spațiu gestionat de Windows, deci nicio unealtă Windows nu îl golește. Adaugă folderele lui la verificare în Explorează și trimite-le în Coșul de reciclare.',
+    free: {
+      diskCleanup: 'Curăță…',
+      componentCleanup: 'Curăță…',
+      hibernateOff: 'Dezactivează…',
+    },
     unknownSize: 'Nemăsurat',
     reasonNeedsElevation:
       'Această locație există, dar nu poate fi citită fără drepturi de administrator, deci dimensiunea ei este necunoscută — nu zero.',
@@ -471,6 +549,7 @@ const ro = {
     packageManagerCache: 'Cache manager de pachete',
     thumbnailCache: 'Cache miniaturi',
     deliveryOptimisation: 'Cache Delivery Optimisation',
+    componentStore: 'Depozitul de componente Windows',
   },
 
   kindReason: {
@@ -496,6 +575,73 @@ const ro = {
       'Baza de date cu miniaturi și pictograme a Explorer. Se regenerează pe măsură ce navighezi prin foldere.',
     deliveryOptimisation:
       'Fragmente de actualizări păstrate pentru partajarea cu alte calculatoare din rețea. Este strict o optimizare de lățime de bandă.',
+    componentStore:
+      'Versiuni vechi ale componentelor Windows, păstrate după actualizări. Doar Windows știe care nu mai sunt necesare, așa că dimensiunea nu se măsoară aici — nu șterge niciodată acest folder de mână.',
+  },
+
+  consequence: {
+    recycleBin:
+      'Aceasta golește Coșul de reciclare de pe toate unitățile. Tot ce este în el dispare definitiv și nu mai poate fi restaurat.',
+    previousWindows:
+      'Aceasta șterge instalarea Windows anterioară. Nu te vei mai putea întoarce la versiunea de Windows pe care o aveai înainte de ultima actualizare majoră.',
+    hibernation:
+      'Aceasta dezactivează hibernarea. Calculatorul nu mai poate hiberna, iar pornirea rapidă se oprește și ea, deci pornirea poate fi mai lentă. O poți reactiva mai târziu cu powercfg /h on.',
+  },
+
+  windows: {
+    confirmTitle: 'Eliberezi {{label}} cu Windows?',
+    reportTitle: '{{label}}: ce a eliberat Windows',
+    notRunTitle: '{{label}}: nu s-a rulat nimic',
+    tool: {
+      diskCleanup:
+        'Curățarea discului din Windows rulează doar cu acest element bifat. Vitals nu șterge nimic singur.',
+      componentCleanup:
+        'Windows șterge versiunile de componente de care nu mai are nevoie (curățarea componentelor DISM). Actualizările instalate pot fi dezinstalate în continuare. Poate dura câteva minute.',
+      hibernateOff:
+        'Windows dezactivează hibernarea cu powercfg și șterge singur fișierul de hibernare.',
+    },
+    confirm: {
+      diskCleanup: 'Pornește Curățarea discului',
+      componentCleanup: 'Pornește curățarea componentelor',
+      hibernateOff: 'Dezactivează hibernarea',
+    },
+    elevation:
+      'Windows va cere o singură dată aprobarea de administrator, doar pentru această acțiune. Vitals rulează în continuare fără drepturi de administrator.',
+    understood: 'Înțeleg că aceasta nu poate fi anulată',
+    running: 'Windows lucrează…',
+    stage: {
+      measuring: 'Se măsoară ce există acum…',
+      approval: 'Se așteaptă aprobarea de administrator…',
+      running: 'Windows face curățenie…',
+      remeasuring: 'Se măsoară ce a rămas…',
+    },
+    elapsed: '{{seconds}} s',
+    soFar: '{{size}} eliberați pe unitate până acum',
+    outcome: {
+      done: 'Gata',
+      needsRestart: 'Repornește pentru a termina',
+      toolFailed: 'Windows a raportat o problemă',
+    },
+    freed: '{{size}} eliberați',
+    freedDrive: '{{size}} în plus liberi pe unitate',
+    freedUnknown: 'Nu s-a putut măsura cât s-a eliberat',
+    unchangedBadge: 'Nimic schimbat',
+    unchanged:
+      'Windows a terminat fără eroare, dar aici nu s-a eliberat nimic măsurabil. Windows decide ce șterge; Vitals nu șterge nimic în locul lui.',
+    needsRestart: 'Windows termină la următoarea repornire a calculatorului.',
+    toolFailed:
+      'Unealta Windows s-a încheiat cu codul {{code}}. Ce a reușit să elibereze este numărat mai sus.',
+    location: 'Această locație',
+    beforeAfter: '{{before}} înainte, {{after}} după',
+    drive: 'Unitatea',
+    driveGained: '{{size}} spațiu liber în plus',
+    driveLost: '{{size}} spațiu liber în minus (altceva a scris pe unitate între timp)',
+    measuredNote: 'Măsurat înainte și după rularea Windows, nu estimat.',
+    declined: 'Nu s-a curățat nimic. {{message}}',
+    failed: 'Nu s-a curățat nimic. {{message}}',
+    cancel: 'Anulează',
+    close: 'Închide',
+    done: 'Gata',
   },
 
   noHost: {
