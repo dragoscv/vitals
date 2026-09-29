@@ -1,6 +1,6 @@
 # Terms of Use
 
-**Effective date:** 28 September 2026 · [Termeni de utilizare în limba română](#termeni-de-utilizare)
+**Effective date:** 30 September 2026 · [Termeni de utilizare în limba română](#termeni-de-utilizare)
 
 These terms apply to Vitals, a free, open-source system monitor and task
 manager for Windows, published at
@@ -34,7 +34,7 @@ consumer under Romanian or European Union law.
 
 ## Public beta
 
-Version 0.9.0-beta.1 is a public beta. Features may change, readings may be
+Version 0.9.0-beta.2 is a public beta. Features may change, readings may be
 wrong on some hardware, and bugs are expected. Builds for macOS and Linux are
 not published yet. Please [report problems](SUPPORT.md).
 
@@ -92,7 +92,7 @@ protection of mandatory provisions of the law of the country where you live.
 
 # Termeni de utilizare
 
-**Data intrării în vigoare:** 28 septembrie 2026
+**Data intrării în vigoare:** 30 septembrie 2026
 
 Acești termeni se aplică aplicației Vitals, un monitor de sistem și manager de
 activități gratuit și open source pentru Windows, publicat la
@@ -128,7 +128,7 @@ a Uniunii Europene.
 
 ## Versiune beta publică
 
-Versiunea 0.9.0-beta.1 este o versiune beta publică. Funcțiile se pot
+Versiunea 0.9.0-beta.2 este o versiune beta publică. Funcțiile se pot
 schimba, unele valori pot fi greșite pe anumite componente hardware și sunt
 de așteptat erori. Versiunile pentru macOS și Linux nu sunt publicate încă.
 Vă rugăm să [raportați problemele](SUPPORT.md).
