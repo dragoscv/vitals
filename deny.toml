@@ -1,0 +1,43 @@
+# cargo-deny: licences, bans and sources. Advisories are cargo-audit's job
+# (.cargo/audit.toml) and are not duplicated here.
+#
+# Every licence below was present in Cargo.lock on 2026-09-29. A new one fails
+# CI until someone reads it and adds it here with a reason; that is the point.
+
+[graph]
+all-features = true
+
+[licenses]
+confidence-threshold = 0.9
+allow = [
+  "MIT",
+  "MIT-0",
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "BSL-1.0",
+  "ISC",
+  "Zlib",
+  "0BSD",
+  "CC0-1.0",
+  "Unlicense",
+  "Unicode-3.0",
+  # Data licence for Mozilla's CA bundle (webpki-root-certs); permissive.
+  "CDLA-Permissive-2.0",
+  # File-level copyleft: cssparser/selectors/dtoa-short (Tauri's HTML tooling,
+  # build time) and option-ext (via dirs). Unmodified, so MPL imposes nothing
+  # on Vitals' own source; the notices file carries their text.
+  "MPL-2.0",
+]
+
+[bans]
+multiple-versions = "allow"
+wildcards = "deny"
+# Workspace path dependencies carry no version and are not wildcards.
+allow-wildcard-paths = true
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]

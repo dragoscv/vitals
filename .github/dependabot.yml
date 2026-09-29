@@ -31,3 +31,13 @@ updates:
     groups:
       actions:
         patterns: ['*']
+
+  - package-ecosystem: gradle
+    directory: /apps/android
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      gradle:
+        patterns: ['*']
+    open-pull-requests-limit: 5

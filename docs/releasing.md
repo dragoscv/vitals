@@ -5,6 +5,11 @@ installer, and refuses to run it unless the download is signed by the private
 key whose public half is baked into `apps/desktop/src-tauri/tauri.conf.json`.
 That is the whole security model, so most of this document is about the key.
 
+Who may cause a release — rulesets on `main` and `v*`, the `release`
+environment that waits for the owner's approval before anything is
+published, pinned actions and the owner-only steps — is in
+[repository-security.md](repository-security.md).
+
 ## The key
 
 A minisign keypair, generated once with

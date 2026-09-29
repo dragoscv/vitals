@@ -60,7 +60,7 @@ jobs:
       tag: ${{ steps.plan.outputs.tag }}
       title: ${{ steps.plan.outputs.title }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
 
@@ -134,7 +134,7 @@ jobs:
       CARGO_INCREMENTAL: 0
       CARGO_PROFILE_DEV_DEBUG: 0
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       # Before any compile: an updater release without its minisign key
       # produces installers every existing copy of Vitals refuses. Fail in
@@ -158,19 +158,19 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: pwsh -NoProfile -File scripts/version.ps1 -Check $env:TAG
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
         with:
           components: rustfmt, clippy
 
       # Restore-only: main's CI owns this entry; a tag must not overwrite it.
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           shared-key: windows-test
           save-if: false
 
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 22
           cache: pnpm
@@ -180,42 +180,21 @@ jobs:
       # Two seconds, and catches what a compile cannot: serde casing against
       # the generated TypeScript, invoke() with no command, locale parity.
       # GitHub's runners do not ship ripgrep; the drift script needs it.
-      - uses: taiki-e/install-action@v2
+      - uses: taiki-e/install-action@4cef1412cce204788f482e778a0b9187f9626a29 # v2
         with:
           tool: ripgrep
 
-      - name: Contract drift
+      - uses: taiki-e/install-action@4cef1412cce204788f482e778a0b9187f9626a29 # v2
+        with:
+          tool: cargo-deny
+
+      # One gate list, shared with local runs and the pre-push hook. This job
+      # used to repeat CI's steps by hand and had quietly lost the notices,
+      # licence and bundle-size checks; now a gate added to verify.ps1 guards
+      # a tag too. Perf runs as its own step below so its output is readable.
+      - name: Every gate (scripts/verify.ps1)
         shell: pwsh
-        run: pwsh -NoProfile -File scripts/check-drift.ps1
-
-      - name: Rust format
-        run: cargo fmt --all -- --check
-
-      - name: Clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
-
-      - name: Rust tests
-        run: cargo test --workspace
-
-      # A tag can otherwise ship generated types that disagree with the Rust
-      # model. Same check as ci.yml's `bindings` job.
-      - name: Bindings drift
-        run: |
-          cargo test -p vitals-core --features ts
-          git diff --exit-code -- packages/protocol/src/generated
-
-      - name: Typecheck
-        run: pnpm typecheck
-
-      - name: Lint
-        run: pnpm lint
-
-      - name: Format check
-        run: pnpm format:check
-
-      - name: Frontend tests
-        run: pnpm test
-
+        run: pwsh -NoProfile -File scripts/verify.ps1 -SkipPerf -Force
       # Release build: debug would measure the compiler's lack of
       # optimisation rather than our code.
       - name: Performance budget
@@ -281,13 +260,13 @@ jobs:
       IS_RELEASE: ${{ needs.plan.outputs.is_release }}
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
         with:
           targets: ${{ matrix.platform.rust_targets }}
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           key: ${{ matrix.platform.target }}
           cache-on-failure: true
@@ -298,9 +277,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 22
           cache: pnpm
@@ -457,7 +436,7 @@ jobs:
 
           Get-ChildItem $out -File | ForEach-Object { "  $($_.Name)  $([math]::Round($_.Length/1MB,1)) MB" }
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: vitals-${{ matrix.platform.name }}
           path: dist/${{ matrix.platform.name }}/*
@@ -476,18 +455,18 @@ jobs:
       (needs.verify.result == 'success' || needs.verify.result == 'skipped')
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
 
       # Prebuilt binary; compiling it from source costs minutes per run.
-      - uses: taiki-e/install-action@v2
+      - uses: taiki-e/install-action@4cef1412cce204788f482e778a0b9187f9626a29 # v2
         with:
           tool: cargo-cyclonedx
 
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 22
           cache: pnpm
@@ -517,7 +496,7 @@ jobs:
           $count = (Get-Content sbom/sbom-js.cdx.json -Raw | ConvertFrom-Json).components.Count
           Write-Host "JavaScript SBOM: $count components"
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: vitals-sbom
           path: sbom/*
@@ -538,14 +517,14 @@ jobs:
       run:
         working-directory: apps/android
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - uses: actions/setup-java@v6
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6
         with:
           distribution: microsoft
           java-version: '21'
 
-      - uses: gradle/actions/setup-gradle@v5
+      - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5
 
       - name: Contract and unit tests
         run: ./gradlew :core:testDebugUnitTest :device:testDebugUnitTest :shared-ui:testDebugUnitTest --console=plain
@@ -580,18 +559,18 @@ jobs:
           cp wear/build/outputs/bundle/release/wear-release.aab "$GITHUB_WORKSPACE/play/vitals-wear.aab"
           rm -f "$RUNNER_TEMP/upload.jks"
 
-      - uses: actions/attest-build-provenance@v4
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4
         with:
           subject-path: dist/android/*
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: vitals-android
           path: dist/android/*
           if-no-files-found: error
 
       # Bundles are not release assets: Play is the only consumer.
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: play-bundles
           path: play/*
@@ -610,6 +589,9 @@ jobs:
       needs.sbom.result == 'success' &&
       needs.android.result == 'success'
     runs-on: ubuntu-latest
+    # The owner approves every publish (nightly and tag) in the `release`
+    # environment; nothing reaches installed copies' updater without it.
+    environment: release
     permissions:
       contents: write
       # Build-provenance and SBOM attestations.
@@ -623,9 +605,9 @@ jobs:
       PUBLISH_MACOS: ${{ vars.PUBLISH_MACOS }}
       PUBLISH_LINUX: ${{ vars.PUBLISH_LINUX }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           path: artefacts
           pattern: vitals-*
@@ -715,18 +697,18 @@ jobs:
       # not check it, but a security-conscious user can
       # (`gh attestation verify`).
       - name: Attest build provenance
-        uses: actions/attest-build-provenance@v4
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4
         with:
           subject-checksums: publish/SHA256SUMS.txt
 
       - name: Attest Rust SBOM
-        uses: actions/attest-sbom@v4
+        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4
         with:
           subject-path: 'publish/*-setup.exe'
           sbom-path: publish/sbom-rust.cdx.json
 
       - name: Attest JavaScript SBOM
-        uses: actions/attest-sbom@v4
+        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4
         with:
           subject-path: 'publish/*-setup.exe'
           sbom-path: publish/sbom-js.cdx.json
@@ -755,7 +737,7 @@ jobs:
       # nothing. The title says "(public beta)" instead. Only the nightly,
       # which must never become "latest", is a pre-release.
       - name: Publish release
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
         with:
           files: publish/*
           body_path: release-notes.md
@@ -786,15 +768,16 @@ jobs:
       # is stored anywhere, and the upload carries a provenance statement.
       id-token: write
     steps:
-      - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 24
           cache: pnpm
           registry-url: 'https://registry.npmjs.org'
-      # Trusted publishing needs npm 11.5 or later.
-      - run: npm install -g npm@latest
+      # Trusted publishing needs npm 11.5 or later. Pinned, not @latest: this
+      # job holds an OIDC token npm trusts to publish as this repository.
+      - run: npm install -g npm@11.20.0
       - run: pnpm install --frozen-lockfile
       # Packs the SDK, renames it to its public name (the @vitals scope
       # belongs to another project) and uploads the tarball; prereleases go
@@ -821,7 +804,7 @@ jobs:
       # installers and not the stable-named copies, which carry no version
       # and would give winget two installers per architecture.
       - if: steps.gate.outputs.ok == 'true'
-        uses: vedantmgoyal9/winget-releaser@main
+        uses: vedantmgoyal9/winget-releaser@4ffc7888bffd451b357355dc214d43bb9f23917e # v2
         with:
           identifier: Vitals.Vitals
           version: ${{ needs.plan.outputs.version }}
@@ -849,10 +832,10 @@ jobs:
           "ok=$($ok.ToString().ToLower())" | Add-Content $env:GITHUB_OUTPUT
 
       - if: steps.gate.outputs.ok == 'true'
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - if: steps.gate.outputs.ok == 'true'
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: dragoscv/scoop-vitals
           # A deploy key: write access to the bucket and nothing else, unlike a
@@ -918,7 +901,7 @@ jobs:
           "ok=$($ok.ToString().ToLower())" | Add-Content $env:GITHUB_OUTPUT
 
       - if: steps.gate.outputs.ok == 'true'
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Pack
         if: steps.gate.outputs.ok == 'true'
