@@ -9,6 +9,8 @@ pub mod alerts;
 pub mod benchmarks;
 pub mod commands;
 pub mod crashlog;
+#[cfg(windows)]
+pub mod devclean;
 pub mod hardware;
 pub mod history;
 pub mod hud;
@@ -50,7 +52,8 @@ pub fn run() {
         | launch::LaunchMode::LaunchRealTaskManager
         | launch::LaunchMode::ElevatedProcessAction { .. }
         | launch::LaunchMode::ElevatedStartupAction { .. }
-        | launch::LaunchMode::ElevatedStorageCleanup { .. } => {
+        | launch::LaunchMode::ElevatedStorageCleanup { .. }
+        | launch::LaunchMode::ElevatedCompactVhd { .. } => {
             std::process::exit(launch::run_headless(&mode));
         }
         launch::LaunchMode::AsTaskManager => {
@@ -258,6 +261,16 @@ fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
         inventory::run_windows_cleanup,
         #[cfg(windows)]
         inventory::get_file_holders,
+        // Developer cleanup: build output, worktrees, caches, Docker, virtual
+        // disks. Desktop-only like the basket; ids only cross the boundary.
+        #[cfg(windows)]
+        devclean::default_dev_roots,
+        #[cfg(windows)]
+        devclean::scan_dev_cleanup,
+        #[cfg(windows)]
+        devclean::cancel_dev_cleanup_scan,
+        #[cfg(windows)]
+        devclean::run_dev_cleanup,
         // Benchmarks. The extreme case of the on-demand argument above:
         // a suite occupies every core for seconds, so it is only ever
         // started by the user from its own screen.

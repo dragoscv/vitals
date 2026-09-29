@@ -31,6 +31,7 @@
 //! separately rather than counted as zero.
 
 pub mod cleanup;
+pub mod devclean;
 mod ffi;
 pub mod layout;
 pub mod managed;
