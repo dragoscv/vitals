@@ -154,7 +154,7 @@ Status values: `todo`, `doing`, `done`, `blocked`, `dropped`.
 | S11   | Task Manager replacement, HUD overlay                                | done                                                                                               |
 | S12   | Look-and-feel redesign + the four backend truths it exposed          | done (S12-11 measured in CPU cycles: 23–24 ms on S12, 22–25 ms on the commit before it)            |
 | S14   | Storage: fast complete scans, navigation, cleanup, Turbo, extras     | doing (01 engine, 02 explore, 03 recycle basket, 04 Windows cleanup done; 05 Turbo next)           |
-| S15   | Android phone, Wear OS watch, TV: native apps + on-device monitor    | doing (01-05 done; release pipeline, Play, Google TV, Tizen open)                                  |
+| S15   | Android phone, Wear OS watch, TV: native apps + on-device monitor    | doing (01-06 done; Play, Google TV, Tizen open)                                                    |
 
 Per-item status lives in `tracker.csv`. This file records the reasoning; the
 CSV records the state.
@@ -636,6 +636,28 @@ A51 cold start          536-1013 ms (first launch after install 2988 ms)
 
 **Not done here.** Play listing and upload (S15-07), the release workflow run
 (S15-06), Google TV (S15-08) and Tizen (S15-09).
+
+### 2026-09-29 — S15-06 The release workflow builds Android
+
+**What.** A build-only release run (`nightly=false`) exposed three defects,
+each fixed on main. `./gradlew: Permission denied`: the wrapper was committed
+from Windows as 100644 (`589a973`). Every Windows leg since the sensors
+helper failed because `version.ps1 -Set` changes the workspace crate versions
+and `bundle-sensors.ps1` then runs `cargo build --locked` against the stale
+lock (`d52ccd6` refreshes it after the stamp). That refresh used `--offline`,
+which fails on a fresh runner with no registry index ("no matching package
+named `serde`"). `2f45bd2` runs it online, and locally that changes zero
+external dependency versions.
+
+**Verification.**
+
+```
+gh run view 36573016766   (2f45bd2, workflow_dispatch nightly=false)
+run: success
+  success Plan / Build (android) / SBOM / Build (macos-universal)
+  success Build (windows-arm64) / Build (windows-x64) / Build (linux-x64)
+  skipped Verify, Publish and the package-manager legs (build-only run)
+```
 
 ### 2026-09-28 — S12-37 Startup and Services row actions
 
