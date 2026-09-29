@@ -168,7 +168,7 @@ class WearRepository(private val context: Context, private val scope: CoroutineS
             // DataItems can arrive out of order after a reconnect; an older
             // reading must not replace a newer one the watch fetched itself.
             if (previous != null && previous.fetchedMs > state.fetchedMs) return
-            _states.update { it + (state.pairingId to state) }
+            _states.update { it + (state.pairingId to state.after(previous)) }
             withContext(Dispatchers.IO) { cache.write(_states.value) }
         }
         if (notifySurfaces) surfaces.request()

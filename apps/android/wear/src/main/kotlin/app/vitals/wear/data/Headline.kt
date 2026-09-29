@@ -12,6 +12,7 @@ import app.vitals.ui.Readings
  */
 data class Headline(
     val label: String,
+    /** When the PC last answered: the age a surface prints, reached or not. */
     val fetchedMs: Long,
     val reachable: Boolean,
     val cpu: Float?,
@@ -25,7 +26,7 @@ data class Headline(
             val system = state.summary?.system
             return Headline(
                 label = state.label,
-                fetchedMs = state.fetchedMs,
+                fetchedMs = state.lastSeenMs,
                 reachable = system != null,
                 cpu = system?.cpu?.total,
                 memory = system?.let(Readings::memoryPercent),

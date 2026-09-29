@@ -69,7 +69,7 @@ fun PcDetailScreen(
                 item {
                     Message(
                         title = stringResource(R.string.unreachable_title),
-                        body = stringResource(R.string.last_seen, relativeAge(state.fetchedMs)),
+                        body = stringResource(R.string.last_seen, relativeAge(state.lastSeenMs)),
                         modifier = Modifier.transformedHeight(this, spec),
                     )
                 }

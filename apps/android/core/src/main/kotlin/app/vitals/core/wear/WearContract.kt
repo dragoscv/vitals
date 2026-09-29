@@ -44,15 +44,31 @@ object WearContract {
 data class PcState(
     val pairingId: String,
     val label: String,
-    /** When the phone last reached the PC, ms since epoch. */
+    /** When this state was produced, ms since epoch: orders states, reached or not. */
     val fetchedMs: Long,
-    /** `null` while the PC cannot be reached; the watch then shows [fetchedMs] as "last seen". */
+    /** `null` while the PC cannot be reached; the watch then shows [lastSeenMs] as "last seen". */
     val summary: Summary?,
     val sensors: List<SensorLine>,
     val alerts: List<Alert>,
     /** From the pairing: `false` hides end-task on the watch. */
     val canControl: Boolean,
-)
+    /**
+     * When the PC last answered, if that was before [fetchedMs]. The producer
+     * of an unreachable state (the phone's relay) knows only that it failed
+     * now; stamping that as "last seen" put "just now" beside a row of dashes.
+     */
+    val seenMs: Long? = null,
+) {
+    /** When the PC last answered; 0 when it never has. */
+    val lastSeenMs: Long get() = if (summary != null) fetchedMs else seenMs ?: 0L
+
+    /**
+     * This state as the receiver should keep it, given what it held before:
+     * an unreachable reading inherits the time the PC was last seen.
+     */
+    fun after(previous: PcState?): PcState =
+        if (summary != null || previous == null) this else copy(seenMs = previous.lastSeenMs.takeIf { it > 0L })
+}
 
 @Serializable
 data class WatchPairing(
