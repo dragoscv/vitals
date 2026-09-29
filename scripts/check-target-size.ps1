@@ -71,12 +71,25 @@ if ($Prune) {
     $removed = 0
     $freed = 0L
     $cutoff = (Get-Date).AddDays(-$StaleDays)
+    # A new Cargo.lock or toolchain gives every affected crate a new unit, so
+    # anything not used since then belongs to the old dependency graph. The
+    # first verify after main bumped every dependency (S16-01) held both
+    # generations side by side — 14 units for one crate, 16.5 GB — and failed
+    # this gate for a week. Deleting a unit never forces a rebuild; the next
+    # change to that crate just compiles without the incremental head start.
+    foreach ($name in 'Cargo.lock', 'rust-toolchain.toml', 'rust-toolchain') {
+        $file = Join-Path $root $name
+        if (Test-Path $file) {
+            $changed = (Get-Item $file).LastWriteTime
+            if ($changed -gt $cutoff) { $cutoff = $changed }
+        }
+    }
     foreach ($dir in $sessions | Where-Object LastWriteTime -lt $cutoff) {
         $freed += Get-Bytes $dir.FullName
         Remove-Item -LiteralPath $dir.FullName -Recurse -Force
         $removed++
     }
-    Write-Host ("Pruned {0} incremental units unused for {1} days, {2}." -f $removed, $StaleDays, (Format-Size $freed))
+    Write-Host ("Pruned {0} incremental units unused since {1:yyyy-MM-dd HH:mm}, {2}." -f $removed, $cutoff, (Format-Size $freed))
     $sessions = @(Get-ChildItem -LiteralPath $incremental -Directory -ErrorAction SilentlyContinue)
     $byCrate = $sessions | Group-Object { ($_.Name -split '-')[0] }
 }

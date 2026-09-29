@@ -86,12 +86,16 @@ present (see [releasing.md](releasing.md#authenticode-when-a-certificate-exists)
    `signpath/github-action-submit-signing-request`, pinned by SHA like every
    other action.
 
-### 5. Require pinned actions (after the pinned workflows are on `main`)
+### Actions policy (configured 2026-09-29)
 
-Settings → Actions → General → "Allow dragoscv, and select non-dragoscv,
-actions", tick "Allow actions created by GitHub" and "verified creators",
-list `dtolnay/rust-toolchain, Swatinem/rust-cache, taiki-e/install-action,
-dorny/paths-filter, pnpm/action-setup, softprops/action-gh-release,
-vedantmgoyal9/winget-releaser, gradle/actions`, and tick **Require actions to
-be pinned to a full-length commit SHA**. Turning this on before the pinned
-workflows land would fail every run.
+Settings → Actions → General allows GitHub's own actions plus an explicit
+list of third-party ones, and **requires every action to be pinned to a
+full-length commit SHA**. Check with
+`gh api repos/dragoscv/vitals/actions/permissions/selected-actions`.
+
+Adding a new third-party action to a workflow therefore needs its path
+added to that list first, or the job fails at setup with "is not allowed".
+Use the full path: `gradle/actions@*` does **not** allow the sub-actions
+`gradle/actions/setup-gradle` or `gradle/actions/wrapper-validation` — the
+Android job failed that way on its first run (CI 36613433705) until each was
+listed by its own path.

@@ -33,6 +33,14 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   with a control token, end or suspend processes. The watch monitors itself
   and your PCs, with a tile and complications. Signed APKs ship with every
   release, so Obtainium can follow them.
+- **Developer cleanup** — on the Storage screen, scan your project folders
+  and choose what to remove: build output (`node_modules`, `target`, `.next`,
+  `dist` and the like, only where the project that makes them lives), git
+  worktrees that are clean, pushed and unused, package caches through each
+  tool's own command, Docker's unused images and build cache (never its
+  volumes), and the WSL and Docker virtual disks, compacted so the space goes
+  back to Windows. Projects untouched for 30 days are ticked for you; nothing
+  is removed until you confirm, and each item says how to bring it back.
 - **Free Windows' own space with Windows' own tools** — in Reclaimable space,
   the Windows Update cache, system temporary files, the thumbnail cache, crash
   dumps, the component store, the previous Windows installation, the Recycle

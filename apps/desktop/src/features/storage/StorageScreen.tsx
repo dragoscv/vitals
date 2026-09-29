@@ -52,6 +52,7 @@ import { ExportButton } from '../../components/ExportButton';
 import type { ExportColumn } from '../../lib/export';
 import { oneOf, useUrlState } from '../../lib/useUrlState';
 import { BasketBar, BasketDialog } from './Basket';
+import { DevClean } from './devclean/DevClean';
 import { Explorer, exploreViews, type ExploreView } from './Explorer';
 import { STORAGE_NS } from './strings';
 import { WindowsCleanupDialog } from './WindowsCleanup';
@@ -260,6 +261,8 @@ export function StorageScreen({ source }: StorageScreenProps = {}): React.JSX.El
             setFreeing(candidate);
           }}
         />
+
+        <DevClean locale={locale} />
       </div>
 
       <WindowsCleanupDialog
