@@ -243,6 +243,12 @@ fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
         inventory::get_storage_children,
         #[cfg(windows)]
         inventory::get_storage_map,
+        // The review basket. Desktop-only: a paired phone must never be able
+        // to move this machine's files, even into the Recycle Bin.
+        #[cfg(windows)]
+        inventory::recycle_storage_items,
+        #[cfg(windows)]
+        inventory::get_file_holders,
         // Benchmarks. The extreme case of the on-demand argument above:
         // a suite occupies every core for seconds, so it is only ever
         // started by the user from its own screen.

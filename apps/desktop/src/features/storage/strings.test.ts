@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { i18n, initI18n } from '@vitals/i18n';
 
 import { STORAGE_NS, bundles, registerStorageStrings } from './strings';
-import { directorySorts, safetyOrder } from './model';
+import { directorySorts, protections, recycleOutcomes, safetyOrder } from './model';
 
 function keyPaths(value: unknown, prefix = ''): string[] {
   if (typeof value !== 'object' || value === null) return [prefix];
@@ -75,6 +75,30 @@ describe('storage translations', () => {
     for (const kind of ['hdd', 'ssd', 'nvme', 'removable', 'network', 'optical', 'unknown']) {
       expect(paths, `missing kind.${kind}`).toContain(`kind.${kind}`);
     }
+  });
+
+  it('names every recycle outcome and every protection rule the backend can send', () => {
+    // The report indexes these with whatever Rust sent; a missing key would
+    // print "protection.systemFolder" where the reason belongs.
+    const paths = new Set(keyPaths(bundles.en));
+    for (const outcome of recycleOutcomes) {
+      expect(paths, `missing outcome.${outcome}`).toContain(`outcome.${outcome}`);
+    }
+    for (const why of ['wouldBePermanent', 'missing', 'accessDenied', 'failed']) {
+      expect(paths, `missing outcomeWhy.${why}`).toContain(`outcomeWhy.${why}`);
+    }
+    for (const rule of protections) {
+      expect(paths, `missing protection.${rule}`).toContain(`protection.${rule}`);
+    }
+  });
+
+  it('never calls a recycle a deletion in the confirmation', () => {
+    // The one confirmation must say where the items go; "delete" would
+    // suggest they are gone for good, which is the thing this never does.
+    expect(bundles.en.basket.confirm_other).toMatch(/Recycle/);
+    expect(bundles.en.basket.confirmTitle).toMatch(/Recycle Bin/);
+    expect(bundles.ro.basket.confirmTitle).toMatch(/Coșul de reciclare/);
+    expect(bundles.en.basket.confirmBody).not.toMatch(/\bdelete/i);
   });
 
   it('distinguishes an exact total from a floor', () => {

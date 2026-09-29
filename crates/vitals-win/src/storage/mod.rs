@@ -34,6 +34,8 @@ pub mod cleanup;
 mod ffi;
 pub mod layout;
 pub mod mft;
+pub mod protect;
+pub mod recycle;
 pub mod scan;
 pub mod sizing;
 pub mod tree;
@@ -48,12 +50,14 @@ pub use cleanup::{
 };
 pub use layout::{Cell, CellKind, Detail, icicle, treemap};
 pub use mft::{MftEntry, VolumeNamespace};
+pub use protect::{Protection, Rules, Vetted, vet};
+pub use recycle::{Holder, HolderKind, Outcome, holders_of, recycle};
 pub use scan::{LargeFile, ScanControl, ScanOptions, ScanProgress, ScanResult, scan_directory};
 pub use sizing::{
     AllocationHints, FileIdentity, FileSize, LinkTracker, SkipReason, SkippedPath,
     round_up_to_cluster, top_n_by,
 };
-pub use tree::{Node, NodeId, SizeTree};
+pub use tree::{Amount, Node, NodeId, SizeTree};
 
 /// Which scanning strategy is usable right now.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -164,6 +164,18 @@ pub struct SizeTree {
     root: NodeId,
     skipped: Vec<SkippedPath>,
     aggregated: bool,
+    /// Nodes removed after the scan (sent to the Recycle Bin), indexed by
+    /// node. Empty until the first removal, so a tree nobody edits pays
+    /// nothing; a flag here rather than on `Node` keeps the pinned node size.
+    detached: Vec<bool>,
+}
+
+/// Bytes and files moved by an edit of a finished tree.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Amount {
+    pub allocated: u64,
+    pub logical: u64,
+    pub files: u64,
 }
 
 impl SizeTree {
@@ -190,6 +202,7 @@ impl SizeTree {
             root: NodeId(0),
             skipped: Vec::new(),
             aggregated: false,
+            detached: Vec::new(),
         }
     }
 
@@ -439,9 +452,152 @@ impl SizeTree {
             .nodes
             .iter()
             .enumerate()
+            .filter(|(i, _)| !self.detached.get(*i).copied().unwrap_or(false))
             .map(|(i, node)| (NodeId(i as u32), Bytes(node.total_allocated)))
             .collect();
         top_n_by(&mut all, n, |(_, bytes)| *bytes)
+    }
+
+    /// Whether `id` was removed after the scan, itself or with an ancestor.
+    #[must_use]
+    pub fn is_detached(&self, id: NodeId) -> bool {
+        self.detached.get(id.0 as usize).copied().unwrap_or(false)
+    }
+
+    /// Removes a directory and everything below it from a finished tree,
+    /// and returns what it held.
+    ///
+    /// Ancestors' totals go down by exactly that amount, so the tree stays
+    /// aggregated without a rescan. The node is unlinked from its parent and
+    /// every node below it is zeroed and flagged, so no ranking, listing or
+    /// later [`SizeTree::aggregate`] can bring it back. The root cannot be
+    /// removed; `None` then, and for an unknown or already removed node.
+    pub fn detach(&mut self, id: NodeId) -> Option<Amount> {
+        if id == self.root || self.is_detached(id) {
+            return None;
+        }
+        let node = self.node(id)?;
+        let amount = Amount {
+            allocated: node.total_allocated,
+            logical: node.total_logical,
+            files: node.total_files,
+        };
+        let parent = node.parent;
+
+        if let Some(p) = parent {
+            self.unlink(p, id);
+            self.shrink_from(p, amount);
+        }
+
+        if self.detached.is_empty() {
+            self.detached = vec![false; self.nodes.len()];
+        }
+        let mut stack = vec![id];
+        while let Some(current) = stack.pop() {
+            stack.extend(self.children(current));
+            if let Some(flag) = self.detached.get_mut(current.0 as usize) {
+                *flag = true;
+            }
+            if let Some(n) = self.nodes.get_mut(current.0 as usize) {
+                n.own_allocated = 0;
+                n.own_logical = 0;
+                n.own_files = 0;
+                n.total_allocated = 0;
+                n.total_logical = 0;
+                n.total_files = 0;
+            }
+        }
+        if let Some(n) = self.nodes.get_mut(id.0 as usize) {
+            n.parent = None;
+            n.next_sibling = None;
+        }
+        Some(amount)
+    }
+
+    /// Takes one file's bytes out of `dir` and every ancestor.
+    pub fn remove_file(&mut self, dir: NodeId, allocated: u64, logical: u64) {
+        let amount = Amount {
+            allocated,
+            logical,
+            files: 1,
+        };
+        if let Some(n) = self.nodes.get_mut(dir.0 as usize) {
+            n.own_allocated = n.own_allocated.saturating_sub(allocated);
+            n.own_logical = n.own_logical.saturating_sub(logical);
+            n.own_files = n.own_files.saturating_sub(1);
+        }
+        self.shrink_from(dir, amount);
+    }
+
+    /// Adds bytes as files directly inside `dir`, and to every ancestor.
+    ///
+    /// Used to move what was recycled into the scan's own `$Recycle.Bin`,
+    /// which is where those bytes now are until the bin is emptied.
+    pub fn add_to(&mut self, dir: NodeId, amount: Amount) {
+        if self.is_detached(dir) {
+            return;
+        }
+        if let Some(n) = self.nodes.get_mut(dir.0 as usize) {
+            n.own_allocated = n.own_allocated.saturating_add(amount.allocated);
+            n.own_logical = n.own_logical.saturating_add(amount.logical);
+            n.own_files = n.own_files.saturating_add(amount.files);
+        }
+        let mut cursor = Some(dir);
+        while let Some(current) = cursor {
+            let Some(n) = self.nodes.get_mut(current.0 as usize) else {
+                break;
+            };
+            n.total_allocated = n.total_allocated.saturating_add(amount.allocated);
+            n.total_logical = n.total_logical.saturating_add(amount.logical);
+            n.total_files = n.total_files.saturating_add(amount.files);
+            cursor = n.parent;
+        }
+    }
+
+    /// Subtracts `amount` from the totals of `from` and every ancestor.
+    fn shrink_from(&mut self, from: NodeId, amount: Amount) {
+        let mut cursor = Some(from);
+        while let Some(current) = cursor {
+            let Some(n) = self.nodes.get_mut(current.0 as usize) else {
+                break;
+            };
+            n.total_allocated = n.total_allocated.saturating_sub(amount.allocated);
+            n.total_logical = n.total_logical.saturating_sub(amount.logical);
+            n.total_files = n.total_files.saturating_sub(amount.files);
+            cursor = n.parent;
+        }
+    }
+
+    /// Removes `child` from `parent`'s sibling chain.
+    fn unlink(&mut self, parent: NodeId, child: NodeId) {
+        let next = self
+            .nodes
+            .get(child.0 as usize)
+            .and_then(|n| n.next_sibling);
+        let first = self
+            .nodes
+            .get(parent.0 as usize)
+            .and_then(|p| p.first_child);
+        if first == Some(child) {
+            if let Some(p) = self.nodes.get_mut(parent.0 as usize) {
+                p.first_child = next;
+            }
+            return;
+        }
+        let mut cursor = first;
+        while let Some(current) = cursor {
+            let after = self
+                .nodes
+                .get(current.0 as usize)
+                .and_then(|n| n.next_sibling);
+            if after == Some(child) {
+                if let Some(n) = self.nodes.get_mut(current.0 as usize) {
+                    n.next_sibling = next;
+                }
+                return;
+            }
+            cursor = after;
+        }
     }
 }
 
@@ -607,6 +763,102 @@ mod tests {
         assert_eq!(
             tree.node(tree.root()).expect("root").allocated().get(),
             10_000 * 4096
+        );
+    }
+
+    fn child_named(tree: &SizeTree, parent: NodeId, name: &str) -> NodeId {
+        tree.children(parent)
+            .into_iter()
+            .find(|&c| tree.name_of(c) == name)
+            .expect("child exists")
+    }
+
+    #[test]
+    fn a_detached_folder_leaves_every_ancestor_total_exactly_lower() {
+        let mut tree = sample_tree();
+        let root_before = tree.node(tree.root()).expect("root").allocated().get();
+        let alpha = child_named(&tree, tree.root(), "alpha");
+        let nested = child_named(&tree, alpha, "nested");
+
+        let moved = tree.detach(nested).expect("detached");
+        assert_eq!(
+            moved,
+            Amount {
+                allocated: 4096,
+                logical: 4096,
+                files: 1
+            }
+        );
+        assert_eq!(tree.node(alpha).expect("alpha").allocated().get(), 8192);
+        assert_eq!(
+            tree.node(tree.root()).expect("root").allocated().get(),
+            root_before - 4096
+        );
+        assert!(tree.children(alpha).is_empty());
+        assert!(
+            tree.is_aggregated(),
+            "no rescan or re-aggregation is needed"
+        );
+    }
+
+    #[test]
+    fn a_detached_subtree_never_comes_back() {
+        let mut tree = sample_tree();
+        let alpha = child_named(&tree, tree.root(), "alpha");
+        let nested = child_named(&tree, alpha, "nested");
+        tree.detach(alpha).expect("detached");
+
+        assert!(tree.is_detached(nested), "descendants go with the folder");
+        assert!(
+            tree.largest_directories(10)
+                .iter()
+                .all(|(id, _)| *id != alpha && *id != nested),
+            "a recycled folder must not be ranked"
+        );
+        let after = tree.node(tree.root()).expect("root").allocated();
+        tree.aggregate();
+        assert_eq!(tree.node(tree.root()).expect("root").allocated(), after);
+        assert_eq!(tree.detach(alpha), None, "twice is a no-op");
+        assert_eq!(tree.detach(tree.root()), None, "the root stays");
+    }
+
+    #[test]
+    fn unlinking_works_wherever_the_child_sits_in_the_sibling_chain() {
+        let mut tree = SizeTree::new("C:\\");
+        let root = tree.root();
+        let ids: Vec<NodeId> = ["a", "b", "c"]
+            .iter()
+            .map(|n| tree.add_child(root, n))
+            .collect();
+        tree.aggregate();
+        tree.detach(ids[1]).expect("middle");
+        tree.detach(ids[0]).expect("last in chain");
+        assert_eq!(tree.children(root), vec![ids[2]]);
+    }
+
+    #[test]
+    fn bytes_moved_into_the_bin_keep_the_drive_total() {
+        let mut tree = sample_tree();
+        let before = tree.node(tree.root()).expect("root").allocated();
+        let beta = child_named(&tree, tree.root(), "beta");
+        let alpha = child_named(&tree, tree.root(), "alpha");
+        let moved = tree.detach(alpha).expect("detached");
+        tree.add_to(beta, moved);
+        assert_eq!(tree.node(tree.root()).expect("root").allocated(), before);
+        assert_eq!(tree.node(beta).expect("beta").own_files(), 1 + moved.files);
+    }
+
+    #[test]
+    fn a_removed_file_comes_out_of_its_folder_and_the_ancestors() {
+        let mut tree = sample_tree();
+        let beta = child_named(&tree, tree.root(), "beta");
+        let root_before = tree.node(tree.root()).expect("root").allocated().get();
+        tree.remove_file(beta, 65_536, 65_000);
+        assert_eq!(tree.node(beta).expect("beta").allocated().get(), 0);
+        assert_eq!(tree.node(beta).expect("beta").own_files(), 0);
+        assert_eq!(
+            tree.node(tree.root()).expect("root").allocated().get(),
+            root_before - 65_536
         );
     }
 }

@@ -8,6 +8,7 @@ import type {
   CleanupCandidate,
   DirectoryEntry,
   MapCell,
+  RecycleReport,
   ScanProgress,
   ScanSnapshot,
   StorageListing,
@@ -149,6 +150,7 @@ interface SourceOverrides {
   readonly scan?: StorageSource['scan'];
   readonly cleanup?: StorageSource['cleanup'];
   readonly children?: StorageSource['children'];
+  readonly recycle?: StorageSource['recycle'];
 }
 
 type ProgressListener = Parameters<StorageSource['onProgress']>[0];
@@ -171,6 +173,22 @@ function makeSource(overrides: SourceOverrides = {}): TestSource {
       vi.fn<StorageSource['children']>((_scan, id) => Promise.resolve(listingFor(id))),
     map: vi.fn<StorageSource['map']>().mockResolvedValue([cell()]),
     reveal: vi.fn<StorageSource['reveal']>().mockResolvedValue(undefined),
+    recycle:
+      overrides.recycle ??
+      vi.fn<StorageSource['recycle']>((paths) =>
+        Promise.resolve<RecycleReport>({
+          items: paths.map((path) => ({
+            path,
+            outcome: 'recycled',
+            protection: null,
+            holders: null,
+            code: null,
+            freed: GB,
+          })),
+          scan: null,
+        }),
+      ),
+    holders: vi.fn<StorageSource['holders']>().mockResolvedValue([]),
     onProgress: (listener) => {
       listeners.add(listener);
       return Promise.resolve(() => {
@@ -503,6 +521,175 @@ describe('StorageScreen', () => {
     });
   });
 
+  describe('the review basket', () => {
+    it('adds from the list, shows the total, and takes an item back out', async () => {
+      await scanned();
+      fireEvent.click(await screen.findByRole('button', { name: 'Add Users to review' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Add Windows to review' }));
+      const bar = screen.getByRole('region', { name: 'To review' });
+      expect(bar.textContent).toContain('2 items in review');
+      expect(bar.textContent).toContain('10');
+
+      fireEvent.click(screen.getByRole('button', { name: 'Remove Users from review' }));
+      expect(bar.textContent).toContain('1 item in review');
+    });
+
+    it('adds from the largest-files and largest-folders views', async () => {
+      await scanned(
+        snapshot({
+          largestFiles: [
+            { path: 'C:\\Users\\me\\big.iso', allocated: 5 * GB, logical: 5 * GB, dirNode: 3 },
+          ],
+        }),
+      );
+      fireEvent.click(screen.getByRole('radio', { name: 'Largest files' }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Add big.iso to review' }));
+      fireEvent.click(screen.getByRole('radio', { name: 'Largest folders' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Add WinSxS to review' }));
+      expect(screen.getByRole('region', { name: 'To review' }).textContent).toContain(
+        '2 items in review',
+      );
+    });
+
+    it('adds a folder from the map with a right-click', async () => {
+      await scanned();
+      const map = await screen.findByRole('img', { name: /Map of C:/ });
+      vi.spyOn(map, 'getBoundingClientRect').mockReturnValue({
+        x: 0,
+        y: 0,
+        left: 0,
+        top: 0,
+        width: 100,
+        height: 100,
+        right: 100,
+        bottom: 100,
+        toJSON: () => ({}),
+      });
+      // The mock cell spans x 0..0.6, y 0.2..0.4: (30, 30) is inside it.
+      await vi.waitFor(() => {
+        fireEvent.contextMenu(map, { clientX: 30, clientY: 30 });
+        expect(screen.getByRole('region', { name: 'To review' }).textContent).toContain(
+          '1 item in review',
+        );
+      });
+      expect(screen.getByRole('button', { name: 'Remove Users from review' })).toBeTruthy();
+    });
+
+    it('does not count a folder twice when its parent is added', async () => {
+      await scanned();
+      fireEvent.click(await screen.findByRole('button', { name: 'Open Users' }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Add me to review' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Up one level' }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Add Users to review' }));
+      expect(screen.getByRole('region', { name: 'To review' }).textContent).toContain(
+        '1 item in review',
+      );
+    });
+
+    it('asks once, recycles through the backend, and reports each item', async () => {
+      const source = makeSource({
+        scan: vi.fn<StorageSource['scan']>().mockResolvedValue(snapshot()),
+        recycle: vi.fn<StorageSource['recycle']>().mockResolvedValue({
+          items: [
+            {
+              path: 'C:\\Users',
+              outcome: 'locked',
+              protection: null,
+              holders: [{ pid: 4242, name: 'Word', service: null, kind: 'window' }],
+              code: null,
+              freed: null,
+            },
+            {
+              path: 'C:\\Windows',
+              outcome: 'refused',
+              protection: 'systemFolder',
+              holders: null,
+              code: null,
+              freed: null,
+            },
+          ],
+          scan: null,
+        }),
+      });
+      await mount(source);
+      fireEvent.click(screen.getByRole('button', { name: /Scan this drive/ }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Add Users to review' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Add Windows to review' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Review…' }));
+
+      const dialog = await screen.findByRole('dialog', { name: 'Send to the Recycle Bin?' });
+      expect(dialog.textContent).toContain('C:\\Users');
+      expect(source.recycle).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByRole('button', { name: /Recycle 2 items/ }));
+
+      await screen.findByRole('dialog', { name: 'What happened' });
+      expect(source.recycle).toHaveBeenCalledTimes(1);
+      expect(source.recycle).toHaveBeenCalledWith(['C:\\Users', 'C:\\Windows'], 1);
+      expect(screen.getByText('Word')).toBeTruthy();
+      expect(screen.getByText('process 4242')).toBeTruthy();
+      expect(screen.getByText(/part of Windows or an installed program/)).toBeTruthy();
+      expect(screen.getByText(/Nothing was moved\. Every item is still where it was/)).toBeTruthy();
+      // Neither item went, so both stay in review.
+      fireEvent.click(screen.getByRole('button', { name: 'Done' }));
+      expect(screen.getByRole('region', { name: 'To review' }).textContent).toContain(
+        '2 items in review',
+      );
+    });
+
+    it('cancelling the confirmation recycles nothing', async () => {
+      const source = await scanned();
+      fireEvent.click(await screen.findByRole('button', { name: 'Add Users to review' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Review…' }));
+      await screen.findByRole('dialog');
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+      expect(source.recycle).not.toHaveBeenCalled();
+    });
+
+    it('applies the new totals and reloads the folder, without a rescan', async () => {
+      const source = makeSource({
+        recycle: vi.fn<StorageSource['recycle']>().mockResolvedValue({
+          items: [
+            {
+              path: 'C:\\Users',
+              outcome: 'recycled',
+              protection: null,
+              holders: null,
+              code: null,
+              freed: 6 * GB,
+            },
+          ],
+          scan: {
+            allocated: 4 * GB,
+            logical: 3 * GB,
+            filesScanned: 400,
+            largest: [entry({ path: 'C:\\Windows', allocated: 4 * GB })],
+            largestFiles: [],
+          },
+        }),
+      });
+      await mount(source);
+      fireEvent.click(screen.getByRole('button', { name: /Scan this drive/ }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Add Users to review' }));
+      const reads = vi.mocked(source.children).mock.calls.length;
+      fireEvent.click(screen.getByRole('button', { name: 'Review…' }));
+      fireEvent.click(await screen.findByRole('button', { name: /Recycle 1 item/ }));
+      await screen.findByRole('dialog', { name: 'What happened' });
+
+      expect(screen.getByText(/on disk across 400 files/)).toBeTruthy();
+      await vi.waitFor(() => {
+        expect(vi.mocked(source.children).mock.calls.length).toBeGreaterThan(reads);
+      });
+      expect(source.scan).toHaveBeenCalledTimes(1);
+      fireEvent.click(screen.getByRole('button', { name: 'Done' }));
+      expect(screen.queryByRole('region', { name: 'To review' })).toBeNull();
+    });
+
+    it('does not offer the scanned drive itself', async () => {
+      await tabled(snapshot({ largest: [entry({ path: 'C:\\' }), entry()] }));
+      expect(screen.getAllByRole('button', { name: /to review$/ })).toHaveLength(1);
+    });
+  });
+
   describe('honesty about an incomplete scan', () => {
     it('says how many folders were left out of the totals', async () => {
       // A total that silently omits unreadable folders is a wrong number
@@ -615,13 +802,14 @@ describe('StorageScreen', () => {
     });
 
     it('offers deletion as unavailable rather than faking it', async () => {
-      // There is no deletion backend. A live-looking button that does nothing
-      // teaches the user the app is broken.
+      // The catalogue has no removal path of its own yet (Windows-managed
+      // cleanup is its own slice). A live-looking button that does nothing
+      // teaches the user the app is broken; the tooltip points to the basket.
       await withCleanup([candidate()]);
 
       const remove = await screen.findByRole('button', { name: 'Delete' });
       expect(remove.hasAttribute('disabled')).toBe(true);
-      expect(remove.getAttribute('title')).toMatch(/cannot delete anything yet/);
+      expect(remove.getAttribute('title')).toMatch(/Recycle Bin/);
     });
 
     it('surfaces a cleanup failure without a stuck spinner', async () => {

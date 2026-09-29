@@ -1,15 +1,21 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  addToBasket,
+  basketTotal,
   filterDirectories,
   groupBySafety,
+  inBasket,
+  leafName,
   needsQualifier,
   reclaimableTotal,
+  removeFromBasket,
   sortDirectories,
   sortVolumes,
   unmeasuredReason,
   usedBytes,
   usedPercent,
+  type BasketItem,
   type CleanupCandidate,
   type DirectoryEntry,
   type ScanSnapshot,
@@ -17,6 +23,46 @@ import {
 } from './model';
 
 const GB = 1024 ** 3;
+
+function item(path: string, allocated = GB): BasketItem {
+  return { path, name: leafName(path), kind: 'folder', allocated };
+}
+
+describe('the review basket', () => {
+  it('sums what is in it', () => {
+    expect(basketTotal([item('C:\\a', GB), item('C:\\b', 2 * GB)])).toBe(3 * GB);
+    expect(basketTotal([])).toBe(0);
+  });
+
+  it('adding a folder absorbs what is already in it, so nothing counts twice', () => {
+    const basket = addToBasket(
+      [item('C:\\Users\\me\\Videos\\a.mp4'), item('C:\\Users\\me\\Other')],
+      item('C:\\Users\\me\\Videos'),
+    );
+    expect(basket.map((b) => b.path)).toEqual(['C:\\Users\\me\\Other', 'C:\\Users\\me\\Videos']);
+  });
+
+  it('adding something inside a folder already there changes nothing', () => {
+    const start = [item('D:\\Games')];
+    expect(addToBasket(start, item('d:\\games\\old'))).toBe(start);
+    expect(addToBasket(start, item('D:\\GAMES'))).toBe(start);
+  });
+
+  it('a sibling with the same prefix is not inside', () => {
+    expect(addToBasket([item('D:\\Games')], item('D:\\Games2'))).toHaveLength(2);
+  });
+
+  it('matches paths case-insensitively, as Windows does', () => {
+    const basket = [item('C:\\Temp\\X')];
+    expect(inBasket(basket, 'c:\\temp\\x')).toBe(true);
+    expect(removeFromBasket(basket, 'C:\\TEMP\\X')).toEqual([]);
+  });
+
+  it('names the last component, including under a drive root', () => {
+    expect(leafName('C:\\Users\\me\\big.iso')).toBe('big.iso');
+    expect(leafName('D:\\Movies\\')).toBe('Movies');
+  });
+});
 
 function volume(overrides: Partial<Volume> = {}): Volume {
   return {

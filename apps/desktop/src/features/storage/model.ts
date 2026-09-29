@@ -174,6 +174,125 @@ export interface CleanupCandidate {
   readonly needsElevation: boolean;
 }
 
+/** Something the user chose to review for the Recycle Bin. */
+export interface BasketItem {
+  readonly path: string;
+  readonly name: string;
+  readonly kind: 'folder' | 'file';
+  /** On-disk bytes as the scan measured them. */
+  readonly allocated: number;
+}
+
+export type HolderKindKey = 'window' | 'service' | 'explorer' | 'console' | 'critical' | 'other';
+
+/** A program holding an item open (`HolderDto`). */
+export interface Holder {
+  readonly pid: number;
+  readonly name: string;
+  readonly service: string | null;
+  readonly kind: HolderKindKey;
+}
+
+export type RecycleOutcomeKey =
+  'recycled' | 'refused' | 'wouldBePermanent' | 'missing' | 'locked' | 'accessDenied' | 'failed';
+
+export const recycleOutcomes: readonly RecycleOutcomeKey[] = [
+  'recycled',
+  'refused',
+  'wouldBePermanent',
+  'missing',
+  'locked',
+  'accessDenied',
+  'failed',
+];
+
+export type ProtectionKey =
+  | 'invalid'
+  | 'driveRoot'
+  | 'systemFolder'
+  | 'userFolder'
+  | 'systemFile'
+  | 'noRecycleBin'
+  | 'vitals';
+
+export const protections: readonly ProtectionKey[] = [
+  'invalid',
+  'driveRoot',
+  'systemFolder',
+  'userFolder',
+  'systemFile',
+  'noRecycleBin',
+  'vitals',
+];
+
+export interface RecycleItem {
+  readonly path: string;
+  readonly outcome: RecycleOutcomeKey;
+  readonly protection: ProtectionKey | null;
+  /** Only for `locked`; `null` when Windows could not say who. */
+  readonly holders: readonly Holder[] | null;
+  readonly code: number | null;
+  /** Bytes taken out of the kept scan, `null` when it did not contain it. */
+  readonly freed: number | null;
+}
+
+export interface RecycleReport {
+  readonly items: readonly RecycleItem[];
+  /** The kept scan's figures after the change; `null` when nothing in it changed. */
+  readonly scan: ScanTotals | null;
+}
+
+/** The parts of a snapshot a recycle changes (`ScanTotalsDto`). */
+export interface ScanTotals {
+  readonly allocated: number;
+  readonly logical: number;
+  readonly filesScanned: number;
+  readonly largest: readonly DirectoryEntry[];
+  readonly largestFiles: readonly LargeFile[];
+}
+
+/**
+ * Adds an item, or leaves the basket alone if it is already covered.
+ *
+ * Adding a folder drops anything already in the basket below it: the folder
+ * takes them with it, and counting them twice would inflate the total. Adding
+ * something inside a folder already in the basket is a no-op for the same
+ * reason.
+ */
+export function addToBasket(
+  basket: readonly BasketItem[],
+  item: BasketItem,
+): readonly BasketItem[] {
+  const key = item.path.toLowerCase();
+  const under = (child: string, parent: string) =>
+    child === parent || child.startsWith(parent.endsWith('\\') ? parent : `${parent}\\`);
+  if (basket.some((b) => under(key, b.path.toLowerCase()))) return basket;
+  return [...basket.filter((b) => !under(b.path.toLowerCase(), key)), item];
+}
+
+export function removeFromBasket(
+  basket: readonly BasketItem[],
+  path: string,
+): readonly BasketItem[] {
+  const key = path.toLowerCase();
+  return basket.filter((b) => b.path.toLowerCase() !== key);
+}
+
+export function inBasket(basket: readonly BasketItem[], path: string): boolean {
+  const key = path.toLowerCase();
+  return basket.some((b) => b.path.toLowerCase() === key);
+}
+
+export function basketTotal(basket: readonly BasketItem[]): number {
+  return basket.reduce((sum, item) => sum + item.allocated, 0);
+}
+
+/** The last path component, for a row label. */
+export function leafName(path: string): string {
+  const trimmed = path.endsWith('\\') ? path.slice(0, -1) : path;
+  return trimmed.slice(trimmed.lastIndexOf('\\') + 1) || path;
+}
+
 export const directorySorts = ['allocated', 'logical', 'files', 'path'] as const;
 export type DirectorySort = (typeof directorySorts)[number];
 

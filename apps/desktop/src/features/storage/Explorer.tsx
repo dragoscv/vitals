@@ -23,7 +23,7 @@
  * which by construction fills the same frame. Reduced motion skips the tween.
  */
 
-import { ChevronRight, ChevronUp, FileText, Folder, Layers } from 'lucide-react';
+import { Check, ChevronRight, ChevronUp, FileText, Folder, Layers, Plus } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -36,6 +36,7 @@ import {
   ContextMenuItem,
   ContextMenuTrigger,
   EmptyState,
+  IconButton,
   SegmentedControl,
   formatBytes,
   formatCount,
@@ -54,6 +55,7 @@ import {
   type Viewport,
 } from './mapDraw';
 import type {
+  BasketItem,
   LargeFile,
   MapCell,
   MapShape,
@@ -61,6 +63,7 @@ import type {
   StorageListing,
   StorageNode,
 } from './model';
+import { inBasket, leafName } from './model';
 import { STORAGE_NS } from './strings';
 import type { StorageSource } from './useStorage';
 
@@ -102,6 +105,51 @@ export interface ExplorerProps {
   readonly onViewChange: (view: ExploreView) => void;
   /** The flat "largest folders anywhere" table, rendered for that view. */
   readonly largest: ReactNode;
+  /** What is in review for the Recycle Bin. */
+  readonly basket: readonly BasketItem[];
+  /** Adds the item when absent, removes it when present. */
+  readonly onToggleBasket: (item: BasketItem) => void;
+  /** Bumped when the kept scan changed; the folder in view is re-read. */
+  readonly revision: number;
+}
+
+/** `parent\name`, without doubling the separator after a drive root. */
+function childPath(parent: string, name: string): string {
+  return parent.endsWith('\\') ? `${parent}${name}` : `${parent}\\${name}`;
+}
+
+/**
+ * The add/remove control on a row. A separate button beside the row, not
+ * inside it: the row is itself a button, and nesting one in another is
+ * invalid and unreachable by keyboard.
+ */
+function BasketToggle({
+  item,
+  selected,
+  onToggle,
+}: {
+  readonly item: BasketItem;
+  readonly selected: boolean;
+  readonly onToggle: (item: BasketItem) => void;
+}) {
+  const { t } = useTranslation(STORAGE_NS);
+  return (
+    <IconButton
+      size="sm"
+      variant={selected ? 'primary' : 'ghost'}
+      aria-pressed={selected}
+      label={
+        selected
+          ? t('basket.removeItem', { name: item.name })
+          : t('basket.addItem', { name: item.name })
+      }
+      title={selected ? t('basket.inBasket') : t('basket.add')}
+      icon={selected ? <Check aria-hidden /> : <Plus aria-hidden />}
+      onClick={() => {
+        onToggle(item);
+      }}
+    />
+  );
 }
 
 /**
@@ -112,7 +160,17 @@ export function Explorer(props: ExplorerProps) {
   return <ScanExplorer key={props.snapshot.scanId} {...props} />;
 }
 
-function ScanExplorer({ source, snapshot, locale, view, onViewChange, largest }: ExplorerProps) {
+function ScanExplorer({
+  source,
+  snapshot,
+  locale,
+  view,
+  onViewChange,
+  largest,
+  basket,
+  onToggleBasket,
+  revision,
+}: ExplorerProps) {
   const { t } = useTranslation(STORAGE_NS);
   const [focus, setFocus] = useState(snapshot.rootNode);
   const [listing, setListing] = useState<StorageListing | null>(null);
@@ -136,12 +194,19 @@ function ScanExplorer({ source, snapshot, locale, view, onViewChange, largest }:
         setError(null);
       })
       .catch((cause: unknown) => {
-        if (live) fail(cause);
+        if (!live) return;
+        // The folder in view was itself recycled: go to the nearest one
+        // that is still in the scan rather than showing an error.
+        if (isCommandError(cause) && cause.kind === 'not-found' && focus !== snapshot.rootNode) {
+          setFocus(snapshot.rootNode);
+          return;
+        }
+        fail(cause);
       });
     return () => {
       live = false;
     };
-  }, [source, snapshot.scanId, focus, fail]);
+  }, [source, snapshot.scanId, snapshot.rootNode, focus, fail, revision]);
 
   const reveal = useCallback(
     (path: string) => {
@@ -187,7 +252,13 @@ function ScanExplorer({ source, snapshot, locale, view, onViewChange, largest }:
       {view === 'largest' ? (
         largest
       ) : view === 'files' ? (
-        <FileList files={snapshot.largestFiles} locale={locale} onReveal={reveal} />
+        <FileList
+          files={snapshot.largestFiles}
+          locale={locale}
+          onReveal={reveal}
+          basket={basket}
+          onToggleBasket={onToggleBasket}
+        />
       ) : (
         <>
           {(view === 'icicle' || view === 'treemap') && here !== null && (
@@ -200,6 +271,9 @@ function ScanExplorer({ source, snapshot, locale, view, onViewChange, largest }:
               locale={locale}
               onOpen={setFocus}
               onFail={fail}
+              basket={basket}
+              onToggleBasket={onToggleBasket}
+              revision={revision}
             />
           )}
           {listing !== null && here !== null && (
@@ -210,6 +284,8 @@ function ScanExplorer({ source, snapshot, locale, view, onViewChange, largest }:
               onOpen={setFocus}
               onReveal={reveal}
               compact={view !== 'list'}
+              basket={basket}
+              onToggleBasket={onToggleBasket}
             />
           )}
         </>
@@ -307,6 +383,9 @@ function MapCanvas({
   locale,
   onOpen,
   onFail,
+  basket,
+  onToggleBasket,
+  revision,
 }: {
   readonly source: StorageSource;
   readonly scanId: number;
@@ -316,6 +395,9 @@ function MapCanvas({
   readonly locale: string;
   readonly onOpen: (node: number) => void;
   readonly onFail: (cause: unknown) => void;
+  readonly basket: readonly BasketItem[];
+  readonly onToggleBasket: (item: BasketItem) => void;
+  readonly revision: number;
 }) {
   const { t } = useTranslation(STORAGE_NS);
   const reduced = useReducedMotion();
@@ -363,7 +445,7 @@ function MapCanvas({
     return () => {
       live = false;
     };
-  }, [source, scanId, focus, shape, aspect, onFail]);
+  }, [source, scanId, focus, shape, aspect, onFail, revision]);
 
   const label = useCallback(
     (cell: MapCell): string | null => {
@@ -446,7 +528,15 @@ function MapCanvas({
             percent: `${Math.round((hovered.allocated / Math.max(1, here.allocated)) * 1000) / 10} %`,
             parent: here.name,
           },
-        )}`;
+        )}${
+          hovered.kind === 'directory' && hovered.depth > 0
+            ? ` · ${t(
+                inBasket(basket, childPath(here.path, hovered.name ?? ''))
+                  ? 'basket.mapInBasket'
+                  : 'basket.mapHint',
+              )}`
+            : ''
+        }`;
 
   return (
     // Flexes to the card's height rather than a fixed one: a fixed height
@@ -473,6 +563,21 @@ function MapCanvas({
           const target = hit === null ? null : openTarget(cells, shape, hit);
           if (target !== null) open(target);
         }}
+        onContextMenu={(event) => {
+          // Right-click puts the folder under the pointer in review. Only
+          // direct children: a deeper cell's path is not known here without
+          // a round trip, and the list below offers every folder anyway.
+          const hit = pointAt(event);
+          if (hit === null || hit.kind !== 'directory' || hit.depth !== 1 || hit.name === null)
+            return;
+          event.preventDefault();
+          onToggleBasket({
+            path: childPath(here.path, hit.name),
+            name: hit.name,
+            kind: 'folder',
+            allocated: hit.allocated,
+          });
+        }}
       />
       {tip !== null && (
         <p
@@ -493,6 +598,8 @@ function FolderList({
   onOpen,
   onReveal,
   compact,
+  basket,
+  onToggleBasket,
 }: {
   readonly here: StorageNode;
   readonly items: readonly StorageNode[];
@@ -500,6 +607,8 @@ function FolderList({
   readonly onOpen: (node: number) => void;
   readonly onReveal: (path: string) => void;
   readonly compact: boolean;
+  readonly basket: readonly BasketItem[];
+  readonly onToggleBasket: (item: BasketItem) => void;
 }) {
   const { t } = useTranslation(STORAGE_NS);
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -545,10 +654,17 @@ function FolderList({
             const item = items[row.index];
             if (item === undefined) return null;
             const share = item.allocated / total;
+            const entry: BasketItem = {
+              path: item.path,
+              name: item.name,
+              kind: 'folder',
+              allocated: item.allocated,
+            };
+            const selected = inBasket(basket, item.path);
             return (
               <li
                 key={row.key}
-                className="absolute inset-x-0"
+                className="absolute inset-x-0 flex items-center gap-1 border-t border-[var(--color-border-subtle)] pr-1.5"
                 style={{
                   top: 0,
                   height: ROW_HEIGHT,
@@ -559,7 +675,7 @@ function FolderList({
                   <ContextMenuTrigger asChild>
                     <button
                       type="button"
-                      className="flex size-full items-center gap-2 border-t border-[var(--color-border-subtle)] px-2.5 text-left hover:bg-[var(--color-accent-subtle)] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-accent)] disabled:cursor-default"
+                      className="flex h-full min-w-0 flex-1 items-center gap-2 px-2.5 text-left hover:bg-[var(--color-accent-subtle)] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-accent)] disabled:cursor-default"
                       disabled={!item.hasChildren}
                       aria-label={
                         item.hasChildren ? t('explore.open', { name: item.name }) : item.name
@@ -622,8 +738,16 @@ function FolderList({
                     >
                       {t('explore.menu.copy')}
                     </ContextMenuItem>
+                    <ContextMenuItem
+                      onSelect={() => {
+                        onToggleBasket(entry);
+                      }}
+                    >
+                      {selected ? t('basket.inBasketRemove') : t('basket.add')}
+                    </ContextMenuItem>
                   </ContextMenuContent>
                 </ContextMenu>
+                <BasketToggle item={entry} selected={selected} onToggle={onToggleBasket} />
               </li>
             );
           })}
@@ -637,10 +761,14 @@ function FileList({
   files,
   locale,
   onReveal,
+  basket,
+  onToggleBasket,
 }: {
   readonly files: readonly LargeFile[];
   readonly locale: string;
   readonly onReveal: (path: string) => void;
+  readonly basket: readonly BasketItem[];
+  readonly onToggleBasket: (item: BasketItem) => void;
 }) {
   const { t } = useTranslation(STORAGE_NS);
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -669,10 +797,17 @@ function FileList({
           if (file === undefined) return null;
           const slash = file.path.lastIndexOf('\\');
           const name = file.path.slice(slash + 1);
+          const entry: BasketItem = {
+            path: file.path,
+            name: leafName(file.path),
+            kind: 'file',
+            allocated: file.allocated,
+          };
+          const selected = inBasket(basket, file.path);
           return (
             <li
               key={row.key}
-              className="absolute inset-x-0"
+              className="absolute inset-x-0 flex items-center gap-1 border-t border-[var(--color-border-subtle)] pr-1.5"
               style={{
                 top: 0,
                 height: ROW_HEIGHT,
@@ -683,7 +818,7 @@ function FileList({
                 <ContextMenuTrigger asChild>
                   <button
                     type="button"
-                    className="flex size-full items-center gap-2 border-t border-[var(--color-border-subtle)] px-2.5 text-left hover:bg-[var(--color-accent-subtle)] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-accent)]"
+                    className="flex h-full min-w-0 flex-1 items-center gap-2 px-2.5 text-left hover:bg-[var(--color-accent-subtle)] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-accent)]"
                     title={file.path}
                     onClick={() => {
                       onReveal(file.path);
@@ -728,8 +863,16 @@ function FileList({
                   >
                     {t('explore.menu.copy')}
                   </ContextMenuItem>
+                  <ContextMenuItem
+                    onSelect={() => {
+                      onToggleBasket(entry);
+                    }}
+                  >
+                    {selected ? t('basket.inBasketRemove') : t('basket.add')}
+                  </ContextMenuItem>
                 </ContextMenuContent>
               </ContextMenu>
+              <BasketToggle item={entry} selected={selected} onToggle={onToggleBasket} />
             </li>
           );
         })}

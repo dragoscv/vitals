@@ -1830,16 +1830,7 @@ pub async fn scan_storage(
 
     let snapshot = ScanSnapshot {
         root,
-        largest: largest
-            .iter()
-            .map(|entry| DirectoryEntryDto {
-                path: entry.path.clone(),
-                allocated: entry.allocated.0,
-                logical: entry.logical.0,
-                files: entry.files,
-                incomplete: entry.incomplete.map(skip_reason),
-            })
-            .collect(),
+        largest: directory_dtos(&largest),
         allocated: result.allocated().0,
         logical: result.logical().0,
         cluster_bytes: result.cluster_bytes,
@@ -1884,6 +1875,20 @@ fn large_file_dtos(result: &vitals_win::storage::ScanResult) -> Vec<LargeFileDto
             allocated: file.allocated.0,
             logical: file.logical.0,
             dir_node: file.dir.0,
+        })
+        .collect()
+}
+
+#[cfg(windows)]
+fn directory_dtos(entries: &[vitals_win::storage::DirectoryEntry]) -> Vec<DirectoryEntryDto> {
+    entries
+        .iter()
+        .map(|entry| DirectoryEntryDto {
+            path: entry.path.clone(),
+            allocated: entry.allocated.0,
+            logical: entry.logical.0,
+            files: entry.files,
+            incomplete: entry.incomplete.map(skip_reason),
         })
         .collect()
 }
@@ -1986,6 +1991,220 @@ fn unknown_node() -> CommandError {
     }
 }
 
+/// The node, unless it is not in the tree or was recycled since the scan.
+#[cfg(windows)]
+fn live_node(
+    tree: &vitals_win::storage::SizeTree,
+    id: vitals_win::storage::NodeId,
+) -> CommandResult<()> {
+    if tree.node(id).is_none() || tree.is_detached(id) {
+        return Err(unknown_node());
+    }
+    Ok(())
+}
+
+/// A program holding an item open, as "why can't I delete this" names it.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HolderDto {
+    pub pid: u32,
+    pub name: String,
+    pub service: Option<String>,
+    /// `window` | `service` | `explorer` | `console` | `critical` | `other`.
+    pub kind: &'static str,
+}
+
+/// What happened to one basket item.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RecycleItemDto {
+    pub path: String,
+    /// `recycled` | `refused` | `wouldBePermanent` | `missing` | `locked` |
+    /// `accessDenied` | `failed`.
+    pub outcome: &'static str,
+    /// Only for `refused`: which rule. See `Protection::key`.
+    pub protection: Option<&'static str>,
+    /// Only for `locked`. `null` when Windows could not say who; empty when
+    /// it found nobody.
+    pub holders: Option<Vec<HolderDto>>,
+    /// Only for `failed`: the HRESULT, for a bug report.
+    pub code: Option<i32>,
+    /// Bytes taken out of the kept scan for this item, `null` when the scan
+    /// did not contain it (or none is kept).
+    pub freed: Option<u64>,
+}
+
+/// The result of one confirmed basket.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RecycleReportDto {
+    pub items: Vec<RecycleItemDto>,
+    /// The kept scan's figures after the recycled items were taken out;
+    /// `null` when nothing in it changed. The explorer reloads when set.
+    pub scan: Option<ScanTotalsDto>,
+}
+
+/// The parts of [`ScanSnapshot`] that a recycle changes.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScanTotalsDto {
+    pub allocated: u64,
+    pub logical: u64,
+    pub files_scanned: u64,
+    pub largest: Vec<DirectoryEntryDto>,
+    pub largest_files: Vec<LargeFileDto>,
+}
+
+#[cfg(windows)]
+fn holder_dtos(holders: &[vitals_win::storage::Holder]) -> Vec<HolderDto> {
+    holders
+        .iter()
+        .map(|h| HolderDto {
+            pid: h.pid,
+            name: h.name.clone(),
+            service: h.service.clone(),
+            kind: h.kind.key(),
+        })
+        .collect()
+}
+
+/// At most this many items per confirmation. A basket is reviewed by a
+/// person; a request for more is not one they read.
+#[cfg(windows)]
+const RECYCLE_MAX: usize = 500;
+
+#[cfg(windows)]
+static RECYCLE: Operation = Operation::new();
+
+/// Sends the confirmed basket to the Recycle Bin, item by item.
+///
+/// # Nothing is deleted outright
+///
+/// Every path is checked against the protected list here, not only in the
+/// UI, and then handed to the shell with `FOFX_RECYCLEONDELETE`; an item the
+/// bin cannot take is left where it is and reported as `wouldBePermanent`
+/// (see `vitals_win::storage::recycle`). The one confirmation is the UI's
+/// dialog: the shell's own prompts are off, because a second dialog that
+/// looks different is one people click through.
+///
+/// Desktop-only, on purpose: a paired phone must not be able to move files.
+///
+/// When `scan_id` is still the kept scan, each recycled item is taken out of
+/// it, so the explorer's sizes go down without a rescan.
+#[tauri::command]
+#[cfg(windows)]
+pub async fn recycle_storage_items(
+    paths: Vec<String>,
+    scan_id: Option<u64>,
+) -> CommandResult<RecycleReportDto> {
+    use vitals_win::storage::{Outcome, Rules, largest_directories, recycle};
+
+    if paths.is_empty() {
+        return Err(CommandError::Refused {
+            message: "the basket is empty".into(),
+        });
+    }
+    if paths.len() > RECYCLE_MAX {
+        return Err(CommandError::Refused {
+            message: format!("at most {RECYCLE_MAX} items can be recycled at once"),
+        });
+    }
+    let guard = RECYCLE.begin("sending items to the Recycle Bin")?;
+
+    let (paths, outcomes) = tauri::async_runtime::spawn_blocking(move || {
+        let _guard = guard;
+        let outcomes = recycle(&paths, &Rules::for_this_machine());
+        (paths, outcomes)
+    })
+    .await
+    .map_err(|err| CommandError::Internal {
+        message: format!("the recycle thread did not finish: {err}"),
+    })?;
+
+    let mut kept = stored();
+    let mut scan = kept
+        .as_mut()
+        .filter(|s| scan_id.is_some_and(|id| id == s.id));
+    let mut changed = false;
+
+    let items = paths
+        .into_iter()
+        .zip(outcomes)
+        .map(|(path, outcome)| {
+            let freed = if outcome == Outcome::Recycled {
+                scan.as_mut()
+                    .and_then(|s| {
+                        s.last_used = std::time::Instant::now();
+                        s.result.forget_recycled(&path)
+                    })
+                    .map(|amount| amount.allocated)
+            } else {
+                None
+            };
+            changed |= freed.is_some();
+            RecycleItemDto {
+                outcome: outcome.key(),
+                protection: match &outcome {
+                    Outcome::Refused(why) => Some(why.key()),
+                    _ => None,
+                },
+                holders: match &outcome {
+                    Outcome::Locked(Some(holders)) => Some(holder_dtos(holders)),
+                    _ => None,
+                },
+                code: match &outcome {
+                    Outcome::Failed(code) => Some(*code),
+                    _ => None,
+                },
+                freed,
+                path,
+            }
+        })
+        .collect();
+
+    let scan = scan.filter(|_| changed).map(|kept| {
+        let result = &kept.result;
+        ScanTotalsDto {
+            allocated: result.allocated().0,
+            logical: result.logical().0,
+            files_scanned: result
+                .tree
+                .node(result.tree.root())
+                .map_or(0, vitals_win::storage::Node::file_count),
+            largest: directory_dtos(&largest_directories(result, RECYCLE_TOP_N)),
+            largest_files: large_file_dtos(result),
+        }
+    });
+
+    Ok(RecycleReportDto { items, scan })
+}
+
+/// Rows of the largest-folders table after a recycle. The same bound the UI
+/// asks `scan_storage` for.
+#[cfg(windows)]
+const RECYCLE_TOP_N: usize = 200;
+
+/// Which programs have a file, or any file in a folder, open.
+///
+/// Read-only, so it may be asked before recycling as well as after a
+/// failure.
+#[tauri::command]
+#[cfg(windows)]
+pub async fn get_file_holders(path: String) -> CommandResult<Vec<HolderDto>> {
+    let found = tauri::async_runtime::spawn_blocking(move || {
+        vitals_win::storage::holders_of(std::path::Path::new(&path))
+    })
+    .await
+    .map_err(|err| CommandError::Internal {
+        message: format!("the lookup thread did not finish: {err}"),
+    })?;
+    found
+        .map(|holders| holder_dtos(&holders))
+        .map_err(|code| CommandError::Internal {
+            message: format!("Restart Manager could not answer (error {code})"),
+        })
+}
+
 /// Opens one folder of the kept scan.
 #[tauri::command]
 #[cfg(windows)]
@@ -1994,7 +2213,7 @@ pub fn get_storage_children(scan_id: u64, node: u32) -> CommandResult<StorageLis
     with_scan(scan_id, |result| {
         let tree = &result.tree;
         let id = NodeId(node);
-        tree.node(id).ok_or_else(unknown_node)?;
+        live_node(tree, id)?;
         Ok(StorageListingDto {
             ancestry: tree
                 .ancestry(id)
@@ -2048,7 +2267,7 @@ pub fn get_storage_map(
     with_scan(scan_id, |result| {
         let tree = &result.tree;
         let id = NodeId(node);
-        tree.node(id).ok_or_else(unknown_node)?;
+        live_node(tree, id)?;
         let cells = match shape {
             "icicle" => icicle(tree, id, Detail::default()),
             "treemap" => treemap(
@@ -2253,5 +2472,49 @@ mod sensors_service_tests {
         ] {
             assert!(setup_outcome(code).is_err(), "exit {code} read as success");
         }
+    }
+}
+
+#[cfg(test)]
+#[cfg(windows)]
+mod recycle_tests {
+    use super::*;
+
+    #[test]
+    fn the_command_refuses_a_system_path_whatever_the_ui_sent() {
+        let hosts = r"C:\Windows\System32\drivers\etc\hosts".to_owned();
+        let report = tauri::async_runtime::block_on(recycle_storage_items(
+            vec![
+                hosts.clone(),
+                r"c:/windows/system32".to_owned(),
+                "C:".to_owned(),
+            ],
+            None,
+        ))
+        .expect("a report, not an error");
+        let outcomes: Vec<_> = report
+            .items
+            .iter()
+            .map(|i| (i.outcome, i.protection))
+            .collect();
+        assert_eq!(
+            outcomes,
+            vec![
+                ("refused", Some("systemFolder")),
+                ("refused", Some("systemFolder")),
+                ("refused", Some("driveRoot")),
+            ]
+        );
+        assert!(std::path::Path::new(&hosts).exists());
+        assert!(report.scan.is_none());
+    }
+
+    #[test]
+    fn an_empty_or_oversized_basket_is_refused_before_anything_runs() {
+        let empty = tauri::async_runtime::block_on(recycle_storage_items(Vec::new(), None));
+        assert!(matches!(empty, Err(CommandError::Refused { .. })));
+        let many = vec![r"C:\nowhere".to_owned(); RECYCLE_MAX + 1];
+        let big = tauri::async_runtime::block_on(recycle_storage_items(many, None));
+        assert!(matches!(big, Err(CommandError::Refused { .. })));
     }
 }

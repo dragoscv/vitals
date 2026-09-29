@@ -153,7 +153,7 @@ Status values: `todo`, `doing`, `done`, `blocked`, `dropped`.
 | S10   | Docs, ADRs, CI, supply-chain audits                                  | done except S10-12 (ARM64 leg unproven — needs a run on `windows-11-arm`, and agents never push)   |
 | S11   | Task Manager replacement, HUD overlay                                | done                                                                                               |
 | S12   | Look-and-feel redesign + the four backend truths it exposed          | done (S12-11 measured in CPU cycles: 23–24 ms on S12, 22–25 ms on the commit before it)            |
-| S14   | Storage: fast complete scans, navigation, cleanup, Turbo, extras     | doing (S14-01 engine, S14-02 explore done; 03 recycle next)                                        |
+| S14   | Storage: fast complete scans, navigation, cleanup, Turbo, extras     | doing (S14-01 engine, 02 explore, 03 recycle basket done; 04 Windows cleanup next)                 |
 | S15   | Android phone, Wear OS watch, TV: native apps + on-device monitor    | doing (01-05 done; release pipeline, Play, Google TV, Tizen open)                                  |
 
 Per-item status lives in `tracker.csv`. This file records the reasoning; the
@@ -162,6 +162,104 @@ CSV records the state.
 ---
 
 ## Verification log
+
+### 2026-09-29 — S14-03 A review basket that sends items to the Recycle Bin, and "why can't I delete this"
+
+**Ask.** Slice 3 of S14. Decided with the user before the slice: items are
+reviewed in a basket and sent to the Recycle Bin through Windows' own file
+operation (`IFileOperation`), never deleted outright; Restart Manager names
+the program holding a locked file; Windows-managed space (DISM, cleanmgr,
+powercfg) is S14-04.
+
+**What was built.**
+
+- _Protected paths, checked in Rust_ (`storage/protect.rs`). Every path the
+  recycle command receives is checked again, whatever the UI sent: drive
+  roots; Windows, Program Files (both), ProgramData, boot, recovery, the bin,
+  `Windows.old` and the other drive-level system folders on every drive, with
+  everything under them; the folders a profile is made of (`C:\Users`, each
+  profile, Desktop, Documents, `AppData\Local`...) themselves but not their
+  contents; anything _above_ a protected folder (a relocated Documents on
+  `D:\Data\Documents` protects `D:\Data`); files with the System attribute;
+  drives with no bin (removable, network, UNC); and Vitals' own folder.
+  Locations come from the known-folder API, so a moved Documents is still
+  found. Paths are checked as written _and_ as they resolve (short names,
+  junctions). Ambiguous spellings are refused rather than guessed: `C:foo`,
+  `..`, a stream name, wildcards, a trailing dot or space.
+- _Recycle_ (`storage/recycle.rs`). One `IFileOperation` per item on its own
+  STA thread (Tauri's pool is MTA), `FOFX_RECYCLEONDELETE` with the shell's
+  prompts off, so the app's dialog is the one confirmation. A progress sink
+  sees each item before it goes: `PreDeleteItem` without
+  `TSF_DELETE_RECYCLE_IF_POSSIBLE` means the shell was about to delete it for
+  good (too big for the bin, no bin), and the sink aborts, so the item stays
+  and is reported `wouldBePermanent`. After the engine says yes, the path is
+  checked on disk before `recycled` is reported. No `std::fs::remove_*` in
+  the code path.
+- _Why it is locked._ A sharing violation runs Restart Manager (`RmGetList`)
+  on the file, or on up to 1,000 files inside a folder, and the report names
+  each program with its process ID and service name.
+- _The kept scan follows._ `ScanResult::forget_recycled` detaches a
+  recycled folder (every ancestor total down by exactly what it held, the
+  subtree flagged so no listing, ranking or re-aggregation brings it back;
+  `Node` size still 88 bytes) or removes a listed large file, and adds the
+  bytes to the drive's `$Recycle.Bin` when the scan contains it, because the
+  space is still used until the bin is emptied. The command returns the new
+  totals, largest folders and files, and the explorer reloads the folder in
+  view; no rescan.
+- _UI_ (`Basket.tsx`). A + toggle on every folder row, largest-folders row
+  and largest-files row, a context-menu item on each, and right-click on the
+  map for the folder under the pointer; adding a folder absorbs what is
+  already in the basket below it, so nothing counts twice. A strip under the
+  explorer shows the count and total; Review opens the list with each item's
+  size and a remove button; the confirm button says "Recycle N items · size".
+  The report lists each item's outcome with the rule that refused it, the
+  holders of a locked one, or why it did not move; what did not move stays in
+  the basket. The confirm is `primary`, not `danger`: in this app danger
+  means irreversible. Desktop only; a paired phone gets no route.
+
+**Found by looking at it** (probe app, CDP, a test folder on `D:` with one
+file held open by another process without share-delete):
+
+- _A folder with an open file was a bare failure._ The shell reports it as
+  `COPYENGINE_E_SHARING_VIOLATION_DEST` (0x80270028), not `_SRC`, so the
+  report said "error -2144927704" and named nobody. Both are now sharing
+  violations; a test holds a file inside a folder and asserts the holder.
+  Live after the fix: "In use · PowerShell 7 · process 82852".
+- _"0 items are in the Recycle Bin; 1 could not be moved and stayed where
+  they were."_ A report where nothing moved now says so in its own sentence.
+
+**Live, this machine:** a direct IPC call with
+`C:\Windows\System32\drivers\etc\hosts` and `C:\` returns
+`refused:systemFolder`, `refused:driveRoot`. `vitals-s14-test` 32.0 MB /
+4 files: junk (16 MB) recycled, held reported in use with its holder and left
+in the basket; after the holder exited, held recycled; the folder row read
+8.00 MB / 1 file without a rescan; the Shell's bin namespace lists `junk` and
+`held` with original location `D:\vitals-s14-test`.
+
+**Tests.** `vitals-win` storage 113 (protect: system folders and below,
+drive roots in every spelling, profile folders vs contents, the folder above
+a relocated one, drive-level folders on other drives, prefix is not parent,
+ambiguous spellings, this machine's Windows and profile, short name; recycle:
+a system path refused and left in place, a file and a folder go to the bin,
+missing, a held file and a folder with a held file are left with the holder
+named, Restart Manager on a folder; tree: detach lowers every ancestor by
+exactly its bytes, a detached subtree never comes back, unlink anywhere in
+the sibling chain, bytes moved into the bin keep the drive total, a removed
+file; scan: forget a folder and a large file without a rescan).
+`vitals-desktop` 64 (the command refuses a system path whatever the UI sent;
+empty and oversized baskets refused). Vitest storage 98 (add from list,
+largest files, largest folders and map; a folder absorbs its children; one
+confirmation, per-item report with holder and refusal reason; cancel recycles
+nothing; new totals applied and the folder re-read without a rescan; the
+scanned drive is not offered; every outcome and rule has a string; the
+confirmation never says delete). Mutation: letting a refused path through as
+`Missing` turns the system-path test red. `verify.ps1 -SkipPerf`: 10 of 10
+gates, 1,185 Rust tests; drift 0 (75/75).
+
+**Not in this slice:** Windows-managed cleanup (DISM, cleanmgr, powercfg) is
+S14-04; the cleanup catalogue's Delete button stays disabled, and its tooltip
+now points to the basket. The LAN API, CLI, SDK and Home Assistant are not
+touched: recycling is desktop-only on purpose.
 
 ### 2026-09-29 — S14-02 Explore a finished scan: map, breadcrumb, list, largest files
 

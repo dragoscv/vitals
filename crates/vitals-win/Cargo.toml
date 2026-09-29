@@ -51,7 +51,16 @@ windows = { version = "0.62.2", features = [
 	"Wdk_System_SystemInformation",
 	"Wdk_System_SystemServices",
 	"Wdk_System_Threading",
+	# Storage review basket (storage/recycle): IFileOperation to the Recycle
+	# Bin, known folders for the protected list, and Restart Manager for
+	# "which program has this open".
+	"Win32_UI_Shell",
+	"Win32_System_RestartManager",
 ] }
+# `#[implement]` (the IFileOperation progress sink) expands to
+# `::windows_core::` paths, so the crate must be a direct dependency. Same
+# version `windows` already pulls in; nothing new is downloaded.
+windows-core = "0.62.2"
 windows-sys = { version = "0.61.2", features = [
 	"Win32_Foundation",
 	"Win32_System_Memory",

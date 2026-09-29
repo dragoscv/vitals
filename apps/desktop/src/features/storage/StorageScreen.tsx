@@ -1,13 +1,14 @@
 /**
  * Disk storage.
  *
- * # Nothing here deletes anything
+ * # Nothing here deletes anything outright
  *
- * The cleanup section measures and explains; there is no removal backend and
- * the Delete control is rendered disabled with the reason attached. A button
- * that looks live and does nothing is worse than one that says why it cannot:
- * the first teaches the user the app is broken, the second teaches them what
- * it does.
+ * Items picked in the explorer go into a review basket, and a confirmed
+ * basket goes to the Recycle Bin, from where every item can be restored (see
+ * `Basket.tsx`). The cleanup catalogue still measures and explains only; its
+ * Delete control is rendered disabled with the reason attached until it gets
+ * its own Windows-managed path. A button that looks live and does nothing is
+ * worse than one that says why it cannot.
  *
  * # Unmeasured is stated, never drawn as zero
  *
@@ -24,7 +25,7 @@
  * user *which* of the folders in front of them is a floor.
  */
 
-import { HardDrive, RefreshCw, Sparkles, X } from 'lucide-react';
+import { Check, HardDrive, Plus, RefreshCw, Sparkles, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -36,6 +37,7 @@ import {
   CardHeader,
   CardTitle,
   EmptyState,
+  IconButton,
   Meter,
   ProgressBar,
   SearchInput,
@@ -49,12 +51,15 @@ import { AnimatedValue } from '@vitals/ui';
 import { ExportButton } from '../../components/ExportButton';
 import type { ExportColumn } from '../../lib/export';
 import { oneOf, useUrlState } from '../../lib/useUrlState';
+import { BasketBar, BasketDialog } from './Basket';
 import { Explorer, exploreViews, type ExploreView } from './Explorer';
 import { STORAGE_NS } from './strings';
 import {
   directorySorts,
   filterDirectories,
   groupBySafety,
+  inBasket,
+  leafName,
   needsQualifier,
   reclaimableTotal,
   sortDirectories,
@@ -62,6 +67,7 @@ import {
   unmeasuredReason,
   usedBytes,
   usedPercent,
+  type BasketItem,
   type CleanupCandidate,
   type DirectoryEntry,
   type DirectorySort,
@@ -82,6 +88,7 @@ export function StorageScreen({ source }: StorageScreenProps = {}): React.JSX.El
 
   const state = useStorage(source);
   const [selected, setSelected] = useState<string | null>(null);
+  const [reviewing, setReviewing] = useState(false);
   // Only the result table's view goes in the URL. The chosen volume is a scan
   // parameter, not view state: restoring it from a link would imply the scan
   // itself was restored, and it is not.
@@ -102,6 +109,11 @@ export function StorageScreen({ source }: StorageScreenProps = {}): React.JSX.El
     () => sortDirectories(filterDirectories(state.snapshot?.largest ?? [], query), sort, locale),
     [state.snapshot, query, sort, locale],
   );
+
+  const toggleBasket = (item: BasketItem) => {
+    if (inBasket(state.basket, item.path)) state.removeFromBasket(item.path);
+    else state.addToBasket(item);
+  };
 
   if (state.pending) return <StorageSkeleton />;
 
@@ -222,6 +234,14 @@ export function StorageScreen({ source }: StorageScreenProps = {}): React.JSX.El
               patchView({ sort: next });
             }}
             rows={rows}
+            basket={state.basket}
+            onToggleBasket={toggleBasket}
+            revision={state.revision}
+            onReviewBasket={() => {
+              state.dismissReport();
+              setReviewing(true);
+            }}
+            onClearBasket={state.clearBasket}
           />
         )}
 
@@ -234,6 +254,23 @@ export function StorageScreen({ source }: StorageScreenProps = {}): React.JSX.El
           onCancel={state.cancelCleanup}
         />
       </div>
+
+      <BasketDialog
+        open={reviewing}
+        basket={state.basket}
+        locale={locale}
+        recycling={state.recycling}
+        report={state.report}
+        error={state.recycleError}
+        onRemove={state.removeFromBasket}
+        onConfirm={() => {
+          void state.recycleBasket();
+        }}
+        onClose={() => {
+          setReviewing(false);
+          state.dismissReport();
+        }}
+      />
     </div>
   );
 }
@@ -405,6 +442,11 @@ function ScanResult({
   sort,
   onSortChange,
   rows,
+  basket,
+  onToggleBasket,
+  revision,
+  onReviewBasket,
+  onClearBasket,
 }: {
   readonly source: StorageSource;
   readonly snapshot: ScanSnapshot;
@@ -416,6 +458,11 @@ function ScanResult({
   readonly sort: DirectorySort;
   readonly onSortChange: (value: DirectorySort) => void;
   readonly rows: readonly DirectoryEntry[];
+  readonly basket: readonly BasketItem[];
+  readonly onToggleBasket: (item: BasketItem) => void;
+  readonly revision: number;
+  readonly onReviewBasket: () => void;
+  readonly onClearBasket: () => void;
 }) {
   const { t } = useTranslation(STORAGE_NS);
   const elevationFixable = snapshot.skipped.filter((entry) => entry.elevationFixable).length;
@@ -493,6 +540,9 @@ function ScanResult({
           locale={locale}
           view={view}
           onViewChange={onViewChange}
+          basket={basket}
+          onToggleBasket={onToggleBasket}
+          revision={revision}
           largest={
             <>
               <div className="flex flex-wrap items-center gap-2">
@@ -537,49 +587,89 @@ function ScanResult({
                         <th scope="col" className="px-2.5 py-1.5 text-right font-normal">
                           {t('column.files')}
                         </th>
+                        <th scope="col" className="w-8 px-1.5 py-1.5 font-normal">
+                          <span className="sr-only">{t('basket.heading')}</span>
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
-                      {rows.map((entry) => (
-                        <tr
-                          key={entry.path}
-                          className="border-t border-[var(--color-border-subtle)]"
-                        >
-                          <td className="cell-fill px-2.5 py-1.5">
-                            <span className="block truncate text-sm" title={entry.path}>
-                              {entry.path}
-                            </span>
-                            {/* Per-row, not just in the header count: the summary
+                      {rows.map((entry) => {
+                        const selected = inBasket(basket, entry.path);
+                        const name = leafName(entry.path);
+                        return (
+                          <tr
+                            key={entry.path}
+                            className="border-t border-[var(--color-border-subtle)]"
+                          >
+                            <td className="cell-fill px-2.5 py-1.5">
+                              <span className="block truncate text-sm" title={entry.path}>
+                                {entry.path}
+                              </span>
+                              {/* Per-row, not just in the header count: the summary
                               cannot tell the user WHICH figure is a floor. */}
-                            {entry.incomplete !== null && (
-                              <Badge
-                                tone="warn"
-                                className="mt-0.5"
-                                title={t('incompleteHint', {
-                                  reason: t(`skip.${entry.incomplete}`),
-                                })}
-                              >
-                                {t('incomplete')}
-                              </Badge>
-                            )}
-                          </td>
-                          <td className="tnum px-2.5 py-1.5 text-right font-mono text-2xs">
-                            {formatBytes(entry.allocated, locale)}
-                          </td>
-                          <td className="tnum px-2.5 py-1.5 text-right font-mono text-2xs text-[var(--color-fg-subtle)]">
-                            {formatBytes(entry.logical, locale)}
-                          </td>
-                          <td className="tnum px-2.5 py-1.5 text-right font-mono text-2xs">
-                            {formatCount(entry.files, locale)}
-                          </td>
-                        </tr>
-                      ))}
+                              {entry.incomplete !== null && (
+                                <Badge
+                                  tone="warn"
+                                  className="mt-0.5"
+                                  title={t('incompleteHint', {
+                                    reason: t(`skip.${entry.incomplete}`),
+                                  })}
+                                >
+                                  {t('incomplete')}
+                                </Badge>
+                              )}
+                            </td>
+                            <td className="tnum px-2.5 py-1.5 text-right font-mono text-2xs">
+                              {formatBytes(entry.allocated, locale)}
+                            </td>
+                            <td className="tnum px-2.5 py-1.5 text-right font-mono text-2xs text-[var(--color-fg-subtle)]">
+                              {formatBytes(entry.logical, locale)}
+                            </td>
+                            <td className="tnum px-2.5 py-1.5 text-right font-mono text-2xs">
+                              {formatCount(entry.files, locale)}
+                            </td>
+                            <td className="px-1.5 py-1.5">
+                              {/* Not the scanned root itself: the backend refuses a
+                                drive root, and offering it would only teach that. */}
+                              {entry.path !== snapshot.root && (
+                                <IconButton
+                                  size="sm"
+                                  variant={selected ? 'primary' : 'ghost'}
+                                  aria-pressed={selected}
+                                  label={
+                                    selected
+                                      ? t('basket.removeItem', { name })
+                                      : t('basket.addItem', { name })
+                                  }
+                                  title={selected ? t('basket.inBasket') : t('basket.add')}
+                                  icon={selected ? <Check aria-hidden /> : <Plus aria-hidden />}
+                                  onClick={() => {
+                                    onToggleBasket({
+                                      path: entry.path,
+                                      name,
+                                      kind: 'folder',
+                                      allocated: entry.allocated,
+                                    });
+                                  }}
+                                />
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
               )}
             </>
           }
+        />
+
+        <BasketBar
+          basket={basket}
+          locale={locale}
+          onReview={onReviewBasket}
+          onClear={onClearBasket}
         />
       </CardBody>
     </Card>

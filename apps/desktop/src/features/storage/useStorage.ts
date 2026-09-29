@@ -22,14 +22,18 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { peekPrefetched, prefetch, takePrefetched } from '../../lib/prefetch';
 import { hasTauriHost } from '../../shell/host';
 import type {
+  BasketItem,
   CleanupCandidate,
+  Holder,
   MapCell,
   MapShape,
+  RecycleReport,
   ScanProgress,
   ScanSnapshot,
   StorageListing,
   Volume,
 } from './model';
+import { addToBasket, removeFromBasket } from './model';
 import { errorMessage } from '../../lib/commandError';
 
 /** Reported when there is no Tauri host, so the screen can explain itself. */
@@ -60,6 +64,13 @@ export interface StorageSource {
   ) => Promise<readonly MapCell[]>;
   /** Opens File Explorer with the item selected. */
   readonly reveal: (path: string) => Promise<void>;
+  /**
+   * Sends confirmed items to the Recycle Bin; one report line per item.
+   * `scanId` lets the backend take them out of the kept scan.
+   */
+  readonly recycle: (paths: readonly string[], scanId: number | null) => Promise<RecycleReport>;
+  /** Which programs have a file, or a file in a folder, open. */
+  readonly holders: (path: string) => Promise<readonly Holder[]>;
 }
 
 /** The real source. Dynamic imports so a browser never evaluates the IPC module. */
@@ -102,6 +113,14 @@ export const tauriSource: StorageSource = {
     const { invoke } = await import('@tauri-apps/api/core');
     return invoke<void>('open_file_location', { path });
   },
+  recycle: async (paths, scanId) => {
+    const { invoke } = await import('@tauri-apps/api/core');
+    return invoke<RecycleReport>('recycle_storage_items', { paths, scanId });
+  },
+  holders: async (path) => {
+    const { invoke } = await import('@tauri-apps/api/core');
+    return invoke<readonly Holder[]>('get_file_holders', { path });
+  },
 };
 
 const PREFETCH_KEY = 'storage:volumes';
@@ -131,11 +150,29 @@ export interface StorageState {
   readonly cleanupRunning: boolean;
   readonly cleanupError: string | null;
 
+  /** Items the user is reviewing for the Recycle Bin. */
+  readonly basket: readonly BasketItem[];
+  readonly recycling: boolean;
+  /** The last confirmed basket's per-item result. */
+  readonly report: RecycleReport | null;
+  readonly recycleError: string | null;
+  /**
+   * Bumped when the kept scan changed under the explorer (a recycle took
+   * items out of it), so it reloads the folder in view without a rescan.
+   */
+  readonly revision: number;
+
   scan: (path: string) => void;
   cancelScan: () => void;
   findCleanup: () => void;
   cancelCleanup: () => void;
   refreshVolumes: () => void;
+  addToBasket: (item: BasketItem) => void;
+  removeFromBasket: (path: string) => void;
+  clearBasket: () => void;
+  /** Sends the whole basket; resolves when the report is in. */
+  recycleBasket: () => Promise<void>;
+  dismissReport: () => void;
 }
 
 export function useStorage(source?: StorageSource): StorageState {
@@ -160,6 +197,17 @@ export function useStorage(source?: StorageSource): StorageState {
   const [candidates, setCandidates] = useState<readonly CleanupCandidate[] | null>(null);
   const [cleanupRunning, setCleanupRunning] = useState(false);
   const [cleanupError, setCleanupError] = useState<string | null>(null);
+
+  const [basket, setBasket] = useState<readonly BasketItem[]>([]);
+  const [recycling, setRecycling] = useState(false);
+  const [report, setReport] = useState<RecycleReport | null>(null);
+  const [recycleError, setRecycleError] = useState<string | null>(null);
+  const [revision, setRevision] = useState(0);
+  const recycleInFlight = useRef(false);
+  const snapshotRef = useRef<ScanSnapshot | null>(null);
+  snapshotRef.current = snapshot;
+  const basketRef = useRef(basket);
+  basketRef.current = basket;
 
   const sourceRef = useRef<StorageSource>(source ?? tauriSource);
   sourceRef.current = source ?? tauriSource;
@@ -276,6 +324,58 @@ export function useStorage(source?: StorageSource): StorageState {
     void loadVolumes();
   }, [loadVolumes]);
 
+  const add = useCallback((item: BasketItem) => {
+    setBasket((current) => addToBasket(current, item));
+  }, []);
+  const remove = useCallback((path: string) => {
+    setBasket((current) => removeFromBasket(current, path));
+  }, []);
+  const clearBasket = useCallback(() => {
+    setBasket([]);
+  }, []);
+  const dismissReport = useCallback(() => {
+    setReport(null);
+    setRecycleError(null);
+  }, []);
+
+  const recycleBasket = useCallback(async () => {
+    const items = basketRef.current;
+    if (recycleInFlight.current || items.length === 0) return;
+    recycleInFlight.current = true;
+    setRecycling(true);
+    setRecycleError(null);
+    setReport(null);
+    try {
+      const scanId = snapshotRef.current?.scanId ?? null;
+      const next = await sourceRef.current.recycle(
+        items.map((item) => item.path),
+        scanId,
+      );
+      if (!mounted.current) return;
+      setReport(next);
+      // What went (or was already gone) leaves the basket; what could not be
+      // moved stays, so the user can read why and try again.
+      const settled = new Set(
+        next.items
+          .filter((item) => item.outcome === 'recycled' || item.outcome === 'missing')
+          .map((item) => item.path.toLowerCase()),
+      );
+      setBasket((current) => current.filter((item) => !settled.has(item.path.toLowerCase())));
+      const totals = next.scan;
+      if (totals !== null) {
+        setSnapshot((current) =>
+          current === null || current.scanId !== scanId ? current : { ...current, ...totals },
+        );
+        setRevision((r) => r + 1);
+      }
+    } catch (cause: unknown) {
+      if (mounted.current) setRecycleError(errorMessage(cause));
+    } finally {
+      recycleInFlight.current = false;
+      if (mounted.current) setRecycling(false);
+    }
+  }, []);
+
   useEffect(() => {
     mounted.current = true;
 
@@ -308,10 +408,20 @@ export function useStorage(source?: StorageSource): StorageState {
     candidates,
     cleanupRunning,
     cleanupError,
+    basket,
+    recycling,
+    report,
+    recycleError,
+    revision,
     scan,
     cancelScan,
     findCleanup,
     cancelCleanup,
     refreshVolumes,
+    addToBasket: add,
+    removeFromBasket: remove,
+    clearBasket,
+    recycleBasket,
+    dismissReport,
   };
 }

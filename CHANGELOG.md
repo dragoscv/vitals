@@ -9,6 +9,16 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Free space from a storage scan** — put folders and files in review with
+  the + beside them (or right-click on the map), check the list and its
+  total, and send them to the Recycle Bin in one step, from where any of them
+  can be put back. Windows, installed programs and the folders your account
+  is made of are refused, and anything the bin could not hold is left where
+  it is rather than deleted for good. The sizes go down straight away,
+  without scanning again.
+- **Why can't I delete this** — when something is in use, Vitals names the
+  program holding it, so you know what to close.
+
 - **Explore a storage scan** — after a scan, a map shows every folder sized by
   the space it takes, as layers or as blocks. Click a block to go inside, use
   the breadcrumb or Up to come back, and hover for its size and share. A list

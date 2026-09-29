@@ -131,7 +131,7 @@ const en = {
 
     delete: 'Delete',
     deleteUnavailable:
-      'Vitals cannot delete anything yet. Measuring a folder is a read; emptying one is irreversible, and that is not built.',
+      'Not from here yet. These locations are emptied through Windows’ own tools, which Vitals does not run yet. To free space now, add folders to review in Explore and send them to the Recycle Bin.',
     unknownSize: 'Not measured',
     reasonNeedsElevation:
       'This location exists but cannot be read without administrator rights, so its size is unknown — not zero.',
@@ -225,6 +225,85 @@ const en = {
       copy: 'Copy path',
     },
     filesEmpty: 'No files were large enough to list.',
+  },
+
+  basket: {
+    heading: 'To review',
+    hint: 'Add folders or files with + to review them here before sending them to the Recycle Bin.',
+    add: 'Add to review',
+    addItem: 'Add {{name}} to review',
+    removeItem: 'Remove {{name}} from review',
+    inBasket: 'In review — click to take it out',
+    inBasketRemove: 'Remove from review',
+    mapHint: 'right-click to add to review',
+    mapInBasket: 'in review; right-click to take it out',
+    summary_one: '{{n}} item in review · {{size}}',
+    summary_other: '{{n}} items in review · {{size}}',
+    review: 'Review…',
+    clear: 'Clear',
+    confirmTitle: 'Send to the Recycle Bin?',
+    confirmBody:
+      'These go to the Recycle Bin, not away for good: you can put any of them back from there until it is emptied. Windows folders and the folders your account is made of are refused.',
+    confirm_one: 'Recycle {{n}} item · {{size}}',
+    confirm_other: 'Recycle {{n}} items · {{size}}',
+    recycling: 'Sending to the Recycle Bin…',
+    cancel: 'Cancel',
+    close: 'Close',
+    done: 'Done',
+    remove: 'Take {{name}} out of review',
+    reportTitle: 'What happened',
+    reportAll_one: '{{count}} item is in the Recycle Bin.',
+    reportAll_other: 'All {{count}} items are in the Recycle Bin.',
+    reportSome_one:
+      '{{count}} item is in the Recycle Bin; {{left}} could not be moved and stayed where it was.',
+    reportSome_other:
+      '{{count}} items are in the Recycle Bin; {{left}} could not be moved and stayed where they were.',
+    reportNone: 'Nothing was moved. Every item is still where it was; each line below says why.',
+    failed: 'Nothing was moved. {{message}}',
+  },
+
+  outcome: {
+    recycled: 'In the Recycle Bin',
+    refused: 'Refused',
+    wouldBePermanent: 'Not moved',
+    missing: 'Already gone',
+    locked: 'In use',
+    accessDenied: 'Not allowed',
+    failed: 'Failed',
+  },
+
+  outcomeWhy: {
+    wouldBePermanent:
+      'The Recycle Bin cannot hold this (it is too large, or its drive has no bin), so Windows would have deleted it for good. Vitals left it where it is.',
+    missing: 'Nothing was there any more, so there was nothing to move.',
+    accessDenied:
+      'Windows did not allow Vitals to move it. It may belong to another account or need administrator rights.',
+    failed: 'Windows could not move it (error {{code}}). It is still where it was.',
+  },
+
+  protection: {
+    invalid: 'This is not a path Vitals can check safely, so it was not touched.',
+    driveRoot: 'A whole drive cannot be sent to the Recycle Bin.',
+    systemFolder:
+      'This is part of Windows or an installed program. Removing it would break it; uninstall programs from the Apps screen instead.',
+    userFolder:
+      'This is one of the folders your account is made of. Its contents can be reviewed, but the folder itself stays.',
+    systemFile: 'Windows marks this as a system file, so it is not moved.',
+    noRecycleBin:
+      'This drive has no Recycle Bin, so removing anything there would be permanent. Vitals does not do that.',
+    vitals: 'This is where Vitals itself is installed.',
+  },
+
+  holders: {
+    intro_one: 'This program has it open:',
+    intro_other: 'These programs have it open:',
+    pid: 'process {{pid}}',
+    service: 'service {{name}}',
+    unnamed: 'A program without a name',
+    critical: 'Needs a restart',
+    advice: 'Close it (or save and close the file in it), then try again.',
+    none: 'Windows says no program has it open now. It may have been released a moment ago; try again.',
+    unknown: 'It is in use, but Windows could not say by which program.',
   },
 } as const;
 
@@ -359,7 +438,7 @@ const ro = {
 
     delete: 'Șterge',
     deleteUnavailable:
-      'Vitals nu poate șterge încă nimic. Măsurarea unui folder este o citire; golirea lui este ireversibilă și nu este implementată.',
+      'Încă nu de aici. Aceste locații se golesc prin uneltele proprii ale Windows, pe care Vitals nu le rulează încă. Ca să eliberezi spațiu acum, adaugă foldere la verificare în Explorează și trimite-le în Coșul de reciclare.',
     unknownSize: 'Nemăsurat',
     reasonNeedsElevation:
       'Această locație există, dar nu poate fi citită fără drepturi de administrator, deci dimensiunea ei este necunoscută — nu zero.',
@@ -458,6 +537,93 @@ const ro = {
       copy: 'Copiază calea',
     },
     filesEmpty: 'Niciun fișier nu a fost destul de mare pentru a fi listat.',
+  },
+
+  basket: {
+    heading: 'De verificat',
+    hint: 'Adaugă foldere sau fișiere cu + ca să le verifici aici înainte de a le trimite în Coșul de reciclare.',
+    add: 'Adaugă la verificare',
+    addItem: 'Adaugă {{name}} la verificare',
+    removeItem: 'Scoate {{name}} de la verificare',
+    inBasket: 'La verificare — apasă ca să îl scoți',
+    inBasketRemove: 'Scoate de la verificare',
+    mapHint: 'clic dreapta pentru a adăuga la verificare',
+    mapInBasket: 'la verificare; clic dreapta ca să îl scoți',
+    summary_one: '{{n}} element la verificare · {{size}}',
+    summary_few: '{{n}} elemente la verificare · {{size}}',
+    summary_other: '{{n}} de elemente la verificare · {{size}}',
+    review: 'Verifică…',
+    clear: 'Golește lista',
+    confirmTitle: 'Trimiți în Coșul de reciclare?',
+    confirmBody:
+      'Acestea ajung în Coșul de reciclare, nu dispar definitiv: poți readuce oricare dintre ele de acolo până când coșul este golit. Folderele Windows și cele din care este făcut contul tău sunt refuzate.',
+    confirm_one: 'Reciclează {{n}} element · {{size}}',
+    confirm_few: 'Reciclează {{n}} elemente · {{size}}',
+    confirm_other: 'Reciclează {{n}} de elemente · {{size}}',
+    recycling: 'Se trimit în Coșul de reciclare…',
+    cancel: 'Renunță',
+    close: 'Închide',
+    done: 'Gata',
+    remove: 'Scoate {{name}} de la verificare',
+    reportTitle: 'Ce s-a întâmplat',
+    reportAll_one: '{{count}} element este în Coșul de reciclare.',
+    reportAll_few: 'Toate cele {{count}} elemente sunt în Coșul de reciclare.',
+    reportAll_other: 'Toate cele {{count}} de elemente sunt în Coșul de reciclare.',
+    reportSome_one:
+      '{{count}} element este în Coșul de reciclare; {{left}} nu au putut fi mutate și au rămas pe loc.',
+    reportSome_few:
+      '{{count}} elemente sunt în Coșul de reciclare; {{left}} nu au putut fi mutate și au rămas pe loc.',
+    reportSome_other:
+      '{{count}} de elemente sunt în Coșul de reciclare; {{left}} nu au putut fi mutate și au rămas pe loc.',
+    reportNone:
+      'Nu s-a mutat nimic. Fiecare element este tot acolo unde era; fiecare rând de mai jos spune de ce.',
+    failed: 'Nu s-a mutat nimic. {{message}}',
+  },
+
+  outcome: {
+    recycled: 'În Coșul de reciclare',
+    refused: 'Refuzat',
+    wouldBePermanent: 'Nemutat',
+    missing: 'Deja dispărut',
+    locked: 'În folosință',
+    accessDenied: 'Nepermis',
+    failed: 'Eșuat',
+  },
+
+  outcomeWhy: {
+    wouldBePermanent:
+      'Coșul de reciclare nu îl poate păstra (este prea mare sau unitatea nu are coș), deci Windows l-ar fi șters definitiv. Vitals l-a lăsat pe loc.',
+    missing: 'Nu mai era nimic acolo, deci nu era nimic de mutat.',
+    accessDenied:
+      'Windows nu i-a permis aplicației Vitals să îl mute. Poate aparține altui cont sau are nevoie de drepturi de administrator.',
+    failed: 'Windows nu l-a putut muta (eroarea {{code}}). Este tot acolo unde era.',
+  },
+
+  protection: {
+    invalid:
+      'Aceasta nu este o cale pe care Vitals o poate verifica în siguranță, deci nu a fost atinsă.',
+    driveRoot: 'O unitate întreagă nu poate fi trimisă în Coșul de reciclare.',
+    systemFolder:
+      'Face parte din Windows sau dintr-un program instalat. Ștergerea l-ar strica; dezinstalează programele din ecranul Aplicații.',
+    userFolder:
+      'Este unul dintre folderele din care este făcut contul tău. Conținutul poate fi verificat, dar folderul rămâne.',
+    systemFile: 'Windows îl marchează ca fișier de sistem, deci nu este mutat.',
+    noRecycleBin:
+      'Această unitate nu are Coș de reciclare, deci orice ștergere de acolo ar fi definitivă. Vitals nu face asta.',
+    vitals: 'Aici este instalat chiar Vitals.',
+  },
+
+  holders: {
+    intro_one: 'Acest program îl ține deschis:',
+    intro_few: 'Aceste programe îl țin deschis:',
+    intro_other: 'Aceste programe îl țin deschis:',
+    pid: 'procesul {{pid}}',
+    service: 'serviciul {{name}}',
+    unnamed: 'Un program fără nume',
+    critical: 'Necesită repornire',
+    advice: 'Închide-l (sau salvează și închide fișierul din el), apoi încearcă din nou.',
+    none: 'Windows spune că niciun program nu îl mai ține deschis. Poate a fost eliberat chiar acum; încearcă din nou.',
+    unknown: 'Este în folosință, dar Windows nu a putut spune de către ce program.',
   },
 } as const;
 

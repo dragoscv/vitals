@@ -261,6 +261,69 @@ impl ScanResult {
             .node(self.tree.root())
             .map_or(Bytes::ZERO, super::tree::Node::logical)
     }
+
+    /// The folder at `path` in this scan, matched case-insensitively.
+    #[must_use]
+    pub fn find_directory(&self, path: &str) -> Option<NodeId> {
+        let wanted = super::protect::normalise(path)?;
+        let root = super::protect::normalise(&self.tree.path_of(self.tree.root()))?;
+        if wanted == root {
+            return Some(self.tree.root());
+        }
+        let rest = wanted.strip_prefix(&root)?.strip_prefix('\\')?;
+        let mut cursor = self.tree.root();
+        for part in rest.split('\\') {
+            cursor = self
+                .tree
+                .children(cursor)
+                .into_iter()
+                .find(|&c| self.tree.name_of(c).to_lowercase() == part)?;
+        }
+        (!self.tree.is_detached(cursor)).then_some(cursor)
+    }
+
+    /// Takes an item that went to the Recycle Bin out of this scan.
+    ///
+    /// A folder is detached with everything in it; a file is found among
+    /// [`ScanResult::largest_files`], the only files a scan knows by name.
+    /// Every ancestor's total goes down by what the item held, and those
+    /// bytes are added to the drive's `$Recycle.Bin` when this scan contains
+    /// it: the space is still in use until the bin is emptied, and a drive
+    /// total that dropped would say otherwise.
+    ///
+    /// Returns what was moved, or `None` when the scan does not contain the
+    /// item (nothing changes then).
+    pub fn forget_recycled(&mut self, path: &str) -> Option<super::tree::Amount> {
+        use super::tree::Amount;
+        let moved = if let Some(dir) = self.find_directory(path)
+            && dir != self.tree.root()
+        {
+            let amount = self.tree.detach(dir)?;
+            let tree = &self.tree;
+            self.largest_files.retain(|f| !tree.is_detached(f.dir));
+            amount
+        } else {
+            let wanted = super::protect::normalise(path)?;
+            let index = self.largest_files.iter().position(|f| {
+                super::protect::normalise(&self.path_of_file(f)).as_deref() == Some(&wanted)
+            })?;
+            let file = self.largest_files.remove(index);
+            self.tree
+                .remove_file(file.dir, file.allocated.get(), file.logical.get());
+            Amount {
+                allocated: file.allocated.get(),
+                logical: file.logical.get(),
+                files: 1,
+            }
+        };
+
+        let root = self.tree.path_of(self.tree.root());
+        let bin = format!("{}\\$Recycle.Bin", root.get(..2).unwrap_or(""));
+        if let Some(bin) = self.find_directory(&bin) {
+            self.tree.add_to(bin, moved);
+        }
+        Some(moved)
+    }
 }
 
 /// A handle that closes itself.
@@ -1169,6 +1232,41 @@ mod tests {
             "the file five levels down must be in the total"
         );
         assert!(result.allocated() >= result.logical());
+    }
+
+    #[test]
+    fn a_recycled_folder_comes_out_of_the_kept_scan_without_a_rescan() {
+        let fixture = Fixture::new("forget-dir");
+        let mut result = scan(&fixture.root, ScanOptions::default());
+        let before = result.logical().get();
+        let wide = format!("{}\\WIDE", fixture.root.display());
+
+        let moved = result.forget_recycled(&wide).expect("wide is in the scan");
+        assert_eq!(moved.files, 300);
+        assert_eq!(result.logical().get(), before - 300);
+        assert!(result.find_directory(&wide).is_none());
+        assert!(
+            result.forget_recycled(&wide).is_none(),
+            "a second report of the same item changes nothing"
+        );
+    }
+
+    #[test]
+    fn a_recycled_large_file_leaves_its_folder_and_the_list() {
+        let fixture = Fixture::new("forget-file");
+        let mut result = scan(&fixture.root, ScanOptions::default());
+        let top = format!("{}\\top.bin", fixture.root.display());
+        let before = result.logical().get();
+
+        let moved = result.forget_recycled(&top).expect("top.bin is listed");
+        assert_eq!(moved.logical, 10_000);
+        assert_eq!(result.logical().get(), before - 10_000);
+        assert!(result.largest_files.iter().all(|f| f.name != "top.bin"));
+        assert!(
+            result
+                .forget_recycled(&format!("{}\\nope.bin", fixture.root.display()))
+                .is_none()
+        );
     }
 
     #[test]
