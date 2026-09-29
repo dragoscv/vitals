@@ -167,6 +167,14 @@ fun SettingsScreen() {
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(onClick = { openUrl(context, PRIVACY_URL) }) {
+                            Text(stringResource(R.string.settings_privacy))
+                        }
+                        TextButton(onClick = { openUrl(context, SOURCE_URL) }) {
+                            Text(stringResource(R.string.settings_source))
+                        }
+                    }
                 }
             }
         }
@@ -316,3 +324,15 @@ private fun LanguageCard() {
 private fun notificationsGranted(context: android.content.Context): Boolean =
     Build.VERSION.SDK_INT < 33 ||
         ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+
+// Play requires the policy to be reachable from inside the app, not only
+// from the listing; the site page is the one kept in step with PRIVACY.md.
+private const val PRIVACY_URL = "https://vitals.dragoscatalin.ro/privacy/"
+private const val SOURCE_URL = "https://github.com/dragoscv/vitals"
+
+private fun openUrl(context: android.content.Context, url: String) {
+    // No browser is a real case on a stripped-down device; the link simply does nothing.
+    runCatching {
+        context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }
+}

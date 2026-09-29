@@ -194,7 +194,9 @@
     <string name="settings_notifications_allow">Allow</string>
     <string name="settings_about">About</string>
     <string name="settings_version">Version %1$s</string>
-    <string name="settings_about_body">Vitals watches a Windows PC over your home network. Nothing leaves your network.</string>
+    <string name="settings_about_body">Vitals measures this phone and, if you pair one, a Windows PC on your home network. No ads, no analytics, no account: nothing is sent to the developer.</string>
+    <string name="settings_privacy">Privacy policy</string>
+    <string name="settings_source">Source code</string>
 
     <!-- Notifications -->
     <string name="channel_alerts">Warnings</string>
