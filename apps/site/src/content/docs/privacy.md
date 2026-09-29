@@ -24,7 +24,7 @@ two ever differ, that one applies.
 
 ## The Android and Wear OS apps
 
-- **No analytics, no ads, no account.** The apps talk only to the PCs you pair, on your local
+- **No ads, no account, no analytics of our own.** The apps talk only to the PCs you pair, on your local
   network, and to your watch through Google Play services.
 - **Special access is yours to grant.** Usage access (time and data per app) and all-files access
   (the storage map and cleanup) are off until you turn them on in Android's settings; the watch

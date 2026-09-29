@@ -118,6 +118,10 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **A debug build takes about 10 GB instead of growing without limit** — the
+  desktop crate no longer builds two extra copies of itself for mobile targets
+  Vitals does not ship, and `verify.ps1` prunes abandoned incremental caches
+  and fails when `target/` goes over budget (contributors only).
 - **OneDrive folders are counted** in storage scans; they used to be skipped.
 - **Stopping a scan no longer stops a cleanup search** (or the other way
   round) — each has its own Stop button.

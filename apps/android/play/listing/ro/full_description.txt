@@ -1,0 +1,23 @@
+Vitals arată ce fac cu adevărat telefonul, ceasul și PC-ul tău, în cuvinte pe care le poate citi oricine, și nu inventează niciodată o valoare pe care nu a putut-o măsura.
+
+ACEST TELEFON
+• Încărcarea procesorului pe fiecare grup de nuclee, frecvențele și temperatura
+• Încărcarea și frecvența plăcii grafice, acolo unde telefonul le raportează
+• Memoria folosită și cât de aproape este Android de a închide aplicații
+• Bateria: încărcare, stare, temperatură, tensiune, curent și cicluri de încărcare
+• Stocarea: o hartă cu ce umple telefonul, cele mai mari dosare și fișiere și o curățare pe care o verifici înainte să se șteargă ceva
+• Aplicațiile: timpul pe ecran și datele folosite de fiecare aplicație în ultimele 24 de ore
+• Toți senzorii telefonului, în timp real
+• O săptămână de istoric și alerte când ceva se încinge, scade sau se umple
+
+CEASUL TĂU
+Aplicația Wear OS monitorizează ceasul însuși, cu o placă și complicații, și îți arată PC-urile pe încheietură.
+
+PC-UL TĂU (opțional)
+Asociază un PC cu Windows care rulează Vitals scanând codul QR. Vezi procesorul, placa grafică, memoria, temperaturile și procesele, primești alerte, îl trezești din somn și, cu o asociere de control, închizi sau suspenzi un proces care nu mai răspunde. Totul rămâne în rețeaua ta locală.
+
+ONEST DIN CONSTRUCȚIE
+• Dacă o valoare nu poate fi măsurată, Vitals arată o liniuță, nu un zero inventat
+• Fără reclame, fără cont, fără urmărire; singurele date de diagnosticare sunt cele ale Google ML Kit, când scanezi un cod QR
+• Accesul la utilizare și accesul la toate fișierele sunt opționale; fiecare funcție care are nevoie de ele spune asta și rămâne goală până le acorzi
+• Gratuit și open source (MIT): github.com/dragoscv/vitals

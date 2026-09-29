@@ -10,10 +10,17 @@ authors.workspace = true
 description = "Vitals — a modern, fast, native system monitor and task manager."
 
 [lib]
-# Required for the mobile/desktop shared entry point Tauri expects, and it
-# lets the integration tests exercise the app setup without launching a window.
+# The shared entry point `main.rs` calls, and what the integration tests
+# link against without launching a window.
+#
+# `rlib` only. Tauri's template adds `staticlib` and `cdylib` for its iOS and
+# Android targets; this app has neither (the phone and watch apps are native
+# Kotlin, `apps/android`). Those two crate types made every `cargo build` and
+# `cargo test` link the whole app twice more: a 1.26 GB `.lib` and a DLL per
+# profile, copied again into `deps/` — measured 2026-09-29 in a 29 GB
+# `target/debug`. `scripts/check-target-size.ps1` guards the total.
 name = "vitals_desktop_lib"
-crate-type = ["staticlib", "cdylib", "rlib"]
+crate-type = ["rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2.7.0", features = [] }

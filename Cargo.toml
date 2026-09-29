@@ -155,6 +155,11 @@ opt-level = 0
 
 [profile.dev.package."*"]
 opt-level = 2
+# Dependencies keep file/line information for backtraces but not full debug
+# info: nobody steps through `windows-sys` in a debugger, and full DWARF/PDB
+# for ~400 crates was a third of `target/debug`. The workspace's own crates
+# keep full debug info from `[profile.dev]`.
+debug = "line-tables-only"
 
 [profile.bench-perf]
 inherits = "release"

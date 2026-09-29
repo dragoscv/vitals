@@ -185,7 +185,9 @@
     <string name="settings_notifications_allow">Permite</string>
     <string name="settings_about">Despre</string>
     <string name="settings_version">Versiunea %1$s</string>
-    <string name="settings_about_body">Vitals urmărește un PC cu Windows prin rețeaua de acasă. Nimic nu iese din rețeaua ta.</string>
+    <string name="settings_about_body">Vitals măsoară acest telefon și, dacă asociezi unul, un PC cu Windows din rețeaua de acasă. Fără reclame, fără cont, fără analiză proprie: dezvoltatorul nu primește nimic.</string>
+    <string name="settings_privacy">Politica de confidențialitate</string>
+    <string name="settings_source">Codul sursă</string>
 
     <string name="channel_alerts">Avertismente</string>
     <string name="channel_alerts_body">Când un PC urmărit se supraîncălzește, rămâne fără memorie sau spațiu ori încetinește.</string>
