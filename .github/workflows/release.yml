@@ -313,7 +313,14 @@ jobs:
       - name: Stamp nightly version
         if: needs.plan.outputs.is_release != 'true'
         shell: pwsh
-        run: pwsh -NoProfile -File scripts/version.ps1 -Set $env:VERSION
+        # The stamp changes every workspace crate's version, so Cargo.lock is
+        # stale and bundle-sensors' `cargo build --locked` refused it: both
+        # Windows legs of every nightly since the helper landed (2026-09-29).
+        # --workspace --offline rewrites only our own crates' entries; no
+        # dependency can move, which is what --locked is there to guarantee.
+        run: |
+          pwsh -NoProfile -File scripts/version.ps1 -Set $env:VERSION
+          cargo update --workspace --offline
 
       # Everything that varies per run goes into one JSON merge-patch passed
       # with --config, written outside the tree so it can never be committed.
