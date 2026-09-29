@@ -348,22 +348,27 @@ export function RouteView({
       {[...visited].map((id) => (
         // Keyed per route, and each gets its own boundary: a section still
         // loading its chunk must not blank a sibling that is already up.
-        <Activity key={id} mode={id === route ? 'visible' : 'hidden'}>
-          {/*
-           * `data-route-visible` marks the one route on screen; styles.css
-           * gives only its title a `view-transition-name`. Hidden routes are
-           * still in the DOM, and two elements sharing a name abort the
-           * whole transition — the CSS cannot tell them apart, React can.
-           */}
-          <div
-            className="flex min-h-0 flex-1 flex-col"
-            {...(id === route && { 'data-route-visible': '' })}
-          >
+        //
+        // `data-route-visible` marks the one route on screen; styles.css
+        // gives only its title a `view-transition-name`. Hidden routes are
+        // still in the DOM, and two elements sharing a name abort the whole
+        // transition. The wrapper sits OUTSIDE the `<Activity>`: React defers
+        // every update inside a hidden Activity, so a marker on an inner div
+        // stayed on the route just left, and two routes carried it at once
+        // (found by the Playwright suite, 2026-09-29). The wrapper hides
+        // itself too, since Activity's own `display: none` now applies to its
+        // children, not to this box.
+        <div
+          key={id}
+          className={id === route ? 'flex min-h-0 flex-1 flex-col' : 'hidden'}
+          {...(id === route && { 'data-route-visible': '' })}
+        >
+          <Activity mode={id === route ? 'visible' : 'hidden'}>
             <Suspense fallback={<RouteSkeleton />}>
               <RouteContent route={id} {...(onNavigate && { onNavigate })} />
             </Suspense>
-          </div>
-        </Activity>
+          </Activity>
+        </div>
       ))}
     </RouteTransition>
   );

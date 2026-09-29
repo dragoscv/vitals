@@ -32,6 +32,8 @@
 
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 
+import { reportToLog } from '../lib/logToFile';
+
 export interface ErrorBoundaryProps {
   readonly children: ReactNode;
   /**
@@ -89,6 +91,8 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     // Logged unconditionally, not only in development. A release build with a
     // silent boundary is how a recurring crash goes unreported for months.
     console.error('render error contained by boundary', error, info.componentStack);
+    // And to the log file: the console above is invisible in a release build.
+    reportToLog('error', error, 'boundary', info.componentStack ?? undefined);
     this.props.onError?.(error, info);
   }
 

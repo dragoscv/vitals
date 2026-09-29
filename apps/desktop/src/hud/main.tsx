@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 
 import { i18n, initI18n, isSupportedLocale, type Locale } from '@vitals/i18n';
 
+import { installGlobalErrorLogging, reportToLog } from '../lib/logToFile';
 import { HudApp } from './HudApp';
 import { applyOverlayTheme } from './lib/theme';
 import './styles.css';
@@ -46,10 +47,14 @@ async function bootstrap(): Promise<void> {
   );
 }
 
+// The overlay has no devtools at all, even in development; without this its
+// errors went nowhere.
+installGlobalErrorLogging('hud');
 void bootstrap().catch((error: unknown) => {
   // Plain DOM, not React: using React to report React failing to start does
   // not work, and this window has no other error surface.
   console.error('Vitals overlay failed to start', error);
+  reportToLog('error', error, 'hud:startup');
   const root = document.getElementById('root');
   if (root) root.textContent = error instanceof Error ? error.message : String(error);
 });

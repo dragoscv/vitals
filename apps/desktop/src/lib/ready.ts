@@ -47,6 +47,9 @@ export function wasAutostarted(): Promise<boolean> {
 export function signalReady(): void {
   if (signalled) return;
   signalled = true;
+  // In a plain browser (the dev server, the Playwright suite) there is no
+  // window to reveal, and invoking anyway logged an error on every launch.
+  if (!hasTauriHost()) return;
 
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
