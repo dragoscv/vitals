@@ -781,24 +781,88 @@ mod tests {
         // against the CPU graph would see two different numbers.
         let mut sampler = SystemSampler::new();
         sampler.sample().expect("prime");
-        sleep(Duration::from_millis(500));
-        let sample = sampler.sample().expect("sample");
 
-        let process_sum: f32 = sample
+        // Processes that start and exit inside the interval are counted by the
+        // kernel's per-CPU totals but absent from both snapshots, so churn can
+        // only make the process sum LOW, never high. The release Verify job
+        // runs the TypeScript lane beside these tests and saw 6.2 % vs 40.6 %
+        // (run 36648455212). Measured locally at 80-90 % load: the gap was
+        // 1-3 points at rest, 5-8 with four long busy loops and 9-15 with a
+        // churn of 120 ms node processes - always low, never high.
+        //
+        // So the two directions are asserted differently. Over-counting is
+        // impossible under any load and fails at once. Under-counting is only
+        // a bug if it persists: separate clocks would disagree in every
+        // window, so agreement in any one of them proves they share a clock.
+        let mut seen = Vec::new();
+        for _ in 0..20 {
+            sleep(Duration::from_millis(500));
+            let sample = sampler.sample().expect("sample");
+            let process_sum: f32 = sample
+                .processes
+                .iter()
+                .filter(|p| !p.raw.is_idle_process())
+                .map(|p| p.cpu.get())
+                .sum();
+            let machine_total = sample.system.cpu.total.get();
+            assert!(
+                process_sum < machine_total + 25.0,
+                "processes claim more CPU than the machine used: \
+                 {process_sum:.1}% vs {machine_total:.1}%"
+            );
+            if (process_sum - machine_total).abs() < 25.0 {
+                return;
+            }
+            seen.push(format!("{process_sum:.1}% vs {machine_total:.1}%"));
+        }
+        panic!(
+            "process sum never matched the machine total: {}",
+            seen.join(", ")
+        );
+    }
+
+    #[test]
+    fn a_thread_spinning_one_core_is_attributed_to_its_own_process() {
+        // The machine-total comparison above cannot catch under-counting: on
+        // a quiet window a tenth of a small number is still within tolerance.
+        // A known load can. This test's own process spins one core, so its
+        // share must come out near 100 / cores, whatever else is running.
+        use std::sync::Arc;
+        use std::sync::atomic::{AtomicBool, Ordering};
+
+        let own = std::process::id();
+        let cores = u32::try_from(logical_core_count()).unwrap_or(1).max(1);
+        #[allow(clippy::cast_precision_loss)] // a core count is far below 2^24
+        let one_core = 100.0 / cores as f32;
+
+        let stop = Arc::new(AtomicBool::new(false));
+        let spinner = {
+            let stop = Arc::clone(&stop);
+            std::thread::spawn(move || {
+                while !stop.load(Ordering::Relaxed) {
+                    std::hint::spin_loop();
+                }
+            })
+        };
+
+        let mut sampler = SystemSampler::new();
+        sampler.sample().expect("prime");
+        sleep(Duration::from_millis(2000));
+        let sample = sampler.sample().expect("sample");
+        stop.store(true, Ordering::Relaxed);
+        spinner.join().expect("spinner");
+
+        let mine = sample
             .processes
             .iter()
-            .filter(|p| !p.raw.is_idle_process())
+            .find(|p| p.raw.key.pid.0 == own)
             .map(|p| p.cpu.get())
-            .sum();
-        let machine_total = sample.system.cpu.total.get();
-
-        // Generous tolerance: short-lived processes that started and exited
-        // inside the interval are counted by the kernel's per-CPU totals but
-        // are absent from both snapshots, so the sum is legitimately a little
-        // low. An order-of-magnitude gap would mean a real bug.
+            .expect("the test process is in the snapshot");
+        // Lower bound only loosely: a machine at 100 % shares the spinning
+        // core with others. Other test threads may add CPU on top.
         assert!(
-            (process_sum - machine_total).abs() < 25.0,
-            "process sum {process_sum:.1}% vs machine total {machine_total:.1}%"
+            mine > one_core * 0.4,
+            "own process at {mine:.2}% while spinning one of {cores} cores ({one_core:.2}%)"
         );
     }
 
