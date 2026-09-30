@@ -865,7 +865,34 @@ cargo test -p vitals-server: 61 + 1 + 43 + 4 + 3 passed; clippy -D warnings clea
 vitest src/settings/lan: 12 passed; check-drift: 0 failures (79 invokes, 79 commands)
 ```
 
-**Not verified yet.** The Play Android TV form factor and the `tv:qa` release are still open: they wait for the signed bundle from a build-only release run, and the `play` job's `tv:qa` upload only runs on the next `v*` tag. The phone and watch builds compile against the new shared code and their unit tests pass, but they have not been reinstalled on the A51 or the watch.
+**Play (2026-09-30).** The signed TV bundle came from build-only release run
+36626937058 (versionCode 2000011). In Play Console: the Android TV form factor
+was added with its own internal track (4698536478903256086); the default
+listing carries five 1920×1080 TV screenshots and the 1280×720 banner in both
+en-US and ro; the track's testers are the existing "Hobby apps testers" list
+(the same one address as the Wear track). The release was published:
+
+```
+Track summary (Android TV) · Latest release: 2000011 (0.9.0-nightly.20260929.gc48ffe0)
+2000011 … Available to internal testers · 1 version code · Released on Sep 30 3:16 AM · Not reviewed
+Form factors → Android TV: 1 of 3 complete
+  [ ] Upload Android TV screenshots for all store listings
+  [x] Release an Android TV app bundle or APK to a testing track
+  [lock] Opt-in to Android TV and agree to the review policy
+```
+
+**Not verified.** The opt-in step stays locked. The screenshot step only ticks
+once the listing's draft changes are published, and publishing them means
+"Send app for review", which Play keeps locked until the production dashboard
+tasks are done, because the app is still a Play draft app. So TV opt-in happens
+with the first review submission, not in this item. The phone and watch
+builds compile against the new shared code and their unit tests pass, but
+they have not been reinstalled on the A51 or the watch.
+
+Console trap worth knowing: the Play Console tab reported
+`document.visibilityState = hidden`, and Angular did not re-render dialogs
+(Create email list, the "Publish change on Google Play?" confirm) until a
+screenshot forced a repaint. Clicks that seemed dead had in fact worked.
 
 ### 2026-09-29 — S15-07 Vitals is on Google Play internal testing
 
