@@ -155,7 +155,7 @@ Status values: `todo`, `doing`, `done`, `blocked`, `dropped`.
 | S12   | Look-and-feel redesign + the four backend truths it exposed          | done (S12-11 measured in CPU cycles: 23–24 ms on S12, 22–25 ms on the commit before it)            |
 | S14   | Storage: fast complete scans, navigation, cleanup, Turbo, extras     | doing (01–04 and 07 developer cleanup done; 05 Turbo in progress, 06 extras open)                  |
 | S15   | Android phone, Wear OS watch, TV: native apps + on-device monitor    | doing (01-07 done; Google TV, Tizen open)                                                          |
-| S16   | Hardening: latest deps, security, gates, dynamic tests               | done (01 deps, 02 security, 03 CI/repo, 04 gates, 05 tests)                                        |
+| S16   | Hardening: latest deps, security, gates, dynamic tests               | done (01 deps, 02 security, 03 CI/repo, 04 gates, 05 tests, 06 brace-expansion advisories)         |
 
 Per-item status lives in `tracker.csv`. This file records the reasoning; the
 CSV records the state.
@@ -163,6 +163,30 @@ CSV records the state.
 ---
 
 ## Verification log
+
+### 2026-09-30 — S16-06 Two brace-expansion advisories failed CI
+
+**Symptom.** CI on `18cc650` (a docs-only commit) failed in Supply chain;
+every Rust job was then skipped. The lockfile had not changed since the
+last green run: the advisories were new.
+
+```text
+pnpm audit --audit-level high
+  high  brace-expansion  GHSA-qhr7-859c-m2p7  >=4.0.0 <5.0.11
+  high  brace-expansion  GHSA-6j4f-fj2g-mc7p  >=4.0.0 <5.0.10
+  path  eslint > minimatch 10.2.6 > brace-expansion 5.0.9   (73 paths, all dev tooling)
+```
+
+**Fix.** `minimatch@10.2.6` depends on `brace-expansion ^5.0.8`, so no
+override was needed: `pnpm update brace-expansion --recursive` moved the
+lockfile to 5.0.12 and changed nothing else (three lines: the resolution,
+the snapshot key, minimatch's dependency).
+
+```text
+pnpm audit --audit-level high → 1 vulnerabilities found, Severity: 1 low, exit 0
+```
+
+Nothing ships this package: it is reached only through eslint.
 
 ### 2026-09-30 — S10-12 The ARM64 leg is proven
 
