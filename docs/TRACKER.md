@@ -146,14 +146,14 @@ Status values: `todo`, `doing`, `done`, `blocked`, `dropped`.
 | S3    | `vitals-store` for real: SQLite history, retention, flight recorder  | done (S3-05 History widget added 2026-09-11 — the store finally has a reader in the UI)            |
 | S4    | LAN server: REST, SSE, WebSocket, Prometheus, mDNS                   | done (S4-11 named-pipe IPC landed 2026-09-11 with the CLI attach path)                             |
 | S5    | CLI that samples directly                                            | done (6/6; attaches to the app over its named pipe, then :7330, samples directly otherwise)        |
-| S6    | Mobile PWA and QR pairing                                            | done except S6-05 alerts feed (S8 engine now exposes GET /api/v1/alerts; phone UI pending)         |
+| S6    | Mobile PWA and QR pairing                                            | done (S6-05 alerts feed included)                                                                  |
 | S7    | UI polish: motion, palette, ultrawide, export, shortcuts             | done (10/10)                                                                                       |
 | S8    | Tray, HUD, alerts, notifications, updater                            | done (6/6; alerts engine in Rust feeds desktop, tray, toasts, LAN)                                 |
-| S9    | New Windows metrics: DiskCounters, efficiency mode, handles, modules | backend done for 01/02/04/05 (vitals-win + vitals-core); 03/06/07 and the Tauri commands pending   |
-| S10   | Docs, ADRs, CI, supply-chain audits                                  | done except S10-12 (ARM64 leg unproven — needs a run on `windows-11-arm`, and agents never push)   |
+| S9    | New Windows metrics: DiskCounters, efficiency mode, handles, modules | done (01–07 and the five backend truths 90–94)                                                     |
+| S10   | Docs, ADRs, CI, supply-chain audits                                  | done (S10-12 ARM64 leg proven by the v0.9.0-beta.1 release run, 2026-09-30)                        |
 | S11   | Task Manager replacement, HUD overlay                                | done                                                                                               |
 | S12   | Look-and-feel redesign + the four backend truths it exposed          | done (S12-11 measured in CPU cycles: 23–24 ms on S12, 22–25 ms on the commit before it)            |
-| S14   | Storage: fast complete scans, navigation, cleanup, Turbo, extras     | doing (01 engine, 02 explore, 03 recycle basket, 04 Windows cleanup done; 05 Turbo next)           |
+| S14   | Storage: fast complete scans, navigation, cleanup, Turbo, extras     | doing (01–04 and 07 developer cleanup done; 05 Turbo in progress, 06 extras open)                  |
 | S15   | Android phone, Wear OS watch, TV: native apps + on-device monitor    | doing (01-07 done; Google TV, Tizen open)                                                          |
 | S16   | Hardening: latest deps, security, gates, dynamic tests               | done (01 deps, 02 security, 03 CI/repo, 04 gates, 05 tests)                                        |
 
@@ -163,6 +163,36 @@ CSV records the state.
 ---
 
 ## Verification log
+
+### 2026-09-30 — S10-12 The ARM64 leg is proven
+
+**Ask.** Close the one item left `blocked` in S10: the `windows-arm64` leg
+had been in the release matrix since S10 but no run had ever been observed.
+
+**Evidence.** The blocker ("agents never push") stopped being true when the
+repository got a remote; the v0.9.0-beta.1 tag ran the leg for real. Nothing
+was rebuilt for this entry — it reads the run that already happened:
+
+```text
+gh run view 36430866961 (release.yml, v0.9.0-beta.1, push) → success
+  Build (windows-arm64)  success  job 108970134496  13:55:26Z → 14:08:49Z
+job log:
+  Image: windows-11-vs2026-arm64
+  host: aarch64-pc-windows-msvc
+  Finished `release` profile [optimized] target(s) in 10m 29s
+  Running makensis to produce …\aarch64-pc-windows-msvc\release\bundle\nsis\Vitals_0.9.0-beta.1_arm64-setup.exe
+  Finished 1 updater signature at: …\Vitals_0.9.0-beta.1_arm64-setup.exe.sig
+  Vitals_0.9.0-beta.1_arm64-setup.exe  3.8 MB
+gh release view v0.9.0-beta.1 → Vitals_0.9.0-beta.1_arm64-setup.exe, .sig,
+  Vitals_arm64-setup.exe; latest.json carries windows-aarch64 (S13-13)
+```
+
+The build ran natively on an ARM64 host, not cross-compiled, so the
+installer's binaries were produced by the toolchain they target.
+
+**Not proven.** Nobody has launched the ARM64 installer on ARM hardware; the
+run proves it compiles, bundles and signs. The summary table rows for S6, S9
+and S14 were also stale against `tracker.csv` and are corrected here.
 
 ### 2026-09-29 — S14-07 Developer cleanup, run for real on this machine
 
@@ -865,7 +895,34 @@ cargo test -p vitals-server: 61 + 1 + 43 + 4 + 3 passed; clippy -D warnings clea
 vitest src/settings/lan: 12 passed; check-drift: 0 failures (79 invokes, 79 commands)
 ```
 
-**Not verified yet.** The Play Android TV form factor and the `tv:qa` release are still open: they wait for the signed bundle from a build-only release run, and the `play` job's `tv:qa` upload only runs on the next `v*` tag. The phone and watch builds compile against the new shared code and their unit tests pass, but they have not been reinstalled on the A51 or the watch.
+**Play (2026-09-30).** The signed TV bundle came from build-only release run
+36626937058 (versionCode 2000011). In Play Console: the Android TV form factor
+was added with its own internal track (4698536478903256086); the default
+listing carries five 1920×1080 TV screenshots and the 1280×720 banner in both
+en-US and ro; the track's testers are the existing "Hobby apps testers" list
+(the same one address as the Wear track). The release was published:
+
+```
+Track summary (Android TV) · Latest release: 2000011 (0.9.0-nightly.20260929.gc48ffe0)
+2000011 … Available to internal testers · 1 version code · Released on Sep 30 3:16 AM · Not reviewed
+Form factors → Android TV: 1 of 3 complete
+  [ ] Upload Android TV screenshots for all store listings
+  [x] Release an Android TV app bundle or APK to a testing track
+  [lock] Opt-in to Android TV and agree to the review policy
+```
+
+**Not verified.** The opt-in step stays locked. The screenshot step only ticks
+once the listing's draft changes are published, and publishing them means
+"Send app for review", which Play keeps locked until the production dashboard
+tasks are done, because the app is still a Play draft app. So TV opt-in happens
+with the first review submission, not in this item. The phone and watch
+builds compile against the new shared code and their unit tests pass, but
+they have not been reinstalled on the A51 or the watch.
+
+Console trap worth knowing: the Play Console tab reported
+`document.visibilityState = hidden`, and Angular did not re-render dialogs
+(Create email list, the "Publish change on Google Play?" confirm) until a
+screenshot forced a repaint. Clicks that seemed dead had in fact worked.
 
 ### 2026-09-29 — S15-07 Vitals is on Google Play internal testing
 
