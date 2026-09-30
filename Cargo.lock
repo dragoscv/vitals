@@ -5748,7 +5748,7 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
 name = "vitals-bench"
-version = "0.9.0-beta.1"
+version = "0.9.0-beta.2"
 dependencies = [
  "serde",
  "vitals-core",
@@ -5757,7 +5757,7 @@ dependencies = [
 
 [[package]]
 name = "vitals-cli"
-version = "0.9.0-beta.1"
+version = "0.9.0-beta.2"
 dependencies = [
  "anyhow",
  "clap",
@@ -5775,7 +5775,7 @@ dependencies = [
 
 [[package]]
 name = "vitals-core"
-version = "0.9.0-beta.1"
+version = "0.9.0-beta.2"
 dependencies = [
  "proptest",
  "serde",
@@ -5786,7 +5786,7 @@ dependencies = [
 
 [[package]]
 name = "vitals-desktop"
-version = "0.9.0-beta.1"
+version = "0.9.0-beta.2"
 dependencies = [
  "parking_lot",
  "serde",
@@ -5818,7 +5818,7 @@ dependencies = [
 
 [[package]]
 name = "vitals-helper"
-version = "0.9.0-beta.1"
+version = "0.9.0-beta.2"
 dependencies = [
  "anyhow",
  "serde",
@@ -5833,7 +5833,7 @@ dependencies = [
 
 [[package]]
 name = "vitals-ipc"
-version = "0.9.0-beta.1"
+version = "0.9.0-beta.2"
 dependencies = [
  "interprocess",
  "parking_lot",
@@ -5846,21 +5846,21 @@ dependencies = [
 
 [[package]]
 name = "vitals-linux"
-version = "0.9.0-beta.1"
+version = "0.9.0-beta.2"
 dependencies = [
  "vitals-core",
 ]
 
 [[package]]
 name = "vitals-macos"
-version = "0.9.0-beta.1"
+version = "0.9.0-beta.2"
 dependencies = [
  "vitals-core",
 ]
 
 [[package]]
 name = "vitals-sensors"
-version = "0.9.0-beta.1"
+version = "0.9.0-beta.2"
 dependencies = [
  "serde",
  "serde_json",
@@ -5871,7 +5871,7 @@ dependencies = [
 
 [[package]]
 name = "vitals-server"
-version = "0.9.0-beta.1"
+version = "0.9.0-beta.2"
 dependencies = [
  "axum",
  "futures-util",
@@ -5894,7 +5894,7 @@ dependencies = [
 
 [[package]]
 name = "vitals-store"
-version = "0.9.0-beta.1"
+version = "0.9.0-beta.2"
 dependencies = [
  "rusqlite",
  "serde",
@@ -5906,7 +5906,7 @@ dependencies = [
 
 [[package]]
 name = "vitals-watchdog"
-version = "0.9.0-beta.1"
+version = "0.9.0-beta.2"
 dependencies = [
  "anyhow",
  "serde",
@@ -5921,7 +5921,7 @@ dependencies = [
 
 [[package]]
 name = "vitals-win"
-version = "0.9.0-beta.1"
+version = "0.9.0-beta.2"
 dependencies = [
  "serde",
  "serde_json",

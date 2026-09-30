@@ -7,6 +7,8 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.9.0-beta.2] — 2026-09-30
+
 ### Security
 
 - **The local API is read-only** — `127.0.0.1:7330` no longer lets a
