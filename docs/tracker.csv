@@ -92,7 +92,7 @@ S10-08,S10,ci,Stop duplicate verification on release,Gate correctness behind the
 S10-09,S10,ci,Add the bindings drift gate to release.yml,A tag can currently ship drifted generated types,D22,done,release.yml Bindings drift step mirrors ci.yml bindings job 2026-09-11
 S10-10,S10,ci,Remove the global RUSTFLAGS from release.yml,It busts the shared rust-cache,D22,done,env RUSTFLAGS removed; clippy keeps -D warnings explicitly 2026-09-11
 S10-11,S10,ci,Fix the ISSUE_TEMPLATE org,vitals-app/vitals should be dragoscv/vitals,D19,done,3 URLs in config.yml; rg vitals-app now matches only the F17 finding and this row 2026-09-11
-S10-12,S10,ci,Verify the ARM64 leg builds,In the matrix but never proven,D22,blocked,needs a windows-11-arm runner run - agents never push (D19) so no run has been observed; ADR 0022 records it as unproven
+S10-12,S10,ci,Verify the ARM64 leg builds,In the matrix but never proven,D22,done,"release run 36430866961 (tag v0.9.0-beta.1) job 108970134496 Build (windows-arm64) success on image windows-11-vs2026-arm64: host aarch64-pc-windows-msvc, release profile finished in 10m 29s, makensis produced Vitals_0.9.0-beta.1_arm64-setup.exe (3.8 MB) + .sig; asset published and in latest.json as windows-aarch64 2026-09-30"
 S10-13,S10,ci,Align setup-node versions,v6 in ci.yml and v5 in release.yml,D22,done,release.yml setup-node@v6 2026-09-11
 S10-14,S10,docs,SECURITY.md LAN threat model,off by default; bearer tokens; constant-time; read vs control; token in fragment; mDNS only while running,D3,done,each claim rg-verified in auth.rs/router.rs/lan.rs 2026-09-11
 S10-15,S10,docs,CONTRIBUTING.md,verify.ps1; check-drift.ps1; hook install; prover pattern; test naming rule,D22,done,example names checked against crates/*/examples 2026-09-11

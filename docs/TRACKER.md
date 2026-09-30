@@ -146,14 +146,14 @@ Status values: `todo`, `doing`, `done`, `blocked`, `dropped`.
 | S3    | `vitals-store` for real: SQLite history, retention, flight recorder  | done (S3-05 History widget added 2026-09-11 — the store finally has a reader in the UI)            |
 | S4    | LAN server: REST, SSE, WebSocket, Prometheus, mDNS                   | done (S4-11 named-pipe IPC landed 2026-09-11 with the CLI attach path)                             |
 | S5    | CLI that samples directly                                            | done (6/6; attaches to the app over its named pipe, then :7330, samples directly otherwise)        |
-| S6    | Mobile PWA and QR pairing                                            | done except S6-05 alerts feed (S8 engine now exposes GET /api/v1/alerts; phone UI pending)         |
+| S6    | Mobile PWA and QR pairing                                            | done (S6-05 alerts feed included)                                                                  |
 | S7    | UI polish: motion, palette, ultrawide, export, shortcuts             | done (10/10)                                                                                       |
 | S8    | Tray, HUD, alerts, notifications, updater                            | done (6/6; alerts engine in Rust feeds desktop, tray, toasts, LAN)                                 |
-| S9    | New Windows metrics: DiskCounters, efficiency mode, handles, modules | backend done for 01/02/04/05 (vitals-win + vitals-core); 03/06/07 and the Tauri commands pending   |
-| S10   | Docs, ADRs, CI, supply-chain audits                                  | done except S10-12 (ARM64 leg unproven — needs a run on `windows-11-arm`, and agents never push)   |
+| S9    | New Windows metrics: DiskCounters, efficiency mode, handles, modules | done (01–07 and the five backend truths 90–94)                                                     |
+| S10   | Docs, ADRs, CI, supply-chain audits                                  | done (S10-12 ARM64 leg proven by the v0.9.0-beta.1 release run, 2026-09-30)                        |
 | S11   | Task Manager replacement, HUD overlay                                | done                                                                                               |
 | S12   | Look-and-feel redesign + the four backend truths it exposed          | done (S12-11 measured in CPU cycles: 23–24 ms on S12, 22–25 ms on the commit before it)            |
-| S14   | Storage: fast complete scans, navigation, cleanup, Turbo, extras     | doing (01 engine, 02 explore, 03 recycle basket, 04 Windows cleanup done; 05 Turbo next)           |
+| S14   | Storage: fast complete scans, navigation, cleanup, Turbo, extras     | doing (01–04 and 07 developer cleanup done; 05 Turbo in progress, 06 extras open)                  |
 | S15   | Android phone, Wear OS watch, TV: native apps + on-device monitor    | doing (01-07 done; Google TV, Tizen open)                                                          |
 | S16   | Hardening: latest deps, security, gates, dynamic tests               | done (01 deps, 02 security, 03 CI/repo, 04 gates, 05 tests)                                        |
 
@@ -163,6 +163,36 @@ CSV records the state.
 ---
 
 ## Verification log
+
+### 2026-09-30 — S10-12 The ARM64 leg is proven
+
+**Ask.** Close the one item left `blocked` in S10: the `windows-arm64` leg
+had been in the release matrix since S10 but no run had ever been observed.
+
+**Evidence.** The blocker ("agents never push") stopped being true when the
+repository got a remote; the v0.9.0-beta.1 tag ran the leg for real. Nothing
+was rebuilt for this entry — it reads the run that already happened:
+
+```text
+gh run view 36430866961 (release.yml, v0.9.0-beta.1, push) → success
+  Build (windows-arm64)  success  job 108970134496  13:55:26Z → 14:08:49Z
+job log:
+  Image: windows-11-vs2026-arm64
+  host: aarch64-pc-windows-msvc
+  Finished `release` profile [optimized] target(s) in 10m 29s
+  Running makensis to produce …\aarch64-pc-windows-msvc\release\bundle\nsis\Vitals_0.9.0-beta.1_arm64-setup.exe
+  Finished 1 updater signature at: …\Vitals_0.9.0-beta.1_arm64-setup.exe.sig
+  Vitals_0.9.0-beta.1_arm64-setup.exe  3.8 MB
+gh release view v0.9.0-beta.1 → Vitals_0.9.0-beta.1_arm64-setup.exe, .sig,
+  Vitals_arm64-setup.exe; latest.json carries windows-aarch64 (S13-13)
+```
+
+The build ran natively on an ARM64 host, not cross-compiled, so the
+installer's binaries were produced by the toolchain they target.
+
+**Not proven.** Nobody has launched the ARM64 installer on ARM hardware; the
+run proves it compiles, bundles and signs. The summary table rows for S6, S9
+and S14 were also stale against `tracker.csv` and are corrected here.
 
 ### 2026-09-29 — S14-07 Developer cleanup, run for real on this machine
 

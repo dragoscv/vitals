@@ -27,3 +27,6 @@ All eleven accepted and scheduled into the existing slices.
 - This directory exists (S10).
 - The ARM64 leg is in the release matrix but is marked in the tracker as
   unproven until a run on `windows-11-arm` has been observed to pass.
+  Observed 2026-09-30: release run 36430866961 built and signed
+  `Vitals_0.9.0-beta.1_arm64-setup.exe` natively on `windows-11-arm`
+  (S10-12 done).
