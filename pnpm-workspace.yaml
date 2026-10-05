@@ -21,7 +21,7 @@ catalog:
   '@types/react-dom': 19.3.0
 
   # Build
-  vite: 8.3.1
+  vite: 8.3.2
   '@vitejs/plugin-react': 6.1.1
   typescript: 7.0.2
 
@@ -31,9 +31,9 @@ catalog:
   clsx: 2.1.1
   tailwind-merge: 3.7.0
   class-variance-authority: 0.7.1
-  lucide-react: 1.48.0
+  lucide-react: 1.49.0
   radix-ui: 1.6.7
-  motion: 13.4.6
+  motion: 13.5.0
 
   # State / data
   zustand: 5.0.15
@@ -48,21 +48,21 @@ catalog:
   react-i18next: 17.0.15
 
   # Tauri
-  '@tauri-apps/api': 2.12.0
-  '@tauri-apps/cli': 2.12.0
-  '@tauri-apps/plugin-updater': 2.13.0
+  '@tauri-apps/api': 2.12.1
+  '@tauri-apps/cli': 2.12.1
+  '@tauri-apps/plugin-updater': 2.13.1
   '@tauri-apps/plugin-process': 2.4.0
-  '@tauri-apps/plugin-autostart': 2.6.0
-  '@tauri-apps/plugin-notification': 2.5.0
+  '@tauri-apps/plugin-autostart': 2.7.0
+  '@tauri-apps/plugin-notification': 2.5.1
   '@tauri-apps/plugin-store': 2.5.0
-  '@tauri-apps/plugin-dialog': 2.8.0
+  '@tauri-apps/plugin-dialog': 2.8.1
   '@tauri-apps/plugin-os': 2.4.0
   '@tauri-apps/plugin-global-shortcut': 2.4.0
-  '@tauri-apps/plugin-opener': 2.6.0
+  '@tauri-apps/plugin-opener': 2.7.0
 
   # Testing
-  vitest: 5.0.2
-  '@vitest/coverage-v8': 5.0.2
+  vitest: 5.0.3
+  '@vitest/coverage-v8': 5.0.3
   '@testing-library/react': 16.3.3
   happy-dom: 20.14.5
 
@@ -71,7 +71,7 @@ catalog:
   typescript-eslint: 8.71.0
   eslint-plugin-react-hooks: 7.1.1
   eslint-config-prettier: 10.1.8
-  globals: 17.12.0
+  globals: 17.13.0
 
 allowBuilds:
   # esbuild (Astro/Vite in apps/site) fetches its native binary in a postinstall.
