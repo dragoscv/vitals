@@ -114,6 +114,7 @@ trace over a dimmed line so "working" is still visible.
 | Web             | `apps/site/public/` — favicon.svg (dark-aware) + .ico, apple-touch 180, 192/512/512-maskable, manifest, og.png 1200×630 |
 | Android         | adaptive fg/bg/monochrome (phone, TV, Wear), status icon, TV banner                                                     |
 | Play            | `icons/play-512.png`                                                                                                    |
+| Store listing   | `icons/store/` — 9:16 poster 720×1080 and 1440×2160, 1:1 box art 1080 and 2160 (night field, mark, wordmark)            |
 | Tizen           | `apps/tizen/public/icon.png`                                                                                            |
 | Tray            | live CPU tile drawn in Rust (`tray.rs`), fern fill                                                                      |
 

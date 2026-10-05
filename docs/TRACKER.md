@@ -2575,8 +2575,16 @@ hive and Windows never reads it.
   BUILD SUCCESSFUL.
 - `cargo test -p vitals-win --lib -- host::tests startup_task`: 14 passed.
 
-**Not proven yet.** The MSIX has not been installed and launched; the
-startup-task path runs only inside a package.
+**Store submission (2026-10-06).** The MSIX built at 5e4d319 was installed
+test-signed and launched: Settings hid the updater, Task Manager and sensors
+rows, as intended. In Partner Center (product 9P95RK5VMGPJ, "Vitals: System
+Monitor") these sections show Complete: pricing (free), properties (privacy
+URL `https://vitals.dragoscatalin.ro/privacy/`, returns 200), age rating 3+,
+package (validated) and the EN and RO listings (4 screenshots in
+`packaging/msix/listing/screenshots`, poster and box art from
+`brand/scripts/build.mjs` into `brand/icons/store`). Submission options carry
+the runFullTrust justification. Submission 1 is "In certification" and
+publishes automatically when it passes.
 
 ## S13 — public beta 0.9.0-beta.1 (2026-09-28)
 

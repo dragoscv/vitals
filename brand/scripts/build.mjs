@@ -423,6 +423,35 @@ for (const [scale, k] of Object.entries(scales)) {
 }
 pngTo(at('brand/icons/play-512.png'), bleedSvg(512, 0.62), 512);
 
+// Microsoft Store listing art: 9:16 poster (the main Store logo on Windows) and
+// 1:1 box art. Night field, the mark centred, outlined wordmark below.
+function storeArtSvg(w, h) {
+  const markPx = Math.round(Math.min(w, h) * 0.42);
+  const mx = (w - markPx) / 2;
+  const my = h * (h > w ? 0.3 : 0.2);
+  const wmScale = (markPx * 0.22) / wordmark.capHeight;
+  const wmW = wordmark.width * wmScale;
+  const baseline = my + markPx + markPx * 0.42;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+  <defs>${gradient('t')}<radialGradient id="glow" cx="0.5" cy="${(my + markPx / 2) / h}" r="0.6"><stop offset="0" stop-color="${colour.nightRaised.hex}"/><stop offset="1" stop-color="${colour.night.hex}"/></radialGradient></defs>
+  <rect width="${w}" height="${h}" fill="url(#glow)"/>
+  <g transform="translate(${mx} ${my}) scale(${markPx / 48})"><rect x="3" y="3" width="42" height="42" rx="10" fill="url(#t)"/>${line(glyph.master, '#ffffff')}</g>
+  <path transform="translate(${(w - wmW) / 2} ${baseline}) scale(${wmScale})" fill="${colour.paper.hex}" d="${wordmark.d}"/></svg>`;
+}
+for (const [name, w, h] of [
+  ['poster-720x1080', 720, 1080],
+  ['poster-1440x2160', 1440, 2160],
+  ['box-1080', 1080, 1080],
+  ['box-2160', 2160, 2160],
+]) {
+  tasks.push(
+    sharp(Buffer.from(storeArtSvg(w, h)))
+      .png()
+      .toBuffer()
+      .then((b) => write(at(`brand/icons/store/${name}.png`), b)),
+  );
+}
+
 // Web / site
 write(at('apps/site/public/favicon.svg'), faviconSvg());
 write(at('apps/site/src/assets/logo.svg'), iconSvg(64));
