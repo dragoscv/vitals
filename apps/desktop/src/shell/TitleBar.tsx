@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { EyeOff, Maximize2, Minimize2, Minus, Power, X } from 'lucide-react';
 
 import {
+  BrandMark,
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
@@ -155,14 +156,12 @@ export function TitleBar({ children, controls }: TitleBarProps) {
 
           <div className="pointer-events-none relative flex h-full min-w-0 flex-1 items-center gap-2 px-3">
             {/*
-             * A mark rather than bare text: the accent dot breathes while the
-             * window is open, which is the product's one ambient sign of life.
-             * Decorative — the section name beside it is the accessible content.
+             * The brand mark at the Windows title-bar icon size (16 px, the
+             * pixel-snapped micro variant). It is where the splash mark lands
+             * on start-up. Decorative — the section name beside it is the
+             * accessible content.
              */}
-            <span
-              aria-hidden="true"
-              className="vitals-live-dot size-1.5 shrink-0 rounded-full bg-[var(--color-accent)] text-[var(--color-accent)]"
-            />
+            <BrandMark size={16} morphTarget />
             <span className="truncate text-2xs font-medium text-[var(--color-fg-muted)]">
               {children}
             </span>

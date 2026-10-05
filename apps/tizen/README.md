@@ -97,8 +97,8 @@ The build is one classic (non-module) script with relative paths, targeting
 Chromium 120: a module script or a `crossorigin` attribute is refused from
 an opaque `file://` origin, and a lazily-loaded chunk would be fetched from
 `file://` at runtime. `public/config.xml` and `public/icon.png` are copied
-into `dist`. `scripts/make-icon.ps1` redraws the icon from the Android
-launcher glyph.
+into `dist`. The icon is generated with every other brand asset by
+`node brand/scripts/build.mjs`.
 
 ## Install on a TV
 

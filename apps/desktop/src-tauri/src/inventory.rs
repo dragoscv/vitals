@@ -1121,7 +1121,10 @@ fn sensors_helper(app: &tauri::AppHandle) -> Option<std::path::PathBuf> {
 #[tauri::command]
 #[cfg(windows)]
 pub async fn get_sensors_service(app: tauri::AppHandle) -> CommandResult<SensorsServiceDto> {
-    let helper_available = sensors_helper(&app).is_some();
+    // The Store package does not ship the helper, and installing a SYSTEM
+    // service from it is refused; say "unavailable" up front rather than
+    // offering a button that can only fail.
+    let helper_available = sensors_helper(&app).is_some() && !crate::distribution::packaged();
     // Off the IPC thread: the status read waits up to 300 ms for a busy pipe.
     tauri::async_runtime::spawn_blocking(move || {
         let status = vitals_win::sensors::cpu_service::status();
@@ -1147,6 +1150,11 @@ pub async fn get_sensors_service(app: tauri::AppHandle) -> CommandResult<Sensors
 #[tauri::command]
 #[cfg(windows)]
 pub async fn setup_sensors_service(app: tauri::AppHandle, install: bool) -> CommandResult<()> {
+    // Removal stays allowed: a service left by an earlier direct install must
+    // never become impossible to take off.
+    if install && crate::distribution::packaged() {
+        return Err(crate::distribution::store_refusal("the sensors service"));
+    }
     let helper = sensors_helper(&app).ok_or_else(|| CommandError::Unsupported {
         message: "this build does not include the sensors service helper".to_owned(),
     })?;

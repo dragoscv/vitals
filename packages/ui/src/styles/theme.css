@@ -27,6 +27,7 @@
  */
 
 @import 'tailwindcss';
+@import './brand.css';
 
 @custom-variant dark (&:where(.dark, .dark *));
 
@@ -90,8 +91,10 @@
  * swap a one-file change instead of a find-and-replace across the codebase.
  */
 :root {
-  --accent-hue: 250;
-  --accent-chroma: 0.19;
+  /* Fern, the brand colour (brand/mark.mjs). Light-mode white-on-accent is
+   * 4.57:1 at this chroma; 0.17 clips out of sRGB and drops it below 4.5. */
+  --accent-hue: 152;
+  --accent-chroma: 0.13;
 
   --color-bg-base: oklch(0.98 0.002 260);
   --color-bg-subtle: oklch(0.96 0.003 260);
@@ -244,8 +247,8 @@
   --accent-chroma: 0.17;
 }
 [data-accent='green'] {
-  --accent-hue: 150;
-  --accent-chroma: 0.17;
+  --accent-hue: 152;
+  --accent-chroma: 0.13;
 }
 [data-accent='teal'] {
   --accent-hue: 180;
@@ -336,16 +339,6 @@
   }
 }
 
-@keyframes vitals-pulse-dot {
-  0%,
-  100% {
-    box-shadow: 0 0 0 0 color-mix(in oklch, currentColor 45%, transparent);
-  }
-  50% {
-    box-shadow: 0 0 0 4px color-mix(in oklch, currentColor 0%, transparent);
-  }
-}
-
 /*
  * Staggered entrance for a grid of cards. The delay comes from `--i`, set per
  * child, and is capped at eight steps so a thirty-row grid does not take a
@@ -358,11 +351,6 @@
 
 .vitals-rise {
   animation: vitals-rise var(--duration-slow) var(--ease-out-quart) both;
-}
-
-/* A live indicator: a dot that breathes, so "updating" is visible at a glance. */
-.vitals-live-dot {
-  animation: vitals-pulse-dot 2s var(--ease-in-out-quart) infinite;
 }
 
 /*

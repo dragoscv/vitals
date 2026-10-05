@@ -53,7 +53,40 @@ async function bootstrap(): Promise<void> {
   // Dismiss the inline splash only once React has committed, so there is no
   // gap between the splash disappearing and content appearing.
   requestAnimationFrame(() => {
-    document.getElementById('splash')?.setAttribute('hidden', '');
+    dismissSplash();
+  });
+}
+
+/**
+ * Hands the splash mark over to the title-bar mark as one shared element.
+ *
+ * The `view-transition-name` moves from the splash mark (old snapshot) to the
+ * title-bar mark (new snapshot) inside the update callback, so exactly one
+ * element holds the name at each capture — two would abort the transition.
+ * Where the API is missing or motion is reduced, the splash simply hides.
+ */
+function dismissSplash(): void {
+  const splash = document.getElementById('splash');
+  if (!splash) return;
+  const from = document.getElementById('splash-mark');
+  const to = document.querySelector<SVGElement>('[data-mark-target]');
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const hide = () => splash.setAttribute('hidden', '');
+
+  if (!from || !to || reduced || typeof document.startViewTransition !== 'function') {
+    hide();
+    return;
+  }
+  from.style.viewTransitionName = 'vitals-mark';
+  const transition = document.startViewTransition(() => {
+    from.style.viewTransitionName = '';
+    to.style.viewTransitionName = 'vitals-mark';
+    // Instantly: the transition itself is the fade.
+    splash.style.transition = 'none';
+    hide();
+  });
+  void transition.finished.finally(() => {
+    to.style.viewTransitionName = '';
   });
 }
 

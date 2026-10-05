@@ -408,7 +408,7 @@ Microsoft; Vitals does not redistribute it.
 | [zlib-rs](https://github.com/trifectatechfoundation/zlib-rs) | 0.6.7 | Zlib |
 | [zmij](https://github.com/dtolnay/zmij) | 1.0.23 | MIT |
 
-## JavaScript packages (29)
+## JavaScript packages (28)
 
 | Component | Version | Licence |
 | --- | --- | --- |
@@ -416,7 +416,6 @@ Microsoft; Vitals does not redistribute it.
 | [@tanstack/react-virtual](https://tanstack.com/virtual) | 3.14.13 | MIT |
 | [@tanstack/virtual-core](https://tanstack.com/virtual) | 3.17.11 | MIT |
 | [@tauri-apps/api](https://github.com/tauri-apps/tauri#readme) | 2.12.0 | Apache-2.0 OR MIT |
-| [@tauri-apps/plugin-autostart](https://github.com/tauri-apps/plugins-workspace#readme) | 2.6.0 | MIT OR Apache-2.0 |
 | [@tauri-apps/plugin-dialog](https://github.com/tauri-apps/plugins-workspace#readme) | 2.8.0 | MIT OR Apache-2.0 |
 | [@tauri-apps/plugin-global-shortcut](https://github.com/tauri-apps/plugins-workspace#readme) | 2.4.0 | MIT OR Apache-2.0 |
 | [@tauri-apps/plugin-notification](https://github.com/tauri-apps/plugins-workspace#readme) | 2.5.0 | MIT OR Apache-2.0 |

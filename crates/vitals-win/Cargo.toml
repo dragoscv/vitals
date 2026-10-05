@@ -57,6 +57,10 @@ windows = { version = "0.62.2", features = [
 	# "which program has this open".
 	"Win32_UI_Shell",
 	"Win32_System_RestartManager",
+	# MSIX startup tasks (startup_task.rs): the Store build starts at logon
+	# through the package manifest, because its Run-key writes are virtualised.
+	"ApplicationModel",
+	"ApplicationModel_Activation",
 ] }
 # `#[implement]` (the IFileOperation progress sink) expands to
 # `::windows_core::` paths, so the crate must be a direct dependency. Same
@@ -87,6 +91,9 @@ windows-sys = { version = "0.61.2", features = [
 	# `RegCreateKeyExW` and `CreateProcessW` take SECURITY_ATTRIBUTES, which
 	# only exists when this is on.
 	"Win32_Security",
+	# `GetCurrentPackageFullName`: the Store (MSIX) build switches off what
+	# Store policy forbids, at run time, from the same binary.
+	"Win32_Storage_Packaging_Appx",
 ] }
 
 [lints]

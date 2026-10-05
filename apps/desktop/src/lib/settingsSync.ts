@@ -160,12 +160,13 @@ export async function quitApp(): Promise<void> {
 export async function reconcileAutostart(wanted: boolean): Promise<boolean | null> {
   if (!hasTauriHost()) return null;
   try {
-    const autostart = await import('@tauri-apps/plugin-autostart');
-    const current = await autostart.isEnabled();
+    // Through the backend, which picks the Run key (direct install) or the
+    // package's startup task (Store) — the plugin alone silently does nothing
+    // inside an MSIX package.
+    const { invoke } = await import('@tauri-apps/api/core');
+    const current = await invoke<boolean>('get_autostart');
     if (current === wanted) return current;
-    if (wanted) await autostart.enable();
-    else await autostart.disable();
-    return autostart.isEnabled();
+    return await invoke<boolean>('set_autostart', { enabled: wanted });
   } catch {
     return null;
   }

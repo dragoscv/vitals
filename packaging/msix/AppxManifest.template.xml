@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The Microsoft Store package. Filled in by packaging/msix/build-msix.ps1;
+  {{...}} placeholders come from Partner Center (Product identity page) and
+  the release version. Store policy is applied at run time from the same
+  binary (apps/desktop/src-tauri/src/distribution.rs): no self-update, no
+  Task Manager hook, no sensors service.
+-->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
+  xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap uap3 desktop rescap">
+
+  <Identity
+    Name="{{IDENTITY_NAME}}"
+    Publisher="{{PUBLISHER}}"
+    Version="{{VERSION}}"
+    ProcessorArchitecture="x64" />
+
+  <Properties>
+    <DisplayName>Vitals</DisplayName>
+    <PublisherDisplayName>{{PUBLISHER_DISPLAY_NAME}}</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+    <Description>See what your computer is actually doing. A fast, free system monitor and task manager.</Description>
+  </Properties>
+
+  <Dependencies>
+    <!-- 19041 (20H1): the oldest Windows 10 the WebView2 runtime and Tauri 2 support well. -->
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.19041.0" MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="en-us" />
+    <Resource Language="ro-ro" />
+  </Resources>
+
+  <Applications>
+    <Application Id="Vitals" Executable="vitals-desktop.exe" EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements
+        DisplayName="Vitals"
+        Description="System monitor and task manager"
+        BackgroundColor="transparent"
+        Square150x150Logo="Assets\Square150x150Logo.png"
+        Square44x44Logo="Assets\Square44x44Logo.png">
+        <uap:DefaultTile
+          Wide310x150Logo="Assets\Wide310x150Logo.png"
+          Square71x71Logo="Assets\Square71x71Logo.png"
+          Square310x310Logo="Assets\Square310x310Logo.png"
+          ShortName="Vitals">
+          <uap:ShowNameOnTiles>
+            <uap:ShowOn Tile="square150x150Logo" />
+            <uap:ShowOn Tile="wide310x150Logo" />
+            <uap:ShowOn Tile="square310x310Logo" />
+          </uap:ShowNameOnTiles>
+        </uap:DefaultTile>
+      </uap:VisualElements>
+
+      <Extensions>
+        <!--
+          Start at logon. A packaged app's HKCU\...\Run writes are virtualised
+          and never read, so the manifest declares the tasks and the app turns
+          them on (crates/vitals-win/src/startup_task.rs). Disabled until the
+          user enables "Start with Windows" in Settings.
+        -->
+        <desktop:Extension Category="windows.startupTask" Executable="vitals-desktop.exe" EntryPoint="Windows.FullTrustApplication">
+          <desktop:StartupTask TaskId="VitalsStartup" Enabled="false" DisplayName="Vitals" />
+        </desktop:Extension>
+        <desktop:Extension Category="windows.startupTask" Executable="watchdog\vitals-watchdog.exe" EntryPoint="Windows.FullTrustApplication">
+          <desktop:StartupTask TaskId="VitalsWatchdogStartup" Enabled="false" DisplayName="Vitals lag watchdog" />
+        </desktop:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <!-- A Win32 desktop app (process list, performance counters, end task). -->
+    <rescap:Capability Name="runFullTrust" />
+    <!-- Remote access: the opt-in LAN server for the phone app (off by default). -->
+    <Capability Name="internetClientServer" />
+    <Capability Name="privateNetworkClientServer" />
+  </Capabilities>
+</Package>

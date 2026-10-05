@@ -49,7 +49,12 @@ const FIRST_CHECK_DELAY: std::time::Duration = std::time::Duration::from_secs(20
 /// Starts the background check. No-op in debug builds, which have no
 /// installer to replace.
 pub fn spawn(app: &tauri::AppHandle) {
-    if cfg!(debug_assertions) || std::env::var_os("VITALS_NO_AUTO_UPDATE").is_some() {
+    // The Store build is updated by the Store; replacing our own files there
+    // is forbidden and would fail against the read-only package directory.
+    if cfg!(debug_assertions)
+        || crate::distribution::packaged()
+        || std::env::var_os("VITALS_NO_AUTO_UPDATE").is_some()
+    {
         return;
     }
     let app = app.clone();
@@ -110,6 +115,9 @@ pub fn set_auto_update(pending: tauri::State<'_, PendingInstall>, enabled: bool)
 
 /// Called on `Exit`. Installs the verified update, if one is waiting.
 pub fn install_on_exit(app: &tauri::AppHandle) {
+    if crate::distribution::packaged() {
+        return;
+    }
     let Some(pending) = app.try_state::<PendingInstall>() else {
         return;
     };

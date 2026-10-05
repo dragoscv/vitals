@@ -24,7 +24,6 @@
   "dependencies": {
     "@tanstack/react-virtual": "catalog:",
     "@tauri-apps/api": "catalog:",
-    "@tauri-apps/plugin-autostart": "catalog:",
     "@tauri-apps/plugin-dialog": "catalog:",
     "@tauri-apps/plugin-global-shortcut": "catalog:",
     "@tauri-apps/plugin-notification": "catalog:",
@@ -51,6 +50,7 @@
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",
     "@playwright/test": "1.63.0",
+    "@tailwindcss/vite": "catalog:",
     "@tauri-apps/cli": "catalog:",
     "@testing-library/react": "catalog:",
     "@types/react": "catalog:",
@@ -58,7 +58,6 @@
     "@vitals/config": "workspace:*",
     "@vitejs/plugin-react": "catalog:",
     "@vitest/coverage-v8": "catalog:",
-    "@tailwindcss/vite": "catalog:",
     "fast-check": "4.10.2",
     "happy-dom": "catalog:",
     "tailwindcss": "catalog:",

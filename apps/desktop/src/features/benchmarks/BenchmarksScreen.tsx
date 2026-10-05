@@ -41,6 +41,7 @@ import { useTranslation } from 'react-i18next';
 
 import {
   Badge,
+  BrandMark,
   Button,
   Card,
   CardBody,
@@ -222,7 +223,10 @@ export function BenchmarksScreen({ source }: BenchmarksScreenProps = {}): React.
             // Named, because the busy button contributes a second `status` and two
             // unnamed live regions are indistinguishable to a screen reader.
             <div role="status" aria-label={t('running.region')} className="flex flex-col gap-1.5">
-              <p className="text-sm">{t('running.title', { name: t(`name.${runningName}`) })}</p>
+              <p className="flex items-center gap-2 text-sm">
+                <BrandMark size={20} state="thinking" />
+                {t('running.title', { name: t(`name.${runningName}`) })}
+              </p>
               <p className="text-2xs text-[var(--color-fg-muted)]">{t('running.body')}</p>
               <p className="text-2xs text-[var(--color-fg-subtle)]">
                 {t('running.remaining', { count: state.runningIds.length })}

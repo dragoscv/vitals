@@ -31,6 +31,7 @@ import { useTranslation } from 'react-i18next';
 
 import {
   Badge,
+  BrandMark,
   Button,
   Card,
   CardBody,
@@ -329,7 +330,10 @@ function ScanRunning({
 
   return (
     <div role="status" className="flex flex-col gap-1.5">
-      <p className="text-sm">{t('scan.running', { root })}</p>
+      <p className="flex items-center gap-2 text-sm">
+        <BrandMark size={20} state="thinking" />
+        {t('scan.running', { root })}
+      </p>
       {/* Visible figures roll; the live region above names only the root so
           it is announced once, not ten times a second. */}
       <p aria-hidden className="tnum text-2xs text-[var(--color-fg-muted)]">

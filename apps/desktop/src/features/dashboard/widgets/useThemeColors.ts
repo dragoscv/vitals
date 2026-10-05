@@ -43,7 +43,7 @@ export interface ThemeColors {
  * visible beats one that silently produces a blank chart.
  */
 const FALLBACK: ThemeColors = {
-  accent: '#3b82f6',
+  accent: '#22864a',
   warning: '#f59e0b',
   danger: '#ef4444',
   muted: '#64748b',

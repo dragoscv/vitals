@@ -17,7 +17,7 @@ export function followSystemTheme(
   };
   apply();
   // The accent is the desktop's default; every derived token follows.
-  root.dataset['accent'] = 'blue';
+  root.dataset['accent'] = 'green';
   query.addEventListener('change', apply);
   return () => query.removeEventListener('change', apply);
 }

@@ -6,11 +6,13 @@
 //! aggregating numbers will misreport the machine it is measuring.
 
 pub mod alerts;
+pub mod autostart;
 pub mod benchmarks;
 pub mod commands;
 pub mod crashlog;
 #[cfg(windows)]
 pub mod devclean;
+pub mod distribution;
 pub mod hardware;
 pub mod history;
 pub mod hud;
@@ -196,6 +198,9 @@ fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
         commands::get_taskmgr_replacement,
         commands::set_taskmgr_replacement,
         commands::launch_real_taskmgr,
+        distribution::get_distribution,
+        autostart::get_autostart,
+        autostart::set_autostart,
         // On-demand inventories. Request/response rather than pushed:
         // slow to gather, rarely changing, and only wanted while their
         // own screen is open. See `inventory` for the full argument.

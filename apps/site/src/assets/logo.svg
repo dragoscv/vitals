@@ -1,4 +1,2 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Vitals">
-  <rect x="2" y="2" width="60" height="60" rx="14" fill="#0e7c86"/>
-  <path d="M10 34h11l4-12 7 22 5-15 3 5h14" fill="none" stroke="#ffffff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 48 48"><defs><linearGradient id="t" x1="0.2" y1="0" x2="0.8" y2="1"><stop offset="0" stop-color="#227c45"/><stop offset="1" stop-color="#135c30"/></linearGradient></defs><rect x="3" y="3" width="42" height="42" rx="10" fill="url(#t)"/>
+  <rect x="3.5" y="3.5" width="41" height="41" rx="9.5" fill="none" stroke="#ffffff" stroke-opacity="0.14"/><path d="M10 25.5H17L24 33.5L38 14" fill="none" stroke="#ffffff" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/></svg>

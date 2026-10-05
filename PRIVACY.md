@@ -18,7 +18,8 @@ Google anonymous diagnostics about itself; see
   crash reporting. **The developer does not receive any data from you or
   your computer.**
 - The one automatic connection is an update check to GitHub about 20 seconds
-  after launch. You can turn it off in Settings → About.
+  after launch. You can turn it off in Settings → About. The Microsoft Store
+  version makes no such request; the Store updates it.
 - Remote access (viewing your PC from a phone on your network) is off until
   you turn it on.
 

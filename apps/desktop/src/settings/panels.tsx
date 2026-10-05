@@ -27,6 +27,7 @@ import { useSettings } from './store';
 import { useHostInfo } from './useHostInfo';
 import { useHistoryUsage } from './useHistoryUsage';
 import { useTaskManagerReplacement } from './useTaskManagerReplacement';
+import { useIsStoreBuild } from './useDistribution';
 import { UpdateSection } from './UpdatePanel';
 
 /** The public documents. One place, so the app and the site cannot disagree. */
@@ -54,6 +55,7 @@ export function GeneralPanel() {
   const settings = useSettings((state) => state.settings);
   const patch = useSettings((state) => state.patch);
   const taskManager = useTaskManagerReplacement();
+  const storeBuild = useIsStoreBuild();
 
   // Three reasons the switch cannot move, each shown rather than implied:
   // the registry has not answered yet, a write is in flight, or another
@@ -139,21 +141,24 @@ export function GeneralPanel() {
         )}
       </SettingsRow>
 
-      <SettingsRow
-        label={t('settings.general.replaceTaskManager')}
-        description={taskManager.error ?? taskManagerHint}
-      >
-        {({ labelId, describedBy }) => (
-          <Switch
-            aria-labelledby={labelId}
-            aria-describedby={describedBy}
-            aria-invalid={taskManager.error !== null || undefined}
-            checked={taskManager.status?.enabled ?? false}
-            disabled={taskManagerLocked}
-            onCheckedChange={(value) => taskManager.set(value)}
-          />
-        )}
-      </SettingsRow>
+      {/* The Store package cannot write HKLM, so the hook would do nothing there. */}
+      {!storeBuild && (
+        <SettingsRow
+          label={t('settings.general.replaceTaskManager')}
+          description={taskManager.error ?? taskManagerHint}
+        >
+          {({ labelId, describedBy }) => (
+            <Switch
+              aria-labelledby={labelId}
+              aria-describedby={describedBy}
+              aria-invalid={taskManager.error !== null || undefined}
+              checked={taskManager.status?.enabled ?? false}
+              disabled={taskManagerLocked}
+              onCheckedChange={(value) => taskManager.set(value)}
+            />
+          )}
+        </SettingsRow>
+      )}
 
       <SettingsRow
         label={t('settings.general.openTaskManager')}
@@ -581,6 +586,7 @@ export function AboutPanel({ version }: { readonly version: string }) {
   const { info, pending } = useHostInfo();
   const autoUpdate = useSettings((state) => state.settings.autoUpdate);
   const patch = useSettings((state) => state.patch);
+  const storeBuild = useIsStoreBuild();
 
   return (
     <SettingsSection title={t('settings.about.title')}>
@@ -597,21 +603,29 @@ export function AboutPanel({ version }: { readonly version: string }) {
           info !== null && <HostFacts info={info} />
         )}
 
-        <UpdateSection />
+        {storeBuild ? (
+          <p className="text-2xs text-[var(--color-fg-muted)]">
+            {t('settings.about.update.store')}
+          </p>
+        ) : (
+          <>
+            <UpdateSection />
 
-        <SettingsRow
-          label={t('settings.about.update.auto')}
-          description={t('settings.about.update.autoHint')}
-        >
-          {({ labelId, describedBy }) => (
-            <Switch
-              aria-labelledby={labelId}
-              aria-describedby={describedBy}
-              checked={autoUpdate}
-              onCheckedChange={(value) => patch({ autoUpdate: value })}
-            />
-          )}
-        </SettingsRow>
+            <SettingsRow
+              label={t('settings.about.update.auto')}
+              description={t('settings.about.update.autoHint')}
+            >
+              {({ labelId, describedBy }) => (
+                <Switch
+                  aria-labelledby={labelId}
+                  aria-describedby={describedBy}
+                  checked={autoUpdate}
+                  onCheckedChange={(value) => patch({ autoUpdate: value })}
+                />
+              )}
+            </SettingsRow>
+          </>
+        )}
 
         <p className="text-sm">{t('settings.about.contribute')}</p>
         <p className="text-2xs text-[var(--color-fg-muted)]">

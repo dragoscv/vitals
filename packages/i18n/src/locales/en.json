@@ -192,6 +192,7 @@
         "unconfiguredHint": "Development and unsigned builds cannot verify an update. Download the latest release from GitHub instead.",
         "auto": "Install updates automatically",
         "autoHint": "Checks GitHub shortly after launch and installs a signed update when you quit. Nothing is installed while you are using Vitals.",
+        "store": "Updates come from the Microsoft Store.",
         "pending": "Version {{version}} is downloaded and installs when you quit Vitals."
       },
       "legal": "Legal",

@@ -45,7 +45,8 @@ export default defineConfig({
       lastUpdated: false,
       customCss: ['./src/styles/theme.css'],
       head: [
-        { tag: 'meta', attrs: { property: 'og:image', content: `${SITE}/og.svg` } },
+        // PNG, not SVG: Facebook, LinkedIn, X and Slack do not render SVG previews.
+        { tag: 'meta', attrs: { property: 'og:image', content: `${SITE}/og.png` } },
         { tag: 'meta', attrs: { property: 'og:image:width', content: '1200' } },
         { tag: 'meta', attrs: { property: 'og:image:height', content: '630' } },
         {
@@ -55,8 +56,24 @@ export default defineConfig({
             content: 'Vitals — see what your computer is actually doing.',
           },
         },
-        { tag: 'meta', attrs: { name: 'twitter:image', content: `${SITE}/og.svg` } },
-        { tag: 'meta', attrs: { name: 'theme-color', content: '#0b1416' } },
+        { tag: 'meta', attrs: { name: 'twitter:image', content: `${SITE}/og.png` } },
+        { tag: 'meta', attrs: { name: 'twitter:card', content: 'summary_large_image' } },
+        // `sizes` stops Chrome preferring the ICO over the SVG favicon.
+        { tag: 'link', attrs: { rel: 'icon', href: '/favicon.ico', sizes: '32x32' } },
+        { tag: 'link', attrs: { rel: 'apple-touch-icon', href: '/apple-touch-icon.png' } },
+        { tag: 'link', attrs: { rel: 'manifest', href: '/manifest.webmanifest' } },
+        {
+          tag: 'meta',
+          attrs: { name: 'theme-color', media: '(prefers-color-scheme: dark)', content: '#0a1a10' },
+        },
+        {
+          tag: 'meta',
+          attrs: {
+            name: 'theme-color',
+            media: '(prefers-color-scheme: light)',
+            content: '#f1f7f2',
+          },
+        },
       ],
       sidebar: [
         {

@@ -25,8 +25,10 @@ object Palette {
     val Danger = Color(0xFFEE343B)
 
     /** The brand accent, for surfaces where dynamic colour is unavailable (API < 31, the watch). */
-    val Accent = Color(0xFF0072DA)
-    val AccentOnDark = Color(0xFF52A9FE)
+    // Fern, from brand/mark.mjs: the desktop's `green` accent at its light and
+    // dark lightness (4.57:1 on white, 8.3:1 under dark text; brand/contrast-pairs.json).
+    val Accent = Color(0xFF22864A)
+    val AccentOnDark = Color(0xFF6CB882)
 
     fun of(level: Level): Color = when (level) {
         Level.Ok -> Ok

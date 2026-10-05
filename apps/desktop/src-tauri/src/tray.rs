@@ -411,12 +411,13 @@ fn round_percent(value: f32) -> u8 {
 /// bottom in proportion to CPU load.
 ///
 /// A fill rather than a number: 32 px is not enough for two legible digits at
-/// 100% scaling, and the tooltip carries the exact figures anyway. The accent
-/// is a mid-blue that stays visible against both a light and a dark taskbar,
-/// which the system accent colour would not reliably do.
+/// 100% scaling, and the tooltip carries the exact figures anyway. The fill is
+/// the brand's dark-mode fern (`#6cb882`, brand/BRAND.md): it reads 7:1 on the
+/// tile, and the dark tile itself carries the icon on a light taskbar — which
+/// the system accent colour would not reliably do.
 fn render(percent: u8) -> Vec<u8> {
-    const BG: [u8; 4] = [0x1E, 0x22, 0x2A, 0xFF];
-    const FILL: [u8; 4] = [0x3B, 0x82, 0xF6, 0xFF];
+    const BG: [u8; 4] = [0x13, 0x29, 0x1B, 0xFF];
+    const FILL: [u8; 4] = [0x6C, 0xB8, 0x82, 0xFF];
     const RADIUS: i32 = 6;
 
     let filled_rows = i32::from(percent) * ICON_SIZE / 100;

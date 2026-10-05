@@ -65,13 +65,24 @@ Stronger than a code-signing certificate in one specific way: a certificate
 proves _who_ built it, provenance proves _what source_ built it. It is weaker
 in the way that matters commercially — Windows does not check it.
 
-### 3. Microsoft Store, once the installer is signed
+### 3. Microsoft Store, as an MSIX that Microsoft signs
 
 The Store is the only route to a warning-free install. Registration is free
-for individuals. The EXE route requires an installer signed with a CA
-certificate and an offline WebView2 variant; the MSIX route has Microsoft sign
-the package but Tauri has no native MSIX output. Neither is in place yet, so
-the Store listing waits for a certificate — see `docs/releasing.md`.
+for individuals. Vitals takes the **MSIX route**: the package is uploaded
+unsigned and Microsoft signs it, so no code-signing certificate is needed.
+Tauri has no MSIX bundler, so `packaging/msix/build-msix.ps1` lays the
+package out from the release executables and the generated brand assets.
+
+The Store build is the **same binary**; Store policy is applied at run time
+(`apps/desktop/src-tauri/src/distribution.rs`) when the process has package
+identity:
+
+- **no self-update** — the Store updates the package;
+- **no Task Manager replacement** — its HKLM IFEO write is virtualised;
+- **no sensors service or driver** — not shipped in the package; CPU
+  temperature falls back to what Windows reports without it;
+- **start with Windows** and the watchdog use the manifest's
+  `windows.startupTask` entries, because Run-key writes are virtualised too.
 
 Trade-offs, stated plainly:
 
@@ -118,5 +129,5 @@ repository (`docs/releasing.md`).
 - SmartScreen on first run is **expected** for the direct download. Documented,
   not hidden.
 - Provenance and checksums give verifiability without a certificate.
-- The Store listing follows once the installer is signed.
+- The Store listing ships as an MSIX signed by Microsoft (`packaging/msix/`).
 - Updates are cryptographically verified regardless of channel.

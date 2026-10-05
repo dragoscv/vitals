@@ -1,0 +1,125 @@
+{
+  "$description": "Every shipped fg/bg pairing that involves a brand colour, per theme, computed from the token formulas in packages/ui/src/styles/theme.css with the fern accent (hue 152, chroma 0.13). Gate: node <brand-system>/scripts/contrast-gate.mjs brand/contrast-pairs.json",
+  "pairs": [
+    {
+      "name": "light: fg.on-accent on accent (primary button)",
+      "fg": "oklch(1 0 0)",
+      "bg": "oklch(0.55 0.13 152)",
+      "use": "body"
+    },
+    {
+      "name": "light: fg.on-accent on accent-hover",
+      "fg": "oklch(1 0 0)",
+      "bg": "oklch(0.5 0.13 152)",
+      "use": "body"
+    },
+    {
+      "name": "light: accent-text on accent-subtle (active nav)",
+      "fg": "oklch(0.46 0.13 152)",
+      "bg": "oklch(0.95 0.03 152)",
+      "use": "body"
+    },
+    {
+      "name": "light: accent-text on bg-base",
+      "fg": "oklch(0.46 0.13 152)",
+      "bg": "oklch(0.98 0.002 260)",
+      "use": "body"
+    },
+    {
+      "name": "light: accent (focus ring, toggle) on bg-raised",
+      "fg": "oklch(0.55 0.13 152)",
+      "bg": "oklch(1 0 0)",
+      "use": "ui"
+    },
+    {
+      "name": "light: accent (focus ring) on bg-inset",
+      "fg": "oklch(0.55 0.13 152)",
+      "bg": "oklch(0.94 0.004 260)",
+      "use": "ui"
+    },
+    {
+      "name": "dark: fg.on-accent on accent (primary button)",
+      "fg": "oklch(0.15 0.01 260)",
+      "bg": "oklch(0.72 0.11 152)",
+      "use": "body"
+    },
+    {
+      "name": "dark: fg.on-accent on accent-hover",
+      "fg": "oklch(0.15 0.01 260)",
+      "bg": "oklch(0.78 0.11 152)",
+      "use": "body"
+    },
+    {
+      "name": "dark: accent-text on accent-subtle (active nav)",
+      "fg": "oklch(0.8 0.11 152)",
+      "bg": "oklch(0.28 0.05 152)",
+      "use": "body"
+    },
+    {
+      "name": "dark: accent-text on bg-base",
+      "fg": "oklch(0.8 0.11 152)",
+      "bg": "oklch(0.17 0.006 260)",
+      "use": "body"
+    },
+    {
+      "name": "dark: accent (focus ring) on bg-raised",
+      "fg": "oklch(0.72 0.11 152)",
+      "bg": "oklch(0.23 0.008 260)",
+      "use": "ui"
+    },
+    {
+      "name": "icon: white glyph on tile top",
+      "fg": "oklch(1 0 0)",
+      "bg": "oklch(0.52 0.12 152)",
+      "use": "ui"
+    },
+    {
+      "name": "icon: white glyph on tile bottom",
+      "fg": "oklch(1 0 0)",
+      "bg": "oklch(0.42 0.1 152)",
+      "use": "ui"
+    },
+    {
+      "name": "icon: tile on light taskbar",
+      "fg": "oklch(0.52 0.12 152)",
+      "bg": "oklch(0.95 0 0)",
+      "use": "ui"
+    },
+    {
+      "name": "icon: tile on dark taskbar (#202020)",
+      "fg": "oklch(0.52 0.12 152)",
+      "bg": "#202020",
+      "use": "ui"
+    },
+    {
+      "name": "og/site: fg on brand night",
+      "fg": "oklch(0.97 0.01 150)",
+      "bg": "oklch(0.2 0.03 155)",
+      "use": "body"
+    },
+    {
+      "name": "og/site: signal lime on brand night",
+      "fg": "oklch(0.9 0.15 135)",
+      "bg": "oklch(0.2 0.03 155)",
+      "use": "large"
+    },
+    {
+      "name": "site light: link accent on white",
+      "fg": "oklch(0.48 0.12 152)",
+      "bg": "oklch(1 0 0)",
+      "use": "body"
+    },
+    {
+      "name": "site dark: accent-high on black",
+      "fg": "oklch(0.9 0.08 152)",
+      "bg": "oklch(0.16 0.015 210)",
+      "use": "body"
+    },
+    {
+      "name": "site dark: accent on gray-6",
+      "fg": "oklch(0.74 0.13 152)",
+      "bg": "oklch(0.22 0.02 210)",
+      "use": "body"
+    }
+  ]
+}

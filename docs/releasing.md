@@ -251,7 +251,7 @@ norm for new OV and EV certificates) cannot be imported as a PFX; that needs
 | winget          | `PUBLISH_WINGET` + token    | **by hand**, once — `packaging/winget/README.md`              |
 | Scoop           | `PUBLISH_SCOOP` + token     | create `dragoscv/scoop-vitals` — `packaging/winget/README.md` |
 | Chocolatey      | `PUBLISH_CHOCO` + API key   | automatic, but moderated — `packaging/winget/README.md`       |
-| Microsoft Store | no                          | by hand, and blocked on a certificate — below                 |
+| Microsoft Store | no                          | by hand, MSIX signed by Microsoft — below                     |
 
 Every package manager points at the **versioned** installer URL and the hash
 in `SHA256SUMS.txt`, never at the stable-named copy, whose bytes change with
@@ -262,25 +262,24 @@ source, so the registry refuses it. Making it publishable (a JavaScript
 build, `exports` pointing at it, `private` removed) is a separate change;
 leave `PUBLISH_NPM` off until then.
 
-### Microsoft Store (manual, future work)
+### Microsoft Store (MSIX, signed by Microsoft)
 
-The Store accepts a plain `.exe` installer ("MSI or EXE app") through
-[Partner Center](https://partner.microsoft.com/dashboard), without MSIX
-repackaging. It is not automated, and is blocked on two things:
+The Store package is an **MSIX** uploaded unsigned; Microsoft signs it, so
+this route needs no code-signing certificate. It is built by hand after the
+release build, from the same executables as the installer:
 
-1. **A code-signing certificate.** EXE submissions must be Authenticode
-   signed by a certificate that chains to a trusted root; the Store does not
-   re-sign them. Nothing proceeds until `WINDOWS_CERTIFICATE` exists.
-2. **An offline WebView2 installer variant.** Store certification runs
-   offline and rejects installers that download at install time; this build
-   uses `webviewInstallMode: downloadBootstrapper`. A Store build needs
-   `offlineInstaller` (about +130 MB) or `embedBootstrapper`, set through a
-   `--config` override in a separate build leg so the direct download stays
-   small.
+1. Release build (as for the installer), then
+   `pwsh -NoProfile -File packaging/msix/build-msix.ps1 -Version 0.9.0.0`.
+   The fourth version part must be `0`. Identity name and publisher come
+   from Partner Center > Product identity and are parameters of the script.
+2. Partner Center > the app > new submission > Packages: upload
+   `target/msix/Vitals_<version>_x64.msix`.
+3. Listing text, screenshots and the privacy URL: `packaging/msix/listing/`.
+4. Submit for certification. Updates are new submissions with a new package.
 
-Then, by hand: register as an individual developer (a one-off fee), create
-the app, choose _EXE or MSI app_, give the **versioned, signed** installer
-URL from the GitHub release, silent switch `/S`, architectures x64 and ARM64,
-and submit for certification. Updates are new submissions with the new URL.
-Partner Center has a submission API, so this can be automated once the first
-listing exists.
+What differs in the Store build is decided at run time from package identity
+(`distribution.rs`): no self-update, no Task Manager replacement, no sensors
+service, and logon start through `windows.startupTask`. The `runFullTrust`
+restricted capability needs a one-line justification at submission:
+"Vitals is a Win32 system monitor; it reads process and performance data and
+ends processes at the user's request."

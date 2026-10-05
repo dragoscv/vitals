@@ -44,6 +44,7 @@ pub mod process;
 pub mod sampler;
 pub mod sensors;
 pub mod startup;
+pub mod startup_task;
 pub mod storage;
 pub mod users;
 

@@ -13,7 +13,8 @@ two ever differ, that one applies.
   account to create.
 - **One automatic request.** About 20 seconds after launch, Vitals asks GitHub whether a newer
   version exists. GitHub sees your IP address and the app version, as with any download. You can
-  turn this off in **Settings → About**.
+  turn this off in **Settings → About**. The Microsoft Store version makes no such request: the
+  Store updates it.
 - **Remote access is off by default.** Nothing listens on your network until you turn it on in
   **Settings → Remote access**. See [Remote access](/guides/remote-access/).
 - **The local API is always on, but local only.** It listens on `127.0.0.1`, which only programs on

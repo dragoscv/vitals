@@ -217,6 +217,7 @@ installer's binaries were produced by the toolchain they target.
 **Not proven.** Nobody has launched the ARM64 installer on ARM hardware; the
 run proves it compiles, bundles and signs. The summary table rows for S6, S9
 and S14 were also stale against `tracker.csv` and are corrected here.
+
 ### 2026-10-05 — S16-07 / S16-08 Desktop freezes, Processes screen
 
 **Ask.** The machine froze hard enough to need the power button while apps
@@ -2544,6 +2545,38 @@ nothing else — no store, no filesystem, no process control.
   (`AppHistoryScreen.test.tsx:23`, `initI18n` never awaited).
 - `expect_used` now warns in production code: 2 startup sites justified
   inline, 186 test sites covered by `allow-expect-in-tests`.
+
+### 2026-10-05 — S16-09 / S16-10 / S16-11 UI pass, brand 1.0, Store build
+
+**UI pass (S16-09).** Every list screen gates its context menu through
+`useRowMenu` (button 2, or within 1 s of Shift+F10/Menu); the title bar has a
+right-click menu with Quit; scrollbars show only on hover or focus.
+
+**Brand (S16-10).** Four directions on a comparison sheet (16 → 256 px, dark
+and light, Android mask, taskbar strip, mono, inverse, squint). Chosen: A "All
+clear" (a calm line that dips and rises past its start — a V, a sparkline and
+a tick) in fern. One source (`brand/mark.mjs`) generates every asset; see
+`brand/BRAND.md`. Chroma 0.17 for the accent was rejected because it clips
+out of sRGB and drops white-on-accent below 4.5:1; 0.13 gives 4.57:1.
+
+**Store build (S16-11).** MSIX uploaded unsigned and signed by Microsoft, so
+no certificate is needed. The same binary detects package identity and turns
+off what Store policy forbids. Logon start had to move to
+`windows.startupTask`: a packaged app's Run-key write lands in its private
+hive and Windows never reads it.
+
+**Evidence.**
+
+- UI gates (c18cb13): desktop vitest 104 files / 1145 tests, ui 107; typecheck,
+  lint, drift clean.
+- `contrast-gate.mjs brand/contrast-pairs.json`: 20 pairs, 0 WCAG failures,
+  APCA advisories on dark body pairs (all ≥ 7:1 WCAG).
+- Android: `:app/:tv/:wear:processDebugResources` and `:shared-ui:testDebugUnitTest`
+  BUILD SUCCESSFUL.
+- `cargo test -p vitals-win --lib -- host::tests startup_task`: 14 passed.
+
+**Not proven yet.** The MSIX has not been installed and launched; the
+startup-task path runs only inside a package.
 
 ## S13 — public beta 0.9.0-beta.1 (2026-09-28)
 

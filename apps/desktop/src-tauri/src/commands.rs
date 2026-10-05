@@ -251,7 +251,20 @@ pub fn show_main_window(window: tauri::Window) -> CommandResult<()> {
 /// the setting before the store is readable.
 #[must_use]
 pub fn launched_minimised() -> bool {
-    std::env::args().skip(1).any(|arg| arg == "--minimized")
+    // A Store startup task passes no arguments; its activation kind is the
+    // only sign that this launch was Windows, not a person.
+    std::env::args().skip(1).any(|arg| arg == "--minimized") || launched_by_startup_task()
+}
+
+fn launched_by_startup_task() -> bool {
+    #[cfg(windows)]
+    {
+        crate::distribution::packaged() && vitals_win::startup_task::launched_by_startup_task()
+    }
+    #[cfg(not(windows))]
+    {
+        false
+    }
 }
 
 /// Runtime facts about how this instance was started.
@@ -687,6 +700,9 @@ pub fn get_taskmgr_replacement() -> CommandResult<TaskManagerReplacement> {
 #[tauri::command]
 #[cfg(windows)]
 pub async fn set_taskmgr_replacement(enabled: bool) -> CommandResult<TaskManagerReplacement> {
+    if crate::distribution::packaged() {
+        return Err(crate::distribution::store_refusal("replacing Task Manager"));
+    }
     let exe = std::env::current_exe().map_err(vitals_core::Error::from)?;
 
     tauri::async_runtime::spawn_blocking(move || {

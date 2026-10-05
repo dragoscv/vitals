@@ -160,7 +160,7 @@ describe('SettingsDialog', () => {
     fireEvent.keyDown(selected as HTMLElement, { key: 'ArrowRight' });
 
     await waitFor(() => {
-      expect(useSettings.getState().settings.theme.accent).not.toBe('blue');
+      expect(useSettings.getState().settings.theme.accent).not.toBe('green');
     });
   });
 

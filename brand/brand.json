@@ -1,0 +1,72 @@
+{
+  "name": "Vitals",
+  "version": "1.0.0",
+  "owner": "Dragos Catalin Vladulescu",
+  "writtenAs": "Vitals",
+  "locales": ["en", "ro"],
+  "source": "mark.mjs",
+  "build": "node brand/scripts/build.mjs && node brand/scripts/demo.mjs",
+  "contrastPairs": "contrast-pairs.json",
+  "concept": {
+    "name": "All clear",
+    "meaning": "A calm line that dips and rises past where it started: a V, a sparkline and a tick — your computer is being watched, and it is fine.",
+    "decided": "2026-10-05",
+    "rejected": ["B Watching ring + dot", "C V + point", "D Calm gauge"]
+  },
+  "fonts": [
+    {
+      "family": "Inter",
+      "role": "wordmark (outlined) + UI fallback",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-Inter.txt",
+      "verifiedGlyphs": {
+        "date": "2026-10-05",
+        "mode": "single",
+        "result": "pass: ĂÂÎȘȚăâîșț ŞŢşţ „”«»–—€"
+      }
+    },
+    {
+      "family": "Segoe UI Variable",
+      "role": "UI on Windows (system font, not shipped)",
+      "licence": "system",
+      "verifiedGlyphs": { "date": "2026-10-05", "mode": "single", "result": "pass" }
+    }
+  ],
+  "platforms": ["windows", "msix", "web", "android", "wear", "tv", "tizen", "tray"],
+  "consumers": [
+    {
+      "surface": "desktop UI tokens",
+      "path": "packages/ui/src/styles/theme.css",
+      "uses": "accent hue 152 / chroma 0.13"
+    },
+    { "surface": "mark motion", "path": "packages/ui/src/styles/brand.css", "generated": true },
+    {
+      "surface": "React mark",
+      "path": "packages/ui/src/components/BrandMark.tsx",
+      "uses": "brandGeometry.ts (generated)"
+    },
+    {
+      "surface": "desktop splash",
+      "path": "apps/desktop/index.html",
+      "generated": "brand:splash block"
+    },
+    { "surface": "Tauri bundle icons", "path": "apps/desktop/src-tauri/icons/", "generated": true },
+    { "surface": "MSIX assets", "path": "brand/icons/msix/", "generated": true },
+    {
+      "surface": "site",
+      "path": "apps/site/public/ + apps/site/src/styles/theme.css",
+      "generated": "icons, og, manifest"
+    },
+    {
+      "surface": "Android phone/TV/Wear",
+      "path": "apps/android/*/src/main/res/drawable/",
+      "generated": true
+    },
+    {
+      "surface": "Android palette",
+      "path": "apps/android/shared-ui/src/main/kotlin/app/vitals/ui/Palette.kt"
+    },
+    { "surface": "Tizen", "path": "apps/tizen/public/icon.png", "generated": true },
+    { "surface": "Play listing", "path": "brand/icons/play-512.png", "generated": true }
+  ]
+}

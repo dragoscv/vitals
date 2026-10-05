@@ -13,7 +13,8 @@ dacă cele două diferă vreodată, se aplică aceea.
   Nu există niciun cont de creat.
 - **O singură cerere automată.** La circa 20 de secunde după pornire, Vitals întreabă GitHub dacă
   există o versiune mai nouă. GitHub vede adresa ta IP și versiunea aplicației, ca la orice
-  descărcare. Poți dezactiva asta din **Setări → Despre**.
+  descărcare. Poți dezactiva asta din **Setări → Despre**. Versiunea din Microsoft Store nu face
+  această cerere: o actualizează Store-ul.
 - **Accesul la distanță este oprit implicit.** Nimic nu ascultă în rețeaua ta până nu îl pornești din
   **Setări → Acces la distanță**. Vezi [Acces la distanță](/ro/guides/remote-access/).
 - **API-ul local este mereu pornit, dar doar local.** Ascultă pe `127.0.0.1`, unde pot ajunge doar

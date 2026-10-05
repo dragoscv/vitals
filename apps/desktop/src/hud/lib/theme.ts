@@ -11,5 +11,5 @@
 /** Applies the overlay's fixed palette to `root`. */
 export function applyOverlayTheme(root: HTMLElement): void {
   root.classList.add('dark');
-  root.dataset['accent'] = 'blue';
+  root.dataset['accent'] = 'green';
 }

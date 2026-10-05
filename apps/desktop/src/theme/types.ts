@@ -43,7 +43,8 @@ export interface ThemeSettings {
 
 export const defaultTheme: ThemeSettings = {
   mode: 'system',
-  accent: 'blue',
+  // Fern is the brand colour (brand/mark.mjs); the other nine stay a choice.
+  accent: 'green',
   density: 'default',
   reduceMotion: null,
 };

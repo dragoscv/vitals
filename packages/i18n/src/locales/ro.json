@@ -194,6 +194,7 @@
         "unconfiguredHint": "Versiunile de dezvoltare și cele nesemnate nu pot verifica o actualizare. Descarcă cea mai recentă versiune de pe GitHub.",
         "auto": "Instalează actualizările automat",
         "autoHint": "Verifică pe GitHub la scurt timp după pornire și instalează o actualizare semnată când închizi aplicația. Nimic nu se instalează cât timp folosești Vitals.",
+        "store": "Actualizările vin din Microsoft Store.",
         "pending": "Versiunea {{version}} este descărcată și se instalează când închizi Vitals."
       },
       "legal": "Informații legale",

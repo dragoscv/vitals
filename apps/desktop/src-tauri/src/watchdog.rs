@@ -128,6 +128,13 @@ fn bundled_exe() -> Option<std::path::PathBuf> {
 
 #[cfg(windows)]
 fn registered_command() -> Option<String> {
+    // Inside the Store package the Run key is virtualised; the manifest's
+    // startup task is what Windows starts at logon.
+    if crate::distribution::packaged() {
+        return vitals_win::startup_task::is_enabled(vitals_win::startup_task::WATCHDOG_TASK)
+            .filter(|on| *on)
+            .map(|_| vitals_win::startup_task::WATCHDOG_TASK.to_owned());
+    }
     let out = std::process::Command::new("reg")
         .args(["query", &format!(r"HKCU\{RUN_KEY}"), "/v", RUN_VALUE])
         .creation_flags_hidden()
@@ -182,6 +189,17 @@ fn enable() -> CommandResult<()> {
     let exe = bundled_exe().ok_or_else(|| CommandError::Unsupported {
         message: "this build does not include the watchdog".into(),
     })?;
+    if crate::distribution::packaged() {
+        vitals_win::startup_task::set(vitals_win::startup_task::WATCHDOG_TASK, true).map_err(
+            |e| CommandError::Internal {
+                message: format!("Windows did not enable the watchdog at logon: {e}"),
+            },
+        )?;
+        if !running() {
+            start(&exe)?;
+        }
+        return Ok(());
+    }
     let command = format!("\"{}\"", exe.display());
     let status = std::process::Command::new("reg")
         .args([
@@ -204,17 +222,23 @@ fn enable() -> CommandResult<()> {
         });
     }
     if !running() {
-        // Through `--start` rather than a direct spawn: `std::process::Command`
-        // always inherits handles, so a watchdog started straight from here
-        // would keep any pipe reading this app's output open forever. The
-        // `--start` child exits at once after launching the watchdog without
-        // inheritance (`start_detached` in the watchdog).
-        std::process::Command::new(&exe)
-            .arg("--start")
-            .creation_flags_hidden()
-            .status()
-            .map_err(io)?;
+        start(&exe)?;
     }
+    Ok(())
+}
+
+/// Through `--start` rather than a direct spawn: `std::process::Command`
+/// always inherits handles, so a watchdog started straight from here would
+/// keep any pipe reading this app's output open forever. The `--start` child
+/// exits at once after launching the watchdog without inheritance
+/// (`start_detached` in the watchdog).
+#[cfg(windows)]
+fn start(exe: &std::path::Path) -> CommandResult<()> {
+    std::process::Command::new(exe)
+        .arg("--start")
+        .creation_flags_hidden()
+        .status()
+        .map_err(io)?;
     Ok(())
 }
 
@@ -223,6 +247,13 @@ fn enable() -> CommandResult<()> {
 /// and ending it from here would need the same care as ending any process.
 #[cfg(windows)]
 fn disable() -> CommandResult<()> {
+    if crate::distribution::packaged() {
+        return vitals_win::startup_task::set(vitals_win::startup_task::WATCHDOG_TASK, false)
+            .map(|_| ())
+            .map_err(|e| CommandError::Internal {
+                message: format!("Windows did not disable the watchdog at logon: {e}"),
+            });
+    }
     if registered_command().is_none() {
         return Ok(());
     }

@@ -37,6 +37,7 @@ import { useTranslation } from 'react-i18next';
 
 import {
   Badge,
+  BrandMark,
   Button,
   Card,
   CardBody,
@@ -280,7 +281,8 @@ function ScanRunning({
 }) {
   return (
     <div role="status" className="flex flex-col gap-1">
-      <p className="text-sm">
+      <p className="flex items-center gap-2 text-sm">
+        <BrandMark size={20} state="thinking" />
         {progress === null ? t('dev.scan.running') : t(`dev.phase.${progress.phase}`)}
       </p>
       <ProgressBar indeterminate label={t('dev.scan.running')} />

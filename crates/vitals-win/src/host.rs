@@ -190,9 +190,41 @@ pub(crate) fn is_elevated() -> bool {
     queried.is_ok() && elevation.TokenIsElevated != 0
 }
 
+/// Whether this process runs inside an MSIX package (the Microsoft Store build).
+///
+/// One binary serves both the direct installer and the Store, so the Store's
+/// rules are applied at run time rather than by a second build: inside a
+/// package the self-updater, the Task Manager hook (HKLM IFEO) and the
+/// SYSTEM sensors service are all either forbidden by Store policy or
+/// virtualised into uselessness. `GetCurrentPackageFullName` answers
+/// `APPMODEL_ERROR_NO_PACKAGE` for an unpackaged process; any other answer
+/// means a package identity exists.
+#[must_use]
+pub fn is_packaged() -> bool {
+    use windows_sys::Win32::Foundation::ERROR_INSUFFICIENT_BUFFER;
+    use windows_sys::Win32::Storage::Packaging::Appx::GetCurrentPackageFullName;
+
+    let mut length = 0_u32;
+    // SAFETY: a zero length with a null buffer is the documented size query;
+    // the function writes only `length`.
+    let status = unsafe { GetCurrentPackageFullName(&raw mut length, std::ptr::null_mut()) };
+    // Packaged answers "buffer too small" to the size query; unpackaged gives
+    // `APPMODEL_ERROR_NO_PACKAGE`. Anything else is treated as unpackaged,
+    // the direction that keeps every feature of the direct build working.
+    status == ERROR_INSUFFICIENT_BUFFER
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_test_binary_is_not_mistaken_for_a_store_install() {
+        // The test runner is never packaged; a false positive here would
+        // switch off the updater and the Task Manager hook for every
+        // direct-download user.
+        assert!(!is_packaged());
+    }
 
     #[test]
     fn basic_process_control_works_without_privilege() {
