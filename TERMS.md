@@ -34,8 +34,8 @@ consumer under Romanian or European Union law.
 
 ## Public beta
 
-Version 0.9.0-beta.2 is a public beta. Features may change, readings may be
-wrong on some hardware, and bugs are expected. Builds for macOS and Linux are
+Version 0.9.0 is the first stable release for Windows. Features may still
+change, readings may be wrong on some hardware, and bugs can happen. Builds for macOS and Linux are
 not published yet. Please [report problems](SUPPORT.md).
 
 ## Acceptable use
@@ -128,9 +128,9 @@ a Uniunii Europene.
 
 ## Versiune beta publică
 
-Versiunea 0.9.0-beta.2 este o versiune beta publică. Funcțiile se pot
-schimba, unele valori pot fi greșite pe anumite componente hardware și sunt
-de așteptat erori. Versiunile pentru macOS și Linux nu sunt publicate încă.
+Versiunea 0.9.0 este prima versiune stabilă pentru Windows. Funcțiile se
+pot schimba în continuare, unele valori pot fi greșite pe anumite componente
+hardware și pot apărea erori. Versiunile pentru macOS și Linux nu sunt publicate încă.
 Vă rugăm să [raportați problemele](SUPPORT.md).
 
 ## Utilizare acceptabilă

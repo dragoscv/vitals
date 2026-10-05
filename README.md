@@ -17,11 +17,11 @@ it from a terminal.
 
 | Platform          | Download                                                                                                     | Status         |
 | ----------------- | ------------------------------------------------------------------------------------------------------------ | -------------- |
-| Windows 10/11 x64 | [Vitals_x64-setup.exe](https://github.com/dragoscv/vitals/releases/latest/download/Vitals_x64-setup.exe)     | Public beta    |
+| Windows 10/11 x64 | [Vitals_x64-setup.exe](https://github.com/dragoscv/vitals/releases/latest/download/Vitals_x64-setup.exe)     | Stable         |
 | Windows 11 ARM64  | [Vitals_arm64-setup.exe](https://github.com/dragoscv/vitals/releases/latest/download/Vitals_arm64-setup.exe) | Preview        |
 | macOS, Linux      | —                                                                                                            | On the roadmap |
 
-> **Status: public beta (0.9).** Every section works against live data on
+> **Status: 0.9, stable on Windows.** Every section works against live data on
 > Windows — there are no placeholder screens left. The Windows sampler is
 > verified against Windows' own counters and stays inside a 30 ms-per-sample
 > budget that CI enforces. macOS and Linux builds are compiled and checked in

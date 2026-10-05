@@ -7,6 +7,42 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.9.0] — 2026-10-06
+
+Out of beta, and the first version for the Microsoft Store.
+
+### Added
+
+- **A new look** — the "All clear" mark (a calm line that dips and rises past
+  where it started), a fern-green theme, and the mark in motion: it assembles
+  on start-up, slides into the title bar, and traces itself while a scan or a
+  benchmark is running. Every icon — Windows, Store tiles, Android, watch,
+  TV, website — is drawn from one source.
+- **Microsoft Store version** — the same app, signed by Microsoft, so Windows
+  never shows a "unknown publisher" warning. The Store updates it, so its
+  own updater, the Task Manager replacement and the sensors service are off
+  there; start with Windows works through the Store's own mechanism.
+- **Right-click menus everywhere** — every list, the dashboard widgets and
+  the title bar (minimise, maximise, hide to tray, close, quit). Menus open
+  only on a right click or the menu key, never on a left click.
+- **App names in the process list** — "Google Chrome", not `chrome.exe`;
+  the file name is first in the right-click menu. Search finds either.
+- **A hideable details panel** on the Processes screen.
+- **The watchdog can rescue a frozen desktop** — restart Explorer or the
+  window manager from its prompt or with Ctrl+Alt+Shift+E / D, and a warning
+  before the computer runs out of memory to commit.
+
+### Changed
+
+- The default accent colour is fern green; the other nine remain in Settings.
+- Scrollbars appear only when you point at or move through a list.
+- Stray borders and text glyphs are gone in favour of cards and icons.
+
+### Fixed
+
+- Pointing at a process no longer pushes the table down one row.
+- The watchdog's `--install` no longer hangs the shell that started it.
+
 ## [0.9.0-beta.2] — 2026-09-30
 
 ### Security
