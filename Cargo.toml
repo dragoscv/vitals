@@ -135,6 +135,11 @@ must_use_candidate = "allow"
 cast_precision_loss = "allow"
 cast_possible_truncation = "allow"
 cast_sign_loss = "allow"
+# New in clippy 1.99 (2026-09-28) and it fired on 36 test asserts at once. Its
+# fix only fits arrays: `assert_eq!(x, [] as [T; 0])` does not compile for a
+# HashMap or a String, and there is no `assert_eq!` form for "not empty" at
+# all. Tests that need the contents on failure already print them.
+assert_is_empty = "allow"
 # Hard bans for sampling hot paths.
 unwrap_used = "warn"
 # `.expect()` panics identically to `.unwrap()`, and with `panic = "abort"` in

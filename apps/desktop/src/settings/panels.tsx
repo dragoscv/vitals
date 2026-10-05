@@ -162,7 +162,11 @@ export function GeneralPanel() {
 
       <SettingsRow
         label={t('settings.general.openTaskManager')}
-        description={t('settings.general.openTaskManagerHint')}
+        description={t(
+          storeBuild
+            ? 'settings.general.openTaskManagerHintStore'
+            : 'settings.general.openTaskManagerHint',
+        )}
       >
         {({ labelId }) => (
           <Button
@@ -552,6 +556,7 @@ export function NotificationsPanel() {
 
 export function PrivacyPanel() {
   const { t } = useTranslation();
+  const storeBuild = useIsStoreBuild();
 
   // No switches here. Vitals has no telemetry, no crash reporting and no
   // online reputation lookups, so there is nothing to opt out of. The one
@@ -565,7 +570,7 @@ export function PrivacyPanel() {
           <li>{t('settings.privacy.localOnly')}</li>
           <li>{t('settings.privacy.noCrashReports')}</li>
           <li>{t('settings.privacy.noLookups')}</li>
-          <li>{t('settings.privacy.updates')}</li>
+          <li>{t(storeBuild ? 'settings.privacy.updatesStore' : 'settings.privacy.updates')}</li>
           <li>{t('settings.privacy.lanServer')}</li>
         </ul>
         <Button

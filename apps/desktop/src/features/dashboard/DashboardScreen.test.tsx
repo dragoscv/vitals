@@ -229,7 +229,9 @@ describe('DashboardScreen', () => {
     ];
 
     async function openMenu(region: string) {
-      fireEvent.contextMenu(screen.getByRole('region', { name: region }), { button: 2 });
+      // find, not get: widgets mount lazily, and a slower runner (CI) had not
+      // rendered them yet when this ran straight after the first render.
+      fireEvent.contextMenu(await screen.findByRole('region', { name: region }), { button: 2 });
       await act(async () => {});
       return screen.findByRole('menu');
     }

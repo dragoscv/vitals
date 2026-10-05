@@ -150,6 +150,7 @@
       "noLookups": "Niciun fișier nu este vreodată verificat sau căutat online.",
       "lanServer": "Serverul LAN pentru telefon și alte aplicații este oprit până îl pornești și răspunde doar dispozitivelor din rețeaua ta. O conexiune strict locală pe 127.0.0.1 este mereu deschisă, ca utilitarul în linie de comandă vitals să poată ajunge la aplicație.",
       "updates": "Singura cerere pe care Vitals o face singur este verificarea actualizărilor pe GitHub, la circa 20 de secunde după pornire. GitHub vede adresa ta IP și versiunea aplicației, ca la orice descărcare. O poți opri din secțiunea Despre.",
+      "updatesStore": "Vitals nu face nicio cerere de unul singur. Actualizările vin din Microsoft Store.",
       "policy": "Citește politica de confidențialitate"
     },
     "about": {

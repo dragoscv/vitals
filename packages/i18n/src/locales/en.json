@@ -149,6 +149,7 @@
       "noLookups": "No file is ever hashed or looked up online.",
       "lanServer": "The LAN server for your phone and other tools is off until you turn it on, and only answers devices on your own network. A local-only connection on 127.0.0.1 is always open so the vitals command-line tool can reach the app.",
       "updates": "The only request Vitals makes by itself is an update check to GitHub, about 20 seconds after launch. GitHub sees your IP address and the app version, as with any download. Turn it off under About.",
+      "updatesStore": "Vitals makes no requests by itself. Updates come from the Microsoft Store.",
       "policy": "Read the privacy policy"
     },
     "about": {
