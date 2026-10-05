@@ -122,6 +122,11 @@ pub fn main() -> anyhow::Result<()> {
         Some("--test-toast") => with_console(test_toast),
         Some("--play-sound") => with_console(|| play_sound(args.get(1).map(String::as_str))),
         Some("--install") => with_console(install),
+        // For the desktop app: start the watchdog without handing it this
+        // process's handles, then exit. See `start_detached`.
+        Some("--start") => std::env::current_exe()
+            .map_err(anyhow::Error::from)
+            .and_then(|exe| start_detached(&exe)),
         Some("--uninstall") => with_console(uninstall),
         Some(other) => with_console(|| bail!("unknown argument {other:?}")),
     }
@@ -993,13 +998,66 @@ fn install() -> anyhow::Result<()> {
     if !notify::set_user_string(RUN_KEY, RUN_VALUE, &command) {
         bail!("could not write HKCU\\{RUN_KEY}\\{RUN_VALUE}");
     }
-    std::process::Command::new(&target)
-        .spawn()
-        .with_context(|| format!("starting {}", target.display()))?;
+    start_detached(&target)?;
     println!(
         "installed: {}\nstarts at every logon; running now",
         target.display()
     );
+    Ok(())
+}
+
+/// Starts the long-lived watchdog without lending it our handles.
+///
+/// A plain `spawn()` inherits stdout and stderr. The watchdog never exits, so
+/// whoever was reading `--install`'s output — `| Out-String`, a script, an
+/// installer capturing logs — waited for an end of file that never came
+/// (2026-10-05: the install itself finished in a second, the shell that ran
+/// it hung until killed). Null stdio was not enough: `std::process::Command`
+/// always passes `bInheritHandles = TRUE`, so the child still inherited the
+/// caller's pipe (measured: install took 3028 s with null stdio). Only
+/// `CreateProcessW` with inheritance off leaves nothing of ours in the child.
+fn start_detached(target: &std::path::Path) -> anyhow::Result<()> {
+    use windows_sys::Win32::Foundation::CloseHandle;
+    use windows_sys::Win32::System::Threading::{
+        CREATE_NEW_PROCESS_GROUP, CreateProcessW, DETACHED_PROCESS, PROCESS_INFORMATION,
+        STARTUPINFOW,
+    };
+    let mut command_line = wide(&format!("\"{}\"", target.display()));
+    let startup = STARTUPINFOW {
+        cb: u32::try_from(size_of::<STARTUPINFOW>()).unwrap_or(0),
+        // SAFETY: STARTUPINFOW is plain data; all-zero is its documented empty state.
+        ..unsafe { std::mem::zeroed() }
+    };
+    // SAFETY: plain data, filled by CreateProcessW.
+    let mut info: PROCESS_INFORMATION = unsafe { std::mem::zeroed() };
+    // SAFETY: the command line is a live, NUL-terminated, mutable buffer;
+    // startup and info are live; inheritance is off (the point of this).
+    let ok = unsafe {
+        CreateProcessW(
+            std::ptr::null(),
+            command_line.as_mut_ptr(),
+            std::ptr::null(),
+            std::ptr::null(),
+            0,
+            DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP,
+            std::ptr::null(),
+            std::ptr::null(),
+            &raw const startup,
+            &raw mut info,
+        )
+    };
+    if ok == 0 {
+        bail!(
+            "starting {}: {}",
+            target.display(),
+            std::io::Error::last_os_error()
+        );
+    }
+    // SAFETY: both handles were just returned and are closed once.
+    unsafe {
+        CloseHandle(info.hProcess);
+        CloseHandle(info.hThread);
+    }
     Ok(())
 }
 

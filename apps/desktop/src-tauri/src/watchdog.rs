@@ -204,9 +204,15 @@ fn enable() -> CommandResult<()> {
         });
     }
     if !running() {
+        // Through `--start` rather than a direct spawn: `std::process::Command`
+        // always inherits handles, so a watchdog started straight from here
+        // would keep any pipe reading this app's output open forever. The
+        // `--start` child exits at once after launching the watchdog without
+        // inheritance (`start_detached` in the watchdog).
         std::process::Command::new(&exe)
+            .arg("--start")
             .creation_flags_hidden()
-            .spawn()
+            .status()
             .map_err(io)?;
     }
     Ok(())
