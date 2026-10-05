@@ -33,6 +33,7 @@ import {
   Skeleton,
 } from '@vitals/ui';
 
+import { useRowMenu } from '../../lib/useRowMenu';
 import { DIAGNOSE_EVENT, OPEN_SETTINGS_EVENT, type RouteId } from '../../shell/navigation';
 import { useSettings } from '../../settings/store';
 import { useAlerts, type AlertSource } from '../alerts/useAlerts';
@@ -135,6 +136,7 @@ export function DashboardScreen({
   const historyState = useHistory(historyCollector);
   const layoutController = useLayout(layoutBackend);
   const [editing, setEditing] = useState(false);
+  const widgetMenu = useRowMenu();
 
   const capabilities = useMemo(() => capabilitiesFrom(snapshot.system), [snapshot.system]);
   const placements = useMemo(
@@ -300,6 +302,7 @@ export function DashboardScreen({
           // key, so it is not re-animated.
           className="dashboard-grid vitals-stagger"
           style={{ '--n': placements.length } as React.CSSProperties}
+          onKeyDown={widgetMenu.onKeyDown}
         >
           {placements.map((placement, index) => {
             const definition = widgetById.get(placement.id);
@@ -323,6 +326,10 @@ export function DashboardScreen({
                 onRemove={() => {
                   layoutController.remove(placement.id);
                 }}
+                menu={widgetMenu}
+                addable={addable}
+                onAdd={layoutController.add}
+                onReset={layoutController.reset}
                 headline={headlineFor(placement.id, snapshot.system, locale, t)}
               >
                 <WidgetBody

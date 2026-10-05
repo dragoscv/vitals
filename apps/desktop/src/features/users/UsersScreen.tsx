@@ -12,8 +12,8 @@
  * not a dash alone — each of those is a fabrication the user would act on.
  */
 
-import { RefreshCw, ShieldAlert, User } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { Copy, RefreshCw, ShieldAlert, User } from 'lucide-react';
+import { forwardRef, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import {
@@ -23,6 +23,12 @@ import {
   CardBody,
   CardHeader,
   CardTitle,
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuLabel,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
   EmptyState,
   Input,
   Skeleton,
@@ -30,6 +36,7 @@ import {
   formatPercent,
 } from '@vitals/ui';
 
+import { useRowMenu } from '../../lib/useRowMenu';
 import {
   displayName,
   filterSessions,
@@ -50,6 +57,7 @@ export function UsersScreen({ reader }: UsersScreenProps): React.JSX.Element {
   const { t } = useTranslation(USERS_NS);
   const state = useUsers(reader);
   const [searchQuery, setSearchQuery] = useState('');
+  const menu = useRowMenu();
 
   const filteredSessions = useMemo(() => {
     if (state.snapshot === null) return [];
@@ -119,26 +127,82 @@ export function UsersScreen({ reader }: UsersScreenProps): React.JSX.Element {
       </p>
 
       {/* The search above stays put; only the session cards scroll (S12-26). */}
-      <div className="pane-stack flex-1">
+      <div className="pane-stack flex-1" onKeyDown={menu.onKeyDown}>
         {filteredSessions.map((session) => (
-          <SessionCard
-            key={session.sessionId}
-            session={session}
-            rollup={rollupFor(session, state.snapshot?.rollups ?? [])}
-          />
+          <ContextMenu key={session.sessionId} {...menu.rootProps(String(session.sessionId))}>
+            <ContextMenuTrigger asChild>
+              <SessionCard
+                session={session}
+                rollup={rollupFor(session, state.snapshot?.rollups ?? [])}
+                onContextMenu={menu.onContextMenu}
+              />
+            </ContextMenuTrigger>
+            <SessionMenu session={session} onRefresh={state.refresh} />
+          </ContextMenu>
         ))}
       </div>
     </div>
   );
 }
 
-function SessionCard({
+function SessionMenu({
   session,
-  rollup,
+  onRefresh,
 }: {
   readonly session: LogonSession;
-  readonly rollup: ReturnType<typeof rollupFor>;
+  readonly onRefresh: () => void;
 }) {
+  const { t } = useTranslation(USERS_NS);
+  const name = displayName(session);
+  const copy = (text: string): void => {
+    void globalThis.navigator?.clipboard?.writeText(text);
+  };
+  return (
+    <ContextMenuContent>
+      <ContextMenuLabel>{name}</ContextMenuLabel>
+      <ContextMenuItem
+        onSelect={() => {
+          copy(name);
+        }}
+      >
+        <Copy className="size-4" aria-hidden="true" />
+        {t('menu.copyName')}
+      </ContextMenuItem>
+      <ContextMenuItem
+        onSelect={() => {
+          copy(
+            [
+              name,
+              `${t('column.sessionId')} ${String(session.sessionId)}`,
+              t(`state.${session.state}`),
+              session.clientName ?? '—',
+            ].join('\t'),
+          );
+        }}
+      >
+        <Copy className="size-4" aria-hidden="true" />
+        {t('menu.copyDetails')}
+      </ContextMenuItem>
+      <ContextMenuSeparator />
+      <ContextMenuItem onSelect={onRefresh}>
+        <RefreshCw className="size-4" aria-hidden="true" />
+        {t('refresh')}
+      </ContextMenuItem>
+    </ContextMenuContent>
+  );
+}
+
+/**
+ * Forwards ref and props: the card is the `ContextMenuTrigger asChild`
+ * target, so Radix's handlers and ref have to reach the `Card` element.
+ */
+const SessionCard = forwardRef<
+  HTMLDivElement,
+  {
+    readonly session: LogonSession;
+    readonly rollup: ReturnType<typeof rollupFor>;
+  } & Omit<React.ComponentPropsWithoutRef<'div'>, 'children' | 'className' | 'title'>
+>(function SessionCard({ session, rollup, ...rest }, ref) {
   const { t, i18n } = useTranslation(USERS_NS);
 
   const logonTimeLabel = useMemo(() => {
@@ -166,7 +230,7 @@ function SessionCard({
   }, [session.state]);
 
   return (
-    <Card regionLabel={`${displayName(session)} session`}>
+    <Card ref={ref} regionLabel={`${displayName(session)} session`} {...rest}>
       <CardHeader>
         <CardTitle level={3}>
           <span className="inline-flex items-center gap-1.5">
@@ -208,8 +272,14 @@ function SessionCard({
       </CardBody>
     </Card>
   );
-}
+});
 
+/**
+ * A label and its value. A missing value is the em dash used everywhere in
+ * Vitals, with the words for it visually hidden: `aria-label` on a plain
+ * `span` is not reliably announced, so the dash alone used to read as
+ * nothing at all to a screen reader.
+ */
 function Field({
   label,
   value,
@@ -228,10 +298,10 @@ function Field({
         {value ?? (
           <span
             className="text-[var(--color-fg-subtle)]"
-            aria-label={unavailableHint ?? t('unavailable')}
             {...(unavailableHint ? { title: unavailableHint } : {})}
           >
-            —
+            <span aria-hidden="true">—</span>
+            <span className="sr-only">{unavailableHint ?? t('unavailable')}</span>
           </span>
         )}
       </dd>

@@ -17,12 +17,19 @@
  * Manager found. Items that could not be moved stay in the basket.
  */
 
-import { FileText, Folder, Trash2, X } from 'lucide-react';
+import { Copy, FileText, Folder, FolderSearch, ListMinus, Trash2, X } from 'lucide-react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import {
   Badge,
   Button,
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuLabel,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
   DialogContent,
   DialogRoot,
   IconButton,
@@ -30,6 +37,8 @@ import {
   formatCount,
 } from '@vitals/ui';
 
+import { errorMessage } from '../../lib/commandError';
+import { useRowMenu } from '../../lib/useRowMenu';
 import {
   basketTotal,
   type BasketItem,
@@ -83,6 +92,8 @@ export interface BasketDialogProps {
   readonly report: RecycleReport | null;
   readonly error: string | null;
   readonly onRemove: (path: string) => void;
+  /** Shows the item in File Explorer; the menu omits the action without it. */
+  readonly onReveal?: (path: string) => Promise<void>;
   readonly onConfirm: () => void;
   readonly onClose: () => void;
 }
@@ -95,12 +106,18 @@ export function BasketDialog({
   report,
   error,
   onRemove,
+  onReveal,
   onConfirm,
   onClose,
 }: BasketDialogProps) {
   const { t } = useTranslation(STORAGE_NS);
   const showingReport = report !== null;
   const total = basketTotal(basket);
+  const menu = useRowMenu();
+  // A failed reveal is reported here rather than dropped: the user asked for
+  // a window and nothing appeared, which needs a reason.
+  const [revealError, setRevealError] = useState<string | null>(null);
+  const shownError = error ?? revealError;
 
   return (
     <DialogRoot
@@ -158,9 +175,9 @@ export function BasketDialog({
           )
         }
       >
-        {error !== null && (
+        {shownError !== null && (
           <p role="alert" className="mb-2 text-2xs text-[var(--color-status-danger)]">
-            {t('basket.failed', { message: error })}
+            {t('basket.failed', { message: shownError })}
           </p>
         )}
         {showingReport ? (
@@ -170,36 +187,83 @@ export function BasketDialog({
             ))}
           </ul>
         ) : (
-          <ul className="flex flex-col gap-1">
+          <ul className="flex flex-col gap-1" onKeyDown={menu.onKeyDown}>
             {basket.map((item) => (
-              <li
-                key={item.path}
-                className="flex items-center gap-2 rounded-md border border-[var(--color-border-subtle)] px-2 py-1"
-              >
-                {item.kind === 'folder' ? (
-                  <Folder aria-hidden className="size-4 shrink-0 text-[var(--color-fg-subtle)]" />
-                ) : (
-                  <FileText aria-hidden className="size-4 shrink-0 text-[var(--color-fg-subtle)]" />
-                )}
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm">{item.name}</span>
-                  <span className="block truncate font-mono text-2xs text-[var(--color-fg-subtle)]">
-                    {item.path}
-                  </span>
-                </span>
-                <span className="tnum font-mono text-2xs">
-                  {formatBytes(item.allocated, locale)}
-                </span>
-                <IconButton
-                  size="sm"
-                  icon={<X aria-hidden />}
-                  label={t('basket.remove', { name: item.name })}
-                  disabled={recycling}
-                  onClick={() => {
-                    onRemove(item.path);
-                  }}
-                />
-              </li>
+              <ContextMenu key={item.path} {...menu.rootProps(item.path)}>
+                <ContextMenuTrigger asChild>
+                  <li
+                    tabIndex={0}
+                    data-testid="basket-item"
+                    className="flex items-center gap-2 rounded-md border border-[var(--color-border-subtle)] px-2 py-1 focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+                    onContextMenu={menu.onContextMenu}
+                  >
+                    {item.kind === 'folder' ? (
+                      <Folder
+                        aria-hidden
+                        className="size-4 shrink-0 text-[var(--color-fg-subtle)]"
+                      />
+                    ) : (
+                      <FileText
+                        aria-hidden
+                        className="size-4 shrink-0 text-[var(--color-fg-subtle)]"
+                      />
+                    )}
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm">{item.name}</span>
+                      <span className="block truncate font-mono text-2xs text-[var(--color-fg-subtle)]">
+                        {item.path}
+                      </span>
+                    </span>
+                    <span className="tnum font-mono text-2xs">
+                      {formatBytes(item.allocated, locale)}
+                    </span>
+                    <IconButton
+                      size="sm"
+                      icon={<X aria-hidden />}
+                      label={t('basket.remove', { name: item.name })}
+                      disabled={recycling}
+                      onClick={() => {
+                        onRemove(item.path);
+                      }}
+                    />
+                  </li>
+                </ContextMenuTrigger>
+                <ContextMenuContent>
+                  <ContextMenuLabel>{item.name}</ContextMenuLabel>
+                  <ContextMenuSeparator />
+                  {onReveal !== undefined && (
+                    <ContextMenuItem
+                      onSelect={() => {
+                        setRevealError(null);
+                        onReveal(item.path).catch((cause: unknown) => {
+                          setRevealError(errorMessage(cause));
+                        });
+                      }}
+                    >
+                      <FolderSearch className="size-4" aria-hidden="true" />
+                      {t('explore.menu.reveal')}
+                    </ContextMenuItem>
+                  )}
+                  <ContextMenuItem
+                    onSelect={() => {
+                      void globalThis.navigator?.clipboard?.writeText(item.path);
+                    }}
+                  >
+                    <Copy className="size-4" aria-hidden="true" />
+                    {t('explore.menu.copy')}
+                  </ContextMenuItem>
+                  <ContextMenuSeparator />
+                  <ContextMenuItem
+                    disabled={recycling}
+                    onSelect={() => {
+                      onRemove(item.path);
+                    }}
+                  >
+                    <ListMinus className="size-4" aria-hidden="true" />
+                    {t('basket.inBasketRemove')}
+                  </ContextMenuItem>
+                </ContextMenuContent>
+              </ContextMenu>
             ))}
           </ul>
         )}

@@ -6,6 +6,7 @@ import { initI18n } from '@vitals/i18n';
 import { App } from './App';
 import { registerDashboardStrings } from './features/dashboard';
 import { installGlobalErrorLogging, reportToLog } from './lib/logToFile';
+import { suppressNativeContextMenu } from './lib/nativeMenu';
 import { registerShellStrings } from './shell/strings';
 import './styles.css';
 
@@ -40,6 +41,7 @@ async function bootstrap(): Promise<void> {
   // splitting entirely.
   registerShellStrings();
   registerDashboardStrings();
+  suppressNativeContextMenu();
 
   mountedRoot = createRoot(container);
   mountedRoot.render(

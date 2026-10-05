@@ -286,6 +286,7 @@ export function StorageScreen({ source }: StorageScreenProps = {}): React.JSX.El
         report={state.report}
         error={state.recycleError}
         onRemove={state.removeFromBasket}
+        onReveal={(path) => (source ?? tauriSource).reveal(path)}
         onConfirm={() => {
           void state.recycleBasket();
         }}

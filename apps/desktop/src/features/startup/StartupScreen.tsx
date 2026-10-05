@@ -41,6 +41,7 @@ import {
 } from '@vitals/ui';
 
 import { ExportButton } from '../../components/ExportButton';
+import { useRowMenu } from '../../lib/useRowMenu';
 import { errorMessage, isCommandError } from '../../lib/commandError';
 import type { ExportColumn } from '../../lib/export';
 import { oneOf, useUrlState } from '../../lib/useUrlState';
@@ -520,9 +521,10 @@ function StartupTable({
   readonly menuFor: (entry: StartupEntry) => RowMenuModel;
 }) {
   const { t } = useTranslation(STARTUP_NS);
+  const rowMenu = useRowMenu();
 
   return (
-    <div className="table-scroll">
+    <div className="table-scroll" onKeyDown={rowMenu.onKeyDown}>
       <table className="w-full text-left">
         <thead>
           <tr className="text-2xs text-[var(--color-fg-muted)]">
@@ -549,9 +551,14 @@ function StartupTable({
           {rows.map((entry) => {
             const menu = menuFor(entry);
             return (
-              <ContextMenu key={startupKey(entry)}>
+              <ContextMenu key={startupKey(entry)} {...rowMenu.rootProps(startupKey(entry))}>
                 <ContextMenuTrigger asChild>
-                  <tr tabIndex={0} className={rowClass} data-testid="startup-row">
+                  <tr
+                    tabIndex={0}
+                    className={rowClass}
+                    data-testid="startup-row"
+                    onContextMenu={rowMenu.onContextMenu}
+                  >
                     <td className="cell-fill px-2.5 py-1.5">
                       <span className="block truncate text-sm">{labelFor(entry)}</span>
                       {entry.command !== null && (
@@ -619,9 +626,10 @@ function ServiceTable({
   readonly menuFor: (service: ServiceEntry) => RowMenuModel;
 }) {
   const { t } = useTranslation(STARTUP_NS);
+  const rowMenu = useRowMenu();
 
   return (
-    <div className="table-scroll">
+    <div className="table-scroll" onKeyDown={rowMenu.onKeyDown}>
       <table className="w-full text-left">
         <thead>
           <tr className="text-2xs text-[var(--color-fg-muted)]">
@@ -641,9 +649,14 @@ function ServiceTable({
           {rows.map((service) => {
             const menu = menuFor(service);
             return (
-              <ContextMenu key={serviceKey(service)}>
+              <ContextMenu key={serviceKey(service)} {...rowMenu.rootProps(serviceKey(service))}>
                 <ContextMenuTrigger asChild>
-                  <tr tabIndex={0} className={rowClass} data-testid="service-row">
+                  <tr
+                    tabIndex={0}
+                    className={rowClass}
+                    data-testid="service-row"
+                    onContextMenu={rowMenu.onContextMenu}
+                  >
                     <td className="cell-fill px-2.5 py-1.5">
                       <span className="block truncate text-sm">{labelFor(service)}</span>
                       <span className="block truncate font-mono text-2xs text-[var(--color-fg-subtle)]">

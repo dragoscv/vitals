@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { i18n, initI18n } from '@vitals/i18n';
@@ -586,7 +586,7 @@ describe('StorageScreen', () => {
       );
     });
 
-    it('adds a folder from the map with a right-click', async () => {
+    it('adds a folder from the map through its right-click menu', async () => {
       await scanned();
       const map = await screen.findByRole('img', { name: /Map of C:/ });
       vi.spyOn(map, 'getBoundingClientRect').mockReturnValue({
@@ -602,12 +602,61 @@ describe('StorageScreen', () => {
       });
       // The mock cell spans x 0..0.6, y 0.2..0.4: (30, 30) is inside it.
       await vi.waitFor(() => {
-        fireEvent.contextMenu(map, { clientX: 30, clientY: 30 });
-        expect(screen.getByRole('region', { name: 'To review' }).textContent).toContain(
-          '1 item in review',
-        );
+        fireEvent.contextMenu(map, { button: 2, clientX: 30, clientY: 30 });
+        expect(screen.getByRole('menu')).toBeTruthy();
       });
+      const menu = screen.getByRole('menu');
+      expect(within(menu).getByRole('menuitem', { name: 'Open here' })).toBeTruthy();
+      expect(within(menu).getByRole('menuitem', { name: 'Show in File Explorer' })).toBeTruthy();
+      expect(within(menu).getByRole('menuitem', { name: 'Copy path' })).toBeTruthy();
+      fireEvent.click(within(menu).getByRole('menuitem', { name: 'Add to review' }));
+      expect(screen.getByRole('region', { name: 'To review' }).textContent).toContain(
+        '1 item in review',
+      );
       expect(screen.getByRole('button', { name: 'Remove Users from review' })).toBeTruthy();
+    });
+
+    it('opens the folder row menu on a right click but not on a left-button contextmenu', async () => {
+      await scanned();
+      const row = await screen.findByRole('button', { name: 'Open Users' });
+
+      fireEvent.contextMenu(row, { button: 0 });
+      await act(async () => {});
+      expect(screen.queryByRole('menu')).toBeNull();
+
+      fireEvent.contextMenu(row, { button: 2 });
+      await act(async () => {});
+      const menu = await screen.findByRole('menu');
+      for (const name of ['Open here', 'Show in File Explorer', 'Copy path', 'Add to review']) {
+        expect(within(menu).getByRole('menuitem', { name })).toBeTruthy();
+      }
+    });
+
+    it('gives each item in the review dialog a right-click menu that can reveal and take it out', async () => {
+      const source = await scanned();
+      fireEvent.click(await screen.findByRole('button', { name: 'Add Users to review' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Review…' }));
+      const item = await screen.findByTestId('basket-item');
+
+      fireEvent.contextMenu(item, { button: 0 });
+      await act(async () => {});
+      expect(screen.queryByRole('menu')).toBeNull();
+
+      fireEvent.contextMenu(item, { button: 2 });
+      await act(async () => {});
+      const menu = await screen.findByRole('menu');
+      expect(within(menu).getByRole('menuitem', { name: 'Copy path' })).toBeTruthy();
+      fireEvent.click(within(menu).getByRole('menuitem', { name: 'Show in File Explorer' }));
+      expect(source.reveal).toHaveBeenCalledWith('C:\\Users');
+
+      fireEvent.contextMenu(screen.getByTestId('basket-item'), { button: 2 });
+      await act(async () => {});
+      fireEvent.click(
+        within(await screen.findByRole('menu')).getByRole('menuitem', {
+          name: 'Remove from review',
+        }),
+      );
+      expect(screen.queryByTestId('basket-item')).toBeNull();
     });
 
     it('does not count a folder twice when its parent is added', async () => {

@@ -418,5 +418,29 @@ describe('StartupScreen', () => {
       expect(within(menu).getByRole('menuitem', { name: 'Disable' })).toBeTruthy();
       expect(within(menu).getByRole('menuitem', { name: 'Open file location' })).toBeTruthy();
     });
+
+    it('does not open the row menu for a contextmenu that is neither a right click nor the menu key', async () => {
+      await mount('startup');
+
+      fireEvent.contextMenu(await screen.findByTestId('startup-row'), { button: 0 });
+      await act(async () => {});
+
+      expect(screen.queryByRole('menu')).toBeNull();
+    });
+
+    it('opens the service menu on a right click and refuses a left-button contextmenu', async () => {
+      await mount('services');
+      const row = await screen.findByTestId('service-row');
+
+      fireEvent.contextMenu(row, { button: 0 });
+      await act(async () => {});
+      expect(screen.queryByRole('menu')).toBeNull();
+
+      fireEvent.contextMenu(row, { button: 2 });
+      await act(async () => {});
+      const menu = await screen.findByRole('menu');
+      expect(within(menu).getByRole('menuitem', { name: 'Open file location' })).toBeTruthy();
+      expect(within(menu).getByRole('menuitem', { name: 'Copy details' })).toBeTruthy();
+    });
   });
 });

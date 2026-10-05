@@ -8,7 +8,7 @@
  * with the reason in its tooltip, never a zero.
  */
 
-import { CircuitBoard, Cpu, HardDrive, MemoryStick, Monitor, RefreshCw } from 'lucide-react';
+import { CircuitBoard, Copy, Cpu, HardDrive, MemoryStick, Monitor, RefreshCw } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -19,6 +19,12 @@ import {
   CardBody,
   CardHeader,
   CardTitle,
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuLabel,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
   EmptyState,
   Skeleton,
   formatBytes,
@@ -27,6 +33,8 @@ import {
 } from '@vitals/ui';
 
 import { errorMessage } from '../../lib/commandError';
+import { useRowMenu } from '../../lib/useRowMenu';
+import { Field } from './Field';
 import { installedMemory, type HardwareApi, type HardwareInfo } from './hardwareApi';
 import { DEVICES_NS } from './strings';
 
@@ -101,25 +109,51 @@ export function HardwarePanel({ api }: { readonly api: HardwareApi }): React.JSX
       )}
       <div className="hardware-grid pane-scroll">
         <CpuCard info={info} />
-        <MemoryCard info={info} />
+        <MemoryCard info={info} onRefresh={refresh} />
         <GpuCard info={info} />
-        <DrivesCard info={info} />
+        <DrivesCard info={info} onRefresh={refresh} />
         <BoardCard info={info} />
       </div>
     </div>
   );
 }
 
-/** A definition row; `null` is "Not available", never blank or zero. */
-function Row({ label, value }: { readonly label: string; readonly value: string | null }) {
+/** The menu shared by a memory module and a drive: copy what it says, re-read. */
+function CopyMenu({
+  label,
+  details,
+  onRefresh,
+}: {
+  readonly label: string;
+  readonly details: string;
+  readonly onRefresh: () => void;
+}) {
   const { t } = useTranslation(DEVICES_NS);
   return (
-    <div className="min-w-0">
-      <dt className="text-2xs text-[var(--color-fg-muted)]">{label}</dt>
-      <dd className="truncate text-sm" title={value ?? t('unavailableHint')}>
-        {value ?? <span className="text-[var(--color-fg-subtle)]">{t('unavailable')}</span>}
-      </dd>
-    </div>
+    <ContextMenuContent>
+      <ContextMenuLabel>{label}</ContextMenuLabel>
+      <ContextMenuItem
+        onSelect={() => {
+          void globalThis.navigator?.clipboard?.writeText(label);
+        }}
+      >
+        <Copy className="size-4" aria-hidden="true" />
+        {t('menu.copyName')}
+      </ContextMenuItem>
+      <ContextMenuItem
+        onSelect={() => {
+          void globalThis.navigator?.clipboard?.writeText(details);
+        }}
+      >
+        <Copy className="size-4" aria-hidden="true" />
+        {t('menu.copyDetails')}
+      </ContextMenuItem>
+      <ContextMenuSeparator />
+      <ContextMenuItem onSelect={onRefresh}>
+        <RefreshCw className="size-4" aria-hidden="true" />
+        {t('refresh')}
+      </ContextMenuItem>
+    </ContextMenuContent>
   );
 }
 
@@ -157,26 +191,26 @@ function CpuCard({ info }: { readonly info: HardwareInfo }) {
         <div key={`${cpu.name}-${i}`}>
           <p className="mb-2 text-sm font-medium">{cpu.name}</p>
           <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            <Row label={t('hardware.cores')} value={n(cpu.cores)} />
-            <Row label={t('hardware.threads')} value={n(cpu.threads)} />
-            <Row
+            <Field label={t('hardware.cores')} value={n(cpu.cores)} />
+            <Field label={t('hardware.threads')} value={n(cpu.threads)} />
+            <Field
               label={t('hardware.baseClock')}
               value={cpu.baseClockMhz === null ? null : `${n(cpu.baseClockMhz) ?? ''} MHz`}
             />
-            <Row
+            <Field
               label={t('hardware.l2')}
               value={
                 cpu.l2CacheKb === null ? null : formatBytes(cpu.l2CacheKb * 1024, i18n.language, 0)
               }
             />
-            <Row
+            <Field
               label={t('hardware.l3')}
               value={
                 cpu.l3CacheKb === null ? null : formatBytes(cpu.l3CacheKb * 1024, i18n.language, 0)
               }
             />
-            <Row label={t('hardware.socket')} value={cpu.socket} />
-            <Row
+            <Field label={t('hardware.socket')} value={cpu.socket} />
+            <Field
               label={t('hardware.virtualization')}
               value={
                 cpu.virtualization === null
@@ -191,17 +225,24 @@ function CpuCard({ info }: { readonly info: HardwareInfo }) {
   );
 }
 
-function MemoryCard({ info }: { readonly info: HardwareInfo }) {
+function MemoryCard({
+  info,
+  onRefresh,
+}: {
+  readonly info: HardwareInfo;
+  readonly onRefresh: () => void;
+}) {
   const { t, i18n } = useTranslation(DEVICES_NS);
+  const menu = useRowMenu();
   const mem = info.memory;
   const installed = installedMemory(mem);
   const bytes = (v: number | null) => (v === null ? null : formatBytes(v, i18n.language, 1));
   return (
     <Section title={t('hardware.memory')} icon={<MemoryStick aria-hidden className="size-4" />}>
       <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Row label={t('hardware.installed')} value={bytes(installed)} />
-        <Row label={t('hardware.usable')} value={bytes(mem.usableBytes)} />
-        <Row
+        <Field label={t('hardware.installed')} value={bytes(installed)} />
+        <Field label={t('hardware.usable')} value={bytes(mem.usableBytes)} />
+        <Field
           label={t('hardware.slots')}
           value={
             mem.slots === null
@@ -209,10 +250,10 @@ function MemoryCard({ info }: { readonly info: HardwareInfo }) {
               : t('hardware.slotsUsed', { used: mem.modules.length, total: mem.slots })
           }
         />
-        <Row label={t('hardware.maxCapacity')} value={bytes(mem.maxCapacityBytes)} />
+        <Field label={t('hardware.maxCapacity')} value={bytes(mem.maxCapacityBytes)} />
       </dl>
       {mem.modules.length > 0 && (
-        <table className="w-full text-left text-2xs">
+        <table className="w-full text-left text-2xs" onKeyDown={menu.onKeyDown}>
           <thead>
             <tr className="text-[var(--color-fg-muted)]">
               <th scope="col" className="py-1 pr-2 font-normal">
@@ -233,30 +274,46 @@ function MemoryCard({ info }: { readonly info: HardwareInfo }) {
             </tr>
           </thead>
           <tbody>
-            {mem.modules.map((m, i) => (
-              <tr key={m.slot ?? i} className="border-t border-[var(--color-border-subtle)]">
-                <td className="py-1 pr-2">{m.slot ?? '—'}</td>
-                <td className="py-1 pr-2 tabular-nums">{bytes(m.capacityBytes) ?? '—'}</td>
-                <td className="py-1 pr-2">
-                  {[m.kind, m.formFactor].filter((x) => x !== null).join(' ') || '—'}
-                </td>
-                <td className="py-1 pr-2 tabular-nums">
-                  {m.configuredSpeedMts !== null
-                    ? `${formatCount(m.configuredSpeedMts, i18n.language)} MT/s`
-                    : '—'}
-                  {m.speedMts !== null &&
-                    m.configuredSpeedMts !== null &&
-                    m.speedMts !== m.configuredSpeedMts && (
-                      <span className="ml-1 text-[var(--color-fg-subtle)]">
-                        {t('hardware.rated', { speed: formatCount(m.speedMts, i18n.language) })}
-                      </span>
-                    )}
-                </td>
-                <td className="py-1 pr-2">
-                  {[m.manufacturer, m.partNumber].filter((x) => x !== null).join(' ') || '—'}
-                </td>
-              </tr>
-            ))}
+            {mem.modules.map((m, i) => {
+              const id = m.slot ?? String(i);
+              const kind = [m.kind, m.formFactor].filter((x) => x !== null).join(' ') || '—';
+              const part =
+                [m.manufacturer, m.partNumber].filter((x) => x !== null).join(' ') || '—';
+              const speed =
+                m.configuredSpeedMts !== null
+                  ? `${formatCount(m.configuredSpeedMts, i18n.language)} MT/s`
+                  : '—';
+              const label = m.slot ?? `${t('hardware.slot')} ${String(i + 1)}`;
+              const details = [label, bytes(m.capacityBytes) ?? '—', kind, speed, part].join('\t');
+              return (
+                <ContextMenu key={id} {...menu.rootProps(id)}>
+                  <ContextMenuTrigger asChild>
+                    <tr
+                      className="border-t border-[var(--color-border-subtle)]"
+                      onContextMenu={menu.onContextMenu}
+                    >
+                      <td className="py-1 pr-2">{m.slot ?? '—'}</td>
+                      <td className="py-1 pr-2 tabular-nums">{bytes(m.capacityBytes) ?? '—'}</td>
+                      <td className="py-1 pr-2">{kind}</td>
+                      <td className="py-1 pr-2 tabular-nums">
+                        {speed}
+                        {m.speedMts !== null &&
+                          m.configuredSpeedMts !== null &&
+                          m.speedMts !== m.configuredSpeedMts && (
+                            <span className="ml-1 text-[var(--color-fg-subtle)]">
+                              {t('hardware.rated', {
+                                speed: formatCount(m.speedMts, i18n.language),
+                              })}
+                            </span>
+                          )}
+                      </td>
+                      <td className="py-1 pr-2">{part}</td>
+                    </tr>
+                  </ContextMenuTrigger>
+                  <CopyMenu label={label} details={details} onRefresh={onRefresh} />
+                </ContextMenu>
+              );
+            })}
           </tbody>
         </table>
       )}
@@ -273,7 +330,7 @@ function GpuCard({ info }: { readonly info: HardwareInfo }) {
         <div key={`${gpu.name}-${i}`}>
           <p className="mb-2 text-sm font-medium">{gpu.name}</p>
           <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            <Row
+            <Field
               label={t('hardware.videoMemory')}
               value={
                 gpu.videoMemoryBytes === null
@@ -281,7 +338,7 @@ function GpuCard({ info }: { readonly info: HardwareInfo }) {
                   : formatBytes(gpu.videoMemoryBytes, i18n.language, 1)
               }
             />
-            <Row
+            <Field
               label={t('hardware.display')}
               value={
                 gpu.resolution === null
@@ -291,7 +348,7 @@ function GpuCard({ info }: { readonly info: HardwareInfo }) {
                     : `${gpu.resolution} @ ${gpu.refreshHz} Hz`
               }
             />
-            <Row
+            <Field
               label={t('hardware.driver')}
               value={
                 gpu.driverVersion === null
@@ -308,45 +365,62 @@ function GpuCard({ info }: { readonly info: HardwareInfo }) {
   );
 }
 
-function DrivesCard({ info }: { readonly info: HardwareInfo }) {
+function DrivesCard({
+  info,
+  onRefresh,
+}: {
+  readonly info: HardwareInfo;
+  readonly onRefresh: () => void;
+}) {
   const { t, i18n } = useTranslation(DEVICES_NS);
+  const menu = useRowMenu();
   return (
     <Section title={t('hardware.drives')} icon={<HardDrive aria-hidden className="size-4" />}>
       {info.drives.length === 0 && <p className="text-2xs">{t('unavailable')}</p>}
-      <ul className="flex flex-col gap-3">
-        {info.drives.map((d) => (
-          <li key={d.index} className="min-w-0">
-            <div className="mb-1 flex flex-wrap items-center gap-1.5">
-              <span className="text-sm font-medium">{d.model}</span>
-              <Badge tone="neutral">{t(`media.${d.media}`)}</Badge>
-              {d.bus !== null && <Badge tone="neutral">{d.bus}</Badge>}
-              {d.health !== null && (
-                <Badge tone={d.health === 'Healthy' ? 'ok' : 'warn'}>
-                  {t(`health.${d.health}`, { defaultValue: d.health })}
-                </Badge>
-              )}
-            </div>
-            <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <Row
-                label={t('hardware.size')}
-                value={d.sizeBytes === null ? null : formatBytes(d.sizeBytes, i18n.language, 1)}
-              />
-              <Row
-                label={t('hardware.temperature')}
-                value={
-                  d.temperatureCelsius === null
-                    ? null
-                    : formatTemperature(d.temperatureCelsius, i18n.language)
-                }
-              />
-              <Row label={t('hardware.firmware')} value={d.firmware} />
-              <Row
-                label={t('hardware.serial')}
-                value={d.serialTail === null ? null : `…${d.serialTail}`}
-              />
-            </dl>
-          </li>
-        ))}
+      <ul className="flex flex-col gap-3" onKeyDown={menu.onKeyDown}>
+        {info.drives.map((d) => {
+          const size = d.sizeBytes === null ? null : formatBytes(d.sizeBytes, i18n.language, 1);
+          const temperature =
+            d.temperatureCelsius === null
+              ? null
+              : formatTemperature(d.temperatureCelsius, i18n.language);
+          const details = [
+            d.model,
+            t(`media.${d.media}`),
+            d.bus ?? '—',
+            size ?? '—',
+            temperature ?? '—',
+            d.firmware ?? '—',
+          ].join('\t');
+          return (
+            <ContextMenu key={d.index} {...menu.rootProps(String(d.index))}>
+              <ContextMenuTrigger asChild>
+                <li className="min-w-0" onContextMenu={menu.onContextMenu}>
+                  <div className="mb-1 flex flex-wrap items-center gap-1.5">
+                    <span className="text-sm font-medium">{d.model}</span>
+                    <Badge tone="neutral">{t(`media.${d.media}`)}</Badge>
+                    {d.bus !== null && <Badge tone="neutral">{d.bus}</Badge>}
+                    {d.health !== null && (
+                      <Badge tone={d.health === 'Healthy' ? 'ok' : 'warn'}>
+                        {t(`health.${d.health}`, { defaultValue: d.health })}
+                      </Badge>
+                    )}
+                  </div>
+                  <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    <Field label={t('hardware.size')} value={size} />
+                    <Field label={t('hardware.temperature')} value={temperature} />
+                    <Field label={t('hardware.firmware')} value={d.firmware} />
+                    <Field
+                      label={t('hardware.serial')}
+                      value={d.serialTail === null ? null : `…${d.serialTail}`}
+                    />
+                  </dl>
+                </li>
+              </ContextMenuTrigger>
+              <CopyMenu label={d.model} details={details} onRefresh={onRefresh} />
+            </ContextMenu>
+          );
+        })}
       </ul>
     </Section>
   );
@@ -362,12 +436,15 @@ function BoardCard({ info }: { readonly info: HardwareInfo }) {
   return (
     <Section title={t('hardware.board')} icon={<CircuitBoard aria-hidden className="size-4" />}>
       <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Row label={t('hardware.motherboard')} value={join(b.manufacturer, b.product, b.version)} />
-        <Row
+        <Field
+          label={t('hardware.motherboard')}
+          value={join(b.manufacturer, b.product, b.version)}
+        />
+        <Field
           label={t('hardware.bios')}
           value={join(b.biosVendor, b.biosVersion, b.biosDate === null ? null : `(${b.biosDate})`)}
         />
-        <Row label={t('hardware.system')} value={join(b.systemManufacturer, b.systemModel)} />
+        <Field label={t('hardware.system')} value={join(b.systemManufacturer, b.systemModel)} />
       </dl>
     </Section>
   );

@@ -37,6 +37,14 @@ export async function runUninstaller(app: Pick<InstalledApp, 'keyName' | 'source
   return invoke<void>('uninstall_app', { keyName: app.keyName, source: app.source });
 }
 
+/** Opens Explorer on a path; the same command Processes and Storage use. */
+export type LocationOpener = (path: string) => Promise<void>;
+
+export async function openLocation(path: string): Promise<void> {
+  const { invoke } = await import('@tauri-apps/api/core');
+  return invoke<void>('open_file_location', { path });
+}
+
 const PREFETCH_KEY = 'apps';
 
 /**

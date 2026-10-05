@@ -46,6 +46,11 @@ export interface DevCleanSource {
   readonly onCleanProgress: (listener: (progress: DevCleanProgress) => void) => Promise<() => void>;
   /** The folder picker; `null` when the user closed it without choosing. */
   readonly pickFolders: () => Promise<readonly string[] | null>;
+  /**
+   * Shows a path in File Explorer. Optional so a source without one simply
+   * has no "Show in File Explorer" item rather than one that does nothing.
+   */
+  readonly reveal?: (path: string) => Promise<void>;
 }
 
 /** The real source. Dynamic imports so a browser never evaluates the IPC module. */
@@ -84,6 +89,11 @@ export const tauriDevSource: DevCleanSource = {
     if (picked === null || picked === undefined) return null;
     if (typeof picked === 'string') return [picked];
     return Array.isArray(picked) ? picked.filter((p): p is string => typeof p === 'string') : null;
+  },
+  reveal: async (path) => {
+    // The same command the explorer above uses, so both reveal identically.
+    const { invoke } = await import('@tauri-apps/api/core');
+    return invoke<void>('open_file_location', { path });
   },
 };
 

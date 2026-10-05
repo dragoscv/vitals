@@ -359,6 +359,51 @@ describe('developer clean-up', () => {
     expect(screen.getByRole('checkbox', { name: /Compact Docker Desktop disk/ })).toBeTruthy();
   });
 
+  it('opens a row menu on a right click that ticks, reveals and copies the path', async () => {
+    const reveal = vi.fn<NonNullable<DevCleanSource['reveal']>>().mockResolvedValue(undefined);
+    await scanned({ reveal });
+    expand('memorai');
+    const row = checkbox(/Rust target/).closest('li');
+    if (row === null) throw new Error('no row');
+    const before = checkbox(/Rust target/).getAttribute('aria-checked');
+
+    fireEvent.contextMenu(row, { button: 2 });
+    await act(async () => {});
+    const menu = await screen.findByRole('menu');
+    expect(within(menu).getByRole('menuitem', { name: 'Copy path' })).toBeTruthy();
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Show in File Explorer' }));
+    expect(reveal).toHaveBeenCalledWith('E:\\gh\\memorai\\target');
+
+    fireEvent.contextMenu(row, { button: 2 });
+    await act(async () => {});
+    const again = await screen.findByRole('menu');
+    fireEvent.click(within(again).getByRole('menuitem', { name: /^(Tick for clean-up|Untick)$/ }));
+    expect(checkbox(/Rust target/).getAttribute('aria-checked')).not.toBe(before);
+  });
+
+  it('does not open a row menu for a contextmenu that is neither a right click nor the menu key', async () => {
+    await scanned();
+
+    fireEvent.contextMenu(screen.getAllByTestId('dev-project')[0] as HTMLElement, { button: 0 });
+    await act(async () => {});
+
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
+
+  it('ticks a whole project from its right-click menu', async () => {
+    await scanned();
+    const header = checkbox('Select every folder in codai').closest('[data-testid="dev-project"]');
+    if (header === null) throw new Error('no project header');
+
+    fireEvent.contextMenu(header, { button: 2 });
+    await act(async () => {});
+    const menu = await screen.findByRole('menu');
+    expect(within(menu).getByRole('menuitem', { name: 'Show its folders' })).toBeTruthy();
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Tick for clean-up' }));
+
+    expect(screen.getByText(/3 items selected/)).toBeTruthy();
+  });
+
   it('renders in Romanian without falling back to key paths', async () => {
     await i18n.changeLanguage('ro');
     const { source } = makeSource();

@@ -20,6 +20,8 @@ import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
+  ContextMenuLabel,
+  ContextMenuSeparator,
   ContextMenuTrigger,
   EmptyState,
   InfoPopover,
@@ -29,8 +31,9 @@ import {
   cn,
   formatPercent,
 } from '@vitals/ui';
-import { EyeOff, PlugZap } from 'lucide-react';
+import { Copy, Eye, EyeOff, PlugZap } from 'lucide-react';
 
+import { useRowMenu, type RowMenu } from '../../lib/useRowMenu';
 import { useSettings } from '../../settings/store';
 import { useHistory } from '../dashboard/useHistory';
 import { history as sharedHistory, type HistoryCollector } from '../dashboard/history';
@@ -95,6 +98,7 @@ export function PerformanceScreen({
   const entries = useMemo(() => visibleResources(all, showHidden), [all, showHidden]);
   const hiddenCount = useMemo(() => all.filter((entry) => entry.hidden).length, [all]);
   const selected = useMemo(() => resolveSelection(entries, selectedId), [entries, selectedId]);
+  const menu = useRowMenu();
 
   const setHidden = (entry: ResourceEntry, hidden: boolean): void => {
     patchSettings({ resourceVisibility: setResourceHidden(visibility, entry, hidden) });
@@ -159,13 +163,17 @@ export function PerformanceScreen({
                 so the side it appears on gets a gutter wider than the bar
                 (10 px): right in the column layout, bottom in the strip.
                 With the shared 8 px the bar sat on the buttons' edge. */}
-            <ul className="flex gap-1.5 p-2 pb-4 lg:flex-col lg:pr-4 lg:pb-2">
+            <ul
+              className="flex gap-1.5 p-2 pb-4 lg:flex-col lg:pr-4 lg:pb-2"
+              onKeyDown={menu.onKeyDown}
+            >
               {entries.map((entry) => (
                 <li key={entry.id} className="min-w-40 flex-1 lg:min-w-0">
                   <RailButton
                     entry={entry}
                     selected={entry.id === selected?.id}
                     locale={locale}
+                    menu={menu}
                     onSelect={() => {
                       setSelectedId(entry.id);
                     }}
@@ -189,90 +197,118 @@ export function PerformanceScreen({
   );
 }
 
+/** The headline the rail shows, as one line of text for the clipboard. */
+function readingText(entry: ResourceEntry, locale: string): string | null {
+  if (entry.utilization === null) return null;
+  return entry.kind === 'thermals'
+    ? `${String(Math.round(entry.utilization))} °C`
+    : formatPercent(entry.utilization, locale, 0);
+}
+
 function RailButton({
   entry,
   selected,
   locale,
+  menu,
   onSelect,
   onSetHidden,
 }: {
   readonly entry: ResourceEntry;
   readonly selected: boolean;
   readonly locale: string;
+  readonly menu: RowMenu;
   readonly onSelect: () => void;
   readonly onSetHidden: (hidden: boolean) => void;
 }) {
   const { t } = useTranslation(PERFORMANCE_NS);
   const label = entry.name === '' ? t(`${entry.kind}.title`) : entry.name;
-
-  const button = (
-    <button
-      type="button"
-      onClick={onSelect}
-      aria-current={selected ? 'true' : undefined}
-      className={cn(
-        'w-full rounded-[var(--radius-control)] border px-2.5 py-2 text-left',
-        'transition-[background-color,border-color,box-shadow] duration-(--duration-fast) ease-(--ease-out-quart)',
-        selected
-          ? 'border-[var(--color-accent-border)] bg-[var(--color-accent-subtle)] shadow-[var(--glow-accent-contained)]'
-          : 'border-transparent hover:border-[var(--color-border-subtle)] hover:bg-[var(--color-bg-inset)]/60',
-        // Shown only because "show hidden" is on: dimmed so the user can
-        // tell at a glance what the rail normally leaves out.
-        entry.hidden && 'opacity-60',
-      )}
-    >
-      <span className="flex items-baseline justify-between gap-2">
-        <span className="flex min-w-0 items-center gap-1.5">
-          {entry.hidden && (
-            <EyeOff
-              aria-label={t('rail.hiddenBadge')}
-              className="size-3 shrink-0 text-[var(--color-fg-subtle)]"
-            />
-          )}
-          <span className="truncate text-sm font-medium">{label}</span>
-        </span>
-        {/* No reading, no number. Networks have no honest percentage and a
-            GPU without counters is unmeasured — see `resources.ts`. */}
-        {entry.utilization !== null && (
-          <span className="tnum shrink-0 font-mono text-sm text-[var(--color-fg-muted)]">
-            {entry.kind === 'thermals'
-              ? `${Math.round(entry.utilization)}°`
-              : formatPercent(entry.utilization, locale, 0)}
-          </span>
-        )}
-      </span>
-      {entry.detail !== null && (
-        <span className="block truncate text-2xs text-[var(--color-fg-subtle)]">
-          {entry.detail}
-        </span>
-      )}
-      {entry.utilization !== null && entry.kind !== 'thermals' && (
-        <Meter
-          className="mt-1"
-          label=""
-          accessibleLabel={label}
-          value={entry.utilization}
-          valueText={formatPercent(entry.utilization, locale, 0)}
-        />
-      )}
-    </button>
-  );
-
-  // CPU, memory and thermals are not devices and cannot be hidden, so they
-  // get no menu rather than a menu with nothing useful in it.
-  if (entry.key === null) return button;
+  const reading = readingText(entry, locale);
+  // Exactly what the rail shows, no more: a summary that adds figures the
+  // user cannot see is one they cannot check before pasting it somewhere.
+  const summary = [label, reading, entry.detail].filter((part) => part !== null).join(' · ');
 
   return (
-    <ContextMenu>
-      <ContextMenuTrigger asChild>{button}</ContextMenuTrigger>
-      <ContextMenuContent className="min-w-40">
+    <ContextMenu {...menu.rootProps(entry.id)}>
+      <ContextMenuTrigger asChild>
+        <button
+          type="button"
+          onClick={onSelect}
+          onContextMenu={menu.onContextMenu}
+          aria-current={selected ? 'true' : undefined}
+          className={cn(
+            'w-full rounded-[var(--radius-control)] border px-2.5 py-2 text-left',
+            'transition-[background-color,border-color,box-shadow] duration-(--duration-fast) ease-(--ease-out-quart)',
+            selected
+              ? 'border-[var(--color-accent-border)] bg-[var(--color-accent-subtle)] shadow-[var(--glow-accent-contained)]'
+              : 'border-transparent hover:border-[var(--color-border-subtle)] hover:bg-[var(--color-bg-inset)]/60',
+            // Shown only because "show hidden" is on: dimmed so the user can
+            // tell at a glance what the rail normally leaves out.
+            entry.hidden && 'opacity-60',
+          )}
+        >
+          <span className="flex items-baseline justify-between gap-2">
+            <span className="flex min-w-0 items-center gap-1.5">
+              {entry.hidden && (
+                <EyeOff
+                  aria-label={t('rail.hiddenBadge')}
+                  className="size-3 shrink-0 text-[var(--color-fg-subtle)]"
+                />
+              )}
+              <span className="truncate text-sm font-medium">{label}</span>
+            </span>
+            {/* No reading, no number. Networks have no honest percentage and a
+            GPU without counters is unmeasured — see `resources.ts`. */}
+            {entry.utilization !== null && (
+              <span className="tnum shrink-0 font-mono text-sm text-[var(--color-fg-muted)]">
+                {entry.kind === 'thermals'
+                  ? `${Math.round(entry.utilization)}°`
+                  : formatPercent(entry.utilization, locale, 0)}
+              </span>
+            )}
+          </span>
+          {entry.detail !== null && (
+            <span className="block truncate text-2xs text-[var(--color-fg-subtle)]">
+              {entry.detail}
+            </span>
+          )}
+          {entry.utilization !== null && entry.kind !== 'thermals' && (
+            <Meter
+              className="mt-1"
+              label=""
+              accessibleLabel={label}
+              value={entry.utilization}
+              valueText={formatPercent(entry.utilization, locale, 0)}
+            />
+          )}
+        </button>
+      </ContextMenuTrigger>
+      <ContextMenuContent className="min-w-48">
+        <ContextMenuLabel>{label}</ContextMenuLabel>
+        <ContextMenuSeparator />
         <ContextMenuItem
           onSelect={() => {
-            onSetHidden(!entry.hidden);
+            void globalThis.navigator?.clipboard?.writeText(summary);
           }}
         >
-          {entry.hidden ? t('rail.show') : t('rail.hide')}
+          <Copy className="size-4" aria-hidden="true" />
+          {t('rail.copySummary')}
         </ContextMenuItem>
+        {/* CPU, memory and thermals are not devices and cannot be hidden,
+            so they get no Hide rather than one that does nothing. */}
+        {entry.key !== null && (
+          <ContextMenuItem
+            onSelect={() => {
+              onSetHidden(!entry.hidden);
+            }}
+          >
+            {entry.hidden ? (
+              <Eye className="size-4" aria-hidden="true" />
+            ) : (
+              <EyeOff className="size-4" aria-hidden="true" />
+            )}
+            {entry.hidden ? t('rail.show') : t('rail.hide')}
+          </ContextMenuItem>
+        )}
       </ContextMenuContent>
     </ContextMenu>
   );

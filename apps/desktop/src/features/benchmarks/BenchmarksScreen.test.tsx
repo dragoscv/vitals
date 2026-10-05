@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { i18n, initI18n } from '@vitals/i18n';
@@ -445,5 +445,83 @@ describe('BenchmarksScreen', () => {
 
       expect(screen.getByText(/48 de secunde/)).toBeTruthy();
     });
+  });
+});
+
+describe('the benchmark row menu', () => {
+  const openMenu = async (target: HTMLElement): Promise<HTMLElement> => {
+    fireEvent.contextMenu(target, { button: 2, clientX: 5, clientY: 5 });
+    await act(async () => {});
+    return screen.findByRole('menu');
+  };
+
+  it('opens on a right click with select, run only, copy result and refresh', async () => {
+    await mount();
+
+    const menu = await openMenu(screen.getByTestId('choice-cpuMultiThread'));
+
+    expect(
+      within(menu)
+        .getAllByRole('menuitem')
+        .map((item) => item.textContent),
+    ).toEqual(['Leave out of the run', 'Run only this', 'Copy result', 'Refresh the list']);
+    // Nothing has run yet, so there is no result to copy.
+    expect(
+      within(menu)
+        .getByText('Copy result')
+        .closest('[role="menuitem"]')
+        ?.getAttribute('aria-disabled'),
+    ).toBe('true');
+  });
+
+  it('does not open on a left-button contextmenu', async () => {
+    await mount();
+
+    fireEvent.contextMenu(screen.getByTestId('choice-cpuMultiThread'), {
+      button: 0,
+      clientX: 0,
+      clientY: 0,
+    });
+    await act(async () => {});
+
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
+
+  it('runs exactly the one test when run only this is chosen', async () => {
+    const source = await mount();
+
+    fireEvent.click(
+      within(await openMenu(screen.getByTestId('choice-memoryLatency'))).getByText('Run only this'),
+    );
+
+    await waitFor(() => {
+      expect(source.run).toHaveBeenCalledWith(['memoryLatency']);
+    });
+  });
+
+  it('deselects a test from the menu, and the checkbox follows', async () => {
+    await mount();
+
+    fireEvent.click(
+      within(await openMenu(screen.getByTestId('choice-cpuMultiThread'))).getByText(
+        'Leave out of the run',
+      ),
+    );
+
+    expect(
+      screen.getByRole('checkbox', { name: 'CPU — all threads' }).getAttribute('aria-checked'),
+    ).toBe('false');
+  });
+
+  it('offers nothing but refresh for a test the backend cannot run', async () => {
+    await mount();
+
+    const menu = await openMenu(screen.getByTestId('choice-gpuRender'));
+    const disabled = within(menu)
+      .getAllByRole('menuitem')
+      .filter((item) => item.getAttribute('aria-disabled') === 'true')
+      .map((item) => item.textContent);
+
+    expect(disabled).toEqual(['Include in the run', 'Run only this', 'Copy result']);
   });
 });

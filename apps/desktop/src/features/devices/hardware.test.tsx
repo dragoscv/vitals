@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { i18n, initI18n } from '@vitals/i18n';
@@ -294,5 +294,81 @@ describe('DeviceTreePanel', () => {
     await screen.findByRole('button', { name: /Bluetooth/ });
     expect(screen.getByText(/3 dispozitive în 2 grupuri/)).toBeTruthy();
     expect(container.textContent ?? '').not.toMatch(/\btree\.[a-z]/i);
+  });
+});
+
+describe('row menus', () => {
+  const items = async (): Promise<(string | null)[]> =>
+    within(await screen.findByRole('menu'))
+      .getAllByRole('menuitem')
+      .map((item) => item.textContent);
+
+  it('opens a drive menu on a right click with copies and a refresh', async () => {
+    render(<HardwarePanel api={api()} />);
+    const drives = await screen.findByRole('region', { name: 'Drives' });
+    const drive = within(drives).getByText('CT2000P3PSSD8').closest('li');
+    if (drive === null) throw new Error('no drive row');
+
+    fireEvent.contextMenu(drive, { button: 2, clientX: 5, clientY: 5 });
+    await act(async () => {});
+
+    expect(await items()).toEqual(['Copy name', 'Copy details', 'Refresh']);
+  });
+
+  it('opens a memory module menu on a right click but not on a left-button contextmenu', async () => {
+    render(<HardwarePanel api={api()} />);
+    const row = (await screen.findByText('DDR5-A1')).closest('tr');
+    if (row === null) throw new Error('no module row');
+
+    fireEvent.contextMenu(row, { button: 0, clientX: 0, clientY: 0 });
+    await act(async () => {});
+    expect(screen.queryByRole('menu')).toBeNull();
+
+    fireEvent.contextMenu(row, { button: 2, clientX: 5, clientY: 5 });
+    await act(async () => {});
+    expect(await items()).toEqual(['Copy name', 'Copy details', 'Refresh']);
+  });
+
+  it('opens a device menu with the copies, a search, show-hidden and reload', async () => {
+    render(<DeviceTreePanel api={api()} />);
+    const device = (await screen.findByText('Old headset')).closest('li');
+    if (device === null) throw new Error('no device row');
+
+    fireEvent.contextMenu(device, { button: 2, clientX: 5, clientY: 5 });
+    await act(async () => {});
+
+    expect(await items()).toEqual([
+      'Copy name',
+      'Copy device instance ID',
+      'Copy driver details',
+      'Search online',
+      'Show devices that are not connected',
+      'Refresh',
+    ]);
+  });
+
+  it('asks again with disconnected devices when show-hidden is chosen from a menu', async () => {
+    const hw = api();
+    render(<DeviceTreePanel api={hw} />);
+    const heading = await screen.findByRole('button', { name: /Bluetooth/ });
+
+    fireEvent.contextMenu(heading, { button: 2, clientX: 5, clientY: 5 });
+    await act(async () => {});
+    fireEvent.click(
+      within(await screen.findByRole('menu')).getByText('Show devices that are not connected'),
+    );
+
+    await vi.waitFor(() => expect(hw.devices).toHaveBeenLastCalledWith(true));
+  });
+
+  it('does not open a device menu on a left-button contextmenu', async () => {
+    render(<DeviceTreePanel api={api()} />);
+    const device = (await screen.findByText('Old headset')).closest('li');
+    if (device === null) throw new Error('no device row');
+
+    fireEvent.contextMenu(device, { button: 0, clientX: 0, clientY: 0 });
+    await act(async () => {});
+
+    expect(screen.queryByRole('menu')).toBeNull();
   });
 });

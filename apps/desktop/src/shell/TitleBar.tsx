@@ -1,7 +1,16 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
+import { EyeOff, Maximize2, Minimize2, Minus, Power, X } from 'lucide-react';
 
-import { cn, focusRing } from '@vitals/ui';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+  cn,
+  focusRing,
+} from '@vitals/ui';
 
 import { SHELL_NS } from './strings';
 import { getWindowControls, type WindowControls } from './windowControls';
@@ -130,47 +139,84 @@ export function TitleBar({ children, controls }: TitleBarProps) {
   }, [api]);
 
   return (
-    <header
-      className="shell-chrome relative flex shrink-0 items-center"
-      style={{ height: TITLE_BAR_HEIGHT }}
-    >
-      {/*
-       * The drag region is a sibling layer rather than the header itself so
-       * that adding a control to the bar can never accidentally make it
-       * draggable — a draggable button does not fire click reliably, and the
-       * bug looks like a broken button rather than a layout mistake.
-       */}
-      <div data-tauri-drag-region className="absolute inset-0" />
-
-      <div className="pointer-events-none relative flex h-full min-w-0 flex-1 items-center gap-2 px-3">
-        {/*
-         * A mark rather than bare text: the accent dot breathes while the
-         * window is open, which is the product's one ambient sign of life.
-         * Decorative — the section name beside it is the accessible content.
-         */}
-        <span
-          aria-hidden="true"
-          className="vitals-live-dot size-1.5 shrink-0 rounded-full bg-[var(--color-accent)] text-[var(--color-accent)]"
-        />
-        <span className="truncate text-2xs font-medium text-[var(--color-fg-muted)]">
-          {children}
-        </span>
-      </div>
-
-      <div className="relative flex h-full items-center">
-        <CaptionButton label={t('window.minimise')} onClick={() => void api.minimize()}>
-          <Glyph>{glyph.minimise}</Glyph>
-        </CaptionButton>
-        <CaptionButton
-          label={maximised ? t('window.restore') : t('window.maximise')}
-          onClick={() => void api.toggleMaximize()}
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <header
+          className="shell-chrome relative flex shrink-0 items-center"
+          style={{ height: TITLE_BAR_HEIGHT }}
         >
-          <Glyph>{maximised ? glyph.restore : glyph.maximise}</Glyph>
-        </CaptionButton>
-        <CaptionButton danger label={t('window.close')} onClick={() => void api.close()}>
-          <Glyph>{glyph.close}</Glyph>
-        </CaptionButton>
-      </div>
-    </header>
+          {/*
+           * The drag region is a sibling layer rather than the header itself so
+           * that adding a control to the bar can never accidentally make it
+           * draggable — a draggable button does not fire click reliably, and the
+           * bug looks like a broken button rather than a layout mistake.
+           */}
+          <div data-tauri-drag-region className="absolute inset-0" />
+
+          <div className="pointer-events-none relative flex h-full min-w-0 flex-1 items-center gap-2 px-3">
+            {/*
+             * A mark rather than bare text: the accent dot breathes while the
+             * window is open, which is the product's one ambient sign of life.
+             * Decorative — the section name beside it is the accessible content.
+             */}
+            <span
+              aria-hidden="true"
+              className="vitals-live-dot size-1.5 shrink-0 rounded-full bg-[var(--color-accent)] text-[var(--color-accent)]"
+            />
+            <span className="truncate text-2xs font-medium text-[var(--color-fg-muted)]">
+              {children}
+            </span>
+          </div>
+
+          <div className="relative flex h-full items-center">
+            <CaptionButton label={t('window.minimise')} onClick={() => void api.minimize()}>
+              <Glyph>{glyph.minimise}</Glyph>
+            </CaptionButton>
+            <CaptionButton
+              label={maximised ? t('window.restore') : t('window.maximise')}
+              onClick={() => void api.toggleMaximize()}
+            >
+              <Glyph>{maximised ? glyph.restore : glyph.maximise}</Glyph>
+            </CaptionButton>
+            <CaptionButton danger label={t('window.close')} onClick={() => void api.close()}>
+              <Glyph>{glyph.close}</Glyph>
+            </CaptionButton>
+          </div>
+        </header>
+      </ContextMenuTrigger>
+      {/*
+       * The window's own menu on right-click, as every Windows title bar has.
+       * A frameless window loses the system menu, and without this the
+       * webview's Back/Reload/Inspect menu appeared in its place. Quit is here
+       * because the × hides to the tray, and the tray is the only other way out.
+       */}
+      <ContextMenuContent className="min-w-52" aria-label={t('window.menu')}>
+        <ContextMenuItem onSelect={() => void api.minimize()}>
+          <Minus className="size-4" aria-hidden="true" />
+          {t('window.minimise')}
+        </ContextMenuItem>
+        <ContextMenuItem onSelect={() => void api.toggleMaximize()}>
+          {maximised ? (
+            <Minimize2 className="size-4" aria-hidden="true" />
+          ) : (
+            <Maximize2 className="size-4" aria-hidden="true" />
+          )}
+          {maximised ? t('window.restore') : t('window.maximise')}
+        </ContextMenuItem>
+        <ContextMenuItem onSelect={() => void api.hide()}>
+          <EyeOff className="size-4" aria-hidden="true" />
+          {t('window.hideToTray')}
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem onSelect={() => void api.close()}>
+          <X className="size-4" aria-hidden="true" />
+          {t('window.close')}
+        </ContextMenuItem>
+        <ContextMenuItem destructive onSelect={() => void api.quit()}>
+          <Power className="size-4" aria-hidden="true" />
+          {t('window.quit')}
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }

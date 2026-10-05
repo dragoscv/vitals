@@ -55,6 +55,14 @@ const en = {
     cancel: 'Cancel',
   },
 
+  menu: {
+    copyDetails: 'Copy details',
+    searchOnline: 'Search online',
+    exportCsv: 'Export the list as CSV',
+    exportJson: 'Export the list as JSON',
+    exportFailed: 'Export',
+  },
+
   empty: {
     title: 'No history yet',
     body: 'Vitals accumulates resource usage as applications run. This list will populate over time.',
@@ -125,6 +133,14 @@ const ro = {
     body: 'Toate datele de utilizare acumulate vor fi șterse permanent. Istoricul va reporni de la zero.',
     confirm: 'Șterge istoricul',
     cancel: 'Anulează',
+  },
+
+  menu: {
+    copyDetails: 'Copiază detaliile',
+    searchOnline: 'Caută online',
+    exportCsv: 'Exportă lista ca CSV',
+    exportJson: 'Exportă lista ca JSON',
+    exportFailed: 'Export',
   },
 
   empty: {

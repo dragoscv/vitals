@@ -21,8 +21,8 @@
  * those is a fabrication the user would act on.
  */
 
-import { Cpu, Lock, PlugZap, RefreshCw, ShieldAlert, ShieldCheck } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Copy, Cpu, Lock, PlugZap, RefreshCw, ShieldAlert, ShieldCheck } from 'lucide-react';
+import { forwardRef, useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import {
@@ -32,6 +32,12 @@ import {
   CardBody,
   CardHeader,
   CardTitle,
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuLabel,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
   EmptyState,
   Skeleton,
   Tabs,
@@ -49,6 +55,7 @@ import {
 import { ExportButton } from '../../components/ExportButton';
 import { errorMessage, isCommandError } from '../../lib/commandError';
 import type { ExportColumn } from '../../lib/export';
+import { useRowMenu } from '../../lib/useRowMenu';
 import { hasTauriHost } from '../../shell/host';
 import {
   aggregateIsRedundant,
@@ -65,6 +72,7 @@ import {
 } from './model';
 import { DEVICES_NS } from './strings';
 import { DeviceTreePanel } from './DeviceTreePanel';
+import { Field } from './Field';
 import { HardwarePanel } from './HardwarePanel';
 import { tauriHardwareApi, type HardwareApi } from './hardwareApi';
 import {
@@ -185,7 +193,7 @@ export function DevicesScreen({
                 <ThermalSection snapshot={snapshot} />
                 {snapshot.batteries.length > 0 && <BatterySection snapshot={snapshot} />}
               </div>
-              <ReadingsSection snapshot={snapshot} />
+              <ReadingsSection snapshot={snapshot} onRefresh={state.refresh} />
               <GapsSection
                 gaps={snapshot.gaps}
                 service={serviceApi}
@@ -205,39 +213,6 @@ export function DevicesScreen({
           )}
         </Tabs>
       )}
-    </div>
-  );
-}
-
-/** A label with either a value or an explicit, reasoned absence. */
-function Field({
-  label,
-  value,
-  hint,
-}: {
-  readonly label: string;
-  /** `null` renders as "Not available", never as a zero or a dash alone. */
-  readonly value: string | null;
-  readonly hint?: string;
-}) {
-  const { t } = useTranslation(DEVICES_NS);
-
-  return (
-    <div className="min-w-0">
-      <dt className="text-2xs text-[var(--color-fg-muted)]">{label}</dt>
-      <dd className="truncate text-sm">
-        {value ?? (
-          // `title` rather than Tooltip: Tooltip throws outside the shell's
-          // TooltipProvider, which would crash this screen anywhere else it
-          // is rendered — including in tests.
-          <span className="text-[var(--color-fg-subtle)]" title={t('unavailableHint')}>
-            {t('unavailable')}
-          </span>
-        )}
-        {hint !== undefined && value !== null && (
-          <span className="ml-1 text-2xs text-[var(--color-fg-subtle)]">{hint}</span>
-        )}
-      </dd>
     </div>
   );
 }
@@ -477,8 +452,15 @@ function ThermalSection({ snapshot }: { readonly snapshot: SensorsSnapshot }) {
   );
 }
 
-function ReadingsSection({ snapshot }: { readonly snapshot: SensorsSnapshot }) {
+function ReadingsSection({
+  snapshot,
+  onRefresh,
+}: {
+  readonly snapshot: SensorsSnapshot;
+  readonly onRefresh: () => void;
+}) {
   const { t } = useTranslation(DEVICES_NS);
+  const menu = useRowMenu();
   const rows = useMemo(() => sortReadings(snapshot.readings), [snapshot.readings]);
 
   // The raw value and its unit as separate columns. A "42 °C" string cannot be
@@ -513,7 +495,7 @@ function ReadingsSection({ snapshot }: { readonly snapshot: SensorsSnapshot }) {
         {rows.length === 0 ? (
           <EmptyState title={t('sensors.none')} description={t('sensors.noneBody')} />
         ) : (
-          <table className="w-full text-left">
+          <table className="w-full text-left" onKeyDown={menu.onKeyDown}>
             <thead>
               <tr className="text-2xs text-[var(--color-fg-muted)]">
                 <th scope="col" className="px-2.5 py-1.5 font-normal">
@@ -532,7 +514,12 @@ function ReadingsSection({ snapshot }: { readonly snapshot: SensorsSnapshot }) {
             </thead>
             <tbody>
               {rows.map((reading) => (
-                <ReadingRow key={reading.key} reading={reading} />
+                <ContextMenu key={reading.key} {...menu.rootProps(reading.key)}>
+                  <ContextMenuTrigger asChild>
+                    <ReadingRow reading={reading} onContextMenu={menu.onContextMenu} />
+                  </ContextMenuTrigger>
+                  <ReadingMenu reading={reading} onRefresh={onRefresh} />
+                </ContextMenu>
               ))}
             </tbody>
           </table>
@@ -542,11 +529,78 @@ function ReadingsSection({ snapshot }: { readonly snapshot: SensorsSnapshot }) {
   );
 }
 
-function ReadingRow({ reading }: { readonly reading: SensorReading }) {
+function ReadingMenu({
+  reading,
+  onRefresh,
+}: {
+  readonly reading: SensorReading;
+  readonly onRefresh: () => void;
+}) {
+  const { t, i18n } = useTranslation(DEVICES_NS);
+  const value = formatReading(reading, i18n.language);
+  const copy = (text: string): void => {
+    void globalThis.navigator?.clipboard?.writeText(text);
+  };
+  return (
+    <ContextMenuContent>
+      <ContextMenuLabel>{reading.label}</ContextMenuLabel>
+      <ContextMenuItem
+        onSelect={() => {
+          copy(value);
+        }}
+      >
+        <Copy className="size-4" aria-hidden="true" />
+        {t('menu.copyValue')}
+      </ContextMenuItem>
+      <ContextMenuItem
+        onSelect={() => {
+          copy(reading.label);
+        }}
+      >
+        <Copy className="size-4" aria-hidden="true" />
+        {t('menu.copyName')}
+      </ContextMenuItem>
+      <ContextMenuItem
+        onSelect={() => {
+          copy(
+            [
+              reading.label,
+              value,
+              t(`source.${reading.source}`),
+              t(`quality.${reading.quality}`),
+            ].join('\t'),
+          );
+        }}
+      >
+        <Copy className="size-4" aria-hidden="true" />
+        {t('menu.copyDetails')}
+      </ContextMenuItem>
+      <ContextMenuSeparator />
+      <ContextMenuItem onSelect={onRefresh}>
+        <RefreshCw className="size-4" aria-hidden="true" />
+        {t('refresh')}
+      </ContextMenuItem>
+    </ContextMenuContent>
+  );
+}
+
+/**
+ * One sensor row. Forwards its ref and extra props because it is the
+ * `ContextMenuTrigger asChild` target: Radix attaches its handlers and ref
+ * to whatever element this renders.
+ */
+const ReadingRow = forwardRef<
+  HTMLTableRowElement,
+  { readonly reading: SensorReading } & Omit<React.ComponentPropsWithoutRef<'tr'>, 'children'>
+>(function ReadingRow({ reading, className, ...rest }, ref) {
   const { t, i18n } = useTranslation(DEVICES_NS);
 
   return (
-    <tr className="border-t border-[var(--color-border-subtle)]">
+    <tr
+      ref={ref}
+      className={cn('border-t border-[var(--color-border-subtle)]', className)}
+      {...rest}
+    >
       <td className="px-2.5 py-1.5 text-sm">{reading.label}</td>
       <td className="px-2.5 py-1.5 text-sm tabular-nums">
         {formatReading(reading, i18n.language)}
@@ -566,7 +620,7 @@ function ReadingRow({ reading }: { readonly reading: SensorReading }) {
       </td>
     </tr>
   );
-}
+});
 
 /**
  * Renders a reading in its own unit.

@@ -5,12 +5,18 @@
  * explicit messaging that this is Vitals' own history (not Windows' SRUM).
  */
 
-import { Info, RefreshCw, Trash2 } from 'lucide-react';
+import { Copy, Download, Globe, Info, RefreshCw, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import {
   Button,
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuLabel,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
   DialogContent,
   DialogRoot,
   EmptyState,
@@ -22,7 +28,9 @@ import {
 } from '@vitals/ui';
 
 import { ExportButton } from '../../components/ExportButton';
-import type { ExportColumn } from '../../lib/export';
+import type { ExportColumn, ExportKind } from '../../lib/export';
+import { reportFailure } from '../../lib/reportFailure';
+import { useRowMenu } from '../../lib/useRowMenu';
 import { oneOf, useUrlState } from '../../lib/useUrlState';
 import { HISTORY_NS } from './strings';
 import {
@@ -123,6 +131,21 @@ export function AppHistoryScreen({
     void state.clear();
   };
 
+  // The same serialisers and file name the toolbar's Export button uses, so
+  // a file exported from a row menu is indistinguishable from the toolbar's.
+  const runExport = (kind: ExportKind): void => {
+    void reportFailure(
+      import('../../lib/export').then((exporter) => {
+        const contents =
+          kind === 'csv'
+            ? exporter.toCsv(visible, exportColumns)
+            : exporter.toJson(visible, exportColumns);
+        exporter.saveExport(exporter.exportFilename('app-history', kind), contents, kind);
+      }),
+      t('menu.exportFailed'),
+    );
+  };
+
   return (
     <div className="screen">
       <header className="flex flex-wrap items-start justify-between gap-2">
@@ -144,7 +167,7 @@ export function AppHistoryScreen({
                 className="text-[var(--color-fg-muted)] transition-colors hover:text-[var(--color-fg-default)]"
                 aria-label={t('about.title')}
               >
-                <Info className="size-4" />
+                <Info className="size-4" aria-hidden="true" />
               </button>
             </Tooltip>
           </div>
@@ -202,7 +225,17 @@ export function AppHistoryScreen({
       ) : visible.length === 0 ? (
         <EmptyState title={t('filtered.title')} description={t('filtered.body')} />
       ) : (
-        <HistoryTable records={visible} locale={locale} />
+        <HistoryTable
+          records={visible}
+          locale={locale}
+          actions={{
+            onExport: runExport,
+            onClear: () => {
+              setConfirmingClear(true);
+            },
+            onRefresh: state.refresh,
+          }}
+        />
       )}
 
       <DialogRoot
@@ -285,20 +318,33 @@ function Summary({
   );
 }
 
+interface HistoryTableActions {
+  readonly onExport: (kind: ExportKind) => void;
+  /** Opens the same confirmation as the toolbar button; never clears directly. */
+  readonly onClear: () => void;
+  readonly onRefresh: () => void;
+}
+
 function HistoryTable({
   records,
   locale,
+  actions,
 }: {
   readonly records: readonly AppHistoryRecord[];
   readonly locale: string;
+  readonly actions: HistoryTableActions;
 }) {
   const { t } = useTranslation(HISTORY_NS);
+  const menu = useRowMenu();
 
+  // Rows carry a top border and the header none, like every other table: the
+  // `.table-scroll` frame already draws the outer edge, so a bottom border on
+  // the last row doubled it.
   return (
-    <div className="table-scroll">
-      <table className="w-full border-collapse text-sm">
+    <div className="table-scroll" onKeyDown={menu.onKeyDown}>
+      <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-[var(--color-border-subtle)]">
+          <tr>
             <th className="cell-fill px-3 py-2 text-left font-medium text-[var(--color-fg-muted)]">
               {t('column.name')}
             </th>
@@ -324,46 +370,123 @@ function HistoryTable({
         </thead>
         <tbody>
           {records.map((record) => (
-            <tr
-              key={record.executable}
-              className="border-b border-[var(--color-border-subtle)] transition-colors hover:bg-[var(--color-bg-subtle)]"
-            >
-              <td className="cell-fill px-3 py-2">
-                <div className="flex min-w-0 flex-col">
-                  <span className="truncate font-medium">{record.name}</span>
-                  <span
-                    className="truncate text-2xs text-[var(--color-fg-muted)]"
-                    title={record.executable}
-                  >
-                    {record.executable}
-                  </span>
-                </div>
-              </td>
-              <td className="px-3 py-2 text-right tabular-nums">
-                {formatCpuTime(record.cpuSeconds, locale)}
-              </td>
-              <td className="px-3 py-2 text-right tabular-nums">
-                {formatBytes(record.diskReadBytes, locale)}
-              </td>
-              <td className="px-3 py-2 text-right tabular-nums">
-                {formatBytes(record.diskWriteBytes, locale)}
-              </td>
-              <td className="px-3 py-2 text-right tabular-nums">
-                {formatBytes(record.peakPrivateBytes, locale)}
-              </td>
-              <td className="px-3 py-2 text-right text-2xs text-[var(--color-fg-muted)]">
-                {new Date(record.lastSeen).toLocaleDateString(locale, {
-                  month: 'short',
-                  day: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })}
-              </td>
-              <td className="px-3 py-2 text-right tabular-nums">{record.sessions}</td>
-            </tr>
+            <ContextMenu key={record.executable} {...menu.rootProps(record.executable)}>
+              <ContextMenuTrigger asChild>
+                <tr
+                  className="border-t border-[var(--color-border-subtle)] transition-colors hover:bg-[var(--color-bg-subtle)]"
+                  onContextMenu={menu.onContextMenu}
+                >
+                  <td className="cell-fill px-3 py-2">
+                    <div className="flex min-w-0 flex-col">
+                      <span className="truncate font-medium">{record.name}</span>
+                      <span
+                        className="truncate text-2xs text-[var(--color-fg-muted)]"
+                        title={record.executable}
+                      >
+                        {record.executable}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums">
+                    {formatCpuTime(record.cpuSeconds, locale)}
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums">
+                    {formatBytes(record.diskReadBytes, locale)}
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums">
+                    {formatBytes(record.diskWriteBytes, locale)}
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums">
+                    {formatBytes(record.peakPrivateBytes, locale)}
+                  </td>
+                  <td className="px-3 py-2 text-right text-2xs text-[var(--color-fg-muted)]">
+                    {new Date(record.lastSeen).toLocaleDateString(locale, {
+                      month: 'short',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums">{record.sessions}</td>
+                </tr>
+              </ContextMenuTrigger>
+              <HistoryMenu record={record} locale={locale} actions={actions} />
+            </ContextMenu>
           ))}
         </tbody>
       </table>
     </div>
+  );
+}
+
+function HistoryMenu({
+  record,
+  locale,
+  actions,
+}: {
+  readonly record: AppHistoryRecord;
+  readonly locale: string;
+  readonly actions: HistoryTableActions;
+}) {
+  const { t } = useTranslation(HISTORY_NS);
+  const details = [
+    record.name,
+    record.executable,
+    `${t('column.cpuTime')}: ${formatCpuTime(record.cpuSeconds, locale)}`,
+    `${t('column.diskRead')}: ${formatBytes(record.diskReadBytes, locale)}`,
+    `${t('column.diskWrite')}: ${formatBytes(record.diskWriteBytes, locale)}`,
+    `${t('column.peakMemory')}: ${formatBytes(record.peakPrivateBytes, locale)}`,
+    `${t('column.sessions')}: ${String(record.sessions)}`,
+  ].join('\n');
+  return (
+    <ContextMenuContent>
+      <ContextMenuLabel>{record.name}</ContextMenuLabel>
+      <ContextMenuItem
+        onSelect={() => {
+          void globalThis.navigator?.clipboard?.writeText(details);
+        }}
+      >
+        <Copy className="size-4" aria-hidden="true" />
+        {t('menu.copyDetails')}
+      </ContextMenuItem>
+      <ContextMenuItem
+        onSelect={() => {
+          globalThis.open?.(
+            `https://duckduckgo.com/?q=${encodeURIComponent(record.name)}`,
+            '_blank',
+            'noopener,noreferrer',
+          );
+        }}
+      >
+        <Globe className="size-4" aria-hidden="true" />
+        {t('menu.searchOnline')}
+      </ContextMenuItem>
+      <ContextMenuSeparator />
+      <ContextMenuItem
+        onSelect={() => {
+          actions.onExport('csv');
+        }}
+      >
+        <Download className="size-4" aria-hidden="true" />
+        {t('menu.exportCsv')}
+      </ContextMenuItem>
+      <ContextMenuItem
+        onSelect={() => {
+          actions.onExport('json');
+        }}
+      >
+        <Download className="size-4" aria-hidden="true" />
+        {t('menu.exportJson')}
+      </ContextMenuItem>
+      <ContextMenuItem onSelect={actions.onRefresh}>
+        <RefreshCw className="size-4" aria-hidden="true" />
+        {t('refresh')}
+      </ContextMenuItem>
+      <ContextMenuSeparator />
+      <ContextMenuItem destructive onSelect={actions.onClear}>
+        <Trash2 className="size-4" aria-hidden="true" />
+        {t('clearHistory')}
+      </ContextMenuItem>
+    </ContextMenuContent>
   );
 }

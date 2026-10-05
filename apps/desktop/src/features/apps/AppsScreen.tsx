@@ -18,13 +18,19 @@
  * "900 with no name" would mean the scan itself failed.
  */
 
-import { RefreshCw, Trash2 } from 'lucide-react';
+import { Copy, FolderOpen, Globe, RefreshCw, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import {
   Badge,
   Button,
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuLabel,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
   DialogContent,
   DialogRoot,
   EmptyState,
@@ -36,6 +42,7 @@ import {
 
 import { ExportButton } from '../../components/ExportButton';
 import type { ExportColumn } from '../../lib/export';
+import { useRowMenu } from '../../lib/useRowMenu';
 import { oneOf, useUrlState } from '../../lib/useUrlState';
 import { APPS_NS } from './strings';
 import {
@@ -47,18 +54,28 @@ import {
   type AppSort,
   type InstalledApp,
 } from './model';
-import { NO_HOST, runUninstaller, useApps, type AppsReader, type Uninstaller } from './useApps';
+import {
+  NO_HOST,
+  openLocation,
+  runUninstaller,
+  useApps,
+  type AppsReader,
+  type LocationOpener,
+  type Uninstaller,
+} from './useApps';
 import { errorMessage } from '../../lib/commandError';
 
 export interface AppsScreenProps {
   /** Injectable so tests and the sampler-less preview need no Tauri host. */
   readonly reader?: AppsReader;
   readonly uninstall?: Uninstaller;
+  readonly openFolder?: LocationOpener;
 }
 
 export function AppsScreen({
   reader,
   uninstall = runUninstaller,
+  openFolder = openLocation,
 }: AppsScreenProps = {}): React.JSX.Element {
   const { t, i18n } = useTranslation(APPS_NS);
   const locale = i18n.language;
@@ -185,6 +202,12 @@ export function AppsScreen({
           onUninstall={(app) => {
             setConfirming(app);
           }}
+          onOpenLocation={(path) => {
+            openFolder(path).catch((cause: unknown) => {
+              setNotice(t('menu.openFailed', { message: errorMessage(cause) }));
+            });
+          }}
+          onRefresh={state.refresh}
         />
       )}
 
@@ -283,19 +306,24 @@ function AppTable({
   apps,
   locale,
   onUninstall,
+  onOpenLocation,
+  onRefresh,
 }: {
   readonly apps: readonly InstalledApp[];
   readonly locale: string;
   readonly onUninstall: (app: InstalledApp) => void;
+  readonly onOpenLocation: (path: string) => void;
+  readonly onRefresh: () => void;
 }) {
   const { t } = useTranslation(APPS_NS);
+  const menu = useRowMenu();
   const dateFormat = useMemo(
     () => new Intl.DateTimeFormat(locale, { dateStyle: 'medium' }),
     [locale],
   );
 
   return (
-    <div className="table-scroll">
+    <div className="table-scroll" onKeyDown={menu.onKeyDown}>
       <table className="w-full text-left">
         <thead>
           <tr className="text-2xs text-[var(--color-fg-muted)]">
@@ -318,52 +346,140 @@ function AppTable({
         </thead>
         <tbody>
           {apps.map((app) => (
-            <tr key={app.keyName} className="border-t border-[var(--color-border-subtle)]">
-              <td className="cell-fill px-2.5 py-1.5">
-                <span className="block truncate text-sm">{app.name}</span>
-                <span className="block truncate text-2xs text-[var(--color-fg-subtle)]">
-                  {app.publisher ?? t(`source.${app.source}`)}
-                  {app.perUser && (
-                    <Badge tone="neutral" className="ml-1.5">
-                      {t('perUser')}
-                    </Badge>
-                  )}
-                </span>
-              </td>
-              <td className="px-2.5 py-1.5 font-mono text-2xs">{app.version ?? '—'}</td>
-              <td className="px-2.5 py-1.5 text-2xs">
-                {app.installDate === null
-                  ? t('unknownDate')
-                  : // Parsed as a local date. The registry records no time and
-                    // no zone, so anything richer would invent precision.
-                    dateFormat.format(new Date(`${app.installDate}T00:00:00`))}
-              </td>
-              <td className="tnum px-2.5 py-1.5 text-right font-mono text-2xs">
-                {app.estimatedSize === null
-                  ? t('unknownSize')
-                  : formatBytes(app.estimatedSize, locale)}
-              </td>
-              <td className="px-2.5 py-1.5 text-right">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  // Disabled rather than hidden: the user can see the option
-                  // exists and that this product does not offer it, instead of
-                  // wondering why some rows have a button and others do not.
-                  disabled={!canUninstall(app)}
-                  title={canUninstall(app) ? undefined : t('uninstall.unavailable')}
-                  onClick={() => {
-                    onUninstall(app);
-                  }}
+            <ContextMenu key={app.keyName} {...menu.rootProps(app.keyName)}>
+              <ContextMenuTrigger asChild>
+                <tr
+                  className="border-t border-[var(--color-border-subtle)]"
+                  onContextMenu={menu.onContextMenu}
                 >
-                  {t('uninstall.action')}
-                </Button>
-              </td>
-            </tr>
+                  <td className="cell-fill px-2.5 py-1.5">
+                    <span className="block truncate text-sm">{app.name}</span>
+                    <span className="block truncate text-2xs text-[var(--color-fg-subtle)]">
+                      {app.publisher ?? t(`source.${app.source}`)}
+                      {app.perUser && (
+                        <Badge tone="neutral" className="ml-1.5">
+                          {t('perUser')}
+                        </Badge>
+                      )}
+                    </span>
+                  </td>
+                  <td className="px-2.5 py-1.5 font-mono text-2xs">{app.version ?? '—'}</td>
+                  <td className="px-2.5 py-1.5 text-2xs">
+                    {app.installDate === null
+                      ? t('unknownDate')
+                      : // Parsed as a local date. The registry records no time and
+                        // no zone, so anything richer would invent precision.
+                        dateFormat.format(new Date(`${app.installDate}T00:00:00`))}
+                  </td>
+                  <td className="tnum px-2.5 py-1.5 text-right font-mono text-2xs">
+                    {app.estimatedSize === null
+                      ? t('unknownSize')
+                      : formatBytes(app.estimatedSize, locale)}
+                  </td>
+                  <td className="px-2.5 py-1.5 text-right">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      // Disabled rather than hidden: the user can see the option
+                      // exists and that this product does not offer it, instead of
+                      // wondering why some rows have a button and others do not.
+                      disabled={!canUninstall(app)}
+                      title={canUninstall(app) ? undefined : t('uninstall.unavailable')}
+                      onClick={() => {
+                        onUninstall(app);
+                      }}
+                    >
+                      {t('uninstall.action')}
+                    </Button>
+                  </td>
+                </tr>
+              </ContextMenuTrigger>
+              <AppMenu
+                app={app}
+                onUninstall={onUninstall}
+                onOpenLocation={onOpenLocation}
+                onRefresh={onRefresh}
+              />
+            </ContextMenu>
           ))}
         </tbody>
       </table>
     </div>
+  );
+}
+
+/**
+ * Every action the row offers, plus the lookups the data supports.
+ *
+ * Uninstall goes through the same confirmation as the row button — a menu
+ * that skipped the dialog would be the quieter, and therefore riskier, way to
+ * the same command.
+ */
+function AppMenu({
+  app,
+  onUninstall,
+  onOpenLocation,
+  onRefresh,
+}: {
+  readonly app: InstalledApp;
+  readonly onUninstall: (app: InstalledApp) => void;
+  readonly onOpenLocation: (path: string) => void;
+  readonly onRefresh: () => void;
+}) {
+  const { t } = useTranslation(APPS_NS);
+  const location = app.installLocation;
+  const details = [app.name, app.version ?? '—', app.publisher ?? '—'].join('\t');
+  return (
+    <ContextMenuContent>
+      <ContextMenuLabel>{app.name}</ContextMenuLabel>
+      <ContextMenuItem
+        destructive
+        disabled={!canUninstall(app)}
+        onSelect={() => {
+          onUninstall(app);
+        }}
+      >
+        <Trash2 className="size-4" aria-hidden="true" />
+        {t('uninstall.action')}
+      </ContextMenuItem>
+      <ContextMenuSeparator />
+      <ContextMenuItem
+        // Disabled rather than hidden, like the row button: most installers
+        // never record where they put things, and the user should see that.
+        disabled={location === null}
+        onSelect={() => {
+          if (location !== null) onOpenLocation(location);
+        }}
+      >
+        <FolderOpen className="size-4" aria-hidden="true" />
+        {t('menu.openLocation')}
+      </ContextMenuItem>
+      <ContextMenuItem
+        onSelect={() => {
+          globalThis.open?.(
+            `https://duckduckgo.com/?q=${encodeURIComponent(app.name)}`,
+            '_blank',
+            'noopener,noreferrer',
+          );
+        }}
+      >
+        <Globe className="size-4" aria-hidden="true" />
+        {t('menu.searchOnline')}
+      </ContextMenuItem>
+      <ContextMenuItem
+        onSelect={() => {
+          void globalThis.navigator?.clipboard?.writeText(details);
+        }}
+      >
+        <Copy className="size-4" aria-hidden="true" />
+        {t('menu.copyDetails')}
+      </ContextMenuItem>
+      <ContextMenuSeparator />
+      <ContextMenuItem onSelect={onRefresh}>
+        <RefreshCw className="size-4" aria-hidden="true" />
+        {t('refresh')}
+      </ContextMenuItem>
+    </ContextMenuContent>
   );
 }
 

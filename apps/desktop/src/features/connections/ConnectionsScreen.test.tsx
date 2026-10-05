@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { i18n, initI18n } from '@vitals/i18n';
@@ -221,5 +221,64 @@ describe('ConnectionsScreen', () => {
 
     expect(await screen.findByRole('heading', { name: 'Conexiuni de rețea' })).toBeTruthy();
     expect(screen.getByRole('radio', { name: 'În ascultare' })).toBeTruthy();
+  });
+});
+
+describe('ConnectionsScreen row menus', () => {
+  const menuItems = async (): Promise<(string | null)[]> =>
+    within(await screen.findByRole('menu'))
+      .getAllByRole('menuitem')
+      .map((item) => item.textContent);
+
+  it('opens a group menu on a right click with expand, copies and refresh', async () => {
+    await mount(DEFAULT);
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: /chrome\.exe/ }), {
+      button: 2,
+      clientX: 5,
+      clientY: 5,
+    });
+    await act(async () => {});
+
+    expect(await menuItems()).toEqual([
+      'Show connections',
+      'Copy program name',
+      'Copy process IDs',
+      'Copy remote addresses',
+      'Refresh',
+    ]);
+  });
+
+  it('does not open a group menu on a left-button contextmenu', async () => {
+    await mount(DEFAULT);
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: /chrome\.exe/ }), {
+      button: 0,
+      clientX: 0,
+      clientY: 0,
+    });
+    await act(async () => {});
+
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
+
+  it('opens a socket menu whose remote copy is disabled for a listener with no peer', async () => {
+    await mount(DEFAULT);
+    fireEvent.click(screen.getByRole('button', { expanded: false, name: /sshd\.exe/ }));
+
+    const row = within(screen.getByRole('table')).getByText('0.0.0.0:22').closest('tr');
+    if (row === null) throw new Error('no socket row');
+    fireEvent.contextMenu(row, { button: 2, clientX: 5, clientY: 5 });
+    await act(async () => {});
+
+    expect(await menuItems()).toEqual([
+      'Copy remote address',
+      'Copy local address',
+      'Copy program name and PID',
+    ]);
+    const remote = within(screen.getByRole('menu'))
+      .getByText('Copy remote address')
+      .closest('[role="menuitem"]');
+    expect(remote?.getAttribute('aria-disabled')).toBe('true');
   });
 });

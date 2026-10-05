@@ -9,12 +9,14 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { ChevronDown } from 'lucide-react';
 
 import {
   Badge,
   Button,
   EmptyState,
   Switch,
+  cn,
   formatBytes,
   formatCount,
   formatPercent,
@@ -74,7 +76,7 @@ export function ProcessDetails({
   if (row === null) {
     return (
       <aside
-        className="w-72 shrink-0 border-l border-[var(--color-border-subtle)] p-4"
+        className="ml-2 w-72 shrink-0 rounded-[var(--radius-widget)] border border-[var(--color-border-subtle)] bg-[var(--color-bg-raised)] p-4 shadow-[var(--shadow-card)]"
         aria-label={t('process.detail.title', fallback('process.detail.title'))}
       >
         <EmptyState
@@ -90,7 +92,7 @@ export function ProcessDetails({
 
   return (
     <aside
-      className="w-72 shrink-0 space-y-4 overflow-auto border-l border-[var(--color-border-subtle)] p-4"
+      className="ml-2 w-72 shrink-0 space-y-4 overflow-auto rounded-[var(--radius-widget)] border border-[var(--color-border-subtle)] bg-[var(--color-bg-raised)] p-4 shadow-[var(--shadow-card)]"
       aria-label={t('process.detail.title', fallback('process.detail.title'))}
     >
       <header className="space-y-1">
@@ -471,7 +473,13 @@ function LazyList<T>({
           data-testid={`${kind}-toggle`}
         >
           <span>{title}</span>
-          <span aria-hidden="true">{expanded ? '▾' : '▸'}</span>
+          <ChevronDown
+            aria-hidden="true"
+            className={cn(
+              'size-3.5 transition-transform duration-(--duration-fast)',
+              !expanded && '-rotate-90',
+            )}
+          />
         </button>
       </h3>
       {state.status === 'loading' && (

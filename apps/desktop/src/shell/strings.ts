@@ -22,6 +22,9 @@ const en = {
     maximise: 'Maximise',
     restore: 'Restore down',
     close: 'Close',
+    hideToTray: 'Hide to tray',
+    quit: 'Quit Vitals',
+    menu: 'Window menu',
   },
   sidebar: {
     collapse: 'Collapse sidebar',
@@ -225,6 +228,9 @@ const ro = {
     maximise: 'Maximizează',
     restore: 'Restaurează',
     close: 'Închide',
+    hideToTray: 'Ascunde în zona de notificare',
+    quit: 'Ieși din Vitals',
+    menu: 'Meniul ferestrei',
   },
   sidebar: {
     collapse: 'Restrânge bara laterală',

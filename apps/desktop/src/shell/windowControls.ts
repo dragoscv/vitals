@@ -14,6 +14,10 @@ export interface WindowControls {
   minimize(): Promise<void>;
   toggleMaximize(): Promise<void>;
   close(): Promise<void>;
+  /** Hides the window to the tray; monitoring continues. */
+  hide(): Promise<void>;
+  /** Exits the app completely, past close-to-tray. */
+  quit(): Promise<void>;
   isMaximized(): Promise<boolean>;
   /** Resolves to an unsubscribe function, matching Tauri's own event API. */
   onResized(handler: () => void): Promise<() => void>;
@@ -30,6 +34,8 @@ const inertControls: WindowControls = {
   minimize: () => Promise.resolve(),
   toggleMaximize: () => Promise.resolve(),
   close: () => Promise.resolve(),
+  hide: () => Promise.resolve(),
+  quit: () => Promise.resolve(),
   isMaximized: () => Promise.resolve(false),
   onResized: () => Promise.resolve(() => {}),
 };
@@ -45,6 +51,10 @@ export function getWindowControls(): WindowControls {
     minimize: () => load.then((win) => win.minimize()),
     toggleMaximize: () => load.then((win) => win.toggleMaximize()),
     close: () => load.then((win) => win.close()),
+    hide: () => load.then((win) => win.hide()),
+    // `quit_app` rather than `close`: close is hide-to-tray while that
+    // setting is on, and Quit must mean quit whatever the setting says.
+    quit: () => import('@tauri-apps/api/core').then(({ invoke }) => invoke<void>('quit_app')),
     isMaximized: () => load.then((win) => win.isMaximized()),
     onResized: (handler) => load.then((win) => win.onResized(() => handler())),
   };

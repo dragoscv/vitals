@@ -25,6 +25,7 @@ const en = {
       'Virtual switches, unused tunnels and displays with nothing to report start hidden. Right-click any device to hide or show it.',
     hide: 'Hide',
     show: 'Show',
+    copySummary: 'Copy summary',
     hiddenBadge: 'Hidden',
   },
 
@@ -203,6 +204,7 @@ const ro = {
       'Switch-urile virtuale, tunelurile nefolosite și afișajele fără date sunt ascunse implicit. Clic dreapta pe orice dispozitiv ca să-l ascunzi sau să-l afișezi.',
     hide: 'Ascunde',
     show: 'Afișează',
+    copySummary: 'Copiază rezumatul',
     hiddenBadge: 'Ascuns',
   },
 

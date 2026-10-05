@@ -86,6 +86,13 @@ const en = {
     failed: 'Could not start the uninstaller. {{message}}',
   },
 
+  menu: {
+    openLocation: 'Open install location',
+    searchOnline: 'Search online',
+    copyDetails: 'Copy name and version',
+    openFailed: 'Could not open the install location. {{message}}',
+  },
+
   empty: {
     title: 'Nothing matches',
     body: 'Clear the search to see every application.',
@@ -173,6 +180,13 @@ const ro = {
     close: 'Închide această fereastră',
     started: 'Programul de dezinstalare pentru {{name}} se deschide.',
     failed: 'Nu s-a putut porni dezinstalarea. {{message}}',
+  },
+
+  menu: {
+    openLocation: 'Deschide locația instalării',
+    searchOnline: 'Caută online',
+    copyDetails: 'Copiază numele și versiunea',
+    openFailed: 'Nu s-a putut deschide locația instalării. {{message}}',
   },
 
   empty: {

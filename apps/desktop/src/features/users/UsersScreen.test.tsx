@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { i18n, initI18n } from '@vitals/i18n';
@@ -213,5 +213,53 @@ describe('UsersScreen', () => {
       expect(screen.queryByText('CORP\\Alice')).toBeNull();
     });
     expect(screen.getByText('CORP\\Bob')).toBeTruthy();
+  });
+});
+
+describe('UsersScreen session menu', () => {
+  it('opens on a right click with the copies and a refresh', async () => {
+    await mount();
+
+    fireEvent.contextMenu(screen.getByRole('region', { name: 'CORP\\Alice session' }), {
+      button: 2,
+      clientX: 5,
+      clientY: 5,
+    });
+    await act(async () => {});
+
+    const items = within(await screen.findByRole('menu'))
+      .getAllByRole('menuitem')
+      .map((item) => item.textContent);
+    expect(items).toEqual(['Copy user name', 'Copy session details', 'Refresh']);
+  });
+
+  it('does not open on a left-button contextmenu', async () => {
+    await mount();
+
+    fireEvent.contextMenu(screen.getByRole('region', { name: 'CORP\\Alice session' }), {
+      button: 0,
+      clientX: 0,
+      clientY: 0,
+    });
+    await act(async () => {});
+
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
+
+  it('re-reads the sessions when refresh is chosen from the menu', async () => {
+    const { reader } = await mount();
+    const before = reader.mock.calls.length;
+
+    fireEvent.contextMenu(screen.getByRole('region', { name: 'CORP\\Alice session' }), {
+      button: 2,
+      clientX: 5,
+      clientY: 5,
+    });
+    await act(async () => {});
+    fireEvent.click(within(await screen.findByRole('menu')).getByText('Refresh'));
+
+    await waitFor(() => {
+      expect(reader.mock.calls.length).toBeGreaterThan(before);
+    });
   });
 });

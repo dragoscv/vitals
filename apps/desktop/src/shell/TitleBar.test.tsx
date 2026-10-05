@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeAll, describe, expect, it } from 'vitest';
 
 import { initI18n } from '@vitals/i18n';
@@ -39,6 +39,14 @@ function harness(initiallyMaximised = false): Harness {
         calls.push('close');
         return Promise.resolve();
       },
+      hide: () => {
+        calls.push('hide');
+        return Promise.resolve();
+      },
+      quit: () => {
+        calls.push('quit');
+        return Promise.resolve();
+      },
       isMaximized: () => Promise.resolve(maximised),
       onResized: (next) => {
         handler = next;
@@ -74,6 +82,19 @@ describe('TitleBar', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Close' }));
 
     expect(h.calls).toEqual(['minimize', 'toggleMaximize', 'close']);
+  });
+
+  it('right-clicking the bar offers the window menu, and Quit quits rather than hiding', async () => {
+    const h = harness();
+    render(<TitleBar controls={h.controls}>Dashboard</TitleBar>);
+    fireEvent.contextMenu(screen.getByRole('banner'), { button: 2, clientX: 40, clientY: 10 });
+    await act(async () => {});
+    const menu = await screen.findByRole('menu');
+    for (const name of ['Minimise', 'Maximise', 'Hide to tray', 'Close', 'Quit Vitals']) {
+      expect(within(menu).getByRole('menuitem', { name })).toBeTruthy();
+    }
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Quit Vitals' }));
+    expect(h.calls).toEqual(['quit']);
   });
 
   it('shows Restore when the window is already maximised', async () => {

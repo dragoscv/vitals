@@ -10,15 +10,39 @@
  * is this socket" but "what is this program talking to".
  */
 
-import { ChevronDown, ChevronRight, Globe, RefreshCw, Wifi } from 'lucide-react';
+import {
+  ChevronDown,
+  ChevronRight,
+  ChevronsDownUp,
+  ChevronsUpDown,
+  Copy,
+  Globe,
+  RefreshCw,
+  Wifi,
+} from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import type { Process } from '@vitals/protocol';
-import { Badge, Button, EmptyState, SearchInput, SegmentedControl, Skeleton, cn } from '@vitals/ui';
+import {
+  Badge,
+  Button,
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuLabel,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+  EmptyState,
+  SearchInput,
+  SegmentedControl,
+  Skeleton,
+  cn,
+} from '@vitals/ui';
 
 import { ExportButton } from '../../components/ExportButton';
 import type { ExportColumn } from '../../lib/export';
+import { useRowMenu, type RowMenu } from '../../lib/useRowMenu';
 import { oneOf, useUrlState } from '../../lib/useUrlState';
 import {
   useSystemSnapshot,
@@ -70,6 +94,7 @@ export function ConnectionsScreen({
     patchView({ q });
   };
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
+  const menu = useRowMenu();
 
   // PID to name, built once per frame rather than searched per row: the socket
   // table can hold thousands of entries and a linear scan of the process map
@@ -173,12 +198,14 @@ export function ConnectionsScreen({
       ) : (
         // A bounded box, like the tables elsewhere: the list scrolls inside
         // it, and the search and filter above never scroll away (S12-26).
-        <div className="list-scroll">
+        <div className="list-scroll" onKeyDown={menu.onKeyDown}>
           <ul className="flex flex-col gap-1.5">
             {visible.map((group) => (
               <GroupRow
                 key={group.name}
                 group={group}
+                menu={menu}
+                onRefresh={state.refresh}
                 expanded={expanded.has(group.name)}
                 onToggle={() => {
                   setExpanded((current) => {
@@ -197,43 +224,66 @@ export function ConnectionsScreen({
   );
 }
 
+/** Clipboard writes are fire-and-forget: a refused write has nothing to undo. */
+function copy(text: string): void {
+  void globalThis.navigator?.clipboard?.writeText(text);
+}
+
+const endpoint = (address: string | null, port: number | null): string | null =>
+  address === null ? null : `${address}:${port === null ? '' : String(port)}`;
+
 function GroupRow({
   group,
+  menu,
+  onRefresh,
   expanded,
   onToggle,
 }: {
   readonly group: ConnectionGroup;
+  readonly menu: RowMenu;
+  readonly onRefresh: () => void;
   readonly expanded: boolean;
   readonly onToggle: () => void;
 }) {
   const { t } = useTranslation(CONNECTIONS_NS);
   const Chevron = expanded ? ChevronDown : ChevronRight;
+  const remotes = [
+    ...new Set(
+      group.rows.flatMap((row) => {
+        const remote = endpoint(row.remoteAddress, row.remotePort);
+        return remote === null ? [] : [remote];
+      }),
+    ),
+  ];
 
   return (
     <li className="rounded-md border border-[var(--color-border-subtle)]">
-      <button
-        type="button"
-        onClick={onToggle}
-        aria-expanded={expanded}
-        className="flex w-full items-center gap-2 px-2.5 py-2 text-left hover:bg-[var(--color-bg-subtle)]"
-      >
-        <Chevron aria-hidden className="size-4 shrink-0 text-[var(--color-fg-muted)]" />
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-medium">{group.name}</span>
-          <span className="flex flex-wrap gap-x-3 text-2xs text-[var(--color-fg-muted)]">
-            <span>{t('summary.connections', { count: group.rows.length })}</span>
-            {group.established > 0 && (
-              <span>{t('summary.established', { count: group.established })}</span>
-            )}
-            {group.listening > 0 && (
-              <span>{t('summary.listening', { count: group.listening })}</span>
-            )}
-            {group.remoteHosts > 0 && (
-              <span>{t('summary.hosts', { count: group.remoteHosts })}</span>
-            )}
-          </span>
-        </span>
-        {/* An observation, not an accusation. This module has no threat
+      <ContextMenu {...menu.rootProps(`group:${group.name}`)}>
+        <ContextMenuTrigger asChild>
+          <button
+            type="button"
+            onClick={onToggle}
+            onContextMenu={menu.onContextMenu}
+            aria-expanded={expanded}
+            className="flex w-full items-center gap-2 px-2.5 py-2 text-left hover:bg-[var(--color-bg-subtle)]"
+          >
+            <Chevron aria-hidden className="size-4 shrink-0 text-[var(--color-fg-muted)]" />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-medium">{group.name}</span>
+              <span className="flex flex-wrap gap-x-3 text-2xs text-[var(--color-fg-muted)]">
+                <span>{t('summary.connections', { count: group.rows.length })}</span>
+                {group.established > 0 && (
+                  <span>{t('summary.established', { count: group.established })}</span>
+                )}
+                {group.listening > 0 && (
+                  <span>{t('summary.listening', { count: group.listening })}</span>
+                )}
+                {group.remoteHosts > 0 && (
+                  <span>{t('summary.hosts', { count: group.remoteHosts })}</span>
+                )}
+              </span>
+            </span>
+            {/* An observation, not an accusation. This module has no threat
             intelligence, and a false positive on a system process teaches the
             user to ignore the badge — or worse, to kill something
             load-bearing. So it states a fact and lets them judge.
@@ -244,27 +294,85 @@ function GroupRow({
             parent is a screen that crashes the moment it is rendered anywhere
             else — which is exactly what happened here, for every user with a
             public listener. The native attribute has no such dependency. */}
-        {group.publicListeners > 0 && (
-          <Badge
-            tone="info"
-            title={t('summary.publicListenerHint')}
-            icon={<Globe aria-hidden className="size-3" />}
+            {group.publicListeners > 0 && (
+              <Badge
+                tone="info"
+                title={t('summary.publicListenerHint')}
+                icon={<Globe aria-hidden className="size-3" />}
+              >
+                {t('summary.publicListener')}
+              </Badge>
+            )}
+          </button>
+        </ContextMenuTrigger>
+        <ContextMenuContent>
+          <ContextMenuLabel>{group.name}</ContextMenuLabel>
+          <ContextMenuItem onSelect={onToggle}>
+            {expanded ? (
+              <ChevronsDownUp className="size-4" aria-hidden="true" />
+            ) : (
+              <ChevronsUpDown className="size-4" aria-hidden="true" />
+            )}
+            {expanded ? t('menu.collapse') : t('menu.expand')}
+          </ContextMenuItem>
+          <ContextMenuSeparator />
+          <ContextMenuItem
+            onSelect={() => {
+              copy(group.name);
+            }}
           >
-            {t('summary.publicListener')}
-          </Badge>
-        )}
-      </button>
+            <Copy className="size-4" aria-hidden="true" />
+            {t('menu.copyName')}
+          </ContextMenuItem>
+          <ContextMenuItem
+            disabled={group.pids.length === 0}
+            onSelect={() => {
+              copy(group.pids.join(', '));
+            }}
+          >
+            <Copy className="size-4" aria-hidden="true" />
+            {t('menu.copyPids')}
+          </ContextMenuItem>
+          <ContextMenuItem
+            // Listeners have no peer; a program that only listens has nothing
+            // to copy, and the item says so by being disabled.
+            disabled={remotes.length === 0}
+            onSelect={() => {
+              copy(remotes.join('\n'));
+            }}
+          >
+            <Copy className="size-4" aria-hidden="true" />
+            {t('menu.copyRemotes')}
+          </ContextMenuItem>
+          <ContextMenuSeparator />
+          <ContextMenuItem onSelect={onRefresh}>
+            <RefreshCw className="size-4" aria-hidden="true" />
+            {t('refresh')}
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
 
-      {expanded && <SocketTable rows={group.rows} />}
+      {expanded && <SocketTable rows={group.rows} app={group.name} menu={menu} />}
     </li>
   );
 }
 
-function SocketTable({ rows }: { readonly rows: readonly ConnectionRow[] }) {
+function SocketTable({
+  rows,
+  app,
+  menu,
+}: {
+  readonly rows: readonly ConnectionRow[];
+  readonly app: string;
+  readonly menu: RowMenu;
+}) {
   const { t } = useTranslation(CONNECTIONS_NS);
 
+  // No top border on the wrapper: every body row already draws its own top
+  // edge and the `li` around this draws the frame, so a wrapper border made
+  // the first line under the header twice as heavy as the rest.
   return (
-    <div className="overflow-x-auto border-t border-[var(--color-border-subtle)]">
+    <div className="overflow-x-auto">
       <table className="w-full text-left">
         <thead>
           <tr className="text-2xs text-[var(--color-fg-muted)]">
@@ -286,30 +394,71 @@ function SocketTable({ rows }: { readonly rows: readonly ConnectionRow[] }) {
           </tr>
         </thead>
         <tbody>
-          {rows.map((row) => (
-            <tr key={row.id} className="border-t border-[var(--color-border-subtle)]">
-              <td className="px-2.5 py-1 font-mono text-2xs uppercase">{row.protocol}</td>
-              <td className="px-2.5 py-1 font-mono text-2xs">
-                {row.localAddress}:{row.localPort}
-                {isPublicListener(row) && (
-                  <Globe
-                    aria-hidden
-                    className="ml-1 inline size-3 text-[var(--color-status-info)]"
-                  />
-                )}
-              </td>
-              <td
-                className={cn(
-                  'px-2.5 py-1 font-mono text-2xs',
-                  isExternal(row.remoteAddress) && 'text-[var(--color-fg-default)]',
-                )}
-              >
-                {row.remoteAddress === null ? '—' : `${row.remoteAddress}:${row.remotePort ?? ''}`}
-              </td>
-              <td className="px-2.5 py-1 text-2xs">{t(`state.${row.state}`)}</td>
-              <td className="tnum px-2.5 py-1 font-mono text-2xs">{row.ownerPid ?? '—'}</td>
-            </tr>
-          ))}
+          {rows.map((row) => {
+            const remote = endpoint(row.remoteAddress, row.remotePort);
+            const local = `${row.localAddress}:${String(row.localPort)}`;
+            return (
+              <ContextMenu key={row.id} {...menu.rootProps(`socket:${row.id}`)}>
+                <ContextMenuTrigger asChild>
+                  <tr
+                    className="border-t border-[var(--color-border-subtle)]"
+                    onContextMenu={menu.onContextMenu}
+                  >
+                    <td className="px-2.5 py-1 font-mono text-2xs uppercase">{row.protocol}</td>
+                    <td className="px-2.5 py-1 font-mono text-2xs">
+                      {row.localAddress}:{row.localPort}
+                      {isPublicListener(row) && (
+                        <Globe
+                          aria-hidden
+                          className="ml-1 inline size-3 text-[var(--color-status-info)]"
+                        />
+                      )}
+                    </td>
+                    <td
+                      className={cn(
+                        'px-2.5 py-1 font-mono text-2xs',
+                        isExternal(row.remoteAddress) && 'text-[var(--color-fg-default)]',
+                      )}
+                    >
+                      {row.remoteAddress === null
+                        ? '—'
+                        : `${row.remoteAddress}:${row.remotePort ?? ''}`}
+                    </td>
+                    <td className="px-2.5 py-1 text-2xs">{t(`state.${row.state}`)}</td>
+                    <td className="tnum px-2.5 py-1 font-mono text-2xs">{row.ownerPid ?? '—'}</td>
+                  </tr>
+                </ContextMenuTrigger>
+                <ContextMenuContent>
+                  <ContextMenuLabel>{remote ?? local}</ContextMenuLabel>
+                  <ContextMenuItem
+                    disabled={remote === null}
+                    onSelect={() => {
+                      if (remote !== null) copy(remote);
+                    }}
+                  >
+                    <Copy className="size-4" aria-hidden="true" />
+                    {t('menu.copyRemote')}
+                  </ContextMenuItem>
+                  <ContextMenuItem
+                    onSelect={() => {
+                      copy(local);
+                    }}
+                  >
+                    <Copy className="size-4" aria-hidden="true" />
+                    {t('menu.copyLocal')}
+                  </ContextMenuItem>
+                  <ContextMenuItem
+                    onSelect={() => {
+                      copy(`${app}\tPID ${row.ownerPid === null ? '—' : String(row.ownerPid)}`);
+                    }}
+                  >
+                    <Copy className="size-4" aria-hidden="true" />
+                    {t('menu.copyProcess')}
+                  </ContextMenuItem>
+                </ContextMenuContent>
+              </ContextMenu>
+            );
+          })}
         </tbody>
       </table>
     </div>

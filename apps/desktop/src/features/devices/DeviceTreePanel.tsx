@@ -8,13 +8,40 @@
  * opens by itself. Search filters across every class at once.
  */
 
-import { AlertTriangle, ChevronRight, CircleOff, RefreshCw, Unplug } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  AlertTriangle,
+  ChevronRight,
+  ChevronsDownUp,
+  ChevronsUpDown,
+  CircleOff,
+  Copy,
+  Eye,
+  EyeOff,
+  Globe,
+  RefreshCw,
+  Unplug,
+} from 'lucide-react';
+import { forwardRef, useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { Badge, Button, Checkbox, EmptyState, SearchInput, Skeleton, cn } from '@vitals/ui';
+import {
+  Badge,
+  Button,
+  Checkbox,
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuLabel,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+  EmptyState,
+  SearchInput,
+  Skeleton,
+  cn,
+} from '@vitals/ui';
 
 import { errorMessage } from '../../lib/commandError';
+import { useRowMenu, type RowMenu } from '../../lib/useRowMenu';
 import {
   filterTree,
   problemCount,
@@ -25,8 +52,20 @@ import {
 } from './hardwareApi';
 import { DEVICES_NS } from './strings';
 
+/** The screen-wide actions every row menu repeats, so none is toolbar-only. */
+interface TreeActions {
+  readonly includeHidden: boolean;
+  readonly toggleHidden: () => void;
+  readonly reload: () => void;
+}
+
+function copy(text: string): void {
+  void globalThis.navigator?.clipboard?.writeText(text);
+}
+
 export function DeviceTreePanel({ api }: { readonly api: HardwareApi }): React.JSX.Element {
   const { t } = useTranslation(DEVICES_NS);
+  const menu = useRowMenu();
   const [tree, setTree] = useState<DeviceTree | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(true);
@@ -65,6 +104,16 @@ export function DeviceTreePanel({ api }: { readonly api: HardwareApi }): React.J
     [tree],
   );
   const problems = useMemo(() => problemCount(tree?.classes ?? []), [tree]);
+  const actions: TreeActions = {
+    includeHidden,
+    toggleHidden: () => {
+      setBusy(true);
+      setIncludeHidden((v) => !v);
+    },
+    reload: () => {
+      reload(includeHidden);
+    },
+  };
 
   if (tree === null && busy) {
     return (
@@ -123,13 +172,19 @@ export function DeviceTreePanel({ api }: { readonly api: HardwareApi }): React.J
           {t('stale', { message: error })}
         </p>
       )}
-      <div className="list-scroll">
+      <div className="list-scroll" onKeyDown={menu.onKeyDown}>
         {classes.length === 0 ? (
           <p className="p-3 text-2xs text-[var(--color-fg-muted)]">{t('tree.noMatch')}</p>
         ) : (
           <ul aria-label={t('tree.title')}>
             {classes.map((cls) => (
-              <ClassGroup key={cls.guid} cls={cls} forceOpen={query.trim() !== ''} />
+              <ClassGroup
+                key={cls.guid}
+                cls={cls}
+                forceOpen={query.trim() !== ''}
+                menu={menu}
+                actions={actions}
+              />
             ))}
           </ul>
         )}
@@ -138,12 +193,33 @@ export function DeviceTreePanel({ api }: { readonly api: HardwareApi }): React.J
   );
 }
 
+function TreeActionItems({ actions }: { readonly actions: TreeActions }) {
+  const { t } = useTranslation(DEVICES_NS);
+  const Icon = actions.includeHidden ? EyeOff : Eye;
+  return (
+    <>
+      <ContextMenuItem onSelect={actions.toggleHidden}>
+        <Icon className="size-4" aria-hidden="true" />
+        {actions.includeHidden ? t('menu.hideHidden') : t('tree.showHidden')}
+      </ContextMenuItem>
+      <ContextMenuItem onSelect={actions.reload}>
+        <RefreshCw className="size-4" aria-hidden="true" />
+        {t('refresh')}
+      </ContextMenuItem>
+    </>
+  );
+}
+
 function ClassGroup({
   cls,
   forceOpen,
+  menu,
+  actions,
 }: {
   readonly cls: DeviceClass;
   readonly forceOpen: boolean;
+  readonly menu: RowMenu;
+  readonly actions: TreeActions;
 }) {
   const { t } = useTranslation(DEVICES_NS);
   const problems = cls.devices.filter((d) => d.status === 'problem').length;
@@ -153,29 +229,64 @@ function ClassGroup({
 
   return (
     <li>
-      <button
-        type="button"
-        aria-expanded={expanded}
-        aria-controls={id}
-        onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-sm hover:bg-[var(--color-bg-inset)] focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
-      >
-        <ChevronRight
-          aria-hidden
-          className={cn('size-4 shrink-0 transition-transform', expanded && 'rotate-90')}
-        />
-        <span className="font-medium">{cls.description}</span>
-        <span className="text-2xs text-[var(--color-fg-subtle)]">{cls.devices.length}</span>
-        {problems > 0 && (
-          <Badge tone="warn" icon={<AlertTriangle aria-hidden />}>
-            {t('tree.problems', { count: problems })}
-          </Badge>
-        )}
-      </button>
+      <ContextMenu {...menu.rootProps(`class:${cls.guid}`)}>
+        <ContextMenuTrigger asChild>
+          <button
+            type="button"
+            aria-expanded={expanded}
+            aria-controls={id}
+            onClick={() => setOpen((v) => !v)}
+            onContextMenu={menu.onContextMenu}
+            className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-sm hover:bg-[var(--color-bg-inset)] focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+          >
+            <ChevronRight
+              aria-hidden
+              className={cn('size-4 shrink-0 transition-transform', expanded && 'rotate-90')}
+            />
+            <span className="font-medium">{cls.description}</span>
+            <span className="text-2xs text-[var(--color-fg-subtle)]">{cls.devices.length}</span>
+            {problems > 0 && (
+              <Badge tone="warn" icon={<AlertTriangle aria-hidden />}>
+                {t('tree.problems', { count: problems })}
+              </Badge>
+            )}
+          </button>
+        </ContextMenuTrigger>
+        <ContextMenuContent>
+          <ContextMenuLabel>{cls.description}</ContextMenuLabel>
+          <ContextMenuItem
+            // A search holds every class open; collapsing then would do nothing.
+            disabled={forceOpen}
+            onSelect={() => setOpen((v) => !v)}
+          >
+            {expanded ? (
+              <ChevronsDownUp className="size-4" aria-hidden="true" />
+            ) : (
+              <ChevronsUpDown className="size-4" aria-hidden="true" />
+            )}
+            {expanded ? t('menu.collapse') : t('menu.expand')}
+          </ContextMenuItem>
+          <ContextMenuItem
+            onSelect={() => {
+              copy(cls.devices.map((d) => d.name).join('\n'));
+            }}
+          >
+            <Copy className="size-4" aria-hidden="true" />
+            {t('menu.copyDeviceNames')}
+          </ContextMenuItem>
+          <ContextMenuSeparator />
+          <TreeActionItems actions={actions} />
+        </ContextMenuContent>
+      </ContextMenu>
       {expanded && (
         <ul id={id} className="mb-1 ml-6 border-l border-[var(--color-border-subtle)]">
           {cls.devices.map((device) => (
-            <DeviceRow key={device.instanceId} device={device} />
+            <ContextMenu key={device.instanceId} {...menu.rootProps(device.instanceId)}>
+              <ContextMenuTrigger asChild>
+                <DeviceRow device={device} onContextMenu={menu.onContextMenu} />
+              </ContextMenuTrigger>
+              <DeviceMenu device={device} actions={actions} />
+            </ContextMenu>
           ))}
         </ul>
       )}
@@ -183,19 +294,90 @@ function ClassGroup({
   );
 }
 
-function DeviceRow({ device }: { readonly device: DeviceInfo }) {
-  const { t } = useTranslation(DEVICES_NS);
-  const driver = [device.driverProvider, device.driverVersion, device.driverDate]
+const driverText = (device: DeviceInfo): string =>
+  [device.driverProvider, device.driverVersion, device.driverDate]
     .filter((x) => x !== null)
     .join(' · ');
 
+function DeviceMenu({
+  device,
+  actions,
+}: {
+  readonly device: DeviceInfo;
+  readonly actions: TreeActions;
+}) {
+  const { t } = useTranslation(DEVICES_NS);
+  const driver = driverText(device);
+  // A problem device is the one people search for; the problem code is what
+  // turns a vague search into the vendor's knowledge-base article.
+  const search =
+    device.status === 'problem' && device.problemCode !== null
+      ? `${device.name} code ${String(device.problemCode)}`
+      : device.name;
+  return (
+    <ContextMenuContent>
+      <ContextMenuLabel>{device.name}</ContextMenuLabel>
+      <ContextMenuItem
+        onSelect={() => {
+          copy(device.name);
+        }}
+      >
+        <Copy className="size-4" aria-hidden="true" />
+        {t('menu.copyName')}
+      </ContextMenuItem>
+      <ContextMenuItem
+        onSelect={() => {
+          copy(device.instanceId);
+        }}
+      >
+        <Copy className="size-4" aria-hidden="true" />
+        {t('menu.copyInstanceId')}
+      </ContextMenuItem>
+      <ContextMenuItem
+        disabled={driver === ''}
+        onSelect={() => {
+          copy(driver);
+        }}
+      >
+        <Copy className="size-4" aria-hidden="true" />
+        {t('menu.copyDriver')}
+      </ContextMenuItem>
+      <ContextMenuItem
+        onSelect={() => {
+          globalThis.open?.(
+            `https://duckduckgo.com/?q=${encodeURIComponent(search)}`,
+            '_blank',
+            'noopener,noreferrer',
+          );
+        }}
+      >
+        <Globe className="size-4" aria-hidden="true" />
+        {t('menu.searchOnline')}
+      </ContextMenuItem>
+      <ContextMenuSeparator />
+      <TreeActionItems actions={actions} />
+    </ContextMenuContent>
+  );
+}
+
+/** Forwards ref and props: it is the `ContextMenuTrigger asChild` target. */
+const DeviceRow = forwardRef<
+  HTMLLIElement,
+  { readonly device: DeviceInfo } & Omit<React.ComponentPropsWithoutRef<'li'>, 'children'>
+>(function DeviceRow({ device, className, ...rest }, ref) {
+  const { t } = useTranslation(DEVICES_NS);
+  const driver = driverText(device);
+
   return (
     <li
+      ref={ref}
       className={cn(
         'px-3 py-1.5',
         (device.status === 'notPresent' || device.hidden) && 'opacity-70',
+        className,
       )}
       title={device.instanceId}
+      {...rest}
     >
       <div className="flex flex-wrap items-center gap-1.5">
         <StatusIcon device={device} />
@@ -225,7 +407,7 @@ function DeviceRow({ device }: { readonly device: DeviceInfo }) {
       )}
     </li>
   );
-}
+});
 
 function StatusIcon({ device }: { readonly device: DeviceInfo }) {
   const { t } = useTranslation(DEVICES_NS);
@@ -235,13 +417,13 @@ function StatusIcon({ device }: { readonly device: DeviceInfo }) {
         <AlertTriangle
           role="img"
           aria-label={t('tree.hasProblem')}
-          className="size-3.5 text-[var(--color-status-warn)]"
+          className="size-4 text-[var(--color-status-warn)]"
         />
       );
     case 'disabled':
-      return <CircleOff role="img" aria-label={t('tree.disabled')} className="size-3.5" />;
+      return <CircleOff role="img" aria-label={t('tree.disabled')} className="size-4" />;
     case 'notPresent':
-      return <Unplug role="img" aria-label={t('tree.notConnected')} className="size-3.5" />;
+      return <Unplug role="img" aria-label={t('tree.notConnected')} className="size-4" />;
     default:
       return null;
   }

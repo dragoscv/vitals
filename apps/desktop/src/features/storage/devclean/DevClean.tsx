@@ -20,7 +20,18 @@
  * totals say how many figures they are missing.
  */
 
-import { ChevronDown, ChevronRight, FolderPlus, Search, Trash2, X } from 'lucide-react';
+import {
+  ChevronDown,
+  ChevronRight,
+  Copy,
+  FolderPlus,
+  FolderSearch,
+  Search,
+  Square,
+  SquareCheck,
+  Trash2,
+  X,
+} from 'lucide-react';
 import { useMemo, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -32,6 +43,12 @@ import {
   CardHeader,
   CardTitle,
   Checkbox,
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuLabel,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
   DialogContent,
   DialogRoot,
   EmptyState,
@@ -41,6 +58,8 @@ import {
   formatCount,
 } from '@vitals/ui';
 
+import { errorMessage } from '../../../lib/commandError';
+import { useRowMenu, type RowMenu } from '../../../lib/useRowMenu';
 import { STORAGE_NS } from '../strings';
 import {
   idleKey,
@@ -63,7 +82,13 @@ import {
   type Selectable,
   type Worktree,
 } from './model';
-import { useDevClean, type DevCleanSource, type DevCleanState, type DevRun } from './useDevClean';
+import {
+  tauriDevSource,
+  useDevClean,
+  type DevCleanSource,
+  type DevCleanState,
+  type DevRun,
+} from './useDevClean';
 
 export interface DevCleanProps {
   readonly locale: string;
@@ -81,6 +106,19 @@ export function DevClean({ locale, source }: DevCleanProps): React.JSX.Element {
   const t = useStorageT();
   const state = useDevClean(source);
   const [reviewing, setReviewing] = useState<readonly Selectable[] | null>(null);
+  const [revealError, setRevealError] = useState<string | null>(null);
+  const revealWith = (source ?? tauriDevSource).reveal;
+  const reveal =
+    revealWith === undefined
+      ? undefined
+      : (path: string) => {
+          setRevealError(null);
+          // Reported rather than dropped: the user asked for a window and
+          // nothing appeared, which needs a reason.
+          revealWith(path).catch((cause: unknown) => {
+            setRevealError(errorMessage(cause));
+          });
+        };
 
   const label = useMemo(() => (kind: string) => t(selectableLabelKey(kind)), [t]);
   const items = useMemo(
@@ -107,13 +145,24 @@ export function DevClean({ locale, source }: DevCleanProps): React.JSX.Element {
                   : t('dev.scan.stale', { message: state.scanError })}
               </p>
             )}
+            {revealError !== null && (
+              <p role="alert" className="text-2xs text-[var(--color-status-danger)]">
+                {t('explore.failed', { message: revealError })}
+              </p>
+            )}
             {state.scanning && <ScanRunning progress={state.progress} locale={locale} t={t} />}
             {state.scan === null ? (
               !state.scanning && (
                 <EmptyState title={t('dev.title')} description={t('dev.scan.idle')} />
               )
             ) : (
-              <Results scan={state.scan} state={state} locale={locale} t={t} />
+              <Results
+                scan={state.scan}
+                state={state}
+                locale={locale}
+                t={t}
+                {...(reveal !== undefined && { reveal })}
+              />
             )}
           </>
         )}
@@ -268,10 +317,12 @@ interface ResultsProps {
   readonly state: DevCleanState;
   readonly locale: string;
   readonly t: T;
+  readonly reveal?: (path: string) => void;
 }
 
-function Results({ scan, state, locale, t }: ResultsProps) {
+function Results({ scan, state, locale, t, reveal }: ResultsProps) {
   const [onlyStale, setOnlyStale] = useState(false);
+  const menu = useRowMenu();
   const projects = useMemo(() => {
     const sorted = sortProjects(scan.projects);
     return onlyStale ? sorted.filter(isStale) : sorted;
@@ -288,10 +339,10 @@ function Results({ scan, state, locale, t }: ResultsProps) {
   const report = state.lastReport;
   const line = (id: string | null) =>
     id === null || report === null ? undefined : report.items.find((item) => item.id === id);
-  const row: RowContext = { state, locale, t, line };
+  const row: RowContext = { state, locale, t, line, menu, ...(reveal !== undefined && { reveal }) };
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4" onKeyDown={menu.onKeyDown}>
       <p className="text-2xs text-[var(--color-fg-subtle)]">
         {t('dev.scan.elapsed', { seconds: Math.round(scan.elapsedMs / 1000) })}
       </p>
@@ -362,6 +413,7 @@ function Results({ scan, state, locale, t }: ResultsProps) {
                 ariaLabel={t('dev.cacheSelect', { label: t(`dev.cache.${cache.kind}`) })}
                 title={t(`dev.cache.${cache.kind}`)}
                 path={cache.path}
+                revealable
                 size={cache.id === null ? null : sizeText(cache.size, locale, t)}
                 row={row}
               >
@@ -405,6 +457,7 @@ function Results({ scan, state, locale, t }: ResultsProps) {
                   })}
                   title={t(`dev.vdisk.${disk.kind}`)}
                   path={disk.path}
+                  revealable
                   size={t('dev.vdiskSize', { size: formatBytes(disk.size, locale) })}
                   row={row}
                 >
@@ -426,6 +479,74 @@ interface RowContext {
   readonly locale: string;
   readonly t: T;
   readonly line: (id: string | null) => DevCleanItem | undefined;
+  /** One menu for the whole card, so only one row's menu is ever open. */
+  readonly menu: RowMenu;
+  readonly reveal?: (path: string) => void;
+}
+
+/**
+ * The right-click menu of a row: the same tick the checkbox offers, then
+ * where the thing is. Built here once so every section's rows agree.
+ */
+function RowMenuContent({
+  label,
+  row,
+  check,
+  path,
+  revealable,
+  children,
+}: {
+  readonly label: string;
+  readonly row: RowContext;
+  /** Absent when the row cannot be ticked (missing cache, Docker volumes). */
+  readonly check?: { readonly on: boolean; readonly set: (on: boolean) => void };
+  readonly path: string;
+  /** False when `path` is a command rather than a place on disk. */
+  readonly revealable: boolean;
+  readonly children?: ReactNode;
+}) {
+  const { state, t, reveal } = row;
+  return (
+    <ContextMenuContent className="min-w-52">
+      <ContextMenuLabel>{label}</ContextMenuLabel>
+      <ContextMenuSeparator />
+      {children}
+      {check !== undefined && (
+        <ContextMenuItem
+          disabled={state.run?.running === true}
+          onSelect={() => {
+            check.set(!check.on);
+          }}
+        >
+          {check.on ? (
+            <Square className="size-4" aria-hidden="true" />
+          ) : (
+            <SquareCheck className="size-4" aria-hidden="true" />
+          )}
+          {check.on ? t('dev.menu.deselect') : t('dev.menu.select')}
+        </ContextMenuItem>
+      )}
+      {(check !== undefined || children !== undefined) && <ContextMenuSeparator />}
+      {revealable && reveal !== undefined && (
+        <ContextMenuItem
+          onSelect={() => {
+            reveal(path);
+          }}
+        >
+          <FolderSearch className="size-4" aria-hidden="true" />
+          {t('explore.menu.reveal')}
+        </ContextMenuItem>
+      )}
+      <ContextMenuItem
+        onSelect={() => {
+          void globalThis.navigator?.clipboard?.writeText(path);
+        }}
+      >
+        <Copy className="size-4" aria-hidden="true" />
+        {revealable ? t('explore.menu.copy') : t('dev.menu.copyCommand')}
+      </ContextMenuItem>
+    </ContextMenuContent>
+  );
 }
 
 function Section({
@@ -494,6 +615,7 @@ function Row({
   ariaLabel,
   title,
   path,
+  revealable = false,
   size,
   row,
   children,
@@ -502,37 +624,62 @@ function Row({
   readonly ariaLabel: string;
   readonly title: string;
   readonly path: string;
+  /** True when `path` is a place on disk rather than a command. */
+  readonly revealable?: boolean;
   readonly size: string | null;
   readonly row: RowContext;
   readonly children?: ReactNode;
 }) {
-  const { state, locale, t, line } = row;
+  const { state, locale, t, line, menu } = row;
   const report = line(id);
   return (
-    <li className="flex items-start gap-2 rounded-md border border-[var(--color-border-subtle)] p-2">
-      {id === null ? (
-        <span aria-hidden className="size-4 shrink-0" />
-      ) : (
-        <Checkbox
-          className="mt-0.5"
-          ariaLabel={ariaLabel}
-          checked={state.selected.has(id)}
-          disabled={state.run?.running === true}
-          onCheckedChange={(next) => {
-            state.toggle(id, next === true);
-          }}
-        />
-      )}
-      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <div className="flex items-baseline justify-between gap-2">
-          <span className="text-sm">{title}</span>
-          {size !== null && <span className="tnum shrink-0 text-2xs">{size}</span>}
-        </div>
-        <p className="font-mono text-2xs break-all text-[var(--color-fg-subtle)]">{path}</p>
-        {children}
-        {report !== undefined && <ReportLine item={report} locale={locale} t={t} />}
-      </div>
-    </li>
+    <ContextMenu {...menu.rootProps(`row:${id ?? path}`)}>
+      <ContextMenuTrigger asChild>
+        <li
+          tabIndex={0}
+          data-testid="dev-row"
+          className="flex items-start gap-2 rounded-md border border-[var(--color-border-subtle)] p-2 focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+          onContextMenu={menu.onContextMenu}
+        >
+          {id === null ? (
+            <span aria-hidden className="size-4 shrink-0" />
+          ) : (
+            <Checkbox
+              className="mt-0.5"
+              ariaLabel={ariaLabel}
+              checked={state.selected.has(id)}
+              disabled={state.run?.running === true}
+              onCheckedChange={(next) => {
+                state.toggle(id, next === true);
+              }}
+            />
+          )}
+          <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-sm">{title}</span>
+              {size !== null && <span className="tnum shrink-0 text-2xs">{size}</span>}
+            </div>
+            <p className="font-mono text-2xs break-all text-[var(--color-fg-subtle)]">{path}</p>
+            {children}
+            {report !== undefined && <ReportLine item={report} locale={locale} t={t} />}
+          </div>
+        </li>
+      </ContextMenuTrigger>
+      <RowMenuContent
+        label={title}
+        row={row}
+        path={path}
+        revealable={revealable}
+        {...(id !== null && {
+          check: {
+            on: state.selected.has(id),
+            set: (on: boolean) => {
+              state.toggle(id, on);
+            },
+          },
+        })}
+      />
+    </ContextMenu>
   );
 }
 
@@ -556,54 +703,91 @@ function idleText(project: Project, t: T): string {
 }
 
 function ProjectRow({ project, row }: { readonly project: Project; readonly row: RowContext }) {
-  const { state, locale, t } = row;
+  const { state, locale, t, menu } = row;
   const [open, setOpen] = useState(false);
   const check = projectCheckState(project, state.selected);
   const ids = project.artefacts.map((a) => a.id);
   return (
     <li className="rounded-md border border-[var(--color-border-subtle)]">
-      <div className="flex items-center gap-2 p-2">
-        <IconButton
-          size="sm"
-          icon={open ? <ChevronDown aria-hidden /> : <ChevronRight aria-hidden />}
-          aria-expanded={open}
-          label={
-            open
-              ? t('dev.project.hide', { name: project.name })
-              : t('dev.project.show', { name: project.name })
-          }
-          onClick={() => {
-            setOpen((v) => !v);
-          }}
-        />
-        <Checkbox
-          ariaLabel={t('dev.project.select', { name: project.name })}
-          checked={check}
-          disabled={state.run?.running === true}
-          onCheckedChange={() => {
-            state.setMany(ids, check !== true);
-          }}
-        />
-        <div className="flex min-w-0 flex-1 flex-col">
-          <div className="flex items-baseline justify-between gap-2">
-            <span className="truncate text-sm font-medium">{project.name}</span>
-            <span className="tnum shrink-0 text-2xs">
-              {totalText(
-                project.artefacts.map((a) => a.size),
-                locale,
-                t,
-              )}
-            </span>
+      {/* The header, not the whole item, is the trigger: the artefact rows
+          inside have menus of their own, and a right click on one must not
+          bubble up and open this one as well. */}
+      <ContextMenu {...menu.rootProps(`project:${project.path}`)}>
+        <ContextMenuTrigger asChild>
+          <div
+            tabIndex={0}
+            data-testid="dev-project"
+            className="flex items-center gap-2 rounded-md p-2 focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+            onContextMenu={menu.onContextMenu}
+          >
+            <IconButton
+              size="sm"
+              icon={open ? <ChevronDown aria-hidden /> : <ChevronRight aria-hidden />}
+              aria-expanded={open}
+              label={
+                open
+                  ? t('dev.project.hide', { name: project.name })
+                  : t('dev.project.show', { name: project.name })
+              }
+              onClick={() => {
+                setOpen((v) => !v);
+              }}
+            />
+            <Checkbox
+              ariaLabel={t('dev.project.select', { name: project.name })}
+              checked={check}
+              disabled={state.run?.running === true}
+              onCheckedChange={() => {
+                state.setMany(ids, check !== true);
+              }}
+            />
+            <div className="flex min-w-0 flex-1 flex-col">
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="truncate text-sm font-medium">{project.name}</span>
+                <span className="tnum shrink-0 text-2xs">
+                  {totalText(
+                    project.artefacts.map((a) => a.size),
+                    locale,
+                    t,
+                  )}
+                </span>
+              </div>
+              <p className="flex flex-wrap gap-x-2 text-2xs text-[var(--color-fg-muted)]">
+                <span>{idleText(project, t)}</span>
+                <span>{project.isGit ? t('dev.project.git') : t('dev.project.notGit')}</span>
+                <span className="font-mono break-all text-[var(--color-fg-subtle)]">
+                  {project.path}
+                </span>
+              </p>
+            </div>
           </div>
-          <p className="flex flex-wrap gap-x-2 text-2xs text-[var(--color-fg-muted)]">
-            <span>{idleText(project, t)}</span>
-            <span>{project.isGit ? t('dev.project.git') : t('dev.project.notGit')}</span>
-            <span className="font-mono break-all text-[var(--color-fg-subtle)]">
-              {project.path}
-            </span>
-          </p>
-        </div>
-      </div>
+        </ContextMenuTrigger>
+        <RowMenuContent
+          label={project.name}
+          row={row}
+          path={project.path}
+          revealable
+          check={{
+            on: check === true,
+            set: (on) => {
+              state.setMany(ids, on);
+            },
+          }}
+        >
+          <ContextMenuItem
+            onSelect={() => {
+              setOpen((v) => !v);
+            }}
+          >
+            {open ? (
+              <ChevronDown className="size-4" aria-hidden="true" />
+            ) : (
+              <ChevronRight className="size-4" aria-hidden="true" />
+            )}
+            {open ? t('dev.menu.collapse') : t('dev.menu.expand')}
+          </ContextMenuItem>
+        </RowMenuContent>
+      </ContextMenu>
       {open && (
         <ul className="flex flex-col gap-1 px-2 pb-2 pl-10">
           {project.artefacts.map((artefact) => {
@@ -615,6 +799,7 @@ function ProjectRow({ project, row }: { readonly project: Project; readonly row:
                 ariaLabel={t('dev.artefactSelect', { label: kind, path: artefact.path })}
                 title={kind}
                 path={artefact.path}
+                revealable
                 size={sizeText(artefact.size, locale, t)}
                 row={row}
               >
@@ -664,6 +849,7 @@ function WorktreeRow({ worktree, row }: { readonly worktree: Worktree; readonly 
       ariaLabel={t('dev.worktree.select', { path: worktree.path })}
       title={`${worktree.repo} · ${branch}`}
       path={worktree.path}
+      revealable
       size={worktree.state === 'prunable' ? null : sizeText(worktree.size, locale, t)}
       row={row}
     >
@@ -747,7 +933,9 @@ function Summary({
       ? t('dev.notMeasured')
       : formatBytes(total.bytes, locale);
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--color-border-subtle)] px-4 py-2">
+    // Spacing, not a rule, separates it from the list: inside a card a rule
+    // under the scroll area read as a second card edge.
+    <div className="flex flex-wrap items-center justify-between gap-2 px-4 pt-1 pb-3">
       <p className="tnum text-sm" aria-live="polite">
         {t('dev.summary', { count: total.count, n: formatCount(total.count, locale), size })}
         {total.unmeasured > 0 && total.bytes > 0 && (

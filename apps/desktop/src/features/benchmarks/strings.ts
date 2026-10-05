@@ -60,6 +60,13 @@ const en = {
     none: 'Clear the selection',
   },
 
+  menu: {
+    select: 'Include in the run',
+    deselect: 'Leave out of the run',
+    runOnly: 'Run only this',
+    copyResult: 'Copy result',
+  },
+
   unavailable: {
     badge: 'Not available',
     // Keyed by the reason string the backend sends. `unknown` catches anything
@@ -191,6 +198,13 @@ const ro = {
     legend: 'Alege ce să se măsoare',
     all: 'Selectează tot ce este disponibil',
     none: 'Golește selecția',
+  },
+
+  menu: {
+    select: 'Include în rulare',
+    deselect: 'Exclude din rulare',
+    runOnly: 'Rulează doar acesta',
+    copyResult: 'Copiază rezultatul',
   },
 
   unavailable: {

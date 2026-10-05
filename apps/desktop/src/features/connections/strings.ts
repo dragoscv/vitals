@@ -76,6 +76,17 @@ const en = {
   unknownAppHint:
     'The process closed between reading the socket table and reading the process list.',
 
+  menu: {
+    expand: 'Show connections',
+    collapse: 'Hide connections',
+    copyName: 'Copy program name',
+    copyPids: 'Copy process IDs',
+    copyRemotes: 'Copy remote addresses',
+    copyRemote: 'Copy remote address',
+    copyLocal: 'Copy local address',
+    copyProcess: 'Copy program name and PID',
+  },
+
   empty: {
     title: 'No connection matches',
     body: 'Clear the search or choose a different filter.',
@@ -150,6 +161,17 @@ const ro = {
   unknownApp: 'Program necunoscut',
   unknownAppHint:
     'Procesul s-a închis între citirea tabelei de socketuri și citirea listei de procese.',
+
+  menu: {
+    expand: 'Arată conexiunile',
+    collapse: 'Ascunde conexiunile',
+    copyName: 'Copiază numele programului',
+    copyPids: 'Copiază ID-urile proceselor',
+    copyRemotes: 'Copiază adresele la distanță',
+    copyRemote: 'Copiază adresa la distanță',
+    copyLocal: 'Copiază adresa locală',
+    copyProcess: 'Copiază numele programului și PID-ul',
+  },
 
   empty: {
     title: 'Nicio conexiune nu se potrivește',

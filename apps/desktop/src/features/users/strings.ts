@@ -62,6 +62,10 @@ const en = {
   remote: 'Remote desktop session',
   unavailable: 'Not available',
   logonTimeUnavailable: 'Logon time could not be determined',
+  menu: {
+    copyName: 'Copy user name',
+    copyDetails: 'Copy session details',
+  },
   requiresElevation:
     'Some session details require administrator rights. Run Vitals elevated to see them.',
 };
@@ -118,6 +122,10 @@ const ro = {
   remote: 'Sesiune desktop la distanță',
   unavailable: 'Indisponibil',
   logonTimeUnavailable: 'Ora de logon nu a putut fi determinată',
+  menu: {
+    copyName: 'Copiază numele utilizatorului',
+    copyDetails: 'Copiază detaliile sesiunii',
+  },
   requiresElevation:
     'Unele detalii ale sesiunilor necesită drepturi de administrator. Rulați Vitals cu privilegii elevate pentru a le vedea.',
 };

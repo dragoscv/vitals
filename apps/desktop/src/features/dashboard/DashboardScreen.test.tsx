@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { i18n, initI18n } from '@vitals/i18n';
@@ -219,6 +219,69 @@ describe('DashboardScreen', () => {
       await vi.waitFor(() => {
         expect(backend.saved.at(-1)).toEqual(defaultLayout);
       });
+    });
+  });
+
+  describe('the widget right-click menu', () => {
+    const two: DashboardLayout = [
+      { id: 'cpu', size: 'half' },
+      { id: 'disk', size: 'half' },
+    ];
+
+    async function openMenu(region: string) {
+      fireEvent.contextMenu(screen.getByRole('region', { name: region }), { button: 2 });
+      await act(async () => {});
+      return screen.findByRole('menu');
+    }
+
+    it('opens outside edit mode with every layout action', async () => {
+      await renderDashboard({ layout: two });
+
+      const menu = await openMenu('Disk');
+      for (const name of [
+        'Move up',
+        'Move down',
+        'Full width',
+        'Remove widget',
+        'Add widget…',
+        'Reset to defaults',
+      ]) {
+        expect(within(menu).getByRole('menuitem', { name })).toBeTruthy();
+      }
+      expect(
+        within(menu).getByRole('menuitem', { name: 'Move down' }).getAttribute('aria-disabled'),
+        'the last widget cannot move down',
+      ).toBe('true');
+    });
+
+    it('does not open for a contextmenu that is neither a right click nor the menu key', async () => {
+      await renderDashboard({ layout: two });
+
+      fireEvent.contextMenu(screen.getByRole('region', { name: 'Disk' }), { button: 0 });
+      await act(async () => {});
+
+      expect(screen.queryByRole('menu')).toBeNull();
+    });
+
+    it('removes a widget and widens another from the menu, persisting both', async () => {
+      const { backend } = await renderDashboard({ layout: two });
+
+      fireEvent.click(
+        within(await openMenu('Disk')).getByRole('menuitem', { name: 'Remove widget' }),
+      );
+      expect(screen.queryByRole('region', { name: 'Disk' })).toBeNull();
+
+      fireEvent.click(within(await openMenu('CPU')).getByRole('menuitem', { name: 'Full width' }));
+      await vi.waitFor(() => {
+        expect(backend.saved.at(-1)).toEqual([{ id: 'cpu', size: 'full' }]);
+      });
+    });
+
+    it('keeps an essential widget from being removed through the menu', async () => {
+      await renderDashboard({ layout: [{ id: 'cpu', size: 'half' }] });
+
+      const item = within(await openMenu('CPU')).getByRole('menuitem', { name: 'Remove widget' });
+      expect(item.getAttribute('aria-disabled')).toBe('true');
     });
   });
 

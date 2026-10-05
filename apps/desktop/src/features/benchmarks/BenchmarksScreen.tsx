@@ -26,8 +26,17 @@
  * the decision is made with the information rather than discovered after.
  */
 
-import { Activity, AlertTriangle, CheckCircle2, RefreshCw } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import {
+  Activity,
+  AlertTriangle,
+  CheckCircle2,
+  CheckSquare,
+  Copy,
+  Play,
+  RefreshCw,
+  Square,
+} from 'lucide-react';
+import { forwardRef, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import {
@@ -38,14 +47,22 @@ import {
   CardHeader,
   CardTitle,
   Checkbox,
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuLabel,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
   EmptyState,
   ProgressBar,
   Skeleton,
+  cn,
   formatCount,
   formatPercent,
   formatTemperature,
 } from '@vitals/ui';
 
+import { useRowMenu, type RowMenu } from '../../lib/useRowMenu';
 import {
   availableIds,
   byGroup,
@@ -72,6 +89,7 @@ export function BenchmarksScreen({ source }: BenchmarksScreenProps = {}): React.
 
   const state = useBenchmarks(source);
   const [deselected, setDeselected] = useState<ReadonlySet<BenchmarkId>>(new Set());
+  const menu = useRowMenu();
 
   const runnable = useMemo(() => availableIds(state.infos), [state.infos]);
   // Tracked as an exclusion set rather than a selection: the listing arrives
@@ -107,8 +125,37 @@ export function BenchmarksScreen({ source }: BenchmarksScreenProps = {}): React.
 
   const runningName = state.runningIds[0];
 
+  // One menu for a test, wherever the test is drawn: the checkbox in the
+  // selection and its result card offer the same actions, so neither place
+  // is the only way to reach one of them.
+  const menuFor = (id: BenchmarkId): TestMenuModel => {
+    const testInfo = state.infos.find((candidate) => candidate.id === id);
+    const available = testInfo?.available === true;
+    const testResult = state.suite?.results.find((candidate) => candidate.id === id) ?? null;
+    return {
+      id,
+      available,
+      selected: selected.has(id),
+      running: state.running,
+      result:
+        testResult === null
+          ? null
+          : resultSummary(testResult, locale, {
+              name: t(`name.${testResult.id}`),
+              verdict: isTrustworthy(testResult) ? t('trust.ok') : t('trust.bad'),
+            }),
+      onToggle: () => {
+        toggle(id, !selected.has(id));
+      },
+      onRunOnly: () => {
+        state.run([id]);
+      },
+      onRefresh: state.refresh,
+    };
+  };
+
   return (
-    <div className="screen">
+    <div className="screen" onKeyDown={menu.onKeyDown}>
       <header className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <h2 className="text-lg font-semibold">{t('title')}</h2>
@@ -138,6 +185,8 @@ export function BenchmarksScreen({ source }: BenchmarksScreenProps = {}): React.
             infos={state.infos}
             selected={selected}
             disabled={state.running}
+            menu={menu}
+            menuFor={menuFor}
             onToggle={toggle}
             onSelectAll={() => {
               setDeselected(new Set());
@@ -190,7 +239,12 @@ export function BenchmarksScreen({ source }: BenchmarksScreenProps = {}): React.
           {state.suite === null
             ? !state.running && <EmptyState title={t('idle.title')} description={t('idle.body')} />
             : state.suite.results.map((result) => (
-                <Result key={result.id} result={result} locale={locale} />
+                <ContextMenu key={result.id} {...menu.rootProps(`result:${result.id}`)}>
+                  <ContextMenuTrigger asChild>
+                    <Result result={result} locale={locale} onContextMenu={menu.onContextMenu} />
+                  </ContextMenuTrigger>
+                  <TestMenu model={menuFor(result.id)} />
+                </ContextMenu>
               ))}
 
           {state.suite !== null && (
@@ -207,10 +261,77 @@ export function BenchmarksScreen({ source }: BenchmarksScreenProps = {}): React.
   );
 }
 
+interface TestMenuModel {
+  readonly id: BenchmarkId;
+  readonly available: boolean;
+  readonly selected: boolean;
+  readonly running: boolean;
+  /** The last result as copyable text, or `null` before this test has run. */
+  readonly result: string | null;
+  readonly onToggle: () => void;
+  readonly onRunOnly: () => void;
+  readonly onRefresh: () => void;
+}
+
+/** The headline, the passes and the conditions verdict, as one line of text. */
+function resultSummary(
+  result: BenchmarkResultDto,
+  locale: string,
+  labels: { readonly name: string; readonly verdict: string },
+): string {
+  const value = (n: number): string => `${formatCount(n, locale)} ${result.unit}`;
+  return [
+    labels.name,
+    value(medianOf(result)),
+    result.runs.map(value).join(', '),
+    labels.verdict,
+  ].join('\t');
+}
+
+function TestMenu({ model }: { readonly model: TestMenuModel }) {
+  const { t } = useTranslation(BENCHMARKS_NS);
+  // Same rule as the checkbox: nothing changes while a suite is running, and
+  // a test the backend cannot run is never offered.
+  const locked = model.running || !model.available;
+  return (
+    <ContextMenuContent>
+      <ContextMenuLabel>{t(`name.${model.id}`)}</ContextMenuLabel>
+      <ContextMenuItem disabled={locked} onSelect={model.onToggle}>
+        {model.selected ? (
+          <Square className="size-4" aria-hidden="true" />
+        ) : (
+          <CheckSquare className="size-4" aria-hidden="true" />
+        )}
+        {model.selected ? t('menu.deselect') : t('menu.select')}
+      </ContextMenuItem>
+      <ContextMenuItem disabled={locked} onSelect={model.onRunOnly}>
+        <Play className="size-4" aria-hidden="true" />
+        {t('menu.runOnly')}
+      </ContextMenuItem>
+      <ContextMenuItem
+        disabled={model.result === null}
+        onSelect={() => {
+          if (model.result !== null) void globalThis.navigator?.clipboard?.writeText(model.result);
+        }}
+      >
+        <Copy className="size-4" aria-hidden="true" />
+        {t('menu.copyResult')}
+      </ContextMenuItem>
+      <ContextMenuSeparator />
+      <ContextMenuItem disabled={model.running} onSelect={model.onRefresh}>
+        <RefreshCw className="size-4" aria-hidden="true" />
+        {t('refresh')}
+      </ContextMenuItem>
+    </ContextMenuContent>
+  );
+}
+
 function Selection({
   infos,
   selected,
   disabled,
+  menu,
+  menuFor,
   onToggle,
   onSelectAll,
   onSelectNone,
@@ -218,6 +339,8 @@ function Selection({
   readonly infos: readonly BenchmarkInfo[];
   readonly selected: ReadonlySet<BenchmarkId>;
   readonly disabled: boolean;
+  readonly menu: RowMenu;
+  readonly menuFor: (id: BenchmarkId) => TestMenuModel;
   readonly onToggle: (id: BenchmarkId, on: boolean) => void;
   readonly onSelectAll: () => void;
   readonly onSelectNone: () => void;
@@ -247,13 +370,18 @@ function Selection({
             </CardHeader>
             <CardBody className="flex flex-col gap-2.5">
               {section.infos.map((info) => (
-                <BenchmarkChoice
-                  key={info.id}
-                  info={info}
-                  checked={selected.has(info.id)}
-                  disabled={disabled}
-                  onToggle={onToggle}
-                />
+                <ContextMenu key={info.id} {...menu.rootProps(`choice:${info.id}`)}>
+                  <ContextMenuTrigger asChild>
+                    <BenchmarkChoice
+                      info={info}
+                      checked={selected.has(info.id)}
+                      disabled={disabled}
+                      onToggle={onToggle}
+                      onContextMenu={menu.onContextMenu}
+                    />
+                  </ContextMenuTrigger>
+                  <TestMenu model={menuFor(info.id)} />
+                </ContextMenu>
               ))}
             </CardBody>
           </Card>
@@ -263,17 +391,16 @@ function Selection({
   );
 }
 
-function BenchmarkChoice({
-  info,
-  checked,
-  disabled,
-  onToggle,
-}: {
-  readonly info: BenchmarkInfo;
-  readonly checked: boolean;
-  readonly disabled: boolean;
-  readonly onToggle: (id: BenchmarkId, on: boolean) => void;
-}) {
+/** Forwards ref and props: it is the `ContextMenuTrigger asChild` target. */
+const BenchmarkChoice = forwardRef<
+  HTMLDivElement,
+  {
+    readonly info: BenchmarkInfo;
+    readonly checked: boolean;
+    readonly disabled: boolean;
+    readonly onToggle: (id: BenchmarkId, on: boolean) => void;
+  } & Omit<React.ComponentPropsWithoutRef<'div'>, 'children' | 'onToggle'>
+>(function BenchmarkChoice({ info, checked, disabled, onToggle, className, ...rest }, ref) {
   const { t } = useTranslation(BENCHMARKS_NS);
   const name = t(`name.${info.id}`);
 
@@ -286,7 +413,12 @@ function BenchmarkChoice({
   });
 
   return (
-    <div className="flex flex-col gap-0.5">
+    <div
+      ref={ref}
+      data-testid={`choice-${info.id}`}
+      className={cn('flex flex-col gap-0.5', className)}
+      {...rest}
+    >
       <Checkbox
         checked={info.available && checked}
         disabled={disabled || !info.available}
@@ -316,7 +448,7 @@ function BenchmarkChoice({
       )}
     </div>
   );
-}
+});
 
 function StartPanel({
   seconds,
@@ -364,13 +496,14 @@ function StartPanel({
   );
 }
 
-function Result({
-  result,
-  locale,
-}: {
-  readonly result: BenchmarkResultDto;
-  readonly locale: string;
-}) {
+/** Forwards ref and props: it is the `ContextMenuTrigger asChild` target. */
+const Result = forwardRef<
+  HTMLDivElement,
+  {
+    readonly result: BenchmarkResultDto;
+    readonly locale: string;
+  } & Omit<React.ComponentPropsWithoutRef<'div'>, 'children' | 'className' | 'title'>
+>(function Result({ result, locale, ...rest }, ref) {
   const { t } = useTranslation(BENCHMARKS_NS);
   const trusted = isTrustworthy(result);
   const reasons = distrustReasons(result);
@@ -393,7 +526,7 @@ function Result({
   const percent = (value: number): string => formatPercent(value, locale);
 
   return (
-    <Card regionLabel={t(`name.${result.id}`)}>
+    <Card ref={ref} regionLabel={t(`name.${result.id}`)} {...rest}>
       <CardHeader
         actions={
           trusted ? (
@@ -475,7 +608,7 @@ function Result({
       </CardBody>
     </Card>
   );
-}
+});
 
 function Conditions({
   result,
@@ -487,8 +620,10 @@ function Conditions({
   const { t } = useTranslation(BENCHMARKS_NS);
   const { conditions } = result;
 
+  // Separated by spacing, not a rule: a divider here sat a few pixels above
+  // the card's own bottom edge and read as a doubled border.
   return (
-    <div className="border-t border-[var(--color-border-subtle)] pt-2">
+    <div className="pt-1">
       <p className="text-2xs font-medium">{t('trust.conditions')}</p>
       <ul className="mt-0.5 space-y-0.5 text-2xs text-[var(--color-fg-muted)]">
         <li>

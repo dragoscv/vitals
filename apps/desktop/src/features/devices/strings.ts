@@ -259,6 +259,19 @@ const en = {
   unavailable: 'Not available',
   unavailableHint: 'Vitals reports no value rather than a stand-in.',
 
+  menu: {
+    copyValue: 'Copy value',
+    copyName: 'Copy name',
+    copyDetails: 'Copy details',
+    copyInstanceId: 'Copy device instance ID',
+    copyDriver: 'Copy driver details',
+    copyDeviceNames: 'Copy device names',
+    searchOnline: 'Search online',
+    expand: 'Expand',
+    collapse: 'Collapse',
+    hideHidden: 'Hide devices that are not connected',
+  },
+
   noHost: {
     title: 'No readings are arriving',
     body: 'Vitals cannot reach the part of itself that reads sensors. Nothing is wrong with the machine — restarting Vitals usually fixes this.',
@@ -511,6 +524,19 @@ const ro = {
   },
   unavailable: 'Indisponibil',
   unavailableHint: 'Vitals nu raportează nicio valoare în locul unei valori inventate.',
+
+  menu: {
+    copyValue: 'Copiază valoarea',
+    copyName: 'Copiază numele',
+    copyDetails: 'Copiază detaliile',
+    copyInstanceId: 'Copiază ID-ul instanței dispozitivului',
+    copyDriver: 'Copiază detaliile driverului',
+    copyDeviceNames: 'Copiază numele dispozitivelor',
+    searchOnline: 'Caută online',
+    expand: 'Extinde',
+    collapse: 'Restrânge',
+    hideHidden: 'Ascunde dispozitivele care nu sunt conectate',
+  },
 
   noHost: {
     title: 'Nu sosesc măsurători',

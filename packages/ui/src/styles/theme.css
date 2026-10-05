@@ -446,14 +446,28 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    background: var(--color-border-default);
+    /* Hidden until the pointer is over the scroll container (or keyboard
+       focus is inside it), the way Windows 11's own scrollbars behave: a
+       dense screen with six permanent thumbs reads as clutter, and the
+       space is reserved either way so content never shifts on hover. */
+    background: transparent;
     border-radius: 5px;
     border: 2px solid transparent;
+    background-clip: content-box;
+  }
+
+  :hover::-webkit-scrollbar-thumb,
+  :focus-within::-webkit-scrollbar-thumb {
+    background: var(--color-border-default);
     background-clip: content-box;
   }
 
   ::-webkit-scrollbar-thumb:hover {
     background: var(--color-border-strong);
     background-clip: content-box;
+  }
+
+  ::-webkit-scrollbar-corner {
+    background: transparent;
   }
 }

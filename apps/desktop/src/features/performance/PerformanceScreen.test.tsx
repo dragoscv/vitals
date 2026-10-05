@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
-import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { i18n, initI18n } from '@vitals/i18n';
 
@@ -117,7 +117,7 @@ describe('PerformanceScreen', () => {
     });
 
     const rail = screen.getByRole('navigation', { name: 'Resources' });
-    fireEvent.contextMenu(within(rail).getByRole('button', { name: /H:/ }));
+    fireEvent.contextMenu(within(rail).getByRole('button', { name: /H:/ }), { button: 2 });
     fireEvent.click(screen.getByRole('menuitem', { name: 'Hide' }));
 
     expect(within(rail).queryByRole('button', { name: /H:/ })).toBeNull();
@@ -134,18 +134,48 @@ describe('PerformanceScreen', () => {
     mount({ disks: [{ id: 7, mount: 'H:' }] });
 
     const rail = screen.getByRole('navigation', { name: 'Resources' });
-    fireEvent.contextMenu(within(rail).getByRole('button', { name: /H:/ }));
+    fireEvent.contextMenu(within(rail).getByRole('button', { name: /H:/ }), { button: 2 });
     fireEvent.click(screen.getByRole('menuitem', { name: 'Show' }));
 
     expect(useSettings.getState().settings.resourceVisibility).toEqual({});
   });
 
-  it('offers no menu on CPU, which cannot be hidden', () => {
+  it('offers CPU a copy-summary menu but no Hide, since it cannot be hidden', async () => {
     mount();
 
     const rail = screen.getByRole('navigation', { name: 'Resources' });
-    fireEvent.contextMenu(within(rail).getByRole('button', { name: /CPU/ }));
-    expect(screen.queryByRole('menuitem')).toBeNull();
+    fireEvent.contextMenu(within(rail).getByRole('button', { name: /CPU/ }), { button: 2 });
+    const menu = await screen.findByRole('menu');
+    expect(within(menu).getByRole('menuitem', { name: 'Copy summary' })).toBeTruthy();
+    expect(within(menu).queryByRole('menuitem', { name: 'Hide' })).toBeNull();
+  });
+
+  it('copies the headline the rail shows for memory', async () => {
+    const writeText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    mount();
+
+    const rail = screen.getByRole('navigation', { name: 'Resources' });
+    const memory = within(rail).getByRole('button', { name: /Memory/ });
+    fireEvent.contextMenu(memory, { button: 2 });
+    fireEvent.click(
+      within(await screen.findByRole('menu')).getByRole('menuitem', { name: 'Copy summary' }),
+    );
+
+    expect(writeText).toHaveBeenCalledTimes(1);
+    const copied = writeText.mock.calls[0]?.[0] ?? '';
+    expect(copied.startsWith('Memory · ')).toBe(true);
+    expect(copied).toMatch(/%/);
+  });
+
+  it('does not open a rail menu for a contextmenu that is neither a right click nor the menu key', () => {
+    mount({ disks: [{ id: 7, mount: 'H:' }] });
+
+    const rail = screen.getByRole('navigation', { name: 'Resources' });
+    fireEvent.contextMenu(within(rail).getByRole('button', { name: /H:/ }), { button: 0 });
+    fireEvent.contextMenu(within(rail).getByRole('button', { name: /CPU/ }), { button: 0 });
+
+    expect(screen.queryByRole('menu')).toBeNull();
   });
 
   it('charts the selected network adapter, not the machine total', () => {
@@ -167,12 +197,14 @@ describe('PerformanceScreen', () => {
     expect(screen.queryByRole('img', { name: 'Ethernet' })).toBeNull();
   });
 
-  it('offers no menu on thermals either', () => {
+  it('offers thermals a copy-summary menu but no Hide either', async () => {
     mount({ cpu: { temperature: 55 } });
 
     const rail = screen.getByRole('navigation', { name: 'Resources' });
-    fireEvent.contextMenu(within(rail).getByRole('button', { name: /Thermals/ }));
-    expect(screen.queryByRole('menuitem')).toBeNull();
+    fireEvent.contextMenu(within(rail).getByRole('button', { name: /Thermals/ }), { button: 2 });
+    const menu = await screen.findByRole('menu');
+    expect(within(menu).getByRole('menuitem', { name: 'Copy summary' })).toBeTruthy();
+    expect(within(menu).queryByRole('menuitem', { name: 'Hide' })).toBeNull();
   });
 
   it('keeps rail buttons clear of the overlay scrollbar', () => {

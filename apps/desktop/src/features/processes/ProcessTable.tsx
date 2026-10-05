@@ -29,6 +29,7 @@ import {
 import { useTranslation } from 'react-i18next';
 
 import { ContextMenu, ContextMenuTrigger, cn } from '@vitals/ui';
+import { ArrowDown, ArrowUp, ChevronDown } from 'lucide-react';
 import { displayName } from '@vitals/protocol';
 
 import { COLUMN_BY_ID, type ColumnId } from './columns';
@@ -257,9 +258,12 @@ export function ProcessTable(props: ProcessTableProps): React.JSX.Element {
                     <span className="truncate">
                       {t(column.labelKey, fallback(column.labelKey as never))}
                     </span>
-                    {active && (
-                      <span aria-hidden="true">{props.sortDirection === 'asc' ? '▲' : '▼'}</span>
-                    )}
+                    {active &&
+                      (props.sortDirection === 'asc' ? (
+                        <ArrowUp aria-hidden="true" className="size-3 shrink-0" />
+                      ) : (
+                        <ArrowDown aria-hidden="true" className="size-3 shrink-0" />
+                      ))}
                   </button>
                   <ResizeHandle
                     column={column.id}
@@ -434,7 +438,13 @@ const Row = memo(
                     onClick={() => onToggleExpand(row.id)}
                     className="inline-flex size-4 shrink-0 items-center justify-center rounded text-[var(--color-fg-subtle)] hover:text-[var(--color-fg-default)] focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
                   >
-                    <span aria-hidden="true">{expanded ? '▾' : '▸'}</span>
+                    <ChevronDown
+                      aria-hidden="true"
+                      className={cn(
+                        'size-3.5 transition-transform duration-(--duration-fast)',
+                        !expanded && '-rotate-90',
+                      )}
+                    />
                   </button>
                   <span className="truncate">{text}</span>
                 </span>

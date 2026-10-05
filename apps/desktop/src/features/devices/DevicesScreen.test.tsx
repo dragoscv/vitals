@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { i18n, initI18n } from '@vitals/i18n';
@@ -352,6 +352,35 @@ describe('DevicesScreen', () => {
     // "availability.accessDenied" on screen.
     const text = container.textContent ?? '';
     expect(text).not.toMatch(/\b(availability|reason|capability|quality|source|mode|line)\.[a-z]/i);
+  });
+});
+
+describe('the sensor row menu', () => {
+  const rowOf = (label: string): HTMLElement => {
+    const row = screen.getByText(label).closest('tr');
+    if (row === null) throw new Error(`no row for ${label}`);
+    return row;
+  };
+
+  it('opens on a right click with the copies and a refresh', async () => {
+    await mount(snapshot({ readings: [reading()] }));
+
+    fireEvent.contextMenu(rowOf('Thermal zone 0'), { button: 2, clientX: 5, clientY: 5 });
+    await act(async () => {});
+
+    const items = within(await screen.findByRole('menu'))
+      .getAllByRole('menuitem')
+      .map((item) => item.textContent);
+    expect(items).toEqual(['Copy value', 'Copy name', 'Copy details', 'Refresh']);
+  });
+
+  it('does not open on a left-button contextmenu', async () => {
+    await mount(snapshot({ readings: [reading()] }));
+
+    fireEvent.contextMenu(rowOf('Thermal zone 0'), { button: 0, clientX: 0, clientY: 0 });
+    await act(async () => {});
+
+    expect(screen.queryByRole('menu')).toBeNull();
   });
 });
 

@@ -23,7 +23,20 @@
  * which by construction fills the same frame. Reduced motion skips the tween.
  */
 
-import { Check, ChevronRight, ChevronUp, FileText, Folder, Layers, Plus } from 'lucide-react';
+import {
+  Check,
+  ChevronRight,
+  ChevronUp,
+  Copy,
+  FileText,
+  Folder,
+  FolderOpen,
+  FolderSearch,
+  Layers,
+  ListMinus,
+  ListPlus,
+  Plus,
+} from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -45,6 +58,7 @@ import {
 import { useVirtualizer } from '@tanstack/react-virtual';
 
 import { errorMessage, isCommandError } from '../../lib/commandError';
+import { useRowMenu } from '../../lib/useRowMenu';
 import {
   FULL_VIEW,
   drawMap,
@@ -116,6 +130,70 @@ export interface ExplorerProps {
 /** `parent\name`, without doubling the separator after a drive root. */
 function childPath(parent: string, name: string): string {
   return parent.endsWith('\\') ? `${parent}${name}` : `${parent}\\${name}`;
+}
+
+/** A virtual row's rule: the first row sits under the container's own border. */
+const rowRule = (index: number): string =>
+  index > 0 ? 'border-t border-[var(--color-border-subtle)]' : '';
+
+/**
+ * The actions a folder or file offers, shared by the lists and the map so
+ * the three surfaces cannot drift: an action missing from one of them is a
+ * user hunting for it in the wrong place.
+ */
+function PathMenuItems({
+  item,
+  selected,
+  onReveal,
+  onToggleBasket,
+  open,
+}: {
+  readonly item: BasketItem;
+  readonly selected: boolean;
+  readonly onReveal: (path: string) => void;
+  readonly onToggleBasket: (item: BasketItem) => void;
+  /** Absent for files: a file has nothing to open into. */
+  readonly open?: { readonly disabled: boolean; readonly run: () => void };
+}) {
+  const { t } = useTranslation(STORAGE_NS);
+  return (
+    <ContextMenuContent>
+      {open !== undefined && (
+        <ContextMenuItem disabled={open.disabled} onSelect={open.run}>
+          <FolderOpen className="size-4" aria-hidden="true" />
+          {t('explore.menu.open')}
+        </ContextMenuItem>
+      )}
+      <ContextMenuItem
+        onSelect={() => {
+          onReveal(item.path);
+        }}
+      >
+        <FolderSearch className="size-4" aria-hidden="true" />
+        {t('explore.menu.reveal')}
+      </ContextMenuItem>
+      <ContextMenuItem
+        onSelect={() => {
+          void globalThis.navigator?.clipboard?.writeText(item.path);
+        }}
+      >
+        <Copy className="size-4" aria-hidden="true" />
+        {t('explore.menu.copy')}
+      </ContextMenuItem>
+      <ContextMenuItem
+        onSelect={() => {
+          onToggleBasket(item);
+        }}
+      >
+        {selected ? (
+          <ListMinus className="size-4" aria-hidden="true" />
+        ) : (
+          <ListPlus className="size-4" aria-hidden="true" />
+        )}
+        {selected ? t('basket.inBasketRemove') : t('basket.add')}
+      </ContextMenuItem>
+    </ContextMenuContent>
+  );
 }
 
 /**
@@ -270,6 +348,7 @@ function ScanExplorer({
               here={here}
               locale={locale}
               onOpen={setFocus}
+              onReveal={reveal}
               onFail={fail}
               basket={basket}
               onToggleBasket={onToggleBasket}
@@ -382,6 +461,7 @@ function MapCanvas({
   here,
   locale,
   onOpen,
+  onReveal,
   onFail,
   basket,
   onToggleBasket,
@@ -394,6 +474,7 @@ function MapCanvas({
   readonly here: StorageNode;
   readonly locale: string;
   readonly onOpen: (node: number) => void;
+  readonly onReveal: (path: string) => void;
   readonly onFail: (cause: unknown) => void;
   readonly basket: readonly BasketItem[];
   readonly onToggleBasket: (item: BasketItem) => void;
@@ -407,6 +488,10 @@ function MapCanvas({
   const [viewport, setViewport] = useState<Viewport>(FULL_VIEW);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const animation = useRef<number | null>(null);
+  const menu = useRowMenu();
+  // The folder the open menu acts on: fixed at the right click, so moving
+  // the pointer over the map while the menu is up cannot retarget it.
+  const [target, setTarget] = useState<MapCell | null>(null);
 
   // Track the element's size so the map re-lays out (treemap) and redraws.
   useEffect(() => {
@@ -542,43 +627,69 @@ function MapCanvas({
     // Flexes to the card's height rather than a fixed one: a fixed height
     // overflowed the card at 1440x900, and the Clean-up card below covered
     // the map, which then swallowed no clicks at all (found live).
-    <div className="relative min-h-32 flex-[3_1_0%]">
-      <canvas
-        ref={canvasRef}
-        role="img"
-        aria-label={t('explore.mapLabel', { path: here.path })}
-        title={tip ?? undefined}
-        className="size-full cursor-pointer rounded-md"
-        onPointerMove={(event) => {
-          const next = pointAt(event);
-          if (next !== hovered) setHovered(next);
-        }}
-        onPointerLeave={() => {
-          setHovered(null);
-        }}
-        onClick={(event) => {
-          // A click on a file block or a leaf folder opens the folder that
-          // holds it rather than doing nothing (see `openTarget`).
-          const hit = pointAt(event);
-          const target = hit === null ? null : openTarget(cells, shape, hit);
-          if (target !== null) open(target);
-        }}
-        onContextMenu={(event) => {
-          // Right-click puts the folder under the pointer in review. Only
-          // direct children: a deeper cell's path is not known here without
-          // a round trip, and the list below offers every folder anyway.
-          const hit = pointAt(event);
-          if (hit === null || hit.kind !== 'directory' || hit.depth !== 1 || hit.name === null)
-            return;
-          event.preventDefault();
-          onToggleBasket({
-            path: childPath(here.path, hit.name),
-            name: hit.name,
-            kind: 'folder',
-            allocated: hit.allocated,
-          });
-        }}
-      />
+    <div className="relative min-h-32 flex-[3_1_0%]" onKeyDown={menu.onKeyDown}>
+      <ContextMenu {...menu.rootProps('map')}>
+        <ContextMenuTrigger asChild>
+          <canvas
+            ref={canvasRef}
+            role="img"
+            aria-label={t('explore.mapLabel', { path: here.path })}
+            title={tip ?? undefined}
+            className="size-full cursor-pointer rounded-md"
+            onPointerMove={(event) => {
+              const next = pointAt(event);
+              if (next !== hovered) setHovered(next);
+            }}
+            onPointerLeave={() => {
+              setHovered(null);
+            }}
+            onClick={(event) => {
+              // A click on a file block or a leaf folder opens the folder that
+              // holds it rather than doing nothing (see `openTarget`).
+              const hit = pointAt(event);
+              const next = hit === null ? null : openTarget(cells, shape, hit);
+              if (next !== null) open(next);
+            }}
+            onContextMenu={(event) => {
+              // Only direct children get a menu: a deeper cell's path is not
+              // known here without a round trip, and the list below offers
+              // every folder anyway. Anywhere else the menu stays shut rather
+              // than opening with nothing to act on.
+              const hit = pointAt(event);
+              if (
+                hit === null ||
+                hit.kind !== 'directory' ||
+                hit.depth !== 1 ||
+                hit.name === null
+              ) {
+                event.preventDefault();
+                return;
+              }
+              setTarget(hit);
+              menu.onContextMenu(event);
+            }}
+          />
+        </ContextMenuTrigger>
+        {target !== null && target.name !== null && (
+          <PathMenuItems
+            item={{
+              path: childPath(here.path, target.name),
+              name: target.name,
+              kind: 'folder',
+              allocated: target.allocated,
+            }}
+            selected={inBasket(basket, childPath(here.path, target.name))}
+            onReveal={onReveal}
+            onToggleBasket={onToggleBasket}
+            open={{
+              disabled: !target.openable,
+              run: () => {
+                open(target);
+              },
+            }}
+          />
+        )}
+      </ContextMenu>
       {tip !== null && (
         <p
           aria-hidden
@@ -613,6 +724,7 @@ function FolderList({
   const { t } = useTranslation(STORAGE_NS);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const total = Math.max(1, here.allocated);
+  const menu = useRowMenu();
 
   // Deliberate: see ProcessTable for why the compiler skips this component.
   // eslint-disable-next-line react-hooks/incompatible-library
@@ -634,7 +746,7 @@ function FolderList({
     <div className={`flex min-h-24 flex-col gap-1 ${compact ? 'flex-[2_1_0%]' : 'flex-1'}`}>
       {here.ownFiles > 0 && (
         <p className="flex items-center gap-1.5 text-2xs text-[var(--color-fg-muted)]">
-          <FileText aria-hidden className="size-3.5" />
+          <FileText aria-hidden className="size-4" />
           {t('explore.ownFiles', {
             count: here.ownFiles,
             n: formatCount(here.ownFiles, locale),
@@ -645,6 +757,7 @@ function FolderList({
       <div
         ref={scrollRef}
         className="pane-scroll rounded-md border border-[var(--color-border-subtle)]"
+        onKeyDown={menu.onKeyDown}
       >
         <ul
           className="relative w-full"
@@ -664,14 +777,14 @@ function FolderList({
             return (
               <li
                 key={row.key}
-                className="absolute inset-x-0 flex items-center gap-1 border-t border-[var(--color-border-subtle)] pr-1.5"
+                className={`absolute inset-x-0 flex items-center gap-1 pr-1.5 ${rowRule(row.index)}`}
                 style={{
                   top: 0,
                   height: ROW_HEIGHT,
                   transform: `translateY(${String(row.start)}px)`,
                 }}
               >
-                <ContextMenu>
+                <ContextMenu {...menu.rootProps(item.path)}>
                   <ContextMenuTrigger asChild>
                     <button
                       type="button"
@@ -680,6 +793,7 @@ function FolderList({
                       aria-label={
                         item.hasChildren ? t('explore.open', { name: item.name }) : item.name
                       }
+                      onContextMenu={menu.onContextMenu}
                       onClick={() => {
                         onOpen(item.node);
                       }}
@@ -715,37 +829,18 @@ function FolderList({
                       </span>
                     </button>
                   </ContextMenuTrigger>
-                  <ContextMenuContent>
-                    <ContextMenuItem
-                      disabled={!item.hasChildren}
-                      onSelect={() => {
+                  <PathMenuItems
+                    item={entry}
+                    selected={selected}
+                    onReveal={onReveal}
+                    onToggleBasket={onToggleBasket}
+                    open={{
+                      disabled: !item.hasChildren,
+                      run: () => {
                         onOpen(item.node);
-                      }}
-                    >
-                      {t('explore.menu.open')}
-                    </ContextMenuItem>
-                    <ContextMenuItem
-                      onSelect={() => {
-                        onReveal(item.path);
-                      }}
-                    >
-                      {t('explore.menu.reveal')}
-                    </ContextMenuItem>
-                    <ContextMenuItem
-                      onSelect={() => {
-                        void globalThis.navigator?.clipboard?.writeText(item.path);
-                      }}
-                    >
-                      {t('explore.menu.copy')}
-                    </ContextMenuItem>
-                    <ContextMenuItem
-                      onSelect={() => {
-                        onToggleBasket(entry);
-                      }}
-                    >
-                      {selected ? t('basket.inBasketRemove') : t('basket.add')}
-                    </ContextMenuItem>
-                  </ContextMenuContent>
+                      },
+                    }}
+                  />
                 </ContextMenu>
                 <BasketToggle item={entry} selected={selected} onToggle={onToggleBasket} />
               </li>
@@ -772,6 +867,7 @@ function FileList({
 }) {
   const { t } = useTranslation(STORAGE_NS);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const menu = useRowMenu();
   // eslint-disable-next-line react-hooks/incompatible-library
   const virtualizer = useVirtualizer({
     count: files.length,
@@ -790,6 +886,7 @@ function FileList({
     <div
       ref={scrollRef}
       className="pane-scroll rounded-md border border-[var(--color-border-subtle)]"
+      onKeyDown={menu.onKeyDown}
     >
       <ul className="relative w-full" style={{ height: `${String(virtualizer.getTotalSize())}px` }}>
         {virtualizer.getVirtualItems().map((row) => {
@@ -807,19 +904,20 @@ function FileList({
           return (
             <li
               key={row.key}
-              className="absolute inset-x-0 flex items-center gap-1 border-t border-[var(--color-border-subtle)] pr-1.5"
+              className={`absolute inset-x-0 flex items-center gap-1 pr-1.5 ${rowRule(row.index)}`}
               style={{
                 top: 0,
                 height: ROW_HEIGHT,
                 transform: `translateY(${String(row.start)}px)`,
               }}
             >
-              <ContextMenu>
+              <ContextMenu {...menu.rootProps(file.path)}>
                 <ContextMenuTrigger asChild>
                   <button
                     type="button"
                     className="flex h-full min-w-0 flex-1 items-center gap-2 px-2.5 text-left hover:bg-[var(--color-accent-subtle)] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-accent)]"
                     title={file.path}
+                    onContextMenu={menu.onContextMenu}
                     onClick={() => {
                       onReveal(file.path);
                     }}
@@ -848,29 +946,12 @@ function FileList({
                     </span>
                   </button>
                 </ContextMenuTrigger>
-                <ContextMenuContent>
-                  <ContextMenuItem
-                    onSelect={() => {
-                      onReveal(file.path);
-                    }}
-                  >
-                    {t('explore.menu.reveal')}
-                  </ContextMenuItem>
-                  <ContextMenuItem
-                    onSelect={() => {
-                      void globalThis.navigator?.clipboard?.writeText(file.path);
-                    }}
-                  >
-                    {t('explore.menu.copy')}
-                  </ContextMenuItem>
-                  <ContextMenuItem
-                    onSelect={() => {
-                      onToggleBasket(entry);
-                    }}
-                  >
-                    {selected ? t('basket.inBasketRemove') : t('basket.add')}
-                  </ContextMenuItem>
-                </ContextMenuContent>
+                <PathMenuItems
+                  item={entry}
+                  selected={selected}
+                  onReveal={onReveal}
+                  onToggleBasket={onToggleBasket}
+                />
               </ContextMenu>
               <BasketToggle item={entry} selected={selected} onToggle={onToggleBasket} />
             </li>

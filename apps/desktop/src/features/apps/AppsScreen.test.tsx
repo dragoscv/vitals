@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { i18n, initI18n } from '@vitals/i18n';
@@ -246,5 +246,64 @@ describe('AppsScreen', () => {
 
     expect(await screen.findByRole('heading', { name: 'Aplicații instalate' })).toBeTruthy();
     expect(screen.getByRole('radio', { name: 'Dimensiune' })).toBeTruthy();
+  });
+});
+
+describe('AppsScreen row menu', () => {
+  const rowOf = (name: string): HTMLElement => {
+    const row = screen.getByText(name).closest('tr');
+    if (row === null) throw new Error(`no row for ${name}`);
+    return row;
+  };
+
+  it('opens on a right click with every action the row offers', async () => {
+    await mount(snapshot({ apps: [app({ name: 'Steam', installLocation: 'C:\\Steam' })] }));
+
+    fireEvent.contextMenu(rowOf('Steam'), { button: 2, clientX: 5, clientY: 5 });
+    await act(async () => {});
+
+    const menu = await screen.findByRole('menu');
+    const items = within(menu)
+      .getAllByRole('menuitem')
+      .map((item) => item.textContent);
+    expect(items).toEqual([
+      'Uninstall',
+      'Open install location',
+      'Search online',
+      'Copy name and version',
+      'Refresh',
+    ]);
+  });
+
+  it('does not open on a left-button contextmenu, which is how a slow touchpad press arrives', async () => {
+    await mount();
+
+    fireEvent.contextMenu(rowOf('Thing'), { button: 0, clientX: 0, clientY: 0 });
+    await act(async () => {});
+
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
+
+  it('routes uninstall from the menu through the same confirmation as the row button', async () => {
+    const { uninstall } = await mount();
+
+    fireEvent.contextMenu(rowOf('Thing'), { button: 2, clientX: 5, clientY: 5 });
+    await act(async () => {});
+    fireEvent.click(within(await screen.findByRole('menu')).getByText('Uninstall'));
+
+    expect(await screen.findByRole('dialog')).toBeTruthy();
+    expect(uninstall).not.toHaveBeenCalled();
+  });
+
+  it('disables open install location when the installer recorded none', async () => {
+    await mount();
+
+    fireEvent.contextMenu(rowOf('Thing'), { button: 2, clientX: 5, clientY: 5 });
+    await act(async () => {});
+
+    const item = within(await screen.findByRole('menu'))
+      .getByText('Open install location')
+      .closest('[role="menuitem"]');
+    expect(item?.getAttribute('aria-disabled')).toBe('true');
   });
 });

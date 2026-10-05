@@ -2,7 +2,7 @@
  * Search, filter chips, grouping toggle and the column picker.
  */
 
-import { PanelRightClose, PanelRightOpen } from 'lucide-react';
+import { Columns3, PanelRightClose, PanelRightOpen } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import {
@@ -57,7 +57,7 @@ export function ProcessToolbar(props: ProcessToolbarProps): React.JSX.Element {
     // Wraps rather than overflowing: at the 720 px window minimum the one-line
     // toolbar was 141 px wider than the content column and dragged the whole
     // page sideways with it.
-    <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-[var(--color-border-subtle)] px-3 py-2">
+    <div className="flex shrink-0 flex-wrap items-center gap-2 px-3 py-2">
       <SearchInput
         className="w-64 max-w-full min-w-40 flex-initial"
         value={props.query}
@@ -91,57 +91,61 @@ export function ProcessToolbar(props: ProcessToolbarProps): React.JSX.Element {
         }
       />
 
-      <div className="flex-1" />
-
-      {/* No "Order held" pill here any more, although rows still hold their
+      {/* One unbreakable group: count, Columns, Export and the panel toggle
+          move to the next line together, or not at all. Wrapped one by one,
+          Export alone dropped to a second line at common window widths. */}
+      <div className="ml-auto flex shrink-0 items-center gap-1">
+        {/* No "Order held" pill here any more, although rows still hold their
           positions while the pointer is over the table. The pill appeared on
           hover, its width wrapped Export onto a second line, and the whole
           table jumped down a row under the cursor — the exact thing holding
           the order exists to prevent. Nothing in this toolbar may change
           size with hover state. */}
-      <span className="text-2xs text-[var(--color-fg-muted)] tabular-nums">
-        {t('process.results', fallback('process.results'), {
-          shown: props.shown,
-          total: props.total,
-        })}
-      </span>
+        <span className="mr-1 text-2xs whitespace-nowrap text-[var(--color-fg-muted)] tabular-nums">
+          {t('process.results', fallback('process.results'), {
+            shown: props.shown,
+            total: props.total,
+          })}
+        </span>
 
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button size="sm" variant="ghost">
-            {t('process.columns', fallback('process.columns'))}
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          {COLUMNS.map((column) => (
-            <DropdownMenuCheckboxItem
-              key={column.id}
-              checked={props.visible.includes(column.id)}
-              disabled={column.required}
-              onSelect={(event) => {
-                // Without this the menu closes on every toggle, so hiding
-                // three columns means reopening it three times.
-                event.preventDefault();
-                props.onToggleColumn(column.id);
-              }}
-            >
-              {t(column.labelKey, fallback(column.labelKey as never))}
-            </DropdownMenuCheckboxItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button size="sm" variant="ghost">
+              <Columns3 aria-hidden className="size-4" />
+              {t('process.columns', fallback('process.columns'))}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {COLUMNS.map((column) => (
+              <DropdownMenuCheckboxItem
+                key={column.id}
+                checked={props.visible.includes(column.id)}
+                disabled={column.required}
+                onSelect={(event) => {
+                  // Without this the menu closes on every toggle, so hiding
+                  // three columns means reopening it three times.
+                  event.preventDefault();
+                  props.onToggleColumn(column.id);
+                }}
+              >
+                {t(column.labelKey, fallback(column.labelKey as never))}
+              </DropdownMenuCheckboxItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
 
-      <ExportButton name="processes" rows={props.exportRows} columns={props.exportColumns} />
+        <ExportButton name="processes" rows={props.exportRows} columns={props.exportColumns} />
 
-      <IconButton
-        size="md"
-        variant="ghost"
-        aria-pressed={props.showDetails}
-        label={props.showDetails ? tp('panel.hide') : tp('panel.show')}
-        title={props.showDetails ? tp('panel.hide') : tp('panel.show')}
-        icon={props.showDetails ? <PanelRightClose /> : <PanelRightOpen />}
-        onClick={() => props.onShowDetailsChange(!props.showDetails)}
-      />
+        <IconButton
+          size="md"
+          variant="ghost"
+          aria-pressed={props.showDetails}
+          label={props.showDetails ? tp('panel.hide') : tp('panel.show')}
+          title={props.showDetails ? tp('panel.hide') : tp('panel.show')}
+          icon={props.showDetails ? <PanelRightClose /> : <PanelRightOpen />}
+          onClick={() => props.onShowDetailsChange(!props.showDetails)}
+        />
+      </div>
     </div>
   );
 }
