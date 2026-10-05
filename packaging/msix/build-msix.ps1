@@ -17,13 +17,14 @@
   Four-part numeric version, e.g. 0.9.0.0 (the Store requires the last part 0).
 
 .PARAMETER IdentityName / Publisher / PublisherDisplayName
-  From Partner Center > the app > Product identity.
+  From Partner Center > the app > Product identity. Defaults are the reserved
+  product 9P95RK5VMGPJ ("Vitals: System Monitor"; "Vitals" alone was taken).
 #>
 param(
   [Parameter(Mandatory)][string]$Version,
-  [string]$IdentityName = 'DragosCatalinVladulescu.Vitals',
-  [string]$Publisher = 'CN=Dragos Catalin Vladulescu',
-  [string]$PublisherDisplayName = 'Dragos Catalin Vladulescu',
+  [string]$IdentityName = 'DragosCatalin.VitalsSystemMonitor',
+  [string]$Publisher = 'CN=FE8B5839-E0F9-495F-854C-53165710EB07',
+  [string]$PublisherDisplayName = 'Dragos Catalin',
   [string]$ReleaseDir,
   [string]$OutDir,
   [string]$TestCertificate

@@ -21,7 +21,7 @@
     ProcessorArchitecture="x64" />
 
   <Properties>
-    <DisplayName>Vitals</DisplayName>
+    <DisplayName>Vitals: System Monitor</DisplayName>
     <PublisherDisplayName>{{PUBLISHER_DISPLAY_NAME}}</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
     <Description>See what your computer is actually doing. A fast, free system monitor and task manager.</Description>
@@ -40,7 +40,7 @@
   <Applications>
     <Application Id="Vitals" Executable="vitals-desktop.exe" EntryPoint="Windows.FullTrustApplication">
       <uap:VisualElements
-        DisplayName="Vitals"
+        DisplayName="Vitals: System Monitor"
         Description="System monitor and task manager"
         BackgroundColor="transparent"
         Square150x150Logo="Assets\Square150x150Logo.png"

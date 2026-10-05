@@ -4,7 +4,9 @@ Se lipește fiecare bloc în Partner Center > Store listings > Romanian (Romania
 
 ## Nume produs
 
-Vitals
+Vitals: System Monitor
+
+(Store ID 9P95RK5VMGPJ — https://apps.microsoft.com/detail/9P95RK5VMGPJ. "Vitals" alone is taken in the Store.)
 
 ## Descriere scurtă (≤ 100 caractere)
 

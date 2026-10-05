@@ -4,7 +4,9 @@ Paste each block into Partner Center > Store listings > English (United States).
 
 ## Product name
 
-Vitals
+Vitals: System Monitor
+
+(Store ID 9P95RK5VMGPJ — https://apps.microsoft.com/detail/9P95RK5VMGPJ. "Vitals" alone is taken in the Store.)
 
 ## Short description (≤ 100 characters, shown in search)
 
