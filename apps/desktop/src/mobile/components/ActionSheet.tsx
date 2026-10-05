@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 
 import { isVitalsError, type ControlRequest } from '@vitals/client';
 import { Button } from '@vitals/ui';
-import type { Process } from '@vitals/protocol';
+import { displayName, type Process } from '@vitals/protocol';
 
 /** What the sheet reports back after a request settled. */
 export interface ActionOutcome {
@@ -74,7 +74,7 @@ export function ActionSheet({ process, control, onClose, onSettled, readOnly }: 
     <div
       role="dialog"
       aria-modal="true"
-      aria-label={t('mobile.action.title', { name: process.name })}
+      aria-label={t('mobile.action.title', { name: displayName(process) })}
       className="fixed inset-0 z-50 flex flex-col justify-end"
     >
       {/* Tap-outside-to-dismiss. Not a button: the visible Cancel below is
@@ -87,7 +87,7 @@ export function ActionSheet({ process, control, onClose, onSettled, readOnly }: 
       />
       <div className="sheet-panel safe-bottom relative rounded-t-[var(--radius-widget)] border-t border-[var(--color-border-subtle)] bg-[var(--color-bg-raised)] p-4">
         <h2 className="truncate text-base font-semibold">
-          {t('mobile.action.title', { name: process.name })}
+          {t('mobile.action.title', { name: displayName(process) })}
         </h2>
 
         {readOnly ? (
@@ -110,7 +110,7 @@ export function ActionSheet({ process, control, onClose, onSettled, readOnly }: 
                   onClick={() => void send({ action: 'terminate', key: process.key })}
                   className="min-h-[52px]"
                 >
-                  {t('mobile.action.confirmEnd', { name: process.name })}
+                  {t('mobile.action.confirmEnd', { name: displayName(process) })}
                 </Button>
                 <p className="text-center text-2xs text-[var(--color-fg-muted)]">
                   {t('mobile.action.confirmHint')}

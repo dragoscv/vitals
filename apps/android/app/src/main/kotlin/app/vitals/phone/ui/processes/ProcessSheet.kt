@@ -128,7 +128,7 @@ fun ProcessSheet(pairing: Pairing, process: Process, onDismiss: () -> Unit) {
                 .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Text(process.name, style = MaterialTheme.typography.headlineSmall)
+            Text(process.displayName, style = MaterialTheme.typography.headlineSmall)
             InfoRow(stringResource(R.string.sort_cpu), Format.percent(process.cpu))
             InfoRow(stringResource(R.string.metric_memory), Format.bytes(process.memoryPrivate))
             InfoRow(

@@ -204,6 +204,7 @@ export function makeProcess(overrides: Partial<Process> = {}): Process {
     threadCount: 4,
     handleCount: 100,
     user: 'user',
+    description: null,
     uptimeSecs: 60,
     ...overrides,
   } as Process;

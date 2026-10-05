@@ -13,8 +13,6 @@ import {
   Button,
   SearchInput,
   SegmentedControl,
-  Tooltip,
-  TooltipProvider,
 } from '@vitals/ui';
 
 import { ExportButton } from '../../components/ExportButton';
@@ -34,8 +32,6 @@ export interface ProcessToolbarProps {
   readonly onToggleColumn: (id: ColumnId) => void;
   readonly shown: number;
   readonly total: number;
-  /** True while row positions are held because the pointer is over the table. */
-  readonly orderHeld: boolean;
   /** The rows as drawn — filtered, sorted — so the file matches the screen. */
   readonly exportRows: readonly ProcessRow[];
   readonly exportColumns: readonly ExportColumn<ProcessRow>[];
@@ -91,26 +87,12 @@ export function ProcessToolbar(props: ProcessToolbarProps): React.JSX.Element {
 
       <div className="flex-1" />
 
-      {/* Surfaced rather than silent: a user who notices rows have stopped
-          moving must be able to find out why, and that the values are still
-          live. An invisible freeze looks like a hung app. */}
-      {props.orderHeld && (
-        // Its own provider rather than relying on one further up: this chip
-        // must explain itself wherever the screen is mounted, and a missing
-        // ancestor provider is a runtime throw, not a degraded tooltip.
-        <TooltipProvider>
-          <Tooltip content={t('process.order.pausedHint', fallback('process.order.pausedHint'))}>
-            <span
-              tabIndex={0}
-              data-testid="order-held"
-              className="rounded-full border border-[var(--color-border-default)] px-2 py-0.5 text-2xs text-[var(--color-fg-subtle)]"
-            >
-              {t('process.order.paused', fallback('process.order.paused'))}
-            </span>
-          </Tooltip>
-        </TooltipProvider>
-      )}
-
+      {/* No "Order held" pill here any more, although rows still hold their
+          positions while the pointer is over the table. The pill appeared on
+          hover, its width wrapped Export onto a second line, and the whole
+          table jumped down a row under the cursor — the exact thing holding
+          the order exists to prevent. Nothing in this toolbar may change
+          size with hover state. */}
       <span className="text-2xs text-[var(--color-fg-muted)] tabular-nums">
         {t('process.results', fallback('process.results'), {
           shown: props.shown,

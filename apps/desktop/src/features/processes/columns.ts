@@ -13,6 +13,7 @@ import {
   formatThroughput,
   formatUptime,
 } from '@vitals/ui';
+import { displayName } from '@vitals/protocol';
 
 import { UNKNOWN } from './constants';
 import type { ProcessRow, SortColumn } from './model';
@@ -42,7 +43,7 @@ export const COLUMNS: readonly ColumnDef[] = [
     align: 'start',
     numeric: false,
     required: true,
-    render: (row) => row.process.name,
+    render: (row) => displayName(row.process),
   },
   {
     id: 'pid',

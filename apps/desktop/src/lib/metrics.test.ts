@@ -35,6 +35,7 @@ function makeProcess(pid: number, startTime: number, name: string): Process {
     threadCount: 1,
     handleCount: 10,
     user: null,
+    description: null,
     uptimeSecs: 60,
   };
 }

@@ -103,6 +103,7 @@ mod tests {
             key: ProcessKey::new(Pid(pid), 1),
             parent: None,
             name: format!("p{pid}.exe"),
+            description: None,
             kind: ProcessKind::App,
             state: ProcessState::Running,
             flags: ProcessFlags::empty(),

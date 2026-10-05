@@ -78,7 +78,7 @@ internal fun ProgramsTab(pairing: Pairing, state: LiveState) {
             when (sort) {
                 Sort.Cpu -> all.sortedByDescending { it.cpu }
                 Sort.Memory -> all.sortedByDescending { it.memoryPrivate }
-                Sort.Name -> all.sortedBy { it.name.lowercase() }
+                Sort.Name -> all.sortedBy { it.displayName.lowercase() }
             }
         }
     }
@@ -113,7 +113,7 @@ private fun ProcessRow(p: Process, selected: Boolean, onClick: () -> Unit) {
     ListItem(
         selected = selected,
         onClick = onClick,
-        headlineContent = { Text(p.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        headlineContent = { Text(p.displayName, maxLines = 1, overflow = TextOverflow.Ellipsis) },
         supportingContent = when (p.state) {
             ProcessState.Suspended -> ({ Text(stringResource(R.string.process_state_suspended), color = readable(Palette.Warn)) })
             ProcessState.NotResponding -> ({ Text(stringResource(R.string.process_state_not_responding), color = readable(Palette.Warn)) })
@@ -163,7 +163,7 @@ private fun ProcessPanel(pairing: Pairing, process: Process) {
         }
     }
 
-    Panel(process.name, accent = Palette.Cpu, modifier = Modifier.verticalScroll(rememberScrollState())) {
+    Panel(process.displayName, accent = Palette.Cpu, modifier = Modifier.verticalScroll(rememberScrollState())) {
         InfoRow(stringResource(R.string.sort_cpu), Format.percent(process.cpu), valueColour = Palette.of(Thresholds.cpu(process.cpu)).takeIf { process.cpu >= 85f } ?: androidx.compose.ui.graphics.Color.Unspecified)
         InfoRow(stringResource(R.string.metric_memory), Format.bytes(process.memoryPrivate))
         InfoRow(stringResource(R.string.process_disk), stringResource(R.string.disk_read_write, Format.rate(process.diskRead), Format.rate(process.diskWrite)))

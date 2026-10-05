@@ -20,7 +20,7 @@ import {
   ContextMenuSubTrigger,
 } from '@vitals/ui';
 
-import type { Process } from '@vitals/protocol';
+import { displayName, type Process } from '@vitals/protocol';
 
 import { priorities, type ProcessPriority } from './actions';
 import { PROCESSES_NS, fallback } from './strings';
@@ -78,10 +78,19 @@ export function ProcessMenu(props: ProcessMenuProps): React.JSX.Element {
   const suspended = process.state === 'suspended';
   const hasPath = props.executablePath !== null;
   const noPath = hasPath ? undefined : tp('detail.file.unknownPath');
+  const appName = displayName(process);
 
   return (
     <ContextMenuContent className="min-w-56">
-      <ContextMenuLabel>{process.name}</ContextMenuLabel>
+      {/* The file name first, as the user asked: it is the one thing the
+          table no longer shows, and what a terminal, a firewall rule or a
+          search engine needs. The app name below it says which row this is. */}
+      <ContextMenuLabel className="flex flex-col gap-0.5">
+        <span className="font-mono text-[var(--color-fg-default)]">{process.name}</span>
+        {appName !== process.name && (
+          <span className="truncate font-normal text-[var(--color-fg-muted)]">{appName}</span>
+        )}
+      </ContextMenuLabel>
       <ContextMenuSeparator />
 
       <ContextMenuItem destructive onSelect={props.onTerminate}>

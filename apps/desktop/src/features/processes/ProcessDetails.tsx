@@ -22,7 +22,13 @@ import {
   formatUptime,
 } from '@vitals/ui';
 
-import type { HandleInfo, HostInfo, ModuleInfo, Process } from '@vitals/protocol';
+import {
+  displayName,
+  type HandleInfo,
+  type HostInfo,
+  type ModuleInfo,
+  type Process,
+} from '@vitals/protocol';
 
 import { errorMessage, type ProcessActionsApi } from './actions';
 import { affinityPresets, type AffinityPreset } from './affinity';
@@ -88,10 +94,11 @@ export function ProcessDetails({
       aria-label={t('process.detail.title', fallback('process.detail.title'))}
     >
       <header className="space-y-1">
-        <h2 className="truncate text-sm font-semibold" title={p.name}>
-          {p.name}
+        <h2 className="truncate text-sm font-semibold" title={displayName(p)}>
+          {displayName(p)}
         </h2>
         <p className="text-2xs text-[var(--color-fg-muted)]">
+          {displayName(p) !== p.name && <span className="font-mono">{p.name} · </span>}
           {t('process.pid')} {p.key.pid} ·{' '}
           {t(`process.kind.${p.kind}`, fallback(`process.kind.${p.kind}` as never))}
         </p>

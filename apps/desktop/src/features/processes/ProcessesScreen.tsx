@@ -10,6 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent }
 import { useTranslation } from 'react-i18next';
 
 import { EmptyState, Skeleton } from '@vitals/ui';
+import { displayName } from '@vitals/protocol';
 
 import type { ExportColumn } from '../../lib/export';
 import { oneOf, parseHash, useUrlState } from '../../lib/useUrlState';
@@ -326,7 +327,7 @@ export function ProcessesScreen({
           setRequest({
             action: pending.action,
             plan: pending.plan,
-            processName: row.process.name,
+            processName: displayName(row.process),
             childCount: 0,
             denied: true,
           });
@@ -411,7 +412,7 @@ export function ProcessesScreen({
       setRequest({
         action,
         plan,
-        processName: row.process.name,
+        processName: displayName(row.process),
         childCount: Math.max(0, ids.length - 1),
       });
     },
@@ -626,7 +627,6 @@ export function ProcessesScreen({
         onToggleColumn={onToggleColumn}
         shown={built.matchCount}
         total={total}
-        orderHeld={frozen}
         exportRows={rows}
         exportColumns={exportColumns}
       />

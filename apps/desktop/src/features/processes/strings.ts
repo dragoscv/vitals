@@ -175,9 +175,6 @@ export const MISSING_KEYS = {
   'process.filter.background': 'Background',
   'process.filter.system': 'Windows processes',
   'process.group.byApp': 'Group by app',
-  'process.order.paused': 'Order held',
-  'process.order.pausedHint':
-    'Rows keep their positions while you are pointing at the table, so a row cannot move out from under the cursor. Values keep updating.',
   'process.search.placeholder': 'Filter processes',
   'process.results': '{{shown}} of {{total}} processes',
   'process.empty.title': 'No process matches',

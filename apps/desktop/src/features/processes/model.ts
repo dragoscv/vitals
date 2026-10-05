@@ -7,7 +7,7 @@
  */
 
 import type { Process, ProcessKind } from '@vitals/protocol';
-import { processKeyId } from '@vitals/protocol';
+import { displayName, matchesProcessName, processKeyId } from '@vitals/protocol';
 
 import { ProcessFlag, hasFlag } from './constants';
 
@@ -97,7 +97,7 @@ export function sortValue(row: ProcessRow, column: SortColumn): number {
 export function textValue(row: ProcessRow, column: SortColumn): string | null {
   switch (column) {
     case 'name':
-      return row.process.name;
+      return displayName(row.process);
     case 'user':
       return row.process.user;
     case 'state':
@@ -155,7 +155,7 @@ export function matchesKind(kind: ProcessKind, filter: KindFilter): boolean {
 export function matchesQuery(process: Process, query: string): boolean {
   if (query === '') return true;
   const needle = query.toLowerCase();
-  if (process.name.toLowerCase().includes(needle)) return true;
+  if (matchesProcessName(process, needle)) return true;
   if (String(process.key.pid).includes(needle)) return true;
   const user = process.user;
   return user !== null && user.toLowerCase().includes(needle);

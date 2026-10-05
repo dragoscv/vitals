@@ -70,6 +70,7 @@ function process(pid: number, startTime: number, name = 'test.exe'): Process {
     threadCount: 1,
     handleCount: null,
     user: null,
+    description: null,
     uptimeSecs: 0,
   };
 }

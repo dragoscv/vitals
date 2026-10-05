@@ -79,7 +79,7 @@ fun ProcessesScreen(
                     modifier = Modifier.fillMaxWidth().transformedHeight(this, spec),
                     transformation = SurfaceTransformation(spec),
                     colors = ButtonDefaults.filledTonalButtonColors(),
-                    label = { Text(process.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                    label = { Text(process.displayName, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                     secondaryLabel = {
                         Text(
                             stringResource(

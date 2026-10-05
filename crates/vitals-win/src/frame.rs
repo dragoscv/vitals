@@ -201,6 +201,7 @@ fn is_meaningfully_different(previous: &Process, current: &Process) -> bool {
         || previous.flags != current.flags
         || previous.thread_count != current.thread_count
         || previous.name != current.name
+        || previous.description != current.description
 }
 
 /// Maps a sampled process onto the wire type.
@@ -214,6 +215,7 @@ fn convert(sampled: SampledProcess) -> Process {
             .name
             .clone()
             .unwrap_or_else(|| format!("PID {}", raw.key.pid.get())),
+        description: sampled.description,
         // Session 0 is where services live; anything else is a user session.
         // A cheap first approximation — window ownership and the service
         // database refine it, and both cost a per-process query we do not
@@ -582,6 +584,7 @@ mod tests {
             key: ProcessKey::new(Pid(1234), 42),
             parent: None,
             name: "test.exe".into(),
+            description: None,
             kind: ProcessKind::Background,
             state: ProcessState::Running,
             flags: ProcessFlags::empty(),

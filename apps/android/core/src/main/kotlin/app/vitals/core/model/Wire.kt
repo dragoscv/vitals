@@ -254,7 +254,13 @@ data class Process(
     val handleCount: Int?,
     val user: String?,
     val uptimeSecs: Long,
+    /** The executable's own name ("Windows Explorer"); null from older desktops. */
+    val description: String? = null,
 ) {
+    /** Mirrors `displayName` in `@vitals/protocol`: the app's name, else the file name. */
+    val displayName: String
+        get() = description?.trim()?.takeIf { it.isNotEmpty() } ?: name
+
     /** Mirrors `Process::is_safely_terminable` in Rust. */
     val isSafelyTerminable: Boolean
         get() = flags and FLAG_CRITICAL == 0 &&

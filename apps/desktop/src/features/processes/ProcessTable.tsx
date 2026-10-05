@@ -18,14 +18,18 @@ import {
   forwardRef,
   memo,
   useCallback,
+  useEffect,
   useMemo,
   useRef,
+  useState,
   type ComponentPropsWithoutRef,
   type KeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
 } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { ContextMenu, ContextMenuTrigger, cn } from '@vitals/ui';
+import { displayName } from '@vitals/protocol';
 
 import { COLUMN_BY_ID, type ColumnId } from './columns';
 import { OVERSCAN, ROW_HEIGHT, UNKNOWN } from './constants';
@@ -66,6 +70,68 @@ export interface ProcessTableProps {
 export function ProcessTable(props: ProcessTableProps): React.JSX.Element {
   const { t } = useTranslation();
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Which row's menu is open, and whether a deliberate request asked for it.
+  // Left clicks were opening the menu, pinned near the window's top-left
+  // corner (2026-10-05): Radix opens on any `contextmenu` event and also on a
+  // 700 ms press from any pointer that is not `mouse`, and the one seen had
+  // no coordinates. The two deliberate routes are recognisable: a right
+  // click carries `button === 2`, and the keyboard route is Shift+F10 or the
+  // Menu key pressed just before. Anything else is refused.
+  const [menuRow, setMenuRow] = useState<string | null>(null);
+  const requested = useRef(false);
+  const menuKeyAt = useRef(Number.NEGATIVE_INFINITY);
+  const { onMenuOpenChange } = props;
+  useEffect(() => {
+    onMenuOpenChange(menuRow !== null);
+  }, [menuRow, onMenuOpenChange]);
+  const { onKeyDown } = props;
+  const onGridKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLDivElement>) => {
+      if (event.key === 'ContextMenu' || (event.key === 'F10' && event.shiftKey)) {
+        menuKeyAt.current = performance.now();
+      }
+      onKeyDown(event);
+    },
+    [onKeyDown],
+  );
+  const onRowContextMenu = useCallback((event: ReactMouseEvent<HTMLDivElement>) => {
+    const fromKeyboard = performance.now() - menuKeyAt.current < 1_000;
+    if (event.button !== 2 && !fromKeyboard) {
+      event.preventDefault();
+      return;
+    }
+    // The keyboard route produces a `contextmenu` with no position, which
+    // Radix places at (0, 0) — the window's corner, far from the row it is
+    // about. Stop that one and send it again from just below the row's name.
+    if (fromKeyboard && event.clientX === 0 && event.clientY === 0) {
+      event.preventDefault();
+      const target = event.currentTarget;
+      const rect = target.getBoundingClientRect();
+      target.dispatchEvent(
+        new MouseEvent('contextmenu', {
+          bubbles: true,
+          cancelable: true,
+          clientX: Math.max(1, rect.left + 24),
+          clientY: Math.max(1, rect.bottom),
+        }),
+      );
+      return;
+    }
+    requested.current = true;
+    menuKeyAt.current = Number.NEGATIVE_INFINITY;
+  }, []);
+  const menuOpenChange = useCallback((id: string, open: boolean) => {
+    if (open) {
+      if (!requested.current) return;
+      requested.current = false;
+      setMenuRow(id);
+      return;
+    }
+    // A right click on another row opens its menu before the old one
+    // reports closing; that late close must not shut the new one.
+    setMenuRow((current) => (current === id ? null : current));
+  }, []);
 
   const columns = useMemo(
     () =>
@@ -149,7 +215,7 @@ export function ProcessTable(props: ProcessTableProps): React.JSX.Element {
         // One tab stop for the whole grid with arrow keys inside, which is the
         // WAI-ARIA grid pattern. Six hundred tab stops would be unusable.
         tabIndex={0}
-        onKeyDown={props.onKeyDown}
+        onKeyDown={onGridKeyDown}
       >
         <div style={{ minWidth: totalWidth }}>
           <div
@@ -212,7 +278,11 @@ export function ProcessTable(props: ProcessTableProps): React.JSX.Element {
               const row = props.rows[item.index];
               if (row === undefined) return null;
               return (
-                <ContextMenu key={item.key} onOpenChange={props.onMenuOpenChange}>
+                <ContextMenu
+                  key={item.key}
+                  open={menuRow === row.id}
+                  onOpenChange={(open) => menuOpenChange(row.id, open)}
+                >
                   <ContextMenuTrigger asChild>
                     <Row
                       row={row}
@@ -226,6 +296,7 @@ export function ProcessTable(props: ProcessTableProps): React.JSX.Element {
                       onToggleExpand={props.onToggleExpand}
                       onPointerDown={props.onRowPointerDown}
                       onFocusRow={props.onFocusRow}
+                      onContextMenu={onRowContextMenu}
                       locale={props.locale}
                     />
                   </ContextMenuTrigger>
@@ -346,6 +417,8 @@ const Row = memo(
                 text === UNKNOWN && 'text-[var(--color-fg-subtle)]',
               )}
               style={isName ? { paddingInlineStart: 8 + row.depth * 14 } : undefined}
+              // The file name on hover: the cell shows the app's own name,
+              // and the executable is what a terminal or a crash log names.
               title={isName ? row.process.name : undefined}
             >
               {isName && row.childIds.length > 0 ? (
@@ -355,7 +428,7 @@ const Row = memo(
                     aria-label={t(
                       expanded ? 'process.tree.collapse' : 'process.tree.expand',
                       fallback(expanded ? 'process.tree.collapse' : 'process.tree.expand'),
-                      { name: row.process.name },
+                      { name: displayName(row.process) },
                     )}
                     onPointerDown={(event) => event.stopPropagation()}
                     onClick={() => onToggleExpand(row.id)}

@@ -26,6 +26,22 @@ use windows_sys::Win32::Storage::FileSystem::{
 /// hide the row.
 #[must_use]
 pub fn company_name(path: &Path) -> Option<String> {
+    version_string(path, "CompanyName")
+}
+
+/// Reads `FileDescription` — the name an executable gives itself, which is
+/// what Task Manager shows as the app's name (`Code - Insiders.exe` →
+/// "Visual Studio Code - Insiders").
+///
+/// `None` on the same terms as [`company_name`]; the caller falls back to
+/// the file name.
+#[must_use]
+pub fn file_description(path: &Path) -> Option<String> {
+    version_string(path, "FileDescription")
+}
+
+/// Reads one string from a file's version resource.
+fn version_string(path: &Path, field: &str) -> Option<String> {
     let wide: Vec<u16> = path.to_str()?.encode_utf16().chain(Some(0)).collect();
 
     let mut handle = 0_u32;
@@ -53,7 +69,7 @@ pub fn company_name(path: &Path) -> Option<String> {
 
     candidates
         .iter()
-        .find_map(|lang| query_string(&block, &format!(r"\StringFileInfo\{lang}\CompanyName")))
+        .find_map(|lang| query_string(&block, &format!(r"\StringFileInfo\{lang}\{field}")))
 }
 
 /// Whether a declared company is Microsoft.
@@ -228,6 +244,23 @@ mod tests {
             company_name(Path::new(r"C:\definitely\not\here.exe")),
             None,
             "an absent file is unknown, not a company"
+        );
+    }
+
+    #[test]
+    fn notepad_describes_itself_and_a_missing_file_has_no_description() {
+        let windir = std::env::var("WINDIR").unwrap_or_else(|_| r"C:\Windows".to_owned());
+        let notepad = Path::new(&windir).join(r"System32\notepad.exe");
+        let description = file_description(&notepad);
+        assert!(
+            description
+                .as_deref()
+                .is_some_and(|d| d.to_ascii_lowercase().contains("notepad")),
+            "notepad.exe should describe itself as Notepad, got {description:?}"
+        );
+        assert_eq!(
+            file_description(Path::new(r"C:\definitely\not\here.exe")),
+            None
         );
     }
 

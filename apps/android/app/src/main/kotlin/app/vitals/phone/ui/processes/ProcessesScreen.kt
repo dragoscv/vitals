@@ -64,11 +64,11 @@ fun ProcessesScreen(pairing: Pairing) {
         derivedStateOf {
             val all = state.view?.processes?.values ?: return@derivedStateOf null
             val q = query.trim()
-            val filtered = if (q.isEmpty()) all.toList() else all.filter { it.name.contains(q, ignoreCase = true) }
+            val filtered = if (q.isEmpty()) all.toList() else all.filter { it.name.contains(q, ignoreCase = true) || it.displayName.contains(q, ignoreCase = true) }
             when (sort) {
                 Sort.Cpu -> filtered.sortedByDescending { it.cpu }
                 Sort.Memory -> filtered.sortedByDescending { it.memoryPrivate }
-                Sort.Name -> filtered.sortedBy { it.name.lowercase() }
+                Sort.Name -> filtered.sortedBy { it.displayName.lowercase() }
             }
         }
     }
@@ -145,7 +145,7 @@ private fun ProcessRow(p: Process, onClick: () -> Unit, modifier: Modifier = Mod
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
-            Text(p.name, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(p.displayName, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
             val status = when (p.state) {
                 ProcessState.Suspended -> stringResource(R.string.process_state_suspended)
                 ProcessState.NotResponding -> stringResource(R.string.process_state_not_responding)

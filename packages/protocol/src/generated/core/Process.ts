@@ -26,7 +26,16 @@ key: ProcessKey, parent: Pid | null,
 /**
  * Executable name only (`chrome.exe`), not the full path.
  */
-name: string, kind: ProcessKind, state: ProcessState, flags: ProcessFlags, integrity: IntegrityLevel | null, protection: ProtectionLevel, 
+name: string, 
+/**
+ * The name the executable gives itself — its version resource's
+ * `FileDescription`, "Visual Studio Code - Insiders" for
+ * `Code - Insiders.exe` — which is what people recognise and what Task
+ * Manager shows. `None` when the file declares none, cannot be read
+ * (protected processes), or only repeats [`Self::name`]; the UI then
+ * shows the file name.
+ */
+description: string | null, kind: ProcessKind, state: ProcessState, flags: ProcessFlags, integrity: IntegrityLevel | null, protection: ProtectionLevel, 
 /**
  * Share of total machine CPU, not of a single core.
  *

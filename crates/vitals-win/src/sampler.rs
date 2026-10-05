@@ -76,6 +76,9 @@ pub struct SampledProcess {
     pub gpu: Option<Percent>,
     /// The account the process runs as; `None` when its token is denied.
     pub owner: Option<String>,
+    /// The executable's own `FileDescription`, when it has one that says
+    /// more than its file name.
+    pub description: Option<String>,
 }
 
 /// Samples every subsystem on a shared clock.
@@ -121,6 +124,8 @@ pub struct SystemSampler {
 
     /// Process owners, resolved once per process lifetime.
     owners: OwnerCache,
+    /// Process descriptions, resolved once per process lifetime.
+    descriptions: crate::process::DescriptionCache,
 }
 
 impl Default for SystemSampler {
@@ -147,6 +152,7 @@ impl SystemSampler {
             history: crate::history::SharedHistory::default(),
             gpu: GpuSampler::new(),
             owners: OwnerCache::new(),
+            descriptions: crate::process::DescriptionCache::new(),
         }
     }
 
@@ -368,6 +374,9 @@ impl SystemSampler {
             // the same data onwards.
             out.push(SampledProcess {
                 owner: self.owners.owner(process.key),
+                description: self
+                    .descriptions
+                    .description(process.key, process.name.as_deref()),
                 // Looked up before the move, since `process` is consumed
                 // below. `None` means no GPU counters exist on this machine;
                 // `Some(0)` means they do and this process did no GPU work.
@@ -392,6 +401,7 @@ impl SystemSampler {
         if self.process_baseline.len() != seen.len() {
             let live: std::collections::HashSet<ProcessKey> = seen.iter().copied().collect();
             self.owners.retain_live(&live);
+            self.descriptions.retain_live(&live);
             seen.sort_unstable_by_key(|k| (k.pid.get(), k.start_time));
             self.process_baseline.retain(|key, _| {
                 seen.binary_search_by_key(&(key.pid.get(), key.start_time), |k| {

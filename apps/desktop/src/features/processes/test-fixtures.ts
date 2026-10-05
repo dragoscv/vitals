@@ -31,6 +31,7 @@ export function makeProcess(overrides: Partial<Process> & { pid: number }): Proc
     threadCount: 4,
     handleCount: 100,
     user: 'tester',
+    description: null,
     uptimeSecs: 60,
     ...rest,
   };

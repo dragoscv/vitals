@@ -44,6 +44,7 @@ fn a_process() -> Process {
         key: ProcessKey::new(Pid(100), 1),
         parent: None,
         name: "test.exe".into(),
+        description: None,
         kind: ProcessKind::App,
         // Multi-word on purpose: `running` spells the same in every casing,
         // so it cannot catch a kebab-case enum. This one can.

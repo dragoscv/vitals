@@ -142,6 +142,14 @@ pub struct Process {
     pub parent: Option<Pid>,
     /// Executable name only (`chrome.exe`), not the full path.
     pub name: String,
+    /// The name the executable gives itself — its version resource's
+    /// `FileDescription`, "Visual Studio Code - Insiders" for
+    /// `Code - Insiders.exe` — which is what people recognise and what Task
+    /// Manager shows. `None` when the file declares none, cannot be read
+    /// (protected processes), or only repeats [`Self::name`]; the UI then
+    /// shows the file name.
+    #[serde(default)]
+    pub description: Option<String>,
     pub kind: ProcessKind,
     pub state: ProcessState,
     pub flags: ProcessFlags,
@@ -363,6 +371,7 @@ mod tests {
             key: ProcessKey::new(Pid(100), 1),
             parent: None,
             name: "test.exe".into(),
+            description: None,
             kind,
             state: ProcessState::Running,
             flags,

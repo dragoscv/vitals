@@ -3,7 +3,7 @@ import { useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import type { ControlRequest } from '@vitals/client';
-import type { Process } from '@vitals/protocol';
+import { displayName, matchesProcessName, type Process } from '@vitals/protocol';
 import {
   EmptyState,
   SearchInput,
@@ -46,7 +46,7 @@ export function ProcessesScreen({
   const rows = useMemo(() => {
     const all = live.snapshot === null ? [] : Array.from(live.snapshot.processes.values());
     const needle = query.trim().toLowerCase();
-    const filtered = needle === '' ? all : all.filter((p) => p.name.toLowerCase().includes(needle));
+    const filtered = needle === '' ? all : all.filter((p) => matchesProcessName(p, needle));
     return filtered.sort((a, b) =>
       sort === 'cpu' ? b.cpu - a.cpu : b.memoryPrivate - a.memoryPrivate,
     );
@@ -163,7 +163,7 @@ export function ProcessesScreen({
                     className="flex h-full w-full items-center gap-3 border-b border-[var(--color-border-subtle)] px-4 text-left active:bg-[var(--color-bg-subtle)]"
                   >
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium">{p.name}</span>
+                      <span className="block truncate text-sm font-medium">{displayName(p)}</span>
                       <span className="tnum block text-2xs text-[var(--color-fg-muted)]">
                         PID {p.key.pid}
                       </span>

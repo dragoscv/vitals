@@ -135,6 +135,7 @@
       },
       "parent": 1000,
       "name": "chrome.exe",
+      "description": "chrome.exe app",
       "kind": "app",
       "state": "notResponding",
       "flags": 65,

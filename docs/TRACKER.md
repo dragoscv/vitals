@@ -217,6 +217,37 @@ installer's binaries were produced by the toolchain they target.
 **Not proven.** Nobody has launched the ARM64 installer on ARM hardware; the
 run proves it compiles, bundles and signs. The summary table rows for S6, S9
 and S14 were also stale against `tracker.csv` and are corrected here.
+### 2026-10-05 — S16-07 / S16-08 Desktop freezes, Processes screen
+
+**Ask.** The machine froze hard enough to need the power button while apps
+kept running; let the watchdog restart Explorer and whatever draws the UI.
+On Processes: rows jumped on hover, a left click opened the menu in an odd
+place, and names should be the app's name with the file name in the menu.
+
+**Root cause of the freezes (from the logs, not a guess).** `dwm.exe`
+crashed with `0xc00001ad` (no memory) on 03.10 20:25 and 05.10 06:53, next to
+Resource-Exhaustion 2004 events naming `vmmemWSL` at 84–109 GB of commit.
+Commit limit was 192 GB RAM + 16 GB page file. Kernel-Power 41 at each reset,
+no bugcheck, no new minidump. The hundreds of LiveKernelEvent 117/1a8/1b8/193
+reports are old March/May dumps re-queued at every boot, not new GPU faults.
+Machine changes: page file 16 -> 64 GB (fixed size, after reboot),
+`.wslconfig` memory 112 -> 80 GB (after `wsl --shutdown`).
+
+**Row jump.** The "Order held" pill appeared on hover; its width wrapped
+Export onto a second toolbar line and pushed the table down one row.
+
+**Left-click menu.** Radix opens a context menu on any `contextmenu` event
+and on a 700 ms press from a non-mouse pointer; the menu seen sat at (0, 0).
+Only a right button or the menu keys now open it.
+
+**Evidence.**
+
+- `cargo test -p vitals-watchdog`: 53 passed; `--diagnose` shows commit 55 %,
+  largest holder vmmemWSL 10.2 GB.
+- vitest `src/features/processes`: 103 passed; with the guard replaced by
+  `if (false)` the left-click test fails, file restored byte-identical.
+- `cargo test -p vitals-core --features ts`: 123 passed, `Process.ts` gains
+  `description: string | null`.
 
 ### 2026-09-29 — S14-07 Developer cleanup, run for real on this machine
 

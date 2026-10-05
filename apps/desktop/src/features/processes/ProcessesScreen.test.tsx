@@ -444,6 +444,7 @@ describe('keyboard access', () => {
     // the browser converts them into a native `contextmenu` event with no
     // pointer coordinates. Asserting on that exact shape is what proves the
     // keyboard route works rather than only the mouse one.
+    fireEvent.keyDown(row, { key: 'F10', shiftKey: true });
     fireEvent.contextMenu(row, { detail: 0, clientX: 0, clientY: 0, button: 0 });
     await act(async () => {});
     const menu = await screen.findByRole('menu');
@@ -451,6 +452,36 @@ describe('keyboard access', () => {
     await screen.findByTestId('risk-dialog');
     fireEvent.click(screen.getByTestId('risk-confirm'));
     await waitFor(() => expect(actions.terminate).toHaveBeenCalledOnce());
+  });
+
+  it('a left click selects the row and never opens its menu', async () => {
+    // 2026-10-05: a left click opened the menu, pinned near the window's
+    // corner. A contextmenu event that is neither a right click nor follows
+    // the menu keys is that accident, and must be refused.
+    mountScreen();
+    const row = await screen.findByTestId('process-row-300');
+    fireEvent.pointerDown(row, { button: 0, pointerType: 'touch' });
+    fireEvent.contextMenu(row, { button: 0, clientX: 0, clientY: 0 });
+    await act(async () => {});
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(row.getAttribute('aria-selected')).toBe('true');
+  });
+
+  it('a long press that is not a right click does not open the menu', async () => {
+    // Radix opens after 700 ms of a non-mouse press; precision touchpads
+    // report `touch`, so a slow left click on one was a menu.
+    vi.useFakeTimers();
+    try {
+      mountScreen();
+      const row = screen.getByTestId('process-row-300');
+      fireEvent.pointerDown(row, { button: 0, pointerType: 'touch', clientX: 40, clientY: 40 });
+      await act(async () => {
+        vi.advanceTimersByTime(800);
+      });
+      expect(screen.queryByRole('menu')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('changes priority from the submenu without a confirmation dialog', async () => {
@@ -575,11 +606,16 @@ describe('sort stability in the mounted table', () => {
     await waitFor(() => expect(order()).toEqual(before));
   });
 
-  it('shows the user that the order is held rather than hiding it', async () => {
+  it('pointing at the table changes nothing in the toolbar, so the rows cannot jump', async () => {
+    // The old "Order held" pill appeared on hover and wrapped Export onto a
+    // second line, pushing the table down a row under the cursor.
     mountScreen();
     const grid = await screen.findByRole('grid');
+    const toolbar = screen.getByRole('button', { name: /columns/i }).parentElement as HTMLElement;
+    const before = toolbar.childElementCount;
     fireEvent.pointerEnter(grid.parentElement as HTMLElement);
-    expect(await screen.findByTestId('order-held')).toBeTruthy();
+    expect(screen.queryByTestId('order-held')).toBeNull();
+    expect(toolbar.childElementCount).toBe(before);
   });
 });
 

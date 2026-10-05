@@ -100,6 +100,7 @@ describe('column rendering', () => {
       threadCount: 1,
       handleCount: null,
       user: null,
+      description: null,
       uptimeSecs: 0,
     },
   } as const;

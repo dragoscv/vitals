@@ -24,13 +24,13 @@
  * in a profile.
  */
 
-import type { Process } from '@vitals/protocol';
+import { displayName, type Process } from '@vitals/protocol';
 
 /** How many rows each widget shows. */
 export const TOP_COUNT = 5;
 
 export interface TopEntry {
-  /** Executable name, e.g. `chrome.exe`. The group key. */
+  /** The app's name ("Google Chrome"), else the executable name. The group key. */
   readonly name: string;
   /** Summed metric across every process with this name. */
   readonly value: number;
@@ -63,9 +63,12 @@ export function groupByName(
     const value = metric(process);
     if (value <= 0) continue;
 
-    const existing = groups.get(process.name);
+    // By the name people recognise: the widget answers "which app", and the
+    // description is per image, so it groups exactly as the file name did.
+    const name = displayName(process);
+    const existing = groups.get(name);
     if (existing === undefined) {
-      groups.set(process.name, { value, count: 1, bestKey: key, best: value });
+      groups.set(name, { value, count: 1, bestKey: key, best: value });
       continue;
     }
 

@@ -136,6 +136,7 @@ pub fn process(name: &str, pid: u32, cpu_percent: f32) -> Process {
         },
         parent: None,
         name: name.to_owned(),
+        description: Some(format!("{name} app")),
         kind: ProcessKind::App,
         state: ProcessState::Running,
         flags: ProcessFlags::empty(),
