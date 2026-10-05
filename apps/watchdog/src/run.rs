@@ -3,6 +3,7 @@
 use std::collections::HashMap;
 use std::fmt::Write as _;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::time::{Duration, Instant};
 
@@ -14,9 +15,9 @@ use windows_sys::Win32::System::Console::{ATTACH_PARENT_PROCESS, AttachConsole};
 use windows_sys::Win32::System::Registry::{HKEY_CURRENT_USER, RegDeleteKeyValueW};
 use windows_sys::Win32::System::Threading::CreateMutexW;
 
-use crate::action::Action;
+use crate::action::{Action, Shell};
 use crate::config::{Config, Sound};
-use crate::detect::{Detector, Policy, Tick, Trigger};
+use crate::detect::{COMMIT_LOAD, Detector, Policy, Tick, Trigger};
 use crate::forest::{Forest, Metric, Scope, Target};
 use crate::notify::{self, Button};
 use crate::strings::{self, EN, RO, Strings, fill};
@@ -109,6 +110,14 @@ pub fn main() -> anyhow::Result<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args.first().map(String::as_str) {
         None => watch(),
+        // `run_as_admin` relaunches *this* exe under UAC with this argument,
+        // so the watchdog must perform the one action itself. Without it the
+        // child bailed with "unknown argument" and every elevated End, and
+        // the desktop restart, failed after the user had approved the prompt.
+        Some(vitals_win::actions::PROCESS_ACTION_ARG) => {
+            let code = vitals_win::actions::elevated::perform(args.iter().skip(1));
+            std::process::exit(i32::try_from(code).unwrap_or(i32::MAX));
+        }
         Some("--diagnose") => with_console(diagnose),
         Some("--test-toast") => with_console(test_toast),
         Some("--play-sound") => with_console(|| play_sound(args.get(1).map(String::as_str))),
@@ -203,6 +212,7 @@ fn watch() -> anyhow::Result<()> {
     let mut policy = Policy::default();
     let mut pending: HashMap<ProcessKey, Pending> = HashMap::new();
     let (tx, rx) = mpsc::channel::<Action>();
+    win::start_hotkeys(tx.clone());
     let (done_tx, done_rx) = mpsc::channel::<String>();
     let cores = logical_cores();
     let strings = text();
@@ -241,7 +251,11 @@ fn watch() -> anyhow::Result<()> {
         let scheduler_ms = probe.take_ms();
         let window_ms = win::window_response_ms(WINDOW_CAP_MS);
         let (memory_load, total_memory) = win::memory().unwrap_or((0, 0));
-        let hung_pid = win::hung_foreground();
+        let commit_load = win::commit_load();
+        // The window in front first: it is what the user is looking at. A
+        // hung taskbar behind a working window is the shell freeze of
+        // 2026-10-05, and it counts the same.
+        let hung_pid = win::hung_foreground().or_else(win::hung_taskbar);
         let idle_secs = win::idle_secs();
 
         // Enumerating ~500 processes costs a few ms. Every second while
@@ -251,6 +265,7 @@ fn watch() -> anyhow::Result<()> {
         let troubled = window_ms.is_some_and(|ms| ms >= limits.window_ms / 2.0)
             || scheduler_ms >= limits.scheduler_ms / 2.0
             || memory_load >= crate::detect::MEMORY_LOAD
+            || commit_load.is_some_and(|load| load >= COMMIT_LOAD)
             || hung_pid.is_some();
         if troubled || last_scan.is_none_or(|at| at.elapsed() >= Duration::from_secs(5)) {
             match processes.refresh() {
@@ -267,6 +282,7 @@ fn watch() -> anyhow::Result<()> {
             scheduler_ms,
             hard_faults: processes.hard_faults,
             memory_load,
+            commit_load,
             hung: hung_pid.and_then(|pid| processes.key_of(pid)),
             idle_secs,
         };
@@ -338,9 +354,17 @@ fn propose_once(
         scheduler_ms = tick.scheduler_ms,
         hard_faults = tick.hard_faults,
         memory_load = tick.memory_load,
+        commit_load = tick.commit_load,
         "proposing"
     );
-    show(&forest, &proposal, trigger, context, tx.clone());
+    show(
+        &forest,
+        &proposal,
+        trigger,
+        tick.commit_load,
+        context,
+        tx.clone(),
+    );
     pending.insert(
         target.key,
         Pending {
@@ -358,6 +382,8 @@ struct Proposal {
     others: Vec<Target>,
     can_end: bool,
     can_lower: bool,
+    /// A hung `explorer` or `dwm`, which can be restarted though not ended.
+    restart: Option<Shell>,
 }
 
 fn choose(
@@ -382,9 +408,14 @@ fn choose(
         return Some(Proposal {
             can_end: win::endable(p.key.pid, &p.name),
             can_lower: false,
+            restart: Shell::of(&p.name),
             target,
             others: Vec::new(),
         });
+    }
+
+    if trigger == Trigger::Commit {
+        return commit_holder(forest);
     }
 
     let (metric, floor) = match trigger {
@@ -412,9 +443,47 @@ fn choose(
     Some(Proposal {
         can_end: target.can_end && win::endable(key.pid, &name),
         can_lower: metric == Metric::Cpu && !processes.is_lowered(key),
+        restart: None,
         others: iter.take(2).collect(),
         target,
     })
+}
+
+/// The single process holding the most commit (private bytes).
+///
+/// One process, not a subtree: commit is charged per process, and the
+/// expected answer — `vmmemWSL`, a whole Linux VM — is one process with no
+/// children. Not filtered by `actionable`: `vmmemWSL` cannot be opened from
+/// here, and naming it is the whole value of the warning even when the
+/// remedy (`wsl --shutdown`) is not a button.
+fn commit_holder(forest: &Forest) -> Option<Proposal> {
+    let index = (0..)
+        .map_while(|i| forest.get(i).map(|p| (i, p)))
+        .max_by_key(|(_, p)| p.memory)
+        .map(|(i, _)| i)?;
+    let p = forest.get(index)?;
+    Some(Proposal {
+        can_end: win::actionable(p.key.pid, &p.name) && win::endable(p.key.pid, &p.name),
+        can_lower: false,
+        restart: None,
+        target: Target {
+            index,
+            load: p.memory as f64,
+            scope: Scope::Alone,
+            descendants: 0,
+            can_end: true,
+        },
+        others: Vec::new(),
+    })
+}
+
+/// Whether an image name is WSL's or Docker's virtual machine.
+fn is_wsl_vm(name: &str) -> bool {
+    let lower = name.to_ascii_lowercase();
+    matches!(
+        lower.as_str(),
+        "vmmemwsl" | "vmmem" | "vmmemwsl.exe" | "vmmem.exe"
+    )
 }
 
 fn cores_text(load: f64) -> String {
@@ -439,6 +508,7 @@ fn show(
     forest: &Forest,
     proposal: &Proposal,
     trigger: Trigger,
+    commit_load: Option<u32>,
     context: &Situation<'_>,
     tx: Sender<Action>,
 ) {
@@ -447,6 +517,7 @@ fn show(
         return;
     };
     let count = proposal.target.descendants.to_string();
+    let percent = commit_load.map_or_else(|| "?".to_owned(), |c| c.to_string());
     let (title, first) = match trigger {
         Trigger::Hung(_) => (
             fill(s.hung_title, &[("name", &p.name)]),
@@ -454,6 +525,10 @@ fn show(
                 s.hung_body,
                 &[("secs", &crate::detect::HUNG_TICKS.to_string())],
             ),
+        ),
+        Trigger::Commit => (
+            fill(s.commit_title, &[("percent", &percent)]),
+            fill(s.commit_body, &[("percent", &percent)]),
         ),
         Trigger::Paging => (
             fill(s.busy_title, &[("name", &p.name)]),
@@ -475,11 +550,26 @@ fn show(
     };
 
     let mut second = String::new();
-    if proposal.target.scope == Scope::Tree && proposal.target.descendants > 0 {
+    if trigger == Trigger::Commit {
+        let holder = if is_wsl_vm(&p.name) {
+            s.commit_wsl
+        } else {
+            s.commit_holder
+        };
+        second.push_str(&fill(
+            holder,
+            &[
+                ("name", &p.name),
+                ("size", &strings::size(proposal.target.load as u64)),
+            ],
+        ));
+    } else if let Trigger::Hung(_) = trigger {
+        second.push_str(&hotkeys_line(s));
+    } else if proposal.target.scope == Scope::Tree && proposal.target.descendants > 0 {
         second.push_str(&fill(s.with_children, &[("count", &count)]));
     }
     let from = chain(forest, proposal.target.index, " › ");
-    if !from.is_empty() {
+    if !from.is_empty() && matches!(trigger, Trigger::Stall | Trigger::Paging) {
         if !second.is_empty() {
             second.push(' ');
         }
@@ -498,37 +588,65 @@ fn show(
         );
     }
 
+    notify::propose(
+        &title,
+        [&first, second.trim()],
+        &buttons(proposal, p.key, s),
+        context.sound,
+        context.volume,
+        tx,
+    );
+}
+
+/// The buttons a proposal offers, most useful first.
+fn buttons(proposal: &Proposal, key: ProcessKey, s: &Strings) -> Vec<Button> {
     let mut buttons = Vec::new();
+    if let Some(shell) = proposal.restart {
+        buttons.push(Button {
+            label: match shell {
+                Shell::Explorer => s.restart_explorer,
+                Shell::Desktop => s.restart_desktop,
+            }
+            .to_owned(),
+            action: Action::Restart(key),
+        });
+    }
     if proposal.can_end {
         let label = if proposal.target.scope == Scope::Tree && proposal.target.descendants > 0 {
-            fill(s.end_tree, &[("count", &count)])
+            fill(
+                s.end_tree,
+                &[("count", &proposal.target.descendants.to_string())],
+            )
         } else {
             s.end.to_owned()
         };
         buttons.push(Button {
             label,
-            action: Action::End(p.key),
+            action: Action::End(key),
         });
     }
     if proposal.can_lower {
         buttons.push(Button {
             label: s.lower.to_owned(),
-            action: Action::Lower(p.key),
+            action: Action::Lower(key),
         });
     }
     buttons.push(Button {
         label: s.ignore.to_owned(),
-        action: Action::Ignore(p.key),
+        action: Action::Ignore(key),
     });
+    buttons
+}
 
-    notify::propose(
-        &title,
-        [&first, second.trim()],
-        &buttons,
-        context.sound,
-        context.volume,
-        tx,
-    );
+/// The hotkey hint, filled in the user's language.
+fn hotkeys_line(s: &Strings) -> String {
+    fill(
+        s.hung_hotkeys,
+        &[
+            ("explorer", Shell::Explorer.hotkey_text()),
+            ("desktop", Shell::Desktop.hotkey_text()),
+        ],
+    )
 }
 
 fn handle_clicks(
@@ -554,14 +672,32 @@ fn handle(
     done: &Sender<String>,
     s: &'static Strings,
 ) {
+    if let Action::Hotkey(shell) = action {
+        tracing::info!(?action, "hotkey pressed");
+        restart_in_background(shell, None, done, s);
+        return;
+    }
     let key = match action {
-        Action::End(k) | Action::Lower(k) | Action::Ignore(k) => k,
+        Action::End(k) | Action::Lower(k) | Action::Ignore(k) | Action::Restart(k) => k,
+        Action::Hotkey(_) => return,
     };
     let Some(p) = pending.remove(&key) else {
         tracing::warn!(?action, "click for a proposal that is not pending; ignored");
         return;
     };
     tracing::info!(?action, name = %p.name, "clicked");
+
+    if let Action::Restart(k) = action {
+        match Shell::of(&p.name) {
+            Some(shell) => restart_in_background(shell, Some(k), done, s),
+            // `decode` accepts any key; only a shell proposal offers Restart,
+            // so anything else is a forged or stale argument.
+            None => {
+                tracing::warn!(name = %p.name, "restart asked for a non-shell process; ignored");
+            }
+        }
+        return;
+    }
 
     if let Action::Ignore(_) = action {
         policy.snooze(&p.name, Instant::now());
@@ -577,7 +713,7 @@ fn handle(
             let outcome = match action {
                 Action::End(k) => win::end(&mut processes, k, p.scope == Scope::Tree),
                 Action::Lower(k) => win::lower(&mut processes, k),
-                Action::Ignore(_) => return,
+                Action::Ignore(_) | Action::Restart(_) | Action::Hotkey(_) => return,
             };
             tracing::info!(?outcome, name = %p.name, "result");
             let message = match (action, outcome) {
@@ -599,6 +735,92 @@ fn handle(
     }
 }
 
+/// Set while a restart runs.
+///
+/// Two presses a second apart would otherwise end the hung shell and then
+/// the fresh one Windows had just started.
+static RESTARTING: AtomicBool = AtomicBool::new(false);
+
+/// Restarts `shell` on the "act" thread and reports through `done`.
+fn restart_in_background(
+    shell: Shell,
+    key: Option<ProcessKey>,
+    done: &Sender<String>,
+    s: &'static Strings,
+) {
+    if RESTARTING.swap(true, Ordering::AcqRel) {
+        tracing::info!(?shell, "restart already running; ignored");
+        return;
+    }
+    let done = done.clone();
+    let spawned = std::thread::Builder::new()
+        .name("act".into())
+        .spawn(move || {
+            let mut processes = Processes::new();
+            let outcome = win::restart(&mut processes, shell, key);
+            RESTARTING.store(false, Ordering::Release);
+            tracing::info!(?outcome, name = shell.image(), "restart");
+            let message = match outcome {
+                Outcome::Done { .. } => match shell {
+                    Shell::Explorer => s.restarted_explorer.to_owned(),
+                    Shell::Desktop => s.restarted_desktop.to_owned(),
+                },
+                Outcome::Gone => fill(s.already_gone, &[("name", shell.image())]),
+                Outcome::Failed(reason) => fill(
+                    s.restart_failed,
+                    &[("name", shell.image()), ("reason", &reason)],
+                ),
+            };
+            let _ = done.send(message);
+        });
+    if let Err(error) = spawned {
+        RESTARTING.store(false, Ordering::Release);
+        tracing::warn!(%error, "could not start the restart thread");
+    }
+}
+
+/// The limits `--diagnose` judges against, and the hotkeys.
+fn print_header(config: &Config) {
+    let limits = config.sensitivity.thresholds();
+    println!(
+        "config {config:?}\nlimits: window >= {} ms, scheduler >= {} ms, paging >= {} faults/s at >= {} % memory, commit >= {} %; {} of {} s",
+        limits.window_ms,
+        limits.scheduler_ms,
+        limits.hard_faults,
+        crate::detect::MEMORY_LOAD,
+        COMMIT_LOAD,
+        crate::detect::NEEDED,
+        crate::detect::WINDOW,
+    );
+    println!(
+        "hotkeys (held by the running watchdog): {} restarts Explorer, {} restarts the desktop (UAC)\n",
+        Shell::Explorer.hotkey_text(),
+        Shell::Desktop.hotkey_text(),
+    );
+}
+
+/// Who a commit warning would name right now.
+fn print_commit_holder(forest: &Forest) {
+    let Some(holder) = commit_holder(forest) else {
+        return;
+    };
+    let Some(p) = forest.get(holder.target.index) else {
+        return;
+    };
+    println!(
+        "\nlargest commit holder: {} (pid {}) {}{}, end:{}",
+        p.name,
+        p.key.pid.get(),
+        strings::size(p.memory),
+        if is_wsl_vm(&p.name) {
+            " - WSL / Docker"
+        } else {
+            ""
+        },
+        holder.can_end,
+    );
+}
+
 /// Samples for ten seconds and prints what the loop would decide.
 fn diagnose() -> anyhow::Result<()> {
     win::run_at_top_priority();
@@ -611,23 +833,16 @@ fn diagnose() -> anyhow::Result<()> {
     let mut trigger = None;
 
     processes.refresh()?;
-    println!(
-        "config {config:?}\nlimits: window >= {} ms, scheduler >= {} ms, paging >= {} faults/s at >= {} % memory; {} of {} s\n",
-        limits.window_ms,
-        limits.scheduler_ms,
-        limits.hard_faults,
-        crate::detect::MEMORY_LOAD,
-        crate::detect::NEEDED,
-        crate::detect::WINDOW,
-    );
-    println!("  s  window ms  sched ms  faults/s  mem%  idle s  hung  trigger");
+    print_header(&config);
+    println!("  s  window ms  sched ms  faults/s  mem%  commit%  idle s  hung  trigger");
     for second in 1..=10 {
         std::thread::sleep(Duration::from_secs(1));
         let started = Instant::now();
         let scheduler_ms = probe.take_ms();
         let window_ms = win::window_response_ms(WINDOW_CAP_MS);
         let (memory_load, _) = win::memory().unwrap_or((0, 0));
-        let hung = win::hung_foreground();
+        let commit_load = win::commit_load();
+        let hung = win::hung_foreground().or_else(win::hung_taskbar);
         let idle_secs = win::idle_secs();
         processes.refresh()?;
         let t = detector.push(
@@ -636,6 +851,7 @@ fn diagnose() -> anyhow::Result<()> {
                 scheduler_ms,
                 hard_faults: processes.hard_faults,
                 memory_load,
+                commit_load,
                 hung: hung.and_then(|pid| processes.key_of(pid)),
                 idle_secs,
             },
@@ -643,9 +859,10 @@ fn diagnose() -> anyhow::Result<()> {
         );
         trigger = trigger.or(t);
         println!(
-            " {second:2}  {:>9}  {scheduler_ms:8.1}  {:8.0}  {memory_load:4}  {idle_secs:6}  {:4}  {:?}   (tick cost {:.1} ms)",
+            " {second:2}  {:>9}  {scheduler_ms:8.1}  {:8.0}  {memory_load:4}  {:>7}  {idle_secs:6}  {:4}  {:?}   (tick cost {:.1} ms)",
             window_ms.map_or_else(|| "-".to_owned(), |ms| format!("{ms:.1}")),
             processes.hard_faults,
+            commit_load.map_or_else(|| "-".to_owned(), |c| c.to_string()),
             hung.map_or_else(|| "-".to_owned(), |p| p.get().to_string()),
             t,
             started.elapsed().as_secs_f64() * 1000.0
@@ -654,6 +871,7 @@ fn diagnose() -> anyhow::Result<()> {
 
     let (_, total_memory) = win::memory().unwrap_or((0, 0));
     let forest = processes.forest();
+    print_commit_holder(&forest);
     println!("\nheaviest CPU subtrees (cores; blame never climbs into a shell or IDE):");
     for t in forest.targets(Metric::Cpu, SHARE).into_iter().take(8) {
         let Some(p) = forest.get(t.index) else {
@@ -681,11 +899,12 @@ fn diagnose() -> anyhow::Result<()> {
         |t| match choose(&forest, &processes, t, cores, total_memory) {
             Some(p) => forest.get(p.target.index).map_or_else(String::new, |x| {
                 format!(
-                    "{t:?}: would propose {} (pid {}), end:{} lower:{}",
+                    "{t:?}: would propose {} (pid {}), end:{} lower:{} restart:{:?}",
                     x.name,
                     x.key.pid.get(),
                     p.can_end,
-                    p.can_lower
+                    p.can_lower,
+                    p.restart,
                 )
             }),
             None => format!("{t:?}, but no single target is heavy enough to blame"),
@@ -715,6 +934,7 @@ fn test_toast() -> anyhow::Result<()> {
     let proposal = Proposal {
         can_end: true,
         can_lower: true,
+        restart: None,
         target,
         others: Vec::new(),
     };
@@ -729,7 +949,7 @@ fn test_toast() -> anyhow::Result<()> {
         volume: config.volume,
     };
     let (tx, rx) = mpsc::channel();
-    show(&forest, &proposal, Trigger::Stall, &context, tx);
+    show(&forest, &proposal, Trigger::Stall, None, &context, tx);
     println!("toast shown; click a button within 60 s (nothing will be changed)");
     match rx.recv_timeout(Duration::from_secs(60)) {
         Ok(action) => println!("clicked: {action:?} (test mode, nothing was changed)"),
@@ -824,4 +1044,79 @@ fn stop_others() -> anyhow::Result<usize> {
         std::thread::sleep(Duration::from_millis(500));
     }
     Ok(stopped)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::forest::Proc;
+    use vitals_core::ids::Pid;
+
+    fn proc(pid: u32, name: &str, memory: u64) -> Proc {
+        Proc {
+            key: ProcessKey::new(Pid(pid), u64::from(pid)),
+            parent: None,
+            name: name.to_owned(),
+            cpu: 0.0,
+            memory,
+        }
+    }
+
+    #[test]
+    fn the_commit_warning_names_the_single_largest_holder_of_private_bytes() {
+        let forest = Forest::new(vec![
+            proc(10, "code.exe", 3 << 30),
+            proc(20, "vmmemWSL", 90 << 30),
+            proc(30, "java.exe", 12 << 30),
+        ]);
+        let holder = commit_holder(&forest).map(|p| p.target);
+        let name = holder.and_then(|t| forest.get(t.index).map(|p| p.name.clone()));
+        assert_eq!(name.as_deref(), Some("vmmemWSL"));
+    }
+
+    #[test]
+    fn wsl_and_docker_vms_are_recognised_by_name_whatever_the_case() {
+        for name in ["vmmemWSL", "VMMEM", "vmmem.exe"] {
+            assert!(is_wsl_vm(name), "{name}");
+        }
+        for name in ["vmwp.exe", "wsl.exe", "memory compression"] {
+            assert!(!is_wsl_vm(name), "{name}");
+        }
+    }
+
+    #[test]
+    fn a_hung_shell_offers_restart_first_and_never_end() {
+        let proposal = Proposal {
+            target: Target {
+                index: 0,
+                load: 0.0,
+                scope: Scope::Alone,
+                descendants: 0,
+                can_end: true,
+            },
+            others: Vec::new(),
+            // What `choose` yields for explorer.exe: `endable` is false.
+            can_end: false,
+            can_lower: false,
+            restart: Shell::of("explorer.exe"),
+        };
+        let key = ProcessKey::new(Pid(5), 5);
+        for s in [&EN, &RO] {
+            let actions: Vec<Action> = buttons(&proposal, key, s)
+                .into_iter()
+                .map(|b| b.action)
+                .collect();
+            assert_eq!(actions, vec![Action::Restart(key), Action::Ignore(key)]);
+        }
+    }
+
+    #[test]
+    fn the_hung_toast_teaches_both_hotkeys_in_both_languages() {
+        for s in [&EN, &RO] {
+            let line = hotkeys_line(s);
+            assert!(line.contains("Ctrl+Alt+Shift+E"), "{line}");
+            assert!(line.contains("Ctrl+Alt+Shift+D"), "{line}");
+            assert!(!line.contains('{'), "{line}");
+        }
+    }
 }

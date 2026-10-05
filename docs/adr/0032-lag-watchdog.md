@@ -128,3 +128,39 @@ choice: on by default, with a switch). Every later launch restarts it if it
 is enabled and not running, because the installer ends it before replacing
 the file. The uninstaller ends it and removes the Run entry only when it
 names this install's copy.
+
+## Revision 2026-10-05 (v3): restart the shell, warn on commit charge
+
+**Why.** Three hard resets in two days (03.10 21:55, 05.10 09:08 and
+11:32). Applications kept running; the taskbar, Start and window frames did
+not. The event logs agree: `dwm.exe` crashed three times with
+`0xc00001ad` (no memory) in `udwm.dll`, each time beside a
+Resource-Exhaustion 2004 "low virtual memory" event naming `vmmemWSL` at
+84–109 GB of commit, on a machine whose commit limit was 192 GB of RAM plus a
+16 GB page file. The watchdog had seen it — its log has
+`trigger=Hung(...) name=explorer.exe` and `name=dwm.exe` — and offered only
+"Ignore", because the rule above never offers the session chain.
+
+**Restart, not end.** For a hung `explorer.exe` or `dwm.exe` the
+notification now offers a restart. Explorer is ended by its exact key and
+Windows starts a new shell (the watchdog starts one itself if none appears
+within 5 s). DWM runs as another account, so its restart goes through one UAC
+prompt; Windows restarts DWM on its own. Ending either is still never
+offered: a restart is the one action that returns the user to a working
+desktop.
+
+**Hotkeys.** A frozen shell can mean a notification nobody can click, so
+Ctrl+Alt+Shift+E restarts Explorer and Ctrl+Alt+Shift+D restarts DWM from a
+`RegisterHotKey` thread of the watchdog's own. A hung taskbar
+(`Shell_TrayWnd`) counts as hung even when it is not the foreground window.
+
+**Commit warning.** Commit charge above 90 % of the limit for four seconds of
+six raises a proposal before the crash rather than after it, naming the
+largest holder of private bytes ("WSL / Docker" for `vmmemWSL`).
+Priority: hung > commit > paging > stall — paging is a symptom of a full
+commit, and at 100 % the desktop crashes rather than slowing down.
+
+**Found while building it.** `run_as_admin` relaunches the current exe with
+`--elevated-process-action`, which the watchdog's `main` rejected as an
+unknown argument: every elevated action from a notification had failed after
+the UAC prompt was accepted. It is now handled.

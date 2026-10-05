@@ -23,6 +23,11 @@
 //!   ordinary app run at that priority, so they are late too.
 //! - **The disk is standing in for RAM.** Hard faults a second, with memory
 //!   nearly full. Paging makes the CPU look idle while everything waits.
+//! - **Windows is about to run out of memory it can promise.** Commit charge
+//!   near the commit limit (RAM + page file). Not felt yet — that is the
+//!   point: on 2026-10-03 and 2026-10-05 `dwm.exe` died three times with
+//!   `0xc00001ad` (no memory) at the moment commit ran out, with 70 GB of
+//!   RAM still free. The only useful warning is the one before.
 //!
 //! And only while the person is there: no input for a minute means nobody
 //! is waiting on the screen, so a nightly build can saturate what it likes.
@@ -36,6 +41,9 @@ use crate::config::Thresholds;
 
 /// Physical memory load at or above which hard faults count as paging.
 pub const MEMORY_LOAD: u32 = 90;
+/// Commit charge, percent of the commit limit, at or above which a warning
+/// is due. At 100 % allocations fail, and `dwm` is among the first to die.
+pub const COMMIT_LOAD: u32 = 90;
 /// Ticks looked back over.
 pub const WINDOW: u32 = 6;
 /// Ticks within [`WINDOW`] that must be bad. One stall is a hiccup; four
@@ -58,6 +66,9 @@ pub struct Tick {
     pub hard_faults: f64,
     /// Physical memory in use, percent.
     pub memory_load: u32,
+    /// Commit charge, percent of the commit limit. `None` when Windows did
+    /// not say, which is not the same as an empty commit.
+    pub commit_load: Option<u32>,
     /// The foreground window's process, when Windows says it is hung.
     pub hung: Option<ProcessKey>,
     /// Seconds since the last keyboard or mouse input.
@@ -72,8 +83,26 @@ pub enum Trigger {
     Stall,
     /// Sustained paging. The culprit is chosen by memory.
     Paging,
+    /// Commit charge near the limit. The culprit is chosen by memory
+    /// (private bytes, which is what commit counts).
+    Commit,
     /// The foreground app stopped answering altogether.
     Hung(ProcessKey),
+}
+
+/// Commit charge as a percentage of the commit limit, rounded down.
+///
+/// `GlobalMemoryStatusEx` calls these `ullTotalPageFile` and
+/// `ullAvailPageFile`, but they are the commit limit (RAM plus every page
+/// file) and what is left of it — not the page file alone. A zero limit is
+/// an unreadable answer, not an empty machine, so it is `None`.
+#[must_use]
+pub fn commit_load(limit: u64, available: u64) -> Option<u32> {
+    if limit == 0 {
+        return None;
+    }
+    let used = u128::from(limit.saturating_sub(available));
+    u32::try_from(used * 100 / u128::from(limit)).ok()
 }
 
 /// A sliding count of bad ticks.
@@ -97,21 +126,30 @@ impl Window {
 pub struct Detector {
     stall: Window,
     paging: Window,
+    commit: Window,
     hung: Option<(ProcessKey, u32)>,
 }
 
 impl Detector {
     /// Feeds one tick; returns what, if anything, is now sustained.
     ///
-    /// A hung window outranks paging, which outranks a stall: the first is
-    /// the most specific explanation, and paging stalls everything while
-    /// making the CPU look idle.
+    /// A hung window outranks commit, which outranks paging, which outranks
+    /// a stall. A hung window is the most specific explanation and the one
+    /// the user is already sitting through. Commit comes next because its
+    /// end is not slowness but the desktop crashing, and when commit is
+    /// short the paging it causes is a symptom: naming the largest holder of
+    /// commit is the remedy for both, while a paging warning would blame
+    /// whatever happens to fault most. Paging stalls everything while making
+    /// the CPU look idle, so it in turn explains a stall better than CPU.
     pub fn push(&mut self, tick: Tick, limits: Thresholds) -> Option<Trigger> {
         if tick.idle_secs >= IDLE_SECS {
             // Nobody is at the machine. Forget what was building up, so the
-            // user's first keystroke back is not met by a stale episode.
+            // user's first keystroke back is not met by a stale episode. The
+            // commit warning waits too: there is nobody to act on it, and
+            // it is still true when they return.
             self.stall.clear();
             self.paging.clear();
+            self.commit.clear();
             self.hung = None;
             return None;
         }
@@ -123,6 +161,9 @@ impl Detector {
         let paging = self
             .paging
             .push(tick.memory_load >= MEMORY_LOAD && tick.hard_faults >= limits.hard_faults);
+        let commit = self
+            .commit
+            .push(tick.commit_load.is_some_and(|load| load >= COMMIT_LOAD));
 
         self.hung = match (tick.hung, self.hung) {
             (Some(key), Some((same, n))) if same == key => Some((key, n + 1)),
@@ -134,6 +175,9 @@ impl Detector {
             && n >= HUNG_TICKS
         {
             return Some(Trigger::Hung(key));
+        }
+        if commit >= NEEDED {
+            return Some(Trigger::Commit);
         }
         if paging >= NEEDED {
             return Some(Trigger::Paging);
@@ -200,6 +244,7 @@ mod tests {
         scheduler_ms: 0.0,
         hard_faults: 0.0,
         memory_load: 45,
+        commit_load: Some(40),
         hung: None,
         idle_secs: 0,
     };
@@ -365,6 +410,7 @@ mod tests {
             scheduler_ms: 500.0,
             hard_faults: 9_000.0,
             memory_load: 99,
+            commit_load: Some(97),
             hung: Some(key(3)),
             idle_secs: 0,
         };
@@ -378,7 +424,68 @@ mod tests {
             hung: None,
             ..everything
         };
-        assert_eq!(run(&mut d, no_hang, NEEDED), Some(Trigger::Paging));
+        assert_eq!(run(&mut d, no_hang, NEEDED), Some(Trigger::Commit));
+        let mut d = Detector::default();
+        let room_to_commit = Tick {
+            commit_load: Some(50),
+            ..no_hang
+        };
+        assert_eq!(run(&mut d, room_to_commit, NEEDED), Some(Trigger::Paging));
+    }
+
+    #[test]
+    fn commit_near_the_limit_for_four_seconds_of_six_warns_before_anything_is_felt() {
+        let mut d = Detector::default();
+        // The 2026-10-05 shape: RAM half free, no faults, windows answering,
+        // and commit about to run out.
+        let short = Tick {
+            commit_load: Some(COMMIT_LOAD),
+            ..CALM
+        };
+        for _ in 0..NEEDED - 1 {
+            assert_eq!(d.push(short, normal()), None);
+        }
+        assert_eq!(d.push(CALM, normal()), None);
+        assert_eq!(d.push(short, normal()), Some(Trigger::Commit));
+    }
+
+    #[test]
+    fn commit_just_below_the_line_or_unreadable_never_warns() {
+        let mut d = Detector::default();
+        let below = Tick {
+            commit_load: Some(COMMIT_LOAD - 1),
+            ..CALM
+        };
+        assert_eq!(run(&mut d, below, 30), None);
+        let unknown = Tick {
+            commit_load: None,
+            ..CALM
+        };
+        assert_eq!(run(&mut d, unknown, 30), None);
+    }
+
+    #[test]
+    fn a_hung_window_outranks_a_commit_warning() {
+        let mut d = Detector::default();
+        let both = Tick {
+            commit_load: Some(99),
+            hung: Some(key(4)),
+            ..CALM
+        };
+        assert_eq!(run(&mut d, both, HUNG_TICKS), Some(Trigger::Hung(key(4))));
+    }
+
+    #[test]
+    fn commit_load_is_the_share_of_the_limit_already_promised() {
+        const GB: u64 = 1 << 30;
+        // 192 GB RAM + 16 GB page file, 20 GB left: the 2026-10-05 machine.
+        assert_eq!(commit_load(208 * GB, 20 * GB), Some(90));
+        assert_eq!(commit_load(208 * GB, 208 * GB), Some(0));
+        assert_eq!(commit_load(208 * GB, 0), Some(100));
+        // Available above the limit is a torn read, not negative use.
+        assert_eq!(commit_load(100, 150), Some(0));
+        assert_eq!(commit_load(0, 0), None);
+        assert_eq!(commit_load(u64::MAX, 0), Some(100));
     }
 
     #[test]

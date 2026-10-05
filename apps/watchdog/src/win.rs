@@ -3,6 +3,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::mpsc::Sender;
 use std::time::{Duration, Instant};
 
 use vitals_core::error::Error;
@@ -21,10 +22,11 @@ use windows_sys::Win32::System::Threading::{
     THREAD_PRIORITY_TIME_CRITICAL,
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    GetForegroundWindow, GetWindowThreadProcessId, IsHungAppWindow, SMTO_ABORTIFHUNG,
-    SendMessageTimeoutW,
+    FindWindowW, GetForegroundWindow, GetMessageW, GetWindowThreadProcessId, IsHungAppWindow, MSG,
+    SMTO_ABORTIFHUNG, SendMessageTimeoutW, WM_HOTKEY,
 };
 
+use crate::action::{Action, Shell, appeared};
 use crate::forest::{Forest, Proc};
 
 /// Raises the calling thread above every ordinary thread on the machine.
@@ -86,13 +88,26 @@ impl LagProbe {
 
 /// Physical memory: (load percent, total bytes).
 pub fn memory() -> Option<(u32, u64)> {
+    status().map(|s| (s.dwMemoryLoad, s.ullTotalPhys))
+}
+
+/// Commit charge, percent of the commit limit.
+///
+/// The limit is RAM plus every page file. Running out of it is what took
+/// `dwm.exe` down on 2026-10-05 with RAM to spare: WSL's `vmmemWSL` had
+/// committed 84–109 GB of a 208 GB limit, and the rest went to everything
+/// else.
+pub fn commit_load() -> Option<u32> {
+    status().and_then(|s| crate::detect::commit_load(s.ullTotalPageFile, s.ullAvailPageFile))
+}
+
+fn status() -> Option<MEMORYSTATUSEX> {
     let mut status = MEMORYSTATUSEX {
         dwLength: u32::try_from(size_of::<MEMORYSTATUSEX>()).unwrap_or(0),
         ..empty_status()
     };
     // SAFETY: `dwLength` is set; the struct is live.
-    (unsafe { GlobalMemoryStatusEx(&raw mut status) } != 0)
-        .then_some((status.dwMemoryLoad, status.ullTotalPhys))
+    (unsafe { GlobalMemoryStatusEx(&raw mut status) } != 0).then_some(status)
 }
 
 const fn empty_status() -> MEMORYSTATUSEX {
@@ -116,6 +131,40 @@ const fn empty_status() -> MEMORYSTATUSEX {
 pub fn hung_foreground() -> Option<Pid> {
     // SAFETY: no preconditions; a null result is handled.
     let hwnd = unsafe { GetForegroundWindow() };
+    hung_owner(hwnd)
+}
+
+/// The PID behind the taskbar, when Windows says it is hung.
+///
+/// The foreground check alone missed the 2026-10-05 freezes: the taskbar
+/// stopped answering while the window in front — a browser, a terminal —
+/// was fine, so nothing was ever "hung" from the foreground's point of view
+/// and the user could not reach Start, the clock or the notifications.
+pub fn hung_taskbar() -> Option<Pid> {
+    hung_owner(taskbar())
+}
+
+fn taskbar() -> windows_sys::Win32::Foundation::HWND {
+    let class: Vec<u16> = "Shell_TrayWnd"
+        .encode_utf16()
+        .chain(std::iter::once(0))
+        .collect();
+    // SAFETY: a valid wide class name and no title; a null result is handled
+    // by every caller.
+    unsafe { FindWindowW(class.as_ptr(), std::ptr::null()) }
+}
+
+fn window_pid(hwnd: windows_sys::Win32::Foundation::HWND) -> Option<Pid> {
+    if hwnd.is_null() {
+        return None;
+    }
+    let mut pid = 0_u32;
+    // SAFETY: `hwnd` came from Windows; `pid` is a live out-pointer.
+    unsafe { GetWindowThreadProcessId(hwnd, &raw mut pid) };
+    (pid != 0).then_some(Pid(pid))
+}
+
+fn hung_owner(hwnd: windows_sys::Win32::Foundation::HWND) -> Option<Pid> {
     if hwnd.is_null() {
         return None;
     }
@@ -123,10 +172,7 @@ pub fn hung_foreground() -> Option<Pid> {
     if unsafe { IsHungAppWindow(hwnd) } == 0 {
         return None;
     }
-    let mut pid = 0_u32;
-    // SAFETY: `pid` is a live out-pointer.
-    unsafe { GetWindowThreadProcessId(hwnd, &raw mut pid) };
-    (pid != 0).then_some(Pid(pid))
+    window_pid(hwnd)
 }
 
 /// How long the foreground window takes to answer a message, in ms.
@@ -362,6 +408,30 @@ impl Processes {
         self.raw.iter().find(|p| p.key.pid == pid).map(|p| p.key)
     }
 
+    /// Every process called `image` in `session`, by key.
+    pub fn named_in(&self, image: &str, session: u32) -> Vec<ProcessKey> {
+        self.raw
+            .iter()
+            .filter(|p| p.session_id == session)
+            .filter(|p| {
+                p.name
+                    .as_deref()
+                    .is_some_and(|n| n.eq_ignore_ascii_case(image))
+            })
+            .map(|p| p.key)
+            .collect()
+    }
+
+    /// The session this watchdog runs in — the user's desktop.
+    pub fn own_session(&self) -> Option<u32> {
+        // SAFETY: no preconditions.
+        let me = unsafe { GetCurrentProcessId() };
+        self.raw
+            .iter()
+            .find(|p| p.key.pid.get() == me)
+            .map(|p| p.session_id)
+    }
+
     /// Whether the process already runs below normal priority.
     pub fn is_lowered(&self, key: ProcessKey) -> bool {
         self.raw
@@ -514,5 +584,212 @@ pub fn lower(processes: &mut Processes, key: ProcessKey) -> Outcome {
         Ok(()) => Outcome::Done { others },
         Err(Error::NotFound(_)) => Outcome::Gone,
         Err(error) => Outcome::Failed(error.to_string()),
+    }
+}
+
+/// What a restart may pass as consent.
+///
+/// Always `Unconfirmed`, even though the click or hotkey *is* the person's
+/// confirmation. `explorer` and `dwm` are `Disruptive`, which `terminate`
+/// already allows unconfirmed; `Confirmed` would only additionally unlock a
+/// `Critical` process — one the kernel marks `BreakOnTermination` — and a
+/// restart button must never be the way to reach that. If a driver ever
+/// marks either critical, the restart is refused rather than bugchecking.
+pub const fn restart_consent(_shell: Shell) -> Consent {
+    Consent::Unconfirmed
+}
+
+/// How long winlogon gets to bring the shell back before we start it.
+const SHELL_COMES_BACK: Duration = Duration::from_secs(5);
+
+/// Restarts `shell`: the exact `key` when a toast proposed it, otherwise
+/// (a hotkey) the one running in this session now.
+pub fn restart(processes: &mut Processes, shell: Shell, key: Option<ProcessKey>) -> Outcome {
+    if let Err(error) = processes.refresh() {
+        return Outcome::Failed(error.to_string());
+    }
+    let Some(session) = processes.own_session() else {
+        return Outcome::Failed("the desktop session could not be read".into());
+    };
+    match shell {
+        Shell::Explorer => restart_explorer(processes, session, key),
+        Shell::Desktop => restart_desktop(processes, session, key),
+    }
+}
+
+/// The process to restart: the proposed one if it still runs, else for a
+/// hotkey the taskbar's owner, else any of that name in the session.
+fn resolve(
+    processes: &Processes,
+    shell: Shell,
+    session: u32,
+    key: Option<ProcessKey>,
+) -> Option<ProcessKey> {
+    let running = processes.named_in(shell.image(), session);
+    if let Some(key) = key {
+        return running.contains(&key).then_some(key);
+    }
+    let owner = (shell == Shell::Explorer)
+        .then(|| window_pid(taskbar()))
+        .flatten()
+        .and_then(|pid| running.iter().copied().find(|k| k.pid == pid));
+    owner.or_else(|| running.first().copied())
+}
+
+/// Ends the hung shell and makes sure a working one comes back.
+///
+/// "Restart" means "leave a working taskbar", so a shell that already
+/// exited is not a failure: the shell is still checked for and started.
+/// Windows normally restarts it on its own (`AutoRestartShell`); starting
+/// it ourselves only when it did not avoids two shells fighting over the
+/// taskbar.
+fn restart_explorer(processes: &mut Processes, session: u32, key: Option<ProcessKey>) -> Outcome {
+    let before = processes.named_in(Shell::Explorer.image(), session);
+    let target = resolve(processes, Shell::Explorer, session, key);
+    if let Some(target) = target {
+        match terminate(target, 1, restart_consent(Shell::Explorer)) {
+            Ok(()) | Err(Error::NotFound(_)) => {}
+            Err(error) => return Outcome::Failed(error.to_string()),
+        }
+    }
+    let killed = target.map(|k| k.pid);
+
+    let deadline = Instant::now() + SHELL_COMES_BACK;
+    while Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(250));
+        let taskbar_owner = window_pid(taskbar());
+        if taskbar_owner.is_some() && taskbar_owner != killed {
+            tracing::info!(by = "windows", "explorer came back");
+            return Outcome::Done { others: 0 };
+        }
+        if processes.refresh().is_ok()
+            && let Some(fresh) = appeared(
+                &before,
+                &processes.named_in(Shell::Explorer.image(), session),
+            )
+        {
+            tracing::info!(by = "windows", pid = fresh.pid.get(), "explorer came back");
+            return Outcome::Done { others: 0 };
+        }
+    }
+
+    let root = std::env::var_os("SystemRoot").unwrap_or_else(|| r"C:\Windows".into());
+    let exe = std::path::Path::new(&root).join("explorer.exe");
+    match std::process::Command::new(&exe).spawn() {
+        Ok(child) => {
+            tracing::info!(by = "watchdog", pid = child.id(), "explorer started");
+            Outcome::Done { others: 0 }
+        }
+        Err(error) => Outcome::Failed(format!("{}: {error}", exe.display())),
+    }
+}
+
+/// Ends `dwm.exe` as administrator; Windows starts a new one at once.
+///
+/// DWM runs as `Window Manager\DWM-n`, another account, so an unelevated
+/// `TerminateProcess` is always denied and is not even attempted: it would
+/// only cost a round-trip before the same UAC prompt.
+fn restart_desktop(processes: &Processes, session: u32, key: Option<ProcessKey>) -> Outcome {
+    let Some(target) = resolve(processes, Shell::Desktop, session, key) else {
+        return Outcome::Gone;
+    };
+    match run_as_admin(
+        ElevatedAction::Terminate,
+        target,
+        restart_consent(Shell::Desktop),
+    ) {
+        Ok(()) => Outcome::Done { others: 0 },
+        Err(Error::NotFound(_)) => Outcome::Gone,
+        Err(error) => Outcome::Failed(error.to_string()),
+    }
+}
+
+/// Ctrl+Alt+Shift, never auto-repeating: a held key must not restart the
+/// shell ten times a second.
+pub const HOTKEY_MODIFIERS: u32 = {
+    use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
+        MOD_ALT, MOD_CONTROL, MOD_NOREPEAT, MOD_SHIFT,
+    };
+    MOD_CONTROL | MOD_ALT | MOD_SHIFT | MOD_NOREPEAT
+};
+
+/// Registers the restart hotkeys on a thread of their own and forwards each
+/// press to `tx`.
+///
+/// Hotkeys because a toast is drawn by the shell: when `explorer` hangs, the
+/// notification offering to restart it may never be clickable. `WM_HOTKEY`
+/// is posted by the kernel's input stack to this thread's queue, with no
+/// shell involved. A combination another app already owns is logged and
+/// skipped; the watchdog carries on without it.
+pub fn start_hotkeys(tx: Sender<Action>) {
+    use windows_sys::Win32::UI::Input::KeyboardAndMouse::RegisterHotKey;
+    let spawned = std::thread::Builder::new()
+        .name("hotkeys".into())
+        .spawn(move || {
+            // The thread sleeps in GetMessageW, so top priority costs nothing
+            // and means a press is answered while a build starves the CPU.
+            run_at_top_priority();
+            let mut registered = 0;
+            for shell in [Shell::Explorer, Shell::Desktop] {
+                let (id, vk) = shell.hotkey();
+                // SAFETY: a null window binds the hotkey to this thread's queue.
+                if unsafe { RegisterHotKey(std::ptr::null_mut(), id, HOTKEY_MODIFIERS, vk) } == 0 {
+                    tracing::warn!(
+                        hotkey = shell.hotkey_text(),
+                        "hotkey already taken by another app; not available"
+                    );
+                } else {
+                    registered += 1;
+                    tracing::info!(hotkey = shell.hotkey_text(), "hotkey registered");
+                }
+            }
+            if registered == 0 {
+                return;
+            }
+            let mut msg = MSG::default();
+            loop {
+                // SAFETY: `msg` is a live out-pointer; a null window reads
+                // this thread's own queue, where WM_HOTKEY arrives.
+                let got = unsafe { GetMessageW(&raw mut msg, std::ptr::null_mut(), 0, 0) };
+                if got == 0 || got == -1 {
+                    return;
+                }
+                if msg.message != WM_HOTKEY {
+                    continue;
+                }
+                let Some(shell) = i32::try_from(msg.wParam).ok().and_then(Shell::from_hotkey)
+                else {
+                    continue;
+                };
+                if tx.send(Action::Hotkey(shell)).is_err() {
+                    return;
+                }
+            }
+        });
+    if let Err(error) = spawned {
+        tracing::warn!(%error, "could not start the hotkey thread");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_restart_never_carries_the_consent_that_unlocks_a_critical_process() {
+        for shell in [Shell::Explorer, Shell::Desktop] {
+            assert_eq!(restart_consent(shell), Consent::Unconfirmed);
+        }
+    }
+
+    #[test]
+    fn the_hotkeys_need_all_three_modifiers_and_do_not_auto_repeat() {
+        use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
+            MOD_ALT, MOD_CONTROL, MOD_NOREPEAT, MOD_SHIFT, MOD_WIN,
+        };
+        for m in [MOD_CONTROL, MOD_ALT, MOD_SHIFT, MOD_NOREPEAT] {
+            assert_eq!(HOTKEY_MODIFIERS & m, m);
+        }
+        assert_eq!(HOTKEY_MODIFIERS & MOD_WIN, 0);
     }
 }
