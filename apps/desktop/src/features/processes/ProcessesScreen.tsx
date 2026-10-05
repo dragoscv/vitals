@@ -629,6 +629,8 @@ export function ProcessesScreen({
         total={total}
         exportRows={rows}
         exportColumns={exportColumns}
+        showDetails={preferences.showDetails}
+        onShowDetailsChange={(showDetails) => setPreferences((c) => ({ ...c, showDetails }))}
       />
 
       {failure !== null && (
@@ -688,14 +690,16 @@ export function ProcessesScreen({
           />
         )}
 
-        <ProcessDetails
-          row={focusedRow}
-          locale={locale}
-          actions={actions}
-          host={facts.host}
-          executablePath={focusedRow === null ? null : pathOf(focusedRow.id)}
-          onFailure={setFailure}
-        />
+        {preferences.showDetails && (
+          <ProcessDetails
+            row={focusedRow}
+            locale={locale}
+            actions={actions}
+            host={facts.host}
+            executablePath={focusedRow === null ? null : pathOf(focusedRow.id)}
+            onFailure={setFailure}
+          />
+        )}
       </div>
 
       <RiskDialog

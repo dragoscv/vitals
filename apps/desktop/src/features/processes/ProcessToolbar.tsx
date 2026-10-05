@@ -2,6 +2,7 @@
  * Search, filter chips, grouping toggle and the column picker.
  */
 
+import { PanelRightClose, PanelRightOpen } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import {
@@ -11,6 +12,7 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
   Button,
+  IconButton,
   SearchInput,
   SegmentedControl,
 } from '@vitals/ui';
@@ -19,7 +21,7 @@ import { ExportButton } from '../../components/ExportButton';
 import type { ExportColumn } from '../../lib/export';
 import { COLUMNS, type ColumnId } from './columns';
 import type { KindFilter, ProcessRow } from './model';
-import { fallback } from './strings';
+import { PROCESSES_NS, fallback } from './strings';
 
 export interface ProcessToolbarProps {
   readonly query: string;
@@ -35,10 +37,14 @@ export interface ProcessToolbarProps {
   /** The rows as drawn — filtered, sorted — so the file matches the screen. */
   readonly exportRows: readonly ProcessRow[];
   readonly exportColumns: readonly ExportColumn<ProcessRow>[];
+  /** Whether the details panel is shown; the toggle sits at the toolbar's end. */
+  readonly showDetails: boolean;
+  readonly onShowDetailsChange: (show: boolean) => void;
 }
 
 export function ProcessToolbar(props: ProcessToolbarProps): React.JSX.Element {
   const { t } = useTranslation();
+  const { t: tp } = useTranslation(PROCESSES_NS);
 
   const kinds: readonly { value: KindFilter; key: string }[] = [
     { value: 'all', key: 'process.filter.all' },
@@ -126,6 +132,16 @@ export function ProcessToolbar(props: ProcessToolbarProps): React.JSX.Element {
       </DropdownMenu>
 
       <ExportButton name="processes" rows={props.exportRows} columns={props.exportColumns} />
+
+      <IconButton
+        size="md"
+        variant="ghost"
+        aria-pressed={props.showDetails}
+        label={props.showDetails ? tp('panel.hide') : tp('panel.show')}
+        title={props.showDetails ? tp('panel.hide') : tp('panel.show')}
+        icon={props.showDetails ? <PanelRightClose /> : <PanelRightOpen />}
+        onClick={() => props.onShowDetailsChange(!props.showDetails)}
+      />
     </div>
   );
 }

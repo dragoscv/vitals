@@ -178,6 +178,8 @@ export interface TablePreferences {
   readonly sortDirection: 'asc' | 'desc';
   readonly grouped: boolean;
   readonly kind: 'all' | 'apps' | 'background' | 'system';
+  /** Whether the details panel on the right is shown. */
+  readonly showDetails: boolean;
 }
 
 export const DEFAULT_PREFERENCES: TablePreferences = {
@@ -189,6 +191,7 @@ export const DEFAULT_PREFERENCES: TablePreferences = {
   sortDirection: 'desc',
   grouped: true,
   kind: 'all',
+  showDetails: true,
 };
 
 const STORAGE_KEY = 'vitals.processes.preferences';
@@ -261,6 +264,7 @@ export function mergePreferences(value: unknown): TablePreferences {
       candidate.kind === 'apps' || candidate.kind === 'background' || candidate.kind === 'system'
         ? candidate.kind
         : 'all',
+    showDetails: candidate.showDetails !== false,
   };
 }
 

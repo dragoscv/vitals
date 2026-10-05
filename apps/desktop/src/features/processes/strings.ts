@@ -76,6 +76,10 @@ const en = {
   elevation: {
     declined: 'Administrator approval was declined, so nothing was changed.',
   },
+  panel: {
+    hide: 'Hide details panel',
+    show: 'Show details panel',
+  },
 } as const;
 
 const ro = {
@@ -134,6 +138,10 @@ const ro = {
   },
   elevation: {
     declined: 'Aprobarea de administrator a fost refuzată, deci nu s-a schimbat nimic.',
+  },
+  panel: {
+    hide: 'Ascunde panoul de detalii',
+    show: 'Arată panoul de detalii',
   },
 } as const;
 

@@ -620,6 +620,16 @@ describe('sort stability in the mounted table', () => {
 });
 
 describe('shell actions', () => {
+  it('hides the details panel on request and brings it back', async () => {
+    mountScreen();
+    await screen.findByRole('grid');
+    expect(screen.getByRole('complementary')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Hide details panel' }));
+    expect(screen.queryByRole('complementary')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Show details panel' }));
+    expect(screen.getByRole('complementary')).toBeTruthy();
+  });
+
   it('disables file location and properties when the path is unknown', async () => {
     // A protected process never yields its path. An enabled item that fails
     // every time reads as broken; disabled with a reason reads as honest.
