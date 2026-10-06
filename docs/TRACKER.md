@@ -2634,6 +2634,30 @@ screens at 1280×800, 1000×680 and 1600×1000 report 0 clipped elements;
 Benchmarks stack 140 px at 900×700 (was 0). `styles.test.ts` asserts the
 floor, the body fallback and `max-content`; vitest 311/311.
 
+### 2026-10-06 — S16-17 the page scrolls, not the cards
+
+**Why.** S16-16 kept the S12-26 model — the window's height shared between
+cards, each scrolling inside itself — and only gave the shares a floor. The
+user's verdict on the installed build: a card that grows (the clean-up list
+after a check) must push the page down and scroll `main`, a page whose
+content fits must not scroll at all, and a card should scroll on its own only
+when its content is very long.
+
+**Change.** `.screen-body` rows are `max-content` and the body is the one
+scroller; inside it a `.pane-scroll` grows with its content up to
+`--section-max` (`min(48rem, 75vh)`, viewport-capped so a list never traps
+the wheel in a short window). Every per-screen height share is gone
+(Storage and Benchmarks `grid-rows-*`, `.devices-body` rows, the 640 px
+height query). The Storage map has a window-relative height of its own, and
+Users moved its session cards into the same body.
+
+**Evidence.** CDP probe at 1185×768 (the user's window), 1600×1000 and
+900×640: on Storage, Benchmarks and Users the only scroller is the body, and
+at 1600×1000 nothing scrolls (body 886/886). Storage after "Look for
+reclaimable space": body 654/880, no card scroller. The one card scroller left
+is Devices' sensor table (765 px of rows). An end gutter made Users scroll 6 px
+with everything fitting (574/580) and was removed. vitest 351/351.
+
 ## S13 — public beta 0.9.0-beta.1 (2026-09-28)
 
 Decided with the owner (ADR 0031): public repository, beta version, no code

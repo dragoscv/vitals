@@ -156,14 +156,11 @@ export function StorageScreen({ source }: StorageScreenProps = {}): React.JSX.El
        * Clean-up button was below the fold as soon as a scan had results.
        * Small windows stack everything and the body scrolls instead.
        */}
-      {/* Stacked (narrow) the explorer takes three shares to the clean-up
-          card's one: a map needs height to be read, a list of caches does
-          not. Side by side each has the full height. The two clean-up cards
-          share one cell as a stack that scrolls as a unit: as separate grid
-          children they fell into implicit rows and were squeezed to their
-          titles (S16-16). Every pane track has the `--pane-min` floor; below
-          it the body scrolls. */}
-      <div className="screen-body grid-rows-[auto_minmax(var(--pane-min),3fr)_minmax(var(--pane-min),1fr)] @5xl/main:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] @5xl/main:grid-rows-[auto_minmax(var(--pane-min),1fr)]">
+      {/* Every card at its own height and the body scrolls (S16-17): a
+          clean-up list that grows after a check pushes the page down rather
+          than scrolling inside a 250 px card. Wide: the explorer beside the
+          two clean-up cards, which share one column as a stack. */}
+      <div className="screen-body @5xl/main:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <div className="flex flex-col gap-3 @5xl/main:col-span-2">
           <Volumes
             volumes={volumes}
@@ -520,7 +517,7 @@ function ScanResult({
       <CardHeader>
         <CardTitle level={3}>{t('explore.heading')}</CardTitle>
       </CardHeader>
-      <CardBody className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
+      <CardBody className="flex flex-col gap-2">
         <div>
           <p className="text-sm">
             {t('result.total', {

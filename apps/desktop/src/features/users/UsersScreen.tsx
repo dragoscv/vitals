@@ -126,8 +126,8 @@ export function UsersScreen({ reader }: UsersScreenProps): React.JSX.Element {
         {t('counts.interactive', { count: interactiveCount })}
       </p>
 
-      {/* The search above stays put; only the session cards scroll (S12-26). */}
-      <div className="pane-stack flex-1" onKeyDown={menu.onKeyDown}>
+      {/* Session cards at their own height; the body scrolls (S16-17). */}
+      <div className="screen-body" onKeyDown={menu.onKeyDown}>
         {filteredSessions.map((session) => (
           <ContextMenu key={session.sessionId} {...menu.rootProps(String(session.sessionId))}>
             <ContextMenuTrigger asChild>

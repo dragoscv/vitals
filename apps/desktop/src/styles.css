@@ -81,13 +81,14 @@
   --scroll-gutter-y: 0.75rem;
   --scroll-gutter-end: 2.5rem;
   /*
-   * The shortest a pane's grid track may get. Tracks used to be
-   * `minmax(0, 1fr)`, and on Storage at 1280×800 the drives row took the
-   * height, so two clean-up cards got 69 px each: a title and a 24 px
-   * scroller over 240 px of content (S16-16). Below this the body scrolls
-   * instead, which is worse than fitting but better than an unreadable slot.
+   * How tall a section inside `.screen-body` may grow before it scrolls
+   * itself. Below this a section is as tall as its content and the body
+   * scrolls (S16-17); only a genuinely long list — hundreds of sensor
+  * readings, a big folder listing — gets a scroller of its own. Capped
+  * by the viewport so a list never fills a short window: a scroller as
+  * tall as the window traps the wheel and the page cannot move past it.
    */
-  --pane-min: 12rem;
+  --section-max: min(48rem, 75vh);
 }
 
 /*
@@ -175,27 +176,20 @@
   /*
    * ---- Screens made of panes (S12-26) ----------------------------------
    *
-   * Everything below a screen's header, for screens with more than one
-   * section. At a normal window size it fits exactly and never scrolls: it
-   * is a grid whose tracks share the height (the screen sets them), and
-   * each `.pane` inside — a card holding a table, a list, a group of
-   * fields — scrolls its own `.pane-scroll` when its content is longer than
-   * its share. That keeps every section's title and controls on screen,
-   * which a single body scroll never did: on Devices the sensor table's
-   * header, on Storage the Clean-up button, scrolled away with everything
-   * else.
+   * Everything below a screen's header, for screens made of several cards
+   * (Storage, Devices, Benchmarks). Every card is as tall as its content
+   * and this body is the one scroller (S16-17). When the cards fit, nothing
+   * scrolls; when a card grows — a scan result, a clean-up list after
+   * "Look for reclaimable space" — the body scrolls, never the card.
    *
-  * Each pane track has a floor (`--pane-min`). When the fixed rows plus
-  * the floors are taller than the window, the body scrolls rather than
-  * squeezing a card to its title (S16-16: Storage's clean-up cards were
-  * 69 px tall at 1280×800, content clipped). The gutter gives card shadows
-  * room inside that scroller, as on `.screen-scroll`; when everything fits
-  * nothing scrolls and the gutter is invisible.
+   * The earlier model (S12-26, S16-16) shared the window's height between
+   * the cards and let each scroll inside itself. It kept titles on screen,
+   * but every card that grew became a small window of its own: a 250 px
+   * clean-up card scrolling inside a page that had room below it.
    *
-   * Small windows get the other mode (unlayered rules below): panes stack
-   * in reading order and the body scrolls. Squeezing four sections into
-   * 480 px of height leaves each one a slot too short to read, which is
-   * worse than scrolling between them.
+   * The one exception is a genuinely long list — hundreds of sensor
+   * readings, a folder of thousands of entries. Its `.pane-scroll` scrolls
+   * past `--section-max`, so the rest of the page is not a mile below it.
    */
   .screen-body {
     display: grid;
@@ -204,9 +198,14 @@
     min-width: 0;
     gap: 0.75rem;
     grid-template-columns: minmax(0, 1fr);
-    grid-auto-rows: minmax(var(--pane-min), 1fr);
+    grid-auto-rows: max-content;
+    align-content: start;
+    align-items: start;
     overflow-y: auto;
     overscroll-behavior: contain;
+    /* Room for card shadows inside the scroller's clip, cancelled by the
+       margin. No extra end gutter: it made a page that fits scroll by a
+       few pixels (Users, 574/580 at 1185×768). */
     margin: calc(-1 * var(--scroll-gutter-y)) calc(-1 * var(--scroll-gutter-x));
     padding: var(--scroll-gutter-y) var(--scroll-gutter-x);
   }
@@ -231,22 +230,32 @@
     margin: calc(-1 * var(--scroll-gutter-y)) calc(-1 * var(--scroll-gutter-x));
     padding: var(--scroll-gutter-y) var(--scroll-gutter-x);
   }
-  /*
-   * A pane inside a stack is as tall as its content: the stack is the
-   * scroller. Without this its `.pane-scroll` (flex-basis 0) collapses the
-   * card to its header.
-   */
-  .pane-stack > .pane,
-  .pane-stack > .pane .pane-scroll {
-    flex: none;
-  }
-
   .pane-scroll {
     flex: 1 1 0%;
     min-height: 0;
     min-width: 0;
     overflow: auto;
     overscroll-behavior: contain;
+  }
+
+  /*
+   * Inside a screen body nothing shares a height: a stack is a column of
+   * cards at their own height, and a pane's list grows with its content up
+   * to `--section-max`. `flex: none` because a flex-basis of 0 would
+   * collapse a card to its header once its parent no longer has a height.
+   */
+  .screen-body .pane-stack {
+    overflow: visible;
+    margin: 0;
+    padding: 0;
+  }
+  .screen-body .pane,
+  .screen-body .pane-stack > * {
+    flex: none;
+  }
+  .screen-body .pane-scroll {
+    flex: none;
+    max-height: var(--section-max);
   }
 
   /* Same pinned header as `.table-scroll`, for a table inside a pane. */
@@ -312,12 +321,9 @@
    * thermal zones, battery — side by side at their natural height, never
    * scrolling: each is a handful of values, and stacked in one scrolling
    * column the thermal zones were hidden below the power card. Row two: the
-   * readings table and the gap list share the remaining height and scroll
-   * inside themselves. Narrow: facts wrap, lists stack.
+   * readings table and the gap list, at their own height; the body scrolls
+   * (S16-17). Narrow: facts wrap, lists stack.
    */
-  .devices-body {
-    grid-template-rows: auto minmax(var(--pane-min), 1fr);
-  }
   /*
    * Devices → Hardware: CPU, memory, graphics, drives, board as a card
    * grid that scrolls as one pane (the page never does). Columns follow the
@@ -414,62 +420,20 @@
 }
 
 /*
- * Small windows: panes stack in reading order at their natural height and
- * the screen body is the one scroller (see `.screen-body`). Height is read
- * from the window because `main` is an inline-size container only — it has
- * no block size to query. 640 px of window leaves ~520 px under the title
- * bar, the point below which two stacked rows of panes stop being readable.
+ * Narrow content column: the cards stack in reading order. The body
+ * already scrolls at every size (`.screen-body`), and a short window needs
+ * nothing extra because `--section-max` is capped by the viewport height.
  * Width is read from the content column, so an expanded sidebar counts.
  *
  * Unlayered on purpose, so it wins over each screen's own track sizes
  * (utilities in `@layer utilities`) without `!important`.
  */
-@media (max-height: 640px) {
-  .screen-body {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: none;
-    grid-auto-rows: max-content;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    margin: calc(-1 * var(--scroll-gutter-y)) calc(-1 * var(--scroll-gutter-x));
-    padding: var(--scroll-gutter-y) var(--scroll-gutter-x) var(--scroll-gutter-end);
-  }
-  .screen-body > * {
-    grid-column: auto;
-    grid-row: auto;
-  }
-  .screen-body .pane-stack {
-    overflow: visible;
-    margin: 0;
-    padding: 0;
-  }
-  .screen-body .pane-scroll {
-    flex: none;
-    max-height: 24rem;
-  }
-}
 @container main (width < 40rem) {
   .screen-body {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: none;
-    grid-auto-rows: max-content;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    margin: calc(-1 * var(--scroll-gutter-y)) calc(-1 * var(--scroll-gutter-x));
-    padding: var(--scroll-gutter-y) var(--scroll-gutter-x) var(--scroll-gutter-end);
   }
   .screen-body > * {
     grid-column: auto;
-    grid-row: auto;
-  }
-  .screen-body .pane-stack {
-    overflow: visible;
-    margin: 0;
-    padding: 0;
-  }
-  .screen-body .pane-scroll {
-    flex: none;
-    max-height: 24rem;
   }
 }
 

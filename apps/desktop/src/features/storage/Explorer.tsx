@@ -51,6 +51,7 @@ import {
   EmptyState,
   IconButton,
   SegmentedControl,
+  cn,
   formatBytes,
   formatCount,
   useReducedMotion,
@@ -301,7 +302,7 @@ function ScanExplorer({
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-2">
+    <div className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center gap-2">
         <SegmentedControl
           value={view}
@@ -624,10 +625,11 @@ function MapCanvas({
         }`;
 
   return (
-    // Flexes to the card's height rather than a fixed one: a fixed height
-    // overflowed the card at 1440x900, and the Clean-up card below covered
-    // the map, which then swallowed no clicks at all (found live).
-    <div className="relative min-h-32 flex-[3_1_0%]" onKeyDown={menu.onKeyDown}>
+    // A height of its own, tied to the window: the card is as tall as its
+    // content now (S16-17), so there is no card height to flex into. The
+    // old overlap (a fixed map under the Clean-up card at 1440x900) cannot
+    // recur because no card is height-limited any more.
+    <div className="relative h-[clamp(14rem,45vh,30rem)]" onKeyDown={menu.onKeyDown}>
       <ContextMenu {...menu.rootProps('map')}>
         <ContextMenuTrigger asChild>
           <canvas
@@ -743,7 +745,7 @@ function FolderList({
   }
 
   return (
-    <div className={`flex min-h-24 flex-col gap-1 ${compact ? 'flex-[2_1_0%]' : 'flex-1'}`}>
+    <div className="flex flex-col gap-1">
       {here.ownFiles > 0 && (
         <p className="flex items-center gap-1.5 text-2xs text-[var(--color-fg-muted)]">
           <FileText aria-hidden className="size-4" />
@@ -756,7 +758,12 @@ function FolderList({
       )}
       <div
         ref={scrollRef}
-        className="pane-scroll rounded-md border border-[var(--color-border-subtle)]"
+        className={cn(
+          'pane-scroll rounded-md border border-[var(--color-border-subtle)]',
+          // Under the map the list shares the screen with it: a lower cap
+          // keeps map and list visible together.
+          compact && 'max-h-[min(20rem,35vh)]',
+        )}
         onKeyDown={menu.onKeyDown}
       >
         <ul

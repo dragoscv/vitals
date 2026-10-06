@@ -175,12 +175,11 @@ export function BenchmarksScreen({ source }: BenchmarksScreenProps = {}): React.
       )}
 
       {/*
-       * What to run and the Run button stay at the top; the results below
-       * scroll on their own (S12-26), so re-running after reading the last
-       * result no longer means scrolling back up for the button. Small
-       * windows stack and scroll the whole body instead.
+       * What to run, then the results, each at its own height; the body
+       * scrolls when they do not fit (S16-17). A results list scrolling
+       * inside itself under a page with room to spare read as clipped.
        */}
-      <div className="screen-body grid-rows-[auto_minmax(var(--pane-min),1fr)]">
+      <div className="screen-body">
         <div className="flex flex-col gap-3">
           <Selection
             infos={state.infos}

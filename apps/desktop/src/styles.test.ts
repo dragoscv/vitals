@@ -254,46 +254,46 @@ describe('screens made of panes', () => {
     new RegExp(`(?:^|\\n)\\s*${selector.replace(/[.]/g, '\\.')}\\s*\\{([^}]*)\\}`).exec(css)?.[1] ??
     '';
 
-  it('never squeezes a pane below its floor: the body scrolls instead', async () => {
-    // S16-16: with `minmax(0, 1fr)` tracks Storage's clean-up cards were
-    // 69 px tall at 1280×800, a title over a 24 px scroller. A floor keeps
-    // every pane readable; the body scrolls only when the floors do not fit.
+  it('sizes every card to its content and scrolls the body, not the card', async () => {
+    // S16-17: sharing the height between cards made each growing card a
+    // small scroller of its own (Storage's clean-up list scrolled inside a
+    // 250 px card on a page with room below). Cards are content-sized now.
     const css = await build([]);
     const body = rule(css, '.screen-body');
-    expect(body).toMatch(/grid-auto-rows:\s*minmax\(var\(--pane-min\),\s*1fr\)/);
+    expect(body).toMatch(/grid-auto-rows:\s*max-content/);
     expect(body).toMatch(/min-height:\s*0/);
     expect(body).toMatch(/overflow-y:\s*auto/);
-    expect(css).toMatch(/--pane-min:\s*1\drem/);
     expect(rule(css, '.pane-scroll')).toMatch(/overflow:\s*auto/);
+    // Inside the body a list grows with its content and scrolls only past
+    // the cap; a stack is never a scroller of its own.
+    expect(rule(css, '.screen-body .pane-scroll')).toMatch(/max-height:\s*var\(--section-max\)/);
+    expect(rule(css, '.screen-body .pane-scroll')).toMatch(/flex:\s*none/);
+    expect(rule(css, '.screen-body .pane-stack')).toMatch(/overflow:\s*visible/);
+    expect(css).toMatch(/--section-max:\s*min\(\d+rem,\s*\d+vh\)/);
   });
 
-  it('gives every screen-specified pane track the same floor', async () => {
+  it('lets no screen hand its cards a share of the height', async () => {
     const source = await readFile(resolve(here, 'styles.css'), 'utf8');
-    expect(rule(source, '.devices-body')).toMatch(/minmax\(var\(--pane-min\),\s*1fr\)/);
+    expect(source).not.toMatch(/\.devices-body\s*\{[^}]*grid-template-rows/);
     for (const file of [
       'features/storage/StorageScreen.tsx',
       'features/benchmarks/BenchmarksScreen.tsx',
     ]) {
       const tsx = await readFile(resolve(here, file), 'utf8');
-      const classes = /className="screen-body ([^"]*)"/.exec(tsx)?.[1] ?? '';
-      const rows = classes.match(/grid-rows-\[[^\]]*\]/g) ?? [];
-      expect(rows.length, file).toBeGreaterThan(0);
-      for (const track of rows) expect(track, file).not.toMatch(/minmax\(0,/);
+      const classes = /className="(screen-body[^"]*)"/.exec(tsx)?.[1] ?? '';
+      expect(classes, file).not.toBe('');
+      expect(classes, file).not.toMatch(/grid-rows-/);
     }
   });
 
-  it('stacks the panes and scrolls the body only when the window is small', async () => {
+  it('stacks the cards in one column when the content column is narrow', async () => {
     const source = await readFile(resolve(here, 'styles.css'), 'utf8');
-    for (const query of ['@media (max-height: 640px)', '@container main (width < 40rem)']) {
-      const start = source.indexOf(query);
-      expect(start, query).toBeGreaterThan(0);
-      const block = source.slice(start, source.indexOf('\n}\n', start));
-      expect(block, query).toMatch(/\.screen-body\s*\{[^}]*overflow-y:\s*auto/);
-      expect(block, query).toMatch(/grid-template-rows:\s*none/);
-      // `auto` rows let a lone flex pane-stack (flex-basis 0) collapse to
-      // 0 px: Benchmarks' results vanished at 900×700.
-      expect(block, query).toMatch(/grid-auto-rows:\s*max-content/);
-    }
+    const query = '@container main (width < 40rem)';
+    const start = source.indexOf(query);
+    expect(start, query).toBeGreaterThan(0);
+    const block = source.slice(start, source.indexOf('\n}\n', start));
+    expect(block).toMatch(/\.screen-body\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/);
+    expect(block).toMatch(/\.screen-body > \*\s*\{[^}]*grid-column:\s*auto/);
   });
 
   it('leaves no screen scrolling its whole body with `screen-scroll` except the rail detail', async () => {

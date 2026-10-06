@@ -182,10 +182,9 @@ export function DevicesScreen({
              * of separate cards at their own height: they are a handful of
              * values and must never scroll (S12-29 — stacked in one scrolling
              * column, the zones were cut off below the power card). The two
-             * open-ended lists share the rest of the height side by side and
-             * scroll inside themselves, so their titles and the table header
-             * stay put. A window too short for that stacks everything and
-             * the body scrolls as one (`.screen-body`).
+             * open-ended lists sit below, side by side, at their own height;
+             * the body scrolls (`.screen-body`, S16-17). Only a list longer
+             * than `--section-max` scrolls inside itself, header pinned.
              */}
             <div className="devices-body screen-body">
               <div className="devices-facts">
