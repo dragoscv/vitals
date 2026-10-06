@@ -107,6 +107,7 @@ export function StorageScreen({ source }: StorageScreenProps = {}): React.JSX.El
   // Falls back to the first volume so the scan button is usable immediately,
   // rather than requiring a click that only reselects what is already shown.
   const activeMount = selected ?? volumes[0]?.mount ?? null;
+  const activeVolume = volumes.find((volume) => volume.mount === activeMount) ?? null;
 
   const rows = useMemo(
     () => sortDirectories(filterDirectories(state.snapshot?.largest ?? [], query), sort, locale),
@@ -181,17 +182,57 @@ export function StorageScreen({ source }: StorageScreenProps = {}): React.JSX.El
                 {t('scan.cancel')}
               </Button>
             ) : (
-              <Button
-                size="sm"
-                disabled={activeMount === null}
-                onClick={() => {
-                  if (activeMount !== null) state.scan(activeMount);
-                }}
-              >
-                {state.snapshot === null ? t('scan.start') : t('scan.rescan')}
-              </Button>
+              <>
+                <Button
+                  size="sm"
+                  disabled={activeMount === null}
+                  onClick={() => {
+                    if (activeMount !== null) state.scan(activeMount, 'auto');
+                  }}
+                >
+                  {state.snapshot === null ? t('scan.start') : t('scan.rescan')}
+                </Button>
+                {/* Only where it can work: the file table is an NTFS
+                    structure, and offering a UAC prompt that then fails on a
+                    FAT32 stick would ask for trust and give nothing back. */}
+                {activeMount !== null && activeVolume?.strategy === 'turbo' && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    title={t('scan.turboHint')}
+                    onClick={() => {
+                      state.scan(activeMount, 'turbo');
+                    }}
+                  >
+                    <Sparkles aria-hidden className="size-4" />
+                    {t('scan.turbo')}
+                  </Button>
+                )}
+                {/* Without a saved index "auto" already walks everything, so
+                    a second button doing the same would only be noise. */}
+                {activeMount !== null && activeVolume?.indexed === true && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    title={t('scan.fullHint')}
+                    onClick={() => {
+                      state.scan(activeMount, 'full');
+                    }}
+                  >
+                    {t('scan.full')}
+                  </Button>
+                )}
+              </>
             )}
           </div>
+
+          {state.scanDeclined && (
+            // Neutral, not the danger colour: dismissing a UAC prompt is the
+            // user's decision, and painting it red reads as Vitals breaking.
+            <p role="status" className="text-2xs text-[var(--color-fg-muted)]">
+              {state.snapshot === null ? t('scan.declined') : t('scan.declinedKept')}
+            </p>
+          )}
 
           {state.scanError !== null && (
             <p role="alert" className="text-2xs text-[var(--color-status-danger)]">
@@ -320,35 +361,41 @@ function ScanRunning({
 }) {
   const { t } = useTranslation(STORAGE_NS);
   const used = volume === null ? 0 : usedBytes(volume);
-  const fraction = progress !== null && used > 0 ? Math.min(0.99, progress.bytesSeen / used) : null;
+  const fraction = scanFraction(progress, used);
   const rate =
     progress !== null && progress.elapsedMs > 0
       ? Math.round((progress.filesSeen * 1000) / progress.elapsedMs)
       : null;
+  const phase = progress === null || progress.phase === 'walking' ? null : progress.phase;
 
   return (
     <div role="status" className="flex flex-col gap-1.5">
       <p className="text-sm">{t('scan.running', { root })}</p>
+      {phase !== null && (
+        <p className="text-2xs text-[var(--color-fg-muted)]">{t(`scan.phase.${phase}`)}</p>
+      )}
       {/* Visible figures roll; the live region above names only the root so
           it is announced once, not ten times a second. */}
-      <p aria-hidden className="tnum text-2xs text-[var(--color-fg-muted)]">
-        {progress === null || rate === null ? (
-          t('scan.progressStarting')
-        ) : (
-          <AnimatedValue
-            value={t('scan.progress', {
-              files: formatCount(progress.filesSeen, locale),
-              size: formatBytes(progress.bytesSeen, locale),
-              rate: formatCount(rate, locale),
-            })}
-          />
-        )}
-      </p>
+      {phase === null && (
+        <p aria-hidden className="tnum text-2xs text-[var(--color-fg-muted)]">
+          {progress === null || rate === null ? (
+            t('scan.progressStarting')
+          ) : (
+            <AnimatedValue
+              value={t('scan.progress', {
+                files: formatCount(progress.filesSeen, locale),
+                size: formatBytes(progress.bytesSeen, locale),
+                rate: formatCount(rate, locale),
+              })}
+            />
+          )}
+        </p>
+      )}
       <ProgressBar
         {...(fraction === null ? { indeterminate: true } : { value: fraction * 100 })}
         label={t('scan.running', { root })}
       />
-      {progress !== null && (
+      {progress !== null && progress.currentPath !== '' && (
         <p
           aria-hidden
           className="truncate font-mono text-2xs text-[var(--color-fg-subtle)]"
@@ -360,6 +407,24 @@ function ScanRunning({
       <p className="text-2xs text-[var(--color-fg-muted)]">{t('scan.runningDetail')}</p>
     </div>
   );
+}
+
+/**
+ * How far the running scan is, 0..0.99, or `null` for an indeterminate bar.
+ *
+ * While waiting for UAC approval or reading the change journal there is
+ * nothing to measure against, and a bar sitting at 0 % looks stuck. The
+ * backend's own fraction wins when it has one (the file table has a known
+ * length); otherwise bytes seen against the drive's used space. Capped at 99
+ * because hard links and compression let the walk overshoot the volume's
+ * figure, and a full bar before the result arrives is a lie.
+ */
+function scanFraction(progress: ScanProgress | null, used: number): number | null {
+  if (progress === null || progress.phase === 'approval' || progress.phase === 'journal') {
+    return null;
+  }
+  if (progress.fraction !== null) return Math.min(0.99, Math.max(0, progress.fraction));
+  return used > 0 ? Math.min(0.99, progress.bytesSeen / used) : null;
 }
 
 function Volumes({
@@ -440,10 +505,15 @@ function Volumes({
                 />
               )}
 
-              {volume.strategy === 'mftAssisted' && (
-                <Badge tone="info" className="mt-1.5" title={t('volumes.fastHint')}>
-                  {t('volumes.fast')}
+              {volume.strategy === 'turbo' && (
+                <Badge tone="info" className="mt-1.5" title={t('volumes.turboHint')}>
+                  {t('volumes.turbo')}
                 </Badge>
+              )}
+              {volume.indexed && (
+                <p className="mt-1 text-2xs text-[var(--color-fg-subtle)]">
+                  {t('volumes.indexed')}
+                </p>
               )}
             </button>
           );
@@ -523,6 +593,21 @@ function ScanResult({
             {t('result.logical', { logical: formatBytes(snapshot.logical, locale) })} ·{' '}
             {t('result.elapsed', { seconds: Math.round(snapshot.elapsedMs / 100) / 10 })}
           </p>
+          {snapshot.method === 'turbo' && (
+            <p className="text-2xs text-[var(--color-fg-subtle)]">{t('result.turbo')}</p>
+          )}
+          {/* Both counts or no line: an absent count shown as 0 would claim
+              nothing was reused, which is a measurement nobody made. */}
+          {snapshot.method === 'incremental' &&
+            snapshot.reusedDirectories !== null &&
+            snapshot.relistedDirectories !== null && (
+              <p className="text-2xs text-[var(--color-fg-subtle)]">
+                {t('result.incremental', {
+                  reused: formatCount(snapshot.reusedDirectories, locale),
+                  relisted: formatCount(snapshot.relistedDirectories, locale),
+                })}
+              </p>
+            )}
         </div>
 
         {needsQualifier(snapshot) && (

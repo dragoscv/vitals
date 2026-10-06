@@ -27,9 +27,10 @@ const en = {
     unknownCapacity: 'Capacity not reported',
     label: '{{mount}} {{label}}',
     scanHint: 'A scan reads every folder on the drive, several at once, and counts every file.',
-    fast: 'Fast discovery available',
-    fastHint:
-      'This drive supports reading its file index directly, which finds folders in seconds. Sizes still come from the full walk, so the scan is not instant.',
+    turbo: 'Turbo scan available',
+    turboHint:
+      'This drive is NTFS, so with administrator rights Vitals can read its file table directly and finish in seconds instead of minutes.',
+    indexed: 'Saved index: a rescan reads only what changed',
     empty: 'No drives reported.',
   },
 
@@ -46,6 +47,20 @@ const en = {
   scan: {
     start: 'Scan this drive',
     rescan: 'Scan again',
+    turbo: 'Turbo scan (administrator)',
+    turboHint:
+      'Windows asks for approval once. Vitals then reads the drive’s file table directly, which takes seconds, and counts folders a normal scan cannot open.',
+    full: 'Full scan',
+    fullHint: 'Reads every folder again and ignores the saved index.',
+    declined: 'Administrator approval was declined, so nothing was scanned.',
+    declinedKept:
+      'Administrator approval was declined, so nothing was scanned. The last result is still shown.',
+    phase: {
+      approval: 'Waiting for administrator approval…',
+      reading: 'Reading the drive’s file table…',
+      building: 'Adding up folder sizes…',
+      journal: 'Checking what changed since the last scan…',
+    },
     cancel: 'Stop the scan',
     running: 'Scanning {{root}}…',
     runningDetail: 'You can stop at any time and keep what was found.',
@@ -65,6 +80,10 @@ const en = {
     logicalHint:
       'Two figures because they measure different things. "On disk" is the space that would actually be freed: files are rounded up to whole clusters, and a file stored once but linked from several folders is counted once. "As file sizes" is the plain sum of file lengths, which is what File Explorer shows.',
     elapsed: 'Scanned in {{seconds}}s',
+    turbo:
+      'Read from the drive’s file table with administrator rights, including folders a normal scan cannot open.',
+    incremental:
+      'Folders reused from the saved index: {{reused}}; re-read because they changed: {{relisted}}.',
     dedup: 'Counted {{count}} linked files once, which kept {{size}} out of the total.',
     links_one: '{{n}} link to another folder was not followed.',
     links_other: '{{n}} links to other folders were not followed.',
@@ -396,9 +415,10 @@ const ro = {
     label: '{{mount}} {{label}}',
     scanHint:
       'O scanare citește fiecare folder de pe unitate, mai multe deodată, și numără fiecare fișier.',
-    fast: 'Descoperire rapidă disponibilă',
-    fastHint:
-      'Această unitate permite citirea directă a indexului de fișiere, ceea ce găsește folderele în câteva secunde. Dimensiunile vin tot din parcurgerea completă, deci scanarea nu este instantanee.',
+    turbo: 'Scanare Turbo disponibilă',
+    turboHint:
+      'Această unitate este NTFS, așa că, având drepturi de administrator, Vitals îi poate citi direct tabelul de fișiere și termină în câteva secunde în loc de minute.',
+    indexed: 'Index salvat: o nouă scanare citește doar ce s-a schimbat',
     empty: 'Nu au fost raportate unități.',
   },
 
@@ -415,6 +435,20 @@ const ro = {
   scan: {
     start: 'Scanează această unitate',
     rescan: 'Scanează din nou',
+    turbo: 'Scanare Turbo (administrator)',
+    turboHint:
+      'Windows cere aprobarea o singură dată. Apoi Vitals citește direct tabelul de fișiere al unității, în câteva secunde, și numără și folderele pe care o scanare obișnuită nu le poate deschide.',
+    full: 'Scanare completă',
+    fullHint: 'Citește din nou fiecare folder și ignoră indexul salvat.',
+    declined: 'Aprobarea de administrator a fost refuzată, deci nu s-a scanat nimic.',
+    declinedKept:
+      'Aprobarea de administrator a fost refuzată, deci nu s-a scanat nimic. Rezultatul anterior este afișat în continuare.',
+    phase: {
+      approval: 'Se așteaptă aprobarea de administrator…',
+      reading: 'Se citește tabelul de fișiere al unității…',
+      building: 'Se adună dimensiunile folderelor…',
+      journal: 'Se verifică ce s-a schimbat de la ultima scanare…',
+    },
     cancel: 'Oprește scanarea',
     running: 'Se scanează {{root}}…',
     runningDetail: 'Poți opri oricând și păstrezi ce s-a găsit până atunci.',
@@ -434,6 +468,10 @@ const ro = {
     logicalHint:
       'Două cifre pentru că măsoară lucruri diferite. „Pe disc” este spațiul care s-ar elibera efectiv: fișierele sunt rotunjite la clustere întregi, iar un fișier stocat o singură dată dar legat din mai multe foldere este numărat o dată. „Ca dimensiuni de fișiere” este suma simplă a lungimilor, adică exact ce arată File Explorer.',
     elapsed: 'Scanat în {{seconds}} s',
+    turbo:
+      'Citit din tabelul de fișiere al unității cu drepturi de administrator, inclusiv folderele pe care o scanare obișnuită nu le poate deschide.',
+    incremental:
+      'Foldere refolosite din indexul salvat: {{reused}}; recitite pentru că s-au schimbat: {{relisted}}.',
     dedup:
       'S-au numărat o singură dată {{count}} fișiere legate, ceea ce a scos {{size}} din total.',
     links_one: '{{n}} legătură către alt folder nu a fost urmată.',

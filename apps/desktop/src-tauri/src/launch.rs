@@ -16,6 +16,9 @@
 //! - `--elevated-storage-cleanup <tool> <consent>` — the elevated child that
 //!   runs one Windows cleanup tool (Disk Cleanup with one handler, DISM
 //!   component cleanup, `powercfg /h off`) and exits with its code.
+//! - `--elevated-storage-turbo <letter> <pipe>` — the elevated child that
+//!   reads one drive's file table and sends it back over the pipe the app
+//!   created, then exits.
 //! - `<anything ending in taskmgr.exe>` as the first argument — Windows
 //!   launched us **as the debugger for Task Manager** because the hook is
 //!   on. This is the taskbar menu or Ctrl+Shift+Esc; proceed to normal
@@ -58,6 +61,9 @@ pub enum LaunchMode {
     ElevatedStorageCleanup { args: Vec<String> },
     /// Compact one WSL or Docker virtual disk as administrator and exit.
     ElevatedCompactVhd { args: Vec<String> },
+    /// Read one drive's file table as administrator for a Turbo scan, send
+    /// it to the app, and exit. Never a window.
+    ElevatedStorageTurbo { args: Vec<String> },
 }
 
 /// Classifies the arguments this process was started with.
@@ -120,6 +126,12 @@ where
         };
     }
 
+    if first == vitals_win_arg::STORAGE_TURBO {
+        return LaunchMode::ElevatedStorageTurbo {
+            args: args.map(|arg| arg.as_ref().to_owned()).collect(),
+        };
+    }
+
     // The loader passes the original command line — typically
     // `C:\WINDOWS\system32\taskmgr.exe` or, for the taskbar, the same path
     // with `/4` or `/7` after it — so only the first token is inspected,
@@ -166,6 +178,10 @@ mod vitals_win_arg {
     pub const COMPACT_VHD: &str = vitals_win::storage::devclean::COMPACT_VHD_ARG;
     #[cfg(not(windows))]
     pub const COMPACT_VHD: &str = "--elevated-compact-vhd";
+    #[cfg(windows)]
+    pub const STORAGE_TURBO: &str = vitals_win::storage::turbo::TURBO_ARG;
+    #[cfg(not(windows))]
+    pub const STORAGE_TURBO: &str = "--elevated-storage-turbo";
 }
 
 /// Runs a non-UI launch mode to completion.
@@ -183,6 +199,7 @@ pub fn run_headless(mode: &LaunchMode) -> i32 {
         LaunchMode::ElevatedStartupAction { args } => elevated_startup_action(args),
         LaunchMode::ElevatedStorageCleanup { args } => elevated_storage_cleanup(args),
         LaunchMode::ElevatedCompactVhd { args } => elevated_compact_vhd(args),
+        LaunchMode::ElevatedStorageTurbo { args } => elevated_storage_turbo(args),
         LaunchMode::Normal | LaunchMode::AsTaskManager => {
             tracing::error!("run_headless called for a UI launch mode");
             2
@@ -277,6 +294,21 @@ fn elevated_compact_vhd(args: &[String]) -> i32 {
 #[cfg(not(windows))]
 fn elevated_compact_vhd(_args: &[String]) -> i32 {
     tracing::error!("virtual disk compaction is a Windows mechanism");
+    1
+}
+
+#[cfg(windows)]
+fn elevated_storage_turbo(args: &[String]) -> i32 {
+    let code = vitals_win::storage::turbo::perform(args);
+    // The pipe name is a one-time secret between the two processes, so it
+    // is not logged; the drive letter is enough to identify the run.
+    tracing::info!(drive = ?args.first(), code, "elevated turbo scan finished");
+    code.cast_signed()
+}
+
+#[cfg(not(windows))]
+fn elevated_storage_turbo(_args: &[String]) -> i32 {
+    tracing::error!("a Turbo scan reads an NTFS file table, which is a Windows mechanism");
     1
 }
 
@@ -462,5 +494,24 @@ mod tests {
             }
         );
         assert_eq!(vitals_win_arg::COMPACT_VHD, "--elevated-compact-vhd");
+    }
+
+    #[test]
+    fn the_elevated_turbo_reader_never_starts_a_window_even_when_malformed() {
+        assert_eq!(
+            classify([vitals_win_arg::STORAGE_TURBO, "C", r"\\.\pipe\x"]),
+            LaunchMode::ElevatedStorageTurbo {
+                args: vec!["C".into(), r"\\.\pipe\x".into()]
+            }
+        );
+        assert_eq!(
+            classify([vitals_win_arg::STORAGE_TURBO]),
+            LaunchMode::ElevatedStorageTurbo { args: vec![] }
+        );
+        assert_eq!(
+            vitals_win_arg::STORAGE_TURBO,
+            "--elevated-storage-turbo",
+            "the non-Windows spelling must match vitals-win's"
+        );
     }
 }

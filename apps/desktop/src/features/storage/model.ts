@@ -25,7 +25,26 @@
  * total reports how many entries it could not include.
  */
 
-export type ScanStrategyKey = 'mftAssisted' | 'directoryWalk';
+/**
+ * How a drive can be scanned. `turbo` is NTFS: its raw file table can be read
+ * directly once Vitals has administrator rights, which takes seconds where a
+ * folder-by-folder walk takes minutes.
+ */
+export type ScanStrategyKey = 'turbo' | 'directoryWalk';
+
+/**
+ * What the user asked for. `auto` uses the saved index when it is still valid
+ * and walks otherwise; `full` walks and ignores the index; `turbo` reads the
+ * file table after one UAC prompt.
+ */
+export type ScanMode = 'auto' | 'full' | 'turbo';
+
+export const scanModes: readonly ScanMode[] = ['auto', 'full', 'turbo'];
+
+/** How a finished scan was actually produced, which `auto` does not say in advance. */
+export type ScanMethodKey = 'walk' | 'turbo' | 'incremental';
+
+export type ScanPhaseKey = 'approval' | 'reading' | 'building' | 'journal' | 'walking';
 
 export type DiskKindKey = 'hdd' | 'ssd' | 'nvme' | 'removable' | 'network' | 'optical' | 'unknown';
 
@@ -65,6 +84,8 @@ export interface Volume {
   readonly total: number;
   readonly available: number;
   readonly strategy: ScanStrategyKey;
+  /** A saved index exists, so "Scan again" re-reads only the folders that changed. */
+  readonly indexed: boolean;
 }
 
 export interface DirectoryEntry {
@@ -87,6 +108,12 @@ export interface SkippedPath {
 /** What a running scan has seen so far (`ScanProgressDto`). */
 export interface ScanProgress {
   readonly root: string;
+  readonly phase: ScanPhaseKey;
+  /**
+   * 0..1 when the backend knows how far it is (reading the file table has a
+   * known end); `null` otherwise, and the bar then falls back to bytes seen.
+   */
+  readonly fraction: number | null;
   readonly filesSeen: number;
   readonly directoriesSeen: number;
   readonly bytesSeen: number;
@@ -120,6 +147,13 @@ export interface ScanSnapshot {
   readonly rootNode: number;
   /** The largest individual files anywhere under the root, largest first. */
   readonly largestFiles: readonly LargeFile[];
+  readonly method: ScanMethodKey;
+  /** Folders copied from the saved index; non-null only for `incremental`. */
+  readonly reusedDirectories: number | null;
+  /** Folders re-read because they changed; non-null only for `incremental`. */
+  readonly relistedDirectories: number | null;
+  /** An index was saved, so the next rescan can be incremental. */
+  readonly indexSaved: boolean;
 }
 
 export interface LargeFile {

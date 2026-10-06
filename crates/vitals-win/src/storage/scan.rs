@@ -50,7 +50,7 @@ use windows_sys::Win32::Storage::FileSystem::{
 use vitals_core::units::Bytes;
 
 use super::ffi::create_file_read;
-use super::sizing::{FileIdentity, LinkTracker, SkipReason, reconcile_reported};
+use super::sizing::{FileIdentity, LinkTracker, SharedFile, SkipReason, reconcile_reported};
 use super::tree::{NodeId, SizeTree};
 
 const FILE_ATTRIBUTE_DIRECTORY: u32 = 0x0000_0010;
@@ -118,6 +118,35 @@ impl ScanOptions {
     }
 }
 
+/// What a running scan is doing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScanPhase {
+    /// Waiting for the user to answer the administrator prompt.
+    Approval,
+    /// Reading the drive's file table.
+    Reading,
+    /// Turning what was read into folders.
+    Building,
+    /// Reading the change journal to find what changed since a saved index.
+    Journal,
+    /// Listing folders.
+    Walking,
+}
+
+impl ScanPhase {
+    /// Stable key for the UI, never `{:?}`.
+    #[must_use]
+    pub const fn key(self) -> &'static str {
+        match self {
+            Self::Approval => "approval",
+            Self::Reading => "reading",
+            Self::Building => "building",
+            Self::Journal => "journal",
+            Self::Walking => "walking",
+        }
+    }
+}
+
 /// A snapshot handed to the progress callback.
 #[derive(Debug, Clone)]
 pub struct ScanProgress {
@@ -127,6 +156,10 @@ pub struct ScanProgress {
     pub elapsed_ms: u64,
     /// The directory most recently merged, for "now reading …".
     pub current_path: String,
+    pub phase: ScanPhase,
+    /// How far through, when that is known: reading a file table has a
+    /// known length, a walk does not.
+    pub fraction: Option<f64>,
 }
 
 impl ScanProgress {
@@ -165,6 +198,18 @@ impl std::fmt::Debug for ScanControl<'_> {
     }
 }
 
+/// How a scan's figures were obtained.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScanMethod {
+    /// Every folder was listed.
+    Walk,
+    /// Read out of the NTFS file table by an elevated helper.
+    Turbo,
+    /// Folders unchanged since a saved index were taken from it; the rest
+    /// were listed.
+    Incremental,
+}
+
 /// The outcome of a scan.
 #[derive(Debug)]
 pub struct ScanResult {
@@ -190,6 +235,17 @@ pub struct ScanResult {
     /// The largest individual files, largest first, at most
     /// [`ScanOptions::largest_files`].
     pub largest_files: Vec<LargeFile>,
+    pub method: ScanMethod,
+    /// Each folder's file ID, indexed by node: what the change journal
+    /// names a folder by, so a saved index can tell which ones changed.
+    /// Empty when the IDs were not recorded.
+    pub dir_ids: Vec<u64>,
+    /// Files seen under more than one name, by node.
+    pub shared_files: Vec<SharedFile>,
+    /// For [`ScanMethod::Incremental`]: folders taken from the saved index,
+    /// and folders listed because they changed or are new.
+    pub reused_directories: Option<u64>,
+    pub relisted_directories: Option<u64>,
 }
 
 /// One of the largest files a scan saw.
@@ -402,6 +458,12 @@ fn is_dot_entry(name: &[u16]) -> bool {
     matches!(name, [0x2E] | [0x2E, 0x2E])
 }
 
+/// The cluster size of the volume holding `root`, for a scanner that did not
+/// walk it.
+pub(super) fn cluster_bytes_of(root: &str) -> Option<u64> {
+    cluster_size(Path::new(root))
+}
+
 /// The root a caller meant, as a path that cannot be misread.
 ///
 /// `C:` without a backslash is not the drive: Windows reads it as *the
@@ -410,7 +472,7 @@ fn is_dot_entry(name: &[u16]) -> bool {
 /// walked some unrelated folder and reported its eight files as the drive
 /// (found live, 2026-09-29). Fixed here rather than in the UI so every caller
 /// — CLI, LAN, a future one — gets the drive it asked for.
-fn normalise_root(root: &str) -> String {
+pub(super) fn normalise_root(root: &str) -> String {
     let bytes = root.as_bytes();
     if bytes.len() == 2 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':' {
         format!("{root}\\")
@@ -424,7 +486,7 @@ fn normalise_root(root: &str) -> String {
 /// Only cloud-provider folders are: they hold this volume's own files. Every
 /// other tag — junction, symlink, mount point, `AppExecLink`, WSL — either
 /// points somewhere already counted, at another volume, or at an ancestor.
-fn is_traversable_reparse(tag: u32) -> bool {
+pub(super) fn is_traversable_reparse(tag: u32) -> bool {
     tag & IO_REPARSE_TAG_CLOUD_MASK == IO_REPARSE_TAG_CLOUD
 }
 
@@ -454,6 +516,8 @@ struct ListContext<'a> {
 /// A subdirectory found while listing.
 struct ListedDir {
     name: String,
+    /// Its file ID, low 64 bits: the whole NTFS file reference.
+    id: u64,
     /// `Some` when it must be recorded rather than entered.
     skip: Option<SkipReason>,
 }
@@ -604,6 +668,8 @@ fn classify(
             .then_some(SkipReason::ReparsePoint);
         listing.dirs.push(ListedDir {
             name: String::from_utf16_lossy(name),
+            // Truncation intended: NTFS IDs are 64 bits, zero-extended.
+            id: u128::from_le_bytes(record.FileId.Identifier) as u64,
             skip,
         });
         return;
@@ -628,6 +694,7 @@ fn classify(
         tracker.should_count(
             FileIdentity(u128::from_le_bytes(record.FileId.Identifier)),
             allocated,
+            listing.node.0,
         )
     });
     // A repeat hard link is still a file the user can see; it is its bytes
@@ -823,6 +890,28 @@ impl<'a> LargestFiles<'a> {
     }
 }
 
+/// Folders a walk may take from somewhere other than a listing.
+///
+/// The saved index implements it: an unchanged folder is copied from the
+/// index instead of listed, with whatever below it is unchanged too.
+pub(super) trait Reuse {
+    /// Offers folder `id`, just added to `tree` as `node`. `None` when it
+    /// must be listed. `Some(rest)` when it was filled in from elsewhere;
+    /// `rest` are folders below it that changed and still need listing.
+    fn graft(
+        &mut self,
+        id: u64,
+        node: NodeId,
+        tree: &mut SizeTree,
+        dir_ids: &mut Vec<u64>,
+    ) -> Option<Vec<(NodeId, String)>>;
+
+    /// Adds everything the source knows that a listing cannot see again:
+    /// the largest files and linked files of every folder it filled in.
+    /// Called once, after the walk.
+    fn finish(&mut self, result: &mut ScanResult);
+}
+
 /// Scans a directory tree.
 ///
 /// # Errors
@@ -835,6 +924,42 @@ pub fn scan_directory(
     root: &Path,
     options: ScanOptions,
     control: &mut ScanControl<'_>,
+) -> ScanResult {
+    walk(root, options, control, None)
+}
+
+/// The file ID of a folder, as the change journal names it.
+fn directory_id(path: &str) -> Option<u64> {
+    use windows_sys::Win32::Storage::FileSystem::{
+        BY_HANDLE_FILE_INFORMATION, GetFileInformationByHandle,
+    };
+    let wide = to_wide_extended(path);
+    // SAFETY: `wide` is a NUL-terminated UTF-16 path that outlives the call.
+    let handle = unsafe {
+        create_file_read(
+            wide.as_ptr(),
+            0,
+            FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+            FILE_FLAG_BACKUP_SEMANTICS,
+        )
+    }
+    .filter(|h| *h != INVALID_HANDLE_VALUE && !h.is_null())?;
+    let handle = OwnedHandle(handle);
+    // SAFETY: all-zero is a valid BY_HANDLE_FILE_INFORMATION.
+    let mut info: BY_HANDLE_FILE_INFORMATION = unsafe { std::mem::zeroed() };
+    // SAFETY: `handle` is live and `info` is a live out-pointer.
+    if unsafe { GetFileInformationByHandle(handle.0, &raw mut info) } == 0 {
+        return None;
+    }
+    Some(u64::from(info.nFileIndexHigh) << 32 | u64::from(info.nFileIndexLow))
+}
+
+/// [`scan_directory`], taking unchanged folders from `reuse` where it can.
+pub(super) fn walk(
+    root: &Path,
+    options: ScanOptions,
+    control: &mut ScanControl<'_>,
+    mut reuse: Option<&mut dyn Reuse>,
 ) -> ScanResult {
     let started = Instant::now();
     let root_display = normalise_root(&root.to_string_lossy());
@@ -872,15 +997,37 @@ pub fn scan_directory(
             elapsed_ms: started.elapsed().as_millis() as u64,
             threads,
             largest_files: Vec::new(),
+            method: ScanMethod::Walk,
+            dir_ids: Vec::new(),
+            shared_files: Vec::new(),
+            reused_directories: None,
+            relisted_directories: None,
         };
     }
 
-    queue.push([(tree.root(), root_display)]);
+    let root_id = directory_id(&root_display).unwrap_or(0);
+    let mut dir_ids = vec![root_id];
+    let first = match reuse.as_deref_mut() {
+        Some(source) => source
+            .graft(root_id, tree.root(), &mut tree, &mut dir_ids)
+            .unwrap_or_else(|| vec![(tree.root(), root_display.clone())]),
+        None => vec![(tree.root(), root_display.clone())],
+    };
     let (sender, receiver) = mpsc::channel::<Listing>();
     let mut totals = Totals::default();
     let mut cancelled = false;
+    // Nothing changed at all: every folder came from the index, and a queue
+    // that starts empty would leave the workers waiting for work forever.
+    let nothing_to_list = first.is_empty();
+    queue.push(first);
+    if nothing_to_list {
+        queue.close();
+    }
 
     std::thread::scope(|scope| {
+        if nothing_to_list {
+            return;
+        }
         for _ in 0..threads {
             let sender = sender.clone();
             let queue = &queue;
@@ -910,6 +1057,8 @@ pub fn scan_directory(
                 tree: &mut tree,
                 totals: &mut totals,
                 largest: &mut largest,
+                dir_ids: &mut dir_ids,
+                reuse: reuse.as_deref_mut(),
             },
             control,
             started,
@@ -930,8 +1079,9 @@ pub fn scan_directory(
     }
 
     tree.aggregate();
+    dir_ids.resize(tree.len(), 0);
 
-    ScanResult {
+    let mut result = ScanResult {
         tree,
         cluster_bytes,
         files_scanned: totals.files,
@@ -939,10 +1089,20 @@ pub fn scan_directory(
         hard_link_duplicates: links.duplicates(),
         hard_link_bytes_saved: links.duplicate_bytes(),
         cancelled,
-        elapsed_ms: started.elapsed().as_millis() as u64,
+        elapsed_ms: 0,
         threads,
         largest_files: largest.into_sorted(),
+        method: ScanMethod::Walk,
+        dir_ids,
+        shared_files: links.shared(),
+        reused_directories: None,
+        relisted_directories: None,
+    };
+    if let Some(source) = reuse {
+        source.finish(&mut result);
     }
+    result.elapsed_ms = started.elapsed().as_millis() as u64;
+    result
 }
 
 /// Everything a merged listing writes into, owned by the merging thread.
@@ -950,6 +1110,8 @@ struct Sink<'s, 'f> {
     tree: &'s mut SizeTree,
     totals: &'s mut Totals,
     largest: &'s mut LargestFiles<'f>,
+    dir_ids: &'s mut Vec<u64>,
+    reuse: Option<&'s mut dyn Reuse>,
 }
 
 /// Merges listings into the tree until the walk ends or is cancelled.
@@ -967,6 +1129,8 @@ fn merge_listings(
         tree,
         totals,
         largest,
+        dir_ids,
+        mut reuse,
     } = sink;
     let mut last_report = Instant::now();
     let mut last_path = String::new();
@@ -995,6 +1159,8 @@ fn merge_listings(
                 tree: &mut *tree,
                 totals: &mut *totals,
                 largest: &mut *largest,
+                dir_ids: &mut *dir_ids,
+                reuse: reuse.as_deref_mut(),
             },
             &mut last_path,
         );
@@ -1016,6 +1182,8 @@ fn merge_listings(
                 bytes_seen: totals.bytes,
                 elapsed_ms: started.elapsed().as_millis() as u64,
                 current_path: last_path.clone(),
+                phase: ScanPhase::Walking,
+                fraction: None,
             });
         }
         if queue.finish_one() {
@@ -1024,12 +1192,23 @@ fn merge_listings(
     }
 }
 
+/// Stores a folder's ID at its node's index.
+pub(super) fn record_id(dir_ids: &mut Vec<u64>, node: NodeId, id: u64) {
+    let index = node.0 as usize;
+    if dir_ids.len() <= index {
+        dir_ids.resize(index + 1, 0);
+    }
+    dir_ids[index] = id;
+}
+
 /// Adds one directory's listing to the tree and queues its subdirectories.
 fn merge_one(listing: Listing, queue: &WorkQueue, sink: Sink<'_, '_>, last_path: &mut String) {
     let Sink {
         tree,
         totals,
         largest,
+        dir_ids,
+        mut reuse,
     } = sink;
     totals.directories += 1;
 
@@ -1058,9 +1237,17 @@ fn merge_one(listing: Listing, queue: &WorkQueue, sink: Sink<'_, '_>, last_path:
     let mut next = Vec::with_capacity(listing.dirs.len());
     for dir in listing.dirs {
         let node = tree.add_child(listing.node, &dir.name);
+        record_id(dir_ids, node, dir.id);
         let path = format!("{base}\\{}", dir.name);
-        match dir.skip {
-            Some(reason) => tree.mark_skipped(node, path, reason),
+        if let Some(reason) = dir.skip {
+            tree.mark_skipped(node, path, reason);
+            continue;
+        }
+        match reuse
+            .as_deref_mut()
+            .and_then(|source| source.graft(dir.id, node, tree, dir_ids))
+        {
+            Some(rest) => next.extend(rest),
             None => next.push((node, path)),
         }
     }

@@ -74,6 +74,7 @@ function volume(overrides: Partial<Volume> = {}): Volume {
     total: 100 * GB,
     available: 25 * GB,
     strategy: 'directoryWalk',
+    indexed: false,
     ...overrides,
   };
 }
@@ -123,6 +124,10 @@ function snapshot(overrides: Partial<ScanSnapshot> = {}): ScanSnapshot {
     scanId: 1,
     rootNode: 0,
     largestFiles: [],
+    method: 'walk',
+    reusedDirectories: null,
+    relistedDirectories: null,
+    indexSaved: false,
     ...overrides,
   };
 }

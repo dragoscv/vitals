@@ -28,6 +28,7 @@ import type {
   MapCell,
   MapShape,
   RecycleReport,
+  ScanMode,
   ScanProgress,
   ScanSnapshot,
   StorageListing,
@@ -52,7 +53,7 @@ export const CLEANUP_PROGRESS_EVENT = 'vitals://storage/cleanup-progress';
 
 export interface StorageSource {
   readonly volumes: () => Promise<readonly Volume[]>;
-  readonly scan: (path: string) => Promise<ScanSnapshot>;
+  readonly scan: (path: string, mode: ScanMode) => Promise<ScanSnapshot>;
   readonly cancelScan: () => Promise<void>;
   readonly cleanup: () => Promise<readonly CleanupCandidate[]>;
   readonly cancelCleanup: () => Promise<void>;
@@ -92,9 +93,9 @@ export const tauriSource: StorageSource = {
     const { invoke } = await import('@tauri-apps/api/core');
     return invoke<readonly Volume[]>('get_volumes');
   },
-  scan: async (path) => {
+  scan: async (path, mode) => {
     const { invoke } = await import('@tauri-apps/api/core');
-    return invoke<ScanSnapshot>('scan_storage', { path, topN: TOP_N });
+    return invoke<ScanSnapshot>('scan_storage', { path, topN: TOP_N, mode });
   },
   cancelScan: async () => {
     const { invoke } = await import('@tauri-apps/api/core');
@@ -166,6 +167,11 @@ export interface StorageState {
   readonly scanning: boolean;
   readonly scanRoot: string | null;
   readonly scanError: string | null;
+  /**
+   * The UAC prompt for a Turbo scan was dismissed: a decision, not a fault,
+   * so the screen says so without the error colour.
+   */
+  readonly scanDeclined: boolean;
   /** Latest progress of the running scan; `null` before the first report. */
   readonly progress: ScanProgress | null;
 
@@ -188,7 +194,7 @@ export interface StorageState {
   /** The Windows cleanup in flight or last finished; `null` before any. */
   readonly windowsRun: WindowsRun | null;
 
-  scan: (path: string) => void;
+  scan: (path: string, mode?: ScanMode) => void;
   cancelScan: () => void;
   findCleanup: () => void;
   cancelCleanup: () => void;
@@ -232,6 +238,7 @@ export function useStorage(source?: StorageSource): StorageState {
   const [scanning, setScanning] = useState(false);
   const [scanRoot, setScanRoot] = useState<string | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
+  const [scanDeclined, setScanDeclined] = useState(false);
   const [progress, setProgress] = useState<ScanProgress | null>(null);
 
   const [candidates, setCandidates] = useState<readonly CleanupCandidate[] | null>(null);
@@ -275,51 +282,64 @@ export function useStorage(source?: StorageSource): StorageState {
     }
   }, [injected]);
 
-  const scan = useCallback((path: string) => {
-    // Guarded rather than queued: the backend refuses a second concurrent
-    // scan, and the screen could only show one of them anyway.
-    if (scanInFlight.current) return;
-    scanInFlight.current = true;
+  const scan = useCallback(
+    (path: string, mode: ScanMode = 'auto') => {
+      // Guarded rather than queued: the backend refuses a second concurrent
+      // scan, and the screen could only show one of them anyway.
+      if (scanInFlight.current) return;
+      scanInFlight.current = true;
 
-    setScanning(true);
-    setScanRoot(path);
-    setScanError(null);
-    setProgress(null);
+      setScanning(true);
+      setScanRoot(path);
+      setScanError(null);
+      setScanDeclined(false);
+      setProgress(null);
 
-    // Subscribed before the scan starts, so the first report is not missed.
-    // Reports for another root (a scan started from a second window) are
-    // not this one's progress.
-    const unsubscribe = sourceRef.current
-      .onProgress((next) => {
-        if (mounted.current && next.root === path) setProgress(next);
-      })
-      .catch(() => () => undefined);
+      // Subscribed before the scan starts, so the first report is not missed.
+      // Reports for another root (a scan started from a second window) are
+      // not this one's progress.
+      const unsubscribe = sourceRef.current
+        .onProgress((next) => {
+          if (mounted.current && next.root === path) setProgress(next);
+        })
+        .catch(() => () => undefined);
 
-    void sourceRef.current
-      .scan(path)
-      .then((next) => {
-        if (!mounted.current) return;
-        setSnapshot(next);
-      })
-      .catch((cause: unknown) => {
-        if (!mounted.current) return;
-        // The previous snapshot is deliberately left in place. A failed
-        // rescan should not blank a result the user was reading.
-        setScanError(errorMessage(cause));
-      })
-      .finally(() => {
-        scanInFlight.current = false;
-        void unsubscribe.then((stop) => {
-          stop();
+      void sourceRef.current
+        .scan(path, mode)
+        .then((next) => {
+          if (!mounted.current) return;
+          setSnapshot(next);
+          // A scan may have saved an index, which changes the drive card's
+          // `indexed` flag and the buttons offered for the next scan.
+          void loadVolumes();
+        })
+        .catch((cause: unknown) => {
+          if (!mounted.current) return;
+          if (isCommandError(cause) && cause.kind === 'refused') {
+            // The user dismissed the UAC prompt. Nothing was scanned, and that
+            // is their choice rather than a failure to report in red.
+            setScanDeclined(true);
+            return;
+          }
+          // The previous snapshot is deliberately left in place. A failed
+          // rescan should not blank a result the user was reading.
+          setScanError(errorMessage(cause));
+        })
+        .finally(() => {
+          scanInFlight.current = false;
+          void unsubscribe.then((stop) => {
+            stop();
+          });
+          // Cleared on both paths. An error that sets a message without
+          // clearing `scanning` renders skeletons on top of the message.
+          if (mounted.current) {
+            setScanning(false);
+            setProgress(null);
+          }
         });
-        // Cleared on both paths. An error that sets a message without
-        // clearing `scanning` renders skeletons on top of the message.
-        if (mounted.current) {
-          setScanning(false);
-          setProgress(null);
-        }
-      });
-  }, []);
+    },
+    [loadVolumes],
+  );
 
   const cancelScan = useCallback(() => {
     // Deliberately does not clear `scanning`: the scan is still running and
@@ -504,6 +524,7 @@ export function useStorage(source?: StorageSource): StorageState {
     scanning,
     scanRoot,
     scanError,
+    scanDeclined,
     progress,
     candidates,
     cleanupRunning,

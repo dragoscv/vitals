@@ -1593,6 +1593,10 @@ pub struct ScanProgressDto {
     pub elapsed_ms: u64,
     /// The folder most recently read, for "now reading …".
     pub current_path: String,
+    /// `approval` | `reading` | `building` | `journal` | `walking`.
+    pub phase: &'static str,
+    /// How far through, 0 to 1, when that is known.
+    pub fraction: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -1611,6 +1615,8 @@ pub struct VolumeDto {
     /// Reported so the UI can tell the user a whole-volume scan will take
     /// minutes before they start one, instead of after.
     pub strategy: &'static str,
+    /// A saved index exists, so a rescan re-reads only what changed.
+    pub indexed: bool,
 }
 
 /// Lists mounted volumes with their capacity.
@@ -1622,15 +1628,16 @@ pub struct VolumeDto {
 #[cfg(windows)]
 #[must_use]
 pub fn get_volumes() -> Vec<VolumeDto> {
+    let index_dir = storage_index_dir();
     vitals_win::disk::enumerate_volumes()
         .into_iter()
         .map(|volume| {
-            let letter = volume.mount.chars().next().unwrap_or('?');
             VolumeDto {
-                strategy: match vitals_win::storage::strategy_for(letter) {
-                    vitals_win::storage::ScanStrategy::MftAssisted => "mftAssisted",
+                strategy: match vitals_win::storage::strategy_for(volume.file_system.as_deref()) {
+                    vitals_win::storage::ScanStrategy::Turbo => "turbo",
                     vitals_win::storage::ScanStrategy::DirectoryWalk => "directoryWalk",
                 },
+                indexed: vitals_win::storage::index::exists(&index_dir, &volume.mount),
                 kind: disk_kind(volume.kind),
                 mount: volume.mount,
                 label: volume.label,
@@ -1720,6 +1727,14 @@ pub struct ScanSnapshot {
     pub root_node: u32,
     /// The largest individual files anywhere under the root, largest first.
     pub largest_files: Vec<LargeFileDto>,
+    /// `walk` | `turbo` | `incremental`.
+    pub method: &'static str,
+    /// For `incremental`: folders copied from the saved index, and folders
+    /// read again because they changed.
+    pub reused_directories: Option<u64>,
+    pub relisted_directories: Option<u64>,
+    /// An index was saved, so the next scan of this drive is incremental.
+    pub index_saved: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -1759,15 +1774,27 @@ pub async fn scan_storage(
     app: tauri::AppHandle,
     path: String,
     top_n: usize,
+    mode: Option<String>,
 ) -> CommandResult<ScanSnapshot> {
     use tauri::Emitter as _;
-    use vitals_win::storage::{ScanControl, ScanOptions, largest_directories, scan_directory};
+    use vitals_win::storage::largest_directories;
 
     if path.trim().is_empty() {
         return Err(CommandError::NotFound {
             message: "no scan root was given".into(),
         });
     }
+    // Absent means `auto`, so an older frontend still gets a sensible scan.
+    let mode = match mode.as_deref() {
+        None | Some("auto") => ScanMode::Auto,
+        Some("full") => ScanMode::Full,
+        Some("turbo") => ScanMode::Turbo,
+        Some(other) => {
+            return Err(CommandError::NotFound {
+                message: format!("{other} is not a scan mode"),
+            });
+        }
+    };
 
     let guard = SCAN.begin("a storage scan")?;
     // Released before the walk, not after: otherwise the old tree and the
@@ -1791,28 +1818,20 @@ pub async fn scan_storage(
                     bytes_seen: p.bytes_seen,
                     elapsed_ms: p.elapsed_ms,
                     current_path: p.current_path,
+                    phase: p.phase.key(),
+                    fraction: p.fraction,
                 },
             );
         };
-        let mut control = ScanControl {
-            cancel: Some(&SCAN.cancel),
-            progress: Some(&mut on_progress),
-        };
-        let result = scan_directory(
-            std::path::Path::new(&root),
-            // Hard links on: `WinSxS` is built almost entirely from links
-            // into `System32`, and a naive walk reports it at close to twice
-            // its real size. The file ID comes free with the listing.
-            ScanOptions::default(),
-            &mut control,
-        );
+        let (result, index_saved) = run_scan(&root, mode, &mut on_progress)?;
         let largest = largest_directories(&result, top_n);
-        (root, result, largest)
+        Ok::<_, CommandError>((root, result, largest, index_saved))
     });
 
-    let (root, result, largest) = handle.await.map_err(|err| CommandError::Internal {
-        message: format!("the scan thread did not finish: {err}"),
-    })?;
+    let (root, result, largest, index_saved) =
+        handle.await.map_err(|err| CommandError::Internal {
+            message: format!("the scan thread did not finish: {err}"),
+        })??;
 
     // Only what leaves bytes out travels as "skipped": a link that was not
     // followed is counted where it points, and listing 95,000 of them as
@@ -1855,6 +1874,14 @@ pub async fn scan_storage(
         scan_id: 0,
         root_node,
         largest_files,
+        method: match result.method {
+            vitals_win::storage::ScanMethod::Walk => "walk",
+            vitals_win::storage::ScanMethod::Turbo => "turbo",
+            vitals_win::storage::ScanMethod::Incremental => "incremental",
+        },
+        reused_directories: result.reused_directories,
+        relisted_directories: result.relisted_directories,
+        index_saved,
     };
     drop(skipped);
     let scan_id = keep_scan(result);
@@ -1862,6 +1889,118 @@ pub async fn scan_storage(
         scan_id,
         ..snapshot
     })
+}
+
+/// How the user asked for a scan.
+#[cfg(windows)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ScanMode {
+    /// Use the saved index when it is valid, else walk.
+    Auto,
+    /// Walk everything, ignoring the index.
+    Full,
+    /// Read the file table, elevated.
+    Turbo,
+}
+
+/// Where saved scan indexes live. One file per drive letter.
+#[cfg(windows)]
+fn storage_index_dir() -> std::path::PathBuf {
+    crate::state::data_dir().join("storage-index")
+}
+
+/// Runs the scan the mode asks for, then saves an index when it covered a
+/// whole drive. Returns the result and whether an index was saved.
+///
+/// The journal checkpoint is read **before** the scan starts: a change made
+/// while it runs is after the checkpoint, so the next rescan picks it up.
+/// Taken after, it would be silently lost.
+#[cfg(windows)]
+fn run_scan(
+    root: &str,
+    mode: ScanMode,
+    on_progress: &mut dyn FnMut(vitals_win::storage::ScanProgress),
+) -> CommandResult<(vitals_win::storage::ScanResult, bool)> {
+    use vitals_win::storage::{ScanControl, ScanOptions, index, journal, scan_directory, turbo};
+
+    let dir = storage_index_dir();
+    let whole_drive = index::drive_letter(root);
+    let checkpoint = whole_drive.and_then(|_| journal::checkpoint(root).ok());
+    // Hard links on: `WinSxS` is built almost entirely from links into
+    // `System32`, and a naive walk reports it at close to twice its real
+    // size. The file ID comes free with the listing.
+    let options = ScanOptions::default();
+
+    let result = match (mode, whole_drive) {
+        (ScanMode::Turbo, Some(letter)) => {
+            turbo::run(letter, Some(&SCAN.cancel), on_progress).map_err(CommandError::from)?
+        }
+        (ScanMode::Turbo, None) => {
+            return Err(CommandError::NotFound {
+                message: "a Turbo scan reads a whole drive; pick a drive, not a folder".into(),
+            });
+        }
+        (ScanMode::Auto, Some(_)) if checkpoint.is_some() => {
+            let incremental = match (index::load(&dir, root), &checkpoint) {
+                (Ok(saved), Some(now)) => {
+                    on_progress(vitals_win::storage::ScanProgress {
+                        files_seen: 0,
+                        directories_seen: 0,
+                        bytes_seen: 0,
+                        elapsed_ms: 0,
+                        current_path: root.to_owned(),
+                        phase: vitals_win::storage::ScanPhase::Journal,
+                        fraction: None,
+                    });
+                    let mut control = ScanControl {
+                        cancel: Some(&SCAN.cancel),
+                        progress: Some(&mut *on_progress),
+                    };
+                    index::rescan(&saved, now, options, &mut control)
+                        .map_err(|why| {
+                            tracing::info!(?why, "saved index not used; walking");
+                        })
+                        .ok()
+                }
+                (Err(err), _) => {
+                    tracing::info!(%err, "no usable saved index; walking");
+                    None
+                }
+                (Ok(_), None) => None,
+            };
+            if let Some(result) = incremental {
+                result
+            } else {
+                let mut control = ScanControl {
+                    cancel: Some(&SCAN.cancel),
+                    progress: Some(on_progress),
+                };
+                scan_directory(std::path::Path::new(root), options, &mut control)
+            }
+        }
+        _ => {
+            let mut control = ScanControl {
+                cancel: Some(&SCAN.cancel),
+                progress: Some(on_progress),
+            };
+            scan_directory(std::path::Path::new(root), options, &mut control)
+        }
+    };
+
+    let saved = match (&checkpoint, result.cancelled) {
+        (Some(checkpoint), false) => match index::save(&dir, &result, checkpoint) {
+            Ok(bytes) => {
+                tracing::info!(root, bytes, "saved scan index");
+                true
+            }
+            Err(err) => {
+                tracing::warn!(%err, "scan index not saved; the next scan walks");
+                false
+            }
+        },
+        _ => false,
+    };
+    Ok((result, saved))
 }
 
 /// The scan's largest files with their full paths rebuilt.

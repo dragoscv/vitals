@@ -308,6 +308,14 @@ pub struct ElevatedProcess(HANDLE);
 unsafe impl Send for ElevatedProcess {}
 
 impl ElevatedProcess {
+    /// The process ID, for checking that the peer on a pipe is this child
+    /// and not some other process that raced it to connect.
+    #[must_use]
+    pub fn id(&self) -> u32 {
+        // SAFETY: `self.0` is a live process handle owned by this value.
+        unsafe { windows_sys::Win32::System::Threading::GetProcessId(self.0) }
+    }
+
     /// Waits up to `timeout` (`None` = until it exits). `Ok(None)` while it
     /// is still running, `Ok(Some(code))` once it has exited.
     ///

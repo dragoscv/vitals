@@ -5,7 +5,7 @@
 //! agrees with the volume's own free-space figure or quietly disagrees with
 //! it by tens of gigabytes.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Mutex, PoisonError};
 
@@ -133,11 +133,67 @@ const LINK_SHARDS: usize = 64;
 /// about 20 bytes a file, 40 MB for two million, released when it ends. The
 /// alternative — opening each file to read its link count — was what held
 /// the old walker to a few hundred files a second.
+///
+/// Each first sighting also records the folder that was credited with the
+/// bytes, and a file seen again keeps every folder it was seen in. A saved
+/// index needs both: a rescan that re-reads only the changed folders must
+/// re-read *all* the folders of a linked file together, or the bytes are
+/// counted in a re-read folder and again in a reused one. Keyed by `u64`
+/// where the ID fits (every NTFS ID does), so the owner costs no memory over
+/// the plain set this was: a `(u64, u32)` entry is sixteen bytes, the same as
+/// the `u128` alone.
 #[derive(Debug)]
 pub struct LinkTracker {
-    shards: Vec<Mutex<HashSet<FileIdentity>>>,
+    shards: Vec<Mutex<Shard>>,
     duplicates: AtomicU64,
     duplicate_bytes: AtomicU64,
+    /// Files seen under a second name.
+    shared: Mutex<HashMap<u128, SharedFile>>,
+}
+
+/// A file seen under more than one name.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SharedFile {
+    pub identity: FileIdentity,
+    /// On-disk bytes, counted once, in `folders[0]`.
+    pub allocated: u64,
+    /// Every folder a name was seen in, the credited one first. A folder
+    /// holding two names of the file appears twice.
+    pub folders: Vec<u32>,
+}
+
+#[derive(Debug, Default)]
+struct Shard {
+    narrow: HashMap<u64, u32>,
+    /// `ReFS` IDs that do not fit 64 bits. Rare enough that their owner is
+    /// not worth a second map layout.
+    wide: HashMap<u128, u32>,
+}
+
+impl Shard {
+    /// Inserts and returns the owner already recorded, if any.
+    fn claim(&mut self, identity: FileIdentity, owner: u32) -> Option<u32> {
+        match u64::try_from(identity.0) {
+            Ok(narrow) => match self.narrow.entry(narrow) {
+                std::collections::hash_map::Entry::Occupied(e) => Some(*e.get()),
+                std::collections::hash_map::Entry::Vacant(e) => {
+                    e.insert(owner);
+                    None
+                }
+            },
+            Err(_) => match self.wide.entry(identity.0) {
+                std::collections::hash_map::Entry::Occupied(e) => Some(*e.get()),
+                std::collections::hash_map::Entry::Vacant(e) => {
+                    e.insert(owner);
+                    None
+                }
+            },
+        }
+    }
+
+    fn len(&self) -> usize {
+        self.narrow.len() + self.wide.len()
+    }
 }
 
 impl Default for LinkTracker {
@@ -151,11 +207,26 @@ impl LinkTracker {
     pub fn new() -> Self {
         Self {
             shards: (0..LINK_SHARDS)
-                .map(|_| Mutex::new(HashSet::new()))
+                .map(|_| Mutex::new(Shard::default()))
                 .collect(),
             duplicates: AtomicU64::new(0),
             duplicate_bytes: AtomicU64::new(0),
+            shared: Mutex::new(HashMap::new()),
         }
+    }
+
+    /// Files seen under more than one name, in identity order.
+    #[must_use]
+    pub fn shared(&self) -> Vec<SharedFile> {
+        let mut out: Vec<_> = self
+            .shared
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .values()
+            .cloned()
+            .collect();
+        out.sort_unstable_by_key(|file| file.identity.0);
+        out
     }
 
     /// Records a file and says whether its size should be counted.
@@ -165,18 +236,32 @@ impl LinkTracker {
     /// worker got there first, so a hard-linked file's bytes may land under a
     /// different folder from one scan to the next. The volume total does not
     /// move.
-    pub fn should_count(&self, identity: FileIdentity, allocated: u64) -> bool {
+    ///
+    /// `owner` is the folder the bytes are credited to on a first sighting.
+    pub fn should_count(&self, identity: FileIdentity, allocated: u64, owner: u32) -> bool {
         let shard = (identity.0 as usize) & (LINK_SHARDS - 1);
-        let first = self.shards[shard]
+        let earlier = self.shards[shard]
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
-            .insert(identity);
-        if first {
-            true
-        } else {
-            self.duplicates.fetch_add(1, Ordering::Relaxed);
-            self.duplicate_bytes.fetch_add(allocated, Ordering::Relaxed);
-            false
+            .claim(identity, owner);
+        match earlier {
+            None => true,
+            Some(first_owner) => {
+                self.duplicates.fetch_add(1, Ordering::Relaxed);
+                self.duplicate_bytes.fetch_add(allocated, Ordering::Relaxed);
+                self.shared
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .entry(identity.0)
+                    .or_insert_with(|| SharedFile {
+                        identity,
+                        allocated,
+                        folders: vec![first_owner],
+                    })
+                    .folders
+                    .push(owner);
+                false
+            }
         }
     }
 
@@ -378,21 +463,44 @@ mod tests {
     fn distinct_files_all_count() {
         let tracker = LinkTracker::new();
         for id in 0..1000_u128 {
-            assert!(tracker.should_count(FileIdentity(id), 4096));
+            assert!(tracker.should_count(FileIdentity(id), 4096, 0));
         }
         assert_eq!(tracker.duplicates(), 0);
         assert_eq!(tracker.tracked(), 1000);
+        assert!(tracker.shared().is_empty(), "no file had a second name");
     }
 
     #[test]
     fn a_hard_linked_file_counts_once_and_only_once() {
         let tracker = LinkTracker::new();
         let id = FileIdentity(900);
-        assert!(tracker.should_count(id, 8192), "first sighting counts");
-        assert!(!tracker.should_count(id, 8192), "second must not");
-        assert!(!tracker.should_count(id, 8192), "third must not");
+        assert!(tracker.should_count(id, 8192, 7), "first sighting counts");
+        assert!(!tracker.should_count(id, 8192, 8), "second must not");
+        assert!(!tracker.should_count(id, 8192, 9), "third must not");
         assert_eq!(tracker.duplicates(), 2);
         assert_eq!(tracker.duplicate_bytes(), 16_384);
+        assert_eq!(
+            tracker.shared(),
+            [SharedFile {
+                identity: id,
+                allocated: 8192,
+                folders: vec![7, 8, 9],
+            }],
+            "every folder a name was seen in, the credited one first"
+        );
+    }
+
+    #[test]
+    fn an_identity_wider_than_64_bits_is_tracked_like_any_other() {
+        // ReFS IDs do not fit a u64; truncating one would merge two files.
+        let tracker = LinkTracker::new();
+        let wide = FileIdentity(u128::MAX - 3);
+        let narrow = FileIdentity(u128::from(u64::MAX - 3));
+        assert!(tracker.should_count(wide, 4096, 1));
+        assert!(tracker.should_count(narrow, 4096, 2), "a different file");
+        assert!(!tracker.should_count(wide, 4096, 3));
+        assert_eq!(tracker.shared()[0].folders, [1, 3]);
+        assert_eq!(tracker.tracked(), 2);
     }
 
     #[test]
@@ -403,7 +511,7 @@ mod tests {
             for _ in 0..16 {
                 scope.spawn(|| {
                     for id in 0..500_u128 {
-                        if tracker.should_count(FileIdentity(id), 1) {
+                        if tracker.should_count(FileIdentity(id), 1, 0) {
                             counted.fetch_add(1, Ordering::Relaxed);
                         }
                     }

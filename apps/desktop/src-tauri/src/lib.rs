@@ -53,7 +53,8 @@ pub fn run() {
         | launch::LaunchMode::ElevatedProcessAction { .. }
         | launch::LaunchMode::ElevatedStartupAction { .. }
         | launch::LaunchMode::ElevatedStorageCleanup { .. }
-        | launch::LaunchMode::ElevatedCompactVhd { .. } => {
+        | launch::LaunchMode::ElevatedCompactVhd { .. }
+        | launch::LaunchMode::ElevatedStorageTurbo { .. } => {
             std::process::exit(launch::run_headless(&mode));
         }
         launch::LaunchMode::AsTaskManager => {

@@ -4,18 +4,20 @@
 //! how fast is it moving bytes". This module answers "which folder is 40 GB
 //! and why", which needs a walk of the namespace rather than a counter read.
 //!
-//! # The two scanners
+//! # The three ways to a scan
 //!
 //! - [`scan`] — bulk directory-information queries on parallel workers.
 //!   Works on any path, any filesystem, no elevation, and returns sizes.
-//! - [`mft`] — `FSCTL_ENUM_USN_DATA`. Reads the entire NTFS namespace in
-//!   seconds, but needs elevation and **returns no sizes at all**, because a
-//!   USN record does not carry one. See that module for why, and for why
-//!   inferring one would be fabrication.
+//! - [`turbo`] — an elevated helper reads the NTFS file table ([`ntfs`])
+//!   straight off the volume and sends back per-folder figures: the whole
+//!   drive in seconds, under one UAC prompt. The counting rules are the
+//!   walker's, so the two agree folder by folder.
+//! - [`index`] — a whole-drive scan is saved with a change-journal
+//!   checkpoint ([`journal`]); the next scan of that drive lists only the
+//!   folders the journal says changed and copies the rest.
 //!
-//! The consequence: the fast path accelerates *discovery*, not measurement.
-//! [`scan`] remains the source of every byte figure, and nothing here
-//! silently substitutes one for the other.
+//! [`mft`] is the older USN namespace reader: fast, but it carries no sizes,
+//! so nothing here uses it for a figure.
 //!
 //! # What the numbers mean
 //!
@@ -31,16 +33,21 @@
 //! separately rather than counted as zero.
 
 pub mod cleanup;
+mod codec;
 pub mod devclean;
 mod ffi;
+pub mod index;
+pub mod journal;
 pub mod layout;
 pub mod managed;
 pub mod mft;
+pub mod ntfs;
 pub mod protect;
 pub mod recycle;
 pub mod scan;
 pub mod sizing;
 pub mod tree;
+pub mod turbo;
 
 use std::path::Path;
 use std::sync::atomic::AtomicBool;
@@ -55,33 +62,35 @@ pub use managed::{ManagedTool, tool_for};
 pub use mft::{MftEntry, VolumeNamespace};
 pub use protect::{Protection, Rules, Vetted, vet};
 pub use recycle::{Holder, HolderKind, Outcome, holders_of, recycle};
-pub use scan::{LargeFile, ScanControl, ScanOptions, ScanProgress, ScanResult, scan_directory};
+pub use scan::{
+    LargeFile, ScanControl, ScanMethod, ScanOptions, ScanPhase, ScanProgress, ScanResult,
+    scan_directory,
+};
 pub use sizing::{
-    AllocationHints, FileIdentity, FileSize, LinkTracker, SkipReason, SkippedPath,
+    AllocationHints, FileIdentity, FileSize, LinkTracker, SharedFile, SkipReason, SkippedPath,
     round_up_to_cluster, top_n_by,
 };
 pub use tree::{Amount, Node, NodeId, SizeTree};
 
-/// Which scanning strategy is usable right now.
+/// Which scanning strategy a drive offers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ScanStrategy {
-    /// MFT enumeration is available for whole-volume discovery. Sizes still
-    /// come from the directory walk.
-    MftAssisted,
+    /// NTFS: a Turbo scan can read its file table, after one UAC prompt.
+    Turbo,
     /// Directory walk only.
     DirectoryWalk,
 }
 
-/// Reports which strategy applies to a drive letter.
+/// Reports which strategy a drive offers, from its file system name.
 ///
-/// Attempts the real volume open rather than inspecting the process token: an
-/// elevated process on a non-NTFS volume still cannot enumerate an MFT, and a
-/// capability check that answers a proxy question will eventually answer it
-/// wrongly.
+/// The name, not an attempted open: the app is never elevated, so an open
+/// of the volume device always fails and would answer "never". Whether the
+/// elevated reader can actually open it is found out when it tries, and a
+/// failure there is reported, not hidden.
 #[must_use]
-pub fn strategy_for(letter: char) -> ScanStrategy {
-    if mft::is_available(letter) {
-        ScanStrategy::MftAssisted
+pub fn strategy_for(file_system: Option<&str>) -> ScanStrategy {
+    if file_system.is_some_and(|fs| fs.eq_ignore_ascii_case("NTFS")) {
+        ScanStrategy::Turbo
     } else {
         ScanStrategy::DirectoryWalk
     }
@@ -208,14 +217,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn strategy_is_reported_honestly_for_the_system_volume() {
-        // Unelevated this must be DirectoryWalk. Asserting the *agreement*
-        // rather than a fixed value keeps the test meaningful in both cases.
-        let strategy = strategy_for('C');
-        assert_eq!(
-            strategy == ScanStrategy::MftAssisted,
-            mft::is_available('C')
-        );
+    fn only_ntfs_offers_a_turbo_scan() {
+        assert_eq!(strategy_for(Some("NTFS")), ScanStrategy::Turbo);
+        assert_eq!(strategy_for(Some("ntfs")), ScanStrategy::Turbo);
+        for other in [Some("ReFS"), Some("FAT32"), Some("exFAT"), None] {
+            assert_eq!(strategy_for(other), ScanStrategy::DirectoryWalk, "{other:?}");
+        }
     }
 
     #[test]

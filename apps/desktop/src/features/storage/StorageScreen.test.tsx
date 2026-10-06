@@ -42,6 +42,7 @@ function volume(overrides: Partial<Volume> = {}): Volume {
     total: 100 * GB,
     available: 25 * GB,
     strategy: 'directoryWalk',
+    indexed: false,
     ...overrides,
   };
 }
@@ -77,6 +78,10 @@ function snapshot(overrides: Partial<ScanSnapshot> = {}): ScanSnapshot {
     scanId: 1,
     rootNode: 0,
     largestFiles: [],
+    method: 'walk',
+    reusedDirectories: null,
+    relistedDirectories: null,
+    indexSaved: false,
     ...overrides,
   };
 }
@@ -239,6 +244,8 @@ function makeSource(overrides: SourceOverrides = {}): TestSource {
 function progress(overrides: Partial<ScanProgress> = {}): ScanProgress {
   return {
     root: 'C:\\',
+    phase: 'walking',
+    fraction: null,
     filesSeen: 120_000,
     directoriesSeen: 9_000,
     bytesSeen: 30 * GB,
@@ -305,9 +312,14 @@ describe('StorageScreen', () => {
     expect(screen.queryByRole('meter')).toBeNull();
   });
 
-  it('marks a drive that supports fast discovery', async () => {
-    await mount(makeSource({ volumes: [volume({ strategy: 'mftAssisted' })] }));
-    expect(screen.getByText('Fast discovery available')).toBeTruthy();
+  it('marks a drive whose file table a Turbo scan can read', async () => {
+    await mount(makeSource({ volumes: [volume({ strategy: 'turbo' })] }));
+    expect(screen.getByText('Turbo scan available')).toBeTruthy();
+  });
+
+  it('tells the user when a drive has a saved index, and not when it has none', async () => {
+    await mount(makeSource({ volumes: [volume({ indexed: true }), volume({ mount: 'D:\\' })] }));
+    expect(screen.getAllByText(/Saved index: a rescan reads only what changed/)).toHaveLength(1);
   });
 
   it('invites a scan before one has run, without a spinner', async () => {
@@ -385,7 +397,7 @@ describe('StorageScreen', () => {
       expect(screen.queryByText(/levels/)).toBeNull();
       fireEvent.click(screen.getByRole('button', { name: /Scan this drive/ }));
       await screen.findByRole('heading', { name: 'Explore' });
-      expect(source.scan).toHaveBeenCalledWith('C:\\');
+      expect(source.scan).toHaveBeenCalledWith('C:\\', 'auto');
     });
 
     it('does not call links that were not followed unreadable folders', async () => {
@@ -439,6 +451,175 @@ describe('StorageScreen', () => {
 
       expect(await screen.findByText(/The scan did not finish/)).toBeTruthy();
       expect(screen.queryByRole('progressbar')).toBeNull();
+    });
+  });
+
+  describe('Turbo scan and the saved index', () => {
+    const TURBO = 'Turbo scan (administrator)';
+    const FULL = 'Full scan';
+
+    it('offers a Turbo scan only for a drive whose file table can be read', async () => {
+      await mount(makeSource({ volumes: [volume({ strategy: 'directoryWalk' })] }));
+      expect(screen.queryByRole('button', { name: TURBO })).toBeNull();
+      cleanup();
+
+      const source = await mount(makeSource({ volumes: [volume({ strategy: 'turbo' })] }));
+      fireEvent.click(screen.getByRole('button', { name: TURBO }));
+      await screen.findByRole('heading', { name: 'Explore' });
+      expect(source.scan).toHaveBeenCalledWith('C:\\', 'turbo');
+    });
+
+    it('offers a full scan only when a saved index would otherwise be used', async () => {
+      await mount(makeSource({ volumes: [volume({ indexed: false })] }));
+      expect(screen.queryByRole('button', { name: FULL })).toBeNull();
+      cleanup();
+
+      const source = await mount(makeSource({ volumes: [volume({ indexed: true })] }));
+      fireEvent.click(screen.getByRole('button', { name: FULL }));
+      await screen.findByRole('heading', { name: 'Explore' });
+      expect(source.scan).toHaveBeenLastCalledWith('C:\\', 'full');
+
+      fireEvent.click(screen.getByRole('button', { name: 'Scan again' }));
+      await vi.waitFor(() => {
+        expect(source.scan).toHaveBeenLastCalledWith('C:\\', 'auto');
+      });
+    });
+
+    it('reads the drive list again after a scan, so a newly saved index shows up', async () => {
+      const source = await scanned();
+      await vi.waitFor(() => {
+        expect(source.volumes).toHaveBeenCalledTimes(2);
+      });
+    });
+
+    it('treats a dismissed approval prompt as a decision: neutral status, last result kept', async () => {
+      const scan = vi
+        .fn<StorageSource['scan']>()
+        .mockResolvedValueOnce(snapshot())
+        .mockRejectedValueOnce({ kind: 'refused', message: 'The user declined the UAC prompt.' });
+      await mount(makeSource({ scan, volumes: [volume({ strategy: 'turbo' })] }));
+      fireEvent.click(screen.getByRole('button', { name: /Scan this drive/ }));
+      await screen.findByRole('heading', { name: 'Explore' });
+
+      fireEvent.click(screen.getByRole('button', { name: TURBO }));
+
+      const line = await screen.findByText(
+        'Administrator approval was declined, so nothing was scanned. The last result is still shown.',
+      );
+      expect(line.getAttribute('role')).toBe('status');
+      expect(screen.queryByRole('alert')).toBeNull();
+      expect(screen.queryByText(/The user declined/)).toBeNull();
+      expect(await screen.findByRole('button', { name: 'Open Users' })).toBeTruthy();
+    });
+
+    it('says nothing was scanned when the first scan’s approval is declined', async () => {
+      const scan = vi
+        .fn<StorageSource['scan']>()
+        .mockRejectedValue({ kind: 'refused', message: 'declined' });
+      await mount(makeSource({ scan, volumes: [volume({ strategy: 'turbo' })] }));
+
+      fireEvent.click(screen.getByRole('button', { name: TURBO }));
+
+      expect(
+        await screen.findByText('Administrator approval was declined, so nothing was scanned.'),
+      ).toBeTruthy();
+      expect(screen.queryByRole('alert')).toBeNull();
+    });
+
+    it('reports any other failure of a Turbo scan as an error, not as a declined prompt', async () => {
+      const scan = vi
+        .fn<StorageSource['scan']>()
+        .mockRejectedValue({ kind: 'internal', message: 'the pipe closed' });
+      await mount(makeSource({ scan, volumes: [volume({ strategy: 'turbo' })] }));
+
+      fireEvent.click(screen.getByRole('button', { name: TURBO }));
+
+      expect(await screen.findByRole('alert')).toBeTruthy();
+      expect(screen.getByText(/the pipe closed/)).toBeTruthy();
+      expect(screen.queryByText(/approval was declined/)).toBeNull();
+    });
+
+    it('says how much of an incremental rescan came from the saved index', async () => {
+      await scanned(
+        snapshot({ method: 'incremental', reusedDirectories: 312_004, relistedDirectories: 87 }),
+      );
+      expect(
+        screen.getByText(
+          'Folders reused from the saved index: 312,004; re-read because they changed: 87.',
+        ),
+      ).toBeTruthy();
+    });
+
+    it('says a Turbo result includes folders a normal scan cannot open', async () => {
+      await scanned(snapshot({ method: 'turbo' }));
+      expect(screen.getByText(/Read from the drive’s file table/)).toBeTruthy();
+      expect(screen.queryByText(/reused from the saved index/)).toBeNull();
+    });
+
+    it('adds no method line to an ordinary walk', async () => {
+      await scanned(snapshot({ method: 'walk' }));
+      expect(screen.queryByText(/Read from the drive’s file table/)).toBeNull();
+      expect(screen.queryByText(/reused from the saved index/)).toBeNull();
+    });
+
+    it('shows the approval wait with an indeterminate bar rather than a stuck 0 %', async () => {
+      const source = makeSource({
+        scan: vi.fn<StorageSource['scan']>(() => new Promise(() => undefined)),
+        volumes: [volume({ strategy: 'turbo' })],
+      });
+      await mount(source);
+      fireEvent.click(screen.getByRole('button', { name: TURBO }));
+      await screen.findByText('Starting…');
+
+      act(() => {
+        source.emit(
+          progress({
+            phase: 'approval',
+            filesSeen: 0,
+            bytesSeen: 0,
+            elapsedMs: 0,
+            currentPath: '',
+          }),
+        );
+      });
+
+      expect(await screen.findByText('Waiting for administrator approval…')).toBeTruthy();
+      expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBeNull();
+    });
+
+    it('uses the backend’s own fraction while the file table is read', async () => {
+      // 30 GB of 75 GB used would be 40 %; the backend's 0.5 must win.
+      const source = makeSource({
+        scan: vi.fn<StorageSource['scan']>(() => new Promise(() => undefined)),
+        volumes: [volume({ strategy: 'turbo' })],
+      });
+      await mount(source);
+      fireEvent.click(screen.getByRole('button', { name: TURBO }));
+      await screen.findByText('Starting…');
+
+      act(() => {
+        source.emit(progress({ phase: 'reading', fraction: 0.5 }));
+      });
+
+      expect(await screen.findByText('Reading the drive’s file table…')).toBeTruthy();
+      expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBe('50');
+    });
+
+    it('keeps the bar indeterminate while the change journal is checked', async () => {
+      const source = makeSource({
+        scan: vi.fn<StorageSource['scan']>(() => new Promise(() => undefined)),
+        volumes: [volume({ indexed: true })],
+      });
+      await mount(source);
+      fireEvent.click(screen.getByRole('button', { name: /Scan this drive/ }));
+      await screen.findByText('Starting…');
+
+      act(() => {
+        source.emit(progress({ phase: 'journal', fraction: 0.3 }));
+      });
+
+      expect(await screen.findByText('Checking what changed since the last scan…')).toBeTruthy();
+      expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBeNull();
     });
   });
 

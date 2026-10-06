@@ -37,16 +37,15 @@ fn human(bytes: u64) -> String {
 }
 
 fn print_strategy() {
-    match strategy_for('C') {
-        ScanStrategy::MftAssisted => {
-            println!("strategy: MFT enumeration available (elevated) for volume discovery");
+    let fs = vitals_win::disk::enumerate_volumes()
+        .into_iter()
+        .find(|v| v.mount.starts_with('C'))
+        .and_then(|v| v.file_system);
+    match strategy_for(fs.as_deref()) {
+        ScanStrategy::Turbo => {
+            println!("strategy: NTFS, so a Turbo scan (elevated, prove_turbo) is available");
         }
-        ScanStrategy::DirectoryWalk => {
-            println!(
-                "strategy: directory walk only — MFT enumeration needs elevation, \
-                 so whole-volume discovery is unavailable in this process"
-            );
-        }
+        ScanStrategy::DirectoryWalk => println!("strategy: directory walk only"),
     }
 }
 

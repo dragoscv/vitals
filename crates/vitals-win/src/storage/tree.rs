@@ -300,6 +300,20 @@ impl SizeTree {
         }
     }
 
+    /// Adds `files` files totalling `allocated` and `logical` bytes to a
+    /// directory at once.
+    ///
+    /// For a folder whose contents were not listed file by file: one carried
+    /// over from a saved index, or one read out of the file table.
+    pub fn add_files(&mut self, dir: NodeId, allocated: u64, logical: u64, files: u64) {
+        if let Some(node) = self.nodes.get_mut(dir.0 as usize) {
+            node.own_allocated = node.own_allocated.saturating_add(allocated);
+            node.own_logical = node.own_logical.saturating_add(logical);
+            node.own_files = node.own_files.saturating_add(files);
+            self.aggregated = false;
+        }
+    }
+
     /// Marks a directory as unmeasurable and records why.
     ///
     /// The node stays in the tree with zero size. Dropping it instead would
