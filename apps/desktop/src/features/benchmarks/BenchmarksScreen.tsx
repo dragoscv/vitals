@@ -180,7 +180,7 @@ export function BenchmarksScreen({ source }: BenchmarksScreenProps = {}): React.
        * result no longer means scrolling back up for the button. Small
        * windows stack and scroll the whole body instead.
        */}
-      <div className="screen-body grid-rows-[auto_minmax(0,1fr)]">
+      <div className="screen-body grid-rows-[auto_minmax(var(--pane-min),1fr)]">
         <div className="flex flex-col gap-3">
           <Selection
             infos={state.infos}

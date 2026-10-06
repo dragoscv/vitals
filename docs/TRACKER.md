@@ -2613,6 +2613,27 @@ Task Manager does; network is throughput over link speed; unknown is a dash.
 - Debug build, Processes screen: 29 of 29 mounted rows drew an image; header
   read CPU 97 %, Memory 42 %, Disk 26 %, Network 0 %, GPU 23 %.
 
+### 2026-10-06 — S16-16 Storage cards clipped
+
+**Cause.** The Storage grid declared three rows but had four children: the
+two clean-up cards fell into implicit `minmax(0, 1fr)` rows that shared
+what the drives row left, 69 px each at 1280×800 — a title over a 24 px
+scroller holding 240 px of content. Measured in the live webview, not
+inferred from the screenshot.
+
+**Fix.** The clean-up cards share one `.pane-stack` cell. Every pane track
+on every pane screen has a floor (`--pane-min`, 12rem); when the floors do
+not fit, `.screen-body` scrolls instead of squeezing. The audit found a
+second defect: in the stacked (short window) mode `grid-auto-rows: auto`
+let Benchmarks' lone `.pane-stack` collapse to 0 px; it is `max-content`
+now.
+
+**Evidence.** CDP probe over the debug build: Storage cards 216 px at
+1280×800 and 1100×720 (were 69 and 53), no scroller under 60 px; all 13
+screens at 1280×800, 1000×680 and 1600×1000 report 0 clipped elements;
+Benchmarks stack 140 px at 900×700 (was 0). `styles.test.ts` asserts the
+floor, the body fallback and `max-content`; vitest 311/311.
+
 ## S13 — public beta 0.9.0-beta.1 (2026-09-28)
 
 Decided with the owner (ADR 0031): public repository, beta version, no code

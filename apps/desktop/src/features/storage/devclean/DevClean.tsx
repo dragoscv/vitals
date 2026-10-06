@@ -128,7 +128,7 @@ export function DevClean({ locale, source }: DevCleanProps): React.JSX.Element {
   );
 
   return (
-    <Card className="pane @5xl/main:col-span-2">
+    <Card className="pane">
       <CardHeader actions={<ScanButton state={state} t={t} />}>
         <CardTitle level={3}>{t('dev.title')}</CardTitle>
       </CardHeader>

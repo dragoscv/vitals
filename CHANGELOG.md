@@ -40,6 +40,12 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Storage cards were squeezed to their title with their content cut off
+  (Reclaimable space and Developer cleanup were 69 px tall in a 1280×800
+  window). The two clean-up cards now share one column that scrolls as a
+  unit, and on every screen made of panes no pane is ever shorter than a
+  readable minimum: the page scrolls instead. Benchmark results no longer
+  vanish in a short window.
 - Charts ignored the chosen accent colour and were always drawn in the
   default green: they read a colour variable that did not exist.
 - Threads, Handles and Uptime (any column off by default) could not be

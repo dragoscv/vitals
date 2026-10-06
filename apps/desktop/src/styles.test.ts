@@ -249,15 +249,37 @@ describe('screens made of panes', () => {
   // normal size the body now fits and each pane scrolls itself; only a small
   // window stacks the panes and scrolls the body.
   const rule = (css: string, selector: string): string =>
-    new RegExp(`${selector.replace(/[.]/g, '\\.')}\\s*\\{([^}]*)\\}`).exec(css)?.[1] ?? '';
+    // Anchored to the start of a line, so `.pane-scroll` does not match the
+    // descendant rule `.pane-stack > .pane .pane-scroll`.
+    new RegExp(`(?:^|\\n)\\s*${selector.replace(/[.]/g, '\\.')}\\s*\\{([^}]*)\\}`).exec(css)?.[1] ??
+    '';
 
-  it('fits the window at a normal size: the body grid never scrolls', async () => {
+  it('never squeezes a pane below its floor: the body scrolls instead', async () => {
+    // S16-16: with `minmax(0, 1fr)` tracks Storage's clean-up cards were
+    // 69 px tall at 1280×800, a title over a 24 px scroller. A floor keeps
+    // every pane readable; the body scrolls only when the floors do not fit.
     const css = await build([]);
     const body = rule(css, '.screen-body');
-    expect(body).toMatch(/grid-auto-rows:\s*minmax\(0,\s*1fr\)/);
+    expect(body).toMatch(/grid-auto-rows:\s*minmax\(var\(--pane-min\),\s*1fr\)/);
     expect(body).toMatch(/min-height:\s*0/);
-    expect(body).not.toMatch(/overflow/);
+    expect(body).toMatch(/overflow-y:\s*auto/);
+    expect(css).toMatch(/--pane-min:\s*1\drem/);
     expect(rule(css, '.pane-scroll')).toMatch(/overflow:\s*auto/);
+  });
+
+  it('gives every screen-specified pane track the same floor', async () => {
+    const source = await readFile(resolve(here, 'styles.css'), 'utf8');
+    expect(rule(source, '.devices-body')).toMatch(/minmax\(var\(--pane-min\),\s*1fr\)/);
+    for (const file of [
+      'features/storage/StorageScreen.tsx',
+      'features/benchmarks/BenchmarksScreen.tsx',
+    ]) {
+      const tsx = await readFile(resolve(here, file), 'utf8');
+      const classes = /className="screen-body ([^"]*)"/.exec(tsx)?.[1] ?? '';
+      const rows = classes.match(/grid-rows-\[[^\]]*\]/g) ?? [];
+      expect(rows.length, file).toBeGreaterThan(0);
+      for (const track of rows) expect(track, file).not.toMatch(/minmax\(0,/);
+    }
   });
 
   it('stacks the panes and scrolls the body only when the window is small', async () => {
@@ -268,6 +290,9 @@ describe('screens made of panes', () => {
       const block = source.slice(start, source.indexOf('\n}\n', start));
       expect(block, query).toMatch(/\.screen-body\s*\{[^}]*overflow-y:\s*auto/);
       expect(block, query).toMatch(/grid-template-rows:\s*none/);
+      // `auto` rows let a lone flex pane-stack (flex-basis 0) collapse to
+      // 0 px: Benchmarks' results vanished at 900×700.
+      expect(block, query).toMatch(/grid-auto-rows:\s*max-content/);
     }
   });
 

@@ -158,8 +158,12 @@ export function StorageScreen({ source }: StorageScreenProps = {}): React.JSX.El
        */}
       {/* Stacked (narrow) the explorer takes three shares to the clean-up
           card's one: a map needs height to be read, a list of caches does
-          not. Side by side each has the full height. */}
-      <div className="screen-body grid-rows-[auto_minmax(0,3fr)_minmax(0,1fr)] @5xl/main:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] @5xl/main:grid-rows-[auto_minmax(0,1fr)]">
+          not. Side by side each has the full height. The two clean-up cards
+          share one cell as a stack that scrolls as a unit: as separate grid
+          children they fell into implicit rows and were squeezed to their
+          titles (S16-16). Every pane track has the `--pane-min` floor; below
+          it the body scrolls. */}
+      <div className="screen-body grid-rows-[auto_minmax(var(--pane-min),3fr)_minmax(var(--pane-min),1fr)] @5xl/main:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] @5xl/main:grid-rows-[auto_minmax(var(--pane-min),1fr)]">
         <div className="flex flex-col gap-3 @5xl/main:col-span-2">
           <Volumes
             volumes={volumes}
@@ -249,21 +253,23 @@ export function StorageScreen({ source }: StorageScreenProps = {}): React.JSX.El
           />
         )}
 
-        <Cleanup
-          candidates={state.candidates}
-          running={state.cleanupRunning}
-          error={state.cleanupError}
-          locale={locale}
-          onScan={state.findCleanup}
-          onCancel={state.cancelCleanup}
-          busy={state.windowsRun?.running === true}
-          onFree={(candidate) => {
-            state.dismissWindowsRun();
-            setFreeing(candidate);
-          }}
-        />
+        <div className="pane-stack">
+          <Cleanup
+            candidates={state.candidates}
+            running={state.cleanupRunning}
+            error={state.cleanupError}
+            locale={locale}
+            onScan={state.findCleanup}
+            onCancel={state.cancelCleanup}
+            busy={state.windowsRun?.running === true}
+            onFree={(candidate) => {
+              state.dismissWindowsRun();
+              setFreeing(candidate);
+            }}
+          />
 
-        <DevClean locale={locale} />
+          <DevClean locale={locale} />
+        </div>
       </div>
 
       <WindowsCleanupDialog
