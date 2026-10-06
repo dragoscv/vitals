@@ -2586,6 +2586,33 @@ package (validated) and the EN and RO listings (4 screenshots in
 the runFullTrust justification. Submission 1 is "In certification" and
 publishes automatically when it passes.
 
+### 2026-10-06 — S16-13 process icons and header totals
+
+**Icons.** Asked for by the table for the rows it mounts, batched per frame,
+cached per executable path in Rust and per process in the webview (pruned
+as processes exit). The first live run showed 87 of 659 icons; two causes,
+each found with a prover rather than guessed:
+
+- A `ProcessKey` deserialised from the webview skipped `start_time`
+  normalisation (JS prints `…418990` for the f64 `…418992`), so the
+  identity check refused the key. Fixed at the source in `ids.rs`, which
+  also fixes LAN control requests that carry a whole key.
+- A third of processes (services, other accounts) refuse the handle the
+  path query needs. `SystemProcessIdInformation` names them without one.
+
+**Totals.** Same frame as the rows. Disk and GPU take the busiest device, as
+Task Manager does; network is throughput over link speed; unknown is a dash.
+
+**Evidence.**
+
+- `cargo run -p vitals-win --example prove_icons`: 639 processes, 632 with an
+  icon, 7 without a path (System, Registry, Secure System, Memory
+  Compression, vmmem*), 0 with a path but no icon, 476 ms cold.
+- `ids::tests::a_key_sent_back_by_the_webview…`: FAILED with the
+  `from = "WireProcessKey"` attribute removed, passes with it.
+- Debug build, Processes screen: 29 of 29 mounted rows drew an image; header
+  read CPU 97 %, Memory 42 %, Disk 26 %, Network 0 %, GPU 23 %.
+
 ## S13 — public beta 0.9.0-beta.1 (2026-09-28)
 
 Decided with the owner (ADR 0031): public repository, beta version, no code

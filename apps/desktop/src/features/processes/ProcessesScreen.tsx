@@ -32,6 +32,8 @@ import {
   type TablePreferences,
 } from './columns';
 import { buildRows, collectSubtree, type KindFilter, type ProcessRow } from './model';
+import { tauriIconStore, type IconStore } from './icons';
+import { columnTotals } from './totals';
 import { ProcessDetails } from './ProcessDetails';
 import { ProcessTable } from './ProcessTable';
 import { ProcessToolbar } from './ProcessToolbar';
@@ -59,6 +61,8 @@ export interface ProcessesScreenProps {
   readonly storage?: Storage;
   /** Host info + capability report; injectable so tests need no Tauri host. */
   readonly hostFacts?: HostFactsReader;
+  /** Program icons; injectable so tests need no Tauri host. */
+  readonly icons?: IconStore;
 }
 
 export function ProcessesScreen({
@@ -66,6 +70,7 @@ export function ProcessesScreen({
   actions = tauriProcessActions,
   storage,
   hostFacts,
+  icons = tauriIconStore,
 }: ProcessesScreenProps = {}): React.JSX.Element {
   const { t, i18n } = useTranslation();
   const { t: tp } = useTranslation(PROCESSES_NS);
@@ -561,6 +566,10 @@ export function ProcessesScreen({
   );
 
   const total = snapshot.processes.size;
+  const totals = useMemo(() => columnTotals(snapshot.system), [snapshot.system]);
+  useEffect(() => {
+    icons.retain(snapshot.processes);
+  }, [icons, snapshot.processes]);
 
   // Which counter feeds the Disk column. `null` before the first sample has
   // told us; the tooltip then says so rather than picking a label.
@@ -687,6 +696,8 @@ export function ProcessesScreen({
             menuProps={menuProps}
             locale={locale}
             columnTitles={columnTitles}
+            totals={totals}
+            icons={icons}
           />
         )}
 

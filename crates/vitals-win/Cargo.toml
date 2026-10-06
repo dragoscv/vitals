@@ -66,6 +66,10 @@ windows = { version = "0.62.2", features = [
 # `::windows_core::` paths, so the crate must be a direct dependency. Same
 # version `windows` already pulls in; nothing new is downloaded.
 windows-core = "0.62.2"
+# Process icons (process/icon.rs) go to the webview as PNG data URLs. Both
+# versions are already in the lock through tauri; nothing new is downloaded.
+png = "0.18.1"
+base64 = "0.22.1"
 windows-sys = { version = "0.61.2", features = [
 	"Win32_Foundation",
 	"Win32_System_Memory",
@@ -84,6 +88,8 @@ windows-sys = { version = "0.61.2", features = [
 	"Win32_UI_Shell",
 	"Win32_UI_Shell_Common",
 	"Win32_UI_WindowsAndMessaging",
+	# Process icons: GetIconInfo/GetDIBits read an HICON's pixels.
+	"Win32_Graphics_Gdi",
 	"Win32_System_Registry",
 	# Task Manager replacement: the real taskmgr is started as a debuggee to
 	# bypass the IFEO hook that would otherwise relaunch us.

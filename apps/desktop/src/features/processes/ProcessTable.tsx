@@ -28,15 +28,17 @@ import {
 } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { ContextMenu, ContextMenuTrigger, cn } from '@vitals/ui';
-import { ArrowDown, ArrowUp, ChevronDown } from 'lucide-react';
-import { displayName } from '@vitals/protocol';
+import { ContextMenu, ContextMenuTrigger, cn, formatPercent } from '@vitals/ui';
+import { AppWindow, ArrowDown, ArrowUp, ChevronDown, Cog, Cpu, Package } from 'lucide-react';
+import { displayName, type ProcessKind } from '@vitals/protocol';
 
 import { COLUMN_BY_ID, type ColumnId } from './columns';
 import { OVERSCAN, ROW_HEIGHT, UNKNOWN } from './constants';
+import { tauriIconStore, useProcessIcon, type IconStore } from './icons';
 import type { ProcessRow } from './model';
 import { ProcessMenu } from './ProcessMenu';
 import { fallback } from './strings';
+import type { ColumnTotals } from './totals';
 
 export interface ProcessTableProps {
   readonly rows: readonly ProcessRow[];
@@ -66,6 +68,13 @@ export interface ProcessTableProps {
    * things depending on privilege.
    */
   readonly columnTitles?: Readonly<Partial<Record<ColumnId, string>>>;
+  /**
+   * Machine-wide percentages shown above the label, as Task Manager does.
+   * A column with no entry shows only its label; `null` shows an em dash.
+   */
+  readonly totals?: ColumnTotals;
+  /** Injectable so tests need no Tauri host. */
+  readonly icons?: IconStore;
 }
 
 export function ProcessTable(props: ProcessTableProps): React.JSX.Element {
@@ -194,6 +203,9 @@ export function ProcessTable(props: ProcessTableProps): React.JSX.Element {
   const gridTemplate = columns
     .map((column) => `${props.widths[column.id] ?? column.width}px`)
     .join(' ');
+  const icons = props.icons ?? tauriIconStore;
+  const totals = props.totals ?? {};
+  const hasTotals = columns.some((column) => column.id in totals);
 
   return (
     <div
@@ -229,6 +241,8 @@ export function ProcessTable(props: ProcessTableProps): React.JSX.Element {
           >
             {columns.map((column, index) => {
               const active = props.sortColumn === column.id;
+              const label = t(column.labelKey, fallback(column.labelKey as never));
+              const total = column.id in totals ? (totals[column.id] ?? null) : undefined;
               return (
                 <div
                   key={column.id}
@@ -237,40 +251,56 @@ export function ProcessTable(props: ProcessTableProps): React.JSX.Element {
                   aria-sort={
                     active ? (props.sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'
                   }
-                  className="relative flex h-7 items-center"
+                  className={cn('relative flex items-center', hasTotals ? 'h-11' : 'h-7')}
                 >
                   <button
                     type="button"
                     onClick={() => props.onSort(column.id)}
-                    aria-label={t('a11y.sortBy', {
-                      column: t(column.labelKey, fallback(column.labelKey as never)),
-                    })}
+                    aria-label={
+                      total === undefined
+                        ? t('a11y.sortBy', { column: label })
+                        : `${t('a11y.sortBy', { column: label })}, ${formatPercent(total, props.locale, 0)}`
+                    }
                     {...(props.columnTitles?.[column.id] !== undefined && {
                       title: props.columnTitles[column.id],
                     })}
                     className={cn(
-                      'flex h-full w-full items-center gap-1 px-2 text-2xs font-medium',
-                      column.align === 'end' && 'justify-end',
+                      'flex h-full w-full flex-col justify-end gap-0.5 px-2 pb-1 text-2xs font-medium',
+                      column.align === 'end' ? 'items-end' : 'items-start',
                       active ? 'text-[var(--color-fg-default)]' : 'text-[var(--color-fg-muted)]',
                       'hover:text-[var(--color-fg-default)] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-accent)]',
                     )}
                   >
-                    <span className="truncate">
-                      {t(column.labelKey, fallback(column.labelKey as never))}
+                    {total !== undefined && (
+                      <span
+                        aria-hidden="true"
+                        data-testid={`column-total-${column.id}`}
+                        className="font-mono text-sm leading-none text-[var(--color-fg-default)] tabular-nums"
+                      >
+                        {formatPercent(total, props.locale, 0)}
+                      </span>
+                    )}
+                    <span
+                      className={cn(
+                        'flex max-w-full items-center gap-1',
+                        column.align === 'end' && 'flex-row-reverse',
+                      )}
+                    >
+                      <span className="truncate">{label}</span>
+                      {active &&
+                        (props.sortDirection === 'asc' ? (
+                          <ArrowUp aria-hidden="true" className="size-3 shrink-0" />
+                        ) : (
+                          <ArrowDown aria-hidden="true" className="size-3 shrink-0" />
+                        ))}
                     </span>
-                    {active &&
-                      (props.sortDirection === 'asc' ? (
-                        <ArrowUp aria-hidden="true" className="size-3 shrink-0" />
-                      ) : (
-                        <ArrowDown aria-hidden="true" className="size-3 shrink-0" />
-                      ))}
                   </button>
                   <ResizeHandle
                     column={column.id}
                     current={props.widths[column.id] ?? column.width}
                     min={column.minWidth}
                     onResize={props.onResize}
-                    label={t(column.labelKey, fallback(column.labelKey as never))}
+                    label={label}
                   />
                 </div>
               );
@@ -302,6 +332,7 @@ export function ProcessTable(props: ProcessTableProps): React.JSX.Element {
                       onFocusRow={props.onFocusRow}
                       onContextMenu={onRowContextMenu}
                       locale={props.locale}
+                      icons={icons}
                     />
                   </ContextMenuTrigger>
                   <ProcessMenu {...props.menuProps(row)} />
@@ -334,6 +365,7 @@ interface RowProps extends Omit<
   ) => void;
   readonly onFocusRow: (id: string) => void;
   readonly locale: string;
+  readonly icons: IconStore;
 }
 
 /**
@@ -365,8 +397,10 @@ const Row = memo(
       onPointerDown,
       onFocusRow,
       locale,
+      icons,
       ...rest
     } = props;
+    const icon = useProcessIcon(icons, row.id, row.process);
 
     return (
       <div
@@ -425,27 +459,33 @@ const Row = memo(
               // and the executable is what a terminal or a crash log names.
               title={isName ? row.process.name : undefined}
             >
-              {isName && row.childIds.length > 0 ? (
+              {isName ? (
                 <span className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    aria-label={t(
-                      expanded ? 'process.tree.collapse' : 'process.tree.expand',
-                      fallback(expanded ? 'process.tree.collapse' : 'process.tree.expand'),
-                      { name: displayName(row.process) },
-                    )}
-                    onPointerDown={(event) => event.stopPropagation()}
-                    onClick={() => onToggleExpand(row.id)}
-                    className="inline-flex size-4 shrink-0 items-center justify-center rounded text-[var(--color-fg-subtle)] hover:text-[var(--color-fg-default)] focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
-                  >
-                    <ChevronDown
-                      aria-hidden="true"
-                      className={cn(
-                        'size-3.5 transition-transform duration-(--duration-fast)',
-                        !expanded && '-rotate-90',
+                  {row.childIds.length > 0 ? (
+                    <button
+                      type="button"
+                      aria-label={t(
+                        expanded ? 'process.tree.collapse' : 'process.tree.expand',
+                        fallback(expanded ? 'process.tree.collapse' : 'process.tree.expand'),
+                        { name: displayName(row.process) },
                       )}
-                    />
-                  </button>
+                      onPointerDown={(event) => event.stopPropagation()}
+                      onClick={() => onToggleExpand(row.id)}
+                      className="inline-flex size-4 shrink-0 items-center justify-center rounded text-[var(--color-fg-subtle)] hover:text-[var(--color-fg-default)] focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+                    >
+                      <ChevronDown
+                        aria-hidden="true"
+                        className={cn(
+                          'size-3.5 transition-transform duration-(--duration-fast)',
+                          !expanded && '-rotate-90',
+                        )}
+                      />
+                    </button>
+                  ) : (
+                    // Keeps leaves' icons in line with their expandable siblings'.
+                    <span aria-hidden="true" className="size-4 shrink-0" />
+                  )}
+                  <ProcessIcon url={icon} kind={row.process.kind} />
                   <span className="truncate">{text}</span>
                 </span>
               ) : (
@@ -458,6 +498,52 @@ const Row = memo(
     );
   }),
 );
+
+/**
+ * The program's own icon, or a glyph for its kind when it has none.
+ *
+ * Services and system processes mostly live in files with no icon of their
+ * own (or one the unelevated app may not read); a gear or a chip there says
+ * what the row is instead of leaving a gap that misaligns the names.
+ * Decorative: the name beside it is the accessible label.
+ */
+function ProcessIcon({
+  url,
+  kind,
+}: {
+  readonly url: string | null | undefined;
+  readonly kind: ProcessKind;
+}): React.JSX.Element {
+  if (url !== null && url !== undefined) {
+    return (
+      <img
+        src={url}
+        alt=""
+        aria-hidden="true"
+        draggable={false}
+        data-testid="process-icon"
+        className="size-4 shrink-0"
+      />
+    );
+  }
+  const Glyph =
+    kind === 'service'
+      ? Cog
+      : kind === 'system'
+        ? Cpu
+        : kind === 'containerized'
+          ? Package
+          : AppWindow;
+  return (
+    <Glyph
+      aria-hidden="true"
+      data-testid="process-glyph"
+      // While loading too: a glyph that becomes an icon is calmer than a
+      // hole that does, and costs the same space.
+      className="size-4 shrink-0 text-[var(--color-fg-subtle)]"
+    />
+  );
+}
 
 function ResizeHandle({
   column,

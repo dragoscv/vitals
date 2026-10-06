@@ -143,7 +143,14 @@ impl fmt::Display for SensorId {
     feature = "ts",
     ts(export, export_to = "core/", rename_all = "camelCase")
 )]
-#[serde(rename_all = "camelCase")]
+// Deserialised through `new`, not field by field. The webview prints a
+// number in its shortest form (`134357150065418990`), which is not the
+// exact f64 it holds (`…992`); read literally, a key that came back from
+// the UI no longer equalled the sampler's and the identity check refused
+// it as "PID reused". Commands that took `pid` + `start_time` separately
+// went through `new` and worked; `get_process_icons` and LAN control took
+// a whole `ProcessKey` and did not — 87 of 659 icons (2026-10-06).
+#[serde(rename_all = "camelCase", from = "WireProcessKey")]
 pub struct ProcessKey {
     pub pid: Pid,
     /// Process creation time, in 100ns intervals since the platform epoch,
@@ -162,6 +169,20 @@ pub struct ProcessKey {
     /// granularity lost is under 2 µs, and no PID is recycled that fast.
     #[cfg_attr(feature = "ts", ts(type = "number"))]
     pub start_time: u64,
+}
+
+/// The shape of a [`ProcessKey`] on the wire, before normalisation.
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WireProcessKey {
+    pid: Pid,
+    start_time: u64,
+}
+
+impl From<WireProcessKey> for ProcessKey {
+    fn from(wire: WireProcessKey) -> Self {
+        Self::new(wire.pid, wire.start_time)
+    }
 }
 
 impl ProcessKey {
@@ -222,6 +243,19 @@ mod tests {
     #[test]
     fn process_key_display_is_unambiguous() {
         assert_eq!(ProcessKey::new(Pid(12), 34).to_string(), "12@34");
+    }
+
+    #[test]
+    fn a_key_sent_back_by_the_webview_in_shortest_form_equals_the_sampler_key() {
+        // What JSON.stringify prints for the f64 134357150065418992.
+        let from_webview: ProcessKey =
+            serde_json::from_str(r#"{"pid":7964,"startTime":134357150065418990}"#)
+                .expect("deserialise");
+        assert_eq!(
+            from_webview,
+            ProcessKey::new(Pid(7964), 134_357_150_065_418_990)
+        );
+        assert_eq!(from_webview.start_time, 134_357_150_065_418_992);
     }
 
     #[test]

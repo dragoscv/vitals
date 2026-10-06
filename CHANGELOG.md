@@ -7,6 +7,22 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **Program icons in the process list** — each row shows the program's own
+  icon, as Task Manager does, including services and other accounts'
+  processes that refuse to be opened. Kernel processes with no file show a
+  small glyph for their kind.
+- **Totals in the column headers** — CPU, memory, disk, network and GPU show
+  how busy the whole machine is above each column. Disk and GPU show the
+  busiest device; a reading the machine cannot give shows a dash, not 0 %.
+
+### Fixed
+
+- A process key sent back from the app or a paired phone could fail its
+  identity check as "PID reused", because the webview prints large numbers
+  in a shorter form than it stores. Keys are now normalised when read.
+
 ## [0.9.0] — 2026-10-06
 
 Out of beta, and the first version for the Microsoft Store.

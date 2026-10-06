@@ -14,6 +14,8 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { initI18n } from '@vitals/i18n';
 
 import type { ActionPlan, ProcessActionsApi } from './actions';
+import { makeSystem } from '../dashboard/test-fixtures';
+import { createIconStore } from './icons';
 import { ProcessesScreen } from './ProcessesScreen';
 import { makeMap, makeProcess } from './test-fixtures';
 import { registerProcessesStrings } from './strings';
@@ -156,6 +158,55 @@ describe('rendering', () => {
     render(<ProcessesScreen source={source} actions={stubActions()} storage={memoryStorage()} />);
     const row = await screen.findByTestId('process-row-7');
     expect(within(row).getAllByText('—').length).toBeGreaterThan(0);
+  });
+
+  it('puts each program’s own icon beside its name, and a kind glyph where it has none', async () => {
+    const icons = createIconStore((keys) =>
+      Promise.resolve(keys.map((k) => (k.pid === 300 ? 'data:image/png;base64,AAAA' : null))),
+    );
+    const source = createManualSnapshotSource({
+      ...INITIAL_SNAPSHOT,
+      processes: makeMap(PROCESSES),
+      pending: false,
+    });
+    render(
+      <ProcessesScreen
+        source={source}
+        actions={stubActions()}
+        storage={memoryStorage()}
+        icons={icons}
+      />,
+    );
+    const chrome = await screen.findByTestId('process-row-300');
+    await waitFor(() => expect(within(chrome).getByTestId('process-icon')).toBeTruthy());
+    expect(within(chrome).getByTestId('process-icon').getAttribute('src')).toContain('data:image');
+    const csrss = screen.getByTestId('process-row-200');
+    expect(within(csrss).queryByTestId('process-icon')).toBeNull();
+    expect(within(csrss).getByTestId('process-glyph')).toBeTruthy();
+  });
+
+  it('shows machine-wide totals in the headers, and a dash for one it cannot measure', async () => {
+    const base = makeSystem();
+    const source = createManualSnapshotSource({
+      ...INITIAL_SNAPSHOT,
+      processes: makeMap(PROCESSES),
+      system: {
+        ...base,
+        cpu: { ...base.cpu, total: 61.4 },
+        memory: { ...base.memory, total: 100, used: 32 },
+        gpus: [],
+      },
+      pending: false,
+    });
+    render(<ProcessesScreen source={source} actions={stubActions()} storage={memoryStorage()} />);
+
+    expect((await screen.findByTestId('column-total-cpu')).textContent).toBe('61%');
+    expect(screen.getByTestId('column-total-memory').textContent).toBe('32%');
+    expect(screen.getByTestId('column-total-gpu').textContent).toBe('—');
+    // Identity columns carry no total.
+    expect(screen.queryByTestId('column-total-name')).toBeNull();
+    // Said to a screen reader too, not only drawn.
+    expect(screen.getByRole('button', { name: /CPU.*61%/ })).toBeTruthy();
   });
 });
 

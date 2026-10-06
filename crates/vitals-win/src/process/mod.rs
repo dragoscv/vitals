@@ -2,6 +2,8 @@
 
 pub mod description;
 pub mod enumerate;
+pub mod icon;
+pub mod image_path;
 pub mod owner;
 pub mod raw;
 

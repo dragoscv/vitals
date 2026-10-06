@@ -10,7 +10,7 @@
 
 import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
 
-import type { Process } from '@vitals/protocol';
+import type { Process, SystemMetrics } from '@vitals/protocol';
 
 import { errorMessage } from '@/lib/commandError';
 import { latestMetrics, subscribeToMetrics, type Snapshot } from '@/lib/metrics';
@@ -20,6 +20,12 @@ const EMPTY_PROCESSES: ReadonlyMap<string, Process> = new Map();
 
 export interface ProcessSnapshot {
   readonly processes: ReadonlyMap<string, Process>;
+  /**
+   * Machine-wide figures from the same frame, for the header totals. Same
+   * frame on purpose: a header from one second over rows from the next can
+   * show a total below the sum of what is listed beneath it.
+   */
+  readonly system: SystemMetrics | null;
   readonly seq: number;
   readonly timestampMs: number;
   /** Set when the sampler reported a failure; the table keeps its last rows. */
@@ -30,6 +36,7 @@ export interface ProcessSnapshot {
 
 const INITIAL: ProcessSnapshot = {
   processes: EMPTY_PROCESSES,
+  system: null,
   seq: 0,
   timestampMs: 0,
   error: null,
@@ -65,6 +72,7 @@ export function createTauriSnapshotSource(): SnapshotSource {
       ? INITIAL
       : {
           processes: new Map(latest.processes),
+          system: latest.system,
           seq: latest.seq,
           timestampMs: latest.timestampMs,
           error: null,
@@ -127,6 +135,7 @@ export function createTauriSnapshotSource(): SnapshotSource {
           // `useSyncExternalStore` sees an unchanged snapshot and skips the
           // render that the frame exists to trigger.
           processes: new Map(snapshot.processes),
+          system: snapshot.system,
           seq: snapshot.seq,
           timestampMs: snapshot.timestampMs,
           error: null,
@@ -202,6 +211,7 @@ export function createManualSnapshotSource(initial: ProcessSnapshot = INITIAL): 
     current: () => value,
     push(next) {
       value = {
+        system: value.system,
         seq: value.seq + 1,
         timestampMs: value.timestampMs + 1000,
         error: null,

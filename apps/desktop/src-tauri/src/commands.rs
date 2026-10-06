@@ -623,6 +623,40 @@ pub fn get_executable_path(pid: u32, start_time: u64) -> CommandResult<Option<St
     ))?)
 }
 
+/// Icons for a batch of processes, in the order asked, as PNG data URLs.
+///
+/// A batch because the table asks for the forty-odd rows it has just shown,
+/// and forty IPC round trips per scroll is the cost the batch exists to
+/// avoid. `None` for a process whose path or icon cannot be read; the UI
+/// draws a generic glyph for its kind rather than leaving a hole.
+///
+/// `async` + `spawn_blocking`: a cold extraction opens the file and walks
+/// its resources, which on a network share can take far longer than an IPC
+/// thread should be held.
+#[tauri::command]
+#[cfg(windows)]
+pub async fn get_process_icons(
+    keys: Vec<vitals_core::ids::ProcessKey>,
+) -> CommandResult<Vec<Option<String>>> {
+    tauri::async_runtime::spawn_blocking(move || {
+        keys.into_iter()
+            .map(|key| {
+                // The handle-free lookup covers services and other accounts'
+                // processes, which refuse the handle the first one needs.
+                vitals_win::actions::executable_path(key)
+                    .ok()
+                    .flatten()
+                    .or_else(|| vitals_win::process::image_path::image_path_by_pid(key.pid.get()))
+                    .and_then(|path| vitals_win::process::icon::icon_data_url(&path))
+            })
+            .collect()
+    })
+    .await
+    .map_err(|err| CommandError::Internal {
+        message: format!("the icon thread did not finish: {err}"),
+    })
+}
+
 /// Opens Explorer with a file selected.
 ///
 /// Takes the path rather than a `ProcessKey`: the caller already holds the

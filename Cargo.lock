@@ -5923,6 +5923,8 @@ dependencies = [
 name = "vitals-win"
 version = "0.9.0"
 dependencies = [
+ "base64 0.22.1",
+ "png 0.18.1",
  "serde",
  "serde_json",
  "vitals-core",
