@@ -163,6 +163,54 @@ CSV records the state.
 
 ## Verification log
 
+### 2026-09-29 — S14-07 Developer cleanup, run for real on this machine
+
+**Ask.** Find what can be cleaned on E: (old `node_modules`, the pnpm cache,
+stray worktrees, Docker) and build an advanced clean-up where the user chooses
+after a scan; then do the clean-up through the app, deciding together what
+goes, with whatever administrator approval it needs.
+
+**What it does.** A card on the Storage screen scans the chosen roots and
+offers five groups: build output per project (only a folder that sits beside
+the manifest that produces it), git worktrees that are clean, pushed and idle,
+package caches through each tool's own command, Docker's reclaimable images,
+build cache and stopped containers (volumes are never offered, they hold
+databases), and the WSL and Docker virtual disks, which only give space back
+to Windows when compacted. The webview only ever sends ids from the last scan;
+each item is checked again just before it is removed.
+
+**Found by running it, not by the tests.**
+
+- `pnpm store prune` reported done and gave back 0 B while E:\.pnpm-store
+  held 9 GB. pnpm keeps one store per drive, because hard links cannot cross
+  drives, and `pnpm store path` answers for the current directory only: run
+  from the profile, the prune went to the C: store. Each store is now found
+  and pruned with `--store-dir`. It still gave back 0 B, correctly: every
+  package in the E: store is linked by codai or brivio.
+- Compaction is undone within seconds by anything holding WSL open. Here a
+  scheduled task starts `wsl --exec sleep infinity` every 15 s, and Docker
+  Desktop restarts its own distro. The elevated pass now disables every
+  non-Microsoft scheduled task whose action mentions WSL, closes Docker
+  Desktop, waits for the WSL VM to exit before touching a disk (and touches
+  none if it will not), and re-enables the tasks in a `finally`.
+- A container started by hand with no restart policy stayed exited after WSL
+  came back. The running set is now recorded and started again.
+- A probe app running from `target\debug` cannot delete its own `target`.
+
+**Verification** (every figure from the app's report, checked against the
+drive's free space measured separately):
+
+```text
+scan                822 s   316 projects, 26 worktrees (0 removable), 10 caches
+run 1             1,932 items, all Done         E: +331 GB  (257.66 -> 588.83 free)
+run 2       storage\target                      E: +25.9 GB (independent 25.90)
+compaction  docker_data.vhdx 209.28 -> 84.91 GB C: +124.62 GB independent
+            Ubuntu-24.04 ext4.vhdx 260.69 -> 260.46 GB (255 GB really in use)
+afterwards  brivio-wsl-runner-keepalive Running; docker 29.8.1, 5 containers healthy
+pnpm        E:\.pnpm-store\v11 0 B (all packages linked by live projects)
+free        C: 815.68 -> 885.80 GB, E: 265.05 -> 618.47 GB
+```
+
 ### 2026-09-29 — S14-04 Windows-managed space, freed by Windows' own tools
 
 **Ask.** Slice 4 of S14: from the "Reclaimable space" card, free the space

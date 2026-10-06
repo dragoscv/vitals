@@ -27,6 +27,29 @@
 
 export type ScanStrategyKey = 'mftAssisted' | 'directoryWalk';
 
+/** How a snapshot was obtained (`ScanSnapshotDto.method`). */
+export type ScanMethodKey = 'walk' | 'incremental' | 'turbo';
+
+/** Why a walk read every folder rather than reusing the saved index. */
+export type FullReasonKey =
+  | 'noIndex'
+  | 'requested'
+  | 'journalChanged'
+  | 'hardLinksChanged'
+  | 'notSupported'
+  | 'indexUnreadable';
+
+/** What a running scan is doing (`ScanProgressDto.stage`). */
+export type ScanStageKey = 'walking' | 'approval' | 'reading' | 'building' | 'saving';
+
+/** The stages that get their own line; `walking` shows the folder being read. */
+export const namedScanStages: readonly Exclude<ScanStageKey, 'walking'>[] = [
+  'approval',
+  'reading',
+  'building',
+  'saving',
+];
+
 export type DiskKindKey = 'hdd' | 'ssd' | 'nvme' | 'removable' | 'network' | 'optical' | 'unknown';
 
 export type SkipReasonKey = 'accessDenied' | 'reparsePoint' | 'cancelled' | 'vanished' | 'osError';
@@ -65,6 +88,8 @@ export interface Volume {
   readonly total: number;
   readonly available: number;
   readonly strategy: ScanStrategyKey;
+  /** Turbo (one UAC prompt, the drive's file table read directly) is offered. */
+  readonly turbo: boolean;
 }
 
 export interface DirectoryEntry {
@@ -87,11 +112,13 @@ export interface SkippedPath {
 /** What a running scan has seen so far (`ScanProgressDto`). */
 export interface ScanProgress {
   readonly root: string;
+  readonly stage: ScanStageKey;
+  /** For Turbo, file records read so far. */
   readonly filesSeen: number;
   readonly directoriesSeen: number;
   readonly bytesSeen: number;
   readonly elapsedMs: number;
-  /** The folder most recently read. */
+  /** The folder most recently read; empty when the stage reads no folders. */
   readonly currentPath: string;
 }
 
@@ -120,6 +147,33 @@ export interface ScanSnapshot {
   readonly rootNode: number;
   /** The largest individual files anywhere under the root, largest first. */
   readonly largestFiles: readonly LargeFile[];
+  readonly method: ScanMethodKey;
+  /** Folders taken unchanged from the saved index; 0 unless incremental. */
+  readonly reusedFolders: number;
+  /** Folders actually read from disk this time. */
+  readonly relistedFolders: number;
+  /** Why a walk read everything; `null` for incremental and Turbo. */
+  readonly fullReason: FullReasonKey | null;
+  /** An index for fast rescans was written after this scan. */
+  readonly indexSaved: boolean;
+}
+
+/** The reasons worth a sentence: the ones a user would not have guessed. */
+export type InformativeFullReason = Exclude<FullReasonKey, 'noIndex' | 'requested'>;
+
+/**
+ * Why a walk read every folder, when saying so tells the user something.
+ *
+ * `noIndex` (the first scan) and `requested` (they pressed Full rescan) are
+ * what the user already knows, so they stay silent. The others explain why a
+ * rescan that was expected to take seconds took minutes, which otherwise
+ * reads as the fast path being broken.
+ */
+export function informativeFullReason(snapshot: ScanSnapshot): InformativeFullReason | null {
+  if (snapshot.method !== 'walk') return null;
+  const reason = snapshot.fullReason;
+  if (reason === null || reason === 'noIndex' || reason === 'requested') return null;
+  return reason;
 }
 
 export interface LargeFile {

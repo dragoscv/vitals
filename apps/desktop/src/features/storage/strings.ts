@@ -8,6 +8,8 @@
 
 import { i18n } from '@vitals/i18n';
 
+import { devBundles } from './devclean/strings';
+
 export const STORAGE_NS = 'storage';
 
 const en = {
@@ -54,6 +56,24 @@ const en = {
     idleBody: 'Pick a drive above and start a scan to see which folders are using the space.',
     failed: 'The scan did not finish. {{message}}',
     stale: 'Showing the last completed scan. {{message}}',
+    // Its own name, never "Scan again": three scan buttons can sit side by
+    // side, and a screen reader must be able to tell them apart.
+    turbo: 'Turbo scan',
+    turboHint:
+      "Turbo asks Windows for administrator permission once, then reads the drive's file table directly. It sees every folder, including ones a normal scan cannot open, and is much faster on a drive with millions of files.",
+    turboUnavailable:
+      "Turbo works only on this computer's own drives formatted by Windows (NTFS). A normal scan works everywhere.",
+    turboDeclined: 'Turbo needs administrator permission; nothing was read.',
+    fullRescan: 'Full rescan',
+    fullRescanHint:
+      'Reads every folder again, instead of only the ones that changed since the last scan.',
+    turboProgress: '{{files}} files found · {{size}}',
+    stage: {
+      approval: 'Waiting for administrator permission…',
+      reading: "Reading the drive's file table…",
+      building: 'Building the folder tree…',
+      saving: 'Saving the index for fast rescans…',
+    },
   },
 
   result: {
@@ -79,6 +99,22 @@ const en = {
     emptyBody: 'The scan finished but found nothing under this root that takes measurable space.',
     filterEmpty: 'Nothing matches',
     filterEmptyBody: 'Clear the filter to see every folder from the scan.',
+    turbo: "Read from the drive's file table in {{seconds}} s.",
+    // Two plural keys joined into one line, because each number needs its
+    // own plural form and Romanian has three of them.
+    relisted_one: 'Rescanned {{n}} changed folder',
+    relisted_other: 'Rescanned {{n}} changed folders',
+    reused_one: 'reused {{n}} unchanged folder from the saved index.',
+    reused_other: 'reused {{n}} unchanged folders from the saved index.',
+    indexSaved: 'An index was saved, so the next rescan reads only what changed.',
+    fullReason: {
+      journalChanged:
+        "Windows' change log no longer covers the last scan, so every folder was read.",
+      hardLinksChanged:
+        'Files that appear in several folders at once changed since the last scan, so every folder was read to count them correctly.',
+      notSupported: 'This drive keeps no change log, so every folder was read.',
+      indexUnreadable: 'The saved index could not be read, so every folder was read.',
+    },
   },
 
   search: 'Filter folders by path',
@@ -423,6 +459,22 @@ const ro = {
     idleBody: 'Alege o unitate mai sus și pornește o scanare ca să vezi ce foldere ocupă spațiul.',
     failed: 'Scanarea nu s-a terminat. {{message}}',
     stale: 'Se afișează ultima scanare finalizată. {{message}}',
+    turbo: 'Scanare Turbo',
+    turboHint:
+      'Turbo cere o singură dată permisiunea de administrator de la Windows, apoi citește direct tabelul de fișiere al unității. Vede fiecare folder, inclusiv pe cele pe care o scanare obișnuită nu le poate deschide, și este mult mai rapid pe o unitate cu milioane de fișiere.',
+    turboUnavailable:
+      'Turbo funcționează doar pe unitățile proprii ale acestui calculator formatate de Windows (NTFS). O scanare obișnuită funcționează oriunde.',
+    turboDeclined: 'Turbo are nevoie de permisiunea de administrator; nu s-a citit nimic.',
+    fullRescan: 'Rescanare completă',
+    fullRescanHint:
+      'Citește din nou fiecare folder, nu doar pe cele care s-au schimbat de la ultima scanare.',
+    turboProgress: '{{files}} fișiere găsite · {{size}}',
+    stage: {
+      approval: 'Se așteaptă permisiunea de administrator…',
+      reading: 'Se citește tabelul de fișiere al unității…',
+      building: 'Se construiește arborele de foldere…',
+      saving: 'Se salvează indexul pentru rescanări rapide…',
+    },
   },
 
   result: {
@@ -456,6 +508,23 @@ const ro = {
       'Scanarea s-a terminat, dar nu a găsit nimic sub această rădăcină care să ocupe spațiu măsurabil.',
     filterEmpty: 'Nimic nu se potrivește',
     filterEmptyBody: 'Șterge filtrul ca să vezi toate folderele din scanare.',
+    turbo: 'Citit din tabelul de fișiere al unității în {{seconds}} s.',
+    relisted_one: 'A fost recitit {{n}} folder modificat',
+    relisted_few: 'Au fost recitite {{n}} foldere modificate',
+    relisted_other: 'Au fost recitite {{n}} de foldere modificate',
+    reused_one: '{{n}} folder neschimbat a fost preluat din indexul salvat.',
+    reused_few: '{{n}} foldere neschimbate au fost preluate din indexul salvat.',
+    reused_other: '{{n}} de foldere neschimbate au fost preluate din indexul salvat.',
+    indexSaved: 'S-a salvat un index, deci următoarea rescanare citește doar ce s-a schimbat.',
+    fullReason: {
+      journalChanged:
+        'Istoricul de modificări ținut de Windows nu mai acoperă ultima scanare, deci s-a citit fiecare folder.',
+      hardLinksChanged:
+        'Fișiere care apar în mai multe foldere deodată s-au schimbat de la ultima scanare, deci s-a citit fiecare folder ca să fie numărate corect.',
+      notSupported:
+        'Această unitate nu ține un istoric de modificări, deci s-a citit fiecare folder.',
+      indexUnreadable: 'Indexul salvat nu a putut fi citit, deci s-a citit fiecare folder.',
+    },
   },
 
   search: 'Filtrează folderele după cale',
@@ -792,8 +861,8 @@ export function registerStorageStrings(): void {
     );
   }
 
-  i18n.addResourceBundle('en', STORAGE_NS, en, true, false);
-  i18n.addResourceBundle('ro', STORAGE_NS, ro, true, false);
+  i18n.addResourceBundle('en', STORAGE_NS, { ...en, dev: devBundles.en }, true, false);
+  i18n.addResourceBundle('ro', STORAGE_NS, { ...ro, dev: devBundles.ro }, true, false);
 }
 
 /** Exported for the parity test. */

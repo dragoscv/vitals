@@ -6,6 +6,7 @@ import { STORAGE_NS, bundles, registerStorageStrings } from './strings';
 import {
   cleanupStages,
   directorySorts,
+  namedScanStages,
   protections,
   recycleOutcomes,
   safetyOrder,
@@ -157,6 +158,48 @@ describe('storage translations', () => {
     for (const bundle of [bundles.en, bundles.ro]) {
       expect(bundle.volumes.refresh).not.toBe(bundle.scan.rescan);
       expect(bundle.volumes.refresh).not.toBe(bundle.scan.start);
+    }
+  });
+
+  it('names every scan stage and every informative full-walk reason', () => {
+    const paths = new Set(keyPaths(bundles.en));
+    for (const stage of namedScanStages) {
+      expect(paths, `missing scan.stage.${stage}`).toContain(`scan.stage.${stage}`);
+    }
+    for (const reason of [
+      'journalChanged',
+      'hardLinksChanged',
+      'notSupported',
+      'indexUnreadable',
+    ]) {
+      expect(paths, `missing result.fullReason.${reason}`).toContain(`result.fullReason.${reason}`);
+    }
+  });
+
+  it('gives the three scan buttons different names in both languages', () => {
+    for (const bundle of [bundles.en, bundles.ro]) {
+      const names = [
+        bundle.scan.start,
+        bundle.scan.rescan,
+        bundle.scan.fullRescan,
+        bundle.scan.turbo,
+      ];
+      expect(new Set(names).size).toBe(names.length);
+    }
+  });
+
+  it('explains Turbo without file-system jargon', () => {
+    // The audience is someone whose computer is slow, not a file-system
+    // engineer: "MFT", "USN" and "journal" mean nothing to them.
+    for (const bundle of [bundles.en, bundles.ro]) {
+      // Values only: the key `journalChanged` is code, not something shown.
+      const values = (value: unknown): string[] =>
+        typeof value === 'string'
+          ? [value]
+          : Object.values(value as Record<string, unknown>).flatMap(values);
+      for (const text of values([bundle.scan, bundle.result])) {
+        expect(text).not.toMatch(/\bMFT\b|\bUSN\b|journal|jurnal/i);
+      }
     }
   });
 

@@ -25,7 +25,7 @@
  * user *which* of the folders in front of them is a floor.
  */
 
-import { Check, HardDrive, Plus, RefreshCw, Sparkles, X } from 'lucide-react';
+import { Check, HardDrive, Plus, RefreshCw, Sparkles, X, Zap } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -52,6 +52,7 @@ import { ExportButton } from '../../components/ExportButton';
 import type { ExportColumn } from '../../lib/export';
 import { oneOf, useUrlState } from '../../lib/useUrlState';
 import { BasketBar, BasketDialog } from './Basket';
+import { DevClean } from './devclean/DevClean';
 import { Explorer, exploreViews, type ExploreView } from './Explorer';
 import { STORAGE_NS } from './strings';
 import { WindowsCleanupDialog } from './WindowsCleanup';
@@ -60,6 +61,7 @@ import {
   filterDirectories,
   groupBySafety,
   inBasket,
+  informativeFullReason,
   leafName,
   needsQualifier,
   reclaimableTotal,
@@ -106,6 +108,8 @@ export function StorageScreen({ source }: StorageScreenProps = {}): React.JSX.El
   // Falls back to the first volume so the scan button is usable immediately,
   // rather than requiring a click that only reselects what is already shown.
   const activeMount = selected ?? volumes[0]?.mount ?? null;
+  const activeVolume = volumes.find((volume) => volume.mount === activeMount) ?? null;
+  const turboOffered = activeVolume?.turbo === true;
 
   const rows = useMemo(
     () => sortDirectories(filterDirectories(state.snapshot?.largest ?? [], query), sort, locale),
@@ -180,17 +184,60 @@ export function StorageScreen({ source }: StorageScreenProps = {}): React.JSX.El
                 {t('scan.cancel')}
               </Button>
             ) : (
-              <Button
-                size="sm"
-                disabled={activeMount === null}
-                onClick={() => {
-                  if (activeMount !== null) state.scan(activeMount);
-                }}
-              >
-                {state.snapshot === null ? t('scan.start') : t('scan.rescan')}
-              </Button>
+              <>
+                {/* Never forces a full walk: the backend reuses its saved
+                    index when it can and says why when it cannot. */}
+                <Button
+                  size="sm"
+                  disabled={activeMount === null}
+                  onClick={() => {
+                    if (activeMount !== null) state.scan(activeMount, false);
+                  }}
+                >
+                  {state.snapshot === null ? t('scan.start') : t('scan.rescan')}
+                </Button>
+                {state.snapshot !== null && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={activeMount === null}
+                    title={t('scan.fullRescanHint')}
+                    onClick={() => {
+                      if (activeMount !== null) state.scan(activeMount, true);
+                    }}
+                  >
+                    {t('scan.fullRescan')}
+                  </Button>
+                )}
+                {/* Disabled with the reason attached rather than hidden, so
+                    someone looking for it on a USB stick learns why. */}
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={activeMount === null || !turboOffered}
+                  aria-describedby="storage-turbo-hint"
+                  {...(!turboOffered && { title: t('scan.turboUnavailable') })}
+                  onClick={() => {
+                    if (activeMount !== null && turboOffered) state.turboScan(activeMount);
+                  }}
+                >
+                  <Zap aria-hidden className="size-4" />
+                  {t('scan.turbo')}
+                </Button>
+              </>
             )}
           </div>
+          {!state.scanning && (
+            <p id="storage-turbo-hint" className="text-2xs text-[var(--color-fg-subtle)]">
+              {turboOffered ? t('scan.turboHint') : t('scan.turboUnavailable')}
+            </p>
+          )}
+
+          {/* Not an alert: dismissing the prompt is an answer, and the last
+              result below is untouched. */}
+          {state.turboDeclined && (
+            <p className="text-2xs text-[var(--color-fg-muted)]">{t('scan.turboDeclined')}</p>
+          )}
 
           {state.scanError !== null && (
             <p role="alert" className="text-2xs text-[var(--color-status-danger)]">
@@ -260,6 +307,8 @@ export function StorageScreen({ source }: StorageScreenProps = {}): React.JSX.El
             setFreeing(candidate);
           }}
         />
+
+        <DevClean locale={locale} />
       </div>
 
       <WindowsCleanupDialog
@@ -317,7 +366,12 @@ function ScanRunning({
 }) {
   const { t } = useTranslation(STORAGE_NS);
   const used = volume === null ? 0 : usedBytes(volume);
-  const fraction = progress !== null && used > 0 ? Math.min(0.99, progress.bytesSeen / used) : null;
+  const stage = progress?.stage ?? 'walking';
+  // Only the stages that count bytes can fill the bar; waiting for the UAC
+  // prompt, building and saving have no measurable fraction.
+  const counting = stage === 'walking' || stage === 'reading';
+  const fraction =
+    progress !== null && counting && used > 0 ? Math.min(0.99, progress.bytesSeen / used) : null;
   const rate =
     progress !== null && progress.elapsedMs > 0
       ? Math.round((progress.filesSeen * 1000) / progress.elapsedMs)
@@ -326,26 +380,41 @@ function ScanRunning({
   return (
     <div role="status" className="flex flex-col gap-1.5">
       <p className="text-sm">{t('scan.running', { root })}</p>
+      {stage !== 'walking' && <p className="text-sm">{t(`scan.stage.${stage}`)}</p>}
       {/* Visible figures roll; the live region above names only the root so
           it is announced once, not ten times a second. */}
-      <p aria-hidden className="tnum text-2xs text-[var(--color-fg-muted)]">
-        {progress === null || rate === null ? (
-          t('scan.progressStarting')
-        ) : (
-          <AnimatedValue
-            value={t('scan.progress', {
-              files: formatCount(progress.filesSeen, locale),
-              size: formatBytes(progress.bytesSeen, locale),
-              rate: formatCount(rate, locale),
-            })}
-          />
-        )}
-      </p>
+      {stage === 'walking' ? (
+        <p aria-hidden className="tnum text-2xs text-[var(--color-fg-muted)]">
+          {progress === null || rate === null ? (
+            t('scan.progressStarting')
+          ) : (
+            <AnimatedValue
+              value={t('scan.progress', {
+                files: formatCount(progress.filesSeen, locale),
+                size: formatBytes(progress.bytesSeen, locale),
+                rate: formatCount(rate, locale),
+              })}
+            />
+          )}
+        </p>
+      ) : (
+        progress !== null &&
+        stage !== 'approval' && (
+          <p aria-hidden className="tnum text-2xs text-[var(--color-fg-muted)]">
+            <AnimatedValue
+              value={t('scan.turboProgress', {
+                files: formatCount(progress.filesSeen, locale),
+                size: formatBytes(progress.bytesSeen, locale),
+              })}
+            />
+          </p>
+        )
+      )}
       <ProgressBar
         {...(fraction === null ? { indeterminate: true } : { value: fraction * 100 })}
         label={t('scan.running', { root })}
       />
-      {progress !== null && (
+      {progress !== null && progress.currentPath !== '' && (
         <p
           aria-hidden
           className="truncate font-mono text-2xs text-[var(--color-fg-subtle)]"
@@ -517,9 +586,11 @@ function ScanResult({
           {/* Both figures, always. Showing only one and letting the user
               compare it against Explorer is how they conclude we are wrong. */}
           <p className="text-2xs text-[var(--color-fg-muted)]" title={t('result.logicalHint')}>
-            {t('result.logical', { logical: formatBytes(snapshot.logical, locale) })} ·{' '}
-            {t('result.elapsed', { seconds: Math.round(snapshot.elapsedMs / 100) / 10 })}
+            {t('result.logical', { logical: formatBytes(snapshot.logical, locale) })}
+            {snapshot.method !== 'turbo' &&
+              ` · ${t('result.elapsed', { seconds: Math.round(snapshot.elapsedMs / 100) / 10 })}`}
           </p>
+          <ScanMethod snapshot={snapshot} locale={locale} />
         </div>
 
         {needsQualifier(snapshot) && (
@@ -694,6 +765,43 @@ function ScanResult({
       </CardBody>
     </Card>
   );
+}
+
+/**
+ * How the result was obtained, in one line.
+ *
+ * A rescan that reused the saved index finishes in seconds; one that had to
+ * read everything takes minutes. Without saying which happened and why, the
+ * slow one reads as the fast path being broken.
+ */
+function ScanMethod({
+  snapshot,
+  locale,
+}: {
+  readonly snapshot: ScanSnapshot;
+  readonly locale: string;
+}) {
+  const { t } = useTranslation(STORAGE_NS);
+  const seconds = (Math.round(snapshot.elapsedMs / 100) / 10).toLocaleString(locale);
+  const reason = informativeFullReason(snapshot);
+
+  let line: string | null = null;
+  if (snapshot.method === 'turbo') line = t('result.turbo', { seconds });
+  else if (snapshot.method === 'incremental') {
+    line = `${t('result.relisted', {
+      count: snapshot.relistedFolders,
+      n: formatCount(snapshot.relistedFolders, locale),
+    })}; ${t('result.reused', {
+      count: snapshot.reusedFolders,
+      n: formatCount(snapshot.reusedFolders, locale),
+    })}`;
+  } else if (reason !== null) line = t(`result.fullReason.${reason}`);
+
+  // An incremental rescan saving its index is the expected case, not news.
+  const saved = snapshot.indexSaved && snapshot.method !== 'incremental';
+  const text = [line, saved ? t('result.indexSaved') : null].filter((part) => part !== null);
+  if (text.length === 0) return null;
+  return <p className="text-2xs text-[var(--color-fg-muted)]">{text.join(' ')}</p>;
 }
 
 function Cleanup({

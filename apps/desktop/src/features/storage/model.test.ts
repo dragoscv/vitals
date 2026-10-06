@@ -6,6 +6,7 @@ import {
   filterDirectories,
   groupBySafety,
   inBasket,
+  informativeFullReason,
   leafName,
   measuredFreed,
   needsQualifier,
@@ -74,6 +75,7 @@ function volume(overrides: Partial<Volume> = {}): Volume {
     total: 100 * GB,
     available: 25 * GB,
     strategy: 'directoryWalk',
+    turbo: false,
     ...overrides,
   };
 }
@@ -123,9 +125,40 @@ function snapshot(overrides: Partial<ScanSnapshot> = {}): ScanSnapshot {
     scanId: 1,
     rootNode: 0,
     largestFiles: [],
+    method: 'walk',
+    reusedFolders: 0,
+    relistedFolders: 10,
+    fullReason: 'noIndex',
+    indexSaved: false,
     ...overrides,
   };
 }
+
+describe('informativeFullReason', () => {
+  it('explains a full walk only when the cause is not what the user just did', () => {
+    expect(informativeFullReason(snapshot({ fullReason: 'noIndex' }))).toBeNull();
+    expect(informativeFullReason(snapshot({ fullReason: 'requested' }))).toBeNull();
+    for (const reason of [
+      'journalChanged',
+      'hardLinksChanged',
+      'notSupported',
+      'indexUnreadable',
+    ] as const) {
+      expect(informativeFullReason(snapshot({ fullReason: reason }))).toBe(reason);
+    }
+  });
+
+  it('never explains a full walk for a result that was not a walk', () => {
+    // A stray reason on an incremental or Turbo result would claim every
+    // folder was read when most were not.
+    expect(
+      informativeFullReason(snapshot({ method: 'incremental', fullReason: 'journalChanged' })),
+    ).toBeNull();
+    expect(
+      informativeFullReason(snapshot({ method: 'turbo', fullReason: 'notSupported' })),
+    ).toBeNull();
+  });
+});
 
 describe('volume capacity', () => {
   it('reports the used fraction', () => {

@@ -97,6 +97,12 @@ export default defineConfig(({ command }) => ({
     // A test that truly hangs still fails; one that is slow under load no
     // longer does.
     testTimeout: 15_000,
+    // Hooks get the same margin: `AppShell.test.tsx` warms the lazy
+    // SettingsDialog in `beforeAll` precisely so the test itself measures
+    // focus rather than a cold transform — which moved the cold transform
+    // into the hook, where vitest's 10 s default then failed the whole file
+    // at 100 % CPU (2026-09-29) while it passes alone in 8-12 s.
+    hookTimeout: 15_000,
     // A quarter of the cores, not vitest's cores-minus-one. Each fork boots
     // its own happy-dom, and on this 32-thread machine 31 of them spent half
     // the run in environment setup fighting each other: measured back to back

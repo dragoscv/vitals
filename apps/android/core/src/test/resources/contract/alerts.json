@@ -6,8 +6,8 @@
     "title": "dashboard.alert.thermalCpu.title",
     "cause": "dashboard.alert.thermalCpu.hot",
     "values": {
-      "name": "C:",
-      "percent": 97.0
+      "percent": 97.0,
+      "name": "C:"
     },
     "route": "performance",
     "sinceSample": 42

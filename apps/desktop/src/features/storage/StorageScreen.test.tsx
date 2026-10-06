@@ -42,6 +42,7 @@ function volume(overrides: Partial<Volume> = {}): Volume {
     total: 100 * GB,
     available: 25 * GB,
     strategy: 'directoryWalk',
+    turbo: false,
     ...overrides,
   };
 }
@@ -77,6 +78,11 @@ function snapshot(overrides: Partial<ScanSnapshot> = {}): ScanSnapshot {
     scanId: 1,
     rootNode: 0,
     largestFiles: [],
+    method: 'walk',
+    reusedFolders: 0,
+    relistedFolders: 40,
+    fullReason: 'noIndex',
+    indexSaved: false,
     ...overrides,
   };
 }
@@ -166,6 +172,7 @@ interface SourceOverrides {
   /** Replaces the whole reader, for the pending and rejecting cases. */
   readonly readVolumes?: StorageSource['volumes'];
   readonly scan?: StorageSource['scan'];
+  readonly turboScan?: StorageSource['turboScan'];
   readonly cleanup?: StorageSource['cleanup'];
   readonly children?: StorageSource['children'];
   readonly recycle?: StorageSource['recycle'];
@@ -188,6 +195,11 @@ function makeSource(overrides: SourceOverrides = {}): TestSource {
       overrides.readVolumes ??
       vi.fn<StorageSource['volumes']>().mockResolvedValue(overrides.volumes ?? [volume()]),
     scan: overrides.scan ?? vi.fn<StorageSource['scan']>().mockResolvedValue(snapshot()),
+    turboScan:
+      overrides.turboScan ??
+      vi
+        .fn<StorageSource['turboScan']>()
+        .mockResolvedValue(snapshot({ method: 'turbo', fullReason: null })),
     cancelScan: vi.fn<StorageSource['cancelScan']>().mockResolvedValue(undefined),
     cleanup: overrides.cleanup ?? vi.fn<StorageSource['cleanup']>().mockResolvedValue([]),
     cancelCleanup: vi.fn<StorageSource['cancelCleanup']>().mockResolvedValue(undefined),
@@ -239,6 +251,7 @@ function makeSource(overrides: SourceOverrides = {}): TestSource {
 function progress(overrides: Partial<ScanProgress> = {}): ScanProgress {
   return {
     root: 'C:\\',
+    stage: 'walking',
     filesSeen: 120_000,
     directoriesSeen: 9_000,
     bytesSeen: 30 * GB,
@@ -385,7 +398,7 @@ describe('StorageScreen', () => {
       expect(screen.queryByText(/levels/)).toBeNull();
       fireEvent.click(screen.getByRole('button', { name: /Scan this drive/ }));
       await screen.findByRole('heading', { name: 'Explore' });
-      expect(source.scan).toHaveBeenCalledWith('C:\\');
+      expect(source.scan).toHaveBeenCalledWith('C:\\', false);
     });
 
     it('does not call links that were not followed unreadable folders', async () => {
@@ -439,6 +452,203 @@ describe('StorageScreen', () => {
 
       expect(await screen.findByText(/The scan did not finish/)).toBeTruthy();
       expect(screen.queryByRole('progressbar')).toBeNull();
+    });
+  });
+
+  describe('Turbo and the saved index', () => {
+    const turboVolume = () => volume({ strategy: 'mftAssisted', turbo: true });
+
+    it('turbo reads the selected drive and says it came from the file table', async () => {
+      const source = makeSource({
+        volumes: [turboVolume()],
+        turboScan: vi
+          .fn<StorageSource['turboScan']>()
+          .mockResolvedValue(snapshot({ method: 'turbo', fullReason: null, elapsedMs: 18_400 })),
+      });
+      await mount(source);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Turbo scan' }));
+      await screen.findByRole('heading', { name: 'Explore' });
+
+      expect(source.turboScan).toHaveBeenCalledWith('C:\\');
+      expect(source.scan).not.toHaveBeenCalled();
+      expect(screen.getByText(/Read from the drive's file table in 18.4 s/)).toBeTruthy();
+    });
+
+    it('a dismissed administrator prompt keeps the last result and is not an error', async () => {
+      const source = makeSource({
+        volumes: [turboVolume()],
+        turboScan: vi.fn<StorageSource['turboScan']>().mockRejectedValue({
+          kind: 'refused',
+          message: 'administrator approval was declined',
+        }),
+      });
+      await mount(source);
+      fireEvent.click(screen.getByRole('button', { name: /Scan this drive/ }));
+      await screen.findByRole('heading', { name: 'Explore' });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Turbo scan' }));
+
+      expect(
+        await screen.findByText('Turbo needs administrator permission; nothing was read.'),
+      ).toBeTruthy();
+      expect(screen.queryByRole('alert')).toBeNull();
+      expect(screen.queryByText(/last completed scan/)).toBeNull();
+      expect(await screen.findByRole('button', { name: 'Open Users' })).toBeTruthy();
+    });
+
+    it('a turbo failure that is not a refusal is still reported as one', async () => {
+      // The calm line is for the user's own answer only; a real fault must
+      // not be dressed up as a decision.
+      const source = makeSource({
+        volumes: [turboVolume()],
+        turboScan: vi
+          .fn<StorageSource['turboScan']>()
+          .mockRejectedValue({ kind: 'internal', message: 'the file table was truncated' }),
+      });
+      await mount(source);
+      fireEvent.click(screen.getByRole('button', { name: 'Turbo scan' }));
+
+      expect((await screen.findByRole('alert')).textContent).toMatch(/file table was truncated/);
+      expect(screen.queryByText(/nothing was read/)).toBeNull();
+    });
+
+    it('turbo is unavailable on a drive that does not offer it, and says why', async () => {
+      const source = makeSource({ volumes: [volume({ turbo: false })] });
+      await mount(source);
+
+      const turbo = screen.getByRole('button', { name: 'Turbo scan' });
+      expect((turbo as HTMLButtonElement).disabled).toBe(true);
+      fireEvent.click(turbo);
+      expect(source.turboScan).not.toHaveBeenCalled();
+      expect(screen.getByText(/Turbo works only on this computer's own drives/)).toBeTruthy();
+    });
+
+    it('turbo follows the drive the user picked, not the first one', async () => {
+      const source = makeSource({
+        volumes: [volume({ turbo: false }), volume({ mount: 'D:\\', label: 'Data', turbo: true })],
+      });
+      await mount(source);
+      const turbo = screen.getByRole('button', { name: 'Turbo scan' });
+      expect((turbo as HTMLButtonElement).disabled).toBe(true);
+
+      fireEvent.click(screen.getByText('D:\\ Data'));
+      expect((turbo as HTMLButtonElement).disabled).toBe(false);
+      fireEvent.click(turbo);
+      expect(source.turboScan).toHaveBeenCalledWith('D:\\');
+    });
+
+    it('rescan reuses the saved index and full rescan asks for every folder', async () => {
+      const source = await scanned();
+      expect(source.scan).toHaveBeenLastCalledWith('C:\\', false);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Scan again' }));
+      await vi.waitFor(() => {
+        expect(source.scan).toHaveBeenCalledTimes(2);
+      });
+      expect(source.scan).toHaveBeenLastCalledWith('C:\\', false);
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Full rescan' }));
+      await vi.waitFor(() => {
+        expect(source.scan).toHaveBeenCalledTimes(3);
+      });
+      expect(source.scan).toHaveBeenLastCalledWith('C:\\', true);
+    });
+
+    it('offers no full rescan before there is anything to rescan', async () => {
+      await mount();
+      expect(screen.queryByRole('button', { name: 'Full rescan' })).toBeNull();
+    });
+
+    it('an incremental rescan says how many folders were read and how many reused', async () => {
+      await scanned(
+        snapshot({
+          method: 'incremental',
+          fullReason: null,
+          relistedFolders: 1_204,
+          reusedFolders: 1_862_000,
+          indexSaved: true,
+        }),
+      );
+      expect(
+        screen.getByText(
+          'Rescanned 1,204 changed folders; reused 1,862,000 unchanged folders from the saved index.',
+        ),
+      ).toBeTruthy();
+    });
+
+    it('an incremental rescan of one folder uses the singular', async () => {
+      await scanned(
+        snapshot({ method: 'incremental', fullReason: null, relistedFolders: 1, reusedFolders: 1 }),
+      );
+      expect(
+        screen.getByText(
+          'Rescanned 1 changed folder; reused 1 unchanged folder from the saved index.',
+        ),
+      ).toBeTruthy();
+    });
+
+    it('a full walk explains why only when the user would not have guessed', async () => {
+      await scanned(snapshot({ method: 'walk', fullReason: 'journalChanged' }));
+      expect(
+        screen.getByText(/no longer covers the last scan, so every folder was read/),
+      ).toBeTruthy();
+      cleanup();
+
+      await scanned(snapshot({ method: 'walk', fullReason: 'requested' }));
+      expect(screen.queryByText(/so every folder was read/)).toBeNull();
+    });
+
+    it('says when an index was saved for fast rescans', async () => {
+      await scanned(snapshot({ indexSaved: true }));
+      expect(screen.getByText(/next rescan reads only what changed/)).toBeTruthy();
+    });
+
+    it('while waiting for the administrator prompt it says so, with no folder line', async () => {
+      const source = makeSource({
+        volumes: [turboVolume()],
+        turboScan: vi.fn<StorageSource['turboScan']>(() => new Promise(() => undefined)),
+      });
+      await mount(source);
+      fireEvent.click(screen.getByRole('button', { name: 'Turbo scan' }));
+      await screen.findByRole('button', { name: /Stop the scan/ });
+
+      act(() => {
+        source.emit(progress({ stage: 'approval', filesSeen: 0, bytesSeen: 0, currentPath: '' }));
+      });
+
+      expect(await screen.findByText('Waiting for administrator permission…')).toBeTruthy();
+      expect(screen.queryByText(/^Reading /)).toBeNull();
+      expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBeNull();
+    });
+
+    it('while reading the file table it counts records against the drive', async () => {
+      const source = makeSource({
+        volumes: [turboVolume()],
+        turboScan: vi.fn<StorageSource['turboScan']>(() => new Promise(() => undefined)),
+      });
+      await mount(source);
+      fireEvent.click(screen.getByRole('button', { name: 'Turbo scan' }));
+      await screen.findByRole('button', { name: /Stop the scan/ });
+
+      act(() => {
+        source.emit(progress({ stage: 'reading', currentPath: '' }));
+      });
+
+      expect(await screen.findByText("Reading the drive's file table…")).toBeTruthy();
+      expect(screen.getAllByText(/120,000 files found/).length).toBeGreaterThan(0);
+      expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBe('40');
+    });
+
+    it('cannot start a turbo scan while another scan runs', async () => {
+      const source = makeSource({
+        volumes: [turboVolume()],
+        scan: vi.fn<StorageSource['scan']>(() => new Promise(() => undefined)),
+      });
+      await mount(source);
+      fireEvent.click(screen.getByRole('button', { name: /Scan this drive/ }));
+      await screen.findByRole('button', { name: /Stop the scan/ });
+      expect(screen.queryByRole('button', { name: 'Turbo scan' })).toBeNull();
     });
   });
 

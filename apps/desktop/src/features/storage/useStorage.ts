@@ -52,7 +52,16 @@ export const CLEANUP_PROGRESS_EVENT = 'vitals://storage/cleanup-progress';
 
 export interface StorageSource {
   readonly volumes: () => Promise<readonly Volume[]>;
-  readonly scan: (path: string) => Promise<ScanSnapshot>;
+  /**
+   * Walks `path`. `full` forces every folder to be read; otherwise the
+   * backend may reuse its saved index and relist only what changed.
+   */
+  readonly scan: (path: string, full: boolean) => Promise<ScanSnapshot>;
+  /**
+   * Reads a whole volume's file table after one UAC prompt. Rejects with
+   * kind `refused` when the prompt is dismissed.
+   */
+  readonly turboScan: (path: string) => Promise<ScanSnapshot>;
   readonly cancelScan: () => Promise<void>;
   readonly cleanup: () => Promise<readonly CleanupCandidate[]>;
   readonly cancelCleanup: () => Promise<void>;
@@ -92,9 +101,13 @@ export const tauriSource: StorageSource = {
     const { invoke } = await import('@tauri-apps/api/core');
     return invoke<readonly Volume[]>('get_volumes');
   },
-  scan: async (path) => {
+  scan: async (path, full) => {
     const { invoke } = await import('@tauri-apps/api/core');
-    return invoke<ScanSnapshot>('scan_storage', { path, topN: TOP_N });
+    return invoke<ScanSnapshot>('scan_storage', { path, topN: TOP_N, full });
+  },
+  turboScan: async (path) => {
+    const { invoke } = await import('@tauri-apps/api/core');
+    return invoke<ScanSnapshot>('turbo_scan_storage', { path, topN: TOP_N });
   },
   cancelScan: async () => {
     const { invoke } = await import('@tauri-apps/api/core');
@@ -166,6 +179,11 @@ export interface StorageState {
   readonly scanning: boolean;
   readonly scanRoot: string | null;
   readonly scanError: string | null;
+  /**
+   * The UAC prompt for Turbo was dismissed: a decision, not a fault. The
+   * previous snapshot stays and nothing was read.
+   */
+  readonly turboDeclined: boolean;
   /** Latest progress of the running scan; `null` before the first report. */
   readonly progress: ScanProgress | null;
 
@@ -188,7 +206,10 @@ export interface StorageState {
   /** The Windows cleanup in flight or last finished; `null` before any. */
   readonly windowsRun: WindowsRun | null;
 
-  scan: (path: string) => void;
+  /** `full` forces a complete walk; otherwise the saved index may be reused. */
+  scan: (path: string, full?: boolean) => void;
+  /** Reads a whole volume's file table after one administrator prompt. */
+  turboScan: (path: string) => void;
   cancelScan: () => void;
   findCleanup: () => void;
   cancelCleanup: () => void;
@@ -232,6 +253,7 @@ export function useStorage(source?: StorageSource): StorageState {
   const [scanning, setScanning] = useState(false);
   const [scanRoot, setScanRoot] = useState<string | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
+  const [turboDeclined, setTurboDeclined] = useState(false);
   const [progress, setProgress] = useState<ScanProgress | null>(null);
 
   const [candidates, setCandidates] = useState<readonly CleanupCandidate[] | null>(null);
@@ -275,15 +297,16 @@ export function useStorage(source?: StorageSource): StorageState {
     }
   }, [injected]);
 
-  const scan = useCallback((path: string) => {
+  const runScan = useCallback((path: string, turbo: boolean, full: boolean) => {
     // Guarded rather than queued: the backend refuses a second concurrent
-    // scan, and the screen could only show one of them anyway.
+    // scan (walk or Turbo), and the screen could only show one of them.
     if (scanInFlight.current) return;
     scanInFlight.current = true;
 
     setScanning(true);
     setScanRoot(path);
     setScanError(null);
+    setTurboDeclined(false);
     setProgress(null);
 
     // Subscribed before the scan starts, so the first report is not missed.
@@ -295,14 +318,21 @@ export function useStorage(source?: StorageSource): StorageState {
       })
       .catch(() => () => undefined);
 
-    void sourceRef.current
-      .scan(path)
+    const started = turbo ? sourceRef.current.turboScan(path) : sourceRef.current.scan(path, full);
+
+    void started
       .then((next) => {
         if (!mounted.current) return;
         setSnapshot(next);
       })
       .catch((cause: unknown) => {
         if (!mounted.current) return;
+        // A dismissed UAC prompt is the user's answer, not a failure: no red
+        // line, and the previous snapshot stays exactly as it was.
+        if (turbo && isCommandError(cause) && cause.kind === 'refused') {
+          setTurboDeclined(true);
+          return;
+        }
         // The previous snapshot is deliberately left in place. A failed
         // rescan should not blank a result the user was reading.
         setScanError(errorMessage(cause));
@@ -320,6 +350,20 @@ export function useStorage(source?: StorageSource): StorageState {
         }
       });
   }, []);
+
+  const scan = useCallback(
+    (path: string, full = false) => {
+      runScan(path, false, full);
+    },
+    [runScan],
+  );
+
+  const turboScan = useCallback(
+    (path: string) => {
+      runScan(path, true, true);
+    },
+    [runScan],
+  );
 
   const cancelScan = useCallback(() => {
     // Deliberately does not clear `scanning`: the scan is still running and
@@ -504,6 +548,7 @@ export function useStorage(source?: StorageSource): StorageState {
     scanning,
     scanRoot,
     scanError,
+    turboDeclined,
     progress,
     candidates,
     cleanupRunning,
@@ -515,6 +560,7 @@ export function useStorage(source?: StorageSource): StorageState {
     revision,
     windowsRun,
     scan,
+    turboScan,
     cancelScan,
     findCleanup,
     cancelCleanup,

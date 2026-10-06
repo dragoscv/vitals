@@ -56,6 +56,8 @@ pub enum LaunchMode {
     /// Same contract again: raw arguments, parsed by `vitals-win`, never a
     /// window.
     ElevatedStorageCleanup { args: Vec<String> },
+    /// Compact one WSL or Docker virtual disk as administrator and exit.
+    ElevatedCompactVhd { args: Vec<String> },
 }
 
 /// Classifies the arguments this process was started with.
@@ -112,6 +114,12 @@ where
         };
     }
 
+    if first == vitals_win_arg::COMPACT_VHD {
+        return LaunchMode::ElevatedCompactVhd {
+            args: args.map(|arg| arg.as_ref().to_owned()).collect(),
+        };
+    }
+
     // The loader passes the original command line — typically
     // `C:\WINDOWS\system32\taskmgr.exe` or, for the taskbar, the same path
     // with `/4` or `/7` after it — so only the first token is inspected,
@@ -154,6 +162,10 @@ mod vitals_win_arg {
     pub const STORAGE_CLEANUP: &str = vitals_win::storage::managed::STORAGE_CLEANUP_ARG;
     #[cfg(not(windows))]
     pub const STORAGE_CLEANUP: &str = "--elevated-storage-cleanup";
+    #[cfg(windows)]
+    pub const COMPACT_VHD: &str = vitals_win::storage::devclean::COMPACT_VHD_ARG;
+    #[cfg(not(windows))]
+    pub const COMPACT_VHD: &str = "--elevated-compact-vhd";
 }
 
 /// Runs a non-UI launch mode to completion.
@@ -170,6 +182,7 @@ pub fn run_headless(mode: &LaunchMode) -> i32 {
         LaunchMode::ElevatedProcessAction { args } => elevated_process_action(args),
         LaunchMode::ElevatedStartupAction { args } => elevated_startup_action(args),
         LaunchMode::ElevatedStorageCleanup { args } => elevated_storage_cleanup(args),
+        LaunchMode::ElevatedCompactVhd { args } => elevated_compact_vhd(args),
         LaunchMode::Normal | LaunchMode::AsTaskManager => {
             tracing::error!("run_headless called for a UI launch mode");
             2
@@ -251,6 +264,19 @@ fn elevated_storage_cleanup(args: &[String]) -> i32 {
 #[cfg(not(windows))]
 fn elevated_storage_cleanup(_args: &[String]) -> i32 {
     tracing::error!("Windows cleanup tools are a Windows mechanism");
+    1
+}
+
+#[cfg(windows)]
+fn elevated_compact_vhd(args: &[String]) -> i32 {
+    let code = vitals_win::storage::devclean::perform_compact(args);
+    tracing::info!(?args, code, "elevated disk compaction finished");
+    code.cast_signed()
+}
+
+#[cfg(not(windows))]
+fn elevated_compact_vhd(_args: &[String]) -> i32 {
+    tracing::error!("virtual disk compaction is a Windows mechanism");
     1
 }
 
@@ -425,5 +451,16 @@ mod tests {
             "--elevated-storage-cleanup",
             "the non-Windows spelling must match vitals-win's"
         );
+    }
+
+    #[test]
+    fn the_elevated_compaction_child_never_starts_a_window() {
+        assert_eq!(
+            classify([vitals_win_arg::COMPACT_VHD, r"C:\x.vhdx"]),
+            LaunchMode::ElevatedCompactVhd {
+                args: vec![r"C:\x.vhdx".into()]
+            }
+        );
+        assert_eq!(vitals_win_arg::COMPACT_VHD, "--elevated-compact-vhd");
     }
 }
