@@ -100,6 +100,11 @@ export interface ProcessActionsApi {
    * selected row and gates the two shell actions below.
    */
   getExecutablePath(process: Process): Promise<string | null>;
+  /**
+   * Raises the process's main window. Resolves `false` when it has no
+   * window to show (closed since the row was drawn).
+   */
+  bringToFront(process: Process): Promise<boolean>;
   openFileLocation(path: string): Promise<void>;
   showFileProperties(path: string): Promise<void>;
   /**
@@ -215,6 +220,12 @@ export const tauriProcessActions: ProcessActionsApi = {
 
   getExecutablePath: (process) =>
     invoke<string | null>('get_executable_path', {
+      pid: process.key.pid,
+      startTime: process.key.startTime,
+    }),
+
+  bringToFront: (process) =>
+    invoke<boolean>('bring_process_to_front', {
       pid: process.key.pid,
       startTime: process.key.startTime,
     }),

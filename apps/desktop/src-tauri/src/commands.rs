@@ -624,6 +624,24 @@ pub fn get_executable_path(pid: u32, start_time: u64) -> CommandResult<Option<St
 }
 
 /// Icons for a batch of processes, in the order asked, as PNG data URLs.
+/// Brings a process's main window to the front, restoring it if minimised.
+///
+/// `false` when the process has no window a person can switch to — the
+/// menu item is only offered for rows that had one, but it may have closed
+/// since. Desktop-only: raising a window on the PC from a phone is a remote
+/// control the LAN API deliberately does not offer.
+#[tauri::command]
+#[cfg(windows)]
+pub fn bring_process_to_front(pid: u32, start_time: u64) -> CommandResult<bool> {
+    use vitals_core::ids::Pid;
+
+    Ok(vitals_win::top_windows::bring_to_front(ProcessKey::new(
+        Pid(pid),
+        start_time,
+    ))?)
+}
+
+/// Icons for a batch of processes, in the order asked, as PNG data URLs.
 ///
 /// A batch because the table asks for the forty-odd rows it has just shown,
 /// and forty IPC round trips per scroll is the cost the batch exists to

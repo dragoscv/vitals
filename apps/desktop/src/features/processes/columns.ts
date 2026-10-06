@@ -17,12 +17,16 @@ import { displayName } from '@vitals/protocol';
 
 import { UNKNOWN } from './constants';
 import type { ProcessRow, SortColumn } from './model';
+import { powerLevel } from './power';
 
 export type ColumnId = SortColumn;
 
 export interface ColumnDef {
   readonly id: ColumnId;
-  /** Existing i18n key where one exists, otherwise a key from `strings.ts`. */
+  /**
+   * Existing i18n key where one exists, otherwise a key from `strings.ts`.
+   * A `processes:` prefix reads from this feature's own bundle.
+   */
   readonly labelKey: string;
   readonly width: number;
   readonly minWidth: number;
@@ -31,7 +35,13 @@ export interface ColumnDef {
   readonly numeric: boolean;
   /** Whether the user may hide it. Name and PID are the row's identity. */
   readonly required: boolean;
+  /**
+   * Text for the cell. Columns whose value is a translation key (state,
+   * kind, power) return the key's suffix and set `translate`.
+   */
   render(row: ProcessRow, locale: string): string;
+  /** Prefix that turns `render`'s output into a translation key. */
+  readonly translate?: string;
 }
 
 export const COLUMNS: readonly ColumnDef[] = [
@@ -56,6 +66,17 @@ export const COLUMNS: readonly ColumnDef[] = [
     render: (row) => String(row.process.key.pid),
   },
   {
+    id: 'kind',
+    labelKey: 'processes:column.kind',
+    width: 96,
+    minWidth: 70,
+    align: 'start',
+    numeric: false,
+    required: false,
+    render: (row) => row.process.kind,
+    translate: 'processes:kind.',
+  },
+  {
     id: 'state',
     labelKey: 'process.status',
     width: 110,
@@ -66,6 +87,7 @@ export const COLUMNS: readonly ColumnDef[] = [
     // Translated by the cell, which has the `t` function; the raw state is
     // returned here so the definition stays free of React context.
     render: (row) => row.process.state,
+    translate: 'process.state.',
   },
   {
     id: 'user',
@@ -98,6 +120,16 @@ export const COLUMNS: readonly ColumnDef[] = [
     render: (row, locale) => formatBytes(row.rolledMemory, locale),
   },
   {
+    id: 'workingSet',
+    labelKey: 'processes:column.workingSet',
+    width: 104,
+    minWidth: 72,
+    align: 'end',
+    numeric: true,
+    required: false,
+    render: (row, locale) => formatBytes(row.process.memoryWorkingSet, locale),
+  },
+  {
     id: 'disk',
     labelKey: 'process.column.disk',
     width: 104,
@@ -106,6 +138,26 @@ export const COLUMNS: readonly ColumnDef[] = [
     numeric: true,
     required: false,
     render: (row, locale) => formatThroughput(row.rolledDisk, locale),
+  },
+  {
+    id: 'diskRead',
+    labelKey: 'processes:column.diskRead',
+    width: 104,
+    minWidth: 76,
+    align: 'end',
+    numeric: true,
+    required: false,
+    render: (row, locale) => formatThroughput(row.process.diskRead, locale),
+  },
+  {
+    id: 'diskWrite',
+    labelKey: 'processes:column.diskWrite',
+    width: 104,
+    minWidth: 76,
+    align: 'end',
+    numeric: true,
+    required: false,
+    render: (row, locale) => formatThroughput(row.process.diskWrite, locale),
   },
   {
     id: 'network',
@@ -133,6 +185,38 @@ export const COLUMNS: readonly ColumnDef[] = [
     // be a claim we cannot support — the GPU may well be busy.
     render: (row, locale) =>
       row.rolledGpu === null ? UNKNOWN : formatPercent(row.rolledGpu, locale),
+  },
+  {
+    id: 'power',
+    labelKey: 'processes:column.power',
+    width: 112,
+    minWidth: 84,
+    align: 'start',
+    numeric: true,
+    required: false,
+    render: (row) => powerLevel(row.rolledPower),
+    translate: 'processes:power.',
+  },
+  {
+    id: 'powerTrend',
+    labelKey: 'processes:column.powerTrend',
+    width: 128,
+    minWidth: 96,
+    align: 'start',
+    numeric: true,
+    required: false,
+    render: (row) => (row.powerTrend === null ? UNKNOWN : powerLevel(row.powerTrend)),
+    translate: 'processes:power.',
+  },
+  {
+    id: 'parentPid',
+    labelKey: 'processes:column.parentPid',
+    width: 84,
+    minWidth: 60,
+    align: 'end',
+    numeric: true,
+    required: false,
+    render: (row) => (row.process.parent === null ? UNKNOWN : String(row.process.parent)),
   },
   {
     id: 'threads',
@@ -171,6 +255,20 @@ export const COLUMN_BY_ID: ReadonlyMap<ColumnId, ColumnDef> = new Map(
   COLUMNS.map((column) => [column.id, column]),
 );
 
+/**
+ * The visible list after ticking or unticking `column`, in canonical order.
+ *
+ * Ordered by `COLUMNS`, not by the defaults: filtering the defaults could
+ * only keep or drop a default column, so ticking Threads, Handles or Uptime
+ * did nothing at all (found 2026-10-06). Required columns cannot be removed.
+ */
+export function toggleColumn(visible: readonly ColumnId[], column: ColumnId): readonly ColumnId[] {
+  const set = new Set(visible);
+  if (set.has(column) && COLUMN_BY_ID.get(column)?.required !== true) set.delete(column);
+  else set.add(column);
+  return COLUMNS.filter((c) => set.has(c.id)).map((c) => c.id);
+}
+
 export interface TablePreferences {
   readonly visible: readonly ColumnId[];
   readonly widths: Readonly<Partial<Record<ColumnId, number>>>;
@@ -183,7 +281,7 @@ export interface TablePreferences {
 }
 
 export const DEFAULT_PREFERENCES: TablePreferences = {
-  visible: ['name', 'pid', 'state', 'user', 'cpu', 'memory', 'disk', 'network', 'gpu'],
+  visible: ['name', 'pid', 'state', 'user', 'cpu', 'memory', 'disk', 'network', 'gpu', 'power'],
   widths: {},
   // CPU descending is what someone opening a task manager is nearly always
   // there to find out.

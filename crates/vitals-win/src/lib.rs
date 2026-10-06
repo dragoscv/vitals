@@ -46,6 +46,7 @@ pub mod sensors;
 pub mod startup;
 pub mod startup_task;
 pub mod storage;
+pub mod top_windows;
 pub mod users;
 
 pub use actions::{Priority, Risk};

@@ -90,6 +90,8 @@ windows-sys = { version = "0.61.2", features = [
 	"Win32_UI_WindowsAndMessaging",
 	# Process icons: GetIconInfo/GetDIBits read an HICON's pixels.
 	"Win32_Graphics_Gdi",
+	# App windows (top_windows.rs): DWMWA_CLOAKED hides UWP's parked frames.
+	"Win32_Graphics_Dwm",
 	"Win32_System_Registry",
 	# Task Manager replacement: the real taskmgr is started as a debuggee to
 	# bypass the IFEO hook that would otherwise relaunch us.

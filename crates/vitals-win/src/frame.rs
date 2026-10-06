@@ -220,7 +220,11 @@ fn convert(sampled: SampledProcess) -> Process {
         // A cheap first approximation — window ownership and the service
         // database refine it, and both cost a per-process query we do not
         // want on the hot path.
-        kind: if raw.session_id == 0 {
+        // A switchable window makes it an app whatever its session — that is
+        // the definition Task Manager's Apps group uses.
+        kind: if sampled.has_window {
+            ProcessKind::App
+        } else if raw.session_id == 0 {
             ProcessKind::System
         } else {
             ProcessKind::Background
@@ -235,7 +239,11 @@ fn convert(sampled: SampledProcess) -> Process {
         // Signing, elevation, WOW64 and window ownership each need a handle
         // open per process. Left empty here and filled in by the detail
         // query when a row is selected.
-        flags: ProcessFlags::empty(),
+        flags: if sampled.has_window {
+            ProcessFlags::HAS_WINDOW
+        } else {
+            ProcessFlags::empty()
+        },
         integrity: None,
         protection: ProtectionLevel::None,
         cpu: sampled.cpu,

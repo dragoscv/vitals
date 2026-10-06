@@ -66,6 +66,7 @@ function stubActions(overrides: Partial<ProcessActionsApi> = {}): ProcessActions
     getHandles: vi.fn(async () => []),
     getModules: vi.fn(async () => []),
     getExecutablePath: vi.fn(async () => null),
+    bringToFront: vi.fn(async () => true),
     openFileLocation: vi.fn(async () => undefined),
     showFileProperties: vi.fn(async () => undefined),
     runAsAdmin: vi.fn(async () => undefined),
@@ -708,5 +709,65 @@ describe('shell actions', () => {
     await waitFor(() =>
       expect(actions.openFileLocation).toHaveBeenCalledWith('C:\\Apps\\chrome.exe'),
     );
+  });
+
+  it('offers to bring an app with a window to the front, and only such an app', async () => {
+    const actions = stubActions();
+    const source = createManualSnapshotSource({
+      ...INITIAL_SNAPSHOT,
+      pending: false,
+      processes: makeMap([
+        makeProcess({ pid: 300, name: 'chrome.exe', kind: 'app', flags: 1 << 6 }),
+        makeProcess({ pid: 400, name: 'svc.exe', kind: 'service' }),
+      ]),
+    });
+    render(<ProcessesScreen source={source} actions={actions} storage={memoryStorage()} />);
+
+    await openMenuFor(300);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Bring to front' }));
+    await waitFor(() => expect(actions.bringToFront).toHaveBeenCalledOnce());
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+
+    await openMenuFor(400);
+    expect(screen.queryByRole('menuitem', { name: 'Bring to front' })).toBeNull();
+  });
+
+  it('says so when the window has gone instead of failing silently', async () => {
+    const actions = stubActions({ bringToFront: vi.fn(async () => false) });
+    const source = createManualSnapshotSource({
+      ...INITIAL_SNAPSHOT,
+      pending: false,
+      processes: makeMap([makeProcess({ pid: 300, name: 'chrome.exe', flags: 1 << 6 })]),
+    });
+    render(<ProcessesScreen source={source} actions={actions} storage={memoryStorage()} />);
+    await openMenuFor(300);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Bring to front' }));
+    expect(await screen.findByText(/has no window to show/)).toBeTruthy();
+  });
+});
+
+describe('columns', () => {
+  it('resizes a column by dragging its edge without sorting by the next one', async () => {
+    mountScreen();
+    await screen.findByRole('grid');
+    const handle = screen.getByRole('separator', { name: 'PID' });
+    const sortedBefore = document.querySelector('[aria-sort="descending"]')?.textContent;
+    const before = Number(handle.getAttribute('aria-valuenow'));
+
+    // happy-dom has no pointer capture; the handle must not depend on it
+    // being honoured to receive its own moves.
+    handle.setPointerCapture = () => undefined;
+    handle.releasePointerCapture = () => undefined;
+    fireEvent.pointerDown(handle, { button: 0, clientX: 100, pointerId: 1 });
+    fireEvent.pointerMove(handle, { clientX: 160, pointerId: 1 });
+    fireEvent.pointerUp(handle, { clientX: 160, pointerId: 1 });
+    fireEvent.click(handle);
+
+    await waitFor(() => expect(Number(handle.getAttribute('aria-valuenow'))).toBe(before + 60));
+    expect(document.querySelector('[aria-sort="descending"]')?.textContent).toBe(sortedBefore);
+
+    // Double-click returns it to its natural width.
+    fireEvent.doubleClick(handle);
+    await waitFor(() => expect(Number(handle.getAttribute('aria-valuenow'))).toBe(before));
   });
 });

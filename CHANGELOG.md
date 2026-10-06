@@ -16,9 +16,23 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Totals in the column headers** — CPU, memory, disk, network and GPU show
   how busy the whole machine is above each column. Disk and GPU show the
   busiest device; a reading the machine cannot give shows a dash, not 0 %.
+- **Power usage columns** — "Power usage" and "Power usage trend" on Task
+  Manager's five-step scale, estimated from CPU, GPU, disk and network
+  activity (Windows does not report energy per process; the column's
+  tooltip says so). The trend smooths over about two minutes.
+- **More columns** — Type, Working set, Disk read, Disk write and Parent PID.
+- **Bring to front** — right-click an app with a window to restore and raise
+  it. Offered only for processes that have a window to show.
+- **The Apps filter works** — processes with a window you can switch to are
+  now recognised as apps, as Task Manager counts them.
 
 ### Fixed
 
+- Threads, Handles and Uptime (any column off by default) could not be
+  turned on from the Columns menu.
+- Dragging a column edge sorted by the next column instead of resizing; the
+  handle now sits on top and keeps the drag. Double-click resets a width.
+- The search box now lines up with the edge of the table below it.
 - A process key sent back from the app or a paired phone could fail its
   identity check as "PID reused", because the webview prints large numbers
   in a shorter form than it stores. Keys are now normalised when read.

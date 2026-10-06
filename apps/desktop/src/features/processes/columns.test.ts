@@ -1,12 +1,57 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  COLUMNS,
   COLUMN_BY_ID,
   DEFAULT_PREFERENCES,
   loadPreferences,
   mergePreferences,
   savePreferences,
+  toggleColumn,
 } from './columns';
+
+describe('toggleColumn', () => {
+  it('translates every value a translated column can produce, in both locales', async () => {
+    // The Type column first shipped showing "process.kind.background": its
+    // keys existed only as English fallbacks, never in a locale bundle.
+    const { bundles } = await import('./strings');
+    const values: Readonly<Record<string, readonly string[]>> = {
+      'processes:kind.': ['app', 'background', 'service', 'system', 'containerized'],
+      'processes:power.': ['veryLow', 'low', 'moderate', 'high', 'veryHigh'],
+    };
+    for (const column of COLUMNS) {
+      const prefix = column.translate;
+      if (prefix === undefined || !prefix.startsWith('processes:')) continue;
+      const path = prefix.slice('processes:'.length, -1);
+      for (const locale of ['en', 'ro'] as const) {
+        const group = (bundles[locale] as unknown as Record<string, Record<string, string>>)[path];
+        for (const value of values[prefix] ?? []) {
+          expect(group?.[value], `${locale} ${prefix}${value}`).toBeTruthy();
+        }
+      }
+    }
+  });
+
+  it('can show every column, including the ones that are off by default', () => {
+    // Ticking Threads, Handles or Uptime used to do nothing at all.
+    for (const column of COLUMNS) {
+      const without = DEFAULT_PREFERENCES.visible.filter(
+        (id) => id !== column.id || column.required,
+      );
+      expect(toggleColumn(without, column.id), column.id).toContain(column.id);
+    }
+  });
+
+  it('hides a visible column and puts it back where it was', () => {
+    const hidden = toggleColumn(DEFAULT_PREFERENCES.visible, 'memory');
+    expect(hidden).not.toContain('memory');
+    expect(toggleColumn(hidden, 'memory')).toEqual(DEFAULT_PREFERENCES.visible);
+  });
+
+  it('never removes a required column', () => {
+    expect(toggleColumn(DEFAULT_PREFERENCES.visible, 'name')).toContain('name');
+  });
+});
 
 function memoryStorage(): Storage {
   const map = new Map<string, string>();
@@ -78,6 +123,8 @@ describe('column rendering', () => {
     rolledDisk: 0,
     rolledNetwork: 0,
     rolledGpu: null,
+    rolledPower: 0,
+    powerTrend: null,
     descendantCount: 0,
     process: {
       key: { pid: 1, startTime: 1 },

@@ -26,6 +26,7 @@ import {
 import {
   COLUMNS,
   DEFAULT_PREFERENCES,
+  toggleColumn,
   loadPreferences,
   savePreferences,
   type ColumnId,
@@ -33,6 +34,7 @@ import {
 } from './columns';
 import { buildRows, collectSubtree, type KindFilter, type ProcessRow } from './model';
 import { tauriIconStore, type IconStore } from './icons';
+import { createTrendStore, powerLevel, powerScore } from './power';
 import { columnTotals } from './totals';
 import { ProcessDetails } from './ProcessDetails';
 import { ProcessTable } from './ProcessTable';
@@ -153,17 +155,60 @@ export function ProcessesScreen({
     plan: ActionPlan | null;
   } | null>(null);
 
-  const built = useMemo(
-    () =>
-      buildRows({
-        processes: snapshot.processes,
-        query,
-        kind: preferences.kind,
-        grouped: preferences.grouped,
-        expanded,
-      }),
-    [snapshot.processes, query, preferences.kind, preferences.grouped, expanded],
-  );
+  // Smoothed power per process, folded once per frame from every process —
+  // not only the visible ones, or filtering would reset a trend.
+  const [trendStore] = useState(createTrendStore);
+  const trend = useMemo((): { readonly values: ReadonlyMap<string, number> } => {
+    if (snapshot.pending) return { values: new Map() };
+    const scores = new Map<string, number>();
+    for (const [id, process] of snapshot.processes) {
+      scores.set(
+        id,
+        powerScore({
+          cpu: process.cpu,
+          gpu: process.gpu,
+          disk: process.diskRead + process.diskWrite,
+          network:
+            process.netRx === null || process.netTx === null ? null : process.netRx + process.netTx,
+        }),
+      );
+    }
+    return { values: trendStore.fold(snapshot.seq, snapshot.timestampMs, scores) };
+  }, [snapshot, trendStore]);
+
+  const built = useMemo(() => {
+    const result = buildRows({
+      processes: snapshot.processes,
+      query,
+      kind: preferences.kind,
+      grouped: preferences.grouped,
+      expanded,
+    });
+    if (trend.values.size === 0) return result;
+    // A parent's trend is the sum of its subtree's, like every other rolled
+    // figure; computed from the index so collapsed children still count.
+    const sums = new Map<string, number>();
+    const subtree = (id: string): number => {
+      const known = sums.get(id);
+      if (known !== undefined) return known;
+      const row = result.byId.get(id);
+      let sum = trend.values.get(id) ?? 0;
+      if (row !== undefined) for (const child of row.childIds) sum += subtree(child);
+      sums.set(id, sum);
+      return sum;
+    };
+    const withTrend = (row: ProcessRow): ProcessRow => ({
+      ...row,
+      powerTrend: trend.values.has(row.id) ? subtree(row.id) : null,
+    });
+    const byId = new Map<string, ProcessRow>();
+    for (const [id, row] of result.byId) byId.set(id, withTrend(row));
+    return {
+      ...result,
+      byId,
+      rows: result.rows.map((row) => byId.get(row.id) ?? row),
+    };
+  }, [snapshot.processes, query, preferences.kind, preferences.grouped, expanded, trend.values]);
 
   // Positions are held whenever a pointer is over the table or a menu is
   // open. Those are precisely the moments the user is aiming at a row, and a
@@ -232,24 +277,17 @@ export function ProcessesScreen({
   }, []);
 
   const onResize = useCallback((column: ColumnId, width: number) => {
-    setPreferences((current) => ({
-      ...current,
-      widths: { ...current.widths, [column]: width },
-    }));
+    setPreferences((current) => {
+      const widths = { ...current.widths };
+      // NaN is the handle's "back to the natural width" (double-click).
+      if (Number.isNaN(width)) delete widths[column];
+      else widths[column] = Math.round(width);
+      return { ...current, widths };
+    });
   }, []);
 
   const onToggleColumn = useCallback((column: ColumnId) => {
-    setPreferences((current) => {
-      const set = new Set(current.visible);
-      if (set.has(column)) set.delete(column);
-      else set.add(column);
-      return {
-        ...current,
-        visible: DEFAULT_PREFERENCES.visible
-          .concat(current.visible)
-          .filter((id, i, all) => all.indexOf(id) === i && set.has(id)),
-      };
-    });
+    setPreferences((current) => ({ ...current, visible: toggleColumn(current.visible, column) }));
   }, []);
 
   const onToggleExpand = useCallback((id: string) => {
@@ -561,6 +599,17 @@ export function ProcessesScreen({
           `${row.process.name}\tPID ${row.process.key.pid}\t${row.process.user ?? '—'}`,
         );
       },
+      onBringToFront: () => {
+        const name = displayName(row.process);
+        void actions
+          .bringToFront(row.process)
+          .then((raised) => {
+            if (!raised) setFailure(tp('front.noWindow', { name }));
+          })
+          .catch((error: unknown) =>
+            setFailure(tp('front.failed', { name, message: errorMessage(error) })),
+          );
+      },
     }),
     [actions, beginAction, pathOf, tp],
   );
@@ -579,7 +628,14 @@ export function ProcessesScreen({
     if (source === 'allIo') return tp('disk.allIo');
     return tp('disk.unknown');
   }, [facts.capabilities, tp]);
-  const columnTitles = useMemo(() => ({ disk: diskTitle }), [diskTitle]);
+  const columnTitles = useMemo(
+    () => ({
+      disk: diskTitle,
+      power: tp('column.powerHint'),
+      powerTrend: tp('column.powerHint'),
+    }),
+    [diskTitle, tp],
+  );
 
   // Raw units: CPU as a fraction of the machine, bytes, bytes per second,
   // seconds. The rolled-up figures are what the row displays, so a collapsed
@@ -619,8 +675,28 @@ export function ProcessesScreen({
       { id: 'threads', header: t('process.threads'), value: (row) => row.process.threadCount },
       { id: 'handles', header: t('process.handles'), value: (row) => row.process.handleCount },
       { id: 'uptimeSeconds', header: t('process.uptime'), value: (row) => row.process.uptimeSecs },
+      { id: 'kind', header: tp('column.kind'), value: (row) => row.process.kind },
+      { id: 'parentPid', header: tp('column.parentPid'), value: (row) => row.process.parent },
+      {
+        id: 'workingSetBytes',
+        header: tp('column.workingSet'),
+        value: (row) => row.process.memoryWorkingSet,
+      },
+      {
+        id: 'diskReadBytesPerSecond',
+        header: tp('column.diskRead'),
+        value: (row) => row.process.diskRead,
+      },
+      {
+        id: 'diskWriteBytesPerSecond',
+        header: tp('column.diskWrite'),
+        value: (row) => row.process.diskWrite,
+      },
+      // The level, not the score: the score is an internal weighting and
+      // would invite comparisons it cannot support.
+      { id: 'power', header: tp('column.power'), value: (row) => powerLevel(row.rolledPower) },
     ],
-    [t],
+    [t, tp],
   );
 
   return (

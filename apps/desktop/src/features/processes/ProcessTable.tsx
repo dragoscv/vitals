@@ -37,7 +37,7 @@ import { OVERSCAN, ROW_HEIGHT, UNKNOWN } from './constants';
 import { tauriIconStore, useProcessIcon, type IconStore } from './icons';
 import type { ProcessRow } from './model';
 import { ProcessMenu } from './ProcessMenu';
-import { fallback } from './strings';
+import { columnLabel, fallback } from './strings';
 import type { ColumnTotals } from './totals';
 
 export interface ProcessTableProps {
@@ -241,7 +241,7 @@ export function ProcessTable(props: ProcessTableProps): React.JSX.Element {
           >
             {columns.map((column, index) => {
               const active = props.sortColumn === column.id;
-              const label = t(column.labelKey, fallback(column.labelKey as never));
+              const label = columnLabel(t, column.labelKey);
               const total = column.id in totals ? (totals[column.id] ?? null) : undefined;
               return (
                 <div
@@ -442,7 +442,10 @@ const Row = memo(
         {columns.map((column, index) => {
           const isName = column.id === 'name';
           const raw = column.render(row, locale);
-          const text = column.id === 'state' ? t(`process.state.${row.process.state}`) : raw;
+          const text =
+            column.translate !== undefined && raw !== UNKNOWN
+              ? t(`${column.translate}${raw}`)
+              : raw;
 
           return (
             <div
@@ -560,13 +563,7 @@ function ResizeHandle({
 }): React.JSX.Element {
   const startX = useRef(0);
   const startWidth = useRef(current);
-
-  const onPointerMove = useCallback(
-    (event: PointerEvent) => {
-      onResize(column, Math.max(min, startWidth.current + (event.clientX - startX.current)));
-    },
-    [column, min, onResize],
-  );
+  const dragging = useRef(false);
 
   return (
     <div
@@ -587,18 +584,40 @@ function ResizeHandle({
           onResize(column, current + 8);
         }
       }}
+      // Pointer capture keeps the drag on this element wherever the cursor
+      // goes, and stopPropagation keeps the press from reaching the header
+      // button. Before, the handle sat *under* the next column's button
+      // (later in the DOM, same stacking level): a drag landed on that
+      // button and sorted by the neighbouring column instead of resizing
+      // (measured 2026-10-06: elementFromPoint at the handle = "Status").
       onPointerDown={(event) => {
+        if (event.button !== 0) return;
         event.preventDefault();
+        event.stopPropagation();
+        event.currentTarget.setPointerCapture(event.pointerId);
+        dragging.current = true;
         startX.current = event.clientX;
         startWidth.current = current;
-        const up = (): void => {
-          globalThis.removeEventListener('pointermove', onPointerMove);
-          globalThis.removeEventListener('pointerup', up);
-        };
-        globalThis.addEventListener('pointermove', onPointerMove);
-        globalThis.addEventListener('pointerup', up);
       }}
-      className="absolute inset-y-0 -right-1 w-2 cursor-col-resize hover:bg-[var(--color-accent)]/40 focus-visible:bg-[var(--color-accent)]"
+      onPointerMove={(event) => {
+        if (!dragging.current) return;
+        onResize(column, Math.max(min, startWidth.current + (event.clientX - startX.current)));
+      }}
+      onPointerUp={(event) => {
+        dragging.current = false;
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }}
+      onPointerCancel={() => {
+        dragging.current = false;
+      }}
+      onClick={(event) => event.stopPropagation()}
+      onDoubleClick={(event) => {
+        // Double-click returns the column to its natural width, as in
+        // Explorer and Task Manager.
+        event.stopPropagation();
+        onResize(column, Number.NaN);
+      }}
+      className="absolute inset-y-0 -right-1.5 z-20 w-3 cursor-col-resize touch-none after:absolute after:inset-y-2 after:left-1/2 after:w-px after:bg-[var(--color-border-subtle)] hover:after:w-0.5 hover:after:bg-[var(--color-accent)] focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
     />
   );
 }

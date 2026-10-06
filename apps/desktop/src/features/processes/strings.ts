@@ -18,6 +18,7 @@
  */
 
 import { i18n } from '@vitals/i18n';
+import type { TFunction } from 'i18next';
 
 export const PROCESSES_NS = 'processes';
 
@@ -79,6 +80,36 @@ const en = {
   panel: {
     hide: 'Hide details panel',
     show: 'Show details panel',
+  },
+  column: {
+    kind: 'Type',
+    workingSet: 'Working set',
+    diskRead: 'Disk read',
+    diskWrite: 'Disk write',
+    power: 'Power usage',
+    powerTrend: 'Power usage trend',
+    parentPid: 'Parent PID',
+    powerHint:
+      'Estimated from CPU, GPU, disk and network activity. Windows does not report energy per process.',
+  },
+  power: {
+    veryLow: 'Very low',
+    low: 'Low',
+    moderate: 'Moderate',
+    high: 'High',
+    veryHigh: 'Very high',
+  },
+  kind: {
+    app: 'App',
+    background: 'Background',
+    service: 'Service',
+    system: 'Windows',
+    containerized: 'Container',
+  },
+  front: {
+    action: 'Bring to front',
+    noWindow: '{{name}} has no window to show.',
+    failed: 'Could not bring {{name}} to the front: {{message}}',
   },
 } as const;
 
@@ -142,6 +173,36 @@ const ro = {
   panel: {
     hide: 'Ascunde panoul de detalii',
     show: 'Arată panoul de detalii',
+  },
+  column: {
+    kind: 'Tip',
+    workingSet: 'Set de lucru',
+    diskRead: 'Citire disc',
+    diskWrite: 'Scriere disc',
+    power: 'Consum energie',
+    powerTrend: 'Tendință consum',
+    parentPid: 'PID părinte',
+    powerHint:
+      'Estimat din activitatea procesorului, plăcii video, discului și rețelei. Windows nu raportează consumul pe proces.',
+  },
+  power: {
+    veryLow: 'Foarte mic',
+    low: 'Mic',
+    moderate: 'Moderat',
+    high: 'Mare',
+    veryHigh: 'Foarte mare',
+  },
+  kind: {
+    app: 'Aplicație',
+    background: 'Fundal',
+    service: 'Serviciu',
+    system: 'Windows',
+    containerized: 'Container',
+  },
+  front: {
+    action: 'Adu în față',
+    noWindow: '{{name}} nu are nicio fereastră de afișat.',
+    failed: 'Nu s-a putut aduce {{name}} în față: {{message}}',
   },
 } as const;
 
@@ -251,4 +312,14 @@ export type MissingKey = keyof typeof MISSING_KEYS;
 /** The i18next `defaultValue` for a key we know is absent. */
 export function fallback(key: MissingKey): string {
   return MISSING_KEYS[key];
+}
+
+/**
+ * A column's label. Columns added since the bundle existed carry a
+ * `processes:` key; the older ones a shared key with a fallback.
+ */
+export function columnLabel(t: TFunction, key: string): string {
+  if (key.startsWith(`${PROCESSES_NS}:`)) return t(key);
+  const defaultValue = (MISSING_KEYS as Readonly<Record<string, string>>)[key];
+  return defaultValue === undefined ? t(key) : t(key, defaultValue);
 }

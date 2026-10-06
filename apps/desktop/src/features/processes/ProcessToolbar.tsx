@@ -21,7 +21,7 @@ import { ExportButton } from '../../components/ExportButton';
 import type { ExportColumn } from '../../lib/export';
 import { COLUMNS, type ColumnId } from './columns';
 import type { KindFilter, ProcessRow } from './model';
-import { PROCESSES_NS, fallback } from './strings';
+import { PROCESSES_NS, columnLabel, fallback } from './strings';
 
 export interface ProcessToolbarProps {
   readonly query: string;
@@ -57,7 +57,11 @@ export function ProcessToolbar(props: ProcessToolbarProps): React.JSX.Element {
     // Wraps rather than overflowing: at the 720 px window minimum the one-line
     // toolbar was 141 px wider than the content column and dragged the whole
     // page sideways with it.
-    <div className="flex shrink-0 flex-wrap items-center gap-2 px-3 py-2">
+    // No horizontal padding: the search box's left edge and the panel toggle's
+    // right edge line up with the grid's border below, which starts flush
+    // with the content column (12 px of padding left the search box visibly
+    // indented from the table, 2026-10-06).
+    <div className="flex shrink-0 flex-wrap items-center gap-2 py-2">
       <SearchInput
         className="w-64 max-w-full min-w-40 flex-initial"
         value={props.query}
@@ -128,7 +132,7 @@ export function ProcessToolbar(props: ProcessToolbarProps): React.JSX.Element {
                   props.onToggleColumn(column.id);
                 }}
               >
-                {t(column.labelKey, fallback(column.labelKey as never))}
+                {columnLabel(t, column.labelKey)}
               </DropdownMenuCheckboxItem>
             ))}
           </DropdownMenuContent>

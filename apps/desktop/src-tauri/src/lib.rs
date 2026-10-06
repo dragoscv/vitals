@@ -189,6 +189,8 @@ fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
         commands::get_executable_path,
         #[cfg(windows)]
         commands::get_process_icons,
+        #[cfg(windows)]
+        commands::bring_process_to_front,
         // Shell integrations. No `cfg`: the non-Windows builds answer
         // `Unsupported`, which the UI can render, rather than Tauri
         // reporting a command that does not exist.

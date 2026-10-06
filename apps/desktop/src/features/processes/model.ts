@@ -10,17 +10,25 @@ import type { Process, ProcessKind } from '@vitals/protocol';
 import { displayName, matchesProcessName, processKeyId } from '@vitals/protocol';
 
 import { ProcessFlag, hasFlag } from './constants';
+import { powerScore } from './power';
 
 export type SortColumn =
   | 'name'
+  | 'kind'
   | 'pid'
+  | 'parentPid'
   | 'state'
   | 'user'
   | 'cpu'
   | 'memory'
+  | 'workingSet'
   | 'disk'
+  | 'diskRead'
+  | 'diskWrite'
   | 'network'
   | 'gpu'
+  | 'power'
+  | 'powerTrend'
   | 'threads'
   | 'handles'
   | 'uptime';
@@ -57,6 +65,13 @@ export interface ProcessRow {
   readonly rolledNetwork: number | null;
   /** Null when no descendant reports GPU usage, so it renders as unknown. */
   readonly rolledGpu: number | null;
+  /** Estimated power score over the row and its collapsed descendants. */
+  readonly rolledPower: number;
+  /**
+   * The smoothed power score; `null` until the screen has folded one.
+   * Filled in by the screen, not by `buildRows`, because it needs history.
+   */
+  readonly powerTrend: number | null;
   readonly descendantCount: number;
 }
 
@@ -80,6 +95,18 @@ export function sortValue(row: ProcessRow, column: SortColumn): number {
       return row.rolledNetwork ?? Number.NaN;
     case 'gpu':
       return row.rolledGpu ?? Number.NaN;
+    case 'power':
+      return row.rolledPower;
+    case 'powerTrend':
+      return row.powerTrend ?? Number.NaN;
+    case 'workingSet':
+      return p.memoryWorkingSet;
+    case 'diskRead':
+      return p.diskRead;
+    case 'diskWrite':
+      return p.diskWrite;
+    case 'parentPid':
+      return p.parent ?? Number.NaN;
     case 'pid':
       return p.key.pid;
     case 'threads':
@@ -102,6 +129,8 @@ export function textValue(row: ProcessRow, column: SortColumn): string | null {
       return row.process.user;
     case 'state':
       return row.process.state;
+    case 'kind':
+      return row.process.kind;
     default:
       return null;
   }
@@ -123,11 +152,19 @@ export const DEADBAND: Readonly<Record<SortColumn, { absolute: number; relative:
   disk: { absolute: 64 * 1024, relative: 0.15 },
   network: { absolute: 16 * 1024, relative: 0.15 },
   gpu: { absolute: 1, relative: 0.05 },
+  // One level boundary is 0.3 at the bottom; below that, noise.
+  power: { absolute: 0.3, relative: 0.1 },
+  powerTrend: { absolute: 0.1, relative: 0.05 },
+  workingSet: { absolute: 4 * 1024 * 1024, relative: 0.05 },
+  diskRead: { absolute: 64 * 1024, relative: 0.15 },
+  diskWrite: { absolute: 64 * 1024, relative: 0.15 },
   threads: { absolute: 0, relative: 0 },
   handles: { absolute: 0, relative: 0 },
   uptime: { absolute: 0, relative: 0 },
   // Identity columns are exact by nature; a deadband on a PID is meaningless.
   pid: { absolute: 0, relative: 0 },
+  parentPid: { absolute: 0, relative: 0 },
+  kind: { absolute: 0, relative: 0 },
   name: { absolute: 0, relative: 0 },
   user: { absolute: 0, relative: 0 },
   state: { absolute: 0, relative: 0 },
@@ -323,6 +360,13 @@ export function buildRows(options: BuildOptions): BuildResult {
       rolledDisk: totals.disk,
       rolledNetwork: totals.network,
       rolledGpu: totals.gpu,
+      rolledPower: powerScore({
+        cpu: totals.cpu,
+        gpu: totals.gpu,
+        disk: totals.disk,
+        network: totals.network,
+      }),
+      powerTrend: null,
       descendantCount: totals.count,
     };
     rows[index] = row;
@@ -338,6 +382,9 @@ export function buildRows(options: BuildOptions): BuildResult {
 }
 
 function leafRow(id: string, process: Process, depth: number): ProcessRow {
+  const disk = process.diskRead + process.diskWrite;
+  const network =
+    process.netRx === null || process.netTx === null ? null : process.netRx + process.netTx;
   return {
     id,
     process,
@@ -345,10 +392,11 @@ function leafRow(id: string, process: Process, depth: number): ProcessRow {
     childIds: [],
     rolledCpu: process.cpu,
     rolledMemory: process.memoryPrivate,
-    rolledDisk: process.diskRead + process.diskWrite,
-    rolledNetwork:
-      process.netRx === null || process.netTx === null ? null : process.netRx + process.netTx,
+    rolledDisk: disk,
+    rolledNetwork: network,
     rolledGpu: process.gpu,
+    rolledPower: powerScore({ cpu: process.cpu, gpu: process.gpu, disk, network }),
+    powerTrend: null,
     descendantCount: 0,
   };
 }

@@ -79,6 +79,9 @@ pub struct SampledProcess {
     /// The executable's own `FileDescription`, when it has one that says
     /// more than its file name.
     pub description: Option<String>,
+    /// Owns a window a person can switch to (what Task Manager calls an
+    /// app). One `EnumWindows` per tick answers this for every process.
+    pub has_window: bool,
 }
 
 /// Samples every subsystem on a shared clock.
@@ -243,7 +246,9 @@ impl SystemSampler {
         // twice would double the cost for data already in hand.
         let (gpus, gpu_by_process) = self.build_gpu_metrics(elapsed);
 
-        let processes = self.resolve_process_rates(raw_processes, elapsed, &gpu_by_process);
+        let windowed = crate::top_windows::windowed_pids();
+        let processes =
+            self.resolve_process_rates(raw_processes, elapsed, &gpu_by_process, &windowed);
         let disks = self.volumes(now, elapsed);
         let networks = self.build_network_metrics(elapsed);
 
@@ -310,6 +315,7 @@ impl SystemSampler {
         raw: Vec<RawProcess>,
         elapsed_ms: u32,
         gpu_by_process: &HashMap<u32, Percent>,
+        windowed: &std::collections::HashSet<u32>,
     ) -> Vec<SampledProcess> {
         // 100ns units, matching the kernel's CPU accounting.
         let elapsed_ticks = u64::from(elapsed_ms) * 10_000;
@@ -373,6 +379,7 @@ impl SystemSampler {
             // the list meant ~550 heap allocations per tick purely to hand
             // the same data onwards.
             out.push(SampledProcess {
+                has_window: windowed.contains(&process.key.pid.get()),
                 owner: self.owners.owner(process.key),
                 description: self
                     .descriptions

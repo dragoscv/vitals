@@ -23,6 +23,7 @@ import {
 import { displayName, type Process } from '@vitals/protocol';
 
 import { priorities, type ProcessPriority } from './actions';
+import { ProcessFlag, hasFlag } from './constants';
 import { PROCESSES_NS, fallback } from './strings';
 
 /**
@@ -68,6 +69,8 @@ export interface ProcessMenuProps {
   readonly onShowProperties: () => void;
   readonly onSearchOnline: () => void;
   readonly onCopyDetails: () => void;
+  /** Raises the process's window; offered only when it has one. */
+  readonly onBringToFront: () => void;
 }
 
 export function ProcessMenu(props: ProcessMenuProps): React.JSX.Element {
@@ -79,6 +82,7 @@ export function ProcessMenu(props: ProcessMenuProps): React.JSX.Element {
   const hasPath = props.executablePath !== null;
   const noPath = hasPath ? undefined : tp('detail.file.unknownPath');
   const appName = displayName(process);
+  const hasWindow = hasFlag(process.flags, ProcessFlag.HasWindow);
 
   return (
     <ContextMenuContent className="min-w-56">
@@ -92,6 +96,17 @@ export function ProcessMenu(props: ProcessMenuProps): React.JSX.Element {
         )}
       </ContextMenuLabel>
       <ContextMenuSeparator />
+
+      {/* First, because for an app the most common intent behind finding it
+          in a process list is "where is its window". Only for processes that
+          own one: a service has nothing to show, and a disabled item for
+          six hundred rows is noise. */}
+      {hasWindow && (
+        <>
+          <ContextMenuItem onSelect={props.onBringToFront}>{tp('front.action')}</ContextMenuItem>
+          <ContextMenuSeparator />
+        </>
+      )}
 
       <ContextMenuItem destructive onSelect={props.onTerminate}>
         {t('process.action.endTask')}

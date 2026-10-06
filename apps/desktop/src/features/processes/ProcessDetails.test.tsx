@@ -40,6 +40,7 @@ function stubActions(overrides: Partial<ProcessActionsApi> = {}): ProcessActions
     getHandles: vi.fn(async () => []),
     getModules: vi.fn(async () => []),
     getExecutablePath: vi.fn(async () => null),
+    bringToFront: vi.fn(async () => true),
     openFileLocation: vi.fn(async () => undefined),
     showFileProperties: vi.fn(async () => undefined),
     runAsAdmin: vi.fn(async () => undefined),
@@ -60,6 +61,8 @@ function row(pid = 300): ProcessRow {
     rolledDisk: 0,
     rolledNetwork: null,
     rolledGpu: null,
+    rolledPower: 0,
+    powerTrend: null,
   };
 }
 
