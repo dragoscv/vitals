@@ -24,6 +24,8 @@ export interface AppSettings {
   readonly startMinimised: boolean;
   /** The × button hides the window instead of quitting. */
   readonly closeToTray: boolean;
+  /** CPU load as the taskbar button's progress fill while the window is open. */
+  readonly taskbarLoad: boolean;
   readonly confirmEndTask: boolean;
   /** Whether the always-on-top overlay is showing. Re-opened on launch. */
   readonly hudVisible: boolean;
@@ -72,6 +74,7 @@ export const defaultSettings: AppSettings = {
   // a monitor closed by reflex stops monitoring with no warning. It records
   // nothing and sends nothing, so the "everything off" promise is untouched.
   closeToTray: true,
+  taskbarLoad: true,
   confirmEndTask: true,
   hudVisible: false,
 
@@ -165,6 +168,7 @@ export function parseSettings(raw: unknown): AppSettings {
     startWithWindows: bool(record['startWithWindows'], defaultSettings.startWithWindows),
     startMinimised: bool(record['startMinimised'], defaultSettings.startMinimised),
     closeToTray: bool(record['closeToTray'], defaultSettings.closeToTray),
+    taskbarLoad: bool(record['taskbarLoad'], defaultSettings.taskbarLoad),
     confirmEndTask: bool(record['confirmEndTask'], defaultSettings.confirmEndTask),
     hudVisible: bool(record['hudVisible'], defaultSettings.hudVisible),
 

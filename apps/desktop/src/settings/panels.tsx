@@ -114,6 +114,20 @@ export function GeneralPanel() {
       </SettingsRow>
 
       <SettingsRow
+        label={t('settings.general.taskbarLoad')}
+        description={t('settings.general.taskbarLoadHint')}
+      >
+        {({ labelId, describedBy }) => (
+          <Switch
+            aria-labelledby={labelId}
+            aria-describedby={describedBy}
+            checked={settings.taskbarLoad}
+            onCheckedChange={(value) => patch({ taskbarLoad: value })}
+          />
+        )}
+      </SettingsRow>
+
+      <SettingsRow
         label={t('settings.general.hudVisible')}
         description={t('settings.general.hudVisibleHint')}
       >

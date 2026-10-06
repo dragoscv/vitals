@@ -8,6 +8,7 @@ import { effectiveRate, pushSampleRate } from './lib/sampleRate';
 import {
   pushAutoUpdate,
   pushCloseToTray,
+  pushTaskbarLoad,
   pushHistoryEnabled,
   pushRetentionDays,
   pushTrayStrings,
@@ -105,7 +106,8 @@ function useSettingsSync(
   settings: ReturnType<typeof useSettings.getState>['settings'],
   hydrated: boolean,
 ): void {
-  const { historyEnabled, retentionDays, startWithWindows, closeToTray, autoUpdate } = settings;
+  const { historyEnabled, retentionDays, startWithWindows, closeToTray, autoUpdate, taskbarLoad } =
+    settings;
   const patch = useSettings((state) => state.patch);
 
   useEffect(() => {
@@ -122,6 +124,11 @@ function useSettingsSync(
     if (!hydrated) return;
     void pushCloseToTray(closeToTray);
   }, [hydrated, closeToTray]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    void pushTaskbarLoad(taskbarLoad);
+  }, [hydrated, taskbarLoad]);
 
   useEffect(() => {
     if (!hydrated) return;

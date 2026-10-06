@@ -39,6 +39,9 @@ const en = {
       startMinimised: 'Start minimised to the tray',
       closeToTray: 'Close to tray',
       closeToTrayHint: 'The × button hides Vitals; it keeps monitoring. Quit from the tray menu.',
+      taskbarLoad: 'Show CPU load on the taskbar button',
+      taskbarLoadHint:
+        'While the window is open, its taskbar button fills with the current CPU load, in your Windows accent colour — amber above 75 %, red above 90 %.',
       hudVisible: 'Show the overlay',
       hudVisibleHint:
         'A small always-on-top panel with CPU, memory and GPU. Ctrl+Shift+H shows or hides it.',
@@ -247,6 +250,9 @@ const ro = {
       closeToTray: 'Închide în bara de sistem',
       closeToTrayHint:
         'Butonul × ascunde Vitals; monitorizarea continuă. Închide-l din meniul barei de sistem.',
+      taskbarLoad: 'Arată încărcarea procesorului pe butonul din bara de activități',
+      taskbarLoadHint:
+        'Cât fereastra este deschisă, butonul ei din bara de activități se umple cu încărcarea procesorului, în culoarea de accent a Windows — galben peste 75 %, roșu peste 90 %.',
       hudVisible: 'Afișează suprapunerea',
       hudVisibleHint:
         'Un panou mic, mereu deasupra, cu procesor, memorie și placă video. Ctrl+Shift+H îl afișează sau îl ascunde.',

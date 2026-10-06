@@ -64,6 +64,12 @@ export interface ResourceEntry {
    * the meter for these rather than drawing an empty one.
    */
   readonly utilization: number | null;
+  /**
+   * The device's own temperature, shown small beside the detail line so
+   * a hot drive or GPU is visible without opening it. `null` when the
+   * device does not report one; the thermals entry has its own headline.
+   */
+  readonly temperature: number | null;
   /** The device's own id within its kind, for looking the device back up. */
   readonly deviceId: number | null;
   /** Whether this device starts hidden, before the user says otherwise. */
@@ -150,6 +156,7 @@ export function buildResourceList(
       name: '',
       detail: null,
       utilization: system.cpu.total,
+      temperature: system.cpu.temperature,
       deviceId: null,
       hiddenByDefault: false,
       hidden: false,
@@ -161,6 +168,7 @@ export function buildResourceList(
       name: '',
       detail: null,
       utilization: system.memory.total > 0 ? (system.memory.used / system.memory.total) * 100 : 0,
+      temperature: null,
       deviceId: null,
       hiddenByDefault: false,
       hidden: false,
@@ -177,6 +185,7 @@ export function buildResourceList(
       name: gpu.name,
       detail: gpu.driverVersion,
       utilization: gpu.utilization,
+      temperature: gpu.temperature,
       deviceId: gpu.id,
       hiddenByDefault,
       hidden: applyVisibility(key, hiddenByDefault, visibility),
@@ -195,6 +204,7 @@ export function buildResourceList(
       // shows almost no bytes per second while being completely unusable, and
       // a rail scaled on throughput would rank it as idle.
       utilization: disk.activeTime,
+      temperature: disk.temperature,
       deviceId: disk.id,
       hiddenByDefault: false,
       hidden: applyVisibility(key, false, visibility),
@@ -214,6 +224,7 @@ export function buildResourceList(
       // ceiling that Wi-Fi never reaches and that is null on many adapters.
       // The rail shows throughput as text instead.
       utilization: null,
+      temperature: null,
       deviceId: nic.id,
       hiddenByDefault,
       hidden: applyVisibility(key, hiddenByDefault, visibility),
@@ -228,6 +239,7 @@ export function buildResourceList(
       name: '',
       detail: null,
       utilization: hottest(system),
+      temperature: null,
       deviceId: null,
       hiddenByDefault: false,
       hidden: false,

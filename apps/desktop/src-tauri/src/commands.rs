@@ -184,6 +184,16 @@ pub fn set_close_to_tray(tray: State<'_, crate::tray::Tray>, enabled: bool) {
     tray.set_close_to_tray(enabled);
 }
 
+/// Whether the taskbar button shows CPU load as its progress fill.
+///
+/// A setting because a taskbar progress bar also means "this app is busy"
+/// to some people, and they should be able to turn the gauge off.
+#[tauri::command]
+#[allow(clippy::needless_pass_by_value)]
+pub fn set_taskbar_load(taskbar: State<'_, crate::taskbar::TaskbarLoad>, enabled: bool) {
+    taskbar.set_enabled(enabled);
+}
+
 /// Localised tray menu labels and tooltip words.
 ///
 /// Same argument as [`set_alert_strings`]: the tray renders in Rust so it

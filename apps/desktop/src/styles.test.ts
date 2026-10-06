@@ -125,7 +125,10 @@ describe('scroll gutters', () => {
       'utf8',
     );
     const values = tokenValues(theme, 'glow-accent-contained');
-    expect(values.length).toBe(2);
+    // Light, dark, and their re-declarations in the hardware-category scopes
+    // (which must repeat the formula to pick up the category's hue). Every
+    // one of them has to fit the gutter.
+    expect(values.length).toBeGreaterThanOrEqual(2);
     for (const value of values) expect(reach(value).side, value).toBeLessThanOrEqual(8);
   });
 });

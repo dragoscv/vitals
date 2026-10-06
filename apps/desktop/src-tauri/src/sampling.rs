@@ -207,6 +207,9 @@ fn run(app: &AppHandle, stop: &AtomicBool) {
                 // while the window is hidden. Both the icon and the tooltip
                 // are guarded on a change, so a steady machine costs nothing.
                 crate::tray::observe(app, frame.system());
+                if let Some(taskbar) = app.try_state::<crate::taskbar::TaskbarLoad>() {
+                    taskbar.observe(frame.system().cpu.total.0);
+                }
                 if app.emit(FRAME_EVENT, &frame).is_err() {
                     // The window is gone. Nothing to sample for.
                     break;

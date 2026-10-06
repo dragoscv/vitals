@@ -54,7 +54,7 @@ export function ThermalsPanel({
   const fans = collectFans(system);
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4" data-category="thermals">
       <p className="text-2xs text-[var(--color-fg-muted)]">{t('thermals.subtitle')}</p>
 
       {readings.length === 0 ? (

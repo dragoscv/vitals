@@ -13,6 +13,7 @@
  * thrashing.
  */
 
+import { useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { TimeSeriesChart } from '@vitals/charts';
@@ -34,13 +35,14 @@ export function MemoryPanel({
   readonly locale: string;
 }): React.JSX.Element {
   const { t } = useTranslation(PERFORMANCE_NS);
-  const colors = useThemeColors();
+  const scope = useRef<HTMLDivElement>(null);
+  const colors = useThemeColors(scope);
   const { memory } = system;
 
   const usedPercent = memory.total > 0 ? (memory.used / memory.total) * 100 : 0;
 
   return (
-    <div className="perf-panel">
+    <div ref={scope} className="perf-panel" data-category="memory">
       <div className="perf-chart">
         <div className="mb-2 flex items-baseline justify-between gap-3">
           <span className="text-2xs text-[var(--color-fg-muted)]">

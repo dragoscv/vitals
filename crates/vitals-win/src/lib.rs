@@ -43,6 +43,7 @@ pub mod network;
 pub mod process;
 pub mod sampler;
 pub mod sensors;
+pub mod slow_readings;
 pub mod startup;
 pub mod startup_task;
 pub mod storage;

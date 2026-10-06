@@ -25,9 +25,23 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   it. Offered only for processes that have a window to show.
 - **The Apps filter works** — processes with a window you can switch to are
   now recognised as apps, as Task Manager counts them.
+- **Temperatures and drive health in Performance** — CPU, NVIDIA GPU and every
+  drive show their temperature in the list and in detail. SSDs show how much
+  of their rated life is left (NVMe and SATA), with hours on, total written
+  and media errors where the drive reports them.
+- **CPU speed** — the current and base clock, the way Task Manager computes
+  them. It said "not reported by your hardware" before; the counter was
+  simply never read.
+- **CPU load on the taskbar** — while the window is open, its taskbar button
+  fills with the current CPU load, smoothly, turning amber above 75 % and
+  red above 90 %. Can be turned off in Settings.
+- **Colours per kind of hardware** in Performance: memory violet, GPU red,
+  disks amber, network blue, temperatures orange. CPU keeps your accent.
 
 ### Fixed
 
+- Charts ignored the chosen accent colour and were always drawn in the
+  default green: they read a colour variable that did not exist.
 - Threads, Handles and Uptime (any column off by default) could not be
   turned on from the Columns menu.
 - Dragging a column edge sorted by the next column instead of resizing; the

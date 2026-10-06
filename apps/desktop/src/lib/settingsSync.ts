@@ -79,6 +79,21 @@ export async function pushCloseToTray(enabled: boolean): Promise<void> {
 
 /**
  * Tells the background updater whether it may check and install. Lives in
+ * Tells the backend whether to draw CPU load on the taskbar button. Drawn
+ * from Rust because the animation runs between frames, off the webview.
+ */
+export async function pushTaskbarLoad(enabled: boolean): Promise<void> {
+  if (!hasTauriHost()) return;
+  try {
+    const { invoke } = await import('@tauri-apps/api/core');
+    await invoke('set_taskbar_load', { enabled });
+  } catch {
+    // Intentionally ignored; see module doc.
+  }
+}
+
+/**
+ * Tells the background updater whether it may check and install. Lives in
  * Rust because the install happens on quit, after the webview is gone.
  */
 export async function pushAutoUpdate(enabled: boolean): Promise<void> {

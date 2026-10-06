@@ -27,6 +27,7 @@ pub mod server;
 pub mod startup_impact;
 pub mod state;
 pub mod store;
+pub mod taskbar;
 pub mod tray;
 pub mod updates;
 pub mod users;
@@ -313,6 +314,7 @@ fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
         commands::set_alert_strings,
         commands::diagnose,
         commands::set_close_to_tray,
+        commands::set_taskbar_load,
         updates::set_auto_update,
         updates::get_pending_update,
         commands::set_tray_strings,
@@ -341,6 +343,7 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let handle = sampling::spawn(app.handle().clone());
     app.manage(handle);
     tray::install(app.handle())?;
+    app.manage(taskbar::TaskbarLoad::spawn(app.handle()));
     server::start_local_api(app.handle());
     arm_reveal_safety_net(app.handle().clone());
     updates::spawn(app.handle());

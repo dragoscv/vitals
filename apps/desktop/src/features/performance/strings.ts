@@ -45,6 +45,8 @@ const en = {
     perCore: 'Logical processors',
     coreLabel: 'Core {{index}}',
     throttled: 'Running below capability',
+    temperature: 'Temperature',
+    power: 'Package power',
   },
 
   memory: {
@@ -96,6 +98,7 @@ const en = {
     power: 'Power draw',
     fan: 'Fan',
     vendor: 'Vendor',
+    temperature: 'Temperature',
   },
 
   disk: {
@@ -117,7 +120,10 @@ const en = {
     lifeRemaining: 'Life remaining',
     powerOnHours: 'Powered on for',
     totalWritten: 'Total written',
-    reallocated: 'Reallocated sectors',
+    reallocated: 'Media errors',
+    temperature: 'Temperature',
+    lifeHint:
+      'What the drive reports of its rated write endurance. It wears down as data is written; a drive at 10 % is near the end of what its maker promised.',
     failing: 'This drive reports that it is failing',
     failingHint: 'The drive is telling you, not Vitals. Back it up now and plan to replace it.',
   },
@@ -224,6 +230,8 @@ const ro = {
     perCore: 'Procesoare logice',
     coreLabel: 'Nucleu {{index}}',
     throttled: 'Rulează sub capacitate',
+    temperature: 'Temperatură',
+    power: 'Consum procesor',
   },
 
   memory: {
@@ -272,6 +280,7 @@ const ro = {
     power: 'Consum',
     fan: 'Ventilator',
     vendor: 'Producător',
+    temperature: 'Temperatură',
   },
 
   disk: {
@@ -294,7 +303,10 @@ const ro = {
     lifeRemaining: 'Durată rămasă',
     powerOnHours: 'Pornit de',
     totalWritten: 'Total scris',
-    reallocated: 'Sectoare realocate',
+    reallocated: 'Erori de mediu',
+    temperature: 'Temperatură',
+    lifeHint:
+      'Cât raportează unitatea din rezistența la scriere promisă de producător. Scade pe măsură ce se scriu date; o unitate la 10 % este aproape de capăt.',
     failing: 'Această unitate raportează că se defectează',
     failingHint:
       'Îți spune unitatea însăși, nu Vitals. Fă o copie de siguranță acum și pregătește-te să o înlocuiești.',

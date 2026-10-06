@@ -30,6 +30,7 @@ import {
   Skeleton,
   cn,
   formatPercent,
+  formatTemperature,
 } from '@vitals/ui';
 import { Copy, Eye, EyeOff, PlugZap } from 'lucide-react';
 
@@ -225,13 +226,23 @@ function RailButton({
   const reading = readingText(entry, locale);
   // Exactly what the rail shows, no more: a summary that adds figures the
   // user cannot see is one they cannot check before pasting it somewhere.
-  const summary = [label, reading, entry.detail].filter((part) => part !== null).join(' · ');
+  const summary = [
+    label,
+    reading,
+    entry.detail,
+    entry.temperature === null ? null : formatTemperature(entry.temperature, locale),
+  ]
+    .filter((part) => part !== null)
+    .join(' · ');
 
   return (
     <ContextMenu {...menu.rootProps(entry.id)}>
       <ContextMenuTrigger asChild>
         <button
           type="button"
+          // Re-points the accent to this kind of hardware's colour for the
+          // whole button: border, wash, glow and meter fill follow.
+          data-category={entry.kind}
           onClick={onSelect}
           onContextMenu={menu.onContextMenu}
           aria-current={selected ? 'true' : undefined}
@@ -266,9 +277,14 @@ function RailButton({
               </span>
             )}
           </span>
-          {entry.detail !== null && (
-            <span className="block truncate text-2xs text-[var(--color-fg-subtle)]">
-              {entry.detail}
+          {(entry.detail !== null || entry.temperature !== null) && (
+            <span className="flex items-baseline justify-between gap-2 text-2xs text-[var(--color-fg-subtle)]">
+              <span className="truncate">{entry.detail}</span>
+              {entry.temperature !== null && (
+                <span className="tnum shrink-0 font-mono">
+                  {formatTemperature(entry.temperature, locale)}
+                </span>
+              )}
             </span>
           )}
           {entry.utilization !== null && entry.kind !== 'thermals' && (

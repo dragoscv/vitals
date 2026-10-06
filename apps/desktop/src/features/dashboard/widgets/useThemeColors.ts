@@ -50,10 +50,13 @@ const FALLBACK: ThemeColors = {
   grid: '#94a3b8',
 };
 
+// The real token names. These read `--color-accent-solid` and friends, which
+// no stylesheet defines, so every chart drew the fallback green whatever the
+// accent was set to (found 2026-10-06 adding hardware colours).
 const VARIABLES: Readonly<Record<keyof ThemeColors, string>> = {
-  accent: '--color-accent-solid',
-  warning: '--color-warning-solid',
-  danger: '--color-danger-solid',
+  accent: '--color-accent',
+  warning: '--color-status-warn',
+  danger: '--color-status-danger',
   muted: '--color-fg-muted',
   grid: '--color-border-subtle',
 };
@@ -76,19 +79,23 @@ export function readThemeColors(element: Element | null): ThemeColors {
   };
 }
 
-export function useThemeColors(): ThemeColors {
+/**
+ * Theme colours as resolved at `scope` — an element inside a
+ * `[data-category]` subtree gets that category's accent — or at the root.
+ */
+export function useThemeColors(scope?: React.RefObject<Element | null>): ThemeColors {
   const [colors, setColors] = useState<ThemeColors>(() =>
     readThemeColors(globalThis.document?.documentElement ?? null),
   );
 
   const refresh = useCallback(() => {
-    const next = readThemeColors(globalThis.document?.documentElement ?? null);
+    const next = readThemeColors(scope?.current ?? globalThis.document?.documentElement ?? null);
     // Compared field by field before setting: the observer fires for any
     // attribute change on <html>, including ones that do not affect colour,
     // and a new object identity each time would re-render every chart on the
     // dashboard for nothing.
     setColors((current) => (sameColors(current, next) ? current : next));
-  }, []);
+  }, [scope]);
 
   useEffect(() => {
     const root = globalThis.document?.documentElement;

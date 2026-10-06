@@ -66,7 +66,21 @@ fn main() {
         let _ = enumerate_adapters();
     });
 
-    let total = t_cpu + t_mem + t_proc + t_disk + t_net;
+    let mut clock = vitals_win::cpu::ClockSampler::open();
+    let t_clock = measure("cpu clock (pdh)", || {
+        let _ = clock
+            .as_mut()
+            .and_then(vitals_win::cpu::ClockSampler::sample);
+    });
+    let _ = vitals_win::slow_readings::latest();
+    let t_slow = measure("slow readings (clone)", || {
+        let _ = vitals_win::slow_readings::latest();
+    });
+    let t_windows = measure("windowed pids", || {
+        let _ = vitals_win::top_windows::windowed_pids();
+    });
+
+    let total = t_cpu + t_mem + t_proc + t_disk + t_net + t_clock + t_slow + t_windows;
     println!("{}", "-".repeat(40));
     println!("{:<28} {:>10.3?}", "sum", total);
 
@@ -93,6 +107,9 @@ fn main() {
         ("processes", t_proc),
         ("volumes", t_disk),
         ("adapters", t_net),
+        ("cpu clock", t_clock),
+        ("slow clone", t_slow),
+        ("windows", t_windows),
     ] {
         let pct = d.as_secs_f64() / total.as_secs_f64() * 100.0;
         let bar = "█".repeat((pct / 2.0).round() as usize);

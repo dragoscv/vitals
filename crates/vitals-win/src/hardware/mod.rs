@@ -26,7 +26,7 @@ use std::time::{Duration, Instant};
 
 use wmi::{Namespace, Row, Wmi, WmiValue};
 
-pub use drive_temp::read_drive_temperatures;
+pub use drive_temp::{DriveHealth, DriveReport, read_drive_reports, read_drive_temperatures};
 
 /// Everything [`read_inventory`] found, plus how long it took.
 #[derive(Debug, Clone, PartialEq, Default)]

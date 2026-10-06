@@ -129,6 +129,13 @@ pub struct SystemSampler {
     owners: OwnerCache,
     /// Process descriptions, resolved once per process lifetime.
     descriptions: crate::process::DescriptionCache,
+
+    /// Base and effective CPU clock from the performance counters; `None`
+    /// when the counter set is missing.
+    clock: Option<crate::cpu::ClockSampler>,
+    /// Which physical drive each volume lives on, refreshed with the volume
+    /// cache. `None` for a volume spanning several drives.
+    physical_drives: HashMap<DiskId, Option<u32>>,
 }
 
 impl Default for SystemSampler {
@@ -156,6 +163,8 @@ impl SystemSampler {
             gpu: GpuSampler::new(),
             owners: OwnerCache::new(),
             descriptions: crate::process::DescriptionCache::new(),
+            clock: crate::cpu::ClockSampler::open(),
+            physical_drives: HashMap::with_capacity(8),
         }
     }
 
@@ -225,7 +234,18 @@ impl SystemSampler {
         // A pipe read of tens of microseconds, backed off when the service is
         // absent — within the tick budget, unlike WMI (sensors::cpu_service).
         let service = crate::sensors::cpu_service::latest();
-        let cpu = build_cpu_metrics(&cpu_usage, &raw_processes, service.as_ref());
+        let clock = self
+            .clock
+            .as_mut()
+            .and_then(crate::cpu::ClockSampler::sample);
+        let mut cpu = build_cpu_metrics(&cpu_usage, &raw_processes, service.as_ref());
+        if let Some(clock) = clock {
+            cpu.effective_clock = Some(clock.effective);
+            cpu.max_clock = Some(clock.base);
+        }
+        // Drive and NVIDIA readings from the background thread: a clone of
+        // the last answer, never an IOCTL or a driver call on the tick.
+        let slow = crate::slow_readings::latest();
         let cpu_fans = service
             .map(|s| {
                 s.fans
@@ -244,12 +264,34 @@ impl SystemSampler {
         // GPU before processes: one PDH read produces both the per-adapter
         // engine breakdown and the per-process attribution, and reading it
         // twice would double the cost for data already in hand.
-        let (gpus, gpu_by_process) = self.build_gpu_metrics(elapsed);
+        let (mut gpus, gpu_by_process) = self.build_gpu_metrics(elapsed);
+        merge_nvidia(&mut gpus, &slow.nvidia);
 
         let windowed = crate::top_windows::windowed_pids();
         let processes =
             self.resolve_process_rates(raw_processes, elapsed, &gpu_by_process, &windowed);
-        let disks = self.volumes(now, elapsed);
+        let mut disks = self.volumes(now, elapsed);
+        for disk in &mut disks {
+            let Some(drive) = self
+                .physical_drives
+                .get(&disk.id)
+                .copied()
+                .flatten()
+                .and_then(|index| slow.drives.get(&index))
+            else {
+                continue;
+            };
+            disk.temperature = drive.celsius.map(vitals_core::units::Celsius);
+            disk.health = drive.health.map(|h| vitals_core::metrics::DiskHealth {
+                life_remaining: Some(Percent::new(f32::from(h.life_remaining))),
+                power_on_hours: h.power_on_hours,
+                total_written: h.bytes_written.map(Bytes),
+                // NVMe has no reallocated-sector count; media errors are the
+                // nearest honest figure and are what the field's label says.
+                reallocated_sectors: h.media_errors,
+                failing: h.critical,
+            });
+        }
         let networks = self.build_network_metrics(elapsed);
 
         Ok(Sample {
@@ -284,6 +326,18 @@ impl SystemSampler {
         if stale {
             self.volumes = build_disk_metrics();
             self.volumes_read_at = Some(now);
+            self.physical_drives = self
+                .volumes
+                .iter()
+                .map(|disk| {
+                    let drive = disk
+                        .mount
+                        .as_deref()
+                        .and_then(|m| m.chars().next())
+                        .and_then(crate::disk::physical_drive);
+                    (disk.id, drive)
+                })
+                .collect();
         }
 
         // Capacity is cached; activity is not. The counters are cumulative,
@@ -578,6 +632,29 @@ fn battery_from_aggregate(
         cycle_count: None,
         temperature: None,
     })
+}
+
+/// Fills NVIDIA adapters' temperature, power and fan from `NVML`.
+///
+/// Matched by name: `NVML` and `DXGI` both report the marketing name, and
+/// with two identical cards the readings go to them in order, which is the
+/// order both enumerate in.
+fn merge_nvidia(gpus: &mut [GpuMetrics], nvidia: &[crate::sensors::NvidiaGpu]) {
+    let mut used = vec![false; nvidia.len()];
+    for gpu in gpus.iter_mut().filter(|g| g.vendor == GpuVendor::Nvidia) {
+        let Some(index) = nvidia
+            .iter()
+            .enumerate()
+            .position(|(i, n)| !used[i] && gpu.name.eq_ignore_ascii_case(&n.name))
+        else {
+            continue;
+        };
+        used[index] = true;
+        let reading = &nvidia[index];
+        gpu.temperature = reading.temperature_celsius.map(vitals_core::units::Celsius);
+        gpu.power = reading.power_watts.map(vitals_core::units::Watts);
+        gpu.fan_percent = reading.fan_percent.map(Percent::new);
+    }
 }
 
 /// Infers the vendor from the driver-reported adapter name.

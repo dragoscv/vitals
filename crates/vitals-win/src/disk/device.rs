@@ -10,13 +10,14 @@
 use windows_sys::Win32::Foundation::{CloseHandle, FALSE, HANDLE, INVALID_HANDLE_VALUE};
 use windows_sys::Win32::Storage::FileSystem::{
     BusTypeNvme, BusTypeSd, BusTypeUsb, CreateFileW, FILE_SHARE_READ, FILE_SHARE_WRITE,
-    OPEN_EXISTING,
+    IOCTL_VOLUME_GET_VOLUME_DISK_EXTENTS, OPEN_EXISTING,
 };
 use windows_sys::Win32::System::IO::DeviceIoControl;
 use windows_sys::Win32::System::Ioctl::{
     DEVICE_SEEK_PENALTY_DESCRIPTOR, DISK_PERFORMANCE, IOCTL_DISK_PERFORMANCE,
     IOCTL_STORAGE_QUERY_PROPERTY, PropertyStandardQuery, STORAGE_DEVICE_DESCRIPTOR,
     STORAGE_PROPERTY_QUERY, StorageDeviceProperty, StorageDeviceSeekPenaltyProperty,
+    VOLUME_DISK_EXTENTS,
 };
 
 use vitals_core::metrics::DiskKind;
@@ -81,6 +82,22 @@ impl Drop for VolumeHandle {
         // SAFETY: the handle was returned by CreateFileW and is closed once.
         unsafe { CloseHandle(self.0) };
     }
+}
+
+/// Reads the cumulative activity counters of one volume.
+/// The physical drive (`\\.\PhysicalDriveN`) a volume lives on.
+///
+/// `None` for a volume spanning several drives (striped or Storage Spaces):
+/// its temperature and health belong to no single drive, and picking the
+/// first would attribute one disk's wear to the whole volume.
+#[must_use]
+pub fn physical_drive(letter: char) -> Option<u32> {
+    let handle = VolumeHandle::open(letter)?;
+    // A single-extent struct: a multi-extent volume fails with
+    // ERROR_MORE_DATA, which is exactly the "no single drive" answer.
+    let extents: VOLUME_DISK_EXTENTS =
+        handle.query::<(), _>(IOCTL_VOLUME_GET_VOLUME_DISK_EXTENTS, None)?;
+    (extents.NumberOfDiskExtents == 1).then_some(extents.Extents[0].DiskNumber)
 }
 
 /// Reads the cumulative activity counters of one volume.

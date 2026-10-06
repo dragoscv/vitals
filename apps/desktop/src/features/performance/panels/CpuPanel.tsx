@@ -12,7 +12,17 @@ import { useTranslation } from 'react-i18next';
 
 import { TimeSeriesChart } from '@vitals/charts';
 import type { SystemMetrics } from '@vitals/protocol';
-import { Badge, cn, formatCount, formatFrequency, formatPercent, formatUptime } from '@vitals/ui';
+import {
+  Badge,
+  cn,
+  formatCount,
+  formatFrequency,
+  formatPercent,
+  formatTemperature,
+  formatUptime,
+  formatWatts,
+} from '@vitals/ui';
+import { useRef } from 'react';
 
 import { useThemeColors } from '../../dashboard/widgets/useThemeColors';
 import type { MetricHistory } from '../../dashboard/history';
@@ -29,11 +39,12 @@ export function CpuPanel({
   readonly locale: string;
 }): React.JSX.Element {
   const { t } = useTranslation(PERFORMANCE_NS);
-  const colors = useThemeColors();
+  const scope = useRef<HTMLDivElement>(null);
+  const colors = useThemeColors(scope);
   const { cpu } = system;
 
   return (
-    <div className="perf-panel">
+    <div ref={scope} className="perf-panel" data-category="cpu">
       <div className="perf-chart">
         <div className="mb-2 flex items-baseline justify-between gap-3">
           <span className="text-2xs text-[var(--color-fg-muted)]">{t('cpu.utilisation')}</span>
@@ -79,8 +90,19 @@ export function CpuPanel({
           },
           {
             key: 'maxSpeed',
-            label: t('cpu.maxSpeed'),
+            // The counter's figure is the rated base clock; turbo runs above it.
+            label: t('cpu.baseSpeed'),
             value: cpu.maxClock !== null ? formatFrequency(cpu.maxClock, locale) : null,
+          },
+          {
+            key: 'temperature',
+            label: t('cpu.temperature'),
+            value: cpu.temperature !== null ? formatTemperature(cpu.temperature, locale) : null,
+          },
+          {
+            key: 'power',
+            label: t('cpu.power'),
+            value: cpu.power !== null ? formatWatts(cpu.power, locale) : null,
           },
           { key: 'kernel', label: t('cpu.kernelTime'), value: formatPercent(cpu.kernel, locale) },
           {

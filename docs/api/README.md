@@ -247,28 +247,32 @@ scrape_configs:
 
 Series you will see (all gauges):
 
-| Metric                            | Labels                 | Notes                                                    |
-| --------------------------------- | ---------------------- | -------------------------------------------------------- |
-| `vitals_cpu_percent`              |                        | Whole machine.                                           |
-| `vitals_cpu_kernel_percent`       |                        | Kernel-mode share.                                       |
-| `vitals_cpu_core_percent`         | `core`                 | Per logical processor.                                   |
-| `vitals_cpu_temperature_celsius`  |                        | Only with the optional sensors service (ADR-0034).       |
-| `vitals_cpu_power_watts`          |                        | CPU package power (RAPL); same service.                  |
-| `vitals_fan_rpm`                  | `fan`                  | Motherboard fan headers (Super-I/O); same service.       |
-| `vitals_memory_bytes`             | `state`                | `total`, `used`, `available`, `cached`.                  |
-| `vitals_disk_bytes_per_second`    | `disk`, `direction`    | `read` / `write`.                                        |
-| `vitals_disk_active_percent`      | `disk`                 | Share of time with IO outstanding.                       |
-| `vitals_disk_capacity_bytes`      | `disk`, `state`        | `total` / `free`.                                        |
-| `vitals_network_bytes_per_second` | `adapter`, `direction` | `rx` / `tx`.                                             |
-| `vitals_gpu_percent`              | `gpu`                  | Busiest engine. Absent for GPUs with no engine counters. |
-| `vitals_gpu_memory_bytes`         | `gpu`                  | Absent where the driver does not report VRAM.            |
-| `vitals_power_draw_watts`         |                        | Whole system; laptops and some desktops.                 |
-| `vitals_battery_percent`          |                        | Absent on machines without a battery.                    |
-| `vitals_process_count`            |                        |                                                          |
-| `vitals_thread_count`             |                        |                                                          |
-| `vitals_uptime_seconds`           |                        |                                                          |
-| `vitals_process_cpu_percent`      | `name`, `pid`          | Top 20 processes by CPU, then private memory.            |
-| `vitals_process_memory_bytes`     | `name`, `pid`          | Private bytes, same top 20.                              |
+| Metric                               | Labels                 | Notes                                                    |
+| ------------------------------------ | ---------------------- | -------------------------------------------------------- |
+| `vitals_cpu_percent`                 |                        | Whole machine.                                           |
+| `vitals_cpu_kernel_percent`          |                        | Kernel-mode share.                                       |
+| `vitals_cpu_core_percent`            | `core`                 | Per logical processor.                                   |
+| `vitals_cpu_temperature_celsius`     |                        | Only with the optional sensors service (ADR-0034).       |
+| `vitals_cpu_power_watts`             |                        | CPU package power (RAPL); same service.                  |
+| `vitals_cpu_clock_hertz`             |                        | Effective clock (base × % Processor Performance).        |
+| `vitals_gpu_temperature_celsius`     | `gpu`                  | NVIDIA via the driver's NVML; absent on other vendors.   |
+| `vitals_disk_temperature_celsius`    | `disk`                 | Per volume, from its physical drive (SATA or NVMe).      |
+| `vitals_disk_life_remaining_percent` | `disk`                 | SSD wear: NVMe SMART log or ATA device statistics.       |
+| `vitals_fan_rpm`                     | `fan`                  | Motherboard fan headers (Super-I/O); same service.       |
+| `vitals_memory_bytes`                | `state`                | `total`, `used`, `available`, `cached`.                  |
+| `vitals_disk_bytes_per_second`       | `disk`, `direction`    | `read` / `write`.                                        |
+| `vitals_disk_active_percent`         | `disk`                 | Share of time with IO outstanding.                       |
+| `vitals_disk_capacity_bytes`         | `disk`, `state`        | `total` / `free`.                                        |
+| `vitals_network_bytes_per_second`    | `adapter`, `direction` | `rx` / `tx`.                                             |
+| `vitals_gpu_percent`                 | `gpu`                  | Busiest engine. Absent for GPUs with no engine counters. |
+| `vitals_gpu_memory_bytes`            | `gpu`                  | Absent where the driver does not report VRAM.            |
+| `vitals_power_draw_watts`            |                        | Whole system; laptops and some desktops.                 |
+| `vitals_battery_percent`             |                        | Absent on machines without a battery.                    |
+| `vitals_process_count`               |                        |                                                          |
+| `vitals_thread_count`                |                        |                                                          |
+| `vitals_uptime_seconds`              |                        |                                                          |
+| `vitals_process_cpu_percent`         | `name`, `pid`          | Top 20 processes by CPU, then private memory.            |
+| `vitals_process_memory_bytes`        | `name`, `pid`          | Private bytes, same top 20.                              |
 
 Per-process series are capped at twenty because one series per process on a
 600-process machine is 1200 series a second, and the tail is noise.

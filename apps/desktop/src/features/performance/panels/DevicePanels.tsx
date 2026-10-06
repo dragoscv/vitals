@@ -15,6 +15,7 @@
  *   so a utilisation percentage would be invented rather than measured.
  */
 
+import { useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { TimeSeriesChart } from '@vitals/charts';
@@ -27,6 +28,7 @@ import {
   formatFrequency,
   formatLatency,
   formatPercent,
+  formatTemperature,
   formatThroughput,
   formatUptime,
   formatWatts,
@@ -47,11 +49,12 @@ export function GpuPanel({
   readonly locale: string;
 }): React.JSX.Element {
   const { t } = useTranslation(PERFORMANCE_NS);
-  const colors = useThemeColors();
+  const scope = useRef<HTMLDivElement>(null);
+  const colors = useThemeColors(scope);
   const buffer = history.gpu.get(gpu.id);
 
   return (
-    <div className="perf-panel">
+    <div ref={scope} className="perf-panel" data-category="gpu">
       <div className="perf-chart">
         <div className="mb-2 flex items-baseline justify-between gap-3">
           <span className="truncate text-sm font-medium">{gpu.name}</span>
@@ -101,6 +104,16 @@ export function GpuPanel({
       <StatList
         columns={3}
         stats={[
+          {
+            key: 'temperature',
+            label: t('gpu.temperature'),
+            value:
+              gpu.temperature !== null
+                ? gpu.hotspotTemperature !== null
+                  ? `${formatTemperature(gpu.temperature, locale)} / ${formatTemperature(gpu.hotspotTemperature, locale)}`
+                  : formatTemperature(gpu.temperature, locale)
+                : null,
+          },
           {
             key: 'dedicated',
             label: t('gpu.dedicatedMemory'),
@@ -162,12 +175,14 @@ export function DiskPanel({
   readonly locale: string;
 }): React.JSX.Element {
   const { t } = useTranslation(PERFORMANCE_NS);
-  const colors = useThemeColors();
+  const scope = useRef<HTMLDivElement>(null);
+  const colors = useThemeColors(scope);
   const buffer = history.diskActive.get(disk.id);
   const used = disk.total - disk.free;
+  const life = disk.health?.lifeRemaining ?? null;
 
   return (
-    <div className="perf-panel">
+    <div ref={scope} className="perf-panel" data-category="disk">
       <div className="perf-chart">
         <div className="mb-2 flex items-baseline justify-between gap-3">
           <span className="truncate text-sm font-medium">{disk.mount ?? disk.name}</span>
@@ -204,9 +219,27 @@ export function DiskPanel({
         />
       )}
 
+      {/* Health as a gauge, beside used space, because it is the one figure
+          on this page that predicts the future. Red below 10 %, amber below
+          30 %: the points at which a drive's maker stops promising anything. */}
+      {life !== null && (
+        <Meter
+          label={t('disk.lifeRemaining')}
+          accessibleLabel={`${disk.mount ?? disk.name} ${t('disk.lifeRemaining')}`}
+          value={life}
+          valueText={formatPercent(life, locale, 0)}
+          tone={life < 10 ? 'danger' : life < 30 ? 'warn' : 'ok'}
+        />
+      )}
+
       <StatList
         columns={3}
         stats={[
+          {
+            key: 'temperature',
+            label: t('disk.temperature'),
+            value: disk.temperature !== null ? formatTemperature(disk.temperature, locale) : null,
+          },
           {
             key: 'active',
             label: t('disk.activeTime'),
@@ -240,6 +273,7 @@ export function DiskPanel({
               disk.health?.lifeRemaining != null
                 ? formatPercent(disk.health.lifeRemaining, locale, 0)
                 : null,
+            hint: disk.health?.lifeRemaining != null ? t('disk.lifeHint') : undefined,
           },
           {
             key: 'hours',
@@ -281,12 +315,13 @@ export function NetworkPanel({
   readonly locale: string;
 }): React.JSX.Element {
   const { t } = useTranslation(PERFORMANCE_NS);
-  const colors = useThemeColors();
+  const scope = useRef<HTMLDivElement>(null);
+  const colors = useThemeColors(scope);
   const rx = history.netRx.get(nic.id);
   const tx = history.netTx.get(nic.id);
 
   return (
-    <div className="perf-panel">
+    <div ref={scope} className="perf-panel" data-category="network">
       <div className="perf-chart">
         <div className="mb-2 flex items-baseline justify-between gap-3">
           <span className="truncate text-sm font-medium">{nic.name}</span>

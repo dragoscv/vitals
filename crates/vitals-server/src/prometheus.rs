@@ -221,6 +221,82 @@ pub fn render(system: &SystemMetrics, processes: &[Process], top_n: usize) -> St
     }
 
     // Optional machine-wide readings. Omitted, not zeroed, when absent.
+    if let Some(clock) = system.cpu.effective_clock {
+        gauge(
+            &mut out,
+            "vitals_cpu_clock_hertz",
+            "Average effective CPU frequency over the last interval.",
+            |o| {
+                let _ = writeln!(o, "vitals_cpu_clock_hertz {}", clock.0);
+            },
+        );
+    }
+    let gpu_temps: Vec<_> = system
+        .gpus
+        .iter()
+        .filter_map(|g| g.temperature.map(|t| (g, t)))
+        .collect();
+    if !gpu_temps.is_empty() {
+        gauge(
+            &mut out,
+            "vitals_gpu_temperature_celsius",
+            "GPU core temperature, where the driver reports it.",
+            |o| {
+                for (g, t) in &gpu_temps {
+                    let _ = writeln!(
+                        o,
+                        "vitals_gpu_temperature_celsius{{gpu=\"{}\"}} {}",
+                        escape(&g.name),
+                        num(t.0)
+                    );
+                }
+            },
+        );
+    }
+    let disk_temps: Vec<_> = system
+        .disks
+        .iter()
+        .filter_map(|d| d.temperature.map(|t| (d, t)))
+        .collect();
+    if !disk_temps.is_empty() {
+        gauge(
+            &mut out,
+            "vitals_disk_temperature_celsius",
+            "Drive temperature, per volume, where the drive reports it.",
+            |o| {
+                for (d, t) in &disk_temps {
+                    let _ = writeln!(
+                        o,
+                        "vitals_disk_temperature_celsius{{disk=\"{}\"}} {}",
+                        escape(d.mount.as_deref().unwrap_or(&d.name)),
+                        num(t.0)
+                    );
+                }
+            },
+        );
+    }
+    let disk_life: Vec<_> = system
+        .disks
+        .iter()
+        .filter_map(|d| d.health.as_ref()?.life_remaining.map(|l| (d, l)))
+        .collect();
+    if !disk_life.is_empty() {
+        gauge(
+            &mut out,
+            "vitals_disk_life_remaining_percent",
+            "Remaining rated write endurance an SSD reports about itself.",
+            |o| {
+                for (d, l) in &disk_life {
+                    let _ = writeln!(
+                        o,
+                        "vitals_disk_life_remaining_percent{{disk=\"{}\"}} {}",
+                        escape(d.mount.as_deref().unwrap_or(&d.name)),
+                        num(l.0)
+                    );
+                }
+            },
+        );
+    }
     if let Some(temp) = system.cpu.temperature {
         gauge(
             &mut out,
