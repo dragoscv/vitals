@@ -69,7 +69,7 @@ windows-core = "0.62.2"
 # Process icons (process/icon.rs) go to the webview as PNG data URLs. Both
 # versions are already in the lock through tauri; nothing new is downloaded.
 png = "0.18.1"
-base64 = "0.22.1"
+base64 = "0.23.1"
 windows-sys = { version = "0.61.2", features = [
 	"Win32_Foundation",
 	"Win32_System_Memory",
