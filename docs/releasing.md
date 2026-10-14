@@ -212,17 +212,17 @@ CI, only for releases.
 | `SCOOP_DEPLOY_KEY`                   | Scoop                    | Private half of an ed25519 deploy key with write access on `dragoscv/scoop-vitals` only (the public half is registered there).                                                                                     |
 | `CHOCO_API_KEY`                      | Chocolatey               | community.chocolatey.org → _Account_ → API key.                                                                                                                                                                    |
 
-| Variable         | Effect when `true`                                                                                       |
-| ---------------- | -------------------------------------------------------------------------------------------------------- |
-| `PUBLISH_MACOS`  | Attach the macOS `.dmg` and updater archive to the release and add the `darwin-*` keys to `latest.json`. |
-| `PUBLISH_LINUX`  | Attach the AppImage, `.deb` and `.rpm` and add `linux-x86_64` to `latest.json`.                          |
-| `PUBLISH_NPM`    | Publish `packages/client` as `@vitals/client`, with npm provenance.                                      |
-| `PUBLISH_WINGET` | Open a winget-pkgs pull request for `Vitals.Vitals`.                                                     |
-| `PUBLISH_SCOOP`  | Push `bucket/vitals.json` to `dragoscv/scoop-vitals`.                                                    |
-| `PUBLISH_CHOCO`  | Pack and push the `vitals` Chocolatey package.                                                           |
-| `PUBLISH_PLAY`   | Upload the phone, Wear OS and TV bundles to Google Play (track rules below).                             |
-| `PLAY_ROLLOUT`   | Production rollout fraction for a stable tag, e.g. `0.2` (the default) or `1` for everyone.              |
-| `PLAY_DRAFT_APP` | `true` while the Play app has never passed review: production releases are uploaded as drafts.           |
+| Variable         | Effect when `true`                                                                                                                          |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PUBLISH_MACOS`  | Attach the macOS `.dmg` and updater archive to the release and add the `darwin-*` keys to `latest.json`.                                    |
+| `PUBLISH_LINUX`  | Attach the AppImage, `.deb` and `.rpm` and add `linux-x86_64` to `latest.json`.                                                             |
+| `PUBLISH_NPM`    | Publish `packages/client` as `@vitals/client`, with npm provenance.                                                                         |
+| `PUBLISH_WINGET` | Open a winget-pkgs pull request for `Vitals.Vitals`.                                                                                        |
+| `PUBLISH_SCOOP`  | Push `bucket/vitals.json` to `dragoscv/scoop-vitals`.                                                                                       |
+| `PUBLISH_CHOCO`  | Pack and push the `vitals` Chocolatey package.                                                                                              |
+| `PUBLISH_PLAY`   | Upload the phone, Wear OS and TV bundles to Google Play (track rules below).                                                                |
+| `PLAY_ROLLOUT`   | Production rollout fraction for a stable tag, e.g. `0.2` (the default) or `1` for everyone.                                                 |
+| `PLAY_DRAFT_APP` | `true` while the Play app has never passed review: production drafts, committed without sending for review (send from Publishing overview). |
 
 Publishing macOS or Linux turns that leg from advisory into a hard gate:
 `latest.json` would otherwise name a file that does not exist. Do it only
