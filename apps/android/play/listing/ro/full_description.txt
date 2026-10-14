@@ -1,4 +1,4 @@
-Vitals arată ce fac cu adevărat telefonul, ceasul și PC-ul tău, în cuvinte pe care le poate citi oricine, și nu inventează niciodată o valoare pe care nu a putut-o măsura.
+Vitals arată ce fac cu adevărat telefonul, ceasul, televizorul și PC-ul tău, în cuvinte pe care le poate citi oricine, și nu inventează niciodată o valoare pe care nu a putut-o măsura.
 
 ACEST TELEFON
 • Încărcarea procesorului pe fiecare grup de nuclee, frecvențele și temperatura
@@ -11,10 +11,15 @@ ACEST TELEFON
 • O săptămână de istoric și alerte când ceva se încinge, scade sau se umple
 
 CEASUL TĂU
-Aplicația Wear OS monitorizează ceasul însuși, cu o placă și complicații, și îți arată PC-urile pe încheietură.
+Aplicația Wear OS monitorizează ceasul însuși și îți arată PC-urile pe încheietură, cu o placă și complicații pentru încărcarea și temperatura procesorului unui PC.
+
+TELEVIZORUL TĂU
+Aplicația Android TV e gândită pentru telecomandă: monitorizează televizorul însuși și îți arată PC-urile pe ecranul mare. Asociezi un PC tastând codul de șase cifre pe care îl afișează, fără cameră.
 
 PC-UL TĂU (opțional)
-Asociază un PC cu Windows care rulează Vitals scanând codul QR. Vezi procesorul, placa grafică, memoria, temperaturile și procesele, primești alerte, îl trezești din somn și, cu o asociere de control, închizi sau suspenzi un proces care nu mai răspunde. Totul rămâne în rețeaua ta locală.
+Asociază un PC cu Windows care rulează Vitals scanând codul QR. Vezi procesorul, placa grafică, memoria, temperaturile și procesele, primești alerte, îl trezești din somn și, cu o asociere de control, închizi sau suspenzi un proces care nu mai răspunde. Două widgeturi pe ecranul de pornire țin un PC la vedere. Poți ține mai multe PC-uri într-o singură listă. Totul rămâne în rețeaua ta locală.
+
+Vitals pentru Windows este gratuit pe vitals.dragoscatalin.ro. Accesul la distanță rămâne oprit pe PC până îl pornești tu.
 
 ONEST DIN CONSTRUCȚIE
 • Dacă o valoare nu poate fi măsurată, Vitals arată o liniuță, nu un zero inventat

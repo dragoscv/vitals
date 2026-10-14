@@ -1,11 +1,13 @@
 {
   "name": "Vitals",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "owner": "Dragos Catalin Vladulescu",
   "writtenAs": "Vitals",
   "locales": ["en", "ro"],
   "source": "mark.mjs",
   "build": "node brand/scripts/build.mjs && node brand/scripts/demo.mjs",
+  "kit": "node brand/scripts/kit.mjs",
+  "kitDoc": "docs/brand-kit.md",
   "contrastPairs": "contrast-pairs.json",
   "concept": {
     "name": "All clear",

@@ -131,6 +131,73 @@ pub fn is_host(name: &str) -> bool {
     HOSTS.contains(&lower.as_str())
 }
 
+/// Developer build tools, matched case-insensitively against the image name.
+///
+/// Between 2026-10-12 and 2026-10-14 the watchdog proposed ending one of
+/// these more than fifteen times on a developer's machine, and every End
+/// killed someone's build. In almost every one the foreground window had
+/// answered in under 5 ms: a build saturating every core is the job working
+/// as intended, not a frozen desktop. So a build is only named under real
+/// memory pressure or a hung window — see `detect::may_propose`.
+///
+/// - Rust: `cargo` drives `rustc` (one per crate, sixteen at once is
+///   normal), `clippy-driver` and `rustdoc` are `rustc` by another name,
+///   `sccache` wraps all of them.
+/// - JavaScript: `turbo`, `pnpm` and `npm` orchestrate; `node` runs Vite,
+///   `eslint`, `vitest` and every other tool shipped as a script; `tsc` /
+///   `tsgo` typecheck; `esbuild` and `rolldown` bundle as native binaries.
+/// - Native toolchains: MSVC (`cl`, `link`, `msbuild`), LLVM (`ld.lld`,
+///   `lld-link`, and every `clang*` via [`BUILD_TOOL_PREFIXES`]), `cmake`,
+///   `ninja`, `make`, Go (`go`) and .NET (`dotnet`).
+/// - `rg`: agents and editors search whole repositories with it, and it
+///   uses every core for a few seconds by design.
+///
+/// Deliberately absent: `python.exe` and `java.exe`. Both run builds
+/// (Gradle's daemon is a `java`), but they run just as many ordinary
+/// applications, and with only the image name to go on a runaway Python
+/// script or Java app would become unnameable. A Gradle `java` started by a
+/// build tool in this list is still recognised through its ancestry.
+const BUILD_TOOLS: &[&str] = &[
+    "cargo.exe",
+    "rustc.exe",
+    "clippy-driver.exe",
+    "rustdoc.exe",
+    "sccache.exe",
+    "turbo.exe",
+    "pnpm.exe",
+    "npm.exe",
+    "node.exe",
+    "tsc.exe",
+    "tsgo.exe",
+    "esbuild.exe",
+    "rolldown.exe",
+    "cl.exe",
+    "link.exe",
+    "msbuild.exe",
+    "ld.lld.exe",
+    "lld-link.exe",
+    "cmake.exe",
+    "ninja.exe",
+    "make.exe",
+    "go.exe",
+    "dotnet.exe",
+    "rg.exe",
+];
+
+/// Families whose image names vary by version or target: `clang`,
+/// `clang++`, `clang-cl`, `clang-18`; `gradle` and `gradlew` launchers.
+const BUILD_TOOL_PREFIXES: &[&str] = &["clang", "gradle"];
+
+/// Whether `name` is a developer build tool.
+#[must_use]
+pub fn is_build_tool(name: &str) -> bool {
+    let lower = name.to_ascii_lowercase();
+    BUILD_TOOLS.contains(&lower.as_str())
+        || BUILD_TOOL_PREFIXES
+            .iter()
+            .any(|prefix| lower.starts_with(prefix))
+}
+
 /// Whether a host may be ended when it has no children of its own.
 fn host_endable_alone(name: &str) -> bool {
     let lower = name.to_ascii_lowercase();
@@ -201,6 +268,21 @@ impl Forest {
     #[must_use]
     pub fn find(&self, key: ProcessKey) -> Option<usize> {
         self.procs.iter().position(|p| p.key == key)
+    }
+
+    /// Whether `index` is part of a build: it, or any process it descends
+    /// from, is a build tool.
+    ///
+    /// The ancestry matters because the culprit the search lands on is the
+    /// worker, not the tool: a `node` running `eslint` nine levels below
+    /// `turbo`, a Gradle `java` below `pnpm`. Ancestors that are hosts (VS
+    /// Code, `pwsh`, `explorer`) are never build tools, so walking all the
+    /// way up cannot turn an ordinary app into a build.
+    #[must_use]
+    pub fn is_build(&self, index: usize) -> bool {
+        std::iter::once(index)
+            .chain(self.ancestors(index))
+            .any(|i| self.procs.get(i).is_some_and(|p| is_build_tool(&p.name)))
     }
 
     fn kids(&self, index: usize) -> &[usize] {
@@ -529,5 +611,48 @@ mod tests {
     fn host_matching_ignores_case() {
         assert!(is_host("PWSH.EXE"));
         assert!(!is_host("java.exe"));
+    }
+
+    #[test]
+    fn build_tools_are_recognised_whatever_the_case_and_generic_runtimes_are_not() {
+        for name in [
+            "Turbo.EXE",
+            "cargo.exe",
+            "RUSTC.exe",
+            "node.exe",
+            "rg.exe",
+            "clang-cl.exe",
+            "clang++.exe",
+            "gradlew.exe",
+        ] {
+            assert!(is_build_tool(name), "{name}");
+        }
+        for name in [
+            "python.exe",
+            "java.exe",
+            "chrome.exe",
+            "Code.exe",
+            "nodes.exe",
+        ] {
+            assert!(!is_build_tool(name), "{name}");
+        }
+    }
+
+    #[test]
+    fn a_worker_below_a_build_tool_is_part_of_the_build_and_an_app_beside_it_is_not() {
+        // VS Code → pwsh → turbo → cmd → java (Gradle): the java alone is
+        // not a build tool, but its ancestry makes it one.
+        let forest = Forest::new(vec![
+            p(1, 0, 1, "Code.exe", 0.0),
+            p(2, 1, 2, "pwsh.exe", 0.0),
+            p(3, 2, 3, "TURBO.EXE", 0.0),
+            p(4, 3, 4, "cmd.exe", 0.0),
+            p(5, 4, 5, "java.exe", 4.0),
+            p(6, 1, 6, "java.exe", 4.0),
+        ]);
+        assert!(forest.is_build(4));
+        assert!(forest.is_build(2));
+        assert!(!forest.is_build(5));
+        assert!(!forest.is_build(0));
     }
 }

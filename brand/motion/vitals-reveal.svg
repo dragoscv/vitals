@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" class="vk-reveal-512" viewBox="0 0 48 48" width="512" height="512" role="img" aria-label="Vitals — Logo reveal"><title>Vitals — Logo reveal</title><style>
+.vk-reveal-512 { overflow: visible; }
+.vk-reveal-512 .t, .vk-reveal-512 .g { transform-box: fill-box; transform-origin: center; }
+.vk-reveal-512 .l, .vk-reveal-512 .r { stroke-dasharray: 1; stroke-dashoffset: 0; }
+.vk-reveal-512 .r { opacity: 0; }
+.vk-reveal-512 .t { animation: vk-reveal-512-tile 495ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.vk-reveal-512 .l { animation: vk-reveal-512-draw 630ms cubic-bezier(0.22, 1, 0.36, 1) 270ms both; }
+.vk-reveal-512 .g { animation: vk-reveal-512-lift 360ms cubic-bezier(0.34, 1.56, 0.64, 1) 900ms both; }
+@keyframes vk-reveal-512-tile { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
+@keyframes vk-reveal-512-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes vk-reveal-512-lift { 0% { transform: translateY(0) scale(1); } 45% { transform: translateY(-1.5px) scale(1.06); } 100% { transform: translateY(0) scale(1); } }
+@media (prefers-reduced-motion: reduce) { .vk-reveal-512 * { animation: none !important; }  }
+@media print { .vk-reveal-512 * { animation: none !important; }  }</style><defs><linearGradient id="vk-reveal-512-g" x1="0.2" y1="0" x2="0.8" y2="1"><stop offset="0" stop-color="#227c45"/><stop offset="1" stop-color="#135c30"/></linearGradient></defs><rect class="t" x="3" y="3" width="42" height="42" rx="10" fill="url(#vk-reveal-512-g)"/><g class="g"><path class="l" d="M10 25.5H17L24 33.5L38 14" pathLength="1" fill="none" stroke="#ffffff" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/><path class="r" d="M10 25.5H17L24 33.5L38 14" pathLength="1" fill="none" stroke="#b2f48c" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/></g></svg>

@@ -17,7 +17,7 @@ use windows_sys::Win32::System::Threading::CreateMutexW;
 
 use crate::action::{Action, Shell};
 use crate::config::{Config, Sound};
-use crate::detect::{COMMIT_LOAD, Detector, Policy, Tick, Trigger};
+use crate::detect::{COMMIT_LOAD, Detector, Policy, Tick, Trigger, may_propose};
 use crate::forest::{Forest, Metric, Scope, Target};
 use crate::notify::{self, Button};
 use crate::strings::{self, EN, RO, Strings, fill};
@@ -345,6 +345,23 @@ fn propose_once(
     let Some(target) = forest.get(proposal.target.index) else {
         return;
     };
+    if !permitted(&forest, proposal.target.index, trigger, &tick) {
+        // No fallback to the next-heaviest process: the build is what the
+        // user feels, and naming a bystander instead would be wrong twice.
+        if policy.first_suppression(target.key) {
+            tracing::info!(
+                ?trigger,
+                name = %target.name,
+                pid = target.key.pid.get(),
+                window_ms = tick.window_ms,
+                scheduler_ms = tick.scheduler_ms,
+                memory_load = tick.memory_load,
+                commit_load = tick.commit_load,
+                "suppressed build-tool proposal"
+            );
+        }
+        return;
+    }
     if !policy.allow(target.key, &target.name, Instant::now()) {
         return;
     }
@@ -378,6 +395,13 @@ fn propose_once(
             at: Instant::now(),
         },
     );
+}
+
+/// Whether the culprit at `index` may be proposed for `trigger`: the
+/// build-tool rule of [`may_propose`], with "is a build" decided by the
+/// process and its ancestry.
+fn permitted(forest: &Forest, index: usize, trigger: Trigger, tick: &Tick) -> bool {
+    may_propose(trigger, tick, forest.is_build(index))
 }
 
 /// A chosen target and what may be offered for it.
@@ -1176,5 +1200,63 @@ mod tests {
             assert!(line.contains("Ctrl+Alt+Shift+D"), "{line}");
             assert!(!line.contains('{'), "{line}");
         }
+    }
+
+    fn busy(pid: u32, parent: u32, name: &str, cpu: f64) -> Proc {
+        Proc {
+            key: ProcessKey::new(Pid(pid), u64::from(pid)),
+            parent: (parent != 0).then_some(Pid(parent)),
+            name: name.to_owned(),
+            cpu,
+            memory: 0,
+        }
+    }
+
+    /// The 2026-10-13 log line, as a tick: probe late, window answering.
+    const BUILD_STALL: Tick = Tick {
+        window_ms: Some(0.0953),
+        scheduler_ms: 51.737,
+        hard_faults: 3.0,
+        memory_load: 66,
+        commit_load: Some(61),
+        hung: None,
+        idle_secs: 0,
+    };
+
+    /// pwsh → turbo → node (Vitest), and a game beside it.
+    fn build_and_game() -> Forest {
+        Forest::new(vec![
+            busy(1, 0, "pwsh.exe", 0.0),
+            busy(2, 1, "Turbo.exe", 0.1),
+            busy(3, 2, "node.exe", 6.0),
+            busy(4, 0, "game.exe", 5.0),
+        ])
+    }
+
+    #[test]
+    fn a_build_that_only_stalls_the_scheduler_is_never_proposed() {
+        let forest = build_and_game();
+        let turbo = forest.find(ProcessKey::new(Pid(2), 2)).expect("turbo");
+        let worker = forest.find(ProcessKey::new(Pid(3), 3)).expect("node");
+        assert!(!permitted(&forest, turbo, Trigger::Stall, &BUILD_STALL));
+        assert!(!permitted(&forest, worker, Trigger::Stall, &BUILD_STALL));
+    }
+
+    #[test]
+    fn a_build_holding_commit_at_ninety_five_percent_is_still_proposed() {
+        let forest = build_and_game();
+        let worker = forest.find(ProcessKey::new(Pid(3), 3)).expect("node");
+        let short = Tick {
+            commit_load: Some(95),
+            ..BUILD_STALL
+        };
+        assert!(permitted(&forest, worker, Trigger::Commit, &short));
+    }
+
+    #[test]
+    fn an_app_that_is_not_a_build_is_still_proposed_for_a_stall() {
+        let forest = build_and_game();
+        let game = forest.find(ProcessKey::new(Pid(4), 4)).expect("game");
+        assert!(permitted(&forest, game, Trigger::Stall, &BUILD_STALL));
     }
 }

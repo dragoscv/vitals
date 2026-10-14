@@ -74,9 +74,9 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # rust-toolchain.toml
         with:
-          components: rustfmt, clippy
+          toolchain: 1.99.0
 
       # Each job owns one cache: clippy's check metadata, a test build and a
       # release build share almost no artefacts, and one key for all three
@@ -123,7 +123,9 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # rust-toolchain.toml
+        with:
+          toolchain: 1.99.0
       # env block above must stay identical there: rust-cache hashes every
       # CARGO_* and RUST* variable into the key.
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
@@ -142,7 +144,9 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # rust-toolchain.toml
+        with:
+          toolchain: 1.99.0
 
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
@@ -187,9 +191,9 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # rust-toolchain.toml
         with:
-          components: clippy
+          toolchain: 1.99.0
 
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
@@ -304,7 +308,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # rust-toolchain.toml
+        with:
+          toolchain: 1.99.0
       # cargo-audit from source on every run — measured at 189 s of a 190 s
       # job elsewhere. This takes about ten seconds.
       - uses: taiki-e/install-action@4cef1412cce204788f482e778a0b9187f9626a29 # v2
@@ -345,14 +351,20 @@ jobs:
   # but wall-clock time: the installer build proves something the tests do
   # not (it bundles, it fits the budget), and on a red run the other jobs
   # already say so.
+  # Pushes only. On a pull request every Rust job above already compiles
+  # the same crates, and the release workflow bundles what actually ships.
+  # This was the largest line in October: 196 of 800 job-minutes, mostly
+  # spent on dependabot pull requests.
   build:
     name: Build installer
     needs: changes
-    if: needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.code == 'true' && github.event_name != 'pull_request'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # rust-toolchain.toml
+        with:
+          toolchain: 1.99.0
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           shared-key: windows-installer
@@ -377,6 +389,11 @@ jobs:
           '{"bundle":{"createUpdaterArtifacts":false}}' | Set-Content -Path $overlay -Encoding utf8NoBOM
           pnpm --filter @vitals/desktop tauri build --config $overlay
           if ($LASTEXITCODE -ne 0) { throw "tauri exited $LASTEXITCODE" }
+          # Dependabot PR 16 (run 38352465933): install and build both printed
+          # nothing and exited 0 in two seconds; only the size check noticed.
+          if (-not (Get-ChildItem target/release/bundle/nsis -Filter *.exe -ErrorAction SilentlyContinue)) {
+            throw 'tauri build exited 0 but produced no installer'
+          }
 
       # Size is a feature here, and it regresses one careless import at a
       # time. The budgets live in size-budget.json so a deliberate increase

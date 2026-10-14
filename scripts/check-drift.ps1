@@ -223,6 +223,30 @@ if (Test-Path $shell) {
     }
 }
 
+# ── Rust toolchain: one version everywhere ─────────────────────────────
+# rust-toolchain.toml pins the version for local builds; the workflows pass
+# the same version to dtolnay/rust-toolchain, which does not read the file.
+# A bump in one place only would give CI a different rustc (a cold cache and
+# different lints) without anyone noticing.
+
+$toolchainFile = Join-Path $root 'rust-toolchain.toml'
+if (Test-Path $toolchainFile) {
+    $pinned = [regex]::Match((Get-Content $toolchainFile -Raw), 'channel\s*=\s*"([^"]+)"').Groups[1].Value
+    foreach ($wf in Get-ChildItem (Join-Path $root '.github/workflows') -Filter *.yml) {
+        $lines = Get-Content $wf.FullName
+        for ($i = 0; $i -lt $lines.Count; $i++) {
+            if ($lines[$i] -notmatch 'dtolnay/rust-toolchain@') { continue }
+            $window = $lines[($i + 1)..([math]::Min($i + 4, $lines.Count - 1))] -join "`n"
+            $m = [regex]::Match($window, 'toolchain:\s*(\S+)')
+            if (-not $m.Success) {
+                $failures.Add("$($wf.Name):$($i+1) rust-toolchain step has no 'toolchain:' input; it would install floating stable, not $pinned")
+            } elseif ($m.Groups[1].Value -ne $pinned) {
+                $failures.Add("$($wf.Name):$($i+1) toolchain $($m.Groups[1].Value) differs from rust-toolchain.toml ($pinned)")
+            }
+        }
+    }
+}
+
 # ── Report ─────────────────────────────────────────────────────────────
 
 foreach ($w in $warnings) { Write-Host "warn  $w" -ForegroundColor Yellow }

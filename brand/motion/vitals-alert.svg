@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" class="vk-alert-512" viewBox="0 0 48 48" width="512" height="512" role="img" aria-label="Vitals — Alert"><title>Vitals — Alert</title><style>
+.vk-alert-512 { overflow: visible; }
+.vk-alert-512 .t, .vk-alert-512 .g { transform-box: fill-box; transform-origin: center; }
+.vk-alert-512 .l, .vk-alert-512 .r { stroke-dasharray: 1; stroke-dashoffset: 0; }
+.vk-alert-512 .r { opacity: 0; }
+.vk-alert-512 .g { animation: vk-alert-512-nudge 2200ms linear infinite; }
+@keyframes vk-alert-512-nudge { 0%, 8.182%, 100% { transform: translateX(0); } 1.391% { transform: translateX(-2px); } 4.091% { transform: translateX(2px); } 6.791% { transform: translateX(-1px); } }
+@media (prefers-reduced-motion: reduce) { .vk-alert-512 * { animation: none !important; }  }
+@media print { .vk-alert-512 * { animation: none !important; }  }</style><defs><linearGradient id="vk-alert-512-g" x1="0.2" y1="0" x2="0.8" y2="1"><stop offset="0" stop-color="#227c45"/><stop offset="1" stop-color="#135c30"/></linearGradient></defs><rect class="t" x="3" y="3" width="42" height="42" rx="10" fill="url(#vk-alert-512-g)"/><g class="g"><path class="l" d="M10 25.5H17L24 33.5L38 14" pathLength="1" fill="none" stroke="#ffffff" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/><path class="r" d="M10 25.5H17L24 33.5L38 14" pathLength="1" fill="none" stroke="#b2f48c" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/></g></svg>

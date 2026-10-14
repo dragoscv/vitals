@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" class="vk-pulse-32" viewBox="0 0 48 48" width="32" height="32" role="img" aria-label="Vitals — idle"><title>Vitals — idle</title><style>
+.vk-pulse-32 { overflow: visible; }
+.vk-pulse-32 .t, .vk-pulse-32 .g { transform-box: fill-box; transform-origin: center; }
+.vk-pulse-32 .l, .vk-pulse-32 .r { stroke-dasharray: 1; stroke-dashoffset: 0; }
+.vk-pulse-32 .r { opacity: 0; }
+.vk-pulse-32 .g { animation: vk-pulse-32-lift 2400ms cubic-bezier(0.34, 1.56, 0.64, 1) infinite; }
+.vk-pulse-32 .r { stroke-dasharray: 0.28 1.28; animation: vk-pulse-32-trace 2400ms cubic-bezier(0.45, 0, 0.55, 1) infinite; }
+@keyframes vk-pulse-32-lift { 0% { transform: translateY(0) scale(1); } 6.750% { transform: translateY(-1.5px) scale(1.06); } 15.000%, 100% { transform: translateY(0) scale(1); } }
+@keyframes vk-pulse-32-trace { 0% { opacity: 1; stroke-dashoffset: 0.28; } 66.667% { opacity: 1; stroke-dashoffset: -1; } 66.677%, 100% { opacity: 0; stroke-dashoffset: -1; } }
+@media (prefers-reduced-motion: reduce) { .vk-pulse-32 * { animation: none !important; }  }
+@media print { .vk-pulse-32 * { animation: none !important; }  }</style><defs><linearGradient id="vk-pulse-32-g" x1="0.2" y1="0" x2="0.8" y2="1"><stop offset="0" stop-color="#227c45"/><stop offset="1" stop-color="#135c30"/></linearGradient></defs><rect class="t" x="3" y="3" width="42" height="42" rx="10" fill="url(#vk-pulse-32-g)"/><g class="g"><path class="l" d="M10 25.5H17L24 33L38 14.5" pathLength="1" fill="none" stroke="#ffffff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/><path class="r" d="M10 25.5H17L24 33L38 14.5" pathLength="1" fill="none" stroke="#b2f48c" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></g></svg>

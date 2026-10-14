@@ -158,9 +158,9 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: pwsh -NoProfile -File scripts/version.ps1 -Check $env:TAG
 
-      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # rust-toolchain.toml
         with:
-          components: rustfmt, clippy
+          toolchain: 1.99.0
 
       # Restore-only: main's CI owns this entry; a tag must not overwrite it.
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
@@ -262,8 +262,9 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # rust-toolchain.toml
         with:
+          toolchain: 1.99.0
           targets: ${{ matrix.platform.rust_targets }}
 
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
@@ -457,7 +458,9 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # rust-toolchain.toml
+        with:
+          toolchain: 1.99.0
 
       # Prebuilt binary; compiling it from source costs minutes per run.
       - uses: taiki-e/install-action@4cef1412cce204788f482e778a0b9187f9626a29 # v2
@@ -791,11 +794,20 @@ jobs:
       # to the `next` dist-tag. scripts/npm-release.mjs has the why.
       - run: node scripts/npm-release.mjs
 
+  # Track per release: a stable tag (no '-') goes to production, a
+  # pre-release tag to internal testing. Production starts as a staged
+  # rollout (PLAY_ROLLOUT, default 0.2 = 20 %) so a bad build reaches a fifth
+  # of users and can be halted from the Console; raise it there or by a
+  # second run. Owner decision 2026-10-14: the service account may release to
+  # production (Play Console -> Users and permissions -> vitals-play ->
+  # "Release to production"), granted in the Console, not here.
   play:
-    name: Google Play (internal)
+    name: Google Play
     needs: [plan, android, publish]
     if: needs.plan.outputs.is_release == 'true' && vars.PUBLISH_PLAY == 'true'
     runs-on: ubuntu-latest
+    env:
+      PRODUCTION: ${{ !contains(needs.plan.outputs.version, '-') }}
     permissions:
       contents: read
       # Workload Identity Federation: GitHub's OIDC token is exchanged for a
@@ -803,25 +815,62 @@ jobs:
       # leak, and the provider only accepts refs/tags/v* of this repo.
       id-token: write
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          sparse-checkout: apps/android/play/listing
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: play-bundles
           path: play
+      # r0adkll/upload-google-play reads release notes from files named
+      # whatsnew-<locale>; the listing keeps them in the fastlane layout
+      # (<locale>/changelogs/default.txt) that people edit.
+      - name: Release notes
+        shell: bash
+        run: |
+          mkdir -p whatsnew
+          for dir in apps/android/play/listing/*/; do
+            locale=$(basename "$dir")
+            if [ -f "$dir/changelogs/default.txt" ]; then
+              cp "$dir/changelogs/default.txt" "whatsnew/whatsnew-$locale"
+            fi
+          done
+          ls -l whatsnew
+          test -n "$(ls whatsnew)" || { echo "no release notes found"; exit 1; }
+      - name: Track
+        id: track
+        shell: bash
+        env:
+          ROLLOUT: ${{ vars.PLAY_ROLLOUT || '0.2' }}
+        run: |
+          if [ "$PRODUCTION" = "true" ]; then
+            echo "phone=production" >> "$GITHUB_OUTPUT"
+            echo "wear=wear:production" >> "$GITHUB_OUTPUT"
+            echo "tv=tv:production" >> "$GITHUB_OUTPUT"
+            echo "status=inProgress" >> "$GITHUB_OUTPUT"
+            echo "fraction=$ROLLOUT" >> "$GITHUB_OUTPUT"
+          else
+            echo "phone=internal" >> "$GITHUB_OUTPUT"
+            echo "wear=wear:qa" >> "$GITHUB_OUTPUT"
+            echo "tv=tv:qa" >> "$GITHUB_OUTPUT"
+            echo "status=completed" >> "$GITHUB_OUTPUT"
+            echo "fraction=" >> "$GITHUB_OUTPUT"
+          fi
       - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
         id: gcp
         with:
           workload_identity_provider: projects/98856543199/locations/global/workloadIdentityPools/github/providers/vitals
           service_account: vitals-play@hai-small-apps.iam.gserviceaccount.com
           create_credentials_file: true
-      # Internal only: the account may release to testing tracks and no
-      # further, so promotion to production is always a person's decision.
       - uses: r0adkll/upload-google-play@e738b9dd8f2476ea806d921b64aacd24f34515a5 # v1
         with:
           serviceAccountJson: ${{ steps.gcp.outputs.credentials_file_path }}
           packageName: app.vitals
           releaseFiles: play/vitals-android.aab
-          track: internal
-          status: completed
+          track: ${{ steps.track.outputs.phone }}
+          status: ${{ steps.track.outputs.status }}
+          userFraction: ${{ steps.track.outputs.fraction }}
+          whatsNewDirectory: whatsnew
       # Phone and watch share one application id but not one track: Wear OS
       # has its own form-factor track. The API calls internal testing `qa`,
       # and a form-factor track is `<prefix>:<name>`, so this is `wear:qa`
@@ -831,8 +880,10 @@ jobs:
           serviceAccountJson: ${{ steps.gcp.outputs.credentials_file_path }}
           packageName: app.vitals
           releaseFiles: play/vitals-wear.aab
-          track: wear:qa
-          status: completed
+          track: ${{ steps.track.outputs.wear }}
+          status: ${{ steps.track.outputs.status }}
+          userFraction: ${{ steps.track.outputs.fraction }}
+          whatsNewDirectory: whatsnew
       # Android TV has its own form-factor track too: `tv:qa` is its internal
       # testing, as `wear:qa` is the watch's.
       - uses: r0adkll/upload-google-play@e738b9dd8f2476ea806d921b64aacd24f34515a5 # v1
@@ -840,8 +891,10 @@ jobs:
           serviceAccountJson: ${{ steps.gcp.outputs.credentials_file_path }}
           packageName: app.vitals
           releaseFiles: play/vitals-tv.aab
-          track: tv:qa
-          status: completed
+          track: ${{ steps.track.outputs.tv }}
+          status: ${{ steps.track.outputs.status }}
+          userFraction: ${{ steps.track.outputs.fraction }}
+          whatsNewDirectory: whatsnew
 
   winget:
     name: winget

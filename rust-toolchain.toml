@@ -1,0 +1,11 @@
+# One Rust version for every machine and every CI job.
+#
+# Floating `stable` cost twice: each new release changes rustc's version
+# hash, and Swatinem/rust-cache keys on it, so the first CI run after a
+# release compiled every Windows job cold (~20 min each); and new lints land
+# without warning (1.99 added clippy::assert_is_empty at 36 sites). Bump this
+# deliberately, in its own commit, with clippy green.
+[toolchain]
+channel = "1.99.0"
+components = ["rustfmt", "clippy"]
+profile = "minimal"

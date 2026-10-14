@@ -220,6 +220,8 @@ CI, only for releases.
 | `PUBLISH_WINGET` | Open a winget-pkgs pull request for `Vitals.Vitals`.                                                     |
 | `PUBLISH_SCOOP`  | Push `bucket/vitals.json` to `dragoscv/scoop-vitals`.                                                    |
 | `PUBLISH_CHOCO`  | Pack and push the `vitals` Chocolatey package.                                                           |
+| `PUBLISH_PLAY`   | Upload the phone, Wear OS and TV bundles to Google Play (track rules below).                             |
+| `PLAY_ROLLOUT`   | Production rollout fraction for a stable tag, e.g. `0.2` (the default) or `1` for everyone.              |
 
 Publishing macOS or Linux turns that leg from advisory into a hard gate:
 `latest.json` would otherwise name a file that does not exist. Do it only
@@ -251,7 +253,21 @@ norm for new OV and EV certificates) cannot be imported as a PFX; that needs
 | winget          | `PUBLISH_WINGET` + token    | **by hand**, once — `packaging/winget/README.md`              |
 | Scoop           | `PUBLISH_SCOOP` + token     | create `dragoscv/scoop-vitals` — `packaging/winget/README.md` |
 | Chocolatey      | `PUBLISH_CHOCO` + API key   | automatic, but moderated — `packaging/winget/README.md`       |
+| Google Play     | `PUBLISH_PLAY` (no secret)  | listing by hand once — `apps/android/play/README.md`          |
 | Microsoft Store | no                          | by hand, MSIX signed by Microsoft — below                     |
+
+**Google Play.** The `play` job signs in through Workload Identity
+Federation (no key exists). A **stable** tag (`v1.0.0`) goes to the
+`production`, `wear:production` and `tv:production` tracks as a staged
+rollout of `PLAY_ROLLOUT` (default 20 %), so a bad build can be halted in the
+Console before it reaches everyone; a tag with a `-` (`v1.1.0-beta.1`) goes to
+internal testing (`internal`, `wear:qa`, `tv:qa`) as before. Release notes
+come from `apps/android/play/listing/<locale>/changelogs/default.txt` (≤ 500
+characters each). Production needs the service account to hold _Release to
+production_ for this app in Play Console → Users and permissions (owner
+decision 2026-10-14), and a personal developer account must first have
+passed Google's closed-testing requirement — see
+`docs/store-research-2026-10.md`.
 
 Every package manager points at the **versioned** installer URL and the hash
 in `SHA256SUMS.txt`, never at the stable-named copy, whose bytes change with

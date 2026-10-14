@@ -1,4 +1,4 @@
-Vitals shows what your phone, your watch and your PC are really doing, in words a person can read, and never invents a number it could not measure.
+Vitals shows what your phone, your watch, your TV and your PC are really doing, in words a person can read, and never invents a number it could not measure.
 
 THIS PHONE
 • Processor load per core cluster, clock speeds and temperature
@@ -11,10 +11,15 @@ THIS PHONE
 • A week of history and alerts when something runs hot, low or full
 
 YOUR WATCH
-The Wear OS app monitors the watch itself, with a tile and complications, and shows your PCs on your wrist.
+The Wear OS app monitors the watch itself and shows your PCs on your wrist, with a tile and complications for a PC's processor load and temperature.
+
+YOUR TV
+The Android TV app is built for the remote: it monitors the TV itself and shows your PCs on the big screen. Pair a PC by typing the six-digit code it shows, no camera needed.
 
 YOUR PC (optional)
-Pair a Windows PC running Vitals by scanning its QR code. See its processor, graphics, memory, temperatures and processes, get alerts, wake it from sleep, and with a control pairing end or suspend a process that has stopped responding. Everything stays on your local network.
+Pair a Windows PC running Vitals by scanning its QR code. See its processor, graphics, memory, temperatures and processes, get alerts, wake it from sleep, and with a control pairing end or suspend a process that has stopped responding. Two home screen widgets keep one PC in view. Keep several PCs in one list. Everything stays on your local network.
+
+Vitals for Windows is free at vitals.dragoscatalin.ro. Remote access is off on the PC until you turn it on.
 
 HONEST BY DESIGN
 • If a reading cannot be measured, Vitals shows a dash, never a made-up zero

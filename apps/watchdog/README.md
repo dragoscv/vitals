@@ -22,6 +22,23 @@ children, anything in the session chain (`explorer`, `svchost`, `winlogon`,
 …), a critical or protected process, or a process that already runs at
 below-normal priority.
 
+Builds are left alone. When the process to blame, or anything it was
+started from, is a build tool (`cargo`, `rustc`, `turbo`, `pnpm`, `node`,
+`tsc`, `rg`, MSVC, LLVM, `cmake`, `ninja`, `go`, `dotnet`, … — the full list
+is `BUILD_TOOLS` in `src/forest.rs`), a slow scheduler never produces a
+proposal: a build is meant to use every core, and the desktop keeps
+answering while it does. A build is named only when memory or commit is at
+90 % or more at that moment, or when it owns a window that has stopped
+responding. `python` and `java` are not on the list because ordinary apps
+run on them too; a Gradle `java` counts when a listed tool started it. Each
+skipped proposal is logged once per process as
+`suppressed build-tool proposal`.
+
+A late scheduler alone is not a freeze, for any process. It counts only when
+the foreground window is also slow to answer (50 ms or more), or when there
+is no window to ask. Every false alarm in the log of 12–14 October had the
+window answering in under 5 ms while a busy CPU made the probe late.
+
 ## When the desktop itself freezes
 
 If `explorer.exe` (taskbar, Start) or `dwm.exe` (draws every window) stops

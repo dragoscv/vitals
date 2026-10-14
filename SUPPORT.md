@@ -37,7 +37,7 @@ from your computer; remove anything you do not want to be public.
 - Issues are triaged when the maintainer has time, usually within a couple of
   weeks. Security reports are acknowledged within 72 hours.
 - A report that can be reproduced is usually fixed first.
-- Vitals is a public beta (0.9.x). Only the latest release receives fixes;
-  please update before reporting.
+- Only the latest release (1.x) receives fixes; please update before
+  reporting.
 - macOS and Linux builds are not published yet, so reports for those systems
   cannot be acted on.

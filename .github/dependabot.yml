@@ -1,13 +1,14 @@
 # Latest-stable policy (ADR 0005): every dependency is expected to move
-# forward continuously. Weekly, grouped, so a Monday brings three PRs rather
-# than thirty.
+# forward continuously. Monthly and grouped: each pull request runs the full
+# CI (four Windows jobs), and four ecosystems weekly meant sixteen runs a
+# month that mostly bumped patch versions. Security fixes do not wait for
+# this schedule — Dependabot security updates open their own PRs at once.
 version: 2
 updates:
   - package-ecosystem: cargo
     directory: /
     schedule:
-      interval: weekly
-      day: monday
+      interval: monthly
     groups:
       cargo:
         patterns: ['*']
@@ -16,8 +17,7 @@ updates:
   - package-ecosystem: npm
     directory: /
     schedule:
-      interval: weekly
-      day: monday
+      interval: monthly
     groups:
       npm:
         patterns: ['*']
@@ -26,8 +26,7 @@ updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: weekly
-      day: monday
+      interval: monthly
     # v3 breaks release creation with a 403 (upstream issue #836); stay on
     # v2.6.2 until that is fixed, then delete this block.
     ignore:
@@ -40,8 +39,7 @@ updates:
   - package-ecosystem: gradle
     directory: /apps/android
     schedule:
-      interval: weekly
-      day: monday
+      interval: monthly
     groups:
       gradle:
         patterns: ['*']

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" class="vk-loader-512" viewBox="0 0 48 48" width="512" height="512" role="img" aria-label="Vitals — Loader"><title>Vitals — Loader</title><style>.vk-loader-512 { color: #135c30; } @media (prefers-color-scheme: dark) { .vk-loader-512 { color: #6cb882; } }
+.vk-loader-512 { overflow: visible; }
+.vk-loader-512 .t, .vk-loader-512 .g { transform-box: fill-box; transform-origin: center; }
+.vk-loader-512 .l, .vk-loader-512 .r { stroke-dasharray: 1; stroke-dashoffset: 0; }
+.vk-loader-512 .r { opacity: 0; }
+.vk-loader-512 .l { stroke-dasharray: 1 1; animation: vk-loader-512-load 1600ms cubic-bezier(0.45, 0, 0.55, 1) infinite; }
+@keyframes vk-loader-512-load { 0% { stroke-dashoffset: 1; } 50% { stroke-dashoffset: 0; } 100% { stroke-dashoffset: -1; } }
+@media (prefers-reduced-motion: reduce) { .vk-loader-512 * { animation: none !important; }  }
+@media print { .vk-loader-512 * { animation: none !important; }  }</style><g class="g"><path class="l" d="M10 25.5H17L24 33.5L38 14" pathLength="1" fill="none" stroke="currentColor" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/></g></svg>

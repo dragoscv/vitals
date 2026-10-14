@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" class="vk-thinking-16" viewBox="0 0 48 48" width="16" height="16" role="img" aria-label="Vitals — thinking"><title>Vitals — thinking</title><style>
+.vk-thinking-16 { overflow: visible; }
+.vk-thinking-16 .t, .vk-thinking-16 .g { transform-box: fill-box; transform-origin: center; }
+.vk-thinking-16 .l, .vk-thinking-16 .r { stroke-dasharray: 1; stroke-dashoffset: 0; }
+.vk-thinking-16 .r { opacity: 0; }
+.vk-thinking-16 .l { opacity: 0.55; }
+.vk-thinking-16 .r { opacity: 1; stroke-dasharray: 0.28 1.28; animation: vk-thinking-16-trace 1600ms cubic-bezier(0.45, 0, 0.55, 1) infinite; }
+@keyframes vk-thinking-16-trace { from { stroke-dashoffset: 0.28; } to { stroke-dashoffset: -1; } }
+@media (prefers-reduced-motion: reduce) { .vk-thinking-16 * { animation: none !important; } .vk-thinking-16 .r { stroke-dasharray: 1; stroke-dashoffset: 0; opacity: 0.9; } }
+@media print { .vk-thinking-16 * { animation: none !important; } .vk-thinking-16 .r { stroke-dasharray: 1; stroke-dashoffset: 0; opacity: 0.9; } }</style><defs><linearGradient id="vk-thinking-16-g" x1="0.2" y1="0" x2="0.8" y2="1"><stop offset="0" stop-color="#227c45"/><stop offset="1" stop-color="#135c30"/></linearGradient></defs><rect class="t" x="3" y="3" width="42" height="42" rx="10" fill="url(#vk-thinking-16-g)"/><g class="g"><path class="l" d="M9 27H18L24 33L39 15" pathLength="1" fill="none" stroke="#ffffff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><path class="r" d="M9 27H18L24 33L39 15" pathLength="1" fill="none" stroke="#b2f48c" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></g></svg>

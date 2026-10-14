@@ -32,11 +32,12 @@ Nothing in these terms excludes or limits liability that cannot be excluded
 or limited by law, and nothing affects the mandatory rights you have as a
 consumer under Romanian or European Union law.
 
-## Public beta
+## Stability
 
-Version 0.9.0 is the first stable release for Windows. Features may still
-change, readings may be wrong on some hardware, and bugs can happen. Builds for macOS and Linux are
-not published yet. Please [report problems](SUPPORT.md).
+Version 1.0.0 is the first production release for Windows, Android, Wear OS
+and Android TV. Features may still change, readings may be wrong on some
+hardware, and bugs can happen. Builds for macOS and Linux are not published
+yet. Please [report problems](SUPPORT.md).
 
 ## Acceptable use
 
@@ -126,12 +127,13 @@ fi exclusă sau limitată prin lege și nimic nu afectează drepturile imperativ
 pe care le aveți în calitate de consumator conform legislației din România sau
 a Uniunii Europene.
 
-## Versiune beta publică
+## Stabilitate
 
-Versiunea 0.9.0 este prima versiune stabilă pentru Windows. Funcțiile se
-pot schimba în continuare, unele valori pot fi greșite pe anumite componente
-hardware și pot apărea erori. Versiunile pentru macOS și Linux nu sunt publicate încă.
-Vă rugăm să [raportați problemele](SUPPORT.md).
+Versiunea 1.0.0 este prima versiune de producție pentru Windows, Android,
+Wear OS și Android TV. Funcțiile se pot schimba în continuare, unele valori
+pot fi greșite pe anumite componente hardware și pot apărea erori. Versiunile
+pentru macOS și Linux nu sunt publicate încă. Vă rugăm să
+[raportați problemele](SUPPORT.md).
 
 ## Utilizare acceptabilă
 

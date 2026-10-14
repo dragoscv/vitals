@@ -19,15 +19,16 @@ text per locale in the layout Gradle Play Publisher and fastlane read
 
 ## Publishing
 
-| What                   | Where                                                                                                                               |
-| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| Internal testers       | Email list "Hobby apps testers", shared with the other hobby apps; attached to both the phone and the Wear OS internal tracks       |
-| Phone internal track   | Track 4701269647694141701 (`qa` in the API); first release versionCode 8, 2026-09-29                                                |
-| Wear OS internal track | Track 4697898405601153351 (`wear:qa`); first release versionCode 1000008, 2026-09-29; Wear OS form factor opted in                  |
-| Android TV track       | `tv:qa` (internal testing); Android TV form factor opted in; banner `tv/src/main/res/drawable/tv_banner.xml`                        |
-| CI upload              | `play` job in `release.yml`: `v*` tags only, when repo variable `PUBLISH_PLAY` is `true`; all three tracks, status completed        |
-| CI identity            | `vitals-play@hai-small-apps.iam.gserviceaccount.com` through Workload Identity Federation, provider `github/vitals`; no key exists  |
-| Its Play permissions   | This app only: view app information, release to testing tracks. It cannot release to production — promotion stays a person's action |
+| What                   | Where                                                                                                                                                                                                                      |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Internal testers       | Email list "Hobby apps testers", shared with the other hobby apps; attached to both the phone and the Wear OS internal tracks                                                                                              |
+| Phone internal track   | Track 4701269647694141701 (`qa` in the API); first release versionCode 8, 2026-09-29                                                                                                                                       |
+| Wear OS internal track | Track 4697898405601153351 (`wear:qa`); first release versionCode 1000008, 2026-09-29; Wear OS form factor opted in                                                                                                         |
+| Android TV track       | `tv:qa` (internal testing); Android TV form factor opted in; banner `tv/src/main/res/drawable/tv_banner.xml`                                                                                                               |
+| CI upload              | `play` job in `release.yml`, `v*` tags with `PUBLISH_PLAY=true`: stable tag → `production` / `wear:production` / `tv:production` as a staged rollout (`PLAY_ROLLOUT`, default 0.2); pre-release tag → internal tracks      |
+| CI identity            | `vitals-play@hai-small-apps.iam.gserviceaccount.com` through Workload Identity Federation, provider `github/vitals`; no key exists                                                                                         |
+| Its Play permissions   | This app only: view app information, release to testing tracks **and release to production** (owner decision 2026-10-14; granted in Play Console → Users and permissions). A staged rollout can be halted from the Console |
+| Release notes          | `listing/<locale>/changelogs/default.txt` (≤ 500 chars), copied to `whatsnew-<locale>` by the `play` job                                                                                                                   |
 
 The provider's attribute condition is
 `assertion.repository == 'dragoscv/vitals' && assertion.ref.startsWith('refs/tags/v')`,

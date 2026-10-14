@@ -13,6 +13,18 @@ packages:
 # true, raise this to 1440 rather than leaving it at zero and hoping.
 minimumReleaseAge: 0
 
+# Transitive fixes the direct dependants have not shipped yet. Each one
+# failed `pnpm audit --audit-level high` in CI's Supply chain job on every
+# run since 2026-10-05 (19 of 22). Remove a line once `pnpm why <name>`
+# shows only patched versions without it.
+#   source-map-js  GHSA-68fv-2mgg-jv7q (high)   via @vitest/coverage-v8 > magicast
+#   postcss-selector-parser  (moderate)        via tailwind / postcss plugins
+#   esbuild  dev-server file read on Windows (low)  via vitest > vite, tsup
+overrides:
+  source-map-js: '>=1.2.2'
+  postcss-selector-parser: '>=7.1.6'
+  esbuild: '>=0.28.1'
+
 catalog:
   # React
   react: 19.3.0

@@ -20,7 +20,9 @@
 //!   Responding" (`IsHungAppWindow`) is the extreme of the same signal.
 //! - **The scheduler is starved.** A Normal-priority thread asks to sleep
 //!   10 ms and is woken late. The cursor and input threads of every
-//!   ordinary app run at that priority, so they are late too.
+//!   ordinary app run at that priority, so they are late too — but only
+//!   when the foreground window agrees (see [`UI_AGREES_MS`]). Alone, a
+//!   late probe was what every false alarm of 2026-10-12..14 looked like.
 //! - **The disk is standing in for RAM.** Hard faults a second, with memory
 //!   nearly full. Paging makes the CPU look idle while everything waits.
 //! - **Windows is about to run out of memory it can promise.** Commit charge
@@ -32,7 +34,7 @@
 //! And only while the person is there: no input for a minute means nobody
 //! is waiting on the screen, so a nightly build can saturate what it likes.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::time::{Duration, Instant};
 
 use vitals_core::ids::ProcessKey;
@@ -53,6 +55,58 @@ pub const NEEDED: u32 = 4;
 pub const HUNG_TICKS: u32 = 5;
 /// Seconds without keyboard or mouse input after which nobody is watching.
 pub const IDLE_SECS: u64 = 60;
+/// Foreground-window round trip, ms, at or above which a late scheduler
+/// counts as a stall.
+///
+/// A starved Normal-priority probe used to count on its own. In the log of
+/// 2026-10-12..14 every scheduler-only stall — fifteen proposals, builds
+/// and searches — had the window answering in under 5 ms: the user was
+/// typing into a desktop that felt fine. A real freeze slows the window
+/// too, so the probe now needs that corroboration. Far below every
+/// sensitivity's own window line (120–500 ms): it asks only "is the UI
+/// feeling this at all", not "is the UI slow enough by itself".
+pub const UI_AGREES_MS: f64 = 50.0;
+/// Memory or commit load, percent, at or above which a build may be named.
+///
+/// The same line as [`MEMORY_LOAD`] and [`COMMIT_LOAD`], but checked on the
+/// tick the proposal is made rather than over the window: a build whose
+/// peak has already passed is finishing, and ending it then only throws
+/// the work away.
+pub const BUILD_PRESSURE: u32 = if MEMORY_LOAD > COMMIT_LOAD {
+    MEMORY_LOAD
+} else {
+    COMMIT_LOAD
+};
+
+/// Whether a culprit may be proposed for `trigger`.
+///
+/// Anything that is not a build always may; the trigger already decided
+/// the user is feeling something. A build tool — see
+/// `forest::is_build_tool` — is treated as what it is:
+///
+/// - **Stall: never.** A build saturating every core starves the probe
+///   thread by design while the desktop keeps answering. Fifteen proposals
+///   in two days on 2026-10-12..14, the foreground window under 5 ms in
+///   nearly all of them, and every End threw away a build.
+/// - **Commit / Paging: only under real memory pressure**, memory or commit
+///   at [`BUILD_PRESSURE`] on this very tick. Running out of commit crashes
+///   the desktop, which is worse than losing a build.
+/// - **Hung: always.** A window that stopped answering is named whatever
+///   started it.
+#[must_use]
+pub fn may_propose(trigger: Trigger, tick: &Tick, build: bool) -> bool {
+    if !build {
+        return true;
+    }
+    match trigger {
+        Trigger::Stall => false,
+        Trigger::Commit | Trigger::Paging => {
+            tick.memory_load >= BUILD_PRESSURE
+                || tick.commit_load.is_some_and(|load| load >= BUILD_PRESSURE)
+        }
+        Trigger::Hung(_) => true,
+    }
+}
 
 /// One second of observation.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -155,9 +209,12 @@ impl Detector {
         }
 
         let window_slow = tick.window_ms.is_some_and(|ms| ms >= limits.window_ms);
-        let stall = self
-            .stall
-            .push(window_slow || tick.scheduler_ms >= limits.scheduler_ms);
+        // No foreground window (desktop, lock screen, a full-screen game
+        // that swallows messages) cannot corroborate either way, so the
+        // scheduler stands alone there as before.
+        let ui_agrees = tick.window_ms.is_none_or(|ms| ms >= UI_AGREES_MS);
+        let starved = tick.scheduler_ms >= limits.scheduler_ms && ui_agrees;
+        let stall = self.stall.push(window_slow || starved);
         let paging = self
             .paging
             .push(tick.memory_load >= MEMORY_LOAD && tick.hard_faults >= limits.hard_faults);
@@ -192,6 +249,11 @@ pub const GAP: Duration = Duration::from_secs(3 * 60);
 pub const SAME_TARGET: Duration = Duration::from_secs(15 * 60);
 /// How long "Ignore" silences an image name.
 pub const SNOOZE: Duration = Duration::from_secs(30 * 60);
+/// Culprits whose suppression has been logged, before the memo starts over.
+///
+/// A bound, not a policy: a day of builds is a few thousand PIDs, and
+/// logging one of them twice after a reset costs a line.
+const SUPPRESSED_MEMO: usize = 4_096;
 
 /// The don't-nag rules.
 ///
@@ -203,6 +265,7 @@ pub struct Policy {
     last: Option<Instant>,
     proposed: HashMap<ProcessKey, Instant>,
     snoozed: HashMap<String, Instant>,
+    suppressed: HashSet<ProcessKey>,
 }
 
 impl Policy {
@@ -230,6 +293,16 @@ impl Policy {
     /// Silences `name` for [`SNOOZE`].
     pub fn snooze(&mut self, name: &str, now: Instant) {
         self.snoozed.insert(name.to_ascii_lowercase(), now);
+    }
+
+    /// Whether a suppressed proposal for `key` is the first one, and so
+    /// worth a log line. A build stalls the probe every second for minutes;
+    /// one line per tick would bury the proposals the log exists for.
+    pub fn first_suppression(&mut self, key: ProcessKey) -> bool {
+        if self.suppressed.len() >= SUPPRESSED_MEMO {
+            self.suppressed.clear();
+        }
+        self.suppressed.insert(key)
     }
 }
 
@@ -291,13 +364,37 @@ mod tests {
     }
 
     #[test]
-    fn a_starved_scheduler_counts_even_when_the_window_still_answers() {
+    fn a_starved_scheduler_alone_is_not_a_stall_while_the_window_answers_at_once() {
+        // The 2026-10-13 log: probe 51-217 ms late, window under 5 ms,
+        // fifteen proposals in two days for a desktop the user felt fine.
         let mut d = Detector::default();
         let starved = Tick {
             scheduler_ms: 80.0,
             ..CALM
         };
-        assert_eq!(run(&mut d, starved, NEEDED), Some(Trigger::Stall));
+        assert_eq!(run(&mut d, starved, 30), None);
+    }
+
+    #[test]
+    fn a_starved_scheduler_counts_once_the_window_feels_it_too() {
+        let mut d = Detector::default();
+        let starved_and_felt = Tick {
+            scheduler_ms: 80.0,
+            window_ms: Some(UI_AGREES_MS),
+            ..CALM
+        };
+        assert_eq!(run(&mut d, starved_and_felt, NEEDED), Some(Trigger::Stall));
+    }
+
+    #[test]
+    fn a_starved_scheduler_counts_when_there_is_no_window_to_ask() {
+        let mut d = Detector::default();
+        let starved_blind = Tick {
+            scheduler_ms: 80.0,
+            window_ms: None,
+            ..CALM
+        };
+        assert_eq!(run(&mut d, starved_blind, NEEDED), Some(Trigger::Stall));
     }
 
     #[test]
@@ -509,5 +606,41 @@ mod tests {
         policy.snooze("Java.exe", t0);
         assert!(!policy.allow(key(9), "java.exe", t0 + Duration::from_secs(100)));
         assert!(policy.allow(key(9), "java.exe", t0 + SNOOZE));
+    }
+
+    #[test]
+    fn a_build_is_named_for_memory_only_when_this_tick_is_at_the_pressure_line() {
+        let peaked = Tick {
+            commit_load: Some(BUILD_PRESSURE),
+            ..CALM
+        };
+        let full = Tick {
+            memory_load: BUILD_PRESSURE,
+            ..CALM
+        };
+        let easing = Tick {
+            memory_load: BUILD_PRESSURE - 1,
+            commit_load: Some(BUILD_PRESSURE - 1),
+            ..CALM
+        };
+        for trigger in [Trigger::Commit, Trigger::Paging] {
+            assert!(may_propose(trigger, &peaked, true), "{trigger:?}");
+            assert!(may_propose(trigger, &full, true), "{trigger:?}");
+            assert!(!may_propose(trigger, &easing, true), "{trigger:?}");
+            assert!(may_propose(trigger, &easing, false), "{trigger:?}");
+        }
+    }
+
+    #[test]
+    fn a_hung_window_is_named_even_when_a_build_started_it() {
+        assert!(may_propose(Trigger::Hung(key(1)), &CALM, true));
+    }
+
+    #[test]
+    fn a_suppressed_culprit_is_logged_once_however_long_it_stalls_the_probe() {
+        let mut policy = Policy::default();
+        assert!(policy.first_suppression(key(1)));
+        assert!(!policy.first_suppression(key(1)));
+        assert!(policy.first_suppression(key(2)));
     }
 }

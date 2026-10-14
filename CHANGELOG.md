@@ -7,6 +7,12 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.0.0] — 2026-10-14
+
+The first production release: Windows (installer and Microsoft Store),
+Android phone, Wear OS and Android TV. It also carries everything listed
+under 0.9.0, which was tagged but never published.
+
 ### Added
 
 - **Program icons in the process list** — each row shows the program's own
@@ -37,6 +43,20 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   red above 90 %. Can be turned off in Settings.
 - **Colours per kind of hardware** in Performance: memory violet, GPU red,
   disks amber, network blue, temperatures orange. CPU keeps your accent.
+- **Brand kit** — logo motion (animated SVG, Lottie, MP4, GIF, WebM), splash
+  screens, animated icons, social and store images in English and Romanian,
+  a brand book (HTML and PDF) and a press kit, all generated from the one
+  brand source (`node brand/scripts/kit.mjs`, see `docs/brand-kit.md`).
+
+### Changed
+
+- **The watchdog leaves builds alone** — a compiler, bundler or package
+  manager keeping every core busy is no longer offered for ending when the
+  desktop is still responsive. It is named only under real memory pressure
+  (90 % or more) or when a window has hung. On the owner's machine it had
+  offered to end `turbo`, `node` and `rg` fifteen times in two days.
+- Store listings for Microsoft Store and Google Play rewritten around the
+  current features, in English and Romanian, with 1.0.0 release notes.
 
 ### Fixed
 
