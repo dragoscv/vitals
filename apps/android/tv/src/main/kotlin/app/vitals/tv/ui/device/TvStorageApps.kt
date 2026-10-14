@@ -115,6 +115,12 @@ internal fun StorageTab() {
             item(key = "scan") {
                 Panel(stringResource(R.string.device_scan_title), accent = Palette.Disk) {
                     when (val s = scan) {
+                        // Play build: nothing to grant, so point at the system's
+                        // storage manager, which sees every folder by itself.
+                        null if !access.allFilesAvailable -> {
+                            Hint(stringResource(R.string.device_scan_system_body))
+                            Action(stringResource(R.string.device_scan_system_open), onClick = { SpecialAccess.systemStorage(context) })
+                        }
                         null -> {
                             Hint(stringResource(R.string.device_scan_body))
                             if (access.allFiles) {
@@ -157,7 +163,15 @@ internal fun StorageTab() {
             message?.let { m -> item { Hint(m) } }
             if (cleanupLoaded && cleanup.isEmpty()) {
                 item {
-                    Hint(stringResource(if (access.allFiles || access.usageStats) R.string.device_cleanup_empty else R.string.device_cleanup_needs_access))
+                    Hint(
+                        stringResource(
+                            when {
+                                access.allFiles || access.usageStats -> R.string.device_cleanup_empty
+                                access.allFilesAvailable -> R.string.device_cleanup_needs_access
+                                else -> R.string.device_cleanup_needs_usage
+                            },
+                        ),
+                    )
                 }
             }
             items(cleanup.take(60), key = { "c-" + it.kind + (it.path ?: it.packageName) }) { item ->

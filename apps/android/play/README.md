@@ -52,16 +52,15 @@ changed to run there.
 
 ## Special access declarations
 
-Both are optional; every reading they gate stays empty until granted (ADR-0035).
+Optional; every reading it gates stays empty until granted (ADR-0035).
 
 - **`PACKAGE_USAGE_STATS`** — core feature: per-app screen time and data use
   on the Apps tab. Not shared, not sent anywhere.
-- **`MANAGE_EXTERNAL_STORAGE`** — core feature of a storage analyser: the
-  storage map, largest folders and files, and user-reviewed cleanup, which
-  needs to see every folder. This is the "file manager / disk analyser"
-  permitted use. Play reviews this declaration by hand and may ask for a
-  video: record the Storage tab granting access, scanning, and deleting a
-  reviewed file.
+- **`MANAGE_EXTERNAL_STORAGE` — not in the Play build.** 1.0.1 was rejected on
+  2026-10-14: "Not a core feature" (All files access). The `play` flavour no
+  longer declares it (the release workflow fails if it reappears); the folder
+  scan lives only in the `github` APK. If the Console still shows an "All files
+  access" declaration, answer that the app no longer uses the permission.
 
 ## Data safety answers
 

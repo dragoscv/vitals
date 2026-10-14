@@ -83,6 +83,15 @@ data class Access(
     val usageStats: Boolean,
     val allFiles: Boolean,
     val notifications: Boolean,
+    /**
+     * Whether this build declares all-files access at all. The Play build
+     * does not: Google rejected it as "not a core feature" of a system
+     * monitor (2026-10-14), so there the folder scan is replaced by the
+     * system's own storage manager instead of a grant button that can never
+     * work. Read from the installed manifest, not a build flag, so the UI
+     * cannot disagree with what the package really asks for.
+     */
+    val allFilesAvailable: Boolean = true,
 )
 
 sealed interface ScanProgress {

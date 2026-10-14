@@ -87,6 +87,13 @@ internal fun DeviceStorageTab(padding: PaddingValues) {
         item(key = "scan") {
             SectionCard(stringResource(R.string.device_scan_title), accent = Palette.Disk, modifier = Modifier.animateContentSize()) {
                 when (val s = scan) {
+                    // Play build: no all-files access to ask for, so a grant
+                    // button would be a dead end. The system's storage manager
+                    // can see every folder and needs no permission.
+                    null if !access.allFilesAvailable -> {
+                        Text(stringResource(R.string.device_scan_system_body), style = MaterialTheme.typography.bodyMedium)
+                        Button(onClick = { SpecialAccess.systemStorage(context) }) { Text(stringResource(R.string.device_scan_system_open)) }
+                    }
                     null -> {
                         Text(stringResource(R.string.device_scan_body), style = MaterialTheme.typography.bodyMedium)
                         if (access.allFiles) {
@@ -140,7 +147,13 @@ internal fun DeviceStorageTab(padding: PaddingValues) {
         if (cleanupLoaded && cleanup.isEmpty()) {
             item(key = "clean-empty") {
                 Text(
-                    stringResource(if (access.allFiles || access.usageStats) R.string.device_cleanup_empty else R.string.device_cleanup_needs_access),
+                    stringResource(
+                        when {
+                            access.allFiles || access.usageStats -> R.string.device_cleanup_empty
+                            access.allFilesAvailable -> R.string.device_cleanup_needs_access
+                            else -> R.string.device_cleanup_needs_usage
+                        },
+                    ),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }

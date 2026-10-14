@@ -5,7 +5,7 @@ THIS PHONE
 • Graphics load and clock where the phone reports them
 • Memory in use and how close Android is to closing apps
 • Battery: charge, health, temperature, voltage, current and charge cycles
-• Storage: a map of what fills your phone, the largest folders and files, and a cleanup you review before anything is deleted
+• Storage: what fills your phone by category (apps, photos, video, audio, other files), which apps keep the most cache, and a shortcut to the system's storage manager
 • Apps: time on screen and data used by each app over the last 24 hours
 • Every sensor the phone has, live
 • A week of history and alerts when something runs hot, low or full
@@ -24,5 +24,5 @@ Vitals for Windows is free at vitals.dragoscatalin.ro. Remote access is off on t
 HONEST BY DESIGN
 • If a reading cannot be measured, Vitals shows a dash, never a made-up zero
 • No ads, no account, no tracking; the only diagnostics are Google ML Kit's own, when you scan a QR code
-• Usage access and all-files access are optional; each feature that needs one says so and stays empty until you grant it
+• Usage access is optional; each feature that needs it says so and stays empty until you grant it
 • Free and open source (MIT): github.com/dragoscv/vitals

@@ -258,8 +258,10 @@ private fun PhoneCard() {
         AccessRow(stringResource(R.string.settings_access_usage), access.usageStats) {
             app.vitals.device.SpecialAccess.usage(context)
         }
-        AccessRow(stringResource(R.string.settings_access_files), access.allFiles) {
-            app.vitals.device.SpecialAccess.allFiles(context)
+        if (access.allFilesAvailable) {
+            AccessRow(stringResource(R.string.settings_access_files), access.allFiles) {
+                app.vitals.device.SpecialAccess.allFiles(context)
+            }
         }
     }
 }

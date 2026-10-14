@@ -44,6 +44,14 @@ android {
         }
     }
 
+    // Same split as :app — `play` without all-files access (Play policy,
+    // 2026-10-14), `github` with the folder scan for the sideloaded APK.
+    flavorDimensions += "store"
+    productFlavors {
+        create("play") { dimension = "store" }
+        create("github") { dimension = "store" }
+    }
+
     buildFeatures { compose = true }
 
     compileOptions {

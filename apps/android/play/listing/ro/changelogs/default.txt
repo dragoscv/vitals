@@ -1,5 +1,5 @@
-Vitals 1.0.1, prima versiune pe Google Play.
-• Telefonul, ceasul sau televizorul: procesor, memorie, baterie, harta stocării și curățare, timp și date pe aplicație, senzori, istoric și alerte
+Vitals 1.0.2, prima versiune pe Google Play.
+• Telefonul, ceasul sau televizorul: procesor, memorie, baterie, stocarea pe categorii și cache-ul aplicațiilor, timp și date pe aplicație, senzori, istoric și alerte
 • Asociezi un PC cu Windows prin cod QR sau, pe TV, prin cod de șase cifre; vezi procese și temperaturi, îl trezești, închizi un program blocat
 • Placă și complicații Wear OS, două widgeturi
 • Noul aspect „Totul e în regulă”

@@ -44,6 +44,7 @@ D-numbers refer to the decision table in [`../TRACKER.md`](../TRACKER.md).
 | [0034](0034-cpu-sensors-service.md)                        | CPU sensors through an optional PawnIO service          | S12-31  |
 | [0035](0035-on-device-monitor.md)                          | The phone and the watch monitor themselves              | S15-04  |
 | [0036](0036-google-tv-app-and-pairing-codes.md)            | A Google TV app, and pairing by six-digit code          | S15-08  |
+| [0037](0037-play-and-github-android-flavours.md)           | A Play build without all-files access, a GitHub build   | S16-21  |
 
 ## Writing a new one
 

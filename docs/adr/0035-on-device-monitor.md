@@ -67,3 +67,5 @@ app on current Android, and a monitor that pretends otherwise lies.
 - Play review will ask why `MANAGE_EXTERNAL_STORAGE` is needed. The answer is
   the storage analyser, a permitted use; if it is refused, the scan becomes a
   document-tree picker and the permission goes.
+  **Superseded by ADR-0037 (2026-10-14):** Play refused it; the Play build
+  drops the permission and the scan, the GitHub build keeps both.

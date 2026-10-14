@@ -34,6 +34,18 @@ object SpecialAccess {
     )
 
     /**
+     * The system's own storage manager ("Free up space"), which needs no
+     * permission. The Play build sends the deep clean here because it cannot
+     * see other apps' folders; it falls back to the storage settings page,
+     * which every Android TV and phone build has.
+     */
+    fun systemStorage(context: Context) = open(
+        context,
+        Intent(android.os.storage.StorageManager.ACTION_MANAGE_STORAGE),
+        Intent(Settings.ACTION_INTERNAL_STORAGE_SETTINGS),
+    )
+
+    /**
      * Some builds lack the per-app form of an intent; the list form always
      * exists. Google TV is one: its Settings answers the usage-access list
      * but not `package:app.vitals` (Chromecast with Google TV, 2026-09-29).

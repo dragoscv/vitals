@@ -5,7 +5,7 @@ ACEST TELEFON
 • Încărcarea și frecvența plăcii grafice, acolo unde telefonul le raportează
 • Memoria folosită și cât de aproape este Android de a închide aplicații
 • Bateria: încărcare, stare, temperatură, tensiune, curent și cicluri de încărcare
-• Stocarea: o hartă cu ce umple telefonul, cele mai mari dosare și fișiere și o curățare pe care o verifici înainte să se șteargă ceva
+• Stocarea: ce umple telefonul pe categorii (aplicații, poze, video, audio, alte fișiere), ce aplicații țin cel mai mult cache și o scurtătură către managerul de stocare al sistemului
 • Aplicațiile: timpul pe ecran și datele folosite de fiecare aplicație în ultimele 24 de ore
 • Toți senzorii telefonului, în timp real
 • O săptămână de istoric și alerte când ceva se încinge, scade sau se umple
@@ -24,5 +24,5 @@ Vitals pentru Windows este gratuit pe vitals.dragoscatalin.ro. Accesul la distan
 ONEST DIN CONSTRUCȚIE
 • Dacă o valoare nu poate fi măsurată, Vitals arată o liniuță, nu un zero inventat
 • Fără reclame, fără cont, fără urmărire; singurele date de diagnosticare sunt cele ale Google ML Kit, când scanezi un cod QR
-• Accesul la utilizare și accesul la toate fișierele sunt opționale; fiecare funcție care are nevoie de ele spune asta și rămâne goală până le acorzi
+• Accesul la utilizare este opțional; fiecare funcție care are nevoie de el spune asta și rămâne goală până îl acorzi
 • Gratuit și open source (MIT): github.com/dragoscv/vitals

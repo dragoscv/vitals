@@ -1,16 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- What the on-device monitor reads, declared where it is read so every app
-     that embeds :device inherits the same set. Both are special access: the
-     user grants them in Settings and every reading they gate is null until
-     then (ADR-0035). -->
+     that embeds :device inherits the same set. Usage access is special access:
+     the user grants it in Settings and every reading it gates is null until
+     then (ADR-0035).
+     All-files access is NOT here: Google Play rejected it as "not a core
+     feature" (2026-10-14), so only the `github` flavour of :app and :tv
+     declares it (src/github/AndroidManifest.xml) and the monitor reads
+     whether the installed package asks for it (Access.allFilesAvailable). -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"
         tools:ignore="ProtectedPermissions" />
-    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
-        tools:ignore="ScopedStorage" />
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
-        android:maxSdkVersion="29" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
 

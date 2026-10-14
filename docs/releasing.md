@@ -270,6 +270,12 @@ decision 2026-10-14), and a personal developer account must first have
 passed Google's closed-testing requirement — see
 `docs/store-research-2026-10.md`.
 
+Play gets the **`play` flavour** of the phone and TV apps, which does not
+declare all-files access (Google rejected 1.0.1 for it on 2026-10-14, "not a
+core feature"); the APKs on the GitHub release are the **`github` flavour**
+with the folder scan. The `android` job fails if a Play bundle's manifest
+mentions `MANAGE_EXTERNAL_STORAGE`. See `apps/android/README.md`.
+
 Every package manager points at the **versioned** installer URL and the hash
 in `SHA256SUMS.txt`, never at the stable-named copy, whose bytes change with
 each release.

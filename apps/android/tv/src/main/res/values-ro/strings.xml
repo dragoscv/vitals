@@ -233,6 +233,7 @@
     <string name="device_cleanup_title">Ce ai putea elibera</string>
     <string name="device_cleanup_empty">Nu s-a găsit nimic care merită șters.</string>
     <string name="device_cleanup_needs_access">Dă-i Vitals acces la fișiere sau la utilizare ca să caute spațiu de eliberat.</string>
+    <string name="device_cleanup_needs_usage">Dă-i Vitals acces la utilizare ca să vezi ce aplicații țin cel mai mult cache.</string>
     <string name="device_cluster_prime">Nucleu principal</string>
     <string name="device_cluster_performance">Nuclee de performanță</string>
     <string name="device_cluster_efficiency">Nuclee de eficiență</string>
@@ -276,6 +277,8 @@
     <string name="device_resolution">Rezoluție</string>
     <string name="device_scan_title">Ce umple stocarea</string>
     <string name="device_scan_body">Măsoară fiecare folder ca să găsești ce ocupă cel mai mult.</string>
+    <string name="device_scan_system_body">Categoriile arată ce umple stocarea. Ca să treci prin foldere și fișiere mari, folosește setările de stocare ale televizorului.</string>
+    <string name="device_scan_system_open">Deschide setările de stocare</string>
     <string name="device_scan_start">Scanează stocarea</string>
     <string name="device_scan_again">Scanează din nou</string>
     <string name="device_scan_took">A durat %1$.1f s</string>

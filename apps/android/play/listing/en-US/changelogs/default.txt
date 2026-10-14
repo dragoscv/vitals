@@ -1,5 +1,5 @@
-Vitals 1.0.1, the first release on Google Play.
-• This phone, watch or TV: processor, memory, battery, storage map and cleanup, per-app time and data, sensors, history and alerts
+Vitals 1.0.2, the first release on Google Play.
+• This phone, watch or TV: processor, memory, battery, storage by category and app caches, per-app time and data, sensors, history and alerts
 • Pair a Windows PC by QR code, or by a six-digit code on TV; see its processes and temperatures, wake it, end a stuck program
 • Wear OS tile and complications, two home screen widgets
 • The new "All clear" look

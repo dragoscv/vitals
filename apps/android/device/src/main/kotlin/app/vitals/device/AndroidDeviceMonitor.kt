@@ -75,6 +75,23 @@ class AndroidDeviceMonitor(context: Context) : DeviceMonitor {
 
     private val shared = ConcurrentHashMap<Long, Flow<DeviceSnapshot>>()
     private val alertState = MutableStateFlow<List<DeviceAlert>>(emptyList())
+
+    /**
+     * Fixed for the life of the install: the manifest cannot change under a
+     * running app. Declared before [accessState], whose initialiser reads it.
+     */
+    private val allFilesAvailable: Boolean = run {
+        val requested = runCatching {
+            @Suppress("DEPRECATION")
+            app.packageManager.getPackageInfo(app.packageName, PackageManager.GET_PERMISSIONS).requestedPermissions
+        }.getOrNull().orEmpty()
+        val needed = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            Manifest.permission.MANAGE_EXTERNAL_STORAGE
+        } else {
+            Manifest.permission.READ_EXTERNAL_STORAGE
+        }
+        needed in requested
+    }
     private val accessState = MutableStateFlow(readAccess())
     private var cachedInfo: DeviceInfo? = null
     private var storageFree: Float? = null
@@ -199,12 +216,13 @@ class AndroidDeviceMonitor(context: Context) : DeviceMonitor {
 
     private fun readAccess(): Access = Access(
         usageStats = hasUsageAccess(),
-        allFiles = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        allFiles = allFilesAvailable && if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             Environment.isExternalStorageManager()
         } else {
             ContextCompat.checkSelfPermission(app, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
         },
         notifications = NotificationManagerCompat.from(app).areNotificationsEnabled(),
+        allFilesAvailable = allFilesAvailable,
     )
 
     private fun hasUsageAccess(): Boolean {

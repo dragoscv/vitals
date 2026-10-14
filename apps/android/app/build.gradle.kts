@@ -52,6 +52,19 @@ android {
         }
     }
 
+    // Two distributions of one app. `play` is what Google Play reviews: no
+    // all-files access (rejected 2026-10-14 as "not a core feature" of a
+    // system monitor), so storage shows categories and hands the deep clean to
+    // the system. `github` is the APK on GitHub releases and keeps the folder
+    // scan (src/github/AndroidManifest.xml). Same id, same signing key, same
+    // versionCode, so neither can be installed over the other by surprise
+    // without the user knowing which one they have.
+    flavorDimensions += "store"
+    productFlavors {
+        create("play") { dimension = "store" }
+        create("github") { dimension = "store" }
+    }
+
     buildFeatures {
         compose = true
         buildConfig = true

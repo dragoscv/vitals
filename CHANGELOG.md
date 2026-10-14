@@ -7,6 +7,21 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.0.2] — 2026-10-14
+
+### Changed
+
+- Android: two builds. The Google Play build no longer asks for access to all
+  files, which Google refused for a system monitor. Its storage screen shows
+  what fills the phone or TV by category, which apps keep the most cache, and
+  opens the system's storage manager for the rest. The APK on GitHub keeps
+  the full folder scan and file cleanup.
+
+### Fixed
+
+- Google Play: the release workflow now refuses a Play bundle that declares
+  all-files access, so the rejection cannot recur unnoticed.
+
 ## [1.0.1] — 2026-10-14
 
 Same app as 1.0.0; this release carries it to the channels 1.0.0 missed.

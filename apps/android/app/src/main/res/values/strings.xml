@@ -275,6 +275,7 @@
     <string name="device_cleanup_title">What you could free up</string>
     <string name="device_cleanup_empty">Nothing worth removing was found.</string>
     <string name="device_cleanup_needs_access">Give Vitals file or usage access to look for space to free.</string>
+    <string name="device_cleanup_needs_usage">Give Vitals usage access to see which apps keep the most cache.</string>
     <string name="device_cluster_prime">Prime core</string>
     <string name="device_cluster_performance">Performance cores</string>
     <string name="device_cluster_efficiency">Efficiency cores</string>
@@ -339,6 +340,8 @@
     <string name="device_resolution">Resolution</string>
     <string name="device_scan_title">What fills the storage</string>
     <string name="device_scan_body">Measure every folder to find what takes the most space.</string>
+    <string name="device_scan_system_body">The categories above show what fills the storage. To go through folders and large files, use the phone’s own storage manager.</string>
+    <string name="device_scan_system_open">Open storage settings</string>
     <string name="device_scan_start">Scan storage</string>
     <string name="device_scan_again">Scan again</string>
     <string name="device_scan_progress">%1$d files, %2$s so far</string>

@@ -82,7 +82,9 @@ fun SettingsScreen() {
                         trailingContent = { Switch(checked = history, onCheckedChange = null) },
                     )
                     AccessRow(stringResource(R.string.settings_access_usage), access.usageStats) { SpecialAccess.usage(context) }
-                    AccessRow(stringResource(R.string.settings_access_files), access.allFiles) { SpecialAccess.allFiles(context) }
+                    if (access.allFilesAvailable) {
+                        AccessRow(stringResource(R.string.settings_access_files), access.allFiles) { SpecialAccess.allFiles(context) }
+                    }
                 }
             }
         }

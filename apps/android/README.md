@@ -15,11 +15,22 @@ Native Kotlin apps (ADR-0033, ADR-0035). One Gradle build:
 ```powershell
 cd apps/android
 $env:JAVA_HOME = 'C:\Program Files\Microsoft\jdk-21.0.12.101-hotspot'
-.\gradlew.bat test lintDebug :app:assembleDebug :wear:assembleDebug
+.\gradlew.bat test lintPlayDebug :app:assembleGithubDebug :wear:assembleDebug
 ```
 
 Release builds are signed only when `ANDROID_KEYSTORE_PATH` and its three
 companions are set (CI secrets); otherwise they are unsigned.
+
+### Two flavours: `play` and `github`
+
+`:app` and `:tv` build twice. **`play`** is the bundle Google Play reviews and
+does **not** declare `MANAGE_EXTERNAL_STORAGE`: Play rejected all-files access
+for a system monitor as "not a core feature" (2026-10-14). There the storage
+screen shows categories (usage access), app caches, and a button to the
+system's own storage manager. **`github`** is the APK on GitHub releases and
+keeps the folder scan and file cleanup (`src/github/AndroidManifest.xml`).
+The UI decides from the installed manifest (`Access.allFilesAvailable`), and
+the release workflow fails if a Play bundle ever declares the permission.
 
 ## What an app may read on Android
 
@@ -34,8 +45,9 @@ shown as an em dash, never 0.
   sysfs.
 - **With usage access:** per-app screen time, launches, data and storage;
   storage categories.
-- **With all-files access:** the folder scan and file cleanup. Other apps'
-  caches can only be cleared from Settings, so the list links there.
+- **With all-files access (`github` flavour only):** the folder scan and file
+  cleanup. Other apps' caches can only be cleared from Settings, so the list
+  links there.
 
 ## Checking it on a device
 
