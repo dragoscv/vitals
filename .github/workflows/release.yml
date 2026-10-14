@@ -842,8 +842,21 @@ jobs:
         shell: bash
         env:
           ROLLOUT: ${{ vars.PLAY_ROLLOUT || '0.2' }}
+          # Until the app's first production release has been reviewed, Play
+          # calls it a draft app and accepts only `status: draft` releases
+          # ("Staged rollout is not permitted on draft app", v1.0.0 run
+          # 38494629401). The release is then sent for review from the
+          # Console by hand. Set PLAY_DRAFT_APP to anything but 'true' once
+          # the app is live, and stable tags roll out as staged releases.
+          DRAFT_APP: ${{ vars.PLAY_DRAFT_APP }}
         run: |
-          if [ "$PRODUCTION" = "true" ]; then
+          if [ "$PRODUCTION" = "true" ] && [ "$DRAFT_APP" = "true" ]; then
+            echo "phone=production" >> "$GITHUB_OUTPUT"
+            echo "wear=wear:production" >> "$GITHUB_OUTPUT"
+            echo "tv=tv:production" >> "$GITHUB_OUTPUT"
+            echo "status=draft" >> "$GITHUB_OUTPUT"
+            echo "fraction=" >> "$GITHUB_OUTPUT"
+          elif [ "$PRODUCTION" = "true" ]; then
             echo "phone=production" >> "$GITHUB_OUTPUT"
             echo "wear=wear:production" >> "$GITHUB_OUTPUT"
             echo "tv=tv:production" >> "$GITHUB_OUTPUT"

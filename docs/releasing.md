@@ -222,6 +222,7 @@ CI, only for releases.
 | `PUBLISH_CHOCO`  | Pack and push the `vitals` Chocolatey package.                                                           |
 | `PUBLISH_PLAY`   | Upload the phone, Wear OS and TV bundles to Google Play (track rules below).                             |
 | `PLAY_ROLLOUT`   | Production rollout fraction for a stable tag, e.g. `0.2` (the default) or `1` for everyone.              |
+| `PLAY_DRAFT_APP` | `true` while the Play app has never passed review: production releases are uploaded as drafts.           |
 
 Publishing macOS or Linux turns that leg from advisory into a hard gate:
 `latest.json` would otherwise name a file that does not exist. Do it only

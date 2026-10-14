@@ -7,6 +7,18 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.0.1] — 2026-10-14
+
+Same app as 1.0.0; this release carries it to the channels 1.0.0 missed.
+
+### Fixed
+
+- Google Play: the first production release is uploaded as a draft, which is
+  all Play accepts from an app that has not yet passed review. Staged
+  rollouts start with the next release once the app is live.
+- winget: the update job could not start because an action it depends on
+  was not allowed in this repository.
+
 ## [1.0.0] — 2026-10-14
 
 The first production release: Windows (installer and Microsoft Store),
