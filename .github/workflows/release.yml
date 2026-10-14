@@ -859,6 +859,11 @@ jobs:
           # 38494629401). The release is then sent for review from the
           # Console by hand. Set PLAY_DRAFT_APP to anything but 'true' once
           # the app is live, and stable tags roll out as staged releases.
+          # The same variable sets changesNotSentForReview: once a review has
+          # been rejected, Play refuses an edit that would send itself for
+          # review ("Changes cannot be sent for review automatically", v1.0.2
+          # run 38651790017), so the edit is committed and the owner sends it
+          # from Publishing overview.
           DRAFT_APP: ${{ vars.PLAY_DRAFT_APP }}
         run: |
           if [ "$PRODUCTION" = "true" ] && [ "$DRAFT_APP" = "true" ]; then
@@ -867,18 +872,21 @@ jobs:
             echo "tv=tv:production" >> "$GITHUB_OUTPUT"
             echo "status=draft" >> "$GITHUB_OUTPUT"
             echo "fraction=" >> "$GITHUB_OUTPUT"
+            echo "manual=true" >> "$GITHUB_OUTPUT"
           elif [ "$PRODUCTION" = "true" ]; then
             echo "phone=production" >> "$GITHUB_OUTPUT"
             echo "wear=wear:production" >> "$GITHUB_OUTPUT"
             echo "tv=tv:production" >> "$GITHUB_OUTPUT"
             echo "status=inProgress" >> "$GITHUB_OUTPUT"
             echo "fraction=$ROLLOUT" >> "$GITHUB_OUTPUT"
+            echo "manual=false" >> "$GITHUB_OUTPUT"
           else
             echo "phone=internal" >> "$GITHUB_OUTPUT"
             echo "wear=wear:qa" >> "$GITHUB_OUTPUT"
             echo "tv=tv:qa" >> "$GITHUB_OUTPUT"
             echo "status=completed" >> "$GITHUB_OUTPUT"
             echo "fraction=" >> "$GITHUB_OUTPUT"
+            echo "manual=false" >> "$GITHUB_OUTPUT"
           fi
       - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
         id: gcp
@@ -895,6 +903,7 @@ jobs:
           status: ${{ steps.track.outputs.status }}
           userFraction: ${{ steps.track.outputs.fraction }}
           whatsNewDirectory: whatsnew
+          changesNotSentForReview: ${{ steps.track.outputs.manual }}
       # Phone and watch share one application id but not one track: Wear OS
       # has its own form-factor track. The API calls internal testing `qa`,
       # and a form-factor track is `<prefix>:<name>`, so this is `wear:qa`
@@ -908,6 +917,7 @@ jobs:
           status: ${{ steps.track.outputs.status }}
           userFraction: ${{ steps.track.outputs.fraction }}
           whatsNewDirectory: whatsnew
+          changesNotSentForReview: ${{ steps.track.outputs.manual }}
       # Android TV has its own form-factor track too: `tv:qa` is its internal
       # testing, as `wear:qa` is the watch's.
       - uses: r0adkll/upload-google-play@e738b9dd8f2476ea806d921b64aacd24f34515a5 # v1
@@ -919,6 +929,7 @@ jobs:
           status: ${{ steps.track.outputs.status }}
           userFraction: ${{ steps.track.outputs.fraction }}
           whatsNewDirectory: whatsnew
+          changesNotSentForReview: ${{ steps.track.outputs.manual }}
 
   winget:
     name: winget
