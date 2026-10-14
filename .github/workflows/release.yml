@@ -928,14 +928,31 @@ jobs:
       # hand (packaging/winget/README.md). The regex matches the versioned
       # installers and not the stable-named copies, which carry no version
       # and would give winget two installers per architecture.
+      #
+      # Komac itself, downloaded by version and SHA-256, rather than
+      # vedantmgoyal9/winget-releaser: that action installs Komac through
+      # cargo-bins/cargo-binstall@main, an unpinned nested action this
+      # repository's SHA-pinning policy refuses (v1.0.0 run 38494629401,
+      # "is not allowed"), so the winget job could never start.
       - if: steps.gate.outputs.ok == 'true'
-        uses: vedantmgoyal9/winget-releaser@4ffc7888bffd451b357355dc214d43bb9f23917e # v2
-        with:
-          identifier: Vitals.Vitals
-          version: ${{ needs.plan.outputs.version }}
-          release-tag: ${{ needs.plan.outputs.tag }}
-          installers-regex: '_\d+\.\d+\.\d+[^_]*_(x64|arm64)-setup\.exe$'
-          token: ${{ secrets.WINGET_TOKEN }}
+        name: Submit to winget-pkgs (Komac)
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.WINGET_TOKEN }}
+          VERSION: ${{ needs.plan.outputs.version }}
+          TAG: ${{ needs.plan.outputs.tag }}
+          REPOSITORY: ${{ github.repository }}
+          KOMAC_VERSION: '2.16.0'
+          KOMAC_SHA256: 'bdc45baf028f750da7519cc8a5f2eab5dfef46dfe88650eeb0d0a9bf51446e4f'
+        run: |
+          $komac = Join-Path $env:RUNNER_TEMP 'komac.exe'
+          Invoke-WebRequest "https://github.com/russellbanks/Komac/releases/download/v$env:KOMAC_VERSION/komac-$env:KOMAC_VERSION-x86_64-pc-windows-msvc.exe" -OutFile $komac
+          $hash = (Get-FileHash $komac -Algorithm SHA256).Hash.ToLower()
+          if ($hash -ne $env:KOMAC_SHA256) { throw "komac hash $hash does not match the pinned $env:KOMAC_SHA256" }
+          $base = "https://github.com/$env:REPOSITORY/releases/download/$env:TAG"
+          $urls = @("$base/Vitals_$($env:VERSION)_x64-setup.exe", "$base/Vitals_$($env:VERSION)_arm64-setup.exe")
+          & $komac update Vitals.Vitals --version $env:VERSION --urls @urls --release-notes-url "https://github.com/$env:REPOSITORY/releases/tag/$env:TAG" --submit
+          if ($LASTEXITCODE -ne 0) { throw "komac exited $LASTEXITCODE" }
 
   scoop:
     name: Scoop bucket

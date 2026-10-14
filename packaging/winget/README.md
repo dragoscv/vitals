@@ -16,7 +16,8 @@ release.
 
 ### First submission (by hand, once)
 
-`vedantmgoyal9/winget-releaser` only _updates_ a package that is already in
+The `winget` job in `release.yml` runs `komac update` (a pinned Komac binary,
+checked by SHA-256) and only _updates_ a package that is already in
 [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs). The first
 manifest is submitted by hand, after the first tagged release is published.
 
