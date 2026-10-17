@@ -55,7 +55,7 @@
     "windows": {
       "webviewInstallMode": { "type": "downloadBootstrapper" },
       "nsis": {
-        "installMode": "perMachine",
+        "installMode": "both",
         "displayLanguageSelector": false,
         "languages": ["English", "Romanian"],
         "compression": "lzma",

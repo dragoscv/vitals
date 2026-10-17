@@ -32,6 +32,9 @@ windows = { version = "0.62.2", features = [
 	"Win32_Storage_FileSystem",
 	"Win32_System_RemoteDesktop",
 	"Win32_System_Registry",
+	# SetEnvironmentVariableW: __COMPAT_LAYER=RunAsInvoker for a per-user
+	# update's setup (install.rs, DEV-3).
+	"Win32_System_Environment",
 	"Win32_System_TaskScheduler",
 	"Win32_System_Com",
 	# URLDownloadToFileW for the pinned PawnIO installer (sensors::cpu_service).

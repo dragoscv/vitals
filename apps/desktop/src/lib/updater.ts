@@ -15,6 +15,17 @@
 
 import { hasTauriHost } from '../shell/host';
 
+/**
+ * The IPC module, loaded once. The panel asks the backend three things at
+ * mount; three concurrent dynamic imports of the same module are three
+ * chances for a bundler or test runner to resolve them differently.
+ */
+let coreModule: Promise<typeof import('@tauri-apps/api/core')> | null = null;
+function core(): Promise<typeof import('@tauri-apps/api/core')> {
+  coreModule ??= import('@tauri-apps/api/core');
+  return coreModule;
+}
+
 export type UpdateState =
   | { readonly kind: 'idle' }
   | { readonly kind: 'checking' }
@@ -37,7 +48,8 @@ export type UpdateState =
 interface PendingUpdate {
   readonly version: string;
   readonly body?: string | undefined;
-  downloadAndInstall(onEvent?: (event: DownloadEvent) => void): Promise<void>;
+  download(onEvent?: (event: DownloadEvent) => void): Promise<void>;
+  install(): Promise<void>;
 }
 
 type DownloadEvent =
@@ -127,6 +139,11 @@ export async function checkForUpdate(): Promise<
  * is: some endpoints omit `Content-Length`, and a bar that jumps to a
  * fabricated number is worse than an honest indeterminate one. Same rule as
  * every other reading in this application — unmeasured is not zero.
+ *
+ * Download and install are two calls so the backend can prepare the setup
+ * in between (DEV-3): a per-user copy's setup is told to run without asking
+ * for administrator rights, and the attempt is recorded so the next launch
+ * can say whether it worked.
  */
 export async function downloadAndInstall(
   update: PendingUpdate,
@@ -136,7 +153,7 @@ export async function downloadAndInstall(
   let received = 0;
 
   try {
-    await update.downloadAndInstall((event) => {
+    await update.download((event) => {
       switch (event.event) {
         case 'Started': {
           const length = event.data.contentLength;
@@ -155,6 +172,9 @@ export async function downloadAndInstall(
         }
       }
     });
+    const { invoke } = await core();
+    await invoke('prepare_update_install', { version: update.version });
+    await update.install();
     return { kind: 'ready', version: update.version };
   } catch (error) {
     return { kind: 'error', message: messageOf(error) };
@@ -185,9 +205,73 @@ export async function restartIntoUpdate(): Promise<UpdateState | null> {
 export async function pendingBackgroundUpdate(): Promise<string | null> {
   if (!updatesAvailableInThisBuild()) return null;
   try {
-    const { invoke } = await import('@tauri-apps/api/core');
+    const { invoke } = await core();
     return await invoke<string | null>('get_pending_update');
   } catch {
     return null;
   }
+}
+
+/**
+ * How quitting installs the waiting update. `needsApproval` is a copy in
+ * Program Files run without administrator rights: it does not install on
+ * quit, because the prompt would appear as the window vanished and nobody
+ * would answer it. It is offered as "Restart to update" instead.
+ */
+export type QuitInstall = 'silent' | 'needsApproval' | 'notOurs';
+
+export async function quitInstallMode(): Promise<QuitInstall> {
+  if (!updatesAvailableInThisBuild()) return 'notOurs';
+  try {
+    const { invoke } = await core();
+    return await invoke<QuitInstall>('get_update_install_mode');
+  } catch {
+    return 'silent';
+  }
+}
+
+/**
+ * Installs the background download now. The app exits on success, so a
+ * resolved promise is only ever seen on failure paths' absence; a rejection
+ * (a declined prompt) leaves the download in place for another try.
+ */
+export async function installBackgroundUpdateNow(): Promise<UpdateState | null> {
+  try {
+    const { invoke } = await core();
+    await invoke('install_update_now');
+    return null;
+  } catch (error) {
+    return { kind: 'error', message: messageOf(error) };
+  }
+}
+
+/** What became of the last install attempt; reported once per attempt. */
+export type UpdateOutcome =
+  | { readonly kind: 'installed'; readonly version: string }
+  | { readonly kind: 'failed'; readonly version: string; readonly error: string };
+
+export async function takeUpdateOutcome(): Promise<UpdateOutcome | null> {
+  if (!hasTauriHost()) return null;
+  try {
+    const { invoke } = await core();
+    return await invoke<UpdateOutcome | null>('take_update_outcome');
+  } catch {
+    return null;
+  }
+}
+
+/** An old Program Files copy left behind after a move to a per-user install. */
+export async function leftoverInstall(): Promise<string | null> {
+  if (!hasTauriHost()) return null;
+  try {
+    const { invoke } = await core();
+    return await invoke<string | null>('get_leftover_install');
+  } catch {
+    return null;
+  }
+}
+
+export async function removeLeftoverInstall(): Promise<void> {
+  const { invoke } = await core();
+  await invoke('remove_leftover_install');
 }

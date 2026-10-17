@@ -38,6 +38,7 @@ pub mod hardware;
 pub mod history;
 pub mod host;
 pub mod hostinfo;
+pub mod install;
 pub mod memory;
 pub mod modules;
 pub mod network;

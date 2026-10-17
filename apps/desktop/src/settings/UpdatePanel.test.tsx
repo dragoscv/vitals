@@ -31,6 +31,19 @@ const plugin = vi.hoisted(() => ({
 vi.mock('@tauri-apps/plugin-updater', () => ({ check: plugin.check }));
 vi.mock('@tauri-apps/plugin-process', () => ({ relaunch: plugin.relaunch }));
 
+// The backend commands the panel asks, answered per test.
+const backend = vi.hoisted(() => ({
+  answers: {} as Record<string, unknown>,
+  calls: [] as { cmd: string; args: unknown }[],
+}));
+vi.mock('@tauri-apps/api/core', () => ({
+  invoke: vi.fn((cmd: string, args?: unknown) => {
+    backend.calls.push({ cmd, args });
+    const answer = backend.answers[cmd];
+    return answer instanceof Error ? Promise.reject(answer) : Promise.resolve(answer ?? null);
+  }),
+}));
+
 type DownloadEvent =
   | { event: 'Started'; data: { contentLength?: number } }
   | { event: 'Progress'; data: { chunkLength: number } }
@@ -48,6 +61,8 @@ beforeEach(async () => {
   await i18n.changeLanguage('en');
   host.present = true;
   plugin.check.mockReset();
+  backend.answers = {};
+  backend.calls = [];
   vi.unstubAllEnvs();
   // Production-like by default: DEV is true under vitest, which would send
   // every test down the `unconfigured` path and prove nothing.
@@ -112,7 +127,8 @@ describe('the update section', () => {
     plugin.check.mockResolvedValue({
       version: '2.0.0',
       body: 'Faster sampling.',
-      downloadAndInstall: vi.fn(() => Promise.resolve()),
+      download: vi.fn(() => Promise.resolve()),
+      install: vi.fn(() => Promise.resolve()),
     });
 
     render(<UpdateSection />);
@@ -131,11 +147,12 @@ describe('the update section', () => {
 
     plugin.check.mockResolvedValue({
       version: '2.0.0',
-      downloadAndInstall: (onEvent: (event: DownloadEvent) => void) =>
+      download: (onEvent: (event: DownloadEvent) => void) =>
         new Promise<void>((resolve) => {
           emit = onEvent;
           finish = resolve;
         }),
+      install: vi.fn(() => Promise.resolve()),
     });
 
     render(<UpdateSection />);
@@ -197,5 +214,78 @@ describe('the update section', () => {
     });
     const retry: HTMLButtonElement = screen.getByRole('button', { name: 'Try again' });
     expect(retry.disabled).toBe(false);
+  });
+
+  it('prepares the setup between download and install, so a per-user copy is never prompted', async () => {
+    const order: string[] = [];
+    plugin.check.mockResolvedValue({
+      version: '2.0.0',
+      download: vi.fn(() => {
+        order.push('download');
+        return Promise.resolve();
+      }),
+      install: vi.fn(() => {
+        order.push(`install after ${backend.calls.map((c) => c.cmd).join(',')}`);
+        return Promise.resolve();
+      }),
+    });
+
+    render(<UpdateSection />);
+    fireEvent.click(checkButton());
+    fireEvent.click(await screen.findByRole('button', { name: 'Download update' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Version 2.0.0 is ready to install.')).toBeTruthy();
+    });
+    expect(order[0]).toBe('download');
+    expect(order[1]).toContain('prepare_update_install');
+    expect(backend.calls.find((c) => c.cmd === 'prepare_update_install')?.args).toEqual({
+      version: '2.0.0',
+    });
+  });
+
+  it('says a Program Files copy needs approval and offers the click instead of waiting for quit', async () => {
+    backend.answers.get_pending_update = '2.0.0';
+    backend.answers.get_update_install_mode = 'needsApproval';
+
+    render(<UpdateSection />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/asks an administrator to approve the update/)).toBeTruthy();
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Restart to update' }));
+    await waitFor(() => {
+      expect(backend.calls.some((c) => c.cmd === 'install_update_now')).toBe(true);
+    });
+  });
+
+  it('says why when the administrator approval is declined, instead of doing nothing', async () => {
+    backend.answers.get_pending_update = '2.0.0';
+    backend.answers.get_update_install_mode = 'needsApproval';
+    backend.answers.install_update_now = new Error('the update was not installed: os error 1223');
+
+    render(<UpdateSection />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Restart to update' }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/os error 1223/)).toBeTruthy();
+    });
+  });
+
+  it('offers to remove an old Program Files copy only when one is left behind', async () => {
+    const { unmount } = render(<UpdateSection />);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(screen.queryByTestId('update-leftover')).toBeNull();
+    unmount();
+
+    backend.answers.get_leftover_install = 'C:\\Program Files\\Vitals';
+    render(<UpdateSection />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Remove the old copy' }));
+    await waitFor(() => {
+      expect(screen.queryByTestId('update-leftover')).toBeNull();
+    });
+    expect(backend.calls.some((c) => c.cmd === 'remove_leftover_install')).toBe(true);
   });
 });

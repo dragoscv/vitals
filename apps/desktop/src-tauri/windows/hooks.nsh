@@ -37,6 +37,28 @@
 
 !macro NSIS_HOOK_POSTINSTALL
   DetailPrint "Registering Vitals..."
+
+  ; DEV-3 (ADR 0038): a 1.0.0-1.0.3 copy lived in Program Files only. When
+  ; such a copy updates without administrator rights, the app runs this
+  ; setup with /CurrentUser /UPDATE, and the template skips every shortcut
+  ; on /UPDATE - so the new per-user copy would have no Start menu entry,
+  ; and the all-users one (pointing at the old copy) goes when the user
+  ; removes that copy. Created here only when missing, so an ordinary
+  ; per-user update never touches a shortcut the user moved or pinned.
+  ${If} $MultiUser.InstallMode == "CurrentUser"
+    ${IfNot} ${FileExists} "$SMPROGRAMS\${PRODUCTNAME}.lnk"
+      CreateShortcut "$SMPROGRAMS\${PRODUCTNAME}.lnk" "$INSTDIR\${MAINBINARYNAME}.exe"
+      !insertmacro SetLnkAppUserModelId "$SMPROGRAMS\${PRODUCTNAME}.lnk"
+    ${EndIf}
+    ; A desktop shortcut only for someone who had one: the old copy's lived
+    ; on the public desktop.
+    ReadEnvStr $1 PUBLIC
+    ${If} ${FileExists} "$1\Desktop\${PRODUCTNAME}.lnk"
+    ${AndIfNot} ${FileExists} "$DESKTOP\${PRODUCTNAME}.lnk"
+      CreateShortcut "$DESKTOP\${PRODUCTNAME}.lnk" "$INSTDIR\${MAINBINARYNAME}.exe"
+      !insertmacro SetLnkAppUserModelId "$DESKTOP\${PRODUCTNAME}.lnk"
+    ${EndIf}
+  ${EndIf}
 !macroend
 
 !macro NSIS_HOOK_PREUNINSTALL
@@ -87,8 +109,10 @@
     ;
     ; The bundled copy is preferred: it is not the image the service runs,
     ; so it can delete the installed one. Skipped on /UPDATE: an update must
-    ; not switch off sensors the user enabled. The uninstaller is elevated
-    ; (installMode perMachine), which `uninstall` requires.
+    ; not switch off sensors the user enabled. `uninstall` needs
+    ; administrator rights; a per-user uninstaller (installMode both) that
+    ; lacks them falls through to sc.exe below, which fails the same way and
+    ; leaves the service for the helper's own Settings switch to remove.
     StrCpy $1 ""
     ${If} ${FileExists} "$INSTDIR\sensors\vitals-sensors.exe"
       StrCpy $1 "$INSTDIR\sensors\vitals-sensors.exe"

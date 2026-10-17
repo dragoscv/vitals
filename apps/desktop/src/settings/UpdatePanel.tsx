@@ -15,10 +15,17 @@ import { Button, ProgressBar } from '@vitals/ui';
 import {
   checkForUpdate,
   downloadAndInstall,
+  installBackgroundUpdateNow,
+  leftoverInstall,
   pendingBackgroundUpdate,
+  quitInstallMode,
+  removeLeftoverInstall,
   restartIntoUpdate,
+  type QuitInstall,
   type UpdateState,
 } from '../lib/updater';
+import { reportFailure } from '../lib/reportFailure';
+import { reportSuccess } from '../lib/reportSuccess';
 
 /** What `checkForUpdate` hands back, kept only for the duration of one flow. */
 type PendingUpdate = Awaited<ReturnType<typeof checkForUpdate>>['update'];
@@ -35,11 +42,22 @@ export function UpdateSection() {
   // idle sentence, so "Check for updates" is not offered for a version that
   // is sitting on disk waiting for the user to quit.
   const [background, setBackground] = useState<string | null>(null);
+  // Whether that download installs on quit, or needs a click because the
+  // copy lives in Program Files and this session is not elevated (DEV-3).
+  const [quitMode, setQuitMode] = useState<QuitInstall>('silent');
+  // A Program Files copy left behind after moving to a per-user install.
+  const [leftover, setLeftover] = useState<string | null>(null);
 
   useEffect(() => {
     let live = true;
     void pendingBackgroundUpdate().then((version) => {
       if (live) setBackground(version);
+    });
+    void quitInstallMode().then((mode) => {
+      if (live) setQuitMode(mode);
+    });
+    void leftoverInstall().then((path) => {
+      if (live) setLeftover(path);
     });
     return () => {
       live = false;
@@ -75,21 +93,60 @@ export function UpdateSection() {
     if (failure !== null) setState(failure);
   }
 
+  async function installBackground() {
+    setState({ kind: 'installing', version: background ?? '' });
+    const failure = await installBackgroundUpdateNow();
+    if (failure !== null) setState(failure);
+  }
+
+  async function removeLeftover() {
+    const removed = await removeLeftoverInstall().then(
+      () => true,
+      (error: unknown) => {
+        void reportFailure(Promise.reject(error), t('settings.about.update.leftoverFailed'));
+        return false;
+      },
+    );
+    if (!removed) return;
+    setLeftover(null);
+    void reportSuccess(t('settings.about.update.leftoverRemoved'));
+  }
+
+  const showBackground = background !== null && state.kind === 'idle';
+
   return (
     <div className="space-y-2 py-2" data-testid="update-section">
       <p className="text-sm font-medium">{t('settings.about.update.title')}</p>
-      {background !== null && state.kind === 'idle' ? (
-        <p className="text-2xs">{t('settings.about.update.pending', { version: background })}</p>
+      {showBackground ? (
+        <p className="text-2xs">
+          {quitMode === 'needsApproval'
+            ? t('settings.about.update.pendingApproval', { version: background })
+            : t('settings.about.update.pending', { version: background })}
+        </p>
       ) : (
         <UpdateMessage state={state} />
       )}
-      <UpdateControls
-        state={state}
-        busy={busy}
-        onCheck={() => void check()}
-        onDownload={() => void download()}
-        onRestart={() => void restart()}
-      />
+      {showBackground ? (
+        <Button onClick={() => void installBackground()}>
+          {t('settings.about.update.restart')}
+        </Button>
+      ) : (
+        <UpdateControls
+          state={state}
+          busy={busy}
+          onCheck={() => void check()}
+          onDownload={() => void download()}
+          onRestart={() => void restart()}
+        />
+      )}
+      {leftover !== null && (
+        <div className="space-y-1 pt-2" data-testid="update-leftover">
+          <p className="text-2xs">{t('settings.about.update.leftover', { path: leftover })}</p>
+          <Button variant="ghost" onClick={() => void removeLeftover()}>
+            {t('settings.about.update.leftoverRemove')}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
