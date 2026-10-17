@@ -2695,6 +2695,38 @@ assets: og.png 1200x630, hero.webm 960x540 8 s 38 KB, Store PNGs 1920x1080
 prettier --check (md, mdx, css, mjs): clean
 ```
 
+### 2026-10-17 — S17-15 CI green after the S17 wave
+
+CI runs 39010472254 (`98eff6e`) and 39015129150 (`424e438`) failed four jobs.
+Each had a different cause; none was fixed by loosening a gate.
+
+- **Frontend, End-to-end (Coverage).** S17-12 made durations locale-correct
+  through `Intl.DurationFormat` and asserted Romanian output (`3 z, 4 h`,
+  `48 h, 30 m`). CI pinned Node 22, which has no `DurationFormat`, so the
+  compact English fallback came back (`3d 4h`). Local runs used Node 24+. CI,
+  release and Pages now use Node 24, the version README and CONTRIBUTING
+  already require; the fallback keeps its own test.
+- **Supply chain.** `cargo audit` reported RUSTSEC-2026-0367/0368/0369 (one
+  critical) in `zip` 4.6.1, there only through `tauri-plugin-updater`'s
+  default `zip` feature. The fix is zip 9 and no updater release (2.14.0
+  included) accepts it. The feature only unpacks `.zip` and gzipped AppImage
+  updates; Vitals publishes the raw `-setup.exe` and `.AppImage`, and the
+  macOS `.app.tar.gz` path uses tar/flate2 unconditionally. Dropped the
+  feature rather than ignoring the advisory.
+- **Build installer (Size budget).** 5,159.9 KB against 5,115.4 KB: S17 began
+  installing `LICENSE.txt` and `THIRD_PARTY_NOTICES.md` (≈30 KB gzipped),
+  which MIT/Apache require beside the binary. Budget to measured + 2 %.
+
+```
+ws-codai (Node 24.21): turbo typecheck lint test  21/21 successful
+                       desktop test:coverage      Test Files 110 passed
+slot: cargo audit --deny warnings                 exit 0 (653 crates; zip gone)
+      third-party-notices.ps1 -Check              exit 0 (only the zip row removed)
+ws-vitals-win: tauri build (CI overlay)           BUILD_RC=0
+               installer                          5,265,059 B (budget now 5,370,361)
+               installer-roundtrip.ps1 (admin)    0 failure(s)
+```
+
 ## S13 — public beta 0.9.0-beta.1 (2026-09-28)
 
 Decided with the owner (ADR 0031): public repository, beta version, no code

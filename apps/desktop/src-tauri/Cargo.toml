@@ -66,6 +66,15 @@ vitals-macos = { workspace = true }
 
 [dependencies.tauri-plugin-updater]
 version = "2.13.0"
+# Without the default `zip` feature. It only unpacks `.zip` (Windows) and
+# gzipped AppImage update archives, and Vitals publishes neither: the Windows
+# update is the raw `-setup.exe`, Linux the raw `.AppImage`, and the macOS
+# `.app.tar.gz` path uses tar/flate2, which are not optional there. The
+# feature pulled zip 4.x, whose extract() follows symlinks out of the target
+# (RUSTSEC-2026-0367/0368/0369, fixed only in zip 9, which no updater
+# release accepts yet). Restore it only together with a zip >= 9.
+default-features = false
+features = ["rustls-tls", "system-proxy"]
 
 [dependencies.tauri-plugin-single-instance]
 version = "2.5.0"
