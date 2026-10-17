@@ -71,3 +71,12 @@ a:focus-visible {
 .downloads td:first-child {
   white-space: nowrap;
 }
+
+/* Landing demo loop; Hero.astro starts it unless reduced motion is set. */
+.demo {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 0.75rem;
+  border: 1px solid var(--sl-color-gray-5);
+}

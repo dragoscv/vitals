@@ -11,10 +11,13 @@ A fast, native system monitor and task manager for Windows. Free and open
 source (MIT). Watch it from your phone, scrape it with Prometheus, script it
 from a terminal.
 
-**[Get it from the Microsoft Store](https://apps.microsoft.com/detail/9P95RK5VMGPJ)**
-· [Download the installer](https://github.com/dragoscv/vitals/releases/latest/download/Vitals_x64-setup.exe)
+<a href="https://apps.microsoft.com/detail/9P95RK5VMGPJ"><img src="apps/site/public/badges/microsoft-store-en.svg" alt="Get it from Microsoft" height="48"></a>
+
+[Download the installer](https://github.com/dragoscv/vitals/releases/latest/download/Vitals_x64-setup.exe)
 · [Website and docs](https://vitals.dragoscatalin.ro)
 · [All releases](https://github.com/dragoscv/vitals/releases)
+
+![The Vitals dashboard in dark mode: the health strip reads "All clear" above processor, memory, disk and network charts.](apps/site/public/screenshots/dark-01-dashboard.png)
 
 | Platform                   | Download                                                                                                                                                                      | Status         |
 | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |

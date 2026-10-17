@@ -56,10 +56,10 @@ Sources: [Store listing info for MSIX](https://learn.microsoft.com/en-us/windows
   Desktop screenshots: 1366 × 768 or larger (third-party summary of the same
   page gives 1366 × 768 – 3840 × 2160; the Microsoft page's desktop line was
   elided in the fetch).
-- **Our four screenshots are 1920 × 1080** (read from the PNG headers) — valid.
-  They predate 1.0 (no program icons, temperatures or taskbar gauge); adding
-  Processes-with-icons and Performance-with-temperatures shots is the cheapest
-  listing improvement left.
+- **Our screenshots are 1920 × 1080** — valid. Replaced 2026-10-17 (S17-14) by
+  twelve real captures of the 1.0 release build, dark and light, made on a
+  clean devcloud machine by `scripts/screenshots/run.ps1`; upload order and
+  captions are in `packaging/msix/listing/en-us.md`.
 - **1:1 App tile icon 300 × 300**: strongly recommended; overrides the
   package's icon in the Store. (Memory note: Partner Center input 4.)
 - **16:9 Super hero art** 1920 × 1080 or 3840 × 2160 PNG, no title or text on

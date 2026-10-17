@@ -100,6 +100,28 @@ Fixed: charts use your accent colour; storage and device cards no longer cut off
 
 task manager, system monitor, slow pc, cpu temperature, disk cleanup, ssd health, startup apps
 
+## Screenshots (1920 × 1080 PNG, caption ≤ 200 characters each)
+
+Upload in this order from `screenshots/`. Dark first; the light set follows so
+people on a light Windows theme see themselves too. Real captures of the
+release build on a clean machine (`scripts/screenshots/run.ps1`).
+
+| File                        | Caption                                                                                                                         |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `01-dashboard-dark.png`     | The dashboard: one line tells you whether anything needs your attention, above live processor, memory, disk and network charts. |
+| `02-diagnosis-dark.png`     | "Why is my PC slow?" looks at everything at once and answers in plain words.                                                    |
+| `03-processes-dark.png`     | Every program with its own icon, and totals for the whole machine above each column.                                            |
+| `04-performance-dark.png`   | Live graphs for the processor, memory, graphics card, every drive and network adapter.                                          |
+| `05-storage-dark.png`       | See what fills a drive as a map, then clean up safely through the Recycle Bin.                                                  |
+| `06-remote-access-dark.png` | Optional: pair your phone with a QR code and watch this PC on your home network.                                                |
+| `01-dashboard-light.png`    | The same dashboard in the light theme.                                                                                          |
+| `02-diagnosis-light.png`    | A plain-language verdict, in the light theme.                                                                                   |
+| `03-processes-light.png`    | Processes with icons and totals, in the light theme.                                                                            |
+| `04-performance-light.png`  | Performance graphs, in the light theme.                                                                                         |
+
+Partner Center allows ten desktop screenshots; the light storage and remote
+access captures are in the folder for the website but not uploaded.
+
 ## Category
 
 Utilities & tools > System tools (fallback: Utilities & tools)

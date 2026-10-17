@@ -3,6 +3,11 @@ title: Vitals — monitor de sistem și manager de activități pentru Windows
 description: Vitals este un monitor de sistem și manager de activități gratuit și open source pentru Windows. Cifre oneste, un răspuns pe înțeles la „de ce merge greu calculatorul?” și zero telemetrie.
 template: splash
 editUrl: false
+head:
+  - tag: meta
+    attrs:
+      property: og:type
+      content: website
 hero:
   title: Vezi ce face cu adevărat calculatorul tău.
   tagline: Un monitor de sistem și manager de activități rapid și nativ pentru Windows. Gratuit și open source, sub licența MIT. Urmărește-l de pe telefon, colectează-l cu Prometheus, controlează-l din terminal.
@@ -32,6 +37,19 @@ import { Aside, Card, CardGrid, Tabs, TabItem, LinkCard } from '@astrojs/starlig
 </Aside>
 
 ## Ce face
+
+<video
+  class="demo"
+  src="/screenshots/hero.webm"
+  poster="/screenshots/hero-poster.webp"
+  width="960"
+  height="540"
+  controls
+  loop
+  muted
+  playsinline
+  aria-label="Opt secunde din Vitals: panoul principal actualizat în timp real, apoi dialogul De ce merge greu calculatorul? deschis cu verdictul lui."
+></video>
 
 <CardGrid>
   <Card title="Cifre oneste" icon="approve-check">

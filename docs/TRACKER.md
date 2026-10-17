@@ -2658,6 +2658,43 @@ reclaimable space": body 654/880, no card scroller. The one card scroller left
 is Devices' sensor table (765 px of rows). An end gutter made Users scroll 6 px
 with everything fitting (574/580) and was removed. vitest 351/351.
 
+### 2026-10-17 — S17-14 launch assets
+
+The Store had four pre-1.0 screenshots and the site showed only the logo. Both
+now show the real 1.0 app, captured from the release build of `f5c74bc` on
+the devcloud Windows workspace (a neutral `dev` user, no personal folders).
+
+`scripts/screenshots/run.ps1` builds with `tauri build --no-bundle` and one
+overlay: the main window's `additionalBrowserArgs` gains
+`--remote-debugging-port=9333`. `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` did
+**not** work: the browser process ran with Tauri's own arguments only (command
+line read on the VM). `capture.mjs` then drives the app over CDP at 1920x1080
+in both colour schemes. Two things found on the way: Radix tabs ignore a
+synthetic `el.click()` (pointer events through `Input.dispatchMouseEvent`
+work), and inactive Settings tabs stay mounted, so "the first switch in the
+dialog" was Start with Windows, not Remote access. The pairing link in the
+remote-access shot shows only the 8-character token prefix and the server is
+switched off at the end.
+
+Site: `src/components/Hero.astro` overrides Starlight's hero on the two
+landing pages only (screenshot in the site's theme, a three-image strip,
+Microsoft's official Store badge first). The demo WebM has controls and starts
+by itself only without reduced motion (WCAG 2.2.2). Compare pages and the FAQ
+state where the other tool wins; every Vitals claim was checked against the
+code (service start type, handles/modules read-only, end process tree).
+
+### Verification log
+
+```
+capture (ws-vitals-win): 12 PNGs + 64 frames, exit 0, 138 s
+site build (ws-codai):   33 page(s) built; LD=1; og:type website (/, /ro/), article (/faq/)
+                         compare words: task-manager 627/610, process-explorer 532/554,
+                         system-informer 499/533 (en/ro)
+render (Edge, ws-vitals-win): /, /ro/, /compare/task-manager/ dark; / light; / 390 px
+assets: og.png 1200x630, hero.webm 960x540 8 s 38 KB, Store PNGs 1920x1080
+prettier --check (md, mdx, css, mjs): clean
+```
+
 ## S13 — public beta 0.9.0-beta.1 (2026-09-28)
 
 Decided with the owner (ADR 0031): public repository, beta version, no code

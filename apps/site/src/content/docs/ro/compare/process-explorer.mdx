@@ -1,0 +1,67 @@
+---
+title: Vitals vs Process Explorer
+description: Cum se compară Vitals cu Process Explorer de la Sysinternals — unde Process Explorer este instrumentul mai adânc, unde Vitals este cel mai clar și când îl folosești pe fiecare.
+---
+
+import { LinkButton } from '@astrojs/starlight/components';
+
+Process Explorer este instrumentul la care apelează inginerii Windows de la începutul anilor 2000.
+Este întreținut de Microsoft, ca parte din Sysinternals, este gratuit și, pentru a afla ce face un
+singur proces, merge mai adânc decât Vitals. Vitals se adresează altcuiva: cuiva al cărui calculator
+merge greu și care vrea să afle de ce, fără să învețe ce este un handle.
+
+![Dialogul „De ce merge greu calculatorul?” din Vitals în modul întunecat: un verdict pe un rând, programele responsabile și un minut de grafic.](/screenshots/dark-02-diagnosis.png)
+
+## Unul lângă altul
+
+|                                                             | Process Explorer                                  | Vitals                                                     |
+| ----------------------------------------------------------- | ------------------------------------------------- | ---------------------------------------------------------- |
+| Producător                                                  | Microsoft (Sysinternals)                          | Independent, open source (MIT)                             |
+| Instalare                                                   | Un singur exe, fără instalare                     | Store, winget, Scoop sau program de instalare              |
+| Arbore de procese, închidere arbore, suspendare, prioritate | Da                                                | Da                                                         |
+| Handle-uri și module încărcate                              | Da, cu căutare în toate procesele                 | Pe proces, doar citire                                     |
+| Ce proces ține ocupat un fișier                             | Da (Find Handle or DLL)                           | Când un fișier nu se șterge din Stocare, numește programul |
+| Verificarea semnăturilor și VirusTotal                      | Da                                                | Nu                                                         |
+| Fire de execuție, stive, dump-uri de memorie                | Da                                                | Nu                                                         |
+| Diagnostic pe înțeles                                       | Nu                                                | Da                                                         |
+| Temperaturi, viața SSD-ului, hartă a spațiului              | Nu                                                | Da                                                         |
+| Aplicații la pornire și servicii                            | Nu (asta face Autoruns)                           | Da                                                         |
+| Teme deschisă și întunecată, română                         | Mod întunecat în versiunile recente; doar engleză | Ambele teme; engleză și română                             |
+| Vedere pe telefon, Prometheus, linie de comandă             | Nu                                                | Opțional, oprite implicit                                  |
+| Cod sursă                                                   | Închis                                            | Public                                                     |
+
+## Unde câștigă Process Explorer
+
+- **Adâncime pentru un singur proces.** Stivele firelor de execuție, dump-uri de memorie, tabela
+  completă de handle-uri cu căutare în toate procesele, vederea DLL, token-uri de securitate. Dacă
+  depanezi software, Process Explorer este instrumentul potrivit, iar Vitals nu încearcă să fie.
+- **Verificări de încredere.** Verificarea semnăturii fiecărui executabil și trimiterea
+  amprentelor la VirusTotal direct din lista de procese ajută cu adevărat la depistarea
+  programelor rău intenționate. Vitals nu le face pe niciuna.
+- **Portabil.** Un exe, fără instalare, nimic lăsat în urmă. Vitals trebuie instalat.
+- **Făcut de Microsoft.** Poartă semnătura Microsoft, ceea ce contează pe calculatoarele
+  administrate de o firmă.
+
+## Unde ajută mai mult Vitals
+
+- **Răspunde la „de ce”.** Process Explorer arată tot și te lasă pe tine să citești. Vitals pune
+  valorile cap la cap și îți spune, într-o propoziție, care program este problema.
+- **Acoperă tot calculatorul.** Temperaturile unităților și viața rămasă, o hartă a spațiului cu
+  curățare sigură, aplicații la pornire și servicii, conexiuni de rețea, aplicații instalate și
+  dispozitive — într-o singură fereastră, nu în trei instrumente Sysinternals.
+- **Consecințele înaintea acțiunilor.** Închiderea sau suspendarea unui proces spune întâi ce se
+  va întâmpla, iar orice proces de care depinde Windows cere confirmare.
+- **Goluri oneste.** O valoare pe care Windows nu o raportează este o liniuță, niciodată zero.
+
+## Folosește-le pe amândouă
+
+Păstrează Process Explorer pentru analiza în profunzime și verificarea semnăturilor. Folosește
+Vitals pentru privirea zilnică și pentru întrebarea pe care o au cei mai mulți. Nu se încurcă unul
+pe altul; pot fi deschise amândouă deodată.
+
+<LinkButton href="https://apps.microsoft.com/detail/9P95RK5VMGPJ" icon="download">
+  Ia-l din Microsoft Store
+</LinkButton>
+<LinkButton href="/ro/download/" icon="right-arrow" variant="secondary">
+  Alte moduri de instalare
+</LinkButton>

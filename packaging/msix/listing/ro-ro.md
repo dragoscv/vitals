@@ -100,6 +100,24 @@ Reparat: graficele folosesc culoarea ta de accent; cardurile de stocare și disp
 
 task manager, monitor sistem, pc lent, temperatura procesor, curățare disc, sănătate ssd, aplicații pornire
 
+## Capturi de ecran (PNG 1920 × 1080, legendă ≤ 200 caractere fiecare)
+
+Aceleași fișiere și aceeași ordine ca în listarea în engleză (`screenshots/`);
+aplicația din capturi este în engleză, legendele sunt în română.
+
+| Fișier                      | Legendă                                                                                                                           |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `01-dashboard-dark.png`     | Panoul principal: un rând îți spune dacă ceva are nevoie de atenție, deasupra graficelor pentru procesor, memorie, disc și rețea. |
+| `02-diagnosis-dark.png`     | „De ce merge greu calculatorul?” se uită la tot deodată și răspunde pe înțeles.                                                   |
+| `03-processes-dark.png`     | Fiecare program cu pictograma lui și totalurile pentru tot calculatorul deasupra fiecărei coloane.                                |
+| `04-performance-dark.png`   | Grafice în timp real pentru procesor, memorie, placa video, fiecare unitate și placă de rețea.                                    |
+| `05-storage-dark.png`       | Vezi ca hartă ce ocupă o unitate, apoi curăță în siguranță prin Coșul de reciclare.                                               |
+| `06-remote-access-dark.png` | Opțional: asociezi telefonul cu un cod QR și urmărești calculatorul din rețeaua de acasă.                                         |
+| `01-dashboard-light.png`    | Același panou, în tema deschisă.                                                                                                  |
+| `02-diagnosis-light.png`    | Un verdict pe înțeles, în tema deschisă.                                                                                          |
+| `03-processes-light.png`    | Procese cu pictograme și totaluri, în tema deschisă.                                                                              |
+| `04-performance-light.png`  | Graficele de performanță, în tema deschisă.                                                                                       |
+
 ## Politica de confidențialitate
 
 https://vitals.dragoscatalin.ro/ro/privacy/

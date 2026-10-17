@@ -3,6 +3,12 @@ title: Vitals — a system monitor and task manager for Windows
 description: Vitals is a free, open-source system monitor and task manager for Windows. Honest numbers, a plain-language answer to "why is my PC slow?", and no telemetry.
 template: splash
 editUrl: false
+head:
+  # Starlight marks every page `article`; the root is the product's home.
+  - tag: meta
+    attrs:
+      property: og:type
+      content: website
 hero:
   title: See what your computer is actually doing.
   tagline: A fast, native system monitor and task manager for Windows. Free and open source under the MIT licence. Watch it from your phone, scrape it with Prometheus, script it from a terminal.
@@ -32,6 +38,19 @@ import { Aside, Card, CardGrid, Tabs, TabItem, LinkCard } from '@astrojs/starlig
 </Aside>
 
 ## What it does
+
+<video
+  class="demo"
+  src="/screenshots/hero.webm"
+  poster="/screenshots/hero-poster.webp"
+  width="960"
+  height="540"
+  controls
+  loop
+  muted
+  playsinline
+  aria-label="Eight seconds of Vitals: the dashboard updating live, then the Why is my PC slow? dialog opening with its verdict."
+></video>
 
 <CardGrid>
   <Card title="Honest numbers" icon="approve-check">

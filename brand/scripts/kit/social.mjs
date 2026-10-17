@@ -172,9 +172,9 @@ ${lockupSvg(colour.paper.hex, 22 * u)}<div style="border-left:1px solid rgba(255
 <p class="tag" style="font-size:${7 * u}px">${c.tagline}</p>
 <p class="sub" style="font-size:${3.2 * u}px;margin-top:${3 * u}px">${c.sub}</p>
 <p class="url" style="font-size:${3 * u}px;margin-top:${5 * u}px">${c.url}</p></div>
-<div class="frame" style="flex:0 0 ${w * 0.62}px;transform:translateX(${w * 0.02}px)"><img src="${shot('01-dashboard.png')}" alt=""></div></div>`;
+<div class="frame" style="flex:0 0 ${w * 0.62}px;transform:translateX(${w * 0.02}px)"><img src="${shot('01-dashboard-dark.png')}" alt=""></div></div>`;
   }
   // hero
   return `${base}<div class="wrap" style="flex-direction:column;justify-content:center;gap:${6 * u}px">
-${lockupSvg(colour.paper.hex, 11 * u)}<div class="frame" style="width:${w * 0.62}px"><img src="${shot('01-dashboard.png')}" alt=""></div></div>`;
+${lockupSvg(colour.paper.hex, 11 * u)}<div class="frame" style="width:${w * 0.62}px"><img src="${shot('01-dashboard-dark.png')}" alt=""></div></div>`;
 }

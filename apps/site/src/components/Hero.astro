@@ -1,0 +1,222 @@
+---
+/*
+ * Landing hero with the real app instead of the logo.
+ *
+ * Starlight's own hero sizes its image to 25 rem and treats it as an icon;
+ * a 1920x1080 screenshot needs the full content width below the copy to be
+ * readable. Pages that do not ask for the screenshot hero (`hero.image` set
+ * to anything else) fall through to Starlight's default, so only the two
+ * landing pages change.
+ *
+ * The Store badge is Microsoft's official artwork (get.microsoft.com), which
+ * its badge guidelines require instead of a home-made button.
+ */
+import Default from '@astrojs/starlight/components/Hero.astro';
+import { LinkButton } from '@astrojs/starlight/components';
+
+// Starlight's skip link and table of contents target this id on the page
+// title. Its constant is not exported, so it is repeated here (0.42.4).
+const PAGE_TITLE_ID = '_top';
+
+const route = Astro.locals.starlightRoute;
+const { data } = route.entry;
+const isLanding = data.template === 'splash' && data.hero !== undefined;
+const ro = route.locale === 'ro';
+const { title = data.title, tagline, actions = [] } = data.hero ?? {};
+
+const STORE = 'https://apps.microsoft.com/detail/9P95RK5VMGPJ';
+const t = ro
+  ? {
+      badge: 'Descarcă din Microsoft Store',
+      shot: 'Panoul principal Vitals: banda de stare „Totul e în regulă” deasupra graficelor pentru procesor, memorie, disc și rețea.',
+      strip: [
+        ['dark-02-diagnosis', 'De ce merge greu calculatorul? Un verdict pe înțeles și programele responsabile.'],
+        ['dark-03-processes', 'Procese cu pictograme, totaluri pe coloană și acțiuni care își spun consecințele.'],
+        ['dark-05-storage', 'Harta spațiului pe disc, cu curățare care trimite totul în Coșul de reciclare.'],
+      ],
+      captions: ['Diagnostic', 'Procese', 'Stocare'],
+    }
+  : {
+      badge: 'Get it from Microsoft',
+      shot: 'The Vitals dashboard: the health strip reads "All clear" above processor, memory, disk and network charts.',
+      strip: [
+        ['dark-02-diagnosis', 'Why is my PC slow? A plain-language verdict and the programs responsible.'],
+        ['dark-03-processes', 'Processes with icons, totals per column and actions that state their consequences.'],
+        ['dark-05-storage', 'A map of disk space, with clean-up that sends everything to the Recycle Bin.'],
+      ],
+      captions: ['Diagnosis', 'Processes', 'Storage'],
+    };
+// The Store CTA is the badge, so the first action (the Store text link)
+// is not repeated as a button.
+const rest = actions.filter((a) => !a.link.startsWith(STORE));
+---
+
+{
+  isLanding ? (
+    <div class="vhero">
+      <div class="copy">
+        <h1 id={PAGE_TITLE_ID} data-page-title set:html={title} />
+        {tagline && <p class="tagline" set:html={tagline} />}
+        <div class="actions">
+          <a class="store" href={STORE} aria-label={t.badge}>
+            <img
+              src={ro ? '/badges/microsoft-store-ro.svg' : '/badges/microsoft-store-en.svg'}
+              alt=""
+              width="161"
+              height="44"
+            />
+          </a>
+          {rest.map(({ link, text, variant, icon }) => (
+            <LinkButton href={link} variant={variant} icon={icon?.name}>
+              {text}
+            </LinkButton>
+          ))}
+        </div>
+      </div>
+      <figure class="shot">
+        <picture>
+          <source srcset="/screenshots/light-01-dashboard.webp" media="(prefers-color-scheme: light)" type="image/webp" />
+          <img
+            class="dark-only"
+            src="/screenshots/dark-01-dashboard.webp"
+            width="1920"
+            height="1080"
+            alt={t.shot}
+            loading="eager"
+            fetchpriority="high"
+            decoding="async"
+          />
+        </picture>
+        <img
+          class="light-only"
+          src="/screenshots/light-01-dashboard.webp"
+          width="1920"
+          height="1080"
+          alt={t.shot}
+          loading="eager"
+          decoding="async"
+        />
+      </figure>
+      <ul class="strip">
+        {t.strip.map(([file, alt], i) => (
+          <li>
+            <img src={`/screenshots/${file}.webp`} width="1920" height="1080" alt={alt} loading="lazy" decoding="async" />
+            <span>{t.captions[i]}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  ) : (
+    <Default />
+  )
+}
+
+<script>
+  // The demo loop below the hero has controls (WCAG 2.2.2: anything moving
+  // for over five seconds needs a pause) and starts by itself only for people
+  // who have not asked their system for reduced motion.
+  const demo = document.querySelector<HTMLVideoElement>('video.demo');
+  if (demo && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    demo.muted = true;
+    void demo.play().catch(() => {
+      // Autoplay refused (data saver, policy): the poster and controls remain.
+    });
+  }
+</script>
+
+<style>
+  .vhero {
+    display: grid;
+    gap: 2rem;
+    padding-block: clamp(2rem, calc(1rem + 6vmin), 5rem) 1rem;
+  }
+  .copy {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    align-items: center;
+    text-align: center;
+  }
+  .copy > * {
+    max-width: 52ch;
+  }
+  h1 {
+    font-size: clamp(var(--sl-text-3xl), calc(0.25rem + 5vw), var(--sl-text-6xl));
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    font-weight: 600;
+    color: var(--sl-color-white);
+    margin: 0;
+  }
+  .tagline {
+    font-size: clamp(var(--sl-text-base), calc(0.0625rem + 2vw), var(--sl-text-xl));
+    color: var(--sl-color-gray-2);
+    margin: 0;
+  }
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem 1.5rem;
+    align-items: center;
+    justify-content: center;
+    max-width: none;
+  }
+  .store {
+    display: inline-flex;
+    border-radius: 6px;
+    line-height: 0;
+  }
+  .store img {
+    height: 3rem;
+    width: auto;
+  }
+  .store:focus-visible {
+    outline: 2px solid var(--sl-color-accent-high);
+    outline-offset: 3px;
+  }
+  .shot {
+    margin: 0;
+  }
+  .shot img,
+  .strip img {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: 0.75rem;
+    border: 1px solid var(--sl-color-gray-5);
+    box-shadow: 0 1.5rem 4rem -1.5rem oklch(0 0 0 / 0.55);
+  }
+  /* Follow the site's theme toggle, not only the OS preference. */
+  .light-only {
+    display: none !important;
+  }
+  :global(:root[data-theme='light']) .light-only {
+    display: block !important;
+  }
+  :global(:root[data-theme='light']) .dark-only {
+    display: none !important;
+  }
+  .strip {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+    gap: 1rem;
+  }
+  .strip li {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  .strip img {
+    border-radius: 0.5rem;
+    box-shadow: none;
+  }
+  .strip span {
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-gray-2);
+    text-align: center;
+  }
+</style>

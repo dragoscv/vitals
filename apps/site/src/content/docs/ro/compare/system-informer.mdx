@@ -1,0 +1,68 @@
+---
+title: Vitals vs System Informer
+description: Cum se compară Vitals cu System Informer (fostul Process Hacker) — două instrumente open source cu publicuri foarte diferite și când este fiecare alegerea mai bună.
+---
+
+import { LinkButton } from '@astrojs/starlight/components';
+
+System Informer, fostul Process Hacker, este cel mai puternic instrument open source pentru procese
+pe Windows. Pe alocuri merge mai departe decât Process Explorer, iar driverul său de kernel îi
+permite să vadă și să facă lucruri pe care nicio aplicație obișnuită nu le poate face. Și Vitals este
+open source, dar e construit pentru altă întrebare: nu „arată-mi tot despre procesul acesta”, ci „de
+ce merge greu calculatorul și ce ar trebui să fac?”.
+
+![Panoul principal Vitals în modul întunecat, cu banda de stare „Totul e în regulă” deasupra widgeturilor pentru procesor, memorie, disc și rețea.](/screenshots/dark-01-dashboard.png)
+
+## Unul lângă altul
+
+|                                                                           | System Informer                    | Vitals                                                                          |
+| ------------------------------------------------------------------------- | ---------------------------------- | ------------------------------------------------------------------------------- |
+| Licență                                                                   | MIT                                | MIT                                                                             |
+| Arbore de procese, închidere, suspendare, prioritate, afinitate           | Da                                 | Da                                                                              |
+| Handle-uri, module, fire de execuție, editarea memoriei                   | Da, în profunzime                  | Handle-uri și module pe proces, doar citire                                     |
+| Driver de kernel                                                          | Opțional, pentru procese protejate | Niciunul. Un serviciu de senzori opțional citește doar temperatura procesorului |
+| Conexiuni de rețea pe proces                                              | Da                                 | Da                                                                              |
+| Activitate pe disc și rețea pe proces                                     | Da                                 | Da                                                                              |
+| Servicii                                                                  | Creare, editare, ștergere          | Pornire, oprire, tip de pornire                                                 |
+| Diagnostic pe înțeles                                                     | Nu                                 | Da                                                                              |
+| Temperaturi pentru unități, viața SSD-ului, hartă a spațiului și curățare | Nu                                 | Da                                                                              |
+| Supraveghetor pentru blocaje                                              | Nu                                 | Opțional                                                                        |
+| Vedere pe telefon, Prometheus, Home Assistant, linie de comandă           | Nu                                 | Opțional, oprite implicit                                                       |
+| Microsoft Store                                                           | Nu                                 | Da                                                                              |
+| Pluginuri                                                                 | Da                                 | Nu                                                                              |
+
+## Unde câștigă System Informer
+
+- **Putere brută.** Cu driverul său poate inspecta și închide procese protejate, poate edita
+  memoria, poate vedea obiecte din kernel și multe altele. Vitals nu are, intenționat, un driver de
+  kernel pentru lucrul cu procese și nu atinge un proces pe care Windows îl protejează.
+- **Adâncime peste tot.** Stivele firelor de execuție, privilegiile token-urilor, job objects,
+  regiunile de memorie, servicii pe care le poți crea și șterge. Dacă știi ce sunt și ai nevoie de
+  ele, System Informer este instrumentul potrivit.
+- **Pluginuri și o istorie lungă.** Un sistem de pluginuri și două decenii de utilizatori avansați.
+
+## Unde ajută mai mult Vitals
+
+- **Explică în loc să înșire.** Un singur buton transformă valorile în timp real într-un verdict
+  și numește programele responsabile. System Informer îți dă datele și se așteaptă să știi ce
+  înseamnă.
+- **Mai sigur implicit.** Fiecare acțiune care schimbă sistemul spune întâi ce va face, cele
+  ireversibile cer o bifă în plus și nimic nu rulează ca administrator decât dacă aprobi acea
+  acțiune prin fereastra Windows.
+- **Restul calculatorului.** Sănătatea și temperaturile unităților, o hartă a spațiului cu
+  curățare care trimite în Coșul de reciclare, aplicații la pornire, aplicații instalate și
+  dispozitive.
+- **Ușor de obținut.** E în Microsoft Store, fără avertisment SmartScreen și cu actualizări
+  automate.
+
+## Folosește-le pe amândouă
+
+Dacă trăiești în System Informer, păstrează-l. Vitals este cel pe care îl instalezi pe laptopul
+părinților și cel pe care îl deschizi când vrei un răspuns, nu un tabel.
+
+<LinkButton href="https://apps.microsoft.com/detail/9P95RK5VMGPJ" icon="download">
+  Ia-l din Microsoft Store
+</LinkButton>
+<LinkButton href="/ro/download/" icon="right-arrow" variant="secondary">
+  Alte moduri de instalare
+</LinkButton>

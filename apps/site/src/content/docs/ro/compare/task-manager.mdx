@@ -1,0 +1,68 @@
+---
+title: Vitals vs Task Manager din Windows
+description: Cum se compară Vitals cu Task Manager-ul din Windows — ce face fiecare mai bine, unul lângă altul, și când să folosești în continuare Task Manager.
+---
+
+import { LinkButton } from '@astrojs/starlight/components';
+
+Task Manager există deja pe orice calculator cu Windows, se deschide repede și, pentru a închide un
+program blocat, e greu de bătut. Vitals nu încearcă să-l înlocuiască pentru asta. Este pentru
+întrebarea următoare: _de ce_ merge greu calculatorul, ce a ocupat discul toată după-amiaza și care
+unitate se apropie de sfârșitul vieții.
+
+![Lista de procese din Vitals în modul întunecat: pictogramele programelor, coloanele CPU, memorie, disc și rețea, cu totalurile pentru tot calculatorul deasupra fiecărei coloane.](/screenshots/dark-03-processes.png)
+
+## Unul lângă altul
+
+|                                                       | Task Manager                         | Vitals                                                   |
+| ----------------------------------------------------- | ------------------------------------ | -------------------------------------------------------- |
+| Vine cu Windows, nimic de instalat                    | Da                                   | Nu — Store, winget sau program de instalare              |
+| Închidere, suspendare, prioritate, mod eficiență      | Închidere, prioritate, mod eficiență | Toate patru, și spune ce se întâmplă înainte să confirmi |
+| Aplicații la pornire și servicii                      | Da                                   | Da, cu intrările Microsoft ascunse până le ceri          |
+| Un răspuns pe înțeles la „de ce merge greu?”          | Nu                                   | Da — un verdict, vinovații și un minut de grafic         |
+| Temperaturi pentru unități și viața rămasă a SSD-ului | Nu în Task Manager                   | Da, unde unitatea le raportează                          |
+| Hartă a spațiului pe disc și curățare                 | Nu                                   | Da, totul ajunge întâi în Coșul de reciclare             |
+| Observă când Windows nu mai răspunde                  | Nu                                   | Supraveghetor opțional, oprit până îl pornești           |
+| Istoricul ultimelor minute                            | 60 de secunde de grafic              | Înregistrator de zbor plus istoric opțional pe disc      |
+| Vedere de pe telefon sau televizor                    | Nu                                   | Opțional, doar în rețeaua ta                             |
+| Prometheus și Home Assistant                          | Nu                                   | Puncte de acces opționale, oprite implicit               |
+| Open source                                           | Nu                                   | Da, MIT                                                  |
+
+## Unde câștigă Task Manager
+
+- **E mereu acolo.** Pe un laptop de serviciu unde nu poți instala nimic, pe calculatorul unui
+  prieten, în Safe Mode: Ctrl+Shift+Esc funcționează. Vitals trebuie instalat mai întâi.
+- **Face parte din Windows.** E semnat de Microsoft, se actualizează odată cu Windows și
+  departamentele IT au deja încredere în el. Vitals este o aplicație terță;
+  [pagina de descărcare](/ro/download/) arată cum verifici că fișierul tău a fost construit din
+  codul sursă public.
+- **Se deschide imediat, chiar și când calculatorul se chinuie.** Windows îl tratează special
+  când desktopul nu răspunde. Vitals este o aplicație obișnuită și nu primește astfel de favoruri.
+- **Rulează o activitate nouă, deconectează un utilizator, repornește Explorer** — toate la un
+  meniu distanță. Vitals poate reporni un Explorer blocat din supraveghetor, dar nu încearcă să fie
+  un instrument de sistem pentru shell.
+
+## Unde ajută mai mult Vitals
+
+- **Explică.** Un singur buton se uită împreună la procesor, memorie, disc, rețea și temperaturi
+  și numește cauza într-o propoziție, cu programele responsabile.
+- **E onest despre ce nu vede.** O valoare pe care Windows nu o oferă apare ca o liniuță,
+  niciodată ca zero — nu „0 % GPU” pentru o placă video care nu raportează gradul de utilizare.
+- **Are grijă de spațiu.** Scanezi o unitate, o vezi ca hartă, alegi ce elimini și trimiți totul
+  în Coșul de reciclare dintr-un pas.
+- **Merge dincolo de fereastră.** Asociezi un telefon în rețeaua de acasă sau conectezi
+  Prometheus. Fiecare dintre ele e oprită până o pornești.
+
+## Folosește-le pe amândouă
+
+Mulți păstrează Task Manager pentru închiderea rapidă și deschid Vitals când vor un răspuns.
+Versiunea instalată cu programul de instalare poate prelua și Ctrl+Shift+Esc dacă îi ceri (versiunea
+din Store nu poate, pentru că Windows nu permite asta aplicațiilor împachetate), iar alegerea se
+poate anula din Setări.
+
+<LinkButton href="https://apps.microsoft.com/detail/9P95RK5VMGPJ" icon="download">
+  Ia-l din Microsoft Store
+</LinkButton>
+<LinkButton href="/ro/download/" icon="right-arrow" variant="secondary">
+  Alte moduri de instalare
+</LinkButton>
