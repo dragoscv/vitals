@@ -26,6 +26,8 @@ fun AlertKind.title(): Int = when (this) {
     AlertKind.NetworkErrors -> R.string.alert_network_errors
     AlertKind.BatteryLow -> R.string.alert_battery_low
     AlertKind.BatteryHealth -> R.string.alert_battery_health
+    // A kind a newer desktop added: worded generically rather than dropped.
+    AlertKind.Unknown -> R.string.alert_other
 }
 
 /** What the watch shows for an alert: a worded title and the subject (a disk, a GPU), never the wire keys. */

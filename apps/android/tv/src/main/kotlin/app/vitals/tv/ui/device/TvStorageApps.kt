@@ -106,14 +106,14 @@ internal fun StorageTab() {
             items(volumes.orEmpty(), key = { "v-" + it.id }) { v -> Volume(v, access.usageStats) }
             if (!access.usageStats) {
                 item(key = "usage") {
-                    Panel(stringResource(R.string.device_access_title), accent = Palette.Accent) {
+                    Panel(stringResource(R.string.device_access_title), accent = Palette.Accent, focusable = false) {
                         Hint(stringResource(R.string.device_access_usage_body))
                         Action(stringResource(R.string.device_access_grant), onClick = { SpecialAccess.usage(context) })
                     }
                 }
             }
             item(key = "scan") {
-                Panel(stringResource(R.string.device_scan_title), accent = Palette.Disk) {
+                Panel(stringResource(R.string.device_scan_title), accent = Palette.Disk, focusable = false) {
                     when (val s = scan) {
                         // Play build: nothing to grant, so point at the system's
                         // storage manager, which sees every folder by itself.
@@ -138,7 +138,7 @@ internal fun StorageTab() {
                         is ScanProgress.Done -> {
                             val here = path.lastOrNull() ?: s.tree
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                Text(here.path.removePrefix(graph.device.storageRoot).ifEmpty { "/" }, modifier = Modifier.weight(1f), maxLines = 1)
+                                Text(here.path.removePrefix(graph.device.storageRoot).ifEmpty { "/" }, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 if (path.size > 1) Action(stringResource(R.string.back), onClick = { path = path.dropLast(1) })
                                 Action(stringResource(R.string.device_scan_again), onClick = { scanRun++ })
                             }
@@ -266,7 +266,7 @@ internal fun AppsTab() {
     }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (!access.usageStats) {
-            Panel(stringResource(R.string.device_access_title), accent = Palette.Accent) {
+            Panel(stringResource(R.string.device_access_title), accent = Palette.Accent, focusable = false) {
                 Hint(stringResource(R.string.device_access_usage_body))
                 Action(stringResource(R.string.device_access_grant), onClick = { SpecialAccess.usage(context) })
             }

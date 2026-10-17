@@ -143,6 +143,7 @@ fun ProcessesScreen(
         ControlOutcome.Reason.AccessDenied -> stringResource(R.string.fail_access_denied)
         ControlOutcome.Reason.AlreadyGone -> stringResource(R.string.fail_gone)
         ControlOutcome.Reason.Unreachable -> stringResource(R.string.fail_unreachable)
+        ControlOutcome.Reason.NoPhone -> stringResource(R.string.fail_no_phone)
         ControlOutcome.Reason.Unknown, null -> stringResource(R.string.fail_unknown)
     }
     FailureConfirmationDialog(

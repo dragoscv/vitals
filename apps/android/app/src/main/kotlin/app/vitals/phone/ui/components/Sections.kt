@@ -1,6 +1,7 @@
 package app.vitals.phone.ui.components
 
 import app.vitals.phone.ui.theme.readable
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -54,6 +55,6 @@ fun InfoRow(label: String, value: String, modifier: Modifier = Modifier, valueCo
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Text(value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = readable(valueColour), maxLines = 1)
+        Text(value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = readable(valueColour), maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }

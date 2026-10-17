@@ -1,6 +1,8 @@
 package app.vitals.tv.ui
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,8 +14,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -50,16 +58,54 @@ val CardShape = RoundedCornerShape(20.dp)
 val SafeHorizontal = 48.dp
 val SafeVertical = 27.dp
 
-/** A section of readings. Not focusable: a TV should not make the user step through every label. */
+/**
+ * Gives this element focus when Back has just closed the screen it opened
+ * ([app.vitals.tv.Navigator.restoreFocusTo] == [id]), two frames after
+ * composition so the list has laid it out.
+ */
+@Composable
+fun Modifier.restoreFocus(id: String): Modifier {
+    val navigator = app.vitals.tv.LocalNavigator.current
+    val requester = androidx.compose.runtime.remember { androidx.compose.ui.focus.FocusRequester() }
+    androidx.compose.runtime.LaunchedEffect(id) {
+        if (navigator.restoreFocusTo != id) return@LaunchedEffect
+        androidx.compose.runtime.withFrameNanos { }
+        androidx.compose.runtime.withFrameNanos { }
+        runCatching { requester.requestFocus() }
+        navigator.restoreFocusTo = null
+    }
+    return this.focusRequester(requester)
+}
+
+/**
+ * A section of readings.
+ *
+ * Focusable as one stop by default (AND-22): a tab made only of panels had
+ * nothing the D-pad could land on, so its lower half could never be scrolled
+ * into view. One stop per panel — never per label — and a white border when
+ * focused, so focus does not rely on colour. A panel that holds its own
+ * buttons or list items passes [focusable] = false: those children are the
+ * stops, and an extra one around them would only slow the user down.
+ */
 @Composable
 fun Panel(
     title: String,
     modifier: Modifier = Modifier,
     accent: Color = MaterialTheme.colorScheme.primary,
+    focusable: Boolean = true,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    var focused by remember { mutableStateOf(false) }
+    val focus = if (focusable) {
+        Modifier
+            .onFocusChanged { focused = it.isFocused }
+            .border(BorderStroke(3.dp, if (focused) Color.White else Color.Transparent), CardShape)
+            .focusable()
+    } else {
+        Modifier
+    }
     Surface(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth().then(focus),
         shape = CardShape,
         colors = SurfaceDefaults.colors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
@@ -169,6 +215,7 @@ fun InfoRow(label: String, value: String, modifier: Modifier = Modifier, valueCo
             fontWeight = FontWeight.SemiBold,
             color = if (valueColour == Color.Unspecified) MaterialTheme.colorScheme.onSurface else readable(valueColour),
             maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }
@@ -198,7 +245,7 @@ fun Ring(
     ) {
         Box(Modifier.size(diameter), contentAlignment = Alignment.Center) {
             RingArc(fraction, arc, MaterialTheme.colorScheme.surfaceVariant, Modifier.size(diameter), stroke)
-            Text(valueText, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            Text(valueText, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         Text(
             label,
@@ -206,6 +253,7 @@ fun Ring(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
             maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }
@@ -215,8 +263,22 @@ fun Bar(fraction: Float?, colour: Color, modifier: Modifier = Modifier, height: 
     FillBarCanvas(fraction, colour, MaterialTheme.colorScheme.surfaceVariant, modifier, height)
 
 @Composable
-fun Spark(series: Series, colour: Color, modifier: Modifier = Modifier, max: Float = 100f) =
-    SparklineCanvas(series, colour, modifier, max, height = 48.dp, strokeWidth = 3.dp)
+fun Spark(
+    series: Series,
+    colour: Color,
+    modifier: Modifier = Modifier,
+    max: Float = 100f,
+    label: String? = null,
+    format: (Float?) -> String = app.vitals.ui.Format::percent,
+) = SparklineCanvas(
+    series,
+    colour,
+    modifier,
+    max,
+    height = 48.dp,
+    strokeWidth = 3.dp,
+    description = label?.let { androidx.compose.ui.res.stringResource(app.vitals.tv.R.string.chart_last_minute, it, format(series.last())) },
+)
 
 @Composable
 fun ScreenTitle(text: String, modifier: Modifier = Modifier) {

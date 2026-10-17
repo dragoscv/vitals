@@ -7,6 +7,7 @@ import android.os.Build
 import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
 import app.vitals.core.loggingHandler
+import app.vitals.core.net.LanNetwork
 import app.vitals.core.net.getOrNull
 import app.vitals.phone.MainActivity
 import app.vitals.phone.R
@@ -58,6 +59,10 @@ class PcTileService : TileService() {
         // Show the last known values at once, then the fresh ones.
         graph.widgetCache.all.first()[target.id]?.summary?.let { cached ->
             show(tile, target.label, subtitle(cached.system), Tile.STATE_ACTIVE)
+        }
+        if (!LanNetwork.onLan) {
+            show(tile, target.label, getString(R.string.state_off_lan_short), Tile.STATE_INACTIVE)
+            return
         }
         val summary = graph.client(target).summary(top = 3).getOrNull()
         if (summary == null) {

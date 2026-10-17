@@ -28,6 +28,9 @@ abstract class MetricComplicationService : SuspendingComplicationDataSourceServi
     protected abstract val max: Float
     protected abstract fun shortText(value: Float): String
     protected abstract val title: Int
+
+    /** The long name the face's accessibility label uses ("PC processor use"). */
+    protected abstract val description: Int
     protected abstract val preview: Float
 
     override suspend fun onComplicationRequest(request: ComplicationRequest): ComplicationData? {
@@ -46,17 +49,20 @@ abstract class MetricComplicationService : SuspendingComplicationDataSourceServi
     private fun build(type: ComplicationType, value: Float): ComplicationData? {
         val label = PlainComplicationText.Builder(getString(title)).build()
         val text = PlainComplicationText.Builder(shortText(value)).build()
+        // What TalkBack reads on the face: the long label and the number,
+        // not the two-character title alone (AND-45).
+        val spoken = PlainComplicationText.Builder(getString(R.string.complication_spoken, getString(description), shortText(value))).build()
         val image = MonochromaticImage.Builder(Icon.createWithResource(this, R.drawable.ic_pulse)).build()
         return when (type) {
             ComplicationType.RANGED_VALUE ->
-                RangedValueComplicationData.Builder(value.coerceIn(0f, max), 0f, max, text)
+                RangedValueComplicationData.Builder(value.coerceIn(0f, max), 0f, max, spoken)
                     .setText(text)
                     .setTitle(label)
                     .setMonochromaticImage(image)
                     .setTapAction(openApp())
                     .build()
             ComplicationType.SHORT_TEXT ->
-                ShortTextComplicationData.Builder(text, text)
+                ShortTextComplicationData.Builder(text, spoken)
                     .setTitle(label)
                     .setMonochromaticImage(image)
                     .setTapAction(openApp())

@@ -22,8 +22,16 @@ data class Headline(
     val worst: Severity?,
 ) {
     companion object {
-        fun of(state: PcState): Headline {
-            val system = state.summary?.system
+        /**
+         * Older than this, a cached reading is not shown as current (AND-20):
+         * a watch face that kept "CPU 12 %" for an hour after the PC went to
+         * sleep was showing a lie with a number on it.
+         */
+        const val STALE_AFTER_MS = 10 * 60_000L
+
+        fun of(state: PcState, nowMs: Long = System.currentTimeMillis()): Headline {
+            val fresh = nowMs - state.fetchedMs <= STALE_AFTER_MS
+            val system = state.summary?.system?.takeIf { fresh }
             return Headline(
                 label = state.label,
                 fetchedMs = state.lastSeenMs,
@@ -32,7 +40,9 @@ data class Headline(
                 memory = system?.let(Readings::memoryPercent),
                 gpu = system?.let(Readings::primaryGpu)?.utilization,
                 cpuTemp = system?.let(Readings::cpuTemperature),
-                worst = state.alerts.maxOfOrNull { it.severity },
+                // A severity a newer desktop added ranks as a warning, not
+                // above critical (Unknown is the last enum entry).
+                worst = state.alerts.maxOfOrNull { if (it.severity == Severity.Unknown) Severity.Warning else it.severity },
             )
         }
 

@@ -3,11 +3,7 @@ package app.vitals.wear.data
 import android.content.Context
 import app.vitals.core.WireJson
 import app.vitals.core.model.Alert
-import app.vitals.core.model.ControlError
-import app.vitals.core.model.ControlRequest
 import app.vitals.core.model.ProcessKey
-import app.vitals.core.net.ApiFailure
-import app.vitals.core.net.ApiResult
 import app.vitals.core.net.LanAddress
 import app.vitals.core.net.VitalsClient
 import app.vitals.core.net.getOrNull
@@ -48,7 +44,8 @@ sealed interface ControlOutcome {
     data object Done : ControlOutcome
     data class Failed(val reason: Reason) : ControlOutcome
 
-    enum class Reason { ReadOnly, AccessDenied, AlreadyGone, Unreachable, Unknown }
+    /** [NoPhone]: control goes through the phone only (AND-7), and none is in reach. */
+    enum class Reason { ReadOnly, AccessDenied, AlreadyGone, Unreachable, NoPhone, Unknown }
 }
 
 /**
@@ -228,6 +225,9 @@ class WearRepository(private val context: Context, private val scope: CoroutineS
     }
 
     private suspend fun pollDirect(p: Pairing) {
+        // No token: the phone keeps control-capable tokens to itself (AND-7),
+        // so this PC is seen only through its relay.
+        if (p.token.isEmpty()) return
         if (!LanAddress.isPrivate(p.baseUrl)) return
         val client = VitalsClient(p.baseUrl, p.token)
         val (summary, sensors, alerts) = coroutineScope {
@@ -262,12 +262,13 @@ class WearRepository(private val context: Context, private val scope: CoroutineS
     suspend fun endTask(pairingId: String, key: ProcessKey): ControlOutcome {
         val pairing = pairingFor(pairingId) ?: return ControlOutcome.Failed(ControlOutcome.Reason.Unknown)
         if (pairing.scope == Scope.Read) return ControlOutcome.Failed(ControlOutcome.Reason.ReadOnly)
-        val outcome = viaPhone(pairingId, key) ?: direct(pairing, key)
+        // Always through the phone: the watch holds no token that can control (AND-7).
+        val outcome = viaPhone(pairingId, key) ?: ControlOutcome.Failed(ControlOutcome.Reason.NoPhone)
         if (outcome == ControlOutcome.Done) scope.launch { refresh() }
         return outcome
     }
 
-    /** `null` when no phone could take the request, so the caller goes direct. */
+    /** `null` when no phone could take the request. */
     private suspend fun viaPhone(pairingId: String, key: ProcessKey): ControlOutcome? {
         val node = phone.nearestPhone() ?: return null
         val request = WatchControl(UUID.randomUUID().toString(), pairingId, key.pid, key.startTime)
@@ -281,26 +282,6 @@ class WearRepository(private val context: Context, private val scope: CoroutineS
             return if (reply.ok) ControlOutcome.Done else ControlOutcome.Failed(reasonOf(reply.error))
         } finally {
             replies.remove(request.requestId)
-        }
-    }
-
-    private suspend fun direct(pairing: Pairing, key: ProcessKey): ControlOutcome {
-        if (!LanAddress.isPrivate(pairing.baseUrl)) return ControlOutcome.Failed(ControlOutcome.Reason.Unreachable)
-        return when (val r = VitalsClient(pairing.baseUrl, pairing.token).control(ControlRequest.Terminate(key))) {
-            is ApiResult.Ok -> ControlOutcome.Done
-            is ApiResult.Err -> ControlOutcome.Failed(
-                when (val f = r.failure) {
-                    is ApiFailure.Refused -> when (f.error) {
-                        ControlError.Forbidden -> ControlOutcome.Reason.ReadOnly
-                        ControlError.AccessDenied -> ControlOutcome.Reason.AccessDenied
-                        ControlError.NotFound -> ControlOutcome.Reason.AlreadyGone
-                        else -> ControlOutcome.Reason.Unknown
-                    }
-                    ApiFailure.Unauthorised -> ControlOutcome.Reason.ReadOnly
-                    is ApiFailure.Unreachable -> ControlOutcome.Reason.Unreachable
-                    else -> ControlOutcome.Reason.Unknown
-                },
-            )
         }
     }
 

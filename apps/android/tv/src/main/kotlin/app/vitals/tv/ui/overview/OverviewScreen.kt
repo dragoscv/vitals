@@ -1,6 +1,7 @@
 package app.vitals.tv.ui.overview
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -37,6 +38,7 @@ import app.vitals.tv.ui.ScreenTitle
 import app.vitals.tv.ui.Spark
 import app.vitals.tv.ui.readable
 import app.vitals.tv.ui.relativeTime
+import app.vitals.tv.ui.restoreFocus
 import app.vitals.ui.DeviceLive
 import app.vitals.ui.Format
 import app.vitals.ui.LiveState
@@ -96,8 +98,8 @@ private fun TvCard(live: DeviceLive, onOpen: () -> Unit) {
                 stringResource(R.string.metric_temp), level = Thresholds.cpuTemp(s.cpu.temperature),
             )
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Spark(live.cpu, Palette.Cpu)
-                Spark(live.memory, Palette.Memory)
+                Spark(live.cpu, Palette.Cpu, label = stringResource(R.string.metric_cpu))
+                Spark(live.memory, Palette.Memory, label = stringResource(R.string.metric_memory_short))
                 Text(
                     stringResource(R.string.net_down_up, Format.rate(s.network.rxBytesPerSec), Format.rate(s.network.txBytesPerSec)),
                     style = MaterialTheme.typography.bodyLarge,
@@ -112,8 +114,8 @@ private fun PcCard(pairing: Pairing, modifier: Modifier, onOpen: () -> Unit) {
     val graph = LocalContext.current.tvGraph
     val flow = remember(pairing.id, pairing.baseUrl, pairing.token) { graph.live(pairing) }
     val state by flow.collectAsStateWithLifecycle(LiveState())
-    FocusCard(onClick = onOpen, modifier = modifier) {
-        Text(pairing.label, style = MaterialTheme.typography.titleLarge, maxLines = 1)
+    FocusCard(onClick = onOpen, modifier = modifier.restoreFocus(pairing.id)) {
+        Text(pairing.label, style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
         PcStatus(state)
         val system = state.view?.system
         if (system != null && !state.unreachable) {
@@ -126,7 +128,7 @@ private fun PcCard(pairing: Pairing, modifier: Modifier, onOpen: () -> Unit) {
                 Ring(gpu?.div(100f), Palette.Gpu, Format.percentCompact(gpu), stringResource(R.string.metric_gpu), diameter = 96.dp, stroke = 10.dp)
                 Ring(temp?.div(110f), Palette.Thermal, Format.celsiusCompact(temp), stringResource(R.string.metric_temp), diameter = 96.dp, stroke = 10.dp, level = Thresholds.cpuTemp(temp))
             }
-            Spark(state.cpu, Palette.Cpu)
+            Spark(state.cpu, Palette.Cpu, label = stringResource(R.string.metric_cpu))
         }
     }
 }
@@ -138,6 +140,7 @@ fun PcStatus(state: LiveState) {
     val text = when {
         state.unauthorised -> stringResource(R.string.state_unauthorised)
         state.incompatible -> stringResource(R.string.state_incompatible)
+        state.offLan -> stringResource(R.string.state_off_lan)
         state.unreachable -> state.lastSeenMs?.let { stringResource(R.string.last_seen, relativeTime(it)) }
             ?: stringResource(R.string.state_unreachable)
         state.view == null -> stringResource(R.string.state_connecting)

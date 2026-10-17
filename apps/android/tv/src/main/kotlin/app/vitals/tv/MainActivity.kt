@@ -65,6 +65,13 @@ sealed interface Route {
 class Navigator(private val stack: MutableList<Route>) {
     val current: Route get() = stack.last()
 
+    /**
+     * The PC whose screen Back just closed. Its card takes focus again when
+     * the list reappears (AND-24); without this, focus fell to the first
+     * card or the drawer and a user with ten PCs lost their place each time.
+     */
+    var restoreFocusTo: String? = null
+
     fun push(r: Route) {
         stack.add(r)
     }
@@ -76,7 +83,8 @@ class Navigator(private val stack: MutableList<Route>) {
     }
 
     fun pop(): Boolean = if (stack.size > 1) {
-        stack.removeAt(stack.lastIndex)
+        val closed = stack.removeAt(stack.lastIndex)
+        restoreFocusTo = (closed as? Route.Pc)?.id
         true
     } else {
         false
@@ -122,6 +130,9 @@ private fun TvRoot() {
     // later, because the new screen has no focusable yet when it is chosen.
     LaunchedEffect(handoff, stack.size, current) {
         if (handoff == 0 && stack.size == 1 && current == Route.Overview) return@LaunchedEffect
+        // A card is about to take its focus back; handing focus to the first
+        // child here would race it.
+        if (navigator.restoreFocusTo != null) return@LaunchedEffect
         withFrameNanos { }
         withFrameNanos { }
         // moveFocus(Right) from the drawer found nothing on the Chromecast;

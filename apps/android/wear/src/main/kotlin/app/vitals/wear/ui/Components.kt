@@ -94,6 +94,7 @@ fun ValueRow(label: String, value: String, modifier: Modifier = Modifier, valueC
             style = MaterialTheme.typography.labelMedium,
             color = if (valueColor == Color.Unspecified) MaterialTheme.colorScheme.onSurface else valueColor,
             maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
             textAlign = TextAlign.End,
         )
     }

@@ -4,8 +4,6 @@
     <string name="tile_label">Vitals: PC-ul dintr-o privire</string>
     <string name="complication_cpu">Utilizarea procesorului PC-ului</string>
     <string name="complication_temp">Temperatura procesorului PC-ului</string>
-
-    <string name="channel_alerts">Alerte PC</string>
     <string name="channel_alerts_description">Când un PC asociat se supraîncălzește, rămâne fără memorie sau se chinuie</string>
 
     <string name="alert_cpu_sustained">Procesorul este ocupat de ceva vreme</string>
@@ -110,4 +108,10 @@
     <string name="on_battery">Pe baterie</string>
     <string name="storage">Stocare</string>
     <string name="sensor_count">%1$d senzori pe acest ceas</string>
+    <!-- S17-13 (AND-6..47) -->
+    <string name="alert_other">Ceva pe PC cere atenție</string>
+    <string name="channel_alerts_critical">Alerte PC grave</string>
+    <string name="channel_alerts_warning">Avertismente PC</string>
+    <string name="fail_no_phone">Telefonul trebuie să fie aproape</string>
+    <string name="complication_spoken">%1$s: %2$s</string>
 </resources>

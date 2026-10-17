@@ -38,7 +38,7 @@ internal fun DeviceBatteryTab(padding: PaddingValues) {
             SectionCard(stringResource(R.string.metric_battery), accent = Palette.Power) {
                 InfoRow(stringResource(batteryStatus(b.status)), Format.percent(b.percent))
                 FillBar(b.percent / 100f, Palette.Power, height = 10.dp)
-                Sparkline(live.battery, Palette.Power)
+                Sparkline(live.battery, Palette.Power, label = stringResource(R.string.metric_battery))
                 b.chargeTimeRemainingMs?.let { InfoRow(stringResource(R.string.device_full_in), Format.duration(it / 1000)) }
                 InfoRow(stringResource(R.string.device_plugged), stringResource(plugged(b.plugged)))
             }

@@ -1,7 +1,11 @@
 package app.vitals.phone.ui.add
 
 import android.Manifest
+import android.app.Activity
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
@@ -150,11 +154,20 @@ private fun ScanTab(padding: PaddingValues, busy: Boolean, onLink: (PairingLink)
         mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)
     }
     var denied by remember { mutableStateOf(false) }
+    // Denied twice (or "Don't ask again"): the system no longer shows the
+    // prompt, so the button must open the app's settings instead (AND-42).
+    var permanentlyDenied by remember { mutableStateOf(false) }
     var notVitals by remember { mutableStateOf(false) }
     var lastCode by remember { mutableStateOf<String?>(null) }
+    // A scanned code is confirmed before the token is used: a QR on a poster
+    // or a screenshot in a chat could otherwise pair the phone to a stranger's
+    // PC the moment the camera saw it (AND-42).
+    var pending by remember { mutableStateOf<PairingLink?>(null) }
+    val activity = context as? Activity
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
         granted = ok
         denied = !ok
+        permanentlyDenied = !ok && activity?.shouldShowRequestPermissionRationale(Manifest.permission.CAMERA) == false
     }
 
     Column(Modifier.fillMaxSize().padding(padding), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -170,19 +183,43 @@ private fun ScanTab(padding: PaddingValues, busy: Boolean, onLink: (PairingLink)
                         lastCode = code
                         val link = PairingLink.parse(code)
                         notVitals = link == null
-                        if (link != null) onLink(link)
+                        if (link != null) pending = link
                     },
                     modifier = Modifier.fillMaxSize(),
                 )
             }
             Text(stringResource(R.string.add_scan_hint), style = MaterialTheme.typography.bodyMedium)
             if (notVitals) Text(stringResource(R.string.scan_not_vitals), color = MaterialTheme.colorScheme.error)
+        } else if (permanentlyDenied) {
+            Text(stringResource(R.string.camera_denied_forever))
+            Button(onClick = {
+                runCatching {
+                    context.startActivity(
+                        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null))
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                    )
+                }
+            }) { Text(stringResource(R.string.camera_open_settings)) }
         } else {
             Text(stringResource(if (denied) R.string.camera_denied else R.string.camera_rationale))
             Button(onClick = { launcher.launch(Manifest.permission.CAMERA) }) {
                 Text(stringResource(R.string.camera_allow))
             }
         }
+    }
+
+    pending?.let { link ->
+        AlertDialog(
+            onDismissRequest = { pending = null; lastCode = null },
+            title = { Text(stringResource(R.string.scan_confirm_title)) },
+            text = { Text(stringResource(R.string.scan_confirm_body, android.net.Uri.parse(link.baseUrl).host ?: link.baseUrl)) },
+            confirmButton = {
+                TextButton(onClick = { pending = null; onLink(link) }, enabled = !busy) { Text(stringResource(R.string.pair)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { pending = null; lastCode = null }) { Text(stringResource(R.string.cancel)) }
+            },
+        )
     }
 }
 

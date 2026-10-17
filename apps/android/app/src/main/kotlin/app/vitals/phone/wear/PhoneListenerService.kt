@@ -102,6 +102,7 @@ class PhoneListenerService : WearableListenerService() {
         }
         is ApiFailure.Unreachable -> "unreachable"
         ApiFailure.Unauthorised -> "unauthorised"
+        ApiFailure.OffLan -> "unreachable"
         is ApiFailure.Incompatible -> "incompatible"
         ApiFailure.NotReady -> "not-ready"
         is ApiFailure.Http -> "http-${f.status}"

@@ -274,10 +274,10 @@
     <string name="device_clean_empty_folder">Empty folder</string>
     <string name="device_clean_large_file">Large file</string>
     <string name="device_clean_thumbnails">Photo thumbnails</string>
-    <string name="device_cleanup_title">What you could free up</string>
+    <string name="device_cleanup_title">Space you can review</string>
     <string name="device_cleanup_empty">Nothing worth removing was found.</string>
     <string name="device_cleanup_needs_access">Give Vitals file or usage access to look for space to free.</string>
-    <string name="device_cleanup_needs_usage">Give Vitals usage access to see which apps keep the most cache.</string>
+    <string name="device_cleanup_needs_usage">Give Vitals usage access to see how much cache each app keeps. Cache is normal: apps rebuild it, so clearing it frees space only for a while.</string>
     <string name="device_cluster_prime">Prime core</string>
     <string name="device_cluster_performance">Performance cores</string>
     <string name="device_cluster_efficiency">Efficiency cores</string>
@@ -390,4 +390,19 @@
     <string name="device_started">Started</string>
     <string name="device_core_count">Cores</string>
     <string name="device_each_core">Each core</string>
+    <!-- S17-13 (AND-6..47) -->
+    <string name="state_off_lan">Not on Wi-Fi</string>
+    <string name="state_off_lan_hint">Vitals talks to your PCs only over Wi-Fi or Ethernet, so the pairing key never goes out over mobile data. It reconnects as soon as you are back on your network.</string>
+    <string name="pair_again_hint">The PC no longer accepts this pairing, so Vitals has stopped trying. Pair it again from the PC’s Remote access settings.</string>
+    <string name="alert_other">Something on the PC needs attention</string>
+    <string name="chart_last_minute">%1$s over the last minute, now %2$s</string>
+    <string name="chart_history">%1$s history chart, peak %2$s</string>
+    <string name="state_off_lan_short">Not on Wi-Fi</string>
+    <string name="watching_off_lan">Paused: not on Wi-Fi</string>
+    <string name="pair_again">Pair again</string>
+    <string name="camera_denied_forever">Camera access is turned off for Vitals. Turn it on in the app’s settings to scan a code, or pair by address instead.</string>
+    <string name="camera_open_settings">Open app settings</string>
+    <string name="scan_confirm_title">Pair with this PC?</string>
+    <string name="scan_confirm_body">The code points to %1$s. Pair only if it is your PC and you see this code on its screen now.</string>
+    <string name="settings_access_usage_disclosure">Lets Vitals read screen time, launches, data and storage per app from Android’s usage statistics. Read on this phone only, never sent anywhere.</string>
 </resources>

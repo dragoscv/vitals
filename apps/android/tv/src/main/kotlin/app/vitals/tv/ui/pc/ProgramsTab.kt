@@ -163,7 +163,7 @@ private fun ProcessPanel(pairing: Pairing, process: Process) {
         }
     }
 
-    Panel(process.displayName, accent = Palette.Cpu, modifier = Modifier.verticalScroll(rememberScrollState())) {
+    Panel(process.displayName, accent = Palette.Cpu, modifier = Modifier.verticalScroll(rememberScrollState()), focusable = false) {
         InfoRow(stringResource(R.string.sort_cpu), Format.percent(process.cpu), valueColour = Palette.of(Thresholds.cpu(process.cpu)).takeIf { process.cpu >= 85f } ?: androidx.compose.ui.graphics.Color.Unspecified)
         InfoRow(stringResource(R.string.metric_memory), Format.bytes(process.memoryPrivate))
         InfoRow(stringResource(R.string.process_disk), stringResource(R.string.disk_read_write, Format.rate(process.diskRead), Format.rate(process.diskWrite)))

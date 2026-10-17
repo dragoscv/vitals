@@ -76,7 +76,7 @@ fun SettingsScreen() {
             item { Text(stringResource(R.string.settings_pcs), style = MaterialTheme.typography.titleLarge) }
             items(pairings, key = { it.id }) { p -> PairingRow(p, armed == p.id) { if (armed == p.id) scope.launch { graph.forget(p.id); armed = null } else armed = p.id } }
             item {
-                Panel(stringResource(R.string.settings_tv)) {
+                Panel(stringResource(R.string.settings_tv), focusable = false) {
                     ListItem(
                         selected = false,
                         onClick = { scope.launch { graph.setDeviceHistory(!history) } },
@@ -94,7 +94,7 @@ fun SettingsScreen() {
         LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(top = 56.dp, bottom = 24.dp)) {
             item { LanguagePanel() }
             item {
-                Panel(stringResource(R.string.settings_about)) {
+                Panel(stringResource(R.string.settings_about), focusable = false) {
                     Text(stringResource(R.string.settings_version, versionName(context)), style = MaterialTheme.typography.bodyLarge)
                     Hint(stringResource(R.string.settings_about_body))
                     // A TV has no browser worth opening a policy in; the
@@ -166,7 +166,7 @@ private fun AccessRow(title: String, granted: Boolean, open: () -> Unit) {
 @Composable
 private fun LanguagePanel() {
     val context = LocalContext.current
-    Panel(stringResource(R.string.settings_language)) {
+    Panel(stringResource(R.string.settings_language), focusable = false) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
             Choice(stringResource(R.string.settings_language_system), selected = true, onClick = {
                 runCatching { context.startActivity(Intent(Settings.ACTION_LOCALE_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }

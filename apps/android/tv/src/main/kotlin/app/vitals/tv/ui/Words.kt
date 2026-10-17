@@ -30,6 +30,8 @@ fun AlertKind.title(): Int = when (this) {
     AlertKind.NetworkErrors -> R.string.alert_network_errors
     AlertKind.BatteryLow -> R.string.alert_battery_low
     AlertKind.BatteryHealth -> R.string.alert_battery_health
+    // A kind a newer desktop added: worded generically rather than dropped.
+    AlertKind.Unknown -> R.string.alert_other
 }
 
 @StringRes
@@ -63,6 +65,7 @@ fun ApiFailure.controlMessage(res: Resources): String = when (this) {
     }
     is ApiFailure.Unreachable -> res.getString(R.string.control_unreachable)
     ApiFailure.Unauthorised -> res.getString(R.string.state_unauthorised)
+    ApiFailure.OffLan -> res.getString(R.string.state_off_lan)
     is ApiFailure.Incompatible -> res.getString(R.string.state_incompatible)
     ApiFailure.NotReady -> res.getString(R.string.pairing_not_ready)
     is ApiFailure.Http -> res.getString(R.string.control_failed, status)
@@ -75,6 +78,7 @@ fun PairRefusal.message(): Int = when (this) {
     PairRefusal.BadToken -> R.string.pairing_bad_token
     PairRefusal.BadCode -> R.string.pairing_bad_code
     PairRefusal.Unreachable -> R.string.pairing_unreachable
+    PairRefusal.OffLan -> R.string.state_off_lan
     PairRefusal.Unauthorised -> R.string.pairing_unauthorised
     PairRefusal.Incompatible -> R.string.pairing_incompatible
     PairRefusal.NotReady -> R.string.pairing_not_ready

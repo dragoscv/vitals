@@ -10,6 +10,8 @@ import android.provider.Settings as AndroidSettings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
@@ -36,6 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
@@ -62,6 +65,7 @@ fun SettingsScreen() {
     val pairings by graph.pairings.pairings.collectAsStateWithLifecycle()
     val watched by graph.settings.watched.collectAsStateWithLifecycle(emptySet())
     val selected by graph.settings.selected.collectAsStateWithLifecycle(null)
+    val deviceHistory by graph.settings.deviceHistory.collectAsStateWithLifecycle(true)
     val glass by graph.settings.glass.collectAsStateWithLifecycle(GlassMode.Auto)
     var renaming by remember { mutableStateOf<Pairing?>(null) }
     var removing by remember { mutableStateOf<Pairing?>(null) }
@@ -82,7 +86,9 @@ fun SettingsScreen() {
             verticalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier.fillMaxSize(),
         ) {
-            if (!notificationsAllowed && watched.isNotEmpty()) {
+            // Device history is on by default and raises this phone's own
+            // alerts, so the card shows for it too, not only for watched PCs.
+            if (!notificationsAllowed && (watched.isNotEmpty() || deviceHistory)) {
                 item(key = "notif") {
                     SectionCard(stringResource(R.string.channel_alerts)) {
                         Text(stringResource(R.string.settings_notifications_off))
@@ -125,8 +131,15 @@ fun SettingsScreen() {
                             }
                         },
                     )
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        RadioButton(selected = isWidgetPc, onClick = { scope.launch { graph.settings.setSelected(p.id) } })
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth().selectable(
+                            selected = isWidgetPc,
+                            role = Role.RadioButton,
+                            onClick = { scope.launch { graph.settings.setSelected(p.id) } },
+                        ),
+                    ) {
+                        RadioButton(selected = isWidgetPc, onClick = null)
                         Text(stringResource(R.string.settings_widget_pc))
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -240,12 +253,18 @@ fun SettingsScreen() {
 
 @Composable
 private fun ToggleRow(title: String, body: String, checked: Boolean, onChange: (Boolean) -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
+    // The whole row is one switch: one touch target, and TalkBack reads the
+    // title, the explanation and the state together instead of a bare
+    // "switch, off" with the words as separate stops (AND-27).
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().toggleable(value = checked, role = Role.Switch, onValueChange = onChange),
+    ) {
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.bodyLarge)
             Text(body, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        Switch(checked = checked, onCheckedChange = onChange)
+        Switch(checked = checked, onCheckedChange = null)
     }
 }
 
@@ -267,7 +286,11 @@ private fun PhoneCard() {
             checked = history,
             onChange = { on -> scope.launch { graph.settings.setDeviceHistory(on) } },
         )
-        AccessRow(stringResource(R.string.settings_access_usage), access.usageStats) {
+        AccessRow(
+            stringResource(R.string.settings_access_usage),
+            access.usageStats,
+            disclosure = stringResource(R.string.settings_access_usage_disclosure),
+        ) {
             app.vitals.device.SpecialAccess.usage(context)
         }
         if (access.allFilesAvailable) {
@@ -280,7 +303,7 @@ private fun PhoneCard() {
 
 /** A special access is revoked in Settings too, so the row opens it whichever way it stands. */
 @Composable
-private fun AccessRow(title: String, granted: Boolean, open: () -> Unit) {
+private fun AccessRow(title: String, granted: Boolean, disclosure: String? = null, open: () -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.bodyLarge)
@@ -289,6 +312,12 @@ private fun AccessRow(title: String, granted: Boolean, open: () -> Unit) {
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            // Prominent disclosure (Play User Data policy, AND-40): what the
+            // access reads and that it stays on the phone, before the user
+            // is sent to grant it.
+            disclosure?.let {
+                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
         TextButton(onClick = open) { Text(stringResource(R.string.device_access_grant)) }
     }
@@ -320,15 +349,20 @@ private fun LanguageCard() {
             "ro" to R.string.settings_language_ro,
         )
         options.forEach { (tag, label) ->
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                RadioButton(
-                    selected = current.substringBefore('-') == tag,
+            val chosen = current.substringBefore('-') == tag
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth().selectable(
+                    selected = chosen,
+                    role = Role.RadioButton,
                     onClick = {
                         current = tag
                         manager.applicationLocales =
                             if (tag.isEmpty()) LocaleList.getEmptyLocaleList() else LocaleList.forLanguageTags(tag)
                     },
-                )
+                ),
+            ) {
+                RadioButton(selected = chosen, onClick = null)
                 Text(stringResource(label))
             }
         }

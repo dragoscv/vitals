@@ -244,10 +244,10 @@
     <string name="device_clean_empty_folder">Empty folder</string>
     <string name="device_clean_large_file">Large file</string>
     <string name="device_clean_thumbnails">Photo thumbnails</string>
-    <string name="device_cleanup_title">What you could free up</string>
+    <string name="device_cleanup_title">Space you can review</string>
     <string name="device_cleanup_empty">Nothing worth removing was found.</string>
     <string name="device_cleanup_needs_access">Give Vitals file or usage access to look for space to free.</string>
-    <string name="device_cleanup_needs_usage">Give Vitals usage access to see which apps keep the most cache.</string>
+    <string name="device_cleanup_needs_usage">Give Vitals usage access to see how much cache each app keeps. Cache is normal: apps rebuild it, so clearing it frees space only for a while.</string>
     <string name="device_cluster_prime">Prime core</string>
     <string name="device_cluster_performance">Performance cores</string>
     <string name="device_cluster_efficiency">Efficiency cores</string>
@@ -341,4 +341,12 @@
         <item quantity="other">%d files</item>
     </plurals>
     <string name="device_scan_progress">%1$s so far</string>
+    <!-- S17-13 (AND-6..47) -->
+    <string name="state_off_lan">Not on Wi-Fi</string>
+    <string name="state_off_lan_hint">Vitals talks to your PCs only over Wi-Fi or Ethernet, so the pairing key never goes out over mobile data. It reconnects as soon as you are back on your network.</string>
+    <string name="pair_again_hint">The PC no longer accepts this pairing, so Vitals has stopped trying. Pair it again from the PC’s Remote access settings.</string>
+    <string name="alert_other">Something on the PC needs attention</string>
+    <string name="chart_last_minute">%1$s over the last minute, now %2$s</string>
+    <string name="chart_history">%1$s history chart, peak %2$s</string>
+    <string name="reconnect_after_pairing">Try again after pairing</string>
 </resources>

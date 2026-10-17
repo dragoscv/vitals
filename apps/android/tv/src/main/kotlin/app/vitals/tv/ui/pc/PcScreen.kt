@@ -81,7 +81,13 @@ fun PcScreen(pairing: Pairing) {
                 PcStatus(state)
             }
             WakeButton(pairing)
-            if (state.unreachable) Action(stringResource(R.string.reconnect), onClick = { graph.kick(pairing.id) })
+            // A revoked token: reconnecting is the explicit retry the stream
+            // waits for, worded as what the user must do first (AND-16).
+            if (state.unauthorised) {
+                Action(stringResource(R.string.reconnect_after_pairing), onClick = { graph.kick(pairing.id) })
+            } else if (state.unreachable) {
+                Action(stringResource(R.string.reconnect), onClick = { graph.kick(pairing.id) })
+            }
         }
         ChoiceRow {
             PcTab.entries.forEach { t -> Choice(stringResource(t.label), selected = tab == t, onClick = { tab = t }) }
@@ -121,6 +127,14 @@ private fun WakeButton(pairing: Pairing) {
 @Composable
 private fun NowTab(state: LiveState) {
     val system = state.view?.system
+    if (state.unauthorised) {
+        Panel(stringResource(R.string.state_unauthorised)) { Hint(stringResource(R.string.pair_again_hint)) }
+        return
+    }
+    if (state.offLan) {
+        Panel(stringResource(R.string.state_off_lan)) { Hint(stringResource(R.string.state_off_lan_hint)) }
+        return
+    }
     if (state.unreachable || system == null) {
         Panel(stringResource(if (state.unreachable) R.string.state_unreachable else R.string.state_connecting)) {
             if (state.unreachable) Hint(stringResource(R.string.state_unreachable_hint))
@@ -169,10 +183,10 @@ private fun Hero(state: LiveState, system: SystemMetrics) {
             Ring(gpu?.div(100f), Palette.Gpu, Format.percentCompact(gpu), stringResource(R.string.metric_gpu))
             Ring(temp?.div(110f), Palette.Thermal, Format.celsiusCompact(temp), stringResource(R.string.metric_temp), level = Thresholds.cpuTemp(temp))
         }
-        Spark(state.cpu, Palette.Cpu)
-        Spark(state.memory, Palette.Memory)
-        if (state.gpu.size > 0) Spark(state.gpu, Palette.Gpu)
-        if (state.temperature.size > 0) Spark(state.temperature, Palette.Thermal, max = 110f)
+        Spark(state.cpu, Palette.Cpu, label = stringResource(R.string.metric_cpu))
+        Spark(state.memory, Palette.Memory, label = stringResource(R.string.metric_memory_short))
+        if (state.gpu.size > 0) Spark(state.gpu, Palette.Gpu, label = stringResource(R.string.metric_gpu))
+        if (state.temperature.size > 0) Spark(state.temperature, Palette.Thermal, max = 110f, label = stringResource(R.string.metric_temp), format = app.vitals.ui.Format::celsius)
     }
 }
 

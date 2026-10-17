@@ -168,9 +168,9 @@ private fun Hero(live: DeviceLive, s: DeviceSnapshot) {
             Ring(s.gpu?.load?.div(100f), Palette.Gpu, Format.percentCompact(s.gpu?.load), stringResource(R.string.metric_gpu))
             Ring(s.cpu.temperature?.div(110f), Palette.Thermal, Format.celsiusCompact(s.cpu.temperature), stringResource(R.string.metric_temp), level = Thresholds.cpuTemp(s.cpu.temperature))
         }
-        Spark(live.cpu, Palette.Cpu)
-        Spark(live.memory, Palette.Memory)
-        if (live.temperature.last() != null) Spark(live.temperature, Palette.Thermal, max = 110f)
+        Spark(live.cpu, Palette.Cpu, label = stringResource(R.string.metric_cpu))
+        Spark(live.memory, Palette.Memory, label = stringResource(R.string.metric_memory_short))
+        if (live.temperature.last() != null) Spark(live.temperature, Palette.Thermal, max = 110f, label = stringResource(R.string.metric_temp), format = app.vitals.ui.Format::celsius)
         if (!s.cpu.measured) Hint(stringResource(R.string.device_cpu_estimate))
     }
 }

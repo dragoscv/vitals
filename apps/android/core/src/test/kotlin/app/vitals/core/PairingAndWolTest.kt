@@ -40,6 +40,18 @@ class PairingAndWolTest {
     }
 
     @Test
+    fun a_wake_broadcast_is_only_ever_a_private_ipv4_address() {
+        assertEquals("192.168.1.255", WakeOnLan.safeBroadcast("192.168.1.255"))
+        assertEquals("10.0.0.255", WakeOnLan.safeBroadcast("10.0.0.255"))
+        assertEquals("255.255.255.255", WakeOnLan.safeBroadcast("255.255.255.255"))
+        assertNull(WakeOnLan.safeBroadcast("8.8.8.8"))
+        assertNull(WakeOnLan.safeBroadcast("desk.local"))
+        assertNull(WakeOnLan.safeBroadcast("evil.example"))
+        assertNull(WakeOnLan.safeBroadcast("fe80::1"))
+        assertNull(WakeOnLan.safeBroadcast(null))
+    }
+
+    @Test
     fun control_requests_use_the_servers_kebab_case_tags() {
         val json = WireJson.Lenient.encodeToString(
             ControlRequest.serializer(),

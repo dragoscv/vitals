@@ -10,6 +10,7 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import app.vitals.core.net.LanNetwork
 import app.vitals.core.net.getOrNull
 import app.vitals.phone.graph
 import kotlinx.coroutines.flow.first
@@ -23,6 +24,9 @@ class WidgetWorker(context: Context, params: WorkerParameters) : CoroutineWorker
         graph.widgetCache.retain(pairings.map { it.id }.toSet())
         val selected = graph.settings.selected.first()
         val target = pairings.firstOrNull { it.id == selected } ?: pairings.firstOrNull() ?: return Result.success()
+        // On mobile data the token must not go out (AND-6), and a refused
+        // fetch is not news about the PC: keep the last reading as it was.
+        if (!LanNetwork.onLan) return Result.success()
         val summary = graph.client(target).summary(top = 3).getOrNull()
         graph.widgetCache.put(target.id, target.label, summary)
         return Result.success()

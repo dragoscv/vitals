@@ -1,5 +1,10 @@
 package app.vitals.phone.ui.device
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -23,12 +28,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import app.vitals.device.model.DeviceInfo
 import app.vitals.phone.R
 import app.vitals.phone.graph
 import app.vitals.phone.ui.components.GlassScaffold
 import app.vitals.phone.ui.components.Tab as BottomTab
+import kotlinx.coroutines.flow.first
 
 internal enum class DeviceTab(val label: Int) {
     Now(R.string.tab_now),
@@ -59,6 +66,21 @@ fun DeviceScreen() {
         onPauseOrDispose { }
     }
     LaunchedEffect(Unit) { graph.device.refreshAccess() }
+
+    // Device history is on by default and posts this phone's own alerts
+    // (overheating, storage almost full). Without the permission those were
+    // silently dropped on Android 13+, so ask the first time the user opens
+    // the tab those alerts are about (AND-18) — never at app start.
+    val notifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT < 33) return@LaunchedEffect
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
+            return@LaunchedEffect
+        }
+        if (!graph.settings.deviceHistory.first() || graph.settings.notificationsAsked.first()) return@LaunchedEffect
+        graph.settings.setNotificationsAsked()
+        notifications.launch(Manifest.permission.POST_NOTIFICATIONS)
+    }
 
     GlassScaffold(
         title = info?.let { it.marketingName ?: it.model } ?: stringResource(R.string.nav_phone),

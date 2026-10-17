@@ -37,8 +37,13 @@ import kotlin.coroutines.resumeWithException
 sealed interface ApiFailure {
     /** Nothing answered: PC off, wrong network, firewall. */
     data class Unreachable(val cause: String) : ApiFailure
-    /** `401`: the pairing was revoked on the PC. */
+    /** `401` (or `403` on a read): the pairing was revoked on the PC. Retrying cannot help. */
     data object Unauthorised : ApiFailure
+    /**
+     * Not sent: this device is on mobile data or offline, where a private
+     * address is not the user's PC and the token must not go out ([LanNetwork]).
+     */
+    data object OffLan : ApiFailure
     /** The PC speaks a frame shape this app does not know. */
     data class Incompatible(val modelVersion: Int) : ApiFailure
     /** `204`: the PC is up but has not sampled yet. */
@@ -90,6 +95,9 @@ class VitalsClient(
             }
         }
 
+    /** Refused before any socket opens; see [LanNetwork]. */
+    private fun offLan(): ApiResult.Err? = if (LanNetwork.onLan) null else ApiResult.Err(ApiFailure.OffLan)
+
     suspend fun summary(top: Int = 5): ApiResult<Summary> =
         get("/api/v1/summary?top=$top", Summary.serializer())
 
@@ -108,6 +116,7 @@ class VitalsClient(
 
     /** `POST /api/v1/control`. `204` is success; anything else carries a [ControlError]. */
     suspend fun control(request: ControlRequest): ApiResult<Unit> {
+        offLan()?.let { return it }
         val body = WireJson.Lenient.encodeToString(ControlRequest.serializer(), request)
             .toRequestBody(JSON)
         val req = Request.Builder().url(baseUrl + "/api/v1/control")
@@ -135,6 +144,11 @@ class VitalsClient(
      * and reconnect; cancelling the collector closes the socket.
      */
     fun frames(): Flow<Frame> = callbackFlow {
+        if (!LanNetwork.onLan) {
+            close(StreamClosed(CLOSE_OFF_LAN, "not on the local network"))
+            awaitClose {}
+            return@callbackFlow
+        }
         val wsUrl = baseUrl.replaceFirst("http", "ws") + "/api/v1/ws"
         val req = Request.Builder().url(wsUrl).header("Authorization", "Bearer $token").build()
         val socket = streaming.newWebSocket(req, object : WebSocketListener() {
@@ -143,6 +157,7 @@ class VitalsClient(
                 if (!text.contains("\"payload\"")) return
                 runCatching { WireJson.Lenient.decodeFromString(Frame.serializer(), text) }
                     .onSuccess { trySend(it) }
+                    .onFailure { WireJson.noteDecodeFailure(); close(StreamClosed(CLOSE_UNREADABLE, "unreadable frame")) }
             }
 
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
@@ -161,6 +176,7 @@ class VitalsClient(
         serializer: KSerializer<T>,
         authorised: Boolean = true,
     ): ApiResult<T> {
+        if (authorised) offLan()?.let { return it }
         val builder = Request.Builder().url(baseUrl + path).get()
         if (authorised) builder.header("Authorization", "Bearer $token")
         return execute(builder.build()) { response ->
@@ -168,10 +184,15 @@ class VitalsClient(
                 200 -> {
                     val text = response.body.string()
                     runCatching { ApiResult.Ok(WireJson.Lenient.decodeFromString(serializer, text)) }
-                        .getOrElse { ApiResult.Err(ApiFailure.Incompatible(-1)) }
+                        .getOrElse {
+                            WireJson.noteDecodeFailure()
+                            ApiResult.Err(ApiFailure.Incompatible(-1))
+                        }
                 }
                 204 -> ApiResult.Err(ApiFailure.NotReady)
-                401 -> ApiResult.Err(ApiFailure.Unauthorised)
+                // A read refused with 403 is a token the PC no longer honours
+                // for anything; the user's next step is the same as for 401.
+                401, 403 -> ApiResult.Err(ApiFailure.Unauthorised)
                 else -> ApiResult.Err(ApiFailure.Http(response.code))
             }
         }
@@ -211,6 +232,12 @@ class VitalsClient(
     companion object {
         private val JSON = "application/json".toMediaType()
 
+        /** [StreamClosed.code] when the stream was never opened because the device is off the LAN. */
+        const val CLOSE_OFF_LAN = -1
+
+        /** [StreamClosed.code] when a frame arrived that this build cannot read. */
+        const val CLOSE_UNREADABLE = -2
+
         /**
          * Trades a six-digit code for a token. Unauthenticated by design: the
          * code is the credential, the PC allows five wrong guesses in total,
@@ -247,6 +274,10 @@ class VitalsClient(
                 .readTimeout(10, TimeUnit.SECONDS)
                 .callTimeout(15, TimeUnit.SECONDS)
                 .retryOnConnectionFailure(false)
+                // A LAN API never redirects. Following one would replay the
+                // Authorization header at whatever host the answer names.
+                .followRedirects(false)
+                .followSslRedirects(false)
                 .build()
         }
 

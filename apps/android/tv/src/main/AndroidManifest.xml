@@ -18,6 +18,16 @@
     <uses-feature android:name="android.hardware.wifi" android:required="false" />
     <uses-feature android:name="android.hardware.ethernet" android:required="false" />
 
+    <!-- The TV's own app list (Programs) reads Leanback launcher entries;
+         Android 11+ hides packages that only declare LEANBACK_LAUNCHER
+         unless the query names it (AND-25). :device covers LAUNCHER. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+        </intent>
+    </queries>
+
     <application
         android:name=".data.VitalsTvApp"
         android:allowBackup="false"

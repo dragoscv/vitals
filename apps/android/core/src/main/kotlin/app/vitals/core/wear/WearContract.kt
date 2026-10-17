@@ -11,17 +11,22 @@ import kotlinx.serialization.Serializable
  * the Data Layer delivers nothing between apps that differ in either.
  *
  * Direction and transport:
- * - phone → watch, DataItem [PATH_PAIRINGS]: the paired PCs, so the watch can
- *   poll a PC directly over Wi-Fi when the phone is away. Tokens cross the
- *   Bluetooth link the Data Layer already encrypts, and are stored on the
- *   watch in its own Keystore-backed [app.vitals.core.pairing.PairingStore].
+ * - phone → watch, DataItem [PATH_PAIRINGS]: the paired PCs. Only a
+ *   READ-scope token is included, so the watch can poll that PC directly over
+ *   Wi-Fi when the phone is away; it crosses the Bluetooth link the Data
+ *   Layer already encrypts and is stored in the watch's Keystore-backed
+ *   [app.vitals.core.pairing.PairingStore]. A token that can control (or
+ *   whose scope is not yet known) never leaves the phone: [WatchPairing.token]
+ *   is empty and the watch shows that PC only through the phone's relay.
  * - phone → watch, DataItem [PATH_STATE_PREFIX]`<pairingId>`: the latest
  *   [PcState]. A DataItem, not a message, so a watch that was off-wrist gets
  *   the current state on reconnect without asking.
  * - phone → watch, Message [PATH_ALERT]: a new alert, for a vibration.
  * - watch → phone, Message [PATH_REFRESH]: "I am on screen, send fresh state".
  * - watch → phone, Message [PATH_CONTROL]: an end-task request the phone
- *   forwards with its own token, so a read-only pairing stays read-only.
+ *   forwards with its own token. This is the ONLY way the watch controls a
+ *   PC: it holds no token able to, so a read-only pairing stays read-only
+ *   and a lost watch cannot end anything.
  */
 object WearContract {
     const val PATH_PAIRINGS = "/vitals/pairings"
@@ -75,6 +80,7 @@ data class WatchPairing(
     val id: String,
     val label: String,
     val baseUrl: String,
+    /** Empty unless the pairing is read-only; see [WearContract]. */
     val token: String,
     val canControl: Boolean,
 )

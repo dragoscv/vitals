@@ -35,6 +35,7 @@ object Pairer {
         PairRefusal.NotPrivate -> R.string.pairing_not_private
         PairRefusal.BadToken, PairRefusal.BadCode -> R.string.pairing_bad_token
         PairRefusal.Unreachable -> R.string.pairing_unreachable
+        PairRefusal.OffLan -> R.string.state_off_lan
         PairRefusal.Unauthorised -> R.string.pairing_unauthorised
         PairRefusal.Incompatible -> R.string.pairing_incompatible
         PairRefusal.NotReady -> R.string.pairing_not_ready

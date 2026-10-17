@@ -46,6 +46,12 @@ android {
 
     buildFeatures { compose = true }
 
+    // A string missing from values-ro ships English to a Romanian wrist;
+    // fail the build instead (AND-46).
+    lint {
+        error += "MissingTranslation"
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17

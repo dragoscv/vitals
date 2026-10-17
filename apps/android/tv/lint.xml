@@ -8,8 +8,9 @@
     <!-- The LAN API is plain HTTP by design (ADR-0003); LanAddress.isPrivate
          refuses every public address before a request is made. -->
     <issue id="InsecureBaseConfiguration" severity="ignore" />
-    <!-- The Leanback banner is 320 × 180 dp by specification and drawn once
-         by the launcher, not per frame. -->
+    <!-- The Leanback banner is 160 × 90 dp by specification (viewport kept at
+         320 × 180 so the generated paths are unchanged) and drawn once by the
+         launcher, not per frame. -->
     <issue id="VectorRaster">
         <ignore path="src/main/res/drawable/tv_banner.xml" />
     </issue>

@@ -80,14 +80,16 @@ data class CpuMetrics(
     val interrupts: Long?,
 )
 
-@Serializable
-enum class ThrottleReason {
-    @SerialName("thermal") Thermal,
-    @SerialName("powerLimit") PowerLimit,
-    @SerialName("currentLimit") CurrentLimit,
-    @SerialName("voltageDrop") VoltageDrop,
-    @SerialName("powerPolicy") PowerPolicy,
-    @SerialName("unknown") Unknown,
+@Serializable(with = ThrottleReason.Serializer::class)
+enum class ThrottleReason(override val wire: String) : WireEnum {
+    Thermal("thermal"),
+    PowerLimit("powerLimit"),
+    CurrentLimit("currentLimit"),
+    VoltageDrop("voltageDrop"),
+    PowerPolicy("powerPolicy"),
+    Unknown("unknown");
+
+    object Serializer : TolerantEnumSerializer<ThrottleReason>("ThrottleReason", ThrottleReason.entries.toTypedArray(), ThrottleReason.Unknown)
 }
 
 @Serializable
@@ -130,15 +132,17 @@ data class DiskMetrics(
     val health: DiskHealth?,
 )
 
-@Serializable
-enum class DiskKind {
-    @SerialName("hdd") Hdd,
-    @SerialName("ssd") Ssd,
-    @SerialName("nvme") Nvme,
-    @SerialName("removable") Removable,
-    @SerialName("network") Network,
-    @SerialName("optical") Optical,
-    @SerialName("unknown") Unknown,
+@Serializable(with = DiskKind.Serializer::class)
+enum class DiskKind(override val wire: String) : WireEnum {
+    Hdd("hdd"),
+    Ssd("ssd"),
+    Nvme("nvme"),
+    Removable("removable"),
+    Network("network"),
+    Optical("optical"),
+    Unknown("unknown");
+
+    object Serializer : TolerantEnumSerializer<DiskKind>("DiskKind", DiskKind.entries.toTypedArray(), DiskKind.Unknown)
 }
 
 @Serializable
@@ -170,16 +174,18 @@ data class NetworkMetrics(
     val errorsPerSec: Long?,
 )
 
-@Serializable
-enum class NetworkKind {
-    @SerialName("ethernet") Ethernet,
-    @SerialName("wiFi") WiFi,
-    @SerialName("cellular") Cellular,
-    @SerialName("bluetooth") Bluetooth,
-    @SerialName("loopback") Loopback,
-    @SerialName("virtual") Virtual,
-    @SerialName("vpn") Vpn,
-    @SerialName("unknown") Unknown,
+@Serializable(with = NetworkKind.Serializer::class)
+enum class NetworkKind(override val wire: String) : WireEnum {
+    Ethernet("ethernet"),
+    WiFi("wiFi"),
+    Cellular("cellular"),
+    Bluetooth("bluetooth"),
+    Loopback("loopback"),
+    Virtual("virtual"),
+    Vpn("vpn"),
+    Unknown("unknown");
+
+    object Serializer : TolerantEnumSerializer<NetworkKind>("NetworkKind", NetworkKind.entries.toTypedArray(), NetworkKind.Unknown)
 }
 
 @Serializable
@@ -207,14 +213,16 @@ data class GpuMetrics(
 @Serializable
 data class GpuEngine(val name: String, val utilization: Float)
 
-@Serializable
-enum class GpuVendor {
-    @SerialName("nvidia") Nvidia,
-    @SerialName("amd") Amd,
-    @SerialName("intel") Intel,
-    @SerialName("apple") Apple,
-    @SerialName("qualcomm") Qualcomm,
-    @SerialName("unknown") Unknown,
+@Serializable(with = GpuVendor.Serializer::class)
+enum class GpuVendor(override val wire: String) : WireEnum {
+    Nvidia("nvidia"),
+    Amd("amd"),
+    Intel("intel"),
+    Apple("apple"),
+    Qualcomm("qualcomm"),
+    Unknown("unknown");
+
+    object Serializer : TolerantEnumSerializer<GpuVendor>("GpuVendor", GpuVendor.entries.toTypedArray(), GpuVendor.Unknown)
 }
 
 @Serializable
@@ -276,39 +284,51 @@ data class Process(
     }
 }
 
-@Serializable
-enum class ProcessKind {
-    @SerialName("app") App,
-    @SerialName("background") Background,
-    @SerialName("service") Service,
-    @SerialName("system") System,
-    @SerialName("containerized") Containerized,
+@Serializable(with = ProcessKind.Serializer::class)
+enum class ProcessKind(override val wire: String) : WireEnum {
+    App("app"),
+    Background("background"),
+    Service("service"),
+    System("system"),
+    Containerized("containerized"),
+    Unknown("unknown");
+
+    object Serializer : TolerantEnumSerializer<ProcessKind>("ProcessKind", ProcessKind.entries.toTypedArray(), ProcessKind.Unknown)
 }
 
-@Serializable
-enum class ProcessState {
-    @SerialName("running") Running,
-    @SerialName("suspended") Suspended,
-    @SerialName("waiting") Waiting,
-    @SerialName("notResponding") NotResponding,
-    @SerialName("zombie") Zombie,
+@Serializable(with = ProcessState.Serializer::class)
+enum class ProcessState(override val wire: String) : WireEnum {
+    Running("running"),
+    Suspended("suspended"),
+    Waiting("waiting"),
+    NotResponding("notResponding"),
+    Zombie("zombie"),
+    Unknown("unknown");
+
+    object Serializer : TolerantEnumSerializer<ProcessState>("ProcessState", ProcessState.entries.toTypedArray(), ProcessState.Unknown)
 }
 
-@Serializable
-enum class IntegrityLevel {
-    @SerialName("untrusted") Untrusted,
-    @SerialName("low") Low,
-    @SerialName("medium") Medium,
-    @SerialName("high") High,
-    @SerialName("system") System,
-    @SerialName("protected") Protected,
+@Serializable(with = IntegrityLevel.Serializer::class)
+enum class IntegrityLevel(override val wire: String) : WireEnum {
+    Untrusted("untrusted"),
+    Low("low"),
+    Medium("medium"),
+    High("high"),
+    System("system"),
+    Protected("protected"),
+    Unknown("unknown");
+
+    object Serializer : TolerantEnumSerializer<IntegrityLevel>("IntegrityLevel", IntegrityLevel.entries.toTypedArray(), IntegrityLevel.Unknown)
 }
 
-@Serializable
-enum class ProtectionLevel {
-    @SerialName("none") None,
-    @SerialName("light") Light,
-    @SerialName("full") Full,
+@Serializable(with = ProtectionLevel.Serializer::class)
+enum class ProtectionLevel(override val wire: String) : WireEnum {
+    None("none"),
+    Light("light"),
+    Full("full"),
+    Unknown("unknown");
+
+    object Serializer : TolerantEnumSerializer<ProtectionLevel>("ProtectionLevel", ProtectionLevel.entries.toTypedArray(), ProtectionLevel.Unknown)
 }
 
 /** `GET /api/v1/summary`. */
@@ -368,12 +388,15 @@ data class HostInfo(
     val biosVersion: String?,
 )
 
-@Serializable
-enum class CoreClass {
-    @SerialName("performance") Performance,
-    @SerialName("efficiency") Efficiency,
-    @SerialName("lowPower") LowPower,
-    @SerialName("standard") Standard,
+@Serializable(with = CoreClass.Serializer::class)
+enum class CoreClass(override val wire: String) : WireEnum {
+    Performance("performance"),
+    Efficiency("efficiency"),
+    LowPower("lowPower"),
+    Standard("standard"),
+    Unknown("unknown");
+
+    object Serializer : TolerantEnumSerializer<CoreClass>("CoreClass", CoreClass.entries.toTypedArray(), CoreClass.Unknown)
 }
 
 @Serializable
@@ -392,37 +415,46 @@ data class Alert(
     val sinceSample: Long,
 )
 
-@Serializable
-enum class AlertKind {
-    @SerialName("cpuSustained") CpuSustained,
-    @SerialName("cpuThrottled") CpuThrottled,
-    @SerialName("memoryPressure") MemoryPressure,
-    @SerialName("memoryCommit") MemoryCommit,
-    @SerialName("diskSaturated") DiskSaturated,
-    @SerialName("diskLatency") DiskLatency,
-    @SerialName("diskSpace") DiskSpace,
-    @SerialName("diskHealth") DiskHealth,
-    @SerialName("gpuThrottled") GpuThrottled,
-    @SerialName("thermalCpu") ThermalCpu,
-    @SerialName("networkErrors") NetworkErrors,
-    @SerialName("batteryLow") BatteryLow,
-    @SerialName("batteryHealth") BatteryHealth,
+@Serializable(with = AlertKind.Serializer::class)
+enum class AlertKind(override val wire: String) : WireEnum {
+    CpuSustained("cpuSustained"),
+    CpuThrottled("cpuThrottled"),
+    MemoryPressure("memoryPressure"),
+    MemoryCommit("memoryCommit"),
+    DiskSaturated("diskSaturated"),
+    DiskLatency("diskLatency"),
+    DiskSpace("diskSpace"),
+    DiskHealth("diskHealth"),
+    GpuThrottled("gpuThrottled"),
+    ThermalCpu("thermalCpu"),
+    NetworkErrors("networkErrors"),
+    BatteryLow("batteryLow"),
+    BatteryHealth("batteryHealth"),
+    Unknown("unknown");
+
+    object Serializer : TolerantEnumSerializer<AlertKind>("AlertKind", AlertKind.entries.toTypedArray(), AlertKind.Unknown)
 }
 
-@Serializable
-enum class Severity {
-    @SerialName("info") Info,
-    @SerialName("warning") Warning,
-    @SerialName("critical") Critical,
+@Serializable(with = Severity.Serializer::class)
+enum class Severity(override val wire: String) : WireEnum {
+    Info("info"),
+    Warning("warning"),
+    Critical("critical"),
+    Unknown("unknown");
+
+    object Serializer : TolerantEnumSerializer<Severity>("Severity", Severity.entries.toTypedArray(), Severity.Unknown)
 }
 
-@Serializable
-enum class AlertRoute {
-    @SerialName("performance") Performance,
-    @SerialName("processes") Processes,
-    @SerialName("storage") Storage,
-    @SerialName("network") Network,
-    @SerialName("devices") Devices,
+@Serializable(with = AlertRoute.Serializer::class)
+enum class AlertRoute(override val wire: String) : WireEnum {
+    Performance("performance"),
+    Processes("processes"),
+    Storage("storage"),
+    Network("network"),
+    Devices("devices"),
+    Unknown("unknown");
+
+    object Serializer : TolerantEnumSerializer<AlertRoute>("AlertRoute", AlertRoute.entries.toTypedArray(), AlertRoute.Unknown)
 }
 
 /** The only frame shape this client understands (`vitals_core::MODEL_VERSION`). */

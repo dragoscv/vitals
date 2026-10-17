@@ -85,7 +85,7 @@ object Notifications {
             .build()
     }
 
-    fun ongoing(context: Context, watched: List<Watched>, stop: PendingIntent): Notification {
+    fun ongoing(context: Context, watched: List<Watched>, stop: PendingIntent, offLan: Boolean = false): Notification {
         val lead = watched.firstOrNull { it.summary != null } ?: watched.firstOrNull()
         val system = lead?.summary?.system
         val cpu = system?.cpu?.total
@@ -96,6 +96,7 @@ object Notifications {
             context.resources.getQuantityString(R.plurals.watching_many, watched.size, watched.size)
         }
         val text = when {
+            offLan -> context.getString(R.string.watching_off_lan)
             lead == null -> ""
             system == null -> context.getString(R.string.watching_unreachable, lead.label)
             else -> context.getString(

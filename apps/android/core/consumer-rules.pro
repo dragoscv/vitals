@@ -4,6 +4,10 @@
 -keepclassmembers class app.vitals.core.model.** {
     *** Companion;
 }
+# Tolerant enums use hand-written serializer objects named in
+# @Serializable(with = ...); keep them and their enum entries.
+-keep class app.vitals.core.model.*$Serializer { *; }
+-keepclassmembers enum app.vitals.core.model.** { *; }
 
 # Pairings are stored and the pairing-code exchange is decoded by these
 # serializers; every app that embeds :core needs them, not just the phone.

@@ -105,6 +105,11 @@ internal fun ChartCard(title: String, chart: Chart, colour: Color, format: (Floa
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        HistoryCanvas(chart, colour, MaterialTheme.colorScheme.outlineVariant)
+        HistoryCanvas(
+            chart,
+            colour,
+            MaterialTheme.colorScheme.outlineVariant,
+            description = stringResource(R.string.chart_history, title, format(chart.peak)),
+        )
     }
 }

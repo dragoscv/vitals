@@ -1,6 +1,7 @@
 package app.vitals.phone.ui.device
 
 import androidx.compose.animation.animateContentSize
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -112,12 +113,12 @@ internal fun DeviceStorageTab(padding: PaddingValues) {
                             stringResource(R.string.device_scan_progress, s.files, Format.bytes(s.bytes)),
                             style = MaterialTheme.typography.bodySmall,
                         )
-                        Text(s.path, style = MaterialTheme.typography.labelSmall, maxLines = 1, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(s.path, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     is ScanProgress.Done -> {
                         val here = path.lastOrNull() ?: s.tree
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(here.path.removePrefix(graph.device.storageRoot).ifEmpty { "/" }, modifier = Modifier.weight(1f), maxLines = 1)
+                            Text(here.path.removePrefix(graph.device.storageRoot).ifEmpty { "/" }, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                             if (path.size > 1) TextButton(onClick = { path = path.dropLast(1) }) { Text(stringResource(R.string.back)) }
                             TextButton(onClick = { scanRun++ }) { Text(stringResource(R.string.device_scan_again)) }
                         }

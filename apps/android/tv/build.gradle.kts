@@ -56,6 +56,10 @@ android {
 
     buildFeatures { compose = true }
 
+    lint {
+        error += "MissingTranslation"
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17

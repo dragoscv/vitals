@@ -1,6 +1,7 @@
 package app.vitals.tv.ui.pc
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -29,6 +30,7 @@ import app.vitals.tv.ui.SafeHorizontal
 import app.vitals.tv.ui.SafeVertical
 import app.vitals.tv.ui.ScreenTitle
 import app.vitals.tv.ui.overview.PcStatus
+import app.vitals.tv.ui.restoreFocus
 import app.vitals.ui.Format
 import app.vitals.ui.LiveState
 import app.vitals.ui.Readings
@@ -58,9 +60,9 @@ private fun Row(pairing: Pairing, onOpen: () -> Unit) {
     val graph = LocalContext.current.tvGraph
     val flow = remember(pairing.id, pairing.baseUrl, pairing.token) { graph.live(pairing) }
     val state by flow.collectAsStateWithLifecycle(LiveState())
-    FocusCard(onClick = onOpen) {
+    FocusCard(onClick = onOpen, modifier = Modifier.restoreFocus(pairing.id)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-            Text(pairing.label, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f), maxLines = 1)
+            Text(pairing.label, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
             val s = state.view?.system
             if (s != null && !state.unreachable) {
                 Text("CPU " + Format.percent(s.cpu.total), style = MaterialTheme.typography.titleMedium)

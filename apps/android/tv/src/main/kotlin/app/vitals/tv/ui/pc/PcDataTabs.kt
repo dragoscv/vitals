@@ -189,7 +189,13 @@ internal fun ChartGrid(charts: List<ChartSpec>) {
         items(charts, key = { it.title }) { c ->
             Panel(c.title, accent = c.colour) {
                 Hint(if (c.chart.peak == null) Format.DASH else stringResource(R.string.history_peak, c.format(c.chart.peak)))
-                HistoryCanvas(c.chart, c.colour, MaterialTheme.colorScheme.border.copy(alpha = 0.4f), height = 140.dp)
+                HistoryCanvas(
+                    c.chart,
+                    c.colour,
+                    MaterialTheme.colorScheme.border.copy(alpha = 0.4f),
+                    height = 140.dp,
+                    description = stringResource(R.string.chart_history, c.title, c.format(c.chart.peak)),
+                )
             }
         }
     }

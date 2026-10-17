@@ -188,6 +188,7 @@ class VitalsTvApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        app.vitals.core.net.LanNetwork.install(this)
         graph = TvGraph(this)
         graph.start()
     }

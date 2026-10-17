@@ -27,10 +27,17 @@ object WakeOnLan {
         return ByteArray(6) { hex.substring(it * 2, it * 2 + 2).toInt(16).toByte() }
     }
 
-    /** Sends to [broadcast] (the PC's subnet broadcast when known) and to 255.255.255.255. */
+    /**
+     * Sends to [broadcast] (the PC's subnet broadcast when known) and to
+     * 255.255.255.255. [broadcast] comes from the PC's own report, so it is
+     * only used when it is a private IPv4 address ([safeBroadcast], AND-43):
+     * a hostile or confused PC must not turn the phone into a UDP sender at
+     * an address of its choosing. Off the LAN nothing is sent at all.
+     */
     suspend fun send(mac: String, broadcast: String?): Boolean = withContext(Dispatchers.IO) {
         val payload = packet(mac) ?: return@withContext false
-        val targets = listOfNotNull(broadcast, "255.255.255.255").distinct()
+        if (!LanNetwork.onLan) return@withContext false
+        val targets = listOfNotNull(safeBroadcast(broadcast), LIMITED_BROADCAST).distinct()
         DatagramSocket().use { socket ->
             socket.broadcast = true
             targets.forEach { target ->
@@ -41,6 +48,15 @@ object WakeOnLan {
             }
         }
         true
+    }
+
+    private const val LIMITED_BROADCAST = "255.255.255.255"
+
+    /** [broadcast] when it is four numeric octets in a private range, else `null`. Never a hostname. */
+    fun safeBroadcast(broadcast: String?): String? {
+        broadcast ?: return null
+        if (broadcast == LIMITED_BROADCAST) return broadcast
+        return broadcast.takeIf { LanAddress.isPrivate("http://$it") && it.split('.').size == 4 && it.none(Char::isLetter) }
     }
 
     /** `192.168.1.20` -> `192.168.1.255`, assuming a /24 — the common home LAN. */

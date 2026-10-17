@@ -4,12 +4,13 @@ import app.vitals.core.model.Summary
 import app.vitals.core.net.ApiFailure
 import app.vitals.core.net.ApiResult
 import app.vitals.core.net.LanAddress
+import app.vitals.core.net.LanNetwork
 import app.vitals.core.net.VitalsClient
 import app.vitals.core.net.WakeOnLan
 import java.net.URI
 
 /** Why a PC was not saved. Each surface words these in its own resources. */
-enum class PairRefusal { BadAddress, NotPrivate, BadToken, BadCode, Unreachable, Unauthorised, Incompatible, NotReady, Failed }
+enum class PairRefusal { BadAddress, NotPrivate, BadToken, BadCode, Unreachable, OffLan, Unauthorised, Incompatible, NotReady, Failed }
 
 sealed interface PairCheckResult {
     /** [summary] is the first reading, so a widget or a list can show numbers at once. */
@@ -53,6 +54,8 @@ object PairCheck {
         if (!LanAddress.isPrivate(baseUrl)) return PairCheckResult.Refused(PairRefusal.NotPrivate)
         val code = cleanCode(rawCode)
         if (!CODE.matches(code)) return PairCheckResult.Refused(PairRefusal.BadCode)
+        // The code is a credential too: never redeem it over mobile data.
+        if (!LanNetwork.onLan) return PairCheckResult.Refused(PairRefusal.OffLan)
         val grant = when (val r = VitalsClient.redeem(baseUrl, code, deviceLabel)) {
             is ApiResult.Ok -> r.value
             is ApiResult.Err -> return refusal(r.failure, codeRefused = true)
@@ -112,6 +115,7 @@ object PairCheck {
     private fun refusal(f: ApiFailure, codeRefused: Boolean = false): PairCheckResult.Refused = when (f) {
         is ApiFailure.Unreachable -> PairCheckResult.Refused(PairRefusal.Unreachable)
         ApiFailure.Unauthorised -> PairCheckResult.Refused(PairRefusal.Unauthorised)
+        ApiFailure.OffLan -> PairCheckResult.Refused(PairRefusal.OffLan)
         is ApiFailure.Incompatible -> PairCheckResult.Refused(PairRefusal.Incompatible)
         ApiFailure.NotReady -> PairCheckResult.Refused(PairRefusal.NotReady)
         is ApiFailure.Refused -> PairCheckResult.Refused(PairRefusal.Unauthorised)

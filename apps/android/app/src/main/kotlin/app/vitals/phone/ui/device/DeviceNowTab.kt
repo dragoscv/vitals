@@ -98,10 +98,10 @@ private fun Hero(live: DeviceLive, s: DeviceSnapshot) {
                 stringResource(R.string.metric_temp), diameter = 76.dp, level = Thresholds.cpuTemp(s.cpu.temperature),
             )
         }
-        Sparkline(live.cpu, Palette.Cpu)
-        Sparkline(live.memory, Palette.Memory)
-        if (live.gpu.size > 0) Sparkline(live.gpu, Palette.Gpu)
-        if (live.temperature.size > 0) Sparkline(live.temperature, Palette.Thermal, max = 110f)
+        Sparkline(live.cpu, Palette.Cpu, label = stringResource(R.string.metric_cpu))
+        Sparkline(live.memory, Palette.Memory, label = stringResource(R.string.metric_memory_short))
+        if (live.gpu.size > 0) Sparkline(live.gpu, Palette.Gpu, label = stringResource(R.string.metric_gpu))
+        if (live.temperature.size > 0) Sparkline(live.temperature, Palette.Thermal, max = 110f, label = stringResource(R.string.metric_temp), format = app.vitals.ui.Format::celsius)
         if (!s.cpu.measured) {
             Text(
                 stringResource(R.string.device_cpu_estimate),

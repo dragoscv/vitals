@@ -46,6 +46,17 @@ class SettingsStore(context: Context) {
         store.edit { it[DEVICE_HISTORY] = on }
     }
 
+    /**
+     * Whether the notification permission has been asked for on the This
+     * phone tab. Asked once only: the system stops showing the prompt after
+     * two refusals anyway, and Settings keeps a card to allow it later.
+     */
+    val notificationsAsked: Flow<Boolean> = store.data.map { it[NOTIFICATIONS_ASKED] ?: false }
+
+    suspend fun setNotificationsAsked() {
+        store.edit { it[NOTIFICATIONS_ASKED] = true }
+    }
+
     suspend fun setGlass(mode: GlassMode) {
         store.edit { it[GLASS] = mode.name }
     }
@@ -73,5 +84,6 @@ class SettingsStore(context: Context) {
         val WATCHED = stringSetPreferencesKey("watched")
         val SELECTED = stringPreferencesKey("selected")
         val DEVICE_HISTORY = booleanPreferencesKey("device_history")
+        val NOTIFICATIONS_ASKED = booleanPreferencesKey("notifications_asked")
     }
 }

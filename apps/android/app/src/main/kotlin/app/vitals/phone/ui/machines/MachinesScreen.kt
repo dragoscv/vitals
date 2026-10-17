@@ -1,6 +1,7 @@
 package app.vitals.phone.ui.machines
 
 import app.vitals.phone.ui.theme.readable
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -64,8 +65,11 @@ import app.vitals.ui.Format
 import app.vitals.ui.Palette
 import app.vitals.ui.Readings
 import app.vitals.ui.Thresholds
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 @Composable
 fun MachinesScreen() {
@@ -94,9 +98,15 @@ fun MachinesScreen() {
                 refreshing = true
                 pairings.forEach { graph.live.kick(it.id) }
                 scope.launch {
-                    // The stream answers within a frame or two; the spinner
-                    // only needs to show the gesture registered.
-                    delay(800)
+                    // Spin until a PC actually answers or gives up: the next
+                    // state any stream emits after the kick. The timeout only
+                    // caps a list where every PC is off (AND-16; the old fixed
+                    // 800 ms spinner claimed a refresh that had not happened).
+                    if (pairings.isNotEmpty()) {
+                        withTimeoutOrNull(REFRESH_CAP_MS) {
+                            merge(*pairings.map { graph.live.observe(it).drop(1) }.toTypedArray()).first()
+                        }
+                    }
                     refreshing = false
                 }
             },
@@ -129,6 +139,8 @@ fun MachinesScreen() {
         }
     }
 }
+
+private const val REFRESH_CAP_MS = 10_000L
 
 @Composable
 private fun EmptyState(padding: PaddingValues) {
@@ -164,12 +176,12 @@ private fun MachineCard(pairing: Pairing, onOpen: () -> Unit, modifier: Modifier
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text(pairing.label, style = MaterialTheme.typography.titleLarge, maxLines = 1)
+                    Text(pairing.label, style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     StatusLine(state)
                 }
                 AlertBadge(state)
             }
-            Crossfade(targetState = state.view != null && !state.unreachable, label = "live") { live ->
+            Crossfade(targetState = state.view != null && !state.unreachable && !state.unauthorised, label = "live") { live ->
                 if (live) LiveBody(state) else OfflineBody(pairing, state)
             }
         }
@@ -181,6 +193,7 @@ private fun StatusLine(state: LiveState) {
     val text = when {
         state.unauthorised -> stringResource(R.string.state_unauthorised)
         state.incompatible -> stringResource(R.string.state_incompatible)
+        state.offLan -> stringResource(R.string.state_off_lan)
         state.unreachable -> state.lastSeenMs?.let { stringResource(R.string.last_seen, relativeTime(it)) }
             ?: stringResource(R.string.state_unreachable)
         state.view == null -> stringResource(R.string.state_connecting)
@@ -228,14 +241,29 @@ private fun LiveBody(state: LiveState) {
             )
         }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Box(Modifier.weight(1f)) { Sparkline(state.cpu, Palette.Cpu) }
-            Box(Modifier.weight(1f)) { Sparkline(state.memory, Palette.Memory) }
+            Box(Modifier.weight(1f)) { Sparkline(state.cpu, Palette.Cpu, label = stringResource(R.string.metric_cpu)) }
+            Box(Modifier.weight(1f)) { Sparkline(state.memory, Palette.Memory, label = stringResource(R.string.metric_memory_short)) }
         }
     }
 }
 
 @Composable
 private fun OfflineBody(pairing: Pairing, state: LiveState) {
+    if (state.unauthorised) {
+        // Reconnecting cannot fix a revoked token; the stream has stopped
+        // trying, and the one useful next step is to pair again (AND-16).
+        val navigator = LocalNavigator.current
+        OutlinedButton(onClick = { navigator.push(AddPc()) }) { Text(stringResource(R.string.pair_again)) }
+        return
+    }
+    if (state.offLan) {
+        Text(
+            stringResource(R.string.state_off_lan_hint),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        return
+    }
     if (!state.unreachable) {
         Spacer(Modifier.height(4.dp))
         return

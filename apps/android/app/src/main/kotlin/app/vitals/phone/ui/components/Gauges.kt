@@ -1,6 +1,7 @@
 package app.vitals.phone.ui.components
 
 import app.vitals.phone.ui.theme.readable
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -23,7 +24,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import app.vitals.phone.R
 import app.vitals.ui.FillBarCanvas
+import app.vitals.ui.Format
 import app.vitals.ui.Series
 import app.vitals.ui.Level
 import app.vitals.ui.Palette
@@ -55,7 +59,7 @@ fun RingGauge(
     ) {
         Box(Modifier.size(diameter), contentAlignment = Alignment.Center) {
             RingArc(fraction, arc, track, Modifier.size(diameter), stroke)
-            Text(valueText, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            Text(valueText, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         Text(
             label,
@@ -63,6 +67,7 @@ fun RingGauge(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
             maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }
@@ -81,18 +86,29 @@ fun AnimatedNumber(
         label = "number",
         modifier = modifier,
     ) { value ->
-        Text(value, style = style, fontWeight = FontWeight.SemiBold, color = readable(colour), maxLines = 1)
+        Text(value, style = style, fontWeight = FontWeight.SemiBold, color = readable(colour), maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
-/** A 60-point sparkline; see [SparklineCanvas]. */
+/**
+ * A 60-point sparkline; see [SparklineCanvas]. [label] names the metric so
+ * TalkBack reads "CPU over the last minute, now 12 %" instead of nothing.
+ */
 @Composable
 fun Sparkline(
     series: Series,
     colour: Color,
     modifier: Modifier = Modifier,
     max: Float = 100f,
-) = SparklineCanvas(series, colour, modifier, max)
+    label: String? = null,
+    format: (Float?) -> String = Format::percent,
+) = SparklineCanvas(
+    series,
+    colour,
+    modifier,
+    max,
+    description = label?.let { stringResource(R.string.chart_last_minute, it, format(series.last())) },
+)
 
 /** A horizontal fill bar, for per-core load and disk usage; see [FillBarCanvas]. */
 @Composable

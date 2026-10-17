@@ -6,9 +6,15 @@ import app.vitals.core.model.Alert
 import app.vitals.core.net.ApiFailure
 import app.vitals.core.net.ApiResult
 import app.vitals.core.net.Backoff
+import app.vitals.core.net.LanNetwork
 import app.vitals.core.net.StreamClosed
 import app.vitals.core.net.VitalsClient
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.cancelChildren
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.conflate
@@ -26,11 +32,14 @@ data class LiveState(
     val alerts: List<Alert> = emptyList(),
     /** Consecutive failed connection attempts; three or more reads as "unreachable". */
     val failures: Int = 0,
+    /** The PC refused the token (401/403). Reconnecting cannot fix it; only pairing again can. */
     val unauthorised: Boolean = false,
     val incompatible: Boolean = false,
+    /** This device is on mobile data or offline, so nothing was sent ([LanNetwork]). */
+    val offLan: Boolean = false,
     val lastSeenMs: Long? = null,
 ) {
-    val unreachable: Boolean get() = failures >= UNREACHABLE_AFTER
+    val unreachable: Boolean get() = failures >= UNREACHABLE_AFTER || offLan
 
     companion object {
         const val UNREACHABLE_AFTER = 3
@@ -66,11 +75,15 @@ object PcStream {
         send(state)
 
         // Alerts are a separate, slow poll: the stream carries metrics only.
+        // It sleeps while the stream knows asking is pointless (off the LAN,
+        // or a revoked token) rather than knocking every fifteen seconds.
         launch {
             while (true) {
-                when (val r = client.alerts()) {
-                    is ApiResult.Ok -> update { it.copy(alerts = r.value) }
-                    is ApiResult.Err -> Unit
+                if (!state.unauthorised && !state.offLan) {
+                    when (val r = client.alerts()) {
+                        is ApiResult.Ok -> update { it.copy(alerts = r.value) }
+                        is ApiResult.Err -> Unit
+                    }
                 }
                 wait(ALERT_POLL_MS)
             }
@@ -78,6 +91,22 @@ object PcStream {
 
         val backoff = Backoff()
         while (true) {
+            if (!LanNetwork.onLan) {
+                update { it.copy(offLan = true) }
+                // Reconnect the moment Wi-Fi returns, or when the user asks.
+                waitForEither(wait) { LanNetwork.local.first { it } }
+                update { it.copy(offLan = false, failures = 0) }
+                backoff.reset()
+                continue
+            }
+            if (state.unauthorised) {
+                // A revoked token stays revoked: no backoff loop hammering
+                // the PC with a secret it refuses. Only an explicit retry
+                // (pull to refresh, the TV's button) tries again.
+                wait(Long.MAX_VALUE)
+                update { it.copy(unauthorised = false) }
+                continue
+            }
             try {
                 client.frames().collect { frame ->
                     backoff.reset()
@@ -102,9 +131,23 @@ object PcStream {
             } catch (e: StreamClosed) {
                 handleClosed(client, e) { f -> update(f) }
             }
-            wait(backoff.next())
+            if (state.unauthorised || !LanNetwork.onLan) continue
+            // Wi-Fi dropping mid-stream ends the backoff early when it returns.
+            val delayMs = backoff.next()
+            waitForEither({ wait(delayMs) }) { LanNetwork.local.first { !it }; LanNetwork.local.first { it } }
         }
     }.conflate()
+
+    /** Returns when [a] (given [Long.MAX_VALUE] as its wait) or [b] returns, whichever is first. */
+    private suspend fun waitForEither(a: suspend (Long) -> Unit, b: suspend () -> Unit) = coroutineScope {
+        val first = async { a(Long.MAX_VALUE) }
+        val second = async { b() }
+        select<Unit> {
+            first.onAwait {}
+            second.onAwait {}
+        }
+        coroutineContext.cancelChildren()
+    }
 
     private suspend fun handleClosed(
         client: VitalsClient,
@@ -113,7 +156,12 @@ object PcStream {
     ) {
         // A WebSocket upgrade refused with 401 surfaces as a failure with the
         // response code; ask /health to tell "off" from "wrong version".
-        if (closed.code == 401) {
+        if (closed.code == VitalsClient.CLOSE_OFF_LAN) return
+        if (closed.code == VitalsClient.CLOSE_UNREADABLE) {
+            update { it.copy(failures = it.failures + 1, incompatible = true) }
+            return
+        }
+        if (closed.code == 401 || closed.code == 403) {
             update { it.copy(unauthorised = true, failures = it.failures + 1) }
             return
         }

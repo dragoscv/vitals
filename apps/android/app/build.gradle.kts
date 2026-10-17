@@ -32,7 +32,12 @@ android {
         // ML Kit's native scanner ships for four ABIs; x86 and x86_64 were
         // 11.6 MB of a 26.7 MB APK and only ever run on an emulator. Every
         // phone this is for is ARM. Remove this to debug on an x86 emulator.
-        ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
+        ndk {
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+            // Native symbol tables in the bundle so Play Console can
+            // symbolicate ML Kit / CameraX native crashes (AND-37).
+            debugSymbolLevel = "SYMBOL_TABLE"
+        }
     }
 
     signingConfigs {
@@ -71,6 +76,12 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+    }
+
+    // A string missing from values-ro ships English to Romanian users;
+    // fail the build instead (AND-46).
+    lint {
+        error += "MissingTranslation"
     }
 
     compileOptions {

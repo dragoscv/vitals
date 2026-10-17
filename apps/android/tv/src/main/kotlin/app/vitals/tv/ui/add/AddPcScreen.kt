@@ -1,5 +1,6 @@
 package app.vitals.tv.ui.add
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Column
@@ -39,6 +40,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -92,6 +95,20 @@ fun AddPcScreen() {
     val navigator = LocalNavigator.current
     val scope = rememberCoroutineScope()
     val tvLabel = stringResource(R.string.tv_label)
+
+    // Back steps back through the pairing (token -> code -> address/pick)
+    // rather than dropping the whole flow, and never while a check runs: a
+    // half-finished redeem would burn the code with nobody waiting for it.
+    BackHandler(enabled = step != Step.Pick) {
+        if (busy) return@BackHandler
+        error = null
+        step = when (val s = step) {
+            Step.Pick -> Step.Pick
+            is Step.Address -> Step.Pick
+            is Step.Code -> Step.Pick
+            is Step.Token -> Step.Code(s.baseUrl, s.name)
+        }
+    }
 
     fun finish(result: PairCheckResult) {
         when (result) {
@@ -285,7 +302,7 @@ private fun TokenStep(busy: Boolean, onToken: (String) -> Unit) {
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth(0.7f)) {
         Hint(stringResource(R.string.add_token_body))
-        Field(stringResource(R.string.field_token), token, { token = it.trim() }, "", KeyboardType.Password, focus) {
+        Field(stringResource(R.string.field_token), token, { token = it.trim() }, "", KeyboardType.Password, focus, secret = true) {
             if (token.isNotBlank()) onToken(token)
         }
         Action(stringResource(R.string.pair), onClick = { onToken(token) }, enabled = !busy && token.isNotBlank())
@@ -305,6 +322,7 @@ private fun Field(
     placeholder: String,
     type: KeyboardType,
     focus: FocusRequester,
+    secret: Boolean = false,
     onDone: () -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
@@ -323,6 +341,9 @@ private fun Field(
                 value = value,
                 onValueChange = onChange,
                 singleLine = true,
+                // A token on a TV is read by everyone on the sofa; masked like
+                // a password, as the keyboard type already implies (AND-44).
+                visualTransformation = if (secret) PasswordVisualTransformation() else VisualTransformation.None,
                 textStyle = MaterialTheme.typography.titleMedium.copy(color = MaterialTheme.colorScheme.onSurface),
                 cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                 keyboardOptions = KeyboardOptions(keyboardType = type, imeAction = ImeAction.Done),

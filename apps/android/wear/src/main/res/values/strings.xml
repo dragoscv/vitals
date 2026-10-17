@@ -4,8 +4,6 @@
     <string name="tile_label">Vitals: PC at a glance</string>
     <string name="complication_cpu">PC processor use</string>
     <string name="complication_temp">PC processor temperature</string>
-
-    <string name="channel_alerts">PC alerts</string>
     <string name="channel_alerts_description">When a paired PC is overheating, running out of memory or struggling</string>
 
     <string name="alert_cpu_sustained">The processor has been busy for a while</string>
@@ -109,4 +107,10 @@
     <string name="on_battery">On battery</string>
     <string name="storage">Storage</string>
     <string name="sensor_count">%1$d sensors on this watch</string>
+    <!-- S17-13 (AND-6..47) -->
+    <string name="alert_other">Something on the PC needs attention</string>
+    <string name="channel_alerts_critical">Serious PC alerts</string>
+    <string name="channel_alerts_warning">PC warnings</string>
+    <string name="fail_no_phone">Needs your phone nearby</string>
+    <string name="complication_spoken">%1$s: %2$s</string>
 </resources>

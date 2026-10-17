@@ -25,6 +25,7 @@ class VitalsWearApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        app.vitals.core.net.LanNetwork.install(this)
         Alerter.ensureChannel(this)
     }
 

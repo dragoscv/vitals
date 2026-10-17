@@ -263,10 +263,10 @@
     <string name="device_clean_empty_folder">Folder gol</string>
     <string name="device_clean_large_file">Fișier mare</string>
     <string name="device_clean_thumbnails">Miniaturi poze</string>
-    <string name="device_cleanup_title">Ce ai putea elibera</string>
+    <string name="device_cleanup_title">Spațiu pe care îl poți verifica</string>
     <string name="device_cleanup_empty">Nu s-a găsit nimic care merită șters.</string>
     <string name="device_cleanup_needs_access">Dă-i Vitals acces la fișiere sau la utilizare ca să caute spațiu de eliberat.</string>
-    <string name="device_cleanup_needs_usage">Dă-i Vitals acces la utilizare ca să vezi ce aplicații țin cel mai mult cache.</string>
+    <string name="device_cleanup_needs_usage">Dă-i Vitals acces la utilizare ca să vezi cât cache păstrează fiecare aplicație. Cache-ul este normal: aplicațiile îl refac, deci ștergerea lui eliberează spațiu doar temporar.</string>
     <string name="device_cluster_prime">Nucleu principal</string>
     <string name="device_cluster_performance">Nuclee de performanță</string>
     <string name="device_cluster_efficiency">Nuclee de eficiență</string>
@@ -379,4 +379,19 @@
     <string name="device_started">Pornit</string>
     <string name="device_core_count">Nuclee</string>
     <string name="device_each_core">Fiecare nucleu</string>
+    <!-- S17-13 (AND-6..47) -->
+    <string name="state_off_lan">Nu ești pe Wi-Fi</string>
+    <string name="state_off_lan_hint">Vitals vorbește cu PC-urile doar prin Wi-Fi sau Ethernet, ca cheia de asociere să nu plece niciodată prin datele mobile. Se reconectează imediat ce revii în rețeaua ta.</string>
+    <string name="pair_again_hint">PC-ul nu mai acceptă această asociere, așa că Vitals a încetat să încerce. Asociază-l din nou din setările Acces la distanță de pe PC.</string>
+    <string name="alert_other">Ceva pe PC cere atenție</string>
+    <string name="chart_last_minute">%1$s în ultimul minut, acum %2$s</string>
+    <string name="chart_history">Grafic istoric %1$s, maxim %2$s</string>
+    <string name="state_off_lan_short">Nu ești pe Wi-Fi</string>
+    <string name="watching_off_lan">În pauză: nu ești pe Wi-Fi</string>
+    <string name="pair_again">Asociază din nou</string>
+    <string name="camera_denied_forever">Accesul la cameră este oprit pentru Vitals. Pornește-l din setările aplicației ca să scanezi un cod sau asociază după adresă.</string>
+    <string name="camera_open_settings">Deschide setările aplicației</string>
+    <string name="scan_confirm_title">Asociezi acest PC?</string>
+    <string name="scan_confirm_body">Codul indică %1$s. Asociază doar dacă este PC-ul tău și vezi acest cod pe ecranul lui acum.</string>
+    <string name="settings_access_usage_disclosure">Îi permite lui Vitals să citească timpul pe ecran, deschiderile, datele și spațiul fiecărei aplicații din statisticile de utilizare Android. Citite doar pe acest telefon, nu sunt trimise nicăieri.</string>
 </resources>

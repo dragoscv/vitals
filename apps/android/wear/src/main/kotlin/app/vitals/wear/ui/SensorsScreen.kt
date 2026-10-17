@@ -136,7 +136,7 @@ private fun SensorCard(line: SensorLine, accent: Color, modifier: Modifier, tran
                 )
             }
             Spacer(Modifier.width(6.dp))
-            Text(value, style = MaterialTheme.typography.titleMedium, color = valueColor, maxLines = 1)
+            Text(value, style = MaterialTheme.typography.titleMedium, color = valueColor, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         if (isTemp) {
             Spacer(Modifier.height(6.dp))

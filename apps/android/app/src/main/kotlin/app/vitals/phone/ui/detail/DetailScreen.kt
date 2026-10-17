@@ -139,6 +139,14 @@ private fun NowTab(state: LiveState, padding: PaddingValues) {
         verticalArrangement = Arrangement.spacedBy(12.dp),
         modifier = Modifier.fillMaxSize(),
     ) {
+        if (state.unauthorised || state.offLan) {
+            item {
+                SectionCard(stringResource(if (state.unauthorised) R.string.state_unauthorised else R.string.state_off_lan)) {
+                    Text(stringResource(if (state.unauthorised) R.string.pair_again_hint else R.string.state_off_lan_hint))
+                }
+            }
+            return@LazyColumn
+        }
         if (state.unreachable || system == null) {
             item {
                 SectionCard(stringResource(if (state.unreachable) R.string.state_unreachable else R.string.state_connecting)) {
@@ -191,10 +199,10 @@ private fun Hero(state: LiveState, system: SystemMetrics) {
                 stringResource(R.string.metric_temp), diameter = 76.dp, level = Thresholds.cpuTemp(temp),
             )
         }
-        Sparkline(state.cpu, Palette.Cpu)
-        Sparkline(state.memory, Palette.Memory)
-        if (state.gpu.size > 0) Sparkline(state.gpu, Palette.Gpu)
-        if (state.temperature.size > 0) Sparkline(state.temperature, Palette.Thermal, max = 110f)
+        Sparkline(state.cpu, Palette.Cpu, label = stringResource(R.string.metric_cpu))
+        Sparkline(state.memory, Palette.Memory, label = stringResource(R.string.metric_memory_short))
+        if (state.gpu.size > 0) Sparkline(state.gpu, Palette.Gpu, label = stringResource(R.string.metric_gpu))
+        if (state.temperature.size > 0) Sparkline(state.temperature, Palette.Thermal, max = 110f, label = stringResource(R.string.metric_temp), format = app.vitals.ui.Format::celsius)
     }
 }
 

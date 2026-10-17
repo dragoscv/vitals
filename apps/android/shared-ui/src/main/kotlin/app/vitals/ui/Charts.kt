@@ -16,12 +16,22 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 // The drawing behind every gauge, bar and chart, shared by the phone and the
 // TV so a reading looks the same on both. Material-free: each surface passes
 // its own track and grid colours from its own theme.
+//
+// A Canvas is invisible to TalkBack. Every chart takes a [description] the
+// caller words in its own language ("Processor, last minute: 12 % now, peak
+// 48 %"), and the canvas carries it as its content description (AND-26).
+
+/** Applies [description] as the node's content description when there is one. */
+fun Modifier.chartSemantics(description: String?): Modifier =
+    if (description == null) this else semantics { contentDescription = description }
 
 /** Long enough to read as motion, short enough that most of each one-second update is idle. */
 const val LIVE_ANIMATION_MS = 200
@@ -40,10 +50,11 @@ fun SparklineCanvas(
     max: Float = 100f,
     height: Dp = 32.dp,
     strokeWidth: Dp = 2.dp,
+    description: String? = null,
 ) {
     val path = remember { Path() }
     val fill = remember(colour) { colour.copy(alpha = 0.14f) }
-    Canvas(modifier.fillMaxWidth().height(height)) {
+    Canvas(modifier.chartSemantics(description).fillMaxWidth().height(height)) {
         if (series.size < 2) return@Canvas
         path.rewind()
         val step = size.width / (Series.CAPACITY - 1)
@@ -116,9 +127,16 @@ fun RingArc(fraction: Float?, colour: Color, track: Color, modifier: Modifier = 
 
 /** A bucketed history line over a light grid. `NaN` buckets break the line. */
 @Composable
-fun HistoryCanvas(chart: Chart, colour: Color, grid: Color, modifier: Modifier = Modifier, height: Dp = 120.dp) {
+fun HistoryCanvas(
+    chart: Chart,
+    colour: Color,
+    grid: Color,
+    modifier: Modifier = Modifier,
+    height: Dp = 120.dp,
+    description: String? = null,
+) {
     val path = remember { Path() }
-    Canvas(modifier.fillMaxWidth().height(height)) {
+    Canvas(modifier.chartSemantics(description).fillMaxWidth().height(height)) {
         for (i in 1..3) {
             val y = size.height * i / 4
             drawLine(grid, Offset(0f, y), Offset(size.width, y), 1f)

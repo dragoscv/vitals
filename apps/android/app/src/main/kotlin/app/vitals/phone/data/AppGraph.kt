@@ -99,4 +99,10 @@ class AppGraph(private val app: Application) {
 /** Unknown counts as able: the PC is the authority and answers 403 if it is not. */
 fun Pairing.canControl(): Boolean = scope != Scope.Read
 
-fun Pairing.toWatch() = WatchPairing(id, label, baseUrl, token, canControl())
+/**
+ * Only a read-only token crosses to the watch (AND-7). A token that can end
+ * processes stays on the phone: the watch asks the phone to act for it, so
+ * a lost watch can show numbers at most, never kill anything. Pairings that
+ * can (or may) control get an empty token and are relayed through the phone.
+ */
+fun Pairing.toWatch() = WatchPairing(id, label, baseUrl, if (scope == Scope.Read) token else "", canControl())

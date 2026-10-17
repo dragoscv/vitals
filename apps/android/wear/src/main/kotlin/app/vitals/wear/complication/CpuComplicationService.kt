@@ -9,5 +9,6 @@ class CpuComplicationService : MetricComplicationService() {
     override val max = 100f
     override fun shortText(value: Float): String = Format.percentCompact(value)
     override val title = R.string.cpu_short
+    override val description = R.string.complication_cpu
     override val preview = 34f
 }

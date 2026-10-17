@@ -9,7 +9,12 @@ plugins {
 android {
     namespace = "app.vitals.device"
     compileSdk = 37
-    defaultConfig { minSdk = 29 }
+    defaultConfig {
+        minSdk = 29
+        // The device model is stored (history) and relayed as JSON; R8 in an
+        // app that embeds :device must keep its serializers (AND-30).
+        consumerProguardFiles("consumer-rules.pro")
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
