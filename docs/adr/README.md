@@ -45,6 +45,7 @@ D-numbers refer to the decision table in [`../TRACKER.md`](../TRACKER.md).
 | [0035](0035-on-device-monitor.md)                          | The phone and the watch monitor themselves              | S15-04  |
 | [0036](0036-google-tv-app-and-pairing-codes.md)            | A Google TV app, and pairing by six-digit code          | S15-08  |
 | [0037](0037-play-and-github-android-flavours.md)           | A Play build without all-files access, a GitHub build   | S16-21  |
+| [0038](0038-ai-agents-page-and-agentq.md)                  | An AI page that watches agentq and every AI client      | S18-01  |
 
 ## Writing a new one
 

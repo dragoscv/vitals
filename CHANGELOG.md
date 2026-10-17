@@ -7,6 +7,20 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **AI agents page.** See which AI coding agents are working on this
+  machine — VS Code Copilot Chat, Copilot CLI, Codai, Codex and Claude Code —
+  what each is doing right now, how long the session has run and how much of
+  that it spent actually working, its turns, tool calls and the tool running
+  this second. Tabs for agentq's build queues and worktree slots, background
+  jobs and releases, a live journal, cloud agents from your codai account, and
+  24-hour insights (time spent waiting, slow builds, failures per repository).
+  Updates live every two seconds while the page is open and costs nothing
+  when it is not. Freeze or clear a queue, remove a dead ticket, release an
+  abandoned worktree, stop a background job or close idle agent terminals,
+  each with a reason that the other agents can read.
+
 ## [1.0.2] — 2026-10-14
 
 ### Changed
