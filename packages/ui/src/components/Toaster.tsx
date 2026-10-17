@@ -1,6 +1,16 @@
 import { useSyncExternalStore } from 'react';
-import { Toaster as SonnerToaster, toast } from 'sonner';
+import { Toaster as SonnerToaster, toast as sonnerToast } from 'sonner';
 import { useReducedMotion } from '../lib/useReducedMotion';
+
+/**
+ * How long an error toast stays up: until the user closes it.
+ *
+ * An error is the one message someone may need to read twice, copy, or act
+ * on, and five seconds is not enough for a slow reader, a screen magnifier
+ * user, or anyone who looked away (WCAG 2.2.1). Every toast has a close
+ * button, so "forever" is never stuck on screen.
+ */
+export const ERROR_TOAST_DURATION = Number.POSITIVE_INFINITY;
 
 /**
  * Fire a transient notification.
@@ -8,8 +18,19 @@ import { useReducedMotion } from '../lib/useReducedMotion';
  * Re-exported so no feature imports `sonner` directly: the library is an
  * implementation detail, and a single import site is what makes it possible
  * to swap or wrap it without touching twenty call sites.
+ *
+ * Wrapped, not re-exported as is: `toast.error` defaults to
+ * {@link ERROR_TOAST_DURATION}, which sonner cannot set per type. A caller
+ * passing its own `duration` still wins.
  */
-export { toast };
+export const toast: typeof sonnerToast = Object.assign(
+  (...args: Parameters<typeof sonnerToast>) => sonnerToast(...args),
+  sonnerToast,
+  {
+    error: (...[message, data]: Parameters<typeof sonnerToast.error>) =>
+      sonnerToast.error(message, { duration: ERROR_TOAST_DURATION, ...data }),
+  },
+);
 export type { ExternalToast, ToasterProps as SonnerToasterProps } from 'sonner';
 
 export interface ToasterProps {
@@ -105,9 +126,9 @@ export function Toaster({
             'rounded-[var(--radius-control)] bg-[var(--color-bg-inset)] text-[var(--color-fg-default)]',
           closeButton:
             'border-[var(--color-border-default)] bg-[var(--color-bg-raised)] text-[var(--color-fg-muted)]',
-          error: 'text-[var(--color-status-danger)]',
-          success: 'text-[var(--color-status-ok)]',
-          warning: 'text-[var(--color-status-warn)]',
+          error: 'text-[var(--color-danger-text)]',
+          success: 'text-[var(--color-ok-text)]',
+          warning: 'text-[var(--color-warn-text)]',
           info: 'text-[var(--color-status-info)]',
         },
       }}

@@ -1,6 +1,6 @@
 # Contributing to Vitals
 
-Thank you for being here. Vitals is free forever and gets better only because
+Thank you for being here. Vitals is free and open source (MIT) and gets better only because
 people report what is broken and send fixes.
 
 ## The most valuable contributions
@@ -18,17 +18,24 @@ You do not need to write Rust to help. In rough order of usefulness:
 
 ## Getting set up
 
-Requires [Rust](https://rustup.rs) stable, [Node](https://nodejs.org) 22+,
-[pnpm](https://pnpm.io) 10+, and the
+Requires [Rust](https://rustup.rs) stable, [Node](https://nodejs.org) 24
+(22 is the minimum `engines` accepts), [pnpm](https://pnpm.io) 12 — run
+`corepack enable` once and the version pinned in `package.json` is used — and the
 [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/).
 
 ```bash
 git clone https://github.com/dragoscv/vitals
 cd vitals
+corepack enable
 pnpm install
 pwsh -NoProfile -File scripts/hooks/install.ps1   # once per clone
-pnpm --filter @vitals/desktop dev
+pnpm --filter @vitals/desktop tauri dev
 ```
+
+The first `tauri dev` compiles the whole Rust workspace and takes several
+minutes; later runs are incremental. `pnpm --filter @vitals/desktop dev`
+starts only the Vite server, so the screens open in a browser against a
+no-host fallback without live data — handy for UI work.
 
 The hook install puts a pre-commit gate in place that catches formatting,
 contract drift, secrets and a stray `.only` in a few seconds — before CI

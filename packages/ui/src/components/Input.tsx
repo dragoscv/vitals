@@ -105,7 +105,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
             'text-2xs',
             error === undefined
               ? 'text-[var(--color-fg-subtle)]'
-              : 'text-[var(--color-status-danger)]',
+              : 'text-[var(--color-danger-text)]',
           )}
         >
           {message}

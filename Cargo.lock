@@ -5814,6 +5814,7 @@ dependencies = [
  "vitals-server",
  "vitals-store",
  "vitals-win",
+ "webview2-com",
 ]
 
 [[package]]
@@ -5900,6 +5901,7 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.21",
+ "tracing",
  "vitals-core",
  "vitals-win",
 ]

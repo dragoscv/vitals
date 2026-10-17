@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -46,6 +47,7 @@ fun PcDetailScreen(
     onProcesses: () -> Unit,
 ) {
     val listState = rememberTransformingLazyColumnState()
+    val resources = LocalResources.current
     val spec = rememberTransformationSpec()
     val system = state?.summary?.system
     ScreenScaffold(
@@ -76,6 +78,7 @@ fun PcDetailScreen(
             }
             val critical = state?.alerts.orEmpty().sortedByDescending { it.severity }
             items(critical, key = { "${it.kind}|${it.subject}" }) { alert ->
+                val text = alertText(alert, resources::getString)
                 Card(
                     modifier = Modifier.fillMaxWidth().transformedHeight(this, spec),
                     transformation = SurfaceTransformation(spec),
@@ -83,13 +86,13 @@ fun PcDetailScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         StatusDot(if (alert.severity == Severity.Critical) Palette.Danger else Palette.Warn)
                         Text(
-                            alert.title,
+                            text.title,
                             modifier = Modifier.padding(start = 6.dp),
                             style = MaterialTheme.typography.labelMedium,
                             maxLines = 2,
                         )
                     }
-                    Text(alert.cause, style = MaterialTheme.typography.bodySmall, maxLines = 3)
+                    text.body?.let { Text(it, style = MaterialTheme.typography.bodySmall, maxLines = 3) }
                 }
             }
             if (system != null) {

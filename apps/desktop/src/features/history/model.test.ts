@@ -134,29 +134,31 @@ describe('computeTotals', () => {
 
 describe('formatCpuTime', () => {
   it('formats sub-second values with decimal', () => {
-    expect(formatCpuTime(0.5, 'en')).toBe('0.5 s');
-    expect(formatCpuTime(0.123, 'en')).toBe('0.1 s');
+    expect(formatCpuTime(0.5, 'en')).toBe('0.5s');
+    expect(formatCpuTime(0.123, 'en')).toBe('0.1s');
+    expect(formatCpuTime(0.5, 'ro')).toBe('0,5 s');
   });
 
   it('formats seconds only', () => {
-    expect(formatCpuTime(5, 'en')).toBe('5 s');
-    expect(formatCpuTime(59, 'en')).toBe('59 s');
+    expect(formatCpuTime(5, 'en')).toBe('5s');
+    expect(formatCpuTime(59, 'en')).toBe('59s');
   });
 
   it('formats minutes and seconds', () => {
-    expect(formatCpuTime(60, 'en')).toBe('1 min');
-    expect(formatCpuTime(65, 'en')).toBe('1 min 5 s');
-    expect(formatCpuTime(185, 'en')).toBe('3 min 5 s');
+    expect(formatCpuTime(60, 'en')).toBe('1m');
+    expect(formatCpuTime(65, 'en')).toBe('1m 5s');
+    expect(formatCpuTime(185, 'en')).toBe('3m 5s');
   });
 
   it('formats hours and minutes', () => {
     expect(formatCpuTime(3600, 'en')).toBe('1h');
-    expect(formatCpuTime(3660, 'en')).toBe('1h 1 min');
-    expect(formatCpuTime(7800, 'en')).toBe('2h 10 min');
+    expect(formatCpuTime(3660, 'en')).toBe('1h 1m');
+    expect(formatCpuTime(7800, 'en')).toBe('2h 10m');
   });
 
   it('formats large hour values', () => {
     expect(formatCpuTime(172800, 'en')).toBe('48h');
-    expect(formatCpuTime(174600, 'en')).toBe('48h 30 min');
+    expect(formatCpuTime(174600, 'en')).toBe('48h 30m');
+    expect(formatCpuTime(174600, 'ro')).toBe('48 h, 30 m');
   });
 });

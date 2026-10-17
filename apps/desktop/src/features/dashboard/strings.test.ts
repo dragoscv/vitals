@@ -98,4 +98,16 @@ describe('registerDashboardStrings', () => {
 
     expect(i18n.t(`${DASHBOARD_NS}:title`)).toBe('Real translation');
   });
+
+  it('formats alert percentages and temperatures the way each locale writes them', () => {
+    // "{{percent}}%" in a template put English spacing into Romanian. The
+    // value stays exactly as Rust rounded it; only the sign moves.
+    registerDashboardStrings();
+    const en = i18n.getFixedT('en', DASHBOARD_NS);
+    const ro = i18n.getFixedT('ro', DASHBOARD_NS);
+    expect(en('alert.batteryLow.cause', { percent: 9 })).toBe('9% remaining and not charging.');
+    expect(ro('alert.batteryLow.cause', { percent: 9 })).toBe('9\u00a0% rămas și nu se încarcă.');
+    expect(en('alert.thermalCpu.cause', { celsius: 99 })).toMatch(/^99°C\. /);
+    expect(ro('alert.thermalCpu.cause', { celsius: 99 })).toMatch(/^99 °C\. /);
+  });
 });

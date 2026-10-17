@@ -2,6 +2,7 @@ package app.vitals.wear
 
 import android.app.Application
 import android.content.Context
+import app.vitals.core.loggingHandler
 import app.vitals.wear.data.Alerter
 import app.vitals.wear.data.WearRepository
 import kotlinx.coroutines.CoroutineScope
@@ -14,7 +15,8 @@ class VitalsWearApp : Application() {
      * unbound within milliseconds of answering, and a refresh they start
      * must still land so the next request has fresh data.
      */
-    val appScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    val appScope: CoroutineScope =
+        CoroutineScope(SupervisorJob() + Dispatchers.Default + loggingHandler("VitalsWear"))
 
     val repository: WearRepository by lazy { WearRepository(this, appScope) }
 

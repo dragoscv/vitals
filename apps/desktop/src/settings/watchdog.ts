@@ -54,8 +54,13 @@ export const systemSounds = [
 
 export const sensitivities: readonly WatchdogSensitivity[] = ['relaxed', 'normal', 'sensitive'];
 
+/**
+ * Off, because the watchdog is opt-in: nothing starts at sign-in until the
+ * user turns it on (first-run card or Settings). With `true` here a fresh
+ * install's Settings showed the switch on while nothing was registered.
+ */
 export const defaultWatchdogConfig: WatchdogConfig = {
-  enabled: true,
+  enabled: false,
   sensitivity: 'normal',
   sound: { kind: 'default' },
   volume: 80,
@@ -105,14 +110,30 @@ export const tauriWatchdogApi: WatchdogApi = {
  * Without a mirror the panel would open on defaults and a single click
  * would overwrite a carefully chosen sound.
  */
-function loadMirror(): WatchdogConfig {
+function readMirror(): WatchdogConfig | null {
   try {
     const raw = globalThis.localStorage.getItem(STORAGE_KEY);
-    if (raw === null) return defaultWatchdogConfig;
+    if (raw === null) return null;
     return parseConfig(JSON.parse(raw) as unknown);
   } catch {
-    return defaultWatchdogConfig;
+    return null;
   }
+}
+
+function loadMirror(): WatchdogConfig {
+  return readMirror() ?? defaultWatchdogConfig;
+}
+
+/**
+ * Turns the watchdog on with the user's last saved settings (or the
+ * defaults), for the dashboard's first-run card. The same command and the
+ * same mirror as the Settings switch, so the two cannot disagree.
+ */
+export async function turnOnWatchdog(api: WatchdogApi = tauriWatchdogApi): Promise<WatchdogStatus> {
+  const next: WatchdogConfig = { ...loadMirror(), enabled: true };
+  const status = await api.save(next);
+  globalThis.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+  return status;
 }
 
 /** Accepts only a well-formed config; anything else falls back field by field. */
@@ -172,7 +193,14 @@ export function useWatchdog(api: WatchdogApi = tauriWatchdogApi): WatchdogState 
     api
       .status()
       .then((value) => {
-        if (!cancelled) setStatus(value);
+        if (cancelled) return;
+        setStatus(value);
+        // No mirror means this window never saved a choice — a copy that an
+        // older version switched on by itself, say. What Windows starts at
+        // sign-in is then the only honest answer for the switch.
+        if (readMirror() === null) {
+          setConfig((current) => ({ ...current, enabled: value.registered }));
+        }
       })
       .catch((failure: unknown) => {
         if (!cancelled) setError(describe(failure));

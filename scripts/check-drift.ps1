@@ -16,14 +16,26 @@
          feature that exists and is invisible — worth a warning.
       4. i18n keys present in one locale and absent in the other.
       5. Settings keys read by the UI that nothing writes, or vice versa.
+        6. Android contract fixtures that differ from what the Rust test writes.
+        7. A synchronous #[tauri::command] that is not on the allowlist of
+            handlers known to be cheap. Tauri runs a plain `fn` command on the
+            main thread: one slow OS call there freezes every window.
 
     Exit code is the number of hard failures. Warnings do not fail the gate.
 
 .EXAMPLE
     pwsh -NoProfile -File scripts/check-drift.ps1
+
+.EXAMPLE
+    pwsh -NoProfile -File scripts/check-drift.ps1 -Regenerate
+    Runs the Rust test that writes the Android contract fixtures first, so
+    check 6 compares against freshly written output (a cargo build; not two
+    seconds).
 #>
 [CmdletBinding()]
-param()
+param(
+    [switch]$Regenerate
+)
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
@@ -220,6 +232,110 @@ if (Test-Path $shell) {
             if ($onlyEn) { $failures.Add("shell strings: keys only in en: $($onlyEn -join ', ')") }
             if ($onlyRo) { $failures.Add("shell strings: keys only in ro: $($onlyRo -join ', ')") }
         }
+    }
+}
+
+# ── 6. Android contract fixtures vs the Rust test that writes them ─────
+
+# The Kotlin models are hand-written (ADR-0033), so the only thing tying
+# them to Rust is the JSON `android_contract.rs` writes and ContractTest.kt
+# decodes. Three ways that link silently breaks, all checked here without a
+# build: a fixture the Rust test writes that is not committed, a committed
+# fixture nothing writes any more (Kotlin keeps decoding a stale shape), and
+# a fixture the Kotlin test never opens. With -Regenerate the Rust test runs
+# first and any byte it changed fails the gate — that is the drift itself.
+$contractTest = 'crates/vitals-server/tests/android_contract.rs'
+$contractDir = 'apps/android/core/src/test/resources/contract'
+$kotlinTest = 'apps/android/core/src/test/kotlin/app/vitals/core/ContractTest.kt'
+if ((Test-Path $contractTest) -and (Test-Path $contractDir)) {
+    if ($Regenerate) {
+        & cargo test -p vitals-server --test android_contract --quiet
+        if ($LASTEXITCODE -ne 0) {
+            $failures.Add("cargo test android_contract exited $LASTEXITCODE; the fixtures were not regenerated")
+        }
+        $changed = @(& git status --porcelain -- $contractDir)
+        foreach ($line in $changed) {
+            $failures.Add("android contract fixture changed when regenerated (commit it, and check ContractTest.kt still decodes it): $line")
+        }
+    }
+
+    $written = @([regex]::Matches((Get-Content $contractTest -Raw), 'write\(\s*"([\w.-]+\.json)"') |
+        ForEach-Object { $_.Groups[1].Value }) | Sort-Object -Unique
+    $committed = @(Get-ChildItem $contractDir -Filter '*.json' | ForEach-Object Name) | Sort-Object -Unique
+    $decoded = @()
+    if (Test-Path $kotlinTest) {
+        $decoded = @([regex]::Matches((Get-Content $kotlinTest -Raw), '"([\w.-]+\.json)"') |
+            ForEach-Object { $_.Groups[1].Value }) | Sort-Object -Unique
+    }
+    if ($written.Count -eq 0) {
+        $failures.Add("$contractTest writes no fixture this check can see — the write(`"name.json`") pattern changed")
+    }
+    foreach ($name in $written) {
+        if ($committed -notcontains $name) { $failures.Add("android contract: $contractTest writes $name but $contractDir has no committed copy") }
+        if ($decoded -notcontains $name) { $failures.Add("android contract: $name is written by Rust but ContractTest.kt never decodes it") }
+    }
+    foreach ($name in $committed) {
+        if ($written -notcontains $name) { $failures.Add("android contract: $contractDir/$name is committed but no longer written by $contractTest (stale shape)") }
+    }
+}
+
+# ── 7. synchronous Tauri commands must be known-cheap ──────────────────
+
+# Tauri runs a command declared as a plain `fn` on the main thread, the one
+# that pumps every window's messages. A sync command that blocks for 200 ms
+# freezes the UI for 200 ms; one that waits on a driver or a UAC prompt
+# hangs it. `async fn` or `#[tauri::command(async)]` runs on the async
+# runtime instead. New sync commands must be added here deliberately, with
+# the reason they are cheap; anything else belongs off the main thread.
+# Stubs under `#[cfg(not(windows))]` return Unsupported and are exempt.
+$syncAllowed = @(
+    # Reads or writes in-memory state behind a lock; no I/O.
+    'get_capabilities', 'request_keyframe', 'get_alerts', 'set_alert_prefs', 'set_alert_strings',
+    'set_close_to_tray', 'set_taskbar_load', 'set_tray_strings', 'set_sample_rate',
+    'get_launch_options', 'plan_terminate_process', 'plan_suspend_process', 'list_benchmarks',
+    'get_distribution', 'get_app_history', 'clear_app_history', 'set_history_enabled',
+    'set_retention_days', 'get_pending_update', 'set_auto_update', 'log_webview', 'diagnose',
+    'get_lan_status', 'create_pairing', 'create_pairing_code', 'cancel_pairing_code',
+    'pairing_code_status', 'revoke_pairing', 'revoke_all_pairings',
+    # Flip a cancellation flag the worker polls.
+    'cancel_dev_cleanup_scan', 'cancel_storage_scan', 'cancel_cleanup_search',
+    # Read an already-finished scan held in memory.
+    'get_storage_children', 'get_storage_map',
+    # Window management on the main thread is where it must run anyway.
+    'quit_app', 'show_main_window', 'stop_lan_server',
+    # One bounded Win32 call against one process or key (microseconds to a
+    # few milliseconds); none of them waits on another process.
+    'terminate_process', 'suspend_process', 'resume_process', 'set_process_priority',
+    'set_process_affinity', 'get_efficiency_mode', 'set_efficiency_mode', 'get_executable_path',
+    'bring_process_to_front', 'get_taskmgr_replacement', 'get_host_info',
+    # Spawn a process and return without waiting for it.
+    'open_file_location', 'show_file_properties', 'uninstall_app'
+)
+$syncSeen = [System.Collections.Generic.HashSet[string]]::new()
+foreach ($file in Get-ChildItem 'apps/desktop/src-tauri/src' -Recurse -Filter '*.rs') {
+    $src = Get-Content $file.FullName
+    for ($i = 0; $i -lt $src.Count; $i++) {
+        if ($src[$i] -notmatch '^\s*#\[tauri::command(\((?<opts>[^)]*)\))?\]') { continue }
+        $asyncAttr = $Matches['opts'] -match '\basync\b'
+        $stub = $false
+        for ($j = $i + 1; $j -lt [math]::Min($i + 15, $src.Count); $j++) {
+            if ($src[$j].Trim() -eq '#[cfg(not(windows))]') { $stub = $true }
+            if ($src[$j] -match '^\s*(pub(\([^)]*\))?\s+)?(?<async>async\s+)?fn\s+(?<name>\w+)') {
+                if (-not $asyncAttr -and -not $Matches['async'] -and -not $stub) {
+                    $name = $Matches['name']
+                    [void]$syncSeen.Add($name)
+                    if ($syncAllowed -notcontains $name) {
+                        $failures.Add("$($file.Name):$($j+1) '$name' is a synchronous #[tauri::command] (runs on the UI thread): make it async, or add it to `$syncAllowed in check-drift.ps1 with the reason it is cheap")
+                    }
+                }
+                break
+            }
+        }
+    }
+}
+foreach ($name in $syncAllowed) {
+    if (-not $syncSeen.Contains($name)) {
+        $failures.Add("check-drift.ps1 `$syncAllowed lists '$name', which is no longer a synchronous command: remove it so the list stays exact")
     }
 }
 

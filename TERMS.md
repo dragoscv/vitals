@@ -1,6 +1,6 @@
 # Terms of Use
 
-**Effective date:** 30 September 2026 · [Termeni de utilizare în limba română](#termeni-de-utilizare)
+**Effective date:** 17 October 2026 · [Termeni de utilizare în limba română](#termeni-de-utilizare)
 
 These terms apply to Vitals, a free, open-source system monitor and task
 manager for Windows, published at
@@ -93,7 +93,7 @@ protection of mandatory provisions of the law of the country where you live.
 
 # Termeni de utilizare
 
-**Data intrării în vigoare:** 30 septembrie 2026
+**Data intrării în vigoare:** 17 octombrie 2026
 
 Acești termeni se aplică aplicației Vitals, un monitor de sistem și manager de
 activități gratuit și open source pentru Windows, publicat la

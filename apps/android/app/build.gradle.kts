@@ -2,6 +2,9 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
+    // Writes res/raw/aboutlibraries.json (every dependency and its licence
+    // text) at build time for the licences screen in Settings → About.
+    alias(libs.plugins.aboutlibraries)
 }
 
 // Release signing comes only from the environment (CI secrets or a local
@@ -122,4 +125,5 @@ dependencies {
     implementation(libs.play.wearable)
     implementation(libs.coroutines.play.services)
     implementation(libs.profileinstaller)
+    implementation(libs.aboutlibraries.core)
 }

@@ -143,6 +143,126 @@ fn write_crash(dir: &Path, report: &str) -> std::io::Result<()> {
     std::fs::write(dir.join("crash.txt"), report)
 }
 
+/// Reloads the main window when its `WebView2` renderer process dies.
+///
+/// The renderer is a separate process; when it is killed (by the user's own
+/// task manager, by the OS reclaiming memory, by a GPU driver reset) the
+/// window stays up and shows nothing, while the sampler, tray and alerts run
+/// on behind it. A blank window in a monitor reads as "Vitals is broken",
+/// and the only fix was to quit from the tray and relaunch. A reload brings
+/// it back in a second with the same backend state.
+///
+/// Only a render-process *exit* reloads. An unresponsive renderer may be
+/// mid-way through real work and a reload would throw that away; the
+/// browser process exiting means the webview itself is gone and cannot be
+/// reloaded. Both are logged.
+#[cfg(windows)]
+pub fn reload_on_renderer_exit(app: &tauri::AppHandle) {
+    use tauri::Manager;
+    let Some(window) = app.get_webview_window("main") else {
+        return;
+    };
+    let result = window.with_webview(|platform| {
+        if let Err(error) = renderer::attach(&platform.controller()) {
+            tracing::warn!(%error, "could not watch the webview's renderer process");
+        }
+    });
+    if let Err(error) = result {
+        tracing::warn!(%error, "could not reach the webview to watch its renderer");
+    }
+}
+
+#[cfg(windows)]
+mod renderer {
+    use std::time::{Duration, Instant};
+
+    use webview2_com::Microsoft::Web::WebView2::Win32::{
+        COREWEBVIEW2_PROCESS_FAILED_KIND, COREWEBVIEW2_PROCESS_FAILED_KIND_RENDER_PROCESS_EXITED,
+        ICoreWebView2Controller,
+    };
+    use webview2_com::ProcessFailedEventHandler;
+
+    pub(super) fn attach(controller: &ICoreWebView2Controller) -> webview2_com::Result<()> {
+        // SAFETY: a live controller handed over by Tauri on the UI thread,
+        // which is the thread WebView2 requires for both calls.
+        let webview = unsafe { controller.CoreWebView2() }?;
+        let mut budget = ReloadBudget::default();
+        let handler = ProcessFailedEventHandler::create(Box::new(move |sender, args| {
+            let (Some(sender), Some(args)) = (sender, args) else {
+                return Ok(());
+            };
+            // Not a real kind: if the read fails, `?` returns before use.
+            let mut kind = COREWEBVIEW2_PROCESS_FAILED_KIND(-1);
+            // SAFETY: `args` is valid for the duration of the callback and
+            // `kind` is a live out-parameter.
+            unsafe { args.ProcessFailedKind(&raw mut kind) }?;
+            if kind != COREWEBVIEW2_PROCESS_FAILED_KIND_RENDER_PROCESS_EXITED {
+                tracing::warn!(kind = kind.0, "a webview process failed; not reloading");
+                return Ok(());
+            }
+            if budget.allow(Instant::now()) {
+                tracing::warn!("the webview renderer exited; reloading the window");
+                // SAFETY: the sender is the live webview this event is for,
+                // on its UI thread.
+                unsafe { sender.Reload() }?;
+            } else {
+                tracing::warn!("the webview renderer keeps exiting; leaving it stopped");
+            }
+            Ok(())
+        }));
+        let mut token = 0_i64;
+        // SAFETY: as above; the token is a live out-parameter. The handler
+        // stays registered for the life of the webview, so the token is
+        // never needed to remove it.
+        unsafe { webview.add_ProcessFailed(&handler, &raw mut token) }?;
+        Ok(())
+    }
+
+    /// At most [`ReloadBudget::MAX`] reloads per [`ReloadBudget::WINDOW`].
+    ///
+    /// A renderer that dies on load — a bad driver, a page that crashes
+    /// it — would otherwise reload forever, a crash loop burning a core
+    /// behind a flickering window.
+    #[derive(Debug, Default)]
+    pub(super) struct ReloadBudget {
+        recent: Vec<Instant>,
+    }
+
+    impl ReloadBudget {
+        const MAX: usize = 3;
+        const WINDOW: Duration = Duration::from_secs(60);
+
+        pub(super) fn allow(&mut self, now: Instant) -> bool {
+            self.recent
+                .retain(|at| now.duration_since(*at) < Self::WINDOW);
+            if self.recent.len() >= Self::MAX {
+                return false;
+            }
+            self.recent.push(now);
+            true
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn a_renderer_that_keeps_dying_is_reloaded_three_times_a_minute_and_no_more() {
+            let start = Instant::now();
+            let mut budget = ReloadBudget::default();
+            assert!(budget.allow(start));
+            assert!(budget.allow(start + Duration::from_secs(1)));
+            assert!(budget.allow(start + Duration::from_secs(2)));
+            assert!(!budget.allow(start + Duration::from_secs(3)));
+            // A minute after the first reload exactly one slot has freed
+            // (the reloads at 1 s and 2 s are still inside the window).
+            assert!(budget.allow(start + Duration::from_millis(60_500)));
+            assert!(!budget.allow(start + Duration::from_millis(60_600)));
+        }
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {

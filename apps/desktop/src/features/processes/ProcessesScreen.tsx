@@ -9,10 +9,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { EmptyState, Skeleton } from '@vitals/ui';
+import { Button, EmptyState, Skeleton } from '@vitals/ui';
 import { displayName } from '@vitals/protocol';
 
 import type { ExportColumn } from '../../lib/export';
+import { reportSuccess } from '../../lib/reportSuccess';
 import { oneOf, parseHash, useUrlState } from '../../lib/useUrlState';
 import {
   errorMessage,
@@ -40,7 +41,7 @@ import { ProcessDetails } from './ProcessDetails';
 import { ProcessTable } from './ProcessTable';
 import { ProcessToolbar } from './ProcessToolbar';
 import { RiskDialog, type RiskAction, type RiskRequest } from './RiskDialog';
-import { PROCESSES_NS, fallback } from './strings';
+import { PROCESSES_NS } from './strings';
 import { useHostFacts, type HostFactsReader } from './useHostFacts';
 import {
   createTauriSnapshotSource,
@@ -50,6 +51,7 @@ import {
 } from './useProcessSnapshot';
 import { useStableOrder } from './useStableOrder';
 import { useSettings } from '../../settings/store';
+import { SELECT_PROCESS_EVENT, takeProcessSelection } from '../../shell/navigation';
 
 const COLUMN_IDS = COLUMNS.map((column) => column.id);
 const KINDS: readonly KindFilter[] = ['all', 'apps', 'background', 'system'];
@@ -144,6 +146,7 @@ export function ProcessesScreen({
   const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set<string>());
   const [focusedId, setFocusedId] = useState<string | null>(null);
   const [hovering, setHovering] = useState(false);
+  const [keyboardInGrid, setKeyboardInGrid] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [request, setRequest] = useState<RiskRequest | null>(null);
   const [busy, setBusy] = useState(false);
@@ -210,10 +213,11 @@ export function ProcessesScreen({
     };
   }, [snapshot.processes, query, preferences.kind, preferences.grouped, expanded, trend.values]);
 
-  // Positions are held whenever a pointer is over the table or a menu is
-  // open. Those are precisely the moments the user is aiming at a row, and a
-  // row that moves then is a row you kill by accident.
-  const frozen = hovering || menuOpen || request !== null;
+  // Positions are held whenever a pointer is over the table, the keyboard is
+  // moving through it, or a menu is open. Those are precisely the moments the
+  // user is aiming at a row, and a row that moves then is a row you kill by
+  // accident — with the arrow keys as much as with the mouse.
+  const frozen = hovering || keyboardInGrid || menuOpen || request !== null;
 
   const rows = useStableOrder({
     rows: built.rows,
@@ -239,6 +243,37 @@ export function ProcessesScreen({
   }, [built.byId]);
 
   const focusedRow = focusedId === null ? null : (built.byId.get(focusedId) ?? null);
+
+  // "Show in Processes" from the diagnosis dialog: select the named PID once
+  // it is in the snapshot. Held as a PID until then — the request can arrive
+  // before this screen has its first frame.
+  const [wantedPid, setWantedPid] = useState<number | null>(takeProcessSelection);
+  useEffect(() => {
+    const take = (): void => {
+      const pid = takeProcessSelection();
+      if (pid !== null) setWantedPid(pid);
+    };
+    window.addEventListener(SELECT_PROCESS_EVENT, take);
+    return () => {
+      window.removeEventListener(SELECT_PROCESS_EVENT, take);
+    };
+  }, []);
+  // Applied while rendering, guarded by `wantedPid`, rather than in an
+  // effect: an effect would paint one frame with nothing selected and then
+  // render again. The request is cleared in the same pass, so this runs once.
+  if (wantedPid !== null) {
+    const match = [...snapshot.processes].find(([, process]) => process.key.pid === wantedPid);
+    if (match !== undefined) {
+      const [id] = match;
+      setWantedPid(null);
+      // A search or kind filter could hide it; reset both so the selected
+      // row is actually on screen.
+      if (query !== '') setQuery('');
+      if (preferences.kind !== 'all') setPreferences((c) => ({ ...c, kind: 'all' }));
+      setFocusedId(id);
+      setSelected(new Set([id]));
+    }
+  }
 
   // The executable path for the focused row. Read once per process identity,
   // not per tick: the sampler carries only the file name because the path
@@ -567,6 +602,14 @@ export function ProcessesScreen({
       onSetPriority: (priority: ProcessPriority) => {
         void actions
           .setPriority(row.process, priority)
+          .then(() =>
+            reportSuccess(
+              tp('priority.changed', {
+                name: displayName(row.process),
+                level: t(`process.priorityLevel.${priority}`),
+              }),
+            ),
+          )
           .catch((error: unknown) => setFailure(errorMessage(error)));
       },
       onOpenFileLocation: () => {
@@ -611,7 +654,7 @@ export function ProcessesScreen({
           );
       },
     }),
-    [actions, beginAction, pathOf, tp],
+    [actions, beginAction, pathOf, t, tp],
   );
 
   const total = snapshot.processes.size;
@@ -649,27 +692,27 @@ export function ProcessesScreen({
       { id: 'user', header: t('process.user'), value: (row) => row.process.user },
       {
         id: 'cpuFraction',
-        header: t('process.column.cpu', fallback('process.column.cpu')),
+        header: t('process.column.cpu'),
         value: (row) => row.rolledCpu,
       },
       {
         id: 'memoryBytes',
-        header: t('process.column.memory', fallback('process.column.memory')),
+        header: t('process.column.memory'),
         value: (row) => row.rolledMemory,
       },
       {
         id: 'diskBytesPerSecond',
-        header: t('process.column.disk', fallback('process.column.disk')),
+        header: t('process.column.disk'),
         value: (row) => row.rolledDisk,
       },
       {
         id: 'networkBytesPerSecond',
-        header: t('process.column.network', fallback('process.column.network')),
+        header: t('process.column.network'),
         value: (row) => row.rolledNetwork,
       },
       {
         id: 'gpuFraction',
-        header: t('process.column.gpu', fallback('process.column.gpu')),
+        header: t('process.column.gpu'),
         value: (row) => row.rolledGpu,
       },
       { id: 'threads', header: t('process.threads'), value: (row) => row.process.threadCount },
@@ -719,8 +762,8 @@ export function ProcessesScreen({
       />
 
       {failure !== null && (
-        <p role="alert" className="px-3 py-1.5 text-2xs text-[var(--color-status-danger)]">
-          {t('process.error.failed', fallback('process.error.failed'), { message: failure })}
+        <p role="alert" className="px-3 py-1.5 text-2xs text-[var(--color-danger-text)]">
+          {t('process.error.failed', { message: failure })}
         </p>
       )}
 
@@ -741,13 +784,25 @@ export function ProcessesScreen({
              */}
             {snapshot.error === NO_SAMPLER ? (
               <EmptyState
-                title={t('process.noSampler.title', fallback('process.noSampler.title'))}
-                description={t('process.noSampler.body', fallback('process.noSampler.body'))}
+                title={t('process.noSampler.title')}
+                description={t('process.noSampler.body')}
               />
             ) : (
               <EmptyState
-                title={t('process.empty.title', fallback('process.empty.title'))}
-                description={t('process.empty.body', fallback('process.empty.body'))}
+                title={t('process.empty.title')}
+                description={t('process.empty.body')}
+                {...(query !== '' && {
+                  action: (
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        setQuery('');
+                      }}
+                    >
+                      {tp('search.clear')}
+                    </Button>
+                  ),
+                })}
               />
             )}
           </div>
@@ -768,6 +823,7 @@ export function ProcessesScreen({
             onFocusRow={setFocusedId}
             onKeyDown={onKeyDown}
             onHoverChange={setHovering}
+            onKeyboardFocusChange={setKeyboardInGrid}
             onMenuOpenChange={setMenuOpen}
             menuProps={menuProps}
             locale={locale}

@@ -103,7 +103,7 @@ export function HardwarePanel({ api }: { readonly api: HardwareApi }): React.JSX
         </Button>
       </div>
       {error !== null && (
-        <p role="alert" className="text-2xs text-[var(--color-status-danger)]">
+        <p role="alert" className="text-2xs text-[var(--color-danger-text)]">
           {t('stale', { message: error })}
         </p>
       )}

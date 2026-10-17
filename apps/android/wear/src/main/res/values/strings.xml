@@ -8,6 +8,20 @@
     <string name="channel_alerts">PC alerts</string>
     <string name="channel_alerts_description">When a paired PC is overheating, running out of memory or struggling</string>
 
+    <string name="alert_cpu_sustained">The processor has been busy for a while</string>
+    <string name="alert_cpu_throttled">The processor is being slowed down</string>
+    <string name="alert_memory_pressure">Memory is nearly full</string>
+    <string name="alert_memory_commit">Programs have asked for almost all memory</string>
+    <string name="alert_disk_saturated">A disk is flat out</string>
+    <string name="alert_disk_latency">A disk is slow to respond</string>
+    <string name="alert_disk_space">A disk is running out of space</string>
+    <string name="alert_disk_health">A disk reports a health problem</string>
+    <string name="alert_gpu_throttled">The graphics card is being slowed down</string>
+    <string name="alert_thermal_cpu">The processor is too hot</string>
+    <string name="alert_network_errors">The network connection is dropping data</string>
+    <string name="alert_battery_low">The battery is low</string>
+    <string name="alert_battery_health">The battery is wearing out</string>
+
     <string name="loading">Loading…</string>
     <string name="empty_title">No PCs yet</string>
     <string name="empty_body">Pair a PC in the Vitals app on your phone. It appears here on its own.</string>

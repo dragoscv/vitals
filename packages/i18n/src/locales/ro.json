@@ -36,12 +36,12 @@
     "status": "Stare",
     "user": "Utilizator",
     "threads": "Fire de execuție",
-    "handles": "Handle-uri",
+    "handles": "Descriptori (handle-uri)",
     "uptime": "Durată de funcționare",
     "memoryInUse": "Memorie în uz",
     "integrity": "Nivel de integritate",
     "integrityLevel": {
-      "untrusted": "Neîncredere",
+      "untrusted": "Nesigur",
       "low": "Scăzut",
       "medium": "Mediu",
       "high": "Ridicat (administrator)",
@@ -56,30 +56,122 @@
       "suspended": "Suspendat",
       "waiting": "În așteptare",
       "notResponding": "Nu răspunde",
-      "zombie": "Încheiat"
+      "zombie": "Încheiat, încă listat"
     },
     "action": {
-      "endTask": "Închide procesul",
-      "endTree": "Închide arborele de procese",
+      "endTask": "Încheie procesul",
+      "endTree": "Încheie arborele de procese",
       "suspend": "Suspendă",
       "resume": "Reia",
       "openLocation": "Deschide locația fișierului",
       "properties": "Proprietăți",
       "efficiencyMode": "Mod eficiență",
       "priority": "Prioritate",
-      "affinity": "Setează afinitatea"
+      "affinity": "Setează afinitatea",
+      "endTreeCount": "Încheie arborele de procese ({{count}})",
+      "searchOnline": "Caută pe internet",
+      "copyDetails": "Copiază detaliile"
+    },
+    "priorityLevel": {
+      "idle": "Scăzută",
+      "belowNormal": "Sub normal",
+      "normal": "Normală",
+      "aboveNormal": "Peste normal",
+      "high": "Ridicată",
+      "realtime": "Timp real (poate bloca calculatorul)"
     },
     "confirm": {
-      "endTitle": "Închizi {{name}}?",
-      "endBody": "Lucrările nesalvate din această aplicație se vor pierde.",
+      "endTitle": "Închei {{name}}?",
+      "endBody": "Modificările nesalvate din această aplicație se vor pierde.",
       "endCriticalTitle": "{{name}} este un proces critic de sistem",
       "endCriticalBody": "Închiderea lui va destabiliza Windows și poate cauza o repornire sau pierderea datelor.",
-      "safe": "Lucrările nesalvate din această aplicație se vor pierde.",
+      "safe": "Modificările nesalvate din această aplicație se vor pierde.",
       "disruptive": "Aceasta va închide desktopul și ferestrele deschise. De obicei repornește singur.",
       "critical": "Sistemul depinde de acest proces. Închiderea lui va bloca Windows imediat și vei pierde lucrările nesalvate din toate aplicațiile.",
       "forbidden": "Windows protejează acest proces. Nu poate fi închis, nici măcar ca administrator.",
       "elevate": "Reîncearcă ca administrator",
-      "denied": "Windows a refuzat: procesul aparține altui cont sau sistemului. Reîncercarea ca administrator cere aprobare o singură dată, doar pentru această acțiune."
+      "denied": "Windows a refuzat: procesul aparține altui cont sau sistemului. Reîncercarea ca administrator cere aprobare o singură dată, doar pentru această acțiune.",
+      "suspendTitle": "Suspenzi {{name}}?",
+      "treeTitle_one": "Închei {{name}} și {{count}} proces copil?",
+      "treeTitle_few": "Închei {{name}} și {{count}} procese copil?",
+      "treeTitle_other": "Închei {{name}} și {{count}} de procese copil?",
+      "proceed": "Încheie procesul",
+      "proceedSuspend": "Suspendă"
+    },
+    "column": {
+      "cpu": "Procesor",
+      "memory": "Memorie",
+      "disk": "Disc",
+      "network": "Rețea",
+      "gpu": "Placă video"
+    },
+    "columns": "Coloane",
+    "filter": {
+      "label": "Tip de proces",
+      "all": "Toate",
+      "apps": "Aplicații",
+      "background": "În fundal",
+      "system": "Procese Windows"
+    },
+    "group": {
+      "byApp": "Grupează după aplicație"
+    },
+    "search": {
+      "placeholder": "Filtrează procesele"
+    },
+    "results": "{{shown}} din {{total}} procese",
+    "empty": {
+      "title": "Niciun proces nu se potrivește",
+      "body": "Șterge căutarea sau alege alt filtru."
+    },
+    "noSampler": {
+      "title": "Nu sosesc citiri",
+      "body": "Vitals nu poate comunica cu partea care măsoară calculatorul. Calculatorul nu are nicio problemă — de obicei, repornirea Vitals rezolvă asta."
+    },
+    "risk": {
+      "safe": "Sigur",
+      "disruptive": "Deranjant",
+      "critical": "Critic",
+      "forbidden": "Blocat de Windows"
+    },
+    "detail": {
+      "title": "Detalii",
+      "none": "Selectează un proces pentru a-i vedea detaliile.",
+      "identity": "Identitate",
+      "resources": "Resurse",
+      "flags": "Atribute"
+    },
+    "flag": {
+      "signed": "Semnat",
+      "signatureBroken": "Semnătură invalidă",
+      "elevated": "Rulează ca administrator",
+      "efficiencyMode": "Mod eficiență",
+      "wow64": "32 de biți",
+      "critical": "Critic",
+      "hasWindow": "Are o fereastră",
+      "packaged": "Aplicație din pachet",
+      "preexisting": "Pornit înainte de Vitals",
+      "shortLived": "De scurtă durată",
+      "debugged": "Depanator atașat",
+      "managed": "Gestionat (.NET)"
+    },
+    "tree": {
+      "expand": "Extinde {{name}}",
+      "collapse": "Restrânge {{name}}"
+    },
+    "kind": {
+      "app": "Aplicație",
+      "background": "În fundal",
+      "service": "Serviciu",
+      "system": "Windows",
+      "containerized": "Container"
+    },
+    "table": {
+      "label": "Procese",
+      "resize": "Redimensionează coloana {{column}}"
+    },
+    "error": {
+      "failed": "Acțiunea nu a putut fi finalizată: {{message}}"
     }
   },
   "capability": {
@@ -157,8 +249,8 @@
       "title": "Despre",
       "version": "Versiunea {{version}}",
       "contribute": "Vitals este gratuit și open source, pentru totdeauna.",
-      "contributeBody": "Ai găsit o problemă sau vrei o funcție nouă? Deschide un issue pe GitHub — fiecare raport îl face mai bun.",
-      "openIssues": "Deschide un issue",
+      "contributeBody": "Ai găsit o problemă sau vrei o funcție nouă? Raportează o problemă pe GitHub — fiecare raport îl face mai bun.",
+      "openIssues": "Raportează o problemă",
       "viewSource": "Vezi codul sursă",
       "checkUpdates": "Caută actualizări",
       "machine": "Calculator",
@@ -208,7 +300,8 @@
   "a11y": {
     "mainNavigation": "Navigare principală",
     "sortBy": "Sortează după {{column}}",
-    "chartOf": "{{metric}} în timp"
+    "chartOf": "{{metric}} în timp",
+    "chartSummary": "{{metric}}, istoric recent: medie {{average}}, vârf {{peak}}"
   },
   "hud": {
     "title": "Vitals",

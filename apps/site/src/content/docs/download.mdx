@@ -5,16 +5,34 @@ description: Download Vitals for Windows, verify the installer, and learn about 
 
 import { Aside, LinkButton } from '@astrojs/starlight/components';
 
+<LinkButton href="https://apps.microsoft.com/detail/9P95RK5VMGPJ" icon="download">
+  Get it from the Microsoft Store
+</LinkButton>
 <LinkButton
   href="https://github.com/dragoscv/vitals/releases/latest/download/Vitals_x64-setup.exe"
   icon="download"
+  variant="secondary"
 >
-  Download for Windows (x64)
+  Download the installer (x64)
 </LinkButton>
 
-<Aside type="note" title="Vitals 0.9">
-  Windows 10 and 11. macOS and Linux are on the roadmap.
+<Aside type="note" title="Vitals 1.0">
+  Windows 10 and 11. Windows only on the desktop; there are no dated plans for macOS or Linux.
 </Aside>
+
+## Ways to install
+
+1. **Microsoft Store** — [Vitals: System Monitor](https://apps.microsoft.com/detail/9P95RK5VMGPJ).
+   No SmartScreen warning, and the Store keeps it updated. The Store build leaves out the built-in
+   updater, the Task Manager replacement and the optional sensors service.
+2. **winget** — `winget install Vitals.Vitals`
+3. **Scoop** — `scoop bucket add vitals https://github.com/dragoscv/scoop-vitals`, then
+   `scoop install vitals/vitals`
+4. **Installer** — the files below. SmartScreen warns on first run; [see why](#windows-smartscreen).
+5. **Chocolatey** — `choco install vitals`. The 1.0 package is pending moderation; until it is
+   approved only an old 0.9 pre-release is listed.
+
+winget and Scoop update with every release automatically.
 
 ## Files
 
@@ -30,6 +48,14 @@ import { Aside, LinkButton } from '@astrojs/starlight/components';
 
 These links always point at the latest release. Older versions, release notes and nightly builds
 are on the [releases page](https://github.com/dragoscv/vitals/releases).
+
+## Phone, watch and TV
+
+Every [GitHub release](https://github.com/dragoscv/vitals/releases/latest) carries three Android
+APKs: `Vitals_<version>_android.apk` for phones, `_wear.apk` for Wear OS and `_tv.apk` for Android
+and Google TV. Each monitors the device it runs on and can watch paired Windows PCs on your local
+network. Android asks you to allow installs from your browser or file manager the first time.
+Google Play listings are coming later.
 
 ## System requirements
 
@@ -79,9 +105,10 @@ The installer asks no questions. To script it:
 
 ## Updates
 
-Vitals checks for a new version in the background shortly after it starts. When one is found it
-is downloaded, its signature is verified, and it is installed when you quit the app. An update
-with a missing or wrong signature is refused. You can turn the check off in **Settings → About**.
+The installer build checks for a new version in the background shortly after it starts. When one
+is found it is downloaded, its signature is verified, and it is installed when you quit the app.
+An update with a missing or wrong signature is refused. You can turn the check off in
+**Settings → About**. The Microsoft Store build is updated by the Store instead.
 
 ## Uninstall
 

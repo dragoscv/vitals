@@ -4,7 +4,7 @@ import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { initI18n } from '@vitals/i18n';
 
-import { preloadRoutes, RouteView } from './routes';
+import { preloadRoutes, RouteView, whenVisible } from './routes';
 import { Content } from './shell/Content';
 import type { RouteId } from './shell/navigation';
 
@@ -270,5 +270,59 @@ describe('preloadRoutes', () => {
       ],
     );
     expect(ran).toEqual(['next']);
+  });
+});
+
+describe('whenVisible', () => {
+  /** A document whose visibility the test controls. */
+  function fakeDocument(initial: DocumentVisibilityState) {
+    const target = new EventTarget();
+    let state = initial;
+    // `defineProperty`, not `Object.assign`: assign copies a getter's value
+    // once, which froze the fake at its initial state and made the hidden
+    // and cancel cases pass without testing anything.
+    Object.defineProperty(target, 'visibilityState', { get: () => state });
+    const doc = target as unknown as Document;
+    const become = (next: DocumentVisibilityState): void => {
+      state = next;
+      target.dispatchEvent(new Event('visibilitychange'));
+    };
+    return { doc, become };
+  }
+
+  it('does not start the preload while a logon launch is hidden in the tray', () => {
+    const { doc, become } = fakeDocument('hidden');
+    const start = vi.fn();
+    whenVisible(start, doc);
+    expect(start).not.toHaveBeenCalled();
+    // Another hidden transition (minimised to minimised) changes nothing.
+    become('hidden');
+    expect(start).not.toHaveBeenCalled();
+  });
+
+  it('starts once, on the first time the window becomes visible', () => {
+    const { doc, become } = fakeDocument('hidden');
+    const start = vi.fn();
+    whenVisible(start, doc);
+    become('visible');
+    become('hidden');
+    become('visible');
+    expect(start).toHaveBeenCalledTimes(1);
+  });
+
+  it('starts at once when the window is already showing', () => {
+    const { doc } = fakeDocument('visible');
+    const start = vi.fn();
+    whenVisible(start, doc);
+    expect(start).toHaveBeenCalledTimes(1);
+  });
+
+  it('never starts after an unmount cancelled it', () => {
+    const { doc, become } = fakeDocument('hidden');
+    const start = vi.fn();
+    const cancel = whenVisible(start, doc);
+    cancel();
+    become('visible');
+    expect(start).not.toHaveBeenCalled();
   });
 });

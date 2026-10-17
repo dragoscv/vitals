@@ -16,7 +16,7 @@
  * imaginary here because all twelve widgets change on the same tick anyway.
  */
 
-import { LayoutGrid, PlugZap, Plus, RotateCcw, Settings2, Stethoscope } from 'lucide-react';
+import { LayoutGrid, PlugZap, Plus, RotateCcw, Settings2 } from 'lucide-react';
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -39,6 +39,10 @@ import { useSettings } from '../../settings/store';
 import { useAlerts, type AlertSource } from '../alerts/useAlerts';
 import { DiagnosisDialog } from '../diagnosis/DiagnosisDialog';
 import { createTauriDiagnosisSource, type DiagnosisSource } from '../diagnosis/source';
+import type { WatchdogApi } from '../../settings/watchdog';
+import type { TaskManagerReplacementApi } from '../../settings/useTaskManagerReplacement';
+import { FirstRunCard } from './FirstRunCard';
+import { HealthStrip } from './HealthStrip';
 import { history as sharedHistory, type HistoryCollector } from './history';
 import { DASHBOARD_NS } from './strings';
 import { useHistory } from './useHistory';
@@ -99,6 +103,9 @@ export interface DashboardScreenProps {
   readonly historySource?: HistorySource;
   readonly layoutBackend?: LayoutBackend;
   readonly historyCollector?: HistoryCollector;
+  /** The first-run card's backends; injectable so tests need no Tauri host. */
+  readonly watchdogApi?: WatchdogApi;
+  readonly taskManagerApi?: TaskManagerReplacementApi;
   /**
    * `| undefined` explicitly, because `exactOptionalPropertyTypes` is on: a
    * caller forwarding an optional handler passes `undefined` as a real value,
@@ -114,6 +121,8 @@ export function DashboardScreen({
   historySource,
   layoutBackend,
   historyCollector = sharedHistory,
+  watchdogApi,
+  taskManagerApi,
   onNavigate,
 }: DashboardScreenProps = {}): React.JSX.Element {
   const { t, i18n } = useTranslation(DASHBOARD_NS);
@@ -174,6 +183,10 @@ export function DashboardScreen({
     onNavigate?.(route);
   };
 
+  const openDiagnosis = (): void => {
+    setAsking(true);
+  };
+
   return (
     <div className="screen">
       <header className="flex flex-wrap items-center justify-between gap-2">
@@ -182,19 +195,6 @@ export function DashboardScreen({
           <p className="text-2xs text-[var(--color-fg-muted)]">{t('subtitle')}</p>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
-          {!editing && (
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={snapshot.system === null}
-              onClick={() => {
-                setAsking(true);
-              }}
-            >
-              <Stethoscope aria-hidden className="size-4" />
-              {t('diagnosis.ask')}
-            </Button>
-          )}
           {editing && (
             <>
               <DropdownMenu>
@@ -241,6 +241,16 @@ export function DashboardScreen({
           </Button>
         </div>
       </header>
+
+      {/* The front door (owner decision): the verdict and the question most
+          people open Vitals to ask, above everything else, instead of a
+          ghost button beside "Edit layout". */}
+      <HealthStrip alerts={alerts} measured={snapshot.system !== null} onDiagnose={openDiagnosis} />
+      <FirstRunCard
+        onDiagnose={openDiagnosis}
+        {...(watchdogApi !== undefined && { watchdogApi })}
+        {...(taskManagerApi !== undefined && { taskManagerApi })}
+      />
 
       {!layoutController.hydrated || snapshot.pending ? (
         <div className="screen-scroll">

@@ -1,0 +1,108 @@
+# Launch readiness — reality check, 2026-10-17
+
+Eleven read-only specialist reviews (design, engineering, QA, security, legal,
+release/PM, Android/Play, growth, accessibility + i18n, performance/SRE,
+docs/DevRel). Nothing was edited while auditing. IDs are stable so fixes can
+cite them. Spot-verified by the coordinator: DEV-1/QA-2 (no sensors uninstall
+in `hooks.nsh`), SEC-12 (`minimumReleaseAge: 0`), DOC-2 (CLI never built in
+`release.yml`), DEV-8 (`max_bytes` never read), DEV-3 (`perMachine`), PM-3
+(README "Status: 0.9").
+
+## Scores
+
+| Area            | Score | Area                 | Score                    |
+| --------------- | ----- | -------------------- | ------------------------ |
+| Design / visual | 5.5   | Android / Play       | 6.5                      |
+| Engineering     | 7     | Growth / market      | 6.5 (product 8.5, GTM 4) |
+| QA              | 5.5   | Accessibility + i18n | 6                        |
+| Security        | 7     | Performance / SRE    | 5                        |
+| Legal           | 6     | Docs / site          | 5.5                      |
+| Release / PM    | 6.5   |                      |                          |
+
+## P0 — blocks launch
+
+| ID                           | Problem                                                                                                            | Fix                                                                                          |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------- |
+| DES-1/2                      | Store screenshots: pre-1.0, personal folders + username, 99 % CPU, visible Storage layout bug                      | Demo profile / fixture mode, re-shoot both themes with captions; fix Explorer footer overlap |
+| DES-3, DOC-16                | Site landing has no product screenshot (Starlight splash + logo)                                                   | Custom hero with real capture/WebM, comparison strip                                         |
+| DES-4, I18N-1                | 64 Processes strings exist only as English fallbacks (`processes/strings.ts` `MISSING_KEYS`), incl. RiskDialog     | Move to en+ro locales, delete `fallback()`, parity test bans `t(key, default)`               |
+| DES-5                        | "Why is my PC slow?" is a ghost sm button                                                                          | Health strip across Dashboard, tray + jump list entry                                        |
+| A11Y-1                       | `<html lang="en">` never follows the language                                                                      | Set `documentElement.lang` on language change                                                |
+| A11Y-2                       | No `forced-colors` support (Windows Contrast themes erase selection, meters, switches, h2)                         | forced-colors blocks                                                                         |
+| DEV-1, QA-2, SEC-14, PERF-11 | Uninstall leaves LocalSystem `vitals-sensors` service + PawnIO; `Run\Vitals` autostart value too (DEV-7)           | PREUNINSTALL runs `vitals-sensors.exe uninstall`, deletes Run values; prove on vivobook      |
+| QA-1/3/5                     | Install/upgrade/uninstall, updater and real-backend e2e never tested                                               | Windows CI install job; minisign verify; CDP e2e vs real exe                                 |
+| QA-4, PM-2                   | Release pipeline deadlocked: nightly waiting approval 2 days holds the concurrency group                           | Reject runs; nightlies get own group / no approval env                                       |
+| PERF-1/2, LEG-15             | "Under 1 % CPU and 80 MB, enforced by CI" false: only a 30 ms sampler wall-time test, no RAM gate; comment off 10× | Real idle gate (exe + WebView2 tree) or reword now                                           |
+| LEG-1                        | Watchdog auto-enabled + HKCU Run at first launch, contradicting PRIVACY.md                                         | Opt-in at first run, or disclose + switch                                                    |
+| PM-1, DOC-7                  | Chocolatey 1.0.0 blocked on moderator (iconUrl → jsDelivr)                                                         | Fix nuspec, resubmit                                                                         |
+| PM-3/4, DOC-4/5/6/8          | README/site say 0.9, winget "coming soon" (live), no MS Store link anywhere                                        | Truth pass + Store badge first                                                               |
+| DOC-1                        | Docs say `@vitals-app/client@next` → installs 0.9.0-beta.1                                                         | Drop `@next`, retag                                                                          |
+| DOC-2                        | Docs say `vitals` CLI ships with the app; it is never built/released                                               | Ship `vitals.exe` (resource + PATH) or change docs                                           |
+| DOC-3                        | npm package has no README                                                                                          | Write it                                                                                     |
+| AND-1/2/3                    | Android crash paths: body read IOException → uncaught; `START_STICKY` FGS restart; FGS start from background       | Catch in client, `START_NOT_STICKY`, lifecycle guard                                         |
+| AND-4                        | Wear shows raw keys `alert.cpu_hot.title`                                                                          | Port phone mapping + strings                                                                 |
+
+## P1 — fix before or right after launch
+
+- **Security:** SEC-1 IFEO Debugger may point at a user-writable exe (Scoop/portable) → silent elevation; SEC-2 `ProgramData` log junction write as admin; SEC-3 env-derived `ProgramFiles`/`SystemRoot` in elevated paths (verify on vivobook); SEC-4 no Authenticode; SEC-5 minisign key reachable from unreviewed build job; SEC-12 pnpm quarantine off.
+- **Engineering:** DEV-2 HUD window built in sync command (Tauri-documented deadlock); DEV-3 per-machine passive update = UAC on quit, silently dropped; DEV-4 mapped network drive stalls sampler + sync commands; DEV-5 SQLite commands on main thread; DEV-6 manual update `exit(0)` skips teardown; DEV-9 non-atomic token file; DEV-12 capabilities say NotImplemented for shipped features; DEV-15/PERF-7 any emit error kills sampler.
+- **Performance:** PERF-3 sampler wakes 20×/s even hidden; PERF-4 watchdog wakes ~64–100×/s; PERF-5 flight recorder writes SQLite every tick with history off (also LEG-2 privacy); PERF-6 preload of every route on hidden autostart; PERF-8 no minidumps / no restart; PERF-9 WebView2 crash → blank window; PERF-10 update check once per lifetime.
+- **Design:** DES-6 Inter/JetBrains Mono not shipped (font depends on machine); DES-7 11 px everywhere; DES-8 "Not reported by…" truncated instead of em dash; DES-9 duplicate %; DES-10/A11Y-22 settings tab 4.12:1; DES-11 no first run; DES-12 diagnosis has no actions; DES-13 empty chart history; DES-16 install flow leads with SmartScreen warning.
+- **Accessibility/i18n:** A11Y-3 process grid silent to screen readers + focus off-screen; A11Y-4 order not frozen for keyboard; A11Y-5/6/8 warn/danger/subtle text contrast; A11Y-7 undefined tokens; A11Y-9 charts no text alternative; A11Y-14 no zoom; I18N-2/3/4 RO number/unit formatting; I18N-6/7/8 inconsistent terms and jargon ("Nucleu" for kernel).
+- **Legal:** LEG-3 PawnIO/SYSTEM service undisclosed; LEG-4 privacy scope misses TV/Tizen/CLI; LEG-5 LAN binds 0.0.0.0 (also DEV-19, SEC-9); LEG-9 NSIS ships no notices; LEG-10 LGPL PawnIO modules unattributed; LEG-12 no OSS licences screen on Android/Tizen; LEG-21 "Vitals" trademark uncleared (GNOME "Vitals" system monitor exists).
+- **Android:** AND-5 private-address check bypass (`10.0.0.1.evil.com`); AND-6 bearer token over cellular/any Wi-Fi; AND-7 control tokens copied to watch; AND-8 unknown enum breaks streams; AND-9..16 crash/state robustness; AND-19 Wear standalone dead end; AND-22..24 TV D-pad; AND-26..28 TalkBack/font scale; AND-31/32 privacy + Data safety.
+- **QA:** QA-6 destructive commands untested; QA-7 WS control scope; QA-8 Android modules not compiled on PR; QA-10 decorative tests listed; QA-11 flaky wall-clock gates; QA-16 ARM64/Win10 never tested.
+- **Docs/PM:** DOC-9 Android/Wear/TV never mentioned; DOC-10/11 CONTRIBUTING wrong pnpm/dev command; DOC-12 CLI flags; DOC-14/DEV-10 SDK lacks summary/history/sensors/pair; DOC-17 no JSON-LD; DOC-18 GitHub social preview; PM-6/7/8/9 terms, SECURITY, fact sheet, Store "What's new"; PM-10/11 tracker S16-12 stale.
+
+## P2
+
+Kept in the agents' full reports (DES-17..26, DEV-13..23, QA-17..23, SEC-6..18,
+LEG-6..30, PM-12..18, AND-33..48, A11Y-15..23, I18N-9..18, PERF-12..20,
+DOC-19..28). Regenerate by re-running the persona prompts if needed.
+
+## Growth summary
+
+- Value prop: "The Task Manager Windows should have shipped: opens instantly, tells you why your PC is slow, follows you to your phone."
+- ICP order: Windows power users/devs → homelab/self-hosted → everyday users (SEO/Store) → gamers later (needs FPS overlay).
+- Closest competitor: AppControl (closed source, press coverage). Benchmark: Stats (macOS) 42.6k stars, no Windows equivalent.
+- Missing for launch: signing or Store-first CTA, portable zip, README hero GIF, open-time vs Task Manager video, compare pages, 20–50 seed stars.
+- Monetisation: Sponsors now; later opt-in E2E "Vitals Relay" (off-LAN remote, multi-PC history).
+- Ideas: boot impact report, PresentMon FPS in HUD, elevated helper, "what slowed my PC last night" timeline, shareable local diagnosis report, local MCP server.
+
+## Signing options (SEC research)
+
+SignPath Foundation (free, OSS, publisher shown as SignPath) · Azure Artifact
+Signing ~$10/month (EU needs a legal entity) · Certum OSS / OV ~$100–215/year ·
+EV not worth it (no SmartScreen advantage since 2024). Store build already
+bypasses SmartScreen.
+
+## Decisions (owner, 2026-10-17)
+
+1. Windows launches first; Android/TV follow after Play approval.
+2. Microsoft Store is the primary download button; apply to SignPath Foundation (free OSS signing).
+3. Watchdog becomes opt-in via a first-run card (LEG-1).
+4. Reword the CPU/RAM claim now; add a real idle gate (exe + WebView2 tree), then re-claim measured numbers.
+5. Keep the name; owner commissions a trademark clearance (classes 9 + 42).
+6. Scope: all P0 + P1 on every surface, plus launch assets.
+7. Small commits on main; push after `scripts/verify.ps1` passes.
+
+## Execution waves (file-partitioned so parallel agents never share a file)
+
+| Wave | Lane                                       | Items                                                          | Files owned                                                                                                                               |
+| ---- | ------------------------------------------ | -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| 1    | Installer                                  | DEV-1, DEV-7, SEC-14                                           | `apps/desktop/src-tauri/windows/hooks.nsh`                                                                                                |
+| 1    | Processes i18n                             | DES-4, I18N-1, I18N-5                                          | `features/processes/strings.ts`, `packages/i18n/src/locales/*`                                                                            |
+| 1    | A11y foundations                           | A11Y-1/2/5/6/7/8/22, DES-10                                    | `index/hud/mobile.html`, i18n init, `packages/ui/src/styles/theme.css`, `SettingsDialog.tsx`, `WatchdogPanel.tsx`, `Explorer.tsx` tooltip |
+| 1    | Docs truth pass                            | PM-3..9, DOC-1..8/10..13/15/19..22, PERF-1 wording, LEG-15..19 | README, site content, SECURITY, CONTRIBUTING, fact sheet, `packages/client/README.md`, chocolatey nuspec                                  |
+| 1    | Pipeline                                   | QA-4, PM-2, SEC-5, SEC-12, DOC-2                               | `release.yml`, `pnpm-workspace.yaml`, `tauri.conf.json`                                                                                   |
+| 1    | Rust robustness                            | DEV-2/4/5/12/15, PERF-7, PERF-2                                | `hud.rs`, `sampling.rs`, `store.rs`, `host.rs`, `disk/volumes.rs`, `overhead.rs`                                                          |
+| 1    | Android P0                                 | AND-1..5, AND-9, AND-11, AND-12                                | `apps/android/**`                                                                                                                         |
+| 2    | First run + health strip + watchdog opt-in | DES-5, DES-11, LEG-1, DEV-22, PRIVACY                          | dashboard, `watchdog.rs`, PRIVACY.md, locales                                                                                             |
+| 2    | Security P1                                | SEC-1/2/3/6/13/15, DEV-19                                      | `taskmgr.rs`, `commands.rs`, `vitals-sensors/install.rs`, router/server                                                                   |
+| 2    | Performance P1                             | PERF-3/4/5/6/8/9/10, idle gate                                 | `sampling.rs`, watchdog, recorder, routes, updates                                                                                        |
+| 2    | A11y/i18n P1                               | A11Y-3/4/9/14, I18N-2..8                                       | process grid, charts, format.ts, locales                                                                                                  |
+| 3    | Design polish                              | DES-6..9/12/13/17/20/21/22                                     | UI components                                                                                                                             |
+| 3    | Legal packaging                            | LEG-2..5/9/10/12/13                                            | notices, PRIVACY, Android licences                                                                                                        |
+| 3    | QA gates                                   | QA-1/3/5/7/8/10/11                                             | CI install job, e2e vs real exe                                                                                                           |
+| 3    | Launch assets                              | DES-1/2/3/26, DOC-16/17, compare pages, hero GIF               | site, store listing (captures in cloud)                                                                                                   |
+| 4    | Android P1                                 | AND-6..48                                                      | `apps/android/**`                                                                                                                         |

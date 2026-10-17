@@ -9,6 +9,8 @@
  * shows" would be misleading.
  */
 
+import { formatDurationParts } from '@vitals/ui';
+
 export interface AppHistoryRecord {
   readonly executable: string;
   readonly name: string;
@@ -114,30 +116,32 @@ export function computeTotals(records: readonly AppHistoryRecord[]): HistoryTota
 /**
  * Formats CPU seconds as a human-readable duration.
  *
- * Examples: "1.2 s", "3 min 5 s", "2h 15 min", "48h 30 min".
+ * Examples in English: "0.5s", "3m 5s", "2h 15m", "48h 30m". Unit names and
+ * spacing come from the locale ("48 h, 30 m" in Romanian). Hours are not
+ * rolled into days: CPU time is compared against wall-clock hours.
  */
 export function formatCpuTime(seconds: number, locale: string): string {
   if (seconds < 1) {
-    return (
-      new Intl.NumberFormat(locale, {
-        style: 'decimal',
-        minimumFractionDigits: 1,
-        maximumFractionDigits: 1,
-      }).format(seconds) + ' s'
-    );
+    return new Intl.NumberFormat(locale, {
+      style: 'unit',
+      unit: 'second',
+      unitDisplay: 'narrow',
+      minimumFractionDigits: 1,
+      maximumFractionDigits: 1,
+    }).format(seconds);
   }
 
   if (seconds < 60) {
-    return Math.floor(seconds) + ' s';
+    return formatDurationParts({ seconds: Math.floor(seconds) }, locale);
   }
 
   const minutes = Math.floor(seconds / 60);
   if (minutes < 60) {
     const secs = Math.floor(seconds % 60);
-    return secs > 0 ? `${minutes} min ${secs} s` : `${minutes} min`;
+    return formatDurationParts(secs > 0 ? { minutes, seconds: secs } : { minutes }, locale);
   }
 
   const hours = Math.floor(minutes / 60);
   const mins = Math.floor(minutes % 60);
-  return mins > 0 ? `${hours}h ${mins} min` : `${hours}h`;
+  return formatDurationParts(mins > 0 ? { hours, minutes: mins } : { hours }, locale);
 }

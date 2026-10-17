@@ -13,4 +13,4 @@ export {
   type ProcessSnapshot,
   type SnapshotSource,
 } from './useProcessSnapshot';
-export { MISSING_KEYS, PROCESSES_NS, registerProcessesStrings } from './strings';
+export { PROCESSES_NS, registerProcessesStrings } from './strings';

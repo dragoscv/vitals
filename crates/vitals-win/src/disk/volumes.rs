@@ -1,5 +1,9 @@
 //! Volume enumeration: capacity, free space and device kind.
 
+use std::collections::HashMap;
+use std::sync::{Mutex, OnceLock, PoisonError};
+use std::time::{Duration, Instant};
+
 use windows_sys::Win32::Foundation::{FALSE, MAX_PATH};
 use windows_sys::Win32::Storage::FileSystem::{
     GetDiskFreeSpaceExW, GetDriveTypeW, GetLogicalDrives, GetVolumeInformationW,
@@ -20,6 +24,11 @@ const DRIVE_FIXED: u32 = 3;
 const DRIVE_REMOTE: u32 = 4;
 const DRIVE_CDROM: u32 = 5;
 const DRIVE_RAMDISK: u32 = 6;
+
+/// How old a network drive's cached capacity may be before the sampler asks
+/// for a fresh read. Free space on a share moves slowly; the cost of asking
+/// is a round-trip that can take seconds when the server is asleep.
+const REMOTE_REFRESH: Duration = Duration::from_secs(30);
 
 /// A mounted volume.
 #[derive(Debug, Clone)]
@@ -53,8 +62,36 @@ impl VolumeInfo {
 /// Never fails as a whole: a volume that cannot be queried — an empty card
 /// reader, a disconnected network share — is skipped rather than aborting the
 /// enumeration and hiding every other disk.
+///
+/// Blocking: a network drive is queried in-line, and `GetDiskFreeSpaceExW`
+/// against an unreachable server waits out the SMB timeout. Call it from a
+/// worker thread; the sampler uses [`enumerate_volumes_cached`] instead.
 #[must_use]
 pub fn enumerate_volumes() -> Vec<VolumeInfo> {
+    enumerate(RemotePolicy::Blocking)
+}
+
+/// Enumerates mounted volumes without ever waiting on the network.
+///
+/// Local volumes are read as in [`enumerate_volumes`]. A network drive is
+/// served from a cache refreshed on a background thread: the sampler runs
+/// every two seconds on the thread that feeds the UI, and one sleeping NAS
+/// used to stall every frame for the length of an SMB timeout. A share not
+/// yet read, or whose last read failed, is omitted — the same answer the
+/// blocking path gives for a disconnected share — rather than shown as
+/// zero bytes, which would be a measurement nobody took.
+#[must_use]
+pub fn enumerate_volumes_cached() -> Vec<VolumeInfo> {
+    enumerate(RemotePolicy::Cached)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RemotePolicy {
+    Blocking,
+    Cached,
+}
+
+fn enumerate(policy: RemotePolicy) -> Vec<VolumeInfo> {
     // SAFETY: no arguments, no preconditions.
     let mask = unsafe { GetLogicalDrives() };
     if mask == 0 {
@@ -69,7 +106,7 @@ pub fn enumerate_volumes() -> Vec<VolumeInfo> {
         }
 
         let letter = char::from(b'A' + u8::try_from(bit).unwrap_or(0));
-        if let Some(volume) = query_volume(letter, DiskId(bit)) {
+        if let Some(volume) = query_volume(letter, DiskId(bit), policy) {
             out.push(volume);
         }
     }
@@ -77,15 +114,21 @@ pub fn enumerate_volumes() -> Vec<VolumeInfo> {
     out
 }
 
-/// Queries a single drive letter, returning `None` if it cannot be read.
-fn query_volume(letter: char, id: DiskId) -> Option<VolumeInfo> {
-    // Win32 wants a trailing backslash on the root path.
-    let root: Vec<u16> = format!("{letter}:\\")
+/// Root path in the form Win32 wants: trailing backslash, NUL-terminated.
+fn root_of(letter: char) -> Vec<u16> {
+    format!("{letter}:\\")
         .encode_utf16()
         .chain(Some(0))
-        .collect();
+        .collect()
+}
+
+/// Queries a single drive letter, returning `None` if it cannot be read.
+fn query_volume(letter: char, id: DiskId, policy: RemotePolicy) -> Option<VolumeInfo> {
+    let root = root_of(letter);
 
     // SAFETY: `root` is a NUL-terminated UTF-16 string that outlives the call.
+    // `GetDriveTypeW` reads the mount table only; it does not touch the
+    // server behind a mapped drive, so it is safe on the hot path.
     let drive_type = unsafe { GetDriveTypeW(root.as_ptr()) };
 
     let kind = match drive_type {
@@ -104,6 +147,41 @@ fn query_volume(letter: char, id: DiskId) -> Option<VolumeInfo> {
         _ => return None,
     };
 
+    let capacity = if drive_type == DRIVE_REMOTE {
+        match policy {
+            RemotePolicy::Blocking => {
+                let fresh = read_capacity(&root);
+                remember_remote(letter, fresh.clone());
+                fresh
+            }
+            RemotePolicy::Cached => cached_remote(letter),
+        }
+    } else {
+        read_capacity(&root)
+    }?;
+
+    Some(VolumeInfo {
+        id,
+        mount: format!("{letter}:"),
+        label: capacity.label,
+        file_system: capacity.file_system,
+        kind,
+        total: Bytes(capacity.total),
+        available: Bytes(capacity.available),
+    })
+}
+
+/// What one capacity read found.
+#[derive(Debug, Clone)]
+struct Capacity {
+    total: u64,
+    available: u64,
+    label: Option<String>,
+    file_system: Option<String>,
+}
+
+/// Reads capacity and names. May block for seconds on a network drive.
+fn read_capacity(root: &[u16]) -> Option<Capacity> {
     let mut available_to_caller: u64 = 0;
     let mut total: u64 = 0;
     let mut total_free: u64 = 0;
@@ -124,17 +202,80 @@ fn query_volume(letter: char, id: DiskId) -> Option<VolumeInfo> {
         return None;
     }
 
-    let (label, file_system) = query_volume_names(&root);
+    let (label, file_system) = query_volume_names(root);
 
-    Some(VolumeInfo {
-        id,
-        mount: format!("{letter}:"),
+    Some(Capacity {
+        total,
+        available: available_to_caller,
         label,
         file_system,
-        kind,
-        total: Bytes(total),
-        available: Bytes(available_to_caller),
     })
+}
+
+/// One network drive's last read.
+#[derive(Debug)]
+struct RemoteEntry {
+    /// `None` when the last read failed (server unreachable).
+    capacity: Option<Capacity>,
+    read_at: Instant,
+    /// A refresh thread is running. Stops a hung server from collecting a
+    /// new blocked thread every two seconds.
+    refreshing: bool,
+}
+
+fn remote_cache() -> &'static Mutex<HashMap<char, RemoteEntry>> {
+    static CACHE: OnceLock<Mutex<HashMap<char, RemoteEntry>>> = OnceLock::new();
+    CACHE.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// Whether a refresh should start for this entry now.
+fn needs_refresh(entry: Option<&RemoteEntry>, now: Instant) -> bool {
+    entry.is_none_or(|e| !e.refreshing && now.duration_since(e.read_at) >= REMOTE_REFRESH)
+}
+
+fn remember_remote(letter: char, capacity: Option<Capacity>) {
+    // A poisoned lock only means another thread panicked mid-update of a
+    // cache entry; the map itself is still a valid map, and losing network
+    // drive figures over it would be worse than a stale entry.
+    let mut cache = remote_cache()
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner);
+    cache.insert(
+        letter,
+        RemoteEntry {
+            capacity,
+            read_at: Instant::now(),
+            refreshing: false,
+        },
+    );
+}
+
+/// Returns the cached read, starting a background refresh when it is stale.
+fn cached_remote(letter: char) -> Option<Capacity> {
+    let now = Instant::now();
+    let mut cache = remote_cache()
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner);
+    let entry = cache.get(&letter);
+    let current = entry.and_then(|e| e.capacity.clone());
+
+    if needs_refresh(entry, now) {
+        let spawned = std::thread::Builder::new()
+            .name(format!("vitals-volume-{letter}"))
+            .spawn(move || remember_remote(letter, read_capacity(&root_of(letter))));
+        if spawned.is_ok() {
+            cache
+                .entry(letter)
+                .and_modify(|e| e.refreshing = true)
+                .or_insert(RemoteEntry {
+                    capacity: None,
+                    read_at: now,
+                    refreshing: true,
+                });
+        }
+    }
+
+    current
 }
 
 /// Reads the volume label and file system name.
@@ -270,6 +411,56 @@ mod tests {
     fn from_wide_handles_an_empty_buffer() {
         assert!(from_wide(&[0]).is_none());
         assert!(from_wide(&[]).is_none());
+    }
+
+    fn entry(age: Duration, refreshing: bool) -> RemoteEntry {
+        RemoteEntry {
+            capacity: None,
+            read_at: Instant::now().checked_sub(age).unwrap_or_else(Instant::now),
+            refreshing,
+        }
+    }
+
+    #[test]
+    fn a_network_drive_never_read_is_queued_for_a_background_read() {
+        assert!(needs_refresh(None, Instant::now()));
+    }
+
+    #[test]
+    fn a_hung_share_does_not_collect_a_new_blocked_thread_every_tick() {
+        // The refresh is still in flight because the server has not
+        // answered; a second one would block the same way.
+        let stale_but_busy = entry(REMOTE_REFRESH * 10, true);
+        assert!(!needs_refresh(Some(&stale_but_busy), Instant::now()));
+    }
+
+    #[test]
+    fn a_fresh_read_is_reused_and_a_stale_one_is_refreshed() {
+        assert!(!needs_refresh(
+            Some(&entry(Duration::ZERO, false)),
+            Instant::now()
+        ));
+        assert!(needs_refresh(
+            Some(&entry(REMOTE_REFRESH + Duration::from_secs(1), false)),
+            Instant::now()
+        ));
+    }
+
+    #[test]
+    fn the_cached_enumeration_agrees_with_the_blocking_one_on_local_drives() {
+        // Only network drives take the cached path; a fixed disk must be
+        // reported identically by both, or the dashboard and the Storage
+        // screen would disagree about C:.
+        let blocking = enumerate_volumes();
+        let cached = enumerate_volumes_cached();
+        let local = |v: &&VolumeInfo| v.kind != DiskKind::Network;
+        let mounts = |list: &[VolumeInfo]| {
+            list.iter()
+                .filter(local)
+                .map(|v| (v.mount.clone(), v.total.get()))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(mounts(&blocking), mounts(&cached));
     }
 
     #[test]

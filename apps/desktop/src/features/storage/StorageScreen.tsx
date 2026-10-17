@@ -144,7 +144,7 @@ export function StorageScreen({ source }: StorageScreenProps = {}): React.JSX.El
       </header>
 
       {state.volumeError !== null && state.volumeError !== NO_HOST && (
-        <p role="alert" className="text-2xs text-[var(--color-status-danger)]">
+        <p role="alert" className="text-2xs text-[var(--color-danger-text)]">
           {t('scan.stale', { message: state.volumeError })}
         </p>
       )}
@@ -196,7 +196,7 @@ export function StorageScreen({ source }: StorageScreenProps = {}): React.JSX.El
           </div>
 
           {state.scanError !== null && (
-            <p role="alert" className="text-2xs text-[var(--color-status-danger)]">
+            <p role="alert" className="text-2xs text-[var(--color-danger-text)]">
               {/* Phrased as "the last completed scan" when one survives, because
               the previous snapshot is deliberately still on screen. */}
               {state.snapshot === null
@@ -534,7 +534,7 @@ function ScanResult({
         </div>
 
         {needsQualifier(snapshot) && (
-          <div className="flex flex-col gap-1 text-2xs text-[var(--color-status-warn)]">
+          <div className="flex flex-col gap-1 text-2xs text-[var(--color-warn-text)]">
             {snapshot.cancelled && <p>{t('result.cancelled')}</p>}
             {snapshot.clusterBytes === null && <p>{t('result.noCluster')}</p>}
             {snapshot.skippedTotal > 0 && (
@@ -751,7 +751,7 @@ function Cleanup({
       </CardHeader>
       <CardBody className="pane-scroll flex flex-col gap-3">
         {error !== null && (
-          <p role="alert" className="text-2xs text-[var(--color-status-danger)]">
+          <p role="alert" className="text-2xs text-[var(--color-danger-text)]">
             {t('cleanup.failed', { message: error })}
           </p>
         )}
@@ -783,7 +783,7 @@ function Cleanup({
               </p>
               <p className="text-2xs text-[var(--color-fg-muted)]">{t('cleanup.totalScope')}</p>
               {total.unmeasured > 0 && (
-                <p className="text-2xs text-[var(--color-status-warn)]">
+                <p className="text-2xs text-[var(--color-warn-text)]">
                   {t('cleanup.unmeasured', { count: total.unmeasured })}
                 </p>
               )}
@@ -842,7 +842,7 @@ function CandidateRow({
         {/* Which of the two causes applies, not merely that one does: without
             it the user has no idea whether elevating would help. */}
         {reason !== null && (
-          <p className="mt-0.5 text-2xs text-[var(--color-status-warn)]">
+          <p className="mt-0.5 text-2xs text-[var(--color-warn-text)]">
             {reason === 'needsElevation'
               ? t('cleanup.reasonNeedsElevation')
               : t('cleanup.reasonUnreadable')}

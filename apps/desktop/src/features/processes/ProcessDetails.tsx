@@ -14,7 +14,6 @@ import { ChevronDown } from 'lucide-react';
 import {
   Badge,
   Button,
-  EmptyState,
   Switch,
   cn,
   formatBytes,
@@ -36,7 +35,7 @@ import { errorMessage, type ProcessActionsApi } from './actions';
 import { affinityPresets, type AffinityPreset } from './affinity';
 import { UNKNOWN } from './constants';
 import { flagKeys, type ProcessRow } from './model';
-import { PROCESSES_NS, fallback } from './strings';
+import { PROCESSES_NS } from './strings';
 
 /**
  * The most rows either lazy list will render.
@@ -70,22 +69,12 @@ export function ProcessDetails({
   host,
   executablePath,
   onFailure,
-}: ProcessDetailsProps): React.JSX.Element {
+}: ProcessDetailsProps): React.JSX.Element | null {
   const { t } = useTranslation();
 
-  if (row === null) {
-    return (
-      <aside
-        className="ml-2 w-72 shrink-0 rounded-[var(--radius-widget)] border border-[var(--color-border-subtle)] bg-[var(--color-bg-raised)] p-4 shadow-[var(--shadow-card)]"
-        aria-label={t('process.detail.title', fallback('process.detail.title'))}
-      >
-        <EmptyState
-          title={t('process.detail.title', fallback('process.detail.title'))}
-          description={t('process.detail.none', fallback('process.detail.none'))}
-        />
-      </aside>
-    );
-  }
+  // Collapsed until a row is selected (DES-17): a 288 px card saying "select
+  // a process" took a fifth of the table's width to state the obvious.
+  if (row === null) return null;
 
   const p = row.process;
   const flags = flagKeys(p.flags);
@@ -93,7 +82,7 @@ export function ProcessDetails({
   return (
     <aside
       className="ml-2 w-72 shrink-0 space-y-4 overflow-auto rounded-[var(--radius-widget)] border border-[var(--color-border-subtle)] bg-[var(--color-bg-raised)] p-4 shadow-[var(--shadow-card)]"
-      aria-label={t('process.detail.title', fallback('process.detail.title'))}
+      aria-label={t('process.detail.title')}
     >
       <header className="space-y-1">
         <h2 className="truncate text-sm font-semibold" title={displayName(p)}>
@@ -101,12 +90,11 @@ export function ProcessDetails({
         </h2>
         <p className="text-2xs text-[var(--color-fg-muted)]">
           {displayName(p) !== p.name && <span className="font-mono">{p.name} · </span>}
-          {t('process.pid')} {p.key.pid} ·{' '}
-          {t(`process.kind.${p.kind}`, fallback(`process.kind.${p.kind}` as never))}
+          {t('process.pid')} {p.key.pid} · {t(`process.kind.${p.kind}`)}
         </p>
       </header>
 
-      <Section title={t('process.detail.identity', fallback('process.detail.identity'))}>
+      <Section title={t('process.detail.identity')}>
         <Field label={t('process.user')} value={p.user ?? UNKNOWN} />
         <Field label={t('process.status')} value={t(`process.state.${p.state}`)} />
         <Field label={t('process.uptime')} value={formatUptime(p.uptimeSecs)} />
@@ -121,24 +109,18 @@ export function ProcessDetails({
         />
       </Section>
 
-      <Section title={t('process.detail.resources', fallback('process.detail.resources'))}>
-        <Field
-          label={t('process.column.cpu', fallback('process.column.cpu'))}
-          value={formatPercent(p.cpu, locale)}
-        />
-        <Field
-          label={t('process.column.memory', fallback('process.column.memory'))}
-          value={formatBytes(p.memoryPrivate, locale)}
-        />
+      <Section title={t('process.detail.resources')}>
+        <Field label={t('process.column.cpu')} value={formatPercent(p.cpu, locale)} />
+        <Field label={t('process.column.memory')} value={formatBytes(p.memoryPrivate, locale)} />
         <Field label={t('process.memoryInUse')} value={formatBytes(p.memoryWorkingSet, locale)} />
         <Field
-          label={t('process.column.disk', fallback('process.column.disk'))}
+          label={t('process.column.disk')}
           value={formatThroughput(p.diskRead + p.diskWrite, locale)}
         />
         {/* Same as GPU below: unmeasured, not zero. Per-process network needs
             an ETW session the unelevated app cannot start. */}
         <Field
-          label={t('process.column.network', fallback('process.column.network'))}
+          label={t('process.column.network')}
           value={
             p.netRx === null || p.netTx === null
               ? UNKNOWN
@@ -148,7 +130,7 @@ export function ProcessDetails({
         {/* Absent GPU telemetry renders as an em-dash. Showing 0% would be a
             measurement we did not take. */}
         <Field
-          label={t('process.column.gpu', fallback('process.column.gpu'))}
+          label={t('process.column.gpu')}
           value={p.gpu === null ? UNKNOWN : formatPercent(p.gpu, locale)}
         />
         <Field label={t('process.threads')} value={formatCount(p.threadCount, locale)} />
@@ -201,14 +183,14 @@ export function ProcessDetails({
       />
 
       {flags.length > 0 && (
-        <Section title={t('process.detail.flags', fallback('process.detail.flags'))}>
+        <Section title={t('process.detail.flags')}>
           <div className="flex flex-wrap gap-1">
             {flags.map((flag) => (
               <Badge
                 key={flag}
                 tone={flag === 'critical' || flag === 'signatureBroken' ? 'danger' : 'neutral'}
               >
-                {t(`process.flag.${flag}`, fallback(`process.flag.${flag}` as never))}
+                {t(`process.flag.${flag}`)}
               </Badge>
             ))}
           </div>
@@ -488,7 +470,7 @@ function LazyList<T>({
         </p>
       )}
       {state.status === 'failed' && (
-        <p className="text-2xs text-[var(--color-status-danger)]" role="alert">
+        <p className="text-2xs text-[var(--color-danger-text)]" role="alert">
           {state.message}
         </p>
       )}

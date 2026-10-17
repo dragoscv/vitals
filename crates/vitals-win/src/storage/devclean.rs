@@ -1012,9 +1012,12 @@ pub fn parse_lxss(text: &str) -> Vec<(String, PathBuf)> {
 }
 
 fn system32(name: &str) -> PathBuf {
-    let root =
-        std::env::var_os("SystemRoot").map_or_else(|| PathBuf::from(r"C:\Windows"), PathBuf::from);
-    root.join("System32").join(name)
+    // From the kernel, not `%SystemRoot%`: the cleanup runs elevated, and an
+    // inherited environment variable must not choose which `reg.exe` or
+    // `powershell.exe` it starts.
+    crate::actions::taskmgr::system_directory()
+        .unwrap_or_else(|| PathBuf::from(r"C:\Windows\System32"))
+        .join(name)
 }
 
 // ---------------------------------------------------------------------------

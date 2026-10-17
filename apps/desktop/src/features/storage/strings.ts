@@ -65,7 +65,8 @@ const en = {
     logicalHint:
       'Two figures because they measure different things. "On disk" is the space that would actually be freed: files are rounded up to whole clusters, and a file stored once but linked from several folders is counted once. "As file sizes" is the plain sum of file lengths, which is what File Explorer shows.',
     elapsed: 'Scanned in {{seconds}}s',
-    dedup: 'Counted {{count}} linked files once, which kept {{size}} out of the total.',
+    dedup_one: 'Counted {{count}} linked file once, which kept {{size}} out of the total.',
+    dedup_other: 'Counted {{count}} linked files once, which kept {{size}} out of the total.',
     links_one: '{{n}} link to another folder was not followed.',
     links_other: '{{n}} links to other folders were not followed.',
     linksHint:
@@ -434,8 +435,11 @@ const ro = {
     logicalHint:
       'Două cifre pentru că măsoară lucruri diferite. „Pe disc” este spațiul care s-ar elibera efectiv: fișierele sunt rotunjite la clustere întregi, iar un fișier stocat o singură dată dar legat din mai multe foldere este numărat o dată. „Ca dimensiuni de fișiere” este suma simplă a lungimilor, adică exact ce arată File Explorer.',
     elapsed: 'Scanat în {{seconds}} s',
-    dedup:
+    dedup_one: 'Un fișier legat a fost numărat o singură dată, ceea ce a scos {{size}} din total.',
+    dedup_few:
       'S-au numărat o singură dată {{count}} fișiere legate, ceea ce a scos {{size}} din total.',
+    dedup_other:
+      'S-au numărat o singură dată {{count}} de fișiere legate, ceea ce a scos {{size}} din total.',
     links_one: '{{n}} legătură către alt folder nu a fost urmată.',
     links_few: '{{n}} legături către alte foldere nu au fost urmate.',
     links_other: '{{n}} de legături către alte foldere nu au fost urmate.',

@@ -6,6 +6,7 @@ import android.graphics.drawable.Icon
 import android.os.Build
 import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
+import app.vitals.core.loggingHandler
 import app.vitals.core.net.getOrNull
 import app.vitals.phone.MainActivity
 import app.vitals.phone.R
@@ -33,7 +34,7 @@ class PcTileService : TileService() {
     override fun onStartListening() {
         super.onStartListening()
         val tile = qsTile ?: return
-        val job = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+        val job = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate + loggingHandler("VitalsTile"))
         scope = job
         job.launch { refresh(tile) }
     }

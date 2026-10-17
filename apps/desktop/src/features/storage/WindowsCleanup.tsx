@@ -176,7 +176,7 @@ function Outcome({ run, locale }: { readonly run: WindowsRun; readonly locale: s
   const { t } = useTranslation(STORAGE_NS);
   if (run.report === null) {
     return (
-      <p role="alert" className="text-sm text-[var(--color-status-warn)]">
+      <p role="alert" className="text-sm text-[var(--color-warn-text)]">
         {run.declined
           ? t('windows.declined', { message: run.error ?? '' })
           : t('windows.failed', { message: run.error ?? '' })}

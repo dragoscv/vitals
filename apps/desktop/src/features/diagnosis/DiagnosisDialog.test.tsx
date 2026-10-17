@@ -4,6 +4,8 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { i18n, initI18n } from '@vitals/i18n';
 import type { Alert, Diagnosis } from '@vitals/protocol';
 
+import { useSettings } from '../../settings/store';
+import { takeProcessSelection } from '../../shell/navigation';
 import { HistoryCollector } from '../dashboard/history';
 import { registerDashboardStrings } from '../dashboard/strings';
 import { makeProcess, makeProcessMap, makeSystem } from '../dashboard/test-fixtures';
@@ -149,6 +151,24 @@ describe('DiagnosisDialog', () => {
     renderDialog(source);
     await screen.findByText('The processor has been busy for a while');
     expect(source.calls).toBe(1);
+  });
+
+  it('takes the user to the named process, selected, and closes', async () => {
+    const { onOpenChange } = renderDialog(sourceReturning(busy));
+    await screen.findByText('The processor has been busy for a while');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show in Processes: chrome.exe' }));
+
+    expect(useSettings.getState().route).toBe('processes');
+    expect(takeProcessSelection(), 'the PID must reach the Processes screen').toBe(4242);
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it('closes from a primary Done button, with Copy as the secondary action', async () => {
+    const { onOpenChange } = renderDialog(sourceReturning(healthy));
+    await screen.findByText('Nothing is holding your computer back.');
+    fireEvent.click(screen.getByRole('button', { name: 'Done' }));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 });
 

@@ -169,7 +169,7 @@ export function BenchmarksScreen({ source }: BenchmarksScreenProps = {}): React.
       </header>
 
       {state.listError !== null && state.listError !== NO_HOST && (
-        <p role="alert" className="text-2xs text-[var(--color-status-danger)]">
+        <p role="alert" className="text-2xs text-[var(--color-danger-text)]">
           {t('error.list', { message: state.listError })}
         </p>
       )}
@@ -207,7 +207,7 @@ export function BenchmarksScreen({ source }: BenchmarksScreenProps = {}): React.
           />
 
           {state.runError !== null && (
-            <p role="alert" className="text-2xs text-[var(--color-status-danger)]">
+            <p role="alert" className="text-2xs text-[var(--color-danger-text)]">
               {/* Phrased as "the last completed run" when one survives, because
               the previous suite is deliberately still on screen below. */}
               {state.suite === null
@@ -476,7 +476,7 @@ function StartPanel({
               makes the machine unresponsive is a decision, and a decision
               needs its consequences in front of it. */}
           <p className="flex items-center gap-1.5 text-sm font-medium">
-            <AlertTriangle aria-hidden className="size-4 text-[var(--color-status-warn)]" />
+            <AlertTriangle aria-hidden className="size-4 text-[var(--color-warn-text)]" />
             {t('warning.title')}
           </p>
           <p className="mt-0.5 text-2xs text-[var(--color-fg-muted)]">{t('warning.body')}</p>

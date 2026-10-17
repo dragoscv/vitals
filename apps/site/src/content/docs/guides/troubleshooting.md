@@ -28,7 +28,7 @@ The Thermals tab and Devices & sensors list what they cannot read and why.
 ## "Needs the Vitals helper service"
 
 Some readings, such as per-process disk activity and thread stacks, need a privileged Windows
-service. That helper is planned but not shipped in the beta, so these features are greyed out with
+service. That helper is planned but not shipped yet, so these features are greyed out with
 this reason rather than failing when you use them.
 
 ## Windows SmartScreen blocks the installer

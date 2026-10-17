@@ -2,16 +2,19 @@ packages:
   - 'apps/*'
   - 'packages/*'
 
-# pnpm 12 quarantines packages published in the last 24 hours, which is a real
-# defence against a compromised maintainer — most malicious publishes are
-# yanked within hours. This repo opts out because its policy is the latest
-# stable of everything, and that collides with the quarantine on the day a
-# release lands.
-#
-# The trade this makes explicit: we rely on the lockfile being reviewed and on
-# CI running `--frozen-lockfile`, not on a waiting period. If that stops being
-# true, raise this to 1440 rather than leaving it at zero and hoping.
-minimumReleaseAge: 0
+# pnpm quarantines packages published in the last 24 hours (1440 minutes), a
+# real defence against a compromised maintainer: most malicious publishes are
+# yanked within hours. "Latest stable" therefore means latest stable that is
+# at least a day old (SEC-12; this was 0 until 2026-10-17). An urgent fix for
+# a vulnerability goes in minimumReleaseAgeExclude, by name, with the
+# advisory beside it, and comes out again once it is a day old.
+minimumReleaseAge: 1440
+minimumReleaseAgeExclude: []
+
+# Dependency install scripts run only when listed in allowBuilds below; any
+# other package that wants one fails the install instead of being silently
+# skipped or silently run.
+strictDepBuilds: true
 
 # Transitive fixes the direct dependants have not shipped yet. Each one
 # failed `pnpm audit --audit-level high` in CI's Supply chain job on every
@@ -88,3 +91,7 @@ catalog:
 allowBuilds:
   # esbuild (Astro/Vite in apps/site) fetches its native binary in a postinstall.
   esbuild: true
+  # macOS only (an optional dependency of chokidar/vite). Ships a prebuilt
+  # fsevents.node; its install script would only rebuild it with node-gyp.
+  # Listed as false so strictDepBuilds does not fail the macOS release leg.
+  fsevents: false

@@ -9,9 +9,14 @@ name: Release
 # Shape: plan -> verify (tags only) -> build matrix + SBOM -> publish ->
 # distribution channels (tags only, each opt-in). Everything that must see
 # every platform's output at once — latest.json, SHA256SUMS.txt, the stable
-# download names — happens in `publish`, never in a build leg: two legs
-# racing to upload the same filename publish whichever finished last and
-# silently drop the other.
+# download names, the updater signatures — happens in `publish`, never in a
+# build leg: two legs racing to upload the same filename publish whichever
+# finished last and silently drop the other.
+#
+# The updater key is read in exactly one place: the signing step of
+# `publish`, which on a tag runs only after the owner approves the `release`
+# environment. Build legs compile repository code (and its dependencies'
+# build scripts) before anyone has looked at the run, so they never see it.
 #
 # The owner-facing guide to secrets, variables and channels is
 # docs/releasing.md. Keep the two in step.
@@ -21,7 +26,7 @@ on:
     tags:
       - 'v*'
   schedule:
-    # 03:00 UTC. Only publishes when something actually changed.
+    # 03:00 UTC. Only builds when main moved since the last nightly.
     - cron: '0 3 * * *'
   workflow_dispatch:
     inputs:
@@ -33,11 +38,15 @@ on:
 permissions:
   contents: read
 
-# Two runs for the same ref would race on the same release. A tag is never
-# cancelled half-published; a newer nightly simply waits.
+# A tag and a nightly never share a group. Each tag has its own and is never
+# cancelled half-published. Every other run (schedule, manual) shares
+# `release-nightly`, and a newer one cancels the older: a nightly left
+# waiting on approval used to hold `release-refs/heads/main` for days and
+# queue every later run behind it (QA-4, twice by 2026-10-17). A cancelled
+# nightly costs one day without a nightly, never a stuck queue.
 concurrency:
-  group: release-${{ github.ref }}
-  cancel-in-progress: false
+  group: ${{ startsWith(github.ref, 'refs/tags/v') && format('release-{0}', github.ref) || 'release-nightly' }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/v') }}
 
 env:
   CARGO_TERM_COLOR: always
@@ -74,12 +83,20 @@ jobs:
         run: |
           $isRelease = $env:REF -like 'refs/tags/v*'
 
-          # Skip the nightly entirely when nothing has landed. A stream of
-          # identical nightlies is noise that trains people to ignore releases.
+          # Skip the nightly entirely when the `nightly` tag already points
+          # at this commit. A stream of identical nightlies is noise that
+          # trains people to ignore releases. Keyed on the tag rather than
+          # "commits in the last 24 hours" so a nightly that failed or was
+          # cancelled is retried the next night instead of silently skipped.
           $shouldBuild = $true
-          if ($env:EVENT -eq 'schedule' -and -not (git log --since='24 hours ago' --oneline)) {
-            Write-Host 'No commits in the last 24 hours; skipping nightly.'
-            $shouldBuild = $false
+          if ($env:EVENT -eq 'schedule') {
+            $head = (git rev-parse HEAD).Trim()
+            $last = git rev-parse --verify --quiet 'refs/tags/nightly^{commit}'
+            if ($LASTEXITCODE -eq 0 -and $last -and $last.Trim() -eq $head) {
+              Write-Host "The nightly already points at $head; skipping."
+              $shouldBuild = $false
+            }
+            $global:LASTEXITCODE = 0
           }
 
           $publish = $isRelease -or $env:EVENT -eq 'schedule' -or
@@ -138,13 +155,15 @@ jobs:
 
       # Before any compile: an updater release without its minisign key
       # produces installers every existing copy of Vitals refuses. Fail in
-      # seconds rather than after twenty minutes of building.
+      # seconds rather than after twenty minutes of building. The comparison
+      # runs on GitHub's side, so only `true`/`false` reaches this runner,
+      # never the key: this job runs before the owner's approval (SEC-5).
       - name: Updater signing key present
         shell: pwsh
         env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          HAS_UPDATER_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
         run: |
-          if ([string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY)) {
+          if ($env:HAS_UPDATER_KEY -ne 'true') {
             throw 'TAURI_SIGNING_PRIVATE_KEY is not set. A tagged release without it ships updates no installed copy will accept. See docs/releasing.md.'
           }
           Write-Host 'updater signing key is configured'
@@ -157,6 +176,25 @@ jobs:
         env:
           TAG: ${{ github.ref_name }}
         run: pwsh -NoProfile -File scripts/version.ps1 -Check $env:TAG
+
+      # The same rule the `play` job enforces (AND-34), checked here as well
+      # because `play` runs after the GitHub release is public: a stale or
+      # oversized "what's new" should stop the tag before anything ships.
+      - name: Play release notes name this version
+        if: vars.PUBLISH_PLAY == 'true'
+        shell: pwsh
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          $version = $env:TAG -replace '^v', ''
+          $bad = 0
+          foreach ($f in Get-ChildItem apps/android/play/listing -Recurse -Filter default.txt -File | Where-Object { $_.Directory.Name -eq 'changelogs' }) {
+            $text = [IO.File]::ReadAllText($f.FullName)
+            $chars = [Globalization.StringInfo]::new($text).LengthInTextElements
+            if ($chars -gt 500) { Write-Host "::error file=$($f.FullName)::$chars characters; Google Play allows 500"; $bad++ }
+            if (-not $text.Contains($version)) { Write-Host "::error file=$($f.FullName)::does not mention $version"; $bad++ }
+          }
+          if ($bad) { throw "$bad Play release-notes problem(s)" }
 
       - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # rust-toolchain.toml
         with:
@@ -222,12 +260,14 @@ jobs:
             target: x86_64-pc-windows-msvc
             rust_targets: x86_64-pc-windows-msvc
             bundles: nsis
+            arch: x64
           - name: windows-arm64
             os: windows
             runner: windows-11-arm
             target: aarch64-pc-windows-msvc
             rust_targets: aarch64-pc-windows-msvc
             bundles: nsis
+            arch: arm64
           # macOS and Linux are built and checked on every run so the port
           # never silently rots, but their samplers are still honest stubs
           # (ADR 0007). They are published only when the matching repo
@@ -310,7 +350,6 @@ jobs:
         id: config
         shell: pwsh
         env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
           WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
           PLATFORM_OS: ${{ matrix.platform.os }}
@@ -318,15 +357,15 @@ jobs:
           $override = @{}
           $bundle = @{}
 
-          # Tauri refuses to build updater artefacts with a public key and no
-          # private one. A tag must have the key (verify enforced it); a
-          # nightly or a fork without it still builds, just without .sig
-          # files, rather than failing for a reason unrelated to the code.
-          if ([string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY)) {
-            if ($env:IS_RELEASE -eq 'true') { throw 'TAURI_SIGNING_PRIVATE_KEY is required for a tagged release.' }
-            Write-Host '::notice::No updater signing key: building without updater artefacts.'
-            $bundle['createUpdaterArtifacts'] = $false
-          }
+          # Never sign updates here (SEC-5). This job runs repository code
+          # and every dependency's build script before the owner has
+          # approved anything, so it must not hold the minisign key. Tauri
+          # refuses createUpdaterArtifacts without the private key, so it is
+          # off on every leg; `publish` signs the installers after approval
+          # with `tauri signer sign`, which is what `tauri build` would have
+          # done (on Windows and Linux the updater consumes the installer
+          # itself; on macOS the collect step packs the .app.tar.gz).
+          $bundle['createUpdaterArtifacts'] = $false
 
           # Authenticode is optional until a certificate is funded
           # (docs/distribution.md). With it, Tauri calls signtool on every
@@ -365,8 +404,6 @@ jobs:
       - name: Build
         shell: pwsh
         env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           TARGET: ${{ matrix.platform.target }}
           BUNDLES: ${{ matrix.platform.bundles }}
           OVERRIDE: ${{ steps.config.outputs.path }}
@@ -376,12 +413,40 @@ jobs:
           pnpm --filter @vitals/desktop tauri @tauriArgs
           if ($LASTEXITCODE -ne 0) { throw "tauri build exited $LASTEXITCODE" }
 
+      # The `vitals` command-line tool (apps/cli), shipped beside the
+      # installer as a zip (DOC-2) and not inside it yet. After the app so
+      # it reuses the dependencies that build just compiled for this target.
+      # --locked: the stamp step already refreshed our own crates' entries.
+      - name: Build CLI
+        if: matrix.platform.os == 'windows'
+        shell: pwsh
+        env:
+          TARGET: ${{ matrix.platform.target }}
+          PLATFORM: ${{ matrix.platform.name }}
+          ARCH: ${{ matrix.platform.arch }}
+        run: |
+          cargo build --release --locked -p vitals-cli --target $env:TARGET
+          if ($LASTEXITCODE -ne 0) { throw "cargo build -p vitals-cli exited $LASTEXITCODE" }
+          $exe = "target/$env:TARGET/release/vitals.exe"
+          if (-not (Test-Path $exe)) { throw "$exe was not produced" }
+          & $exe --version
+          if ($LASTEXITCODE -ne 0) { throw "vitals --version exited $LASTEXITCODE" }
+          $out = "dist/$env:PLATFORM"
+          New-Item -ItemType Directory -Force -Path $out | Out-Null
+          $stage = Join-Path $env:RUNNER_TEMP 'vitals-cli'
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+          Copy-Item $exe, LICENSE, THIRD_PARTY_NOTICES.md -Destination $stage
+          Compress-Archive -Path "$stage/*" -DestinationPath "$out/vitals-cli_$($env:VERSION)_$($env:ARCH).zip" -Force
+
       - name: Collect artefacts
         shell: pwsh
         env:
           TARGET: ${{ matrix.platform.target }}
           PLATFORM: ${{ matrix.platform.name }}
           PLATFORM_OS: ${{ matrix.platform.os }}
+          # macOS tar would otherwise add ._* AppleDouble entries to the
+          # updater archive, which then land inside the installed .app.
+          COPYFILE_DISABLE: '1'
         run: |
           $out = "dist/$env:PLATFORM"
           New-Item -ItemType Directory -Force -Path $out | Out-Null
@@ -397,17 +462,18 @@ jobs:
             }
             'macos' {
               Get-ChildItem "$bundles/dmg" -Filter '*.dmg' -File | Copy-Item -Destination $out
-              # Tauri names the updater archive after the product alone
-              # (Vitals.app.tar.gz). Versioned and suffixed here so it cannot
-              # collide with anything in the flat release asset list.
-              foreach ($tgz in Get-ChildItem "$bundles/macos" -Filter '*.app.tar.gz' -File) {
-                $dest = Join-Path $out "Vitals_$($env:VERSION)_universal.app.tar.gz"
-                Copy-Item $tgz.FullName $dest
+              # The updater archive Tauri would write with
+              # createUpdaterArtifacts: a gzipped tar of the .app bundle,
+              # which the updater unpacks over the installed app. Packed here
+              # because this leg builds without the key; `publish` signs it.
+              # Versioned so it cannot collide in the flat asset list.
+              $app = Get-ChildItem "$bundles/macos" -Filter '*.app' -Directory | Select-Object -First 1
+              if ($null -ne $app) {
+                $dest = Join-Path (Resolve-Path $out) "Vitals_$($env:VERSION)_universal.app.tar.gz"
+                tar -czf $dest -C $app.Parent.FullName $app.Name
+                if ($LASTEXITCODE -ne 0) { throw "tar exited $LASTEXITCODE" }
                 $updater += Get-Item $dest
-                if (Test-Path "$($tgz.FullName).sig") { Copy-Item "$($tgz.FullName).sig" "$dest.sig" }
               }
-              # Without updater artefacts there is no archive; the .dmg is
-              # still proof the leg built.
               if ($updater.Count -eq 0) { $updater = @(Get-ChildItem $out -Filter '*.dmg' -File) }
             }
             'linux' {
@@ -421,19 +487,9 @@ jobs:
           if ($updater.Count -eq 0) {
             throw "nothing under $bundles; the bundle step silently failed"
           }
-          if ($env:PLATFORM_OS -ne 'macos') {
-            foreach ($u in $updater) {
-              if (Test-Path "$($u.FullName).sig") { Copy-Item "$($u.FullName).sig" -Destination $out }
-            }
-          }
-
-          # On a tag every updater bundle must carry its minisign signature:
-          # an unsigned update is one the installed app will refuse.
-          if ($env:IS_RELEASE -eq 'true') {
-            foreach ($u in Get-ChildItem $out -File | Where-Object { $_.Name -match '(-setup\.exe|\.app\.tar\.gz|\.AppImage)$' }) {
-              if (-not (Test-Path "$($u.FullName).sig")) { throw "no signature beside $($u.Name)" }
-            }
-          }
+          # Signatures are added in `publish`; a .sig here means a key leaked
+          # into this job.
+          if (Get-ChildItem $out -Filter '*.sig' -File) { throw 'a build leg produced a .sig; the updater key must not reach this job' }
 
           Get-ChildItem $out -File | ForEach-Object { "  $($_.Name)  $([math]::Round($_.Length/1MB,1)) MB" }
 
@@ -486,6 +542,18 @@ jobs:
           if ($null -eq $file) { throw 'cargo cyclonedx wrote no sbom-rust*.json beside the desktop crate' }
           New-Item -ItemType Directory -Force -Path ../../../sbom | Out-Null
           Copy-Item $file.FullName ../../../sbom/sbom-rust.cdx.json
+
+      # The CLI zip is a separate binary with its own dependency tree
+      # (clap, crossterm, no webview), so it gets its own SBOM.
+      - name: CLI SBOM
+        shell: pwsh
+        working-directory: apps/cli
+        run: |
+          cargo cyclonedx --format json --override-filename sbom-cli
+          if ($LASTEXITCODE -ne 0) { throw "cargo cyclonedx exited $LASTEXITCODE" }
+          $file = Get-ChildItem -Filter 'sbom-cli*.json' -File | Select-Object -First 1
+          if ($null -eq $file) { throw 'cargo cyclonedx wrote no sbom-cli*.json beside the CLI crate' }
+          Copy-Item $file.FullName ../../sbom/sbom-cli.cdx.json
 
       # Scoped to the desktop app and production dependencies: the root
       # workspace would list every linter and test runner, none of which
@@ -605,9 +673,14 @@ jobs:
       needs.sbom.result == 'success' &&
       needs.android.result == 'success'
     runs-on: ubuntu-latest
-    # The owner approves every publish (nightly and tag) in the `release`
-    # environment; nothing reaches installed copies' updater without it.
-    environment: release
+    # The owner approves every tag in the `release` environment; nothing
+    # reaches installed copies' updater without it, and the updater key is
+    # only read after that approval. A nightly runs without the environment
+    # (QA-4): it is a pre-release on a moving tag, never "latest", gets no
+    # latest.json and no updater signature, so no installed copy can reach
+    # it — and an unapproved nightly no longer sits in the queue for days.
+    # An empty environment name means "no environment".
+    environment: ${{ needs.plan.outputs.is_release == 'true' && 'release' || '' }}
     permissions:
       contents: write
       # Build-provenance and SBOM attestations.
@@ -639,11 +712,56 @@ jobs:
             if (-not (Test-Path "artefacts/$leg")) { throw "artefact $leg is missing; refusing to publish a partial release" }
             Copy-Item "artefacts/$leg/*" -Destination publish
           }
+          foreach ($arch in 'x64', 'arm64') {
+            if (-not (Test-Path "publish/vitals-cli_$($env:VERSION)_$arch.zip")) { throw "vitals-cli_$($env:VERSION)_$arch.zip is missing; refusing to publish a partial release" }
+          }
           foreach ($held in @('vitals-macos-universal', 'vitals-linux-x64') | Where-Object { $_ -notin $legs }) {
             $state = if (Test-Path "artefacts/$held") { 'built, kept as a workflow artefact' } else { 'did not build' }
             "- ``$held``: $state; not attached to the release." | Add-Content $env:GITHUB_STEP_SUMMARY
           }
           Get-ChildItem publish -File | ForEach-Object { $_.Name }
+
+      # Lockfile-verified and with no install scripts: this job is about to
+      # hold the updater key, and a dependency's postinstall must not get a
+      # chance to tamper with the signer first. Only the Tauri CLI is used.
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+        if: needs.plan.outputs.is_release == 'true'
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        if: needs.plan.outputs.is_release == 'true'
+        with:
+          node-version: 22
+
+      - name: Install the Tauri CLI (no scripts)
+        if: needs.plan.outputs.is_release == 'true'
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      # The minisign signatures the updater checks, made here rather than in
+      # the build legs so the key exists only after the owner's approval
+      # (SEC-5). `tauri signer sign --app-version` produces exactly what
+      # `tauri build` writes with createUpdaterArtifacts: <file>.sig, with
+      # the version bound into the signed trusted comment. Signed before
+      # Checksums, so the .sig files are summed and attested like any asset.
+      - name: Sign updater bundles
+        if: needs.plan.outputs.is_release == 'true'
+        shell: pwsh
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY)) { throw 'TAURI_SIGNING_PRIVATE_KEY is required for a tagged release.' }
+          $v = [regex]::Escape($env:VERSION)
+          $patterns = @("^Vitals_${v}_(x64|arm64)-setup\.exe$")
+          if ($env:PUBLISH_MACOS -eq 'true') { $patterns += "^Vitals_${v}_universal\.app\.tar\.gz$" }
+          if ($env:PUBLISH_LINUX -eq 'true') { $patterns += '\.AppImage$' }
+          $files = @(Get-ChildItem publish -File | Where-Object { $name = $_.Name; $patterns | Where-Object { $name -match $_ } })
+          if ($files.Count -lt 2) { throw "expected at least the two Windows installers to sign, found $($files.Count)" }
+          foreach ($f in $files) {
+            pnpm --filter @vitals/desktop exec tauri signer sign --app-version $env:VERSION $f.FullName
+            if ($LASTEXITCODE -ne 0) { throw "tauri signer sign exited $LASTEXITCODE for $($f.Name)" }
+            if (-not (Test-Path "$($f.FullName).sig")) { throw "no signature written beside $($f.Name)" }
+            Write-Host "signed $($f.Name)"
+          }
 
       # The manifest the installed app polls. Tags only: nightlies move
       # their tag, and an updater pointed at a moving target would offer the
@@ -728,6 +846,12 @@ jobs:
         with:
           subject-path: 'publish/*-setup.exe'
           sbom-path: publish/sbom-js.cdx.json
+
+      - name: Attest CLI SBOM
+        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4
+        with:
+          subject-path: 'publish/vitals-cli_*.zip'
+          sbom-path: publish/sbom-cli.cdx.json
 
       - name: Release notes
         shell: pwsh
@@ -836,16 +960,33 @@ jobs:
       # r0adkll/upload-google-play reads release notes from files named
       # whatsnew-<locale>; the listing keeps them in the fastlane layout
       # (<locale>/changelogs/default.txt) that people edit.
+      # Each file must fit Play's 500-character limit (Play rejects the
+      # whole edit otherwise, after the GitHub release is already public)
+      # and must name the version being shipped: a stale "what's new" from
+      # the previous release is the mistake this catches (AND-34).
       - name: Release notes
         shell: bash
+        env:
+          VERSION: ${{ needs.plan.outputs.version }}
         run: |
           mkdir -p whatsnew
+          failed=0
           for dir in apps/android/play/listing/*/; do
             locale=$(basename "$dir")
             if [ -f "$dir/changelogs/default.txt" ]; then
+              chars=$(LC_ALL=C.UTF-8 wc -m < "$dir/changelogs/default.txt")
+              if [ "$chars" -gt 500 ]; then
+                echo "::error file=$dir/changelogs/default.txt::$locale release notes are $chars characters; Google Play allows 500"
+                failed=1
+              fi
+              if ! grep -qF "$VERSION" "$dir/changelogs/default.txt"; then
+                echo "::error file=$dir/changelogs/default.txt::$locale release notes do not mention $VERSION; update them for this release"
+                failed=1
+              fi
               cp "$dir/changelogs/default.txt" "whatsnew/whatsnew-$locale"
             fi
           done
+          [ "$failed" -eq 0 ] || exit 1
           ls -l whatsnew
           test -n "$(ls whatsnew)" || { echo "no release notes found"; exit 1; }
       - name: Track

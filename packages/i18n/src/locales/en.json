@@ -66,7 +66,18 @@
       "properties": "Properties",
       "efficiencyMode": "Efficiency mode",
       "priority": "Priority",
-      "affinity": "Set affinity"
+      "affinity": "Set affinity",
+      "endTreeCount": "End process tree ({{count}})",
+      "searchOnline": "Search online",
+      "copyDetails": "Copy details"
+    },
+    "priorityLevel": {
+      "idle": "Low",
+      "belowNormal": "Below normal",
+      "normal": "Normal",
+      "aboveNormal": "Above normal",
+      "high": "High",
+      "realtime": "Realtime (can freeze the computer)"
     },
     "confirm": {
       "endTitle": "End {{name}}?",
@@ -78,7 +89,87 @@
       "critical": "The system depends on this. Ending it will crash Windows immediately and you will lose unsaved work in every app.",
       "forbidden": "Windows protects this process. It cannot be ended, even as an administrator.",
       "elevate": "Retry as administrator",
-      "denied": "Windows refused: this process belongs to another account or to the system. Retrying as administrator asks for approval once, for this action only."
+      "denied": "Windows refused: this process belongs to another account or to the system. Retrying as administrator asks for approval once, for this action only.",
+      "suspendTitle": "Suspend {{name}}?",
+      "treeTitle_one": "End {{name}} and {{count}} child process?",
+      "treeTitle_other": "End {{name}} and {{count}} child processes?",
+      "proceed": "End process",
+      "proceedSuspend": "Suspend"
+    },
+    "column": {
+      "cpu": "CPU",
+      "memory": "Memory",
+      "disk": "Disk",
+      "network": "Network",
+      "gpu": "GPU"
+    },
+    "columns": "Columns",
+    "filter": {
+      "label": "Process type",
+      "all": "All",
+      "apps": "Apps",
+      "background": "Background",
+      "system": "Windows processes"
+    },
+    "group": {
+      "byApp": "Group by app"
+    },
+    "search": {
+      "placeholder": "Filter processes"
+    },
+    "results": "{{shown}} of {{total}} processes",
+    "empty": {
+      "title": "No process matches",
+      "body": "Clear the search or choose a different filter."
+    },
+    "noSampler": {
+      "title": "No readings are arriving",
+      "body": "Vitals cannot reach the part of itself that measures your computer. Nothing is wrong with the computer — restarting Vitals usually fixes this."
+    },
+    "risk": {
+      "safe": "Safe",
+      "disruptive": "Disruptive",
+      "critical": "Critical",
+      "forbidden": "Blocked by Windows"
+    },
+    "detail": {
+      "title": "Details",
+      "none": "Select a process to see its details.",
+      "identity": "Identity",
+      "resources": "Resources",
+      "flags": "Attributes"
+    },
+    "flag": {
+      "signed": "Signed",
+      "signatureBroken": "Signature broken",
+      "elevated": "Runs as administrator",
+      "efficiencyMode": "Efficiency mode",
+      "wow64": "32-bit",
+      "critical": "Critical",
+      "hasWindow": "Has a window",
+      "packaged": "Packaged app",
+      "preexisting": "Started before Vitals",
+      "shortLived": "Short-lived",
+      "debugged": "Debugger attached",
+      "managed": "Managed (.NET)"
+    },
+    "tree": {
+      "expand": "Expand {{name}}",
+      "collapse": "Collapse {{name}}"
+    },
+    "kind": {
+      "app": "App",
+      "background": "Background",
+      "service": "Service",
+      "system": "Windows",
+      "containerized": "Container"
+    },
+    "table": {
+      "label": "Processes",
+      "resize": "Resize {{column}} column"
+    },
+    "error": {
+      "failed": "Could not complete the action: {{message}}"
     }
   },
   "capability": {
@@ -206,7 +297,8 @@
   "a11y": {
     "mainNavigation": "Main navigation",
     "sortBy": "Sort by {{column}}",
-    "chartOf": "{{metric}} over time"
+    "chartOf": "{{metric}} over time",
+    "chartSummary": "{{metric}}, recent history: average {{average}}, peak {{peak}}"
   },
   "hud": {
     "title": "Vitals",

@@ -1140,6 +1140,10 @@ mod tests {
         // Cancelled after the first listing so this reads one folder, not a
         // drive.
         let Ok(system) = std::env::var("SystemDrive") else {
+            assert!(
+                std::env::var_os("CI").is_none(),
+                "SystemDrive is unset under CI; the test would silently skip"
+            );
             return;
         };
         let cancel = AtomicBool::new(false);
@@ -1178,7 +1182,13 @@ mod tests {
     #[test]
     fn the_system_volume_reports_a_power_of_two_cluster() {
         let Some(cluster) = cluster_size(Path::new("C:\\")) else {
-            // A machine without C: is unusual but not a test failure.
+            // A machine without C: is unusual but not a test failure —
+            // except on a CI runner, which always has one, so there a
+            // `None` means cluster_size broke.
+            assert!(
+                std::env::var_os("CI").is_none(),
+                "cluster_size(C:\\) returned None under CI"
+            );
             return;
         };
         assert!(cluster.is_power_of_two(), "got {cluster}");
@@ -1528,7 +1538,12 @@ mod tests {
             .is_ok_and(|out| out.status.success());
         if !made {
             // A filesystem without junctions (FAT, some network shares) is
-            // not a failure of the scanner.
+            // not a failure of the scanner. A CI runner's temp is NTFS, so a
+            // skip there would hide the loop guard going untested.
+            assert!(
+                std::env::var_os("CI").is_none(),
+                "mklink /J failed under CI; the junction test would silently skip"
+            );
             return;
         }
 

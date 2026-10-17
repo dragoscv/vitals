@@ -30,8 +30,8 @@ export const menuItem = cn(
 /** Irreversible actions. Tinted rather than only red-on-highlight so the
  *  warning survives keyboard highlighting too. */
 export const menuItemDanger = cn(
-  'text-[var(--color-status-danger)]',
-  'data-highlighted:bg-[var(--color-status-danger)]/12 data-highlighted:text-[var(--color-status-danger)]',
+  'text-[var(--color-danger-text)]',
+  'data-highlighted:bg-[var(--color-status-danger)]/12 data-highlighted:text-[var(--color-danger-text)]',
 );
 
 export const menuLabel = 'px-2 py-1 text-2xs font-semibold text-[var(--color-fg-subtle)]';

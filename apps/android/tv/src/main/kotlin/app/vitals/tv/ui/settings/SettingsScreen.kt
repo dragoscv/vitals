@@ -55,6 +55,9 @@ fun SettingsScreen() {
     val history by graph.deviceHistory.collectAsStateWithLifecycle(true)
     val access by graph.device.access.collectAsStateWithLifecycle()
     var armed by remember { mutableStateOf<String?>(null) }
+    var licences by remember { mutableStateOf(false) }
+    var openLicence by remember { mutableStateOf<String?>(null) }
+    val libraries by rememberLibraries(licences)
     LifecycleResumeEffect(Unit) {
         graph.device.refreshAccess()
         onPauseOrDispose { }
@@ -98,6 +101,19 @@ fun SettingsScreen() {
                     // address is shown so it can be typed on a phone.
                     Text(stringResource(R.string.settings_privacy), style = MaterialTheme.typography.bodyLarge)
                     Text(stringResource(R.string.settings_source), style = MaterialTheme.typography.bodyLarge)
+                    ListItem(
+                        selected = licences,
+                        onClick = { licences = !licences },
+                        headlineContent = { Text(stringResource(R.string.settings_licences)) },
+                    )
+                }
+            }
+            if (licences) {
+                item { Hint(stringResource(R.string.settings_licences_body)) }
+                items(libraries, key = { it.uniqueId }) { lib ->
+                    LicenceRow(lib, openLicence == lib.uniqueId) {
+                        openLicence = if (openLicence == lib.uniqueId) null else lib.uniqueId
+                    }
                 }
             }
         }

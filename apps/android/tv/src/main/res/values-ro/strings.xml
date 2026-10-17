@@ -193,6 +193,8 @@
     <string name="settings_about_body">Vitals măsoară acest televizor și, dacă asociezi unul, un PC cu Windows din rețeaua de acasă. Fără reclame, fără cont, fără analiză: dezvoltatorul nu primește nimic.</string>
     <string name="settings_privacy">Politica de confidențialitate: vitals.dragoscatalin.ro/privacy</string>
     <string name="settings_source">Codul sursă: github.com/dragoscv/vitals</string>
+    <string name="settings_licences">Licențe open source</string>
+    <string name="settings_licences_body">Vitals are licență MIT și folosește bibliotecile open source de mai jos. Alege una ca să-i citești licența.</string>
 
     <string name="alert_cpu_sustained">Procesorul este ocupat de ceva vreme</string>
     <string name="alert_cpu_throttled">Procesorul este încetinit</string>

@@ -53,19 +53,34 @@ pub struct UsersSnapshot {
 /// Cheap enough to poll from the Users screen at the standard 1 Hz cadence.
 /// Session state changes when a user disconnects or reconnects, not on a
 /// sub-second interval, so faster polling would just produce the same result.
+///
+/// Off the main thread nonetheless: WTS enumeration talks to the Terminal
+/// Services service over RPC, and a busy or restarting service stalls that
+/// call — on the main thread, every window froze with it.
 #[tauri::command]
 #[cfg(windows)]
-// Tauri's command macro requires `State` by value; it cannot be borrowed.
-#[allow(clippy::needless_pass_by_value)]
-pub fn get_users(state: tauri::State<'_, crate::state::AppState>) -> CommandResult<UsersSnapshot> {
+pub async fn get_users(
+    state: tauri::State<'_, crate::state::AppState>,
+) -> CommandResult<UsersSnapshot> {
+    // Read on this thread: `State` borrows the app and cannot move into the
+    // blocking task, and this is an in-memory copy, not I/O.
+    let processes = state.latest_processes();
+    tauri::async_runtime::spawn_blocking(move || collect_users(&processes))
+        .await
+        .map_err(|err| CommandError::Internal {
+            message: format!("the session read was abandoned: {err}"),
+        })?
+}
+
+#[cfg(windows)]
+fn collect_users(processes: &[vitals_win::users::ProcessSample]) -> CommandResult<UsersSnapshot> {
     use vitals_win::users;
 
     let sessions = users::collect()?;
     // Rollups come from the sampler's most recent tick rather than a fresh
     // enumeration, so the per-session totals agree with what the Processes
     // screen is showing at the same moment.
-    let processes = state.latest_processes();
-    let rollups = users::rollup_by_session(&processes)
+    let rollups = users::rollup_by_session(processes)
         .into_iter()
         .map(|r| SessionRollupDto {
             session_id: r.session_id,

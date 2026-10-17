@@ -33,7 +33,7 @@ export interface ColumnDef {
   readonly align: 'start' | 'end';
   /** Text columns sort alphabetically and get no deadband. */
   readonly numeric: boolean;
-  /** Whether the user may hide it. Name and PID are the row's identity. */
+  /** Whether the user may hide it. The name is the row's identity. */
   readonly required: boolean;
   /**
    * Text for the cell. Columns whose value is a translation key (state,
@@ -62,7 +62,10 @@ export const COLUMNS: readonly ColumnDef[] = [
     minWidth: 56,
     align: 'end',
     numeric: true,
-    required: true,
+    // Optional and off by default (DES-17): a number most people never use,
+    // taking a column from the figures they came for. Search still matches
+    // it, and the details panel and Copy details still show it.
+    required: false,
     render: (row) => String(row.process.key.pid),
   },
   {
@@ -281,7 +284,7 @@ export interface TablePreferences {
 }
 
 export const DEFAULT_PREFERENCES: TablePreferences = {
-  visible: ['name', 'pid', 'state', 'user', 'cpu', 'memory', 'disk', 'network', 'gpu', 'power'],
+  visible: ['name', 'state', 'user', 'cpu', 'memory', 'disk', 'network', 'gpu', 'power'],
   widths: {},
   // CPU descending is what someone opening a task manager is nearly always
   // there to find out.

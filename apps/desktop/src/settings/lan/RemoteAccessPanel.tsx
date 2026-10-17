@@ -214,7 +214,7 @@ export function RemoteAccessPanel({ api, codePollMs }: RemoteAccessPanelProps = 
               <code className="text-2xs break-all text-[var(--color-fg-muted)]">
                 {lan.pairing.url}
               </code>
-              <p className="text-2xs text-[var(--color-status-warn)]">
+              <p className="text-2xs text-[var(--color-warn-text)]">
                 {t('settings.remote.onceOnly')}
               </p>
               <Button

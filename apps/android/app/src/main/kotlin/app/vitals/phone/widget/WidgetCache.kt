@@ -13,7 +13,13 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
 
-private val Context.widgetStore by preferencesDataStore(name = "widgets")
+// Only a cache: a corrupt file is replaced, never allowed to break every widget read.
+private val Context.widgetStore by preferencesDataStore(
+    name = "widgets",
+    corruptionHandler = androidx.datastore.core.handlers.ReplaceFileCorruptionHandler {
+        androidx.datastore.preferences.core.emptyPreferences()
+    },
+)
 
 /** What a widget or the tile last learnt about one PC. [summary] is null when it could not be reached. */
 @Serializable

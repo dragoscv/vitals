@@ -53,6 +53,17 @@ describe('Meter', () => {
       'the rolling copy must never announce — it changes every frame',
     ).toBeNull();
   });
+
+  it('prints the reading once when the caller already shows it, yet still names it to a screen reader', () => {
+    render(<Meter label="" accessibleLabel="CPU usage" value={43} valueText="43%" hideValue />);
+    expect(
+      screen.queryByText('43%'),
+      'hideValue still printed the value row, so the rail showed the percentage twice',
+    ).toBeNull();
+    expect(screen.getByRole('meter', { name: 'CPU usage' }).getAttribute('aria-valuetext')).toBe(
+      '43%',
+    );
+  });
 });
 
 describe('ProgressBar', () => {

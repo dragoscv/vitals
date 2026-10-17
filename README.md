@@ -8,25 +8,27 @@
 [![Licence: MIT](https://img.shields.io/badge/licence-MIT-blue)](LICENSE)
 
 A fast, native system monitor and task manager for Windows. Free and open
-source, forever. Watch it from your phone, scrape it with Prometheus, script
-it from a terminal.
+source (MIT). Watch it from your phone, scrape it with Prometheus, script it
+from a terminal.
 
-**[Download for Windows](https://github.com/dragoscv/vitals/releases/latest/download/Vitals_x64-setup.exe)**
+**[Get it from the Microsoft Store](https://apps.microsoft.com/detail/9P95RK5VMGPJ)**
+· [Download the installer](https://github.com/dragoscv/vitals/releases/latest/download/Vitals_x64-setup.exe)
 · [Website and docs](https://vitals.dragoscatalin.ro)
 · [All releases](https://github.com/dragoscv/vitals/releases)
 
-| Platform          | Download                                                                                                     | Status         |
-| ----------------- | ------------------------------------------------------------------------------------------------------------ | -------------- |
-| Windows 10/11 x64 | [Vitals_x64-setup.exe](https://github.com/dragoscv/vitals/releases/latest/download/Vitals_x64-setup.exe)     | Stable         |
-| Windows 11 ARM64  | [Vitals_arm64-setup.exe](https://github.com/dragoscv/vitals/releases/latest/download/Vitals_arm64-setup.exe) | Preview        |
-| macOS, Linux      | —                                                                                                            | On the roadmap |
+| Platform                   | Download                                                                                                                                                                      | Status         |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| Windows 10/11 x64          | [Microsoft Store](https://apps.microsoft.com/detail/9P95RK5VMGPJ) or [Vitals_x64-setup.exe](https://github.com/dragoscv/vitals/releases/latest/download/Vitals_x64-setup.exe) | Stable         |
+| Windows 11 ARM64           | [Vitals_arm64-setup.exe](https://github.com/dragoscv/vitals/releases/latest/download/Vitals_arm64-setup.exe)                                                                  | Preview        |
+| Android phone, Wear OS, TV | APKs on each [release](https://github.com/dragoscv/vitals/releases/latest)                                                                                                    | Stable         |
+| macOS, Linux               | —                                                                                                                                                                             | No dated plans |
 
-> **Status: 0.9, stable on Windows.** Every section works against live data on
-> Windows — there are no placeholder screens left. The Windows sampler is
-> verified against Windows' own counters and stays inside a 30 ms-per-sample
-> budget that CI enforces. macOS and Linux builds are compiled and checked in
-> CI but not published, because their samplers do not exist yet
-> ([ADR 0007](docs/adr/0007-windows-only-honest-stubs.md)).
+> **Status: 1.0, stable on Windows.** Every section works against live data on
+> Windows — there are no placeholder screens left. The Windows sampler was
+> cross-checked against Windows' own counters during development and stays
+> inside a 30 ms-per-sample budget that CI enforces. macOS and Linux builds are
+> compiled and checked in CI but not published, because their samplers do not
+> exist yet ([ADR 0007](docs/adr/0007-windows-only-honest-stubs.md)).
 
 **Privacy in one line:** no telemetry, no analytics, no accounts. The only
 request Vitals makes by itself is an update check to GitHub, which you can
@@ -45,9 +47,11 @@ Vitals is an attempt at all of it in one place, fast, and readable.
 
 ## What makes it different
 
-- **It measures itself.** Under 1% CPU and 80 MB of RAM at idle, enforced by a
-  CI gate. A monitoring tool that shows up in its own process list as a top
-  consumer has failed at its job.
+- **It measures itself.** The Windows sampler has a 30 ms-per-sample budget
+  that CI enforces — at most about 3 % of one core at the one-second rate
+  while the window is visible, and sampling drops to once every 20 seconds
+  when it is hidden. A monitoring tool that shows up in its own process list
+  as a top consumer has failed at its job.
 - **It tells the truth.** A metric the hardware cannot report is shown as
   unknown, never as zero. A feature your privileges do not allow is greyed out
   with the reason, never a button that throws when clicked.
@@ -137,12 +141,19 @@ The phone talks to a small HTTP server inside the app, and so can you:
 - **Prometheus** at `/metrics`. Absent readings are absent series, not zero.
 - **Home Assistant** — a ready-made package in
   [`docs/integrations/home-assistant.md`](docs/integrations/home-assistant.md).
-- **[`@vitals-app/client`](https://www.npmjs.com/package/@vitals-app/client)** (`pnpm add @vitals-app/client@next`) — a typed TypeScript SDK over all three transports,
+- **[`@vitals-app/client`](https://www.npmjs.com/package/@vitals-app/client)** (`pnpm add @vitals-app/client`) — a typed TypeScript SDK over all three transports,
   built on the same generated types the app uses.
 - **mDNS** — the server advertises `_vitals._tcp` while it runs, and stops
   when it stops.
 
 ### From a terminal
+
+The `vitals` command is not bundled with any installer yet. Until a release
+carries it, build it from source with Rust installed:
+
+```powershell
+cargo install --git https://github.com/dragoscv/vitals vitals-cli
+```
 
 ```powershell
 vitals top              # live, like the app's process list
@@ -152,8 +163,10 @@ vitals report --duration 30
 vitals serve            # headless LAN server on :7331, token printed once
 ```
 
-When the desktop app is running the CLI attaches to it over loopback and
-sees the same numbers. When it is not, the CLI samples the machine itself.
+When the desktop app is running the CLI attaches to it — over its private
+named pipe first, then its loopback API — and sees the same numbers. When it
+is not, the CLI samples the machine itself. Every flag is listed in the
+[command-line guide](https://vitals.dragoscatalin.ro/guides/cli/).
 
 ## Planned
 
@@ -164,14 +177,37 @@ readings that need `SeDebugPrivilege` (per-process disk I/O is one).
 clocks and fan, which need a vendor SDK (NVML, ADL) rather than anything
 Windows exposes.
 
-**Platforms** — macOS and Linux backends behind the existing traits.
+**Platforms** — Windows only today. There are no dated plans for macOS or
+Linux; the trait boundary exists so a backend could be added, and
+[ADR 0007](docs/adr/0007-windows-only-honest-stubs.md) explains why nothing
+is published until one does.
 
 ## Installing
 
-Download the installer from the table above or from
+**Microsoft Store (recommended).**
+[Vitals: System Monitor](https://apps.microsoft.com/detail/9P95RK5VMGPJ) —
+no SmartScreen warning, and the Store keeps it updated. The Store build
+leaves out three things the Store does not allow or that need a driver: the
+built-in updater, the Task Manager replacement and the optional sensors
+service.
+
+**winget:**
+
+```powershell
+winget install Vitals.Vitals
+```
+
+**Scoop:**
+
+```powershell
+scoop bucket add vitals https://github.com/dragoscv/scoop-vitals
+scoop install vitals/vitals
+```
+
+**Installer.** Download it from the table above or from
 [Releases](https://github.com/dragoscv/vitals/releases). It installs without
-asking anything — no wizard, no licence page, no "Next" — in a few seconds.
-Add `/S` to script it.
+asking anything — no wizard, no licence page, no "Next". Add `/S` to script
+it.
 
 **Updates install themselves.** About twenty seconds after launch Vitals asks
 GitHub whether there is a newer version, downloads it in the background,
@@ -192,29 +228,37 @@ Checksums are in `SHA256SUMS.txt` alongside each release, and CycloneDX
 SBOMs for the Rust and JavaScript dependencies are attached too. See
 [docs/distribution.md](docs/distribution.md) for the full reasoning.
 
-Or with a package manager:
+**Chocolatey** (`choco install vitals`) — the 1.0 package is pending
+moderation; only an old 0.9 pre-release is listed until it is approved.
+winget and Scoop update automatically with every release. See
+[docs/releasing.md](docs/releasing.md).
 
-```powershell
-scoop bucket add vitals https://github.com/dragoscv/scoop-vitals
-scoop install vitals/vitals
-```
+### Phone, watch and TV
 
-winget (`winget install Vitals.Vitals`) and Chocolatey (`choco install vitals
---pre`) are submitted and become available once each registry's moderators
-approve the first listing; every later release updates all three
-automatically. See [docs/releasing.md](docs/releasing.md).
+Every [GitHub release](https://github.com/dragoscv/vitals/releases/latest)
+carries three Android APKs: `Vitals_<version>_android.apk` for phones,
+`_wear.apk` for Wear OS and `_tv.apk` for Android and Google TV. Each monitors
+the device it runs on and can watch paired Windows PCs on your local network.
+Google Play listings are coming later.
 
 ## Building
 
-Requires [Rust](https://rustup.rs) (stable), [Node](https://nodejs.org) 22+ and
-[pnpm](https://pnpm.io) 10+, plus the
+Requires [Rust](https://rustup.rs) (stable), [Node](https://nodejs.org) 24
+(22 is the minimum `engines` accepts) and
+[pnpm](https://pnpm.io) 12 (run `corepack enable` once and the version pinned
+in `package.json` is used), plus the
 [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) for your
 platform.
 
 ```bash
 pnpm install
-pnpm --filter @vitals/desktop dev
+pnpm --filter @vitals/desktop tauri dev
 ```
+
+The first run compiles the Rust side and takes several minutes; later runs
+are incremental. `pnpm --filter @vitals/desktop dev` starts only the Vite
+server, so the screens open in a browser against a no-host fallback with no
+live data.
 
 Useful commands:
 
@@ -308,7 +352,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) to get set up.
 
 ## Licence and legal
 
-[MIT](LICENSE) — free forever, for any use. The open-source components Vitals
+[MIT](LICENSE) — free, for any use. The open-source components Vitals
 is built on are listed with their licences in
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 

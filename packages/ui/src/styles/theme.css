@@ -33,13 +33,14 @@
 
 @theme {
   /* ---- Typography ---------------------------------------------------- */
-  --font-sans:
-    'Inter Variable', 'Inter', system-ui, -apple-system, 'Segoe UI Variable Text', 'Segoe UI',
-    sans-serif;
+  /* The Windows system faces, as brand/brand.json specifies (DES-6). Inter
+   * and JetBrains Mono led these stacks but were never shipped, so they only
+   * ever matched on a developer's machine that happened to have them — the
+   * app looked different there than for every user. */
+  --font-sans: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
   /* Tabular figures are non-negotiable for live metrics: without them every
    * digit change shifts the column and the whole table appears to vibrate. */
-  --font-mono:
-    'JetBrains Mono Variable', 'JetBrains Mono', 'Cascadia Mono', 'SF Mono', ui-monospace, monospace;
+  --font-mono: 'Cascadia Mono', Consolas, ui-monospace, monospace;
 
   --text-2xs: 0.6875rem;
   --text-2xs--line-height: 1rem;
@@ -108,8 +109,19 @@
 
   --color-fg-default: oklch(0.22 0.008 260);
   --color-fg-muted: oklch(0.48 0.008 260);
-  --color-fg-subtle: oklch(0.62 0.008 260);
+  /* 0.62 measured 3.6:1 on bg-base: below AA for the captions it carries.
+   * 0.52 clears 4.5:1 on every light surface (4.62 on bg-inset, the worst). */
+  --color-fg-subtle: oklch(0.52 0.008 260);
   --color-fg-on-accent: oklch(1 0 0);
+
+  /* Status colours as TEXT. The --color-status-* fills are tuned to be seen
+   * as a dot, bar or tint; as 11px text on white the warn amber measured
+   * ~2.3:1 and danger ~4:1. These darker steps clear 4.5:1 on all four light
+   * surfaces (brand/contrast-pairs.json). Use them for text-*, keep the
+   * status tokens for bg/fill/border. */
+  --color-ok-text: oklch(0.5 0.13 150);
+  --color-warn-text: oklch(0.5 0.1 70);
+  --color-danger-text: oklch(0.5 0.19 25);
 
   --color-accent: oklch(0.55 var(--accent-chroma) var(--accent-hue));
   --color-accent-hover: oklch(0.5 var(--accent-chroma) var(--accent-hue));
@@ -183,8 +195,15 @@
 
   --color-fg-default: oklch(0.95 0.003 260);
   --color-fg-muted: oklch(0.72 0.006 260);
-  --color-fg-subtle: oklch(0.58 0.007 260);
+  /* 0.58 measured 3.94:1 on bg-raised; 0.64 clears 4.5:1 on every dark
+   * surface (5.02 on bg-raised, the worst). */
+  --color-fg-subtle: oklch(0.64 0.007 260);
   --color-fg-on-accent: oklch(0.15 0.01 260);
+
+  /* Brighter than the fills on a dark surface, still clearly hued. */
+  --color-ok-text: oklch(0.72 0.15 150);
+  --color-warn-text: oklch(0.8 0.14 75);
+  --color-danger-text: oklch(0.7 0.17 25);
 
   /* Lighter and less saturated than the light-mode accent: a colour tuned for
    * a white background is glaring on a dark one. */
@@ -446,6 +465,53 @@
     --color-border-subtle: var(--color-border-strong);
     --color-border-default: var(--color-border-strong);
     --color-fg-muted: var(--color-fg-default);
+  }
+}
+
+/*
+ * Windows Contrast themes (forced colours). The browser repaints every
+ * background as Canvas and drops box-shadow, so any state carried only by a
+ * fill or an inset shadow disappears: a meter at 90 % looks empty, an "on"
+ * switch looks off. Each rule below re-expresses that state in system colours.
+ * `forced-color-adjust: none` is used only where a fill IS the information,
+ * and then only with system colours, so the user's theme still decides.
+ */
+@media (forced-colors: active) {
+  /* Meters and progress bars: CanvasText-outlined track, Highlight fill. */
+  [role='meter'],
+  [role='progressbar'] {
+    forced-color-adjust: none;
+    background: Canvas;
+    outline: 1px solid CanvasText;
+  }
+  [role='meter'] > div,
+  [role='progressbar'] > div {
+    forced-color-adjust: none;
+    background: Highlight;
+  }
+
+  /* Switch: the track fill is the whole state, so paint it explicitly. */
+  [role='switch'] {
+    forced-color-adjust: none;
+    background: Canvas;
+    border-color: ButtonText;
+  }
+  [role='switch'] > span {
+    forced-color-adjust: none;
+    background: ButtonText;
+  }
+  [role='switch'][data-state='checked'] {
+    background: Highlight;
+    border: 2px solid Highlight;
+  }
+  [role='switch'][data-state='checked'] > span {
+    background: HighlightText;
+  }
+
+  /* Segmented control / toggle: the "on" segment is a raised fill + shadow. */
+  [role='radio'][data-state='on'],
+  [aria-pressed='true'][data-state='on'] {
+    border: 2px solid Highlight;
   }
 }
 

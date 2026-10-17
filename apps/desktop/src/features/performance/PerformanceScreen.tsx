@@ -291,6 +291,8 @@ function RailButton({
             <Meter
               className="mt-1"
               label=""
+              // The percentage is already in this button's header line.
+              hideValue
               accessibleLabel={label}
               value={entry.utilization}
               valueText={formatPercent(entry.utilization, locale, 0)}

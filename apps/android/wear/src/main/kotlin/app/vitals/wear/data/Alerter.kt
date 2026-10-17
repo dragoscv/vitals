@@ -16,6 +16,7 @@ import app.vitals.core.model.Alert
 import app.vitals.core.model.Severity
 import app.vitals.wear.MainActivity
 import app.vitals.wear.R
+import app.vitals.wear.ui.alertText
 
 /** A PC alert on the wrist: a notification and a vibration you can tell apart. */
 object Alerter {
@@ -55,12 +56,13 @@ object Alerter {
             Intent(context, MainActivity::class.java),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
-        val title = if (pcLabel != null) "$pcLabel · ${alert.title}" else alert.title
+        val text = alertText(alert, context::getString)
+        val title = if (pcLabel != null) "$pcLabel · ${text.title}" else text.title
         val notification = Notification.Builder(context, CHANNEL)
             .setSmallIcon(R.drawable.ic_pulse)
             .setContentTitle(title)
-            .setContentText(alert.cause)
-            .setStyle(Notification.BigTextStyle().bigText(alert.cause))
+            .setContentText(text.body)
+            .setStyle(Notification.BigTextStyle().bigText(text.body))
             .setCategory(Notification.CATEGORY_STATUS)
             .setContentIntent(open)
             .setAutoCancel(true)

@@ -277,12 +277,21 @@ pub fn default_roots() -> Vec<PathBuf> {
     out
 }
 
+/// Off the main thread: [`default_roots`] enumerates volumes and probes
+/// folders on each, and a mapped drive whose server is asleep holds the
+/// first call for the length of an SMB timeout.
 #[tauri::command]
-pub fn default_dev_roots() -> Vec<String> {
-    default_roots()
-        .iter()
-        .map(|p| p.display().to_string())
-        .collect()
+pub async fn default_dev_roots() -> CommandResult<Vec<String>> {
+    tauri::async_runtime::spawn_blocking(|| {
+        default_roots()
+            .iter()
+            .map(|p| p.display().to_string())
+            .collect()
+    })
+    .await
+    .map_err(|err| CommandError::Internal {
+        message: format!("the folder probe was abandoned: {err}"),
+    })
 }
 
 #[tauri::command]

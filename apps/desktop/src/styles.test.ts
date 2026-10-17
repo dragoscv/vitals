@@ -319,3 +319,118 @@ describe('screens made of panes', () => {
     ]);
   });
 });
+
+describe('Windows Contrast themes', () => {
+  // A11Y-2: forced colours repaint fills as Canvas and drop box-shadow, which
+  // is all that marked a selected row, the active nav item, a meter's level
+  // and an "on" switch; the page title was transparent text over a gradient.
+  function forcedBlocks(css: string): string {
+    const marker = '@media (forced-colors: active)';
+    const parts: string[] = [];
+    let at = css.indexOf(marker);
+    while (at >= 0) {
+      let depth = 0;
+      let end = css.length - 1;
+      for (let i = css.indexOf('{', at); i < css.length; i++) {
+        if (css[i] === '{') depth++;
+        else if (css[i] === '}' && --depth === 0) {
+          end = i;
+          break;
+        }
+      }
+      parts.push(css.slice(at, end + 1));
+      at = css.indexOf(marker, end);
+    }
+    return parts.join('\n');
+  }
+  function ruleIn(block: string, selector: string): string {
+    const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp(`${escaped}\\s*\\{([^}]*)\\}`).exec(block)?.[1] ?? '';
+  }
+
+  it('outlines the selected process row and the active nav item in Highlight, since their tint and bar are erased', async () => {
+    const block = forcedBlocks(await build([]));
+    expect(ruleIn(block, `[role='row'][aria-selected='true']`)).toMatch(
+      /outline:\s*2px solid Highlight/,
+    );
+    expect(ruleIn(block, `nav.shell-chrome [aria-current='page']`)).toMatch(
+      /outline:\s*2px solid Highlight/,
+    );
+  });
+
+  it('paints meter, progress and per-core fills in Highlight with forced-color-adjust none, so a level stays visible', async () => {
+    const block = forcedBlocks(await build([]));
+    for (const selector of [
+      `[role='progressbar'] > div`,
+      `.perf-panel [role='img'] .items-end > div`,
+    ]) {
+      const body = ruleIn(block, selector);
+      expect(body, selector).toMatch(/forced-color-adjust:\s*none/);
+      expect(body, selector).toMatch(/background:\s*Highlight/);
+    }
+  });
+
+  it('marks a checked switch and an on segment with a Highlight border', async () => {
+    const block = forcedBlocks(await build([]));
+    expect(ruleIn(block, `[role='switch'][data-state='checked']`)).toMatch(
+      /border:\s*2px solid Highlight/,
+    );
+    expect(ruleIn(block, `[aria-pressed='true'][data-state='on']`)).toMatch(
+      /border:\s*2px solid Highlight/,
+    );
+  });
+
+  it('gives the gradient page title a real colour, because transparent text over a removed background is invisible', async () => {
+    const body = ruleIn(forcedBlocks(await build([])), 'main h2.text-lg');
+    expect(body).toMatch(/color:\s*CanvasText/);
+    expect(body).toMatch(/background-clip:\s*border-box/);
+  });
+});
+
+describe('status colours used as text', () => {
+  // A11Y-5/6/8: the status fills are too light to read as 11px text on a
+  // light surface. Text uses the -text tokens, which brand/contrast-pairs.json
+  // proves at >= 4.5:1. A11Y-7: every referenced token must exist.
+  const themePath = resolve(here, '../../../packages/ui/src/styles/theme.css');
+
+  it('defines ok/warn/danger text tokens and fg-subtle in both light and dark', async () => {
+    const theme = await readFile(themePath, 'utf8');
+    for (const token of ['ok-text', 'warn-text', 'danger-text', 'fg-subtle']) {
+      expect(tokenValues(theme, `color-${token}`).length, token).toBe(2);
+    }
+  });
+
+  it('never uses a status fill token as a text colour in the app or the UI kit', async () => {
+    const { readdir } = await import('node:fs/promises');
+    const fill = /text-\[var\(--color-status-(?:warn|danger|ok)\)\]/;
+    const hits: string[] = [];
+    const walk = async (dir: string): Promise<void> => {
+      for (const entry of await readdir(dir, { withFileTypes: true })) {
+        const path = resolve(dir, entry.name);
+        if (entry.isDirectory()) {
+          if (entry.name !== 'node_modules') await walk(path);
+        } else if (/\.tsx?$/.test(entry.name) && !/\.test\.tsx?$/.test(entry.name)) {
+          if (fill.test(await readFile(path, 'utf8'))) hits.push(path);
+        }
+      }
+    };
+    await walk(here);
+    await walk(resolve(here, '../../../packages/ui/src'));
+    expect(hits).toEqual([]);
+  });
+
+  it('references no colour token the theme does not define', async () => {
+    const theme = await readFile(themePath, 'utf8');
+    const watchdog = await readFile(resolve(here, 'settings/WatchdogPanel.tsx'), 'utf8');
+    expect(watchdog).toContain('--color-danger-text');
+    expect(tokenValues(theme, 'color-danger-text').length).toBeGreaterThan(0);
+    const explorer = await readFile(resolve(here, 'features/storage/Explorer.tsx'), 'utf8');
+    expect(explorer).not.toContain('--color-bg-elevated');
+  });
+
+  it('gives the settings tabs the AA accent-text step, not the fill accent', async () => {
+    const dialog = await readFile(resolve(here, 'settings/SettingsDialog.tsx'), 'utf8');
+    expect(dialog).toContain('data-[state=active]:text-[var(--color-accent-text)]');
+    expect(dialog).not.toContain('data-[state=active]:text-[var(--color-accent)]');
+  });
+});

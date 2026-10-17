@@ -1,20 +1,15 @@
 /**
- * Translation keys this screen needs that `packages/i18n` does not yet ship.
+ * Strings for the Processes screen.
  *
- * This feature may not edit `packages/**`, so every string that has no key
- * yet is funnelled through one place with an English fallback. i18next
- * renders the fallback and still records the key as missing, so adding the
- * translations later is a data change in the locale files and nothing here
- * has to move.
+ * The older keys (`process.*`) live in the shared locale files in
+ * `packages/i18n`; newer ones in the `processes` namespace below, English and
+ * Romanian side by side, following the other feature bundles.
  *
- * Keeping them in a single exported record — rather than sprinkling
- * `t('x', 'fallback')` across twenty components — is what makes "which keys
- * are missing?" answerable by reading one file instead of grepping.
- *
- * Newer strings live in the `processes` namespace below, English and
- * Romanian side by side, following the other feature bundles. The two
- * mechanisms coexist because moving the older keys would touch every call
- * site on the screen for no user-visible change.
+ * There is deliberately no English fallback anywhere. This screen once
+ * carried sixty-four strings as `t(key, 'English default')`, which rendered
+ * fine in English and left Romanian users reading English on the most used
+ * screen in the app, with every parity check green because the keys were in
+ * neither locale. `noDefaultStrings.test.ts` now fails on that pattern.
  */
 
 import { i18n } from '@vitals/i18n';
@@ -83,7 +78,7 @@ const en = {
   },
   column: {
     kind: 'Type',
-    workingSet: 'Working set',
+    workingSet: 'Memory in use now',
     diskRead: 'Disk read',
     diskWrite: 'Disk write',
     power: 'Power usage',
@@ -110,6 +105,12 @@ const en = {
     action: 'Bring to front',
     noWindow: '{{name}} has no window to show.',
     failed: 'Could not bring {{name}} to the front: {{message}}',
+  },
+  priority: {
+    changed: '{{name}} now runs at {{level}} priority',
+  },
+  search: {
+    clear: 'Clear search',
   },
 } as const;
 
@@ -138,14 +139,14 @@ const ro = {
       },
     },
     handles: {
-      title: 'Handle-uri',
-      loading: 'Se citesc handle-urile…',
-      empty: 'Nu s-a putut citi niciun handle.',
+      title: 'Descriptori (handle-uri)',
+      loading: 'Se citesc descriptorii…',
+      empty: 'Nu s-a putut citi niciun descriptor.',
       capped: 'Se afișează primele {{shown}} din {{total}}.',
       unnamed: '(fără nume)',
       untyped: '(tip necunoscut)',
-      expand: 'Arată handle-urile',
-      collapse: 'Ascunde handle-urile',
+      expand: 'Arată descriptorii',
+      collapse: 'Ascunde descriptorii',
     },
     modules: {
       title: 'Module',
@@ -176,7 +177,7 @@ const ro = {
   },
   column: {
     kind: 'Tip',
-    workingSet: 'Set de lucru',
+    workingSet: 'Memorie folosită acum',
     diskRead: 'Citire disc',
     diskWrite: 'Scriere disc',
     power: 'Consum energie',
@@ -203,6 +204,12 @@ const ro = {
     action: 'Adu în față',
     noWindow: '{{name}} nu are nicio fereastră de afișat.',
     failed: 'Nu s-a putut aduce {{name}} în față: {{message}}',
+  },
+  priority: {
+    changed: '{{name}} rulează acum cu prioritate {{level}}',
+  },
+  search: {
+    clear: 'Șterge căutarea',
   },
 } as const;
 
@@ -232,94 +239,10 @@ export function registerProcessesStrings(): void {
 /** Exported for the parity test. */
 export const bundles = { en, ro } as const;
 
-export const MISSING_KEYS = {
-  'process.column.cpu': 'CPU',
-  'process.column.memory': 'Memory',
-  'process.column.disk': 'Disk',
-  'process.column.network': 'Network',
-  'process.column.gpu': 'GPU',
-  'process.columns': 'Columns',
-  'process.filter.all': 'All',
-  'process.filter.apps': 'Apps',
-  'process.filter.background': 'Background',
-  'process.filter.system': 'Windows processes',
-  'process.group.byApp': 'Group by app',
-  'process.search.placeholder': 'Filter processes',
-  'process.results': '{{shown}} of {{total}} processes',
-  'process.empty.title': 'No process matches',
-  'process.empty.body': 'Clear the search or choose a different filter.',
-  'process.noSampler.title': 'No readings are arriving',
-  'process.noSampler.body':
-    'Vitals cannot reach the part of itself that measures your computer. Nothing is wrong with the machine — restarting Vitals usually fixes this.',
-  'process.loading': 'Waiting for the first sample…',
-  'process.action.endTreeCount': 'End process tree ({{count}})',
-  'process.action.searchOnline': 'Search online',
-  'process.action.copyDetails': 'Copy details',
-  'process.action.priority.idle': 'Low',
-  'process.action.priority.belowNormal': 'Below normal',
-  'process.action.priority.normal': 'Normal',
-  'process.action.priority.aboveNormal': 'Above normal',
-  'process.action.priority.high': 'High',
-  // Named for what it does rather than what Windows calls it. "Realtime" reads
-  // as a promise of speed; it is actually a way to starve input handling and
-  // make the machine look frozen.
-  'process.action.priority.realtime': 'Realtime (can freeze the machine)',
-  'process.action.priority.failed': 'Could not change the priority of {{name}}',
-  'process.action.priority.changed': '{{name}} set to {{priority}}',
-  'process.confirm.title': 'End {{name}}?',
-  'process.confirm.suspendTitle': 'Suspend {{name}}?',
-  'process.confirm.treeTitle': 'End {{name}} and {{count}} child processes?',
-  'process.confirm.proceed': 'End process',
-  'process.confirm.proceedSuspend': 'Suspend',
-  'process.confirm.blocked': 'This cannot be done',
-  'process.confirm.elevate': 'Retry as administrator',
-  'process.confirm.denied':
-    'Windows refused: this process belongs to another account or to the system. Retrying as administrator asks for approval once, for this action only.',
-  'process.risk.safe': 'Safe',
-  'process.risk.disruptive': 'Disruptive',
-  'process.risk.critical': 'Critical',
-  'process.risk.forbidden': 'Blocked by Windows',
-  'process.detail.title': 'Details',
-  'process.detail.none': 'Select a process to see its details.',
-  'process.detail.identity': 'Identity',
-  'process.detail.resources': 'Resources',
-  'process.detail.flags': 'Attributes',
-  'process.flag.signed': 'Signed',
-  'process.flag.signatureBroken': 'Signature broken',
-  'process.flag.elevated': 'Elevated',
-  'process.flag.efficiencyMode': 'Efficiency mode',
-  'process.flag.wow64': '32-bit',
-  'process.flag.critical': 'Critical',
-  'process.flag.hasWindow': 'Has a window',
-  'process.flag.packaged': 'Packaged',
-  'process.flag.preexisting': 'Started before Vitals',
-  'process.flag.shortLived': 'Short-lived',
-  'process.flag.debugged': 'Debugger attached',
-  'process.flag.managed': 'Managed',
-  'process.kind.app': 'App',
-  'process.kind.background': 'Background',
-  'process.kind.service': 'Service',
-  'process.kind.system': 'Windows',
-  'process.kind.containerized': 'Container',
-  'process.tree.expand': 'Expand {{name}}',
-  'process.tree.collapse': 'Collapse {{name}}',
-  'process.table.label': 'Processes',
-  'process.error.failed': 'Could not complete the action: {{message}}',
-} as const;
-
-export type MissingKey = keyof typeof MISSING_KEYS;
-
-/** The i18next `defaultValue` for a key we know is absent. */
-export function fallback(key: MissingKey): string {
-  return MISSING_KEYS[key];
-}
-
 /**
- * A column's label. Columns added since the bundle existed carry a
- * `processes:` key; the older ones a shared key with a fallback.
+ * A column’s label. Columns added since the bundle existed carry a
+ * `processes:` key; the older ones a key in the shared locale files.
  */
 export function columnLabel(t: TFunction, key: string): string {
-  if (key.startsWith(`${PROCESSES_NS}:`)) return t(key);
-  const defaultValue = (MISSING_KEYS as Readonly<Record<string, string>>)[key];
-  return defaultValue === undefined ? t(key) : t(key, defaultValue);
+  return t(key);
 }

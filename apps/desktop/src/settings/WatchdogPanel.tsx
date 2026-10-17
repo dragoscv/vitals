@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 
-import { Button, SegmentedControl, Select, Switch } from '@vitals/ui';
+import { Button, SegmentedControl, Select, Switch, formatPercent } from '@vitals/ui';
 
 import { SHELL_NS } from '../shell/strings';
 import { SettingsRow, SettingsSection } from './SettingsRow';
@@ -23,7 +23,7 @@ function fileName(path: string): string {
 }
 
 export function WatchdogPanel({ api = tauriWatchdogApi }: { readonly api?: WatchdogApi }) {
-  const { t } = useTranslation(SHELL_NS);
+  const { t, i18n } = useTranslation(SHELL_NS);
   const { config, status, busy, error, update, test, pickFile } = useWatchdog(api);
 
   const unavailable = status !== null && !status.available;
@@ -141,7 +141,7 @@ export function WatchdogPanel({ api = tauriWatchdogApi }: { readonly api?: Watch
               onValueChange={(value) => update({ volume: Number(value) })}
               options={volumeSteps.map((v) => ({
                 value: String(v),
-                label: `${v} %`,
+                label: formatPercent(v, i18n.language, 0),
                 disabled: locked || !config.enabled,
               }))}
             />

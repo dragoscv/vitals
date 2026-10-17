@@ -9,7 +9,14 @@ import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
-private val Context.settingsStore by preferencesDataStore(name = "settings")
+// A truncated file (power cut mid-write) otherwise throws CorruptionException
+// on every read, for ever; defaults are a better outcome than a dead app.
+private val Context.settingsStore by preferencesDataStore(
+    name = "settings",
+    corruptionHandler = androidx.datastore.core.handlers.ReplaceFileCorruptionHandler {
+        androidx.datastore.preferences.core.emptyPreferences()
+    },
+)
 
 enum class GlassMode { Auto, On, Off }
 

@@ -14,6 +14,7 @@
  * charts, instead of leaving them permanently blue on a pink theme.
  */
 
+import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { TimeSeriesChart, type Series } from '@vitals/charts';
@@ -28,6 +29,7 @@ import {
 } from '@vitals/ui';
 
 import { useThemeColors } from './useThemeColors';
+import { useChartDescriber } from '../../performance/chartSummary';
 import type { MetricHistory } from '../history';
 import { DASHBOARD_NS } from '../strings';
 
@@ -54,7 +56,13 @@ function ChartArea({ children }: { readonly children: React.ReactNode }) {
 function Stats({
   items,
 }: {
-  readonly items: readonly { label: string; value: string; key: string }[];
+  readonly items: readonly {
+    label: string;
+    /** `null` = not measured: an em dash, with `unavailable` as its tooltip. */
+    value: string | null;
+    key: string;
+    unavailable?: string;
+  }[];
 }) {
   return (
     <dl className="grid shrink-0 grid-cols-[repeat(auto-fill,minmax(6.5rem,1fr))] gap-x-3 gap-y-1">
@@ -62,7 +70,19 @@ function Stats({
         <div key={item.key} className="min-w-0">
           <dt className="truncate text-2xs leading-4 text-[var(--color-fg-muted)]">{item.label}</dt>
           <dd className="tnum truncate font-mono text-xs leading-4 text-[var(--color-fg-default)]">
-            <AnimatedValue value={item.value} />
+            {item.value === null ? (
+              // The sentence in the cell truncated to "Not reported by y…";
+              // the dash fits, and the tooltip still says why.
+              <span
+                className="text-[var(--color-fg-subtle)]"
+                title={item.unavailable}
+                aria-label={item.unavailable}
+              >
+                —
+              </span>
+            ) : (
+              <AnimatedValue value={item.value} />
+            )}
           </dd>
         </div>
       ))}
@@ -70,10 +90,21 @@ function Stats({
   );
 }
 
+/** Whole percentages for a spoken chart summary, in the reader's locale. */
+function usePercent(locale: string): (value: number) => string {
+  return useCallback((value: number) => formatPercent(value, locale, 0), [locale]);
+}
+
+/** Rates for a spoken chart summary, in the reader's locale. */
+function useRate(locale: string): (value: number) => string {
+  return useCallback((value: number) => formatThroughput(value, locale), [locale]);
+}
+
 export function CpuWidget({ system, history, locale }: WidgetBodyProps): React.JSX.Element {
   const { t } = useTranslation(DASHBOARD_NS);
   const colors = useThemeColors();
   const { cpu } = system;
+  const describe = useChartDescriber(t('widget.cpu.title'), usePercent(locale));
 
   const series: readonly Series[] = [
     { buffer: history.core.cpu, color: colors.accent, fillOpacity: 0.18, headDot: true },
@@ -93,9 +124,10 @@ export function CpuWidget({ system, history, locale }: WidgetBodyProps): React.J
           scale={{ min: 0, max: 100 }}
           className="absolute inset-0"
           ariaLabel={t('widget.cpu.title')}
+          describe={describe}
         />
       </ChartArea>
-      <PerCore values={cpu.perCore} label={t('cpu.perCore')} />
+      <PerCore values={cpu.perCore} label={t('cpu.perCore')} locale={locale} />
       <Stats
         items={[
           { key: 'kernel', label: t('cpu.kernel'), value: formatPercent(cpu.kernel, locale) },
@@ -105,10 +137,8 @@ export function CpuWidget({ system, history, locale }: WidgetBodyProps): React.J
             // Effective clock, not nominal. Reporting the base frequency of a
             // chip that is currently boosting or parked tells the reader
             // nothing about now, which is the only tense this widget has.
-            value:
-              cpu.effectiveClock !== null
-                ? formatFrequency(cpu.effectiveClock, locale)
-                : t('unavailable'),
+            value: cpu.effectiveClock !== null ? formatFrequency(cpu.effectiveClock, locale) : null,
+            unavailable: t('unavailable'),
           },
           {
             key: 'processes',
@@ -137,9 +167,11 @@ export function CpuWidget({ system, history, locale }: WidgetBodyProps): React.J
 function PerCore({
   values,
   label,
+  locale,
 }: {
   readonly values: readonly number[];
   readonly label: string;
+  readonly locale: string;
 }) {
   if (values.length === 0) return null;
 
@@ -150,7 +182,9 @@ function PerCore({
       // One accessible summary rather than 32 announcements: a screen reader
       // reading "core 1, 4%, core 2, 7%…" every second is unusable, and the
       // per-core detail is available on the Performance page as a table.
-      aria-label={`${label}: ${values.length}`}
+      // The busiest core is what the bars exist to show — the same summary
+      // the Performance page gives — not how many cores there are.
+      aria-label={`${label}: ${formatPercent(Math.max(...values), locale)}`}
       title={label}
     >
       {values.map((value, index) => (
@@ -177,6 +211,7 @@ export function MemoryWidget({ system, history, locale }: WidgetBodyProps): Reac
   const { t } = useTranslation(DASHBOARD_NS);
   const colors = useThemeColors();
   const { memory } = system;
+  const describe = useChartDescriber(t('widget.memory.title'), usePercent(locale));
 
   return (
     <>
@@ -194,6 +229,7 @@ export function MemoryWidget({ system, history, locale }: WidgetBodyProps): Reac
           scale={{ min: 0, max: 100 }}
           className="absolute inset-0"
           ariaLabel={t('widget.memory.title')}
+          describe={describe}
         />
       </ChartArea>
       <Stats
@@ -222,6 +258,10 @@ export function MemoryWidget({ system, history, locale }: WidgetBodyProps): Reac
 export function DiskWidget({ system, history, locale }: WidgetBodyProps): React.JSX.Element {
   const { t } = useTranslation(DASHBOARD_NS);
   const colors = useThemeColors();
+  const describe = useChartDescriber(
+    `${t('widget.disk.title')} — ${t('disk.read')}`,
+    useRate(locale),
+  );
 
   let read = 0;
   let write = 0;
@@ -251,6 +291,7 @@ export function DiskWidget({ system, history, locale }: WidgetBodyProps): React.
           scale={{ min: 0 }}
           className="absolute inset-0"
           ariaLabel={t('widget.disk.title')}
+          describe={describe}
         />
       </ChartArea>
       <Stats
@@ -266,6 +307,10 @@ export function DiskWidget({ system, history, locale }: WidgetBodyProps): React.
 export function NetworkWidget({ system, history, locale }: WidgetBodyProps): React.JSX.Element {
   const { t } = useTranslation(DASHBOARD_NS);
   const colors = useThemeColors();
+  const describe = useChartDescriber(
+    `${t('widget.network.title')} — ${t('network.down')}`,
+    useRate(locale),
+  );
 
   let rx = 0;
   let tx = 0;
@@ -292,6 +337,7 @@ export function NetworkWidget({ system, history, locale }: WidgetBodyProps): Rea
           scale={{ min: 0 }}
           className="absolute inset-0"
           ariaLabel={t('widget.network.title')}
+          describe={describe}
         />
       </ChartArea>
       <Stats

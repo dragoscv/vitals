@@ -140,82 +140,108 @@ export function TitleBar({ children, controls }: TitleBarProps) {
   }, [api]);
 
   return (
-    <ContextMenu>
-      <ContextMenuTrigger asChild>
-        <header
-          className="shell-chrome relative flex shrink-0 items-center"
-          style={{ height: TITLE_BAR_HEIGHT }}
-        >
-          {/*
-           * The drag region is a sibling layer rather than the header itself so
-           * that adding a control to the bar can never accidentally make it
-           * draggable — a draggable button does not fire click reliably, and the
-           * bug looks like a broken button rather than a layout mistake.
-           */}
-          <div data-tauri-drag-region className="absolute inset-0" />
-
-          <div className="pointer-events-none relative flex h-full min-w-0 flex-1 items-center gap-2 px-3">
-            {/*
-             * The brand mark at the Windows title-bar icon size (16 px, the
-             * pixel-snapped micro variant). It is where the splash mark lands
-             * on start-up. Decorative — the section name beside it is the
-             * accessible content.
-             */}
-            <BrandMark size={16} morphTarget />
-            <span className="truncate text-2xs font-medium text-[var(--color-fg-muted)]">
-              {children}
-            </span>
-          </div>
-
-          <div className="relative flex h-full items-center">
-            <CaptionButton label={t('window.minimise')} onClick={() => void api.minimize()}>
-              <Glyph>{glyph.minimise}</Glyph>
-            </CaptionButton>
-            <CaptionButton
-              label={maximised ? t('window.restore') : t('window.maximise')}
-              onClick={() => void api.toggleMaximize()}
-            >
-              <Glyph>{maximised ? glyph.restore : glyph.maximise}</Glyph>
-            </CaptionButton>
-            <CaptionButton danger label={t('window.close')} onClick={() => void api.close()}>
-              <Glyph>{glyph.close}</Glyph>
-            </CaptionButton>
-          </div>
-        </header>
-      </ContextMenuTrigger>
+    <>
       {/*
-       * The window's own menu on right-click, as every Windows title bar has.
-       * A frameless window loses the system menu, and without this the
-       * webview's Back/Reload/Inspect menu appeared in its place. Quit is here
-       * because the × hides to the tray, and the tray is the only other way out.
+       * Skip link, the first thing Tab reaches: without it every screen
+       * starts with the caption buttons and the whole sidebar between a
+       * keyboard user and the content. Visible only when focused.
+       *
+       * Focus is moved by hand rather than by following the href: routes
+       * live in the URL fragment, so letting the browser navigate to
+       * `#main-content` would read as a route change to an unknown screen.
        */}
-      <ContextMenuContent className="min-w-52" aria-label={t('window.menu')}>
-        <ContextMenuItem onSelect={() => void api.minimize()}>
-          <Minus className="size-4" aria-hidden="true" />
-          {t('window.minimise')}
-        </ContextMenuItem>
-        <ContextMenuItem onSelect={() => void api.toggleMaximize()}>
-          {maximised ? (
-            <Minimize2 className="size-4" aria-hidden="true" />
-          ) : (
-            <Maximize2 className="size-4" aria-hidden="true" />
-          )}
-          {maximised ? t('window.restore') : t('window.maximise')}
-        </ContextMenuItem>
-        <ContextMenuItem onSelect={() => void api.hide()}>
-          <EyeOff className="size-4" aria-hidden="true" />
-          {t('window.hideToTray')}
-        </ContextMenuItem>
-        <ContextMenuSeparator />
-        <ContextMenuItem onSelect={() => void api.close()}>
-          <X className="size-4" aria-hidden="true" />
-          {t('window.close')}
-        </ContextMenuItem>
-        <ContextMenuItem destructive onSelect={() => void api.quit()}>
-          <Power className="size-4" aria-hidden="true" />
-          {t('window.quit')}
-        </ContextMenuItem>
-      </ContextMenuContent>
-    </ContextMenu>
+      <a
+        href="#main-content"
+        onClick={(event) => {
+          event.preventDefault();
+          document.getElementById('main-content')?.focus();
+        }}
+        className={cn(
+          'sr-only focus:not-sr-only focus:fixed focus:top-1 focus:left-1 focus:z-[100]',
+          'focus:rounded-[var(--radius-control)] focus:bg-[var(--color-bg-raised)] focus:px-3 focus:py-1.5',
+          'focus:text-sm focus:font-medium focus:text-[var(--color-fg-default)] focus:shadow-[var(--shadow-overlay)]',
+          focusRing,
+        )}
+      >
+        {t('window.skipToContent')}
+      </a>
+      <ContextMenu>
+        <ContextMenuTrigger asChild>
+          <header
+            className="shell-chrome relative flex shrink-0 items-center"
+            style={{ height: TITLE_BAR_HEIGHT }}
+          >
+            {/*
+             * The drag region is a sibling layer rather than the header itself so
+             * that adding a control to the bar can never accidentally make it
+             * draggable — a draggable button does not fire click reliably, and the
+             * bug looks like a broken button rather than a layout mistake.
+             */}
+            <div data-tauri-drag-region className="absolute inset-0" />
+
+            <div className="pointer-events-none relative flex h-full min-w-0 flex-1 items-center gap-2 px-3">
+              {/*
+               * The brand mark at the Windows title-bar icon size (16 px, the
+               * pixel-snapped micro variant). It is where the splash mark lands
+               * on start-up. Decorative — the section name beside it is the
+               * accessible content.
+               */}
+              <BrandMark size={16} morphTarget />
+              <span className="truncate text-2xs font-medium text-[var(--color-fg-muted)]">
+                {children}
+              </span>
+            </div>
+
+            <div className="relative flex h-full items-center">
+              <CaptionButton label={t('window.minimise')} onClick={() => void api.minimize()}>
+                <Glyph>{glyph.minimise}</Glyph>
+              </CaptionButton>
+              <CaptionButton
+                label={maximised ? t('window.restore') : t('window.maximise')}
+                onClick={() => void api.toggleMaximize()}
+              >
+                <Glyph>{maximised ? glyph.restore : glyph.maximise}</Glyph>
+              </CaptionButton>
+              <CaptionButton danger label={t('window.close')} onClick={() => void api.close()}>
+                <Glyph>{glyph.close}</Glyph>
+              </CaptionButton>
+            </div>
+          </header>
+        </ContextMenuTrigger>
+        {/*
+         * The window's own menu on right-click, as every Windows title bar has.
+         * A frameless window loses the system menu, and without this the
+         * webview's Back/Reload/Inspect menu appeared in its place. Quit is here
+         * because the × hides to the tray, and the tray is the only other way out.
+         */}
+        <ContextMenuContent className="min-w-52" aria-label={t('window.menu')}>
+          <ContextMenuItem onSelect={() => void api.minimize()}>
+            <Minus className="size-4" aria-hidden="true" />
+            {t('window.minimise')}
+          </ContextMenuItem>
+          <ContextMenuItem onSelect={() => void api.toggleMaximize()}>
+            {maximised ? (
+              <Minimize2 className="size-4" aria-hidden="true" />
+            ) : (
+              <Maximize2 className="size-4" aria-hidden="true" />
+            )}
+            {maximised ? t('window.restore') : t('window.maximise')}
+          </ContextMenuItem>
+          <ContextMenuItem onSelect={() => void api.hide()}>
+            <EyeOff className="size-4" aria-hidden="true" />
+            {t('window.hideToTray')}
+          </ContextMenuItem>
+          <ContextMenuSeparator />
+          <ContextMenuItem onSelect={() => void api.close()}>
+            <X className="size-4" aria-hidden="true" />
+            {t('window.close')}
+          </ContextMenuItem>
+          <ContextMenuItem destructive onSelect={() => void api.quit()}>
+            <Power className="size-4" aria-hidden="true" />
+            {t('window.quit')}
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
+    </>
   );
 }

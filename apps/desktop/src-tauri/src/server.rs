@@ -139,6 +139,18 @@ impl LanServer {
         self.running.lock().as_ref().map(|h| h.addr.port())
     }
 
+    /// The adapter the LAN listener is bound to, or `None` when it listens
+    /// on every interface (or is not running).
+    fn bound_adapter(&self) -> Option<std::net::Ipv4Addr> {
+        self.running
+            .lock()
+            .as_ref()
+            .and_then(|h| match h.addr.ip() {
+                std::net::IpAddr::V4(v4) if !v4.is_unspecified() => Some(v4),
+                _ => None,
+            })
+    }
+
     /// The loopback listener's port, if it is up.
     #[must_use]
     pub fn local_port(&self) -> Option<u16> {
@@ -463,9 +475,13 @@ pub fn get_lan_status(server: tauri::State<'_, LanServer>) -> LanStatus {
 /// Starts listening. Idempotent: a second call while running returns the
 /// existing port rather than binding a second socket.
 ///
-/// `address` is the adapter the user picked in Settings; `None` takes the
-/// best guess, the same one `create_pairing` puts in the QR code, so the
-/// advertised address and the paired address cannot disagree.
+/// `address` is the adapter the user picked in Settings. When given, the
+/// socket is bound to **that address only**: a phone on the home Wi-Fi is
+/// the audience, and listening on `0.0.0.0` also answered on the VPN, the
+/// Hyper-V switch, a mobile hotspot and any other network the PC happened to
+/// join. `None` keeps the every-interface bind, because without a choice
+/// there is no adapter we could prove is the right one — and advertising
+/// still uses the best guess, the same one `create_pairing` puts in the QR.
 #[tauri::command]
 pub async fn start_lan_server(
     app: tauri::AppHandle,
@@ -481,11 +497,16 @@ pub async fn start_lan_server(
     // a local caller who wants tokenless access has the loopback listener.
     let state = server.api_state(&app, Some(embedded_assets(app.clone())), None);
 
-    let handle = vitals_server::serve(state, port.unwrap_or(DEFAULT_PORT))
-        .await
-        .map_err(|e| CommandError::Internal {
-            message: format!("could not start the LAN server: {e}"),
-        })?;
+    let port = port.unwrap_or(DEFAULT_PORT);
+    let bound = match address {
+        Some(adapter) => {
+            vitals_server::serve_on(state, std::net::SocketAddr::from((adapter, port))).await
+        }
+        None => vitals_server::serve(state, port).await,
+    };
+    let handle = bound.map_err(|e| CommandError::Internal {
+        message: format!("could not start the LAN server: {e}"),
+    })?;
 
     let bound = handle.addr.port();
     *server.running.lock() = Some(handle);
@@ -586,7 +607,20 @@ pub fn create_pairing(
         });
     };
 
-    let address = match request.address {
+    // A listener bound to one adapter answers on that address and no other,
+    // so a QR naming any other address is a pairing that cannot connect.
+    let bound = server.bound_adapter();
+    if let (Some(bound), Some(chosen)) = (bound, request.address)
+        && bound != chosen
+    {
+        return Err(CommandError::Unsupported {
+            message: format!(
+                "remote access is listening on {bound} only; stop and start it on {chosen} \
+                 to pair through that address"
+            ),
+        });
+    }
+    let address = match request.address.or(bound) {
         Some(chosen) => chosen,
         None => vitals_server::interfaces()
             .first()

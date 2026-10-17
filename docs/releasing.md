@@ -65,15 +65,30 @@ Two repository secrets, at
 | `TAURI_SIGNING_PRIVATE_KEY`          | The entire contents of `%USERPROFILE%\.tauri\vitals.key`, including the `untrusted comment:` line. |
 | `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | The contents of `%USERPROFILE%\.tauri\vitals.key.password.txt`.                                    |
 
-The names are not arbitrary — the Tauri CLI reads exactly these environment
-variables during `tauri build`, and `.github/workflows/release.yml` passes
-them through. Get a name wrong and the build still succeeds; it simply
-produces no `.sig` files, and the release ships without an update manifest.
+The names are not arbitrary — `tauri signer sign` reads exactly these
+environment variables. Since 2026-10-17 (SEC-5) only one step ever receives
+them: **Sign updater bundles** in the `publish` job, which on a tag runs only
+after the owner has approved the `release` environment. The build legs run
+repository code and every dependency's build script before anyone has
+looked at the run, so they build with `createUpdaterArtifacts: false` and no
+key; `publish` then signs each installer (and the macOS `.app.tar.gz`, which
+the macOS leg packs itself) with
+`tauri signer sign --app-version <version> <file>` — the same `<file>.sig`
+`tauri build` would have written. That step installs dependencies with
+`--ignore-scripts`, so no package script runs while the key is present.
 
-The workflow fails loudly on that case rather than publishing a silently
-broken release: on a tag, the `verify` job refuses to start without
-`TAURI_SIGNING_PRIVATE_KEY`, and both the build legs and the "Update
-manifest" step throw if any installer has no signature beside it.
+The workflow fails loudly rather than publishing a silently broken release:
+on a tag, the `verify` job refuses to start without
+`TAURI_SIGNING_PRIVATE_KEY` (it sees only whether the secret is set, never
+its value), the signing step throws if a signature is not written, a build
+leg throws if it ever produces a `.sig` (the key leaked into it), and the
+"Update manifest" step throws if any installer has no signature beside it.
+
+**Check on the first tag after this change**: `latest.json` has a
+`signature` for `windows-x86_64` and `windows-aarch64`, and an installed copy
+of the previous version updates itself (Settings → About → Check for
+updates). A signature made with the wrong key or format would show there as
+a failed update, not as a red workflow.
 
 ## What a user sees
 
@@ -121,18 +136,25 @@ Pushing a `v*` tag runs `.github/workflows/release.yml`:
    title and whether anything is published.
 2. **verify** (tags only) refuses to start without the updater key, then
    runs `scripts/version.ps1 -Check <tag>` (every manifest must say the
-   tag's version), contract drift, `cargo fmt`, clippy with `-D warnings`,
+   tag's version), checks the Play release notes when `PUBLISH_PLAY` is on
+   (each `changelogs/default.txt` at most 500 characters and naming the
+   version), contract drift, `cargo fmt`, clippy with `-D warnings`,
    `cargo test --workspace`, the bindings drift check, `pnpm` typecheck,
    lint, format check and tests, and the release-build performance budget. A
    tag can point at a commit CI never saw, so it is re-proved.
 3. **build**, in parallel:
 
-   | Leg               | Runner           | Output                                             | Attached to the release |
-   | ----------------- | ---------------- | -------------------------------------------------- | ----------------------- |
-   | `windows-x64`     | `windows-latest` | `Vitals_<v>_x64-setup.exe` + `.sig`                | always                  |
-   | `windows-arm64`   | `windows-11-arm` | `Vitals_<v>_arm64-setup.exe` + `.sig`              | always                  |
-   | `macos-universal` | `macos-latest`   | `.dmg`, `Vitals_<v>_universal.app.tar.gz` + `.sig` | only if `PUBLISH_MACOS` |
-   | `linux-x64`       | `ubuntu-22.04`   | `.AppImage` + `.sig`, `.deb`, `.rpm`               | only if `PUBLISH_LINUX` |
+   | Leg               | Runner           | Output                                                   | Attached to the release |
+   | ----------------- | ---------------- | -------------------------------------------------------- | ----------------------- |
+   | `windows-x64`     | `windows-latest` | `Vitals_<v>_x64-setup.exe`, `vitals-cli_<v>_x64.zip`     | always                  |
+   | `windows-arm64`   | `windows-11-arm` | `Vitals_<v>_arm64-setup.exe`, `vitals-cli_<v>_arm64.zip` | always                  |
+   | `macos-universal` | `macos-latest`   | `.dmg`, `Vitals_<v>_universal.app.tar.gz`                | only if `PUBLISH_MACOS` |
+   | `linux-x64`       | `ubuntu-22.04`   | `.AppImage`, `.deb`, `.rpm`                              | only if `PUBLISH_LINUX` |
+
+   No leg holds the updater key or writes a `.sig`; `publish` signs (see
+   _GitHub secrets_). The `vitals-cli_<v>_<arch>.zip` is the `vitals`
+   command-line tool (`apps/cli`) with `LICENSE` and
+   `THIRD_PARTY_NOTICES.md`; it is not bundled into the installer yet.
 
    macOS and Linux build on every run so the port cannot rot, but their
    samplers are honest stubs (ADR 0007), so by default they stay workflow
@@ -148,11 +170,14 @@ Pushing a `v*` tag runs `.github/workflows/release.yml`:
 
 4. **sbom** writes CycloneDX SBOMs: `sbom-rust.cdx.json` (`cargo cyclonedx`
    on the desktop crate, on Windows so the Windows-only dependencies are
-   included) and `sbom-js.cdx.json` (`pnpm sbom`, desktop app, production
-   dependencies only).
+   included), `sbom-cli.cdx.json` (the same for `apps/cli`) and
+   `sbom-js.cdx.json` (`pnpm sbom`, desktop app, production dependencies
+   only).
 5. **publish** gathers every published artefact and only then writes the
    files that must see all of them at once — doing it in a build leg meant
    two runners racing to upload the same `latest.json`:
+   - On a tag, the updater signatures (`.sig` beside each installer), made
+     after the owner's approval.
    - `latest.json` with `windows-x86_64` and `windows-aarch64` (plus
      `darwin-universal`, `darwin-aarch64`, `darwin-x86_64` and
      `linux-x86_64` when those are published). `version` has no leading `v`.
@@ -161,8 +186,8 @@ Pushing a `v*` tag runs `.github/workflows/release.yml`:
      `https://github.com/dragoscv/vitals/releases/latest/download/Vitals_x64-setup.exe`
      always works.
    - `SHA256SUMS.txt` over every published file.
-   - Build-provenance attestations for every file, and SBOM attestations on
-     the installers.
+   - Build-provenance attestations for every file, SBOM attestations on the
+     installers (Rust and JavaScript) and on the CLI zips (CLI SBOM).
    - Release notes: `scripts/release-notes.ps1` takes the version's section
      of `CHANGELOG.md` and appends downloads and verification instructions;
      GitHub's generated pull-request list, categorised by
@@ -185,15 +210,33 @@ testers only; that needs a second updater endpoint, not a GitHub flag.
 
 ### Nightlies
 
-At 03:00 UTC, when anything landed in the last 24 hours (or by hand, via
-_Run workflow_), the same build runs without `verify` — `main` is gated by
-CI on every push — and publishes to the moving `nightly` tag as a
+At 03:00 UTC, when `main` has moved since the current `nightly` tag (or by
+hand, via _Run workflow_), the same build runs without `verify` — `main` is
+gated by CI on every push — and publishes to the moving `nightly` tag as a
 **pre-release**, which is never "latest". The previous nightly is deleted
 first so the tag moves. Nightlies are versioned
-`<base>-nightly.<yyyymmdd>.g<sha>` and get no `latest.json`: an updater
-pointed at a moving target would offer the same "new" build forever.
-Running the workflow by hand with _nightly_ unticked builds everything and
-publishes nothing.
+`<base>-nightly.<yyyymmdd>.g<sha>` and get no `latest.json` and no updater
+signature: an updater pointed at a moving target would offer the same "new"
+build forever. Running the workflow by hand with _nightly_ unticked builds
+everything and publishes nothing.
+
+A nightly **does not wait for approval** and **never blocks a tag**
+(QA-4, since 2026-10-17). Before, every publish ran in the `release`
+environment and all runs on `main` shared one concurrency group, so a
+nightly nobody approved held the queue for days and every later nightly
+and tag release waited behind it. Now:
+
+- each tag has its own concurrency group (`release-refs/tags/v…`), is never
+  cancelled, and its `publish` job still waits in the `release` environment;
+- scheduled and manual runs share `release-nightly`, and a newer one cancels
+  the older;
+- a nightly's `publish` runs without an environment. It can only create the
+  `nightly` pre-release, which no installed copy polls; the updater key is
+  not read.
+
+Because the nightly no longer waits for a reviewer, anyone who can push to
+`main` can cause a nightly pre-release; that was already true of what the
+nightly contains, and `main` is protected by its ruleset.
 
 ## Secrets and variables
 

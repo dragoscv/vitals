@@ -9,4 +9,10 @@ export {
   type ScaleOptions,
   type Series,
 } from './renderer';
-export { TimeSeriesChart, type TimeSeriesChartProps } from './TimeSeriesChart';
+export {
+  SUMMARY_INTERVAL_MS,
+  summariseSeries,
+  TimeSeriesChart,
+  type ChartSummary,
+  type TimeSeriesChartProps,
+} from './TimeSeriesChart';

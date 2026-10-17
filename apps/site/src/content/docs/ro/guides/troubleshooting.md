@@ -30,8 +30,8 @@ Fila Temperaturi și secțiunea Dispozitive și senzori arată ce nu pot citi ș
 ## „Necesită serviciul auxiliar Vitals”
 
 Unele valori, precum activitatea pe disc a fiecărui proces și stivele firelor de execuție, au nevoie
-de un serviciu Windows privilegiat. Acest serviciu auxiliar este planificat, dar nu este inclus în
-beta, așa că aceste funcții sunt dezactivate cu acest motiv, în loc să dea eroare când le folosești.
+de un serviciu Windows privilegiat. Acest serviciu auxiliar este planificat, dar nu este inclus încă,
+așa că aceste funcții sunt dezactivate cu acest motiv, în loc să dea eroare când le folosești.
 
 ## Windows SmartScreen blochează programul de instalare
 

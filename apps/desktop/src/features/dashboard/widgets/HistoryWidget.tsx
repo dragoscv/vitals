@@ -85,7 +85,7 @@ export function HistoryWidget({
       </div>
 
       {history.error !== null && (
-        <p role="alert" className="text-2xs text-[var(--color-status-danger)]">
+        <p role="alert" className="text-2xs text-[var(--color-danger-text)]">
           {t('history.failed', { reason: history.error })}
         </p>
       )}

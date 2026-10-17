@@ -11,6 +11,12 @@
  * contains forty rows out of six hundred, so `aria-rowcount` and
  * `aria-rowindex` are the only way a screen reader can report "row 412 of
  * 587" rather than "row 12 of 40".
+ *
+ * It is a `treegrid`, not a `grid`, because rows carry `aria-level` and
+ * `aria-expanded` — a grid with levels is not something assistive
+ * technology knows how to announce. DOM focus stays on the container and
+ * `aria-activedescendant` names the current row, so a screen reader follows
+ * the arrow keys without six hundred focusable elements.
  */
 
 import { useVirtualizer } from '@tanstack/react-virtual';
@@ -19,6 +25,7 @@ import {
   memo,
   useCallback,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -37,8 +44,19 @@ import { OVERSCAN, ROW_HEIGHT, UNKNOWN } from './constants';
 import { tauriIconStore, useProcessIcon, type IconStore } from './icons';
 import type { ProcessRow } from './model';
 import { ProcessMenu } from './ProcessMenu';
-import { columnLabel, fallback } from './strings';
+import { columnLabel } from './strings';
 import type { ColumnTotals } from './totals';
+
+/**
+ * The widest a column may be dragged or arrowed to. A bound is needed for
+ * `aria-valuemax`, and nothing in this table is worth more than this.
+ */
+export const MAX_COLUMN_WIDTH = 800;
+
+/** A DOM id for a row; process ids contain characters ids should not. */
+function rowDomId(prefix: string, id: string): string {
+  return `${prefix}-row-${id.replace(/[^A-Za-z0-9_-]/g, '_')}`;
+}
 
 export interface ProcessTableProps {
   readonly rows: readonly ProcessRow[];
@@ -59,6 +77,13 @@ export interface ProcessTableProps {
   readonly onFocusRow: (id: string) => void;
   readonly onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => void;
   readonly onHoverChange: (hovering: boolean) => void;
+  /**
+   * Whether someone is moving through the rows with the keyboard. Reported so
+   * the screen can hold the row order exactly as it does under a pointer: a
+   * row that moves while you arrow towards it is a row you act on by
+   * mistake.
+   */
+  readonly onKeyboardFocusChange?: (focused: boolean) => void;
   readonly onMenuOpenChange: (open: boolean) => void;
   readonly menuProps: (row: ProcessRow) => React.ComponentProps<typeof ProcessMenu>;
   readonly locale: string;
@@ -80,6 +105,7 @@ export interface ProcessTableProps {
 export function ProcessTable(props: ProcessTableProps): React.JSX.Element {
   const { t } = useTranslation();
   const scrollRef = useRef<HTMLDivElement>(null);
+  const idPrefix = useId().replace(/:/g, '');
 
   // Which row's menu is open, and whether a deliberate request asked for it.
   // Left clicks were opening the menu, pinned near the window's top-left
@@ -96,14 +122,27 @@ export function ProcessTable(props: ProcessTableProps): React.JSX.Element {
     onMenuOpenChange(menuRow !== null);
   }, [menuRow, onMenuOpenChange]);
   const { onKeyDown } = props;
+  const { onKeyboardFocusChange } = props;
+  const keyboardFocus = useRef(false);
+  const setKeyboardFocus = useCallback(
+    (focused: boolean) => {
+      if (keyboardFocus.current === focused) return;
+      keyboardFocus.current = focused;
+      onKeyboardFocusChange?.(focused);
+    },
+    [onKeyboardFocusChange],
+  );
   const onGridKeyDown = useCallback(
     (event: KeyboardEvent<HTMLDivElement>) => {
       if (event.key === 'ContextMenu' || (event.key === 'F10' && event.shiftKey)) {
         menuKeyAt.current = performance.now();
       }
+      // Any key in the grid means the keyboard is in use, even if focus
+      // arrived by a click; from now until focus leaves, the order holds.
+      setKeyboardFocus(true);
       onKeyDown(event);
     },
-    [onKeyDown],
+    [onKeyDown, setKeyboardFocus],
   );
   const onRowContextMenu = useCallback((event: ReactMouseEvent<HTMLDivElement>) => {
     const fromKeyboard = performance.now() - menuKeyAt.current < 1_000;
@@ -195,6 +234,30 @@ export function ProcessTable(props: ProcessTableProps): React.JSX.Element {
     getItemKey: (index) => props.rows[index]?.id ?? index,
   });
 
+  // Keep the focused row in view. The keyboard moves a row id, not the
+  // scroll position; without this, PageDown walks the focus off the bottom
+  // of the viewport and the screen reader names a row nobody can see.
+  // Keyed on the focused id alone: a reorder must not yank the scroll.
+  const rowsRef = useRef(props.rows);
+  useEffect(() => {
+    rowsRef.current = props.rows;
+  });
+  const { focusedId } = props;
+  useEffect(() => {
+    if (focusedId === null) return;
+    const index = rowsRef.current.findIndex((row) => row.id === focusedId);
+    if (index >= 0) virtualizer.scrollToIndex(index, { align: 'auto' });
+  }, [focusedId, virtualizer]);
+
+  // Only a row that is actually in the DOM may be named: an id that points
+  // at nothing makes a screen reader go silent. The scroll above mounts it
+  // within a frame, and this re-evaluates on that render.
+  const activeDescendant =
+    focusedId !== null &&
+    virtualizer.getVirtualItems().some((item) => props.rows[item.index]?.id === focusedId)
+      ? rowDomId(idPrefix, focusedId)
+      : null;
+
   const totalWidth = columns.reduce(
     (sum, column) => sum + (props.widths[column.id] ?? column.width),
     0,
@@ -221,14 +284,30 @@ export function ProcessTable(props: ProcessTableProps): React.JSX.Element {
         // The same surface as every card, so the table reads as one object on
         // the page rather than a spreadsheet pasted into it.
         className="min-h-0 flex-1 overflow-auto rounded-[var(--radius-widget)] border border-[var(--color-border-subtle)] bg-[var(--color-bg-raised)] shadow-[var(--shadow-card)]"
-        role="grid"
-        aria-label={t('process.table.label', fallback('process.table.label'))}
+        role="treegrid"
+        aria-label={t('process.table.label')}
         aria-rowcount={props.rows.length + 1}
         aria-colcount={columns.length}
+        {...(activeDescendant !== null && { 'aria-activedescendant': activeDescendant })}
         // One tab stop for the whole grid with arrow keys inside, which is the
         // WAI-ARIA grid pattern. Six hundred tab stops would be unusable.
         tabIndex={0}
         onKeyDown={onGridKeyDown}
+        onFocus={(event) => {
+          if (event.target !== event.currentTarget) return;
+          let visible = true;
+          try {
+            visible = event.currentTarget.matches(':focus-visible');
+          } catch {
+            // An engine without :focus-visible: assume the keyboard.
+          }
+          if (visible) setKeyboardFocus(true);
+        }}
+        onBlur={(event) => {
+          const next = event.relatedTarget;
+          if (next instanceof Node && event.currentTarget.contains(next)) return;
+          setKeyboardFocus(false);
+        }}
       >
         <div style={{ minWidth: totalWidth }}>
           <div
@@ -300,7 +379,7 @@ export function ProcessTable(props: ProcessTableProps): React.JSX.Element {
                     current={props.widths[column.id] ?? column.width}
                     min={column.minWidth}
                     onResize={props.onResize}
-                    label={label}
+                    label={t('process.table.resize', { column: label })}
                   />
                 </div>
               );
@@ -320,6 +399,7 @@ export function ProcessTable(props: ProcessTableProps): React.JSX.Element {
                   <ContextMenuTrigger asChild>
                     <Row
                       row={row}
+                      domId={rowDomId(idPrefix, row.id)}
                       columns={columns}
                       gridTemplate={gridTemplate}
                       top={item.start}
@@ -351,6 +431,7 @@ interface RowProps extends Omit<
   'style' | 'onFocus' | 'onPointerDown'
 > {
   readonly row: ProcessRow;
+  readonly domId: string;
   readonly columns: readonly NonNullable<ReturnType<typeof COLUMN_BY_ID.get>>[];
   readonly gridTemplate: string;
   readonly top: number;
@@ -386,6 +467,7 @@ const Row = memo(
     const { t } = useTranslation();
     const {
       row,
+      domId,
       columns,
       gridTemplate,
       top,
@@ -405,6 +487,7 @@ const Row = memo(
     return (
       <div
         ref={ref}
+        id={domId}
         role="row"
         aria-rowindex={rowIndex}
         aria-selected={selected}
@@ -467,14 +550,16 @@ const Row = memo(
                   {row.childIds.length > 0 ? (
                     <button
                       type="button"
-                      aria-label={t(
-                        expanded ? 'process.tree.collapse' : 'process.tree.expand',
-                        fallback(expanded ? 'process.tree.collapse' : 'process.tree.expand'),
-                        { name: displayName(row.process) },
-                      )}
+                      aria-label={t(expanded ? 'process.tree.collapse' : 'process.tree.expand', {
+                        name: displayName(row.process),
+                      })}
                       onPointerDown={(event) => event.stopPropagation()}
                       onClick={() => onToggleExpand(row.id)}
-                      className="inline-flex size-4 shrink-0 items-center justify-center rounded text-[var(--color-fg-subtle)] hover:text-[var(--color-fg-default)] focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+                      // Drawn at 16 px so names stay aligned, but the
+                      // pseudo-element widens the target to 24 px (WCAG
+                      // 2.5.8): a 16 px chevron in a 28 px row is a miss
+                      // that selects the row instead.
+                      className="relative inline-flex size-4 shrink-0 items-center justify-center rounded text-[var(--color-fg-subtle)] before:absolute before:-inset-1 before:content-[''] hover:text-[var(--color-fg-default)] focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
                     >
                       <ChevronDown
                         aria-hidden="true"
@@ -574,6 +659,8 @@ function ResizeHandle({
       aria-orientation="vertical"
       aria-label={label}
       aria-valuenow={current}
+      aria-valuemin={min}
+      aria-valuemax={MAX_COLUMN_WIDTH}
       tabIndex={0}
       onKeyDown={(event) => {
         if (event.key === 'ArrowLeft') {
@@ -581,7 +668,7 @@ function ResizeHandle({
           onResize(column, Math.max(min, current - 8));
         } else if (event.key === 'ArrowRight') {
           event.preventDefault();
-          onResize(column, current + 8);
+          onResize(column, Math.min(MAX_COLUMN_WIDTH, current + 8));
         }
       }}
       // Pointer capture keeps the drag on this element wherever the cursor
@@ -601,7 +688,13 @@ function ResizeHandle({
       }}
       onPointerMove={(event) => {
         if (!dragging.current) return;
-        onResize(column, Math.max(min, startWidth.current + (event.clientX - startX.current)));
+        onResize(
+          column,
+          Math.min(
+            MAX_COLUMN_WIDTH,
+            Math.max(min, startWidth.current + (event.clientX - startX.current)),
+          ),
+        );
       }}
       onPointerUp={(event) => {
         dragging.current = false;

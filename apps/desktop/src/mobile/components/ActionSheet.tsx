@@ -157,7 +157,7 @@ export function ActionSheet({ process, control, onClose, onSettled, readOnly }: 
         )}
 
         {message !== null && (
-          <p role="alert" className="mt-3 text-2xs text-[var(--color-status-danger)]">
+          <p role="alert" className="mt-3 text-2xs text-[var(--color-danger-text)]">
             {message}
           </p>
         )}

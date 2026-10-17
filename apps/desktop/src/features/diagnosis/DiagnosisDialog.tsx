@@ -13,7 +13,15 @@
  * live, which conveys "still happening" without churning the words.
  */
 
-import { AlertTriangle, CheckCircle2, ClipboardCheck, Copy, Info, XCircle } from 'lucide-react';
+import {
+  AlertTriangle,
+  CheckCircle2,
+  ClipboardCheck,
+  Copy,
+  Info,
+  ListTree,
+  XCircle,
+} from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -21,6 +29,8 @@ import { TimeSeriesChart } from '@vitals/charts';
 import type { Diagnosis, Process, Severity, SystemMetrics } from '@vitals/protocol';
 import { Button, DialogContent, DialogRoot, formatPercent, Spinner } from '@vitals/ui';
 
+import { useSettings } from '../../settings/store';
+import { requestProcessSelection } from '../../shell/navigation';
 import { alertCause, alertTitle } from '../alerts/alertText';
 import type { MetricHistory } from '../dashboard/history';
 import { DASHBOARD_NS } from '../dashboard/strings';
@@ -35,8 +45,8 @@ const ICON: Readonly<Record<Severity, typeof Info>> = {
 };
 
 const TONE: Readonly<Record<Severity, string>> = {
-  critical: 'text-[var(--color-status-danger)]',
-  warning: 'text-[var(--color-status-warn)]',
+  critical: 'text-[var(--color-danger-text)]',
+  warning: 'text-[var(--color-warn-text)]',
   info: 'text-[var(--color-fg-muted)]',
 };
 
@@ -85,6 +95,9 @@ export function DiagnosisDialog({
           locale={locale}
           writeClipboard={writeClipboard}
           closeLabel={t('diagnosis.close')}
+          onDone={() => {
+            onOpenChange(false);
+          }}
         />
       )}
     </DialogRoot>
@@ -99,6 +112,7 @@ function Body({
   locale,
   writeClipboard,
   closeLabel,
+  onDone,
 }: {
   readonly source: DiagnosisSource;
   readonly system: SystemMetrics | null;
@@ -107,8 +121,10 @@ function Body({
   readonly locale: string;
   readonly writeClipboard: (text: string) => Promise<void>;
   readonly closeLabel: string;
+  readonly onDone: () => void;
 }): React.JSX.Element {
   const { t } = useTranslation(DASHBOARD_NS);
+  const navigate = useSettings((state) => state.navigate);
   // No frame means no question can be asked; that is known at mount.
   const [status, setStatus] = useState<Status>(() =>
     system === null ? { kind: 'failed' } : { kind: 'working' },
@@ -164,6 +180,14 @@ function Body({
       });
   };
 
+  // The verdict names a process; this takes the user to it, selected, which
+  // is where ending or deprioritising it already lives with its safeguards.
+  const showProcess = (pid: number): void => {
+    requestProcessSelection(pid);
+    onDone();
+    navigate('processes');
+  };
+
   return (
     <DialogContent
       size="lg"
@@ -171,20 +195,25 @@ function Body({
       description={t('diagnosis.description')}
       closeLabel={closeLabel}
       footer={
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={copy}
-          disabled={status.kind !== 'ready'}
-          aria-live="polite"
-        >
-          {copied ? (
-            <ClipboardCheck aria-hidden className="size-4" />
-          ) : (
-            <Copy aria-hidden className="size-4" />
-          )}
-          {copied ? t('diagnosis.copied') : t('diagnosis.copy')}
-        </Button>
+        <>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={copy}
+            disabled={status.kind !== 'ready'}
+            aria-live="polite"
+          >
+            {copied ? (
+              <ClipboardCheck aria-hidden className="size-4" />
+            ) : (
+              <Copy aria-hidden className="size-4" />
+            )}
+            {copied ? t('diagnosis.copied') : t('diagnosis.copy')}
+          </Button>
+          <Button variant="primary" size="sm" onClick={onDone}>
+            {t('diagnosis.done')}
+          </Button>
+        </>
       }
     >
       {status.kind === 'working' && (
@@ -199,7 +228,12 @@ function Body({
         </p>
       )}
       {status.kind === 'ready' && (
-        <Verdict diagnosis={status.diagnosis} history={history} locale={locale} />
+        <Verdict
+          diagnosis={status.diagnosis}
+          history={history}
+          locale={locale}
+          onShowProcess={showProcess}
+        />
       )}
     </DialogContent>
   );
@@ -209,10 +243,12 @@ function Verdict({
   diagnosis,
   history,
   locale,
+  onShowProcess,
 }: {
   readonly diagnosis: Diagnosis;
   readonly history: MetricHistory;
   readonly locale: string;
+  readonly onShowProcess: (pid: number) => void;
 }): React.JSX.Element {
   const { t } = useTranslation(DASHBOARD_NS);
   const colors = useThemeColors();
@@ -224,7 +260,7 @@ function Verdict({
         <div className="flex items-start gap-3">
           <CheckCircle2
             aria-hidden
-            className="mt-0.5 size-5 shrink-0 text-[var(--color-status-ok)]"
+            className="mt-0.5 size-5 shrink-0 text-[var(--color-ok-text)]"
           />
           <div>
             <p className="text-base font-semibold">{t('diagnosis.healthy.title')}</p>
@@ -266,13 +302,13 @@ function Verdict({
             {verdict.contributors.map((c) => (
               <li
                 key={`${c.name}:${String(c.pid)}`}
-                className="flex items-baseline justify-between gap-3 text-sm"
+                className="flex items-center justify-between gap-3 text-sm"
               >
                 <span className="min-w-0 truncate">
                   <span className="font-medium">{c.name}</span>
                   <span className="ml-1.5 text-2xs text-[var(--color-fg-muted)]">PID {c.pid}</span>
                 </span>
-                <span className="shrink-0 tabular-nums">
+                <span className="ml-auto shrink-0 tabular-nums">
                   <span className="font-medium">
                     {t('diagnosis.share', { percent: formatPercent(c.share, locale, 0) })}
                   </span>
@@ -280,6 +316,18 @@ function Verdict({
                     {formatContributorValue(verdict.subsystem, c, locale)}
                   </span>
                 </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="shrink-0"
+                  aria-label={t('diagnosis.showInProcessesFor', { name: c.name })}
+                  onClick={() => {
+                    onShowProcess(c.pid);
+                  }}
+                >
+                  <ListTree aria-hidden className="size-4" />
+                  {t('diagnosis.showInProcesses')}
+                </Button>
               </li>
             ))}
           </ol>

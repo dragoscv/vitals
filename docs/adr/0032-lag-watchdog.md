@@ -123,11 +123,14 @@ afterwards.
 **Installer.** `scripts/bundle-watchdog.ps1` builds it in
 `beforeBuildCommand` and stages it as the `watchdog/` resource, so it is
 installed at `$INSTDIR\watchdog\vitals-watchdog.exe` from the same commit
-as the app. The first launch with no settings file turns it on (the user's
-choice: on by default, with a switch). Every later launch restarts it if it
-is enabled and not running, because the installer ends it before replacing
-the file. The uninstaller ends it and removes the Run entry only when it
-names this install's copy.
+as the app. ~~The first launch with no settings file turns it on.~~
+Superseded 2026-10-17 (owner decision): the watchdog is **opt-in**. A
+launch with no settings file does nothing; the dashboard's first-run card
+and Settings offer it, and only that choice writes `watchdog.json` and the
+Run entry. Auto-enabling contradicted PRIVACY.md ("only when you ask").
+Every launch restarts it if it is enabled and not running, because the
+installer ends it before replacing the file. The uninstaller ends it and
+removes the Run entry only when it names this install's copy.
 
 ## Revision 2026-10-05 (v3): restart the shell, warn on commit charge
 

@@ -113,7 +113,7 @@ export function SettingsDialog({ open, onOpenChange, version }: SettingsDialogPr
                   value={id}
                   className={cn(
                     'h-8 justify-start rounded-[var(--radius-control)] border-b-0 px-2.5',
-                    'data-[state=active]:bg-[var(--color-accent-subtle)] data-[state=active]:text-[var(--color-accent)]',
+                    'data-[state=active]:bg-[var(--color-accent-subtle)] data-[state=active]:text-[var(--color-accent-text)]',
                   )}
                 >
                   <Icon aria-hidden="true" className="size-4 shrink-0" />

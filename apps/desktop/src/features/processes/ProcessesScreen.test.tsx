@@ -13,6 +13,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { initI18n } from '@vitals/i18n';
 
+import { requestProcessSelection } from '../../shell/navigation';
 import type { ActionPlan, ProcessActionsApi } from './actions';
 import { makeSystem } from '../dashboard/test-fixtures';
 import { createIconStore } from './icons';
@@ -118,7 +119,7 @@ describe('rendering', () => {
     // that the machine is running no processes.
     const source = createManualSnapshotSource(INITIAL_SNAPSHOT);
     render(<ProcessesScreen source={source} actions={stubActions()} storage={memoryStorage()} />);
-    expect(screen.queryByRole('grid')).toBeNull();
+    expect(screen.queryByRole('treegrid')).toBeNull();
     expect(document.querySelector('[aria-busy="true"]')).not.toBeNull();
   });
 
@@ -233,6 +234,14 @@ describe('search and filters', () => {
     mountScreen();
     fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'zzzz' } });
     expect(await screen.findByText('No process matches')).toBeTruthy();
+  });
+
+  it('offers to clear the search from the no-results state, so it is a next step and not a dead end', async () => {
+    mountScreen();
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'zzzz' } });
+    fireEvent.click(await screen.findByRole('button', { name: 'Clear search' }));
+    expect(await screen.findByText('chrome.exe')).toBeTruthy();
+    expect(screen.getByRole<HTMLInputElement>('searchbox').value).toBe('');
   });
 
   it('filters to Windows processes by kind', async () => {
@@ -480,10 +489,58 @@ describe('the confirmation flow', () => {
 describe('keyboard access', () => {
   it('exposes the grid as a single tab stop with arrow navigation', async () => {
     mountScreen();
-    const grid = await screen.findByRole('grid');
+    const grid = await screen.findByRole('treegrid');
     expect(grid.getAttribute('tabindex')).toBe('0');
     fireEvent.keyDown(grid, { key: 'ArrowDown' });
     await waitFor(() => expect(document.querySelector('[data-focused="true"]')).not.toBeNull());
+  });
+
+  it('names the focused row with aria-activedescendant so a screen reader follows the arrows', async () => {
+    // DOM focus never leaves the container; without this attribute the
+    // arrows move a highlight that assistive technology cannot see.
+    mountScreen();
+    const grid = await screen.findByRole('treegrid');
+    expect(grid.getAttribute('aria-activedescendant')).toBeNull();
+    fireEvent.keyDown(grid, { key: 'ArrowDown' });
+    await waitFor(() => {
+      const id = grid.getAttribute('aria-activedescendant');
+      expect(id).not.toBeNull();
+      const row = document.getElementById(id ?? '');
+      expect(row?.getAttribute('data-focused')).toBe('true');
+      expect(row?.getAttribute('role')).toBe('row');
+    });
+  });
+
+  it('holds row positions while the keyboard is moving through the grid', async () => {
+    const source = createManualSnapshotSource({
+      ...INITIAL_SNAPSHOT,
+      pending: false,
+      processes: makeMap([
+        makeProcess({ pid: 1, name: 'a.exe', cpu: 10 }),
+        makeProcess({ pid: 2, name: 'b.exe', cpu: 9 }),
+      ]),
+    });
+    render(<ProcessesScreen source={source} actions={stubActions()} storage={memoryStorage()} />);
+    const order = (): readonly string[] =>
+      screen
+        .getAllByRole('row')
+        .slice(1)
+        .map((row) => row.getAttribute('data-testid') ?? '');
+    await screen.findByTestId('process-row-1');
+    const before = order();
+    fireEvent.keyDown(screen.getByRole('treegrid'), { key: 'ArrowDown' });
+    source.push({
+      processes: makeMap([
+        makeProcess({ pid: 1, name: 'a.exe', cpu: 1 }),
+        makeProcess({ pid: 2, name: 'b.exe', cpu: 90 }),
+      ]),
+    });
+    // Wait until the new values are on screen, so the order is checked after
+    // the tick that would have swapped the rows, not before it arrived.
+    await waitFor(() =>
+      expect(screen.getByTestId('process-row-2').textContent ?? '').toMatch(/90/),
+    );
+    expect(order()).toEqual(before);
   });
 
   it('lets a keyboard-only user open the context menu and end a process', async () => {
@@ -565,7 +622,7 @@ describe('keyboard access', () => {
   it('Delete goes through the same plan-and-confirm path as the menu', async () => {
     const actions = stubActions();
     mountScreen(actions);
-    const grid = await screen.findByRole('grid');
+    const grid = await screen.findByRole('treegrid');
     fireEvent.keyDown(grid, { key: 'ArrowDown' });
     fireEvent.keyDown(grid, { key: 'Delete' });
     await screen.findByTestId('risk-dialog');
@@ -574,7 +631,7 @@ describe('keyboard access', () => {
 
   it('Home and End move the focused row to the extremes', async () => {
     mountScreen();
-    const grid = await screen.findByRole('grid');
+    const grid = await screen.findByRole('treegrid');
     fireEvent.keyDown(grid, { key: 'End' });
     await waitFor(() => expect(document.querySelector('[data-focused="true"]')).not.toBeNull());
     fireEvent.keyDown(grid, { key: 'Home' });
@@ -644,7 +701,7 @@ describe('sort stability in the mounted table', () => {
     const before = order();
 
     // Pointer enters: the user is aiming at a row.
-    fireEvent.pointerEnter(screen.getByRole('grid').parentElement as HTMLElement);
+    fireEvent.pointerEnter(screen.getByRole('treegrid').parentElement as HTMLElement);
 
     // A tick in which b decisively overtakes a. Unfrozen this would swap the
     // two rows out from under the cursor mid-click.
@@ -662,7 +719,7 @@ describe('sort stability in the mounted table', () => {
     // The old "Order held" pill appeared on hover and wrapped Export onto a
     // second line, pushing the table down a row under the cursor.
     mountScreen();
-    const grid = await screen.findByRole('grid');
+    const grid = await screen.findByRole('treegrid');
     const toolbar = screen.getByRole('button', { name: /columns/i }).parentElement as HTMLElement;
     const before = toolbar.childElementCount;
     fireEvent.pointerEnter(grid.parentElement as HTMLElement);
@@ -672,9 +729,21 @@ describe('sort stability in the mounted table', () => {
 });
 
 describe('shell actions', () => {
+  it('selects the process another screen asked for, and opens its details', async () => {
+    requestProcessSelection(300);
+    mountScreen();
+    await waitFor(() =>
+      expect(screen.getByTestId('process-row-300').getAttribute('aria-selected')).toBe('true'),
+    );
+    expect(screen.getByRole('complementary')).toBeTruthy();
+  });
+
   it('hides the details panel on request and brings it back', async () => {
     mountScreen();
-    await screen.findByRole('grid');
+    await screen.findByRole('treegrid');
+    // Collapsed until something is selected (DES-17).
+    expect(screen.queryByRole('complementary')).toBeNull();
+    fireEvent.pointerDown(await screen.findByTestId('process-row-300'));
     expect(screen.getByRole('complementary')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Hide details panel' }));
     expect(screen.queryByRole('complementary')).toBeNull();
@@ -749,8 +818,9 @@ describe('shell actions', () => {
 describe('columns', () => {
   it('resizes a column by dragging its edge without sorting by the next one', async () => {
     mountScreen();
-    await screen.findByRole('grid');
-    const handle = screen.getByRole('separator', { name: 'PID' });
+    await screen.findByRole('treegrid');
+    // Status, not PID: PID is hidden by default (DES-17).
+    const handle = screen.getByRole('separator', { name: 'Resize Status column' });
     const sortedBefore = document.querySelector('[aria-sort="descending"]')?.textContent;
     const before = Number(handle.getAttribute('aria-valuenow'));
 

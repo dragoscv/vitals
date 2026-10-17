@@ -434,11 +434,18 @@ mod tests {
     }
 
     #[test]
-    fn enumeration_does_not_panic_on_any_machine() {
+    fn enumeration_is_bounded_and_names_the_same_adapters_twice_in_a_row() {
         // Must work on a headless server or in a container, where D3DKMT is
-        // absent entirely.
-        let adapters = enumerate_adapters();
-        println!("found {} adapter(s)", adapters.len());
+        // absent entirely (an empty list both times passes). What it must
+        // never do is report more than it allocated for, or a different set
+        // of devices a moment later: a stride or count bug shows up as
+        // garbage LUIDs that differ call to call.
+        let mut first: Vec<u64> = enumerate_adapters().iter().map(|a| a.luid).collect();
+        let mut second: Vec<u64> = enumerate_adapters().iter().map(|a| a.luid).collect();
+        assert!(first.len() <= MAX_ADAPTERS, "{} adapters", first.len());
+        first.sort_unstable();
+        second.sort_unstable();
+        assert_eq!(first, second, "two enumerations disagree on the adapters");
     }
 
     #[test]

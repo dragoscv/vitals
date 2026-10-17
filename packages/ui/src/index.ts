@@ -2,6 +2,7 @@ export { cn } from './lib/cn';
 export {
   formatBytes,
   formatCount,
+  formatDurationParts,
   formatFrequency,
   formatLatency,
   formatPercent,

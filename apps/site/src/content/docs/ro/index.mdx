@@ -8,12 +8,16 @@ hero:
   tagline: Un monitor de sistem și manager de activități rapid și nativ pentru Windows. Gratuit și open source, sub licența MIT. Urmărește-l de pe telefon, colectează-l cu Prometheus, controlează-l din terminal.
   image:
     file: ../../../assets/logo.svg
-    alt: Sigla Vitals, o linie de puls albă într-un pătrat turcoaz cu colțuri rotunjite.
+    alt: Sigla Vitals, o linie de puls albă într-un pătrat verde cu colțuri rotunjite.
   actions:
-    - text: Descarcă pentru Windows
-      link: https://github.com/dragoscv/vitals/releases/latest/download/Vitals_x64-setup.exe
+    - text: Ia-l din Microsoft Store
+      link: https://apps.microsoft.com/detail/9P95RK5VMGPJ
       icon: download
       variant: primary
+    - text: Descarcă programul de instalare
+      link: /ro/download/
+      icon: right-arrow
+      variant: secondary
     - text: Vezi pe GitHub
       link: https://github.com/dragoscv/vitals
       icon: external
@@ -22,8 +26,9 @@ hero:
 
 import { Aside, Card, CardGrid, Tabs, TabItem, LinkCard } from '@astrojs/starlight/components';
 
-<Aside type="note" title="Vitals 0.9">
-  Windows 10 și 11, x64. macOS și Linux sunt în plan.
+<Aside type="note" title="Vitals 1.0">
+  Windows 10 și 11, x64 (ARM64 în previzualizare), plus aplicații pentru telefon Android, Wear OS și
+  televizor. Pe desktop doar Windows; nu există planuri datate pentru macOS sau Linux.
 </Aside>
 
 ## Ce face
@@ -52,8 +57,10 @@ import { Aside, Card, CardGrid, Tabs, TabItem, LinkCard } from '@astrojs/starlig
     de comandă, toate alimentate de același eșantionator, deci arată mereu aceleași cifre.
   </Card>
   <Card title="Ușor pentru calculator" icon="rocket">
-    Sub 1% procesor în repaus, impus de un test de buget în CI. Un monitor care apare printre cei
-    mai mari consumatori în propria listă de procese și-a ratat rostul.
+    Eșantionatorul Windows are un buget de 30 ms pe eșantion, impus în CI — cel mult circa 3 %
+    dintr-un nucleu la ritmul de o secundă cât fereastra e vizibilă — și eșantionează doar o dată la
+    20 de secunde când e ascunsă. Un monitor care apare printre cei mai mari consumatori în propria
+    listă de procese și-a ratat rostul.
   </Card>
   <Card title="Zero telemetrie" icon="information">
     Fără statistici, fără raportare de erori, fără cont. Singura cerere automată este verificarea
@@ -68,39 +75,47 @@ import { Aside, Card, CardGrid, Tabs, TabItem, LinkCard } from '@astrojs/starlig
 ## Instalare
 
 <Tabs syncKey="install">
-  <TabItem label="Program de instalare">
-    Descarcă [`Vitals_x64-setup.exe`](https://github.com/dragoscv/vitals/releases/latest/download/Vitals_x64-setup.exe)
-    și rulează-l. Nu are expert de instalare; se instalează în circa cinci secunde. La prima
-    rulare, Windows SmartScreen te va avertiza, pentru că programul nu este semnat cu un certificat
-    comercial. [Pagina de descărcare](/ro/download/) explică de ce și cum verifici singur fișierul.
+  <TabItem label="Microsoft Store">
+    Ia [Vitals: System Monitor](https://apps.microsoft.com/detail/9P95RK5VMGPJ) din Microsoft Store.
+    Nu apare niciun avertisment SmartScreen, iar Store-ul îl ține la zi. Versiunea din Store nu are
+    actualizarea automată proprie, înlocuirea Task Manager și serviciul opțional de senzori.
   </TabItem>
   <TabItem label="winget">
     ```powershell
     winget install Vitals.Vitals
     ```
-
-    <Aside type="caution" title="În curând">
-      Pachetul winget nu a fost publicat încă. Până atunci, folosește programul de instalare.
-    </Aside>
-
   </TabItem>
   <TabItem label="Scoop">
     ```powershell
     scoop bucket add vitals https://github.com/dragoscv/scoop-vitals
-    scoop install vitals
+    scoop install vitals/vitals
     ```
+  </TabItem>
+  <TabItem label="Program de instalare">
+    Descarcă [`Vitals_x64-setup.exe`](https://github.com/dragoscv/vitals/releases/latest/download/Vitals_x64-setup.exe)
+    și rulează-l. Nu are expert de instalare. La prima rulare, Windows SmartScreen te va avertiza,
+    pentru că programul nu este semnat cu un certificat
+    comercial. [Pagina de descărcare](/ro/download/) explică de ce și cum verifici singur fișierul.
   </TabItem>
   <TabItem label="Chocolatey">
     ```powershell
     choco install vitals
     ```
 
-    <Aside type="caution" title="În curând">
-      Pachetul Chocolatey nu a fost publicat încă. Până atunci, folosește programul de instalare.
+    <Aside type="caution" title="În așteptarea moderării">
+      Pachetul 1.0 așteaptă aprobarea moderatorilor Chocolatey; până atunci este listată doar o
+      versiune preliminară veche, 0.9. Între timp, folosește una dintre celelalte variante.
     </Aside>
 
   </TabItem>
 </Tabs>
+
+## Telefon, ceas și televizor
+
+Fiecare [versiune de pe GitHub](https://github.com/dragoscv/vitals/releases/latest) are trei fișiere
+APK pentru Android: `Vitals_<versiune>_android.apk` pentru telefoane, `_wear.apk` pentru Wear OS și
+`_tv.apk` pentru Android TV și Google TV. Fiecare monitorizează dispozitivul pe care rulează și poate
+urmări PC-urile Windows asociate din rețeaua locală. Listările din Google Play urmează mai târziu.
 
 ## Pașii următori
 

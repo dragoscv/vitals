@@ -188,6 +188,8 @@
     <string name="settings_about_body">Vitals măsoară acest telefon și, dacă asociezi unul, un PC cu Windows din rețeaua de acasă. Fără reclame, fără cont, fără analiză proprie: dezvoltatorul nu primește nimic.</string>
     <string name="settings_privacy">Politica de confidențialitate</string>
     <string name="settings_source">Codul sursă</string>
+    <string name="settings_licences">Licențe open source</string>
+    <string name="settings_licences_body">Vitals are licență MIT și folosește bibliotecile open source de mai jos. Atinge una ca să-i citești licența.</string>
 
     <string name="channel_alerts">Avertismente</string>
     <string name="channel_alerts_body">Când un PC urmărit se supraîncălzește, rămâne fără memorie sau spațiu ori încetinește.</string>

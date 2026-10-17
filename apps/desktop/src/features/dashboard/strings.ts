@@ -12,6 +12,7 @@
  */
 
 import { i18n } from '@vitals/i18n';
+import { formatPercent, formatTemperature } from '@vitals/ui';
 
 export const DASHBOARD_NS = 'dashboard';
 
@@ -74,7 +75,7 @@ const en = {
 
   cpu: {
     total: 'Total',
-    kernel: 'Kernel',
+    kernel: 'Windows itself',
     clock: 'Clock',
     cores: 'Cores',
     perCore: 'Per core',
@@ -86,7 +87,7 @@ const en = {
     used: 'In use',
     available: 'Available',
     cached: 'Cached',
-    committed: 'Committed',
+    committed: 'Promised to programs',
     ofTotal: '{{used}} of {{total}}',
     speed: 'Speed',
     slots: '{{used}} of {{total}} slots',
@@ -107,7 +108,7 @@ const en = {
     idle: 'Nothing is using this right now.',
     viewAll: 'View all processes',
   },
-  storage: { free: '{{free}} free of {{total}}', used: '{{percent}}% used' },
+  storage: { free: '{{free}} free of {{total}}', used: '{{percent, percent}} used' },
   system: { uptime: 'Uptime', since: 'Running since {{date}}' },
 
   alert: {
@@ -120,7 +121,7 @@ const en = {
     cpuSustained: {
       title: 'The processor has been busy for a while',
       cause:
-        'CPU has averaged {{percent}}% for over {{seconds}} seconds. Something is running that you may not have started.',
+        'CPU has averaged {{percent, percent}} for over {{seconds}} seconds. Something is running that you may not have started.',
     },
     cpuThrottled: {
       title: 'The processor is running slower than it can',
@@ -134,12 +135,12 @@ const en = {
     memoryPressure: {
       title: 'The machine is running out of memory',
       cause:
-        '{{faults}} page faults a second with almost no memory free — Windows is moving pages to disk to keep going, and that is what slows everything down.',
+        '{{faults}} memory reads from disk a second with almost no memory free — Windows is moving pages to disk to keep going, and that is what slows everything down.',
     },
     memoryCommit: {
-      title: 'Committed memory is close to the limit',
+      title: 'Memory promised to programs is close to the limit',
       cause:
-        '{{percent}}% of the commit limit is in use. New allocations may start failing, which applications usually report as an out-of-memory crash.',
+        '{{percent, percent}} of the commit limit is in use. New allocations may start failing, which applications usually report as an out-of-memory crash.',
     },
     diskSaturated: {
       title: '{{disk}} is busy constantly',
@@ -153,7 +154,7 @@ const en = {
     diskSpace: {
       title: '{{disk}} is nearly full',
       cause:
-        'Only {{percent}}% free. Below this Windows cannot reliably page, update, or write temporary files.',
+        'Only {{percent, percent}} free. Below this Windows cannot reliably page, update, or write temporary files.',
     },
     diskHealth: {
       title: '{{disk}} reports that it is failing',
@@ -172,18 +173,21 @@ const en = {
     thermalCpu: {
       title: 'The processor is overheating',
       cause:
-        '{{celsius}}°C. At this temperature the chip protects itself by slowing down, and sustained heat shortens its life. Check that the fans and vents are clear.',
+        '{{celsius, celsius}}. At this temperature the chip protects itself by slowing down, and sustained heat shortens its life. Check that the fans and vents are clear.',
     },
     networkErrors: {
       title: '{{adapter}} is dropping packets',
       cause:
         '{{errors}} a second. On a cable this usually means a bad cable or port; on Wi-Fi, a weak signal or a congested channel.',
     },
-    batteryLow: { title: 'Battery is low', cause: '{{percent}}% remaining and not charging.' },
+    batteryLow: {
+      title: 'Battery is low',
+      cause: '{{percent, percent}} remaining and not charging.',
+    },
     batteryHealth: {
       title: 'The battery has worn down',
       cause:
-        'It holds {{percent}}% of its original capacity. This is normal with age, but runtime will keep shrinking.',
+        'It holds {{percent, percent}} of its original capacity. This is normal with age, but runtime will keep shrinking.',
     },
   },
 
@@ -204,6 +208,11 @@ const en = {
     copy: 'Copy report',
     copied: 'Copied',
     close: 'Close',
+    done: 'Done',
+    showInProcesses: 'Show in Processes',
+    // Starts with the visible label so speech input ("click Show in
+    // Processes") still matches (WCAG 2.5.3), then names which one.
+    showInProcessesFor: 'Show in Processes: {{name}}',
     working: 'Looking…',
     failed: 'Vitals could not reach its own measurement engine to answer this.',
     report: {
@@ -225,6 +234,29 @@ const en = {
     title: 'No readings are arriving',
     noSampler:
       'Vitals cannot reach the part of itself that measures your computer. Nothing is wrong with the machine — restarting Vitals usually fixes this.',
+  },
+
+  health: {
+    label: 'How your computer is doing',
+    clear: 'All clear: nothing needs your attention right now.',
+    attention: 'Needs attention: {{title}}',
+    waiting: 'Waiting for the first readings…',
+  },
+
+  firstRun: {
+    title: 'Welcome to Vitals',
+    body: 'Three things most people want first. Pick any of them, or none.',
+    diagnose: 'Find out why your PC is slow',
+    diagnoseHint: 'Looks at what is happening right now and names the applications behind it.',
+    watchdog: 'Watch for freezes and warn me',
+    watchdogHint:
+      'Starts when you sign in to Windows, uses very little processor time, and names the program behind a freeze. You can turn it off in Settings.',
+    watchdogOn: 'The freeze watchdog is on. You can turn it off in Settings.',
+    watchdogFailed: 'Could not turn the watchdog on: {{reason}}',
+    taskManager: 'Open Vitals with Ctrl+Shift+Esc',
+    taskManagerHint:
+      'Opens Settings at “Replace Task Manager”, so the usual shortcut opens Vitals instead. Windows asks for permission first.',
+    dismissLabel: 'Dismiss the welcome card',
   },
 } as const;
 
@@ -253,7 +285,7 @@ const ro = {
 
   widget: {
     cpu: { title: 'Procesor', description: 'Încărcarea în timp, pe nucleu și frecvența.' },
-    memory: { title: 'Memorie', description: 'Utilizată, în cache și angajată.' },
+    memory: { title: 'Memorie', description: 'Utilizată, în cache și promisă programelor.' },
     disk: { title: 'Disc', description: 'Citire și scriere pe toate unitățile.' },
     network: { title: 'Rețea', description: 'Trafic trimis și primit pe toate adaptoarele.' },
     gpu: { title: 'Placă video', description: 'Utilizare și memorie video pentru fiecare placă.' },
@@ -261,7 +293,10 @@ const ro = {
     battery: { title: 'Baterie', description: 'Nivel, uzură și timp rămas.' },
     topCpu: { title: 'Top procesor', description: 'Ce aplicații folosesc procesorul.' },
     topMemory: { title: 'Top memorie', description: 'Ce aplicații folosesc memoria.' },
-    uptime: { title: 'Sistem', description: 'Timp de funcționare, procese, fire și descriptori.' },
+    uptime: {
+      title: 'Sistem',
+      description: 'Timp de funcționare, procese, fire de execuție și descriptori.',
+    },
     storage: { title: 'Stocare', description: 'Spațiul liber pe fiecare unitate.' },
     alerts: { title: 'Atenție', description: 'Ce pare în neregulă și de ce.' },
     history: {
@@ -290,19 +325,19 @@ const ro = {
 
   cpu: {
     total: 'Total',
-    kernel: 'Nucleu',
+    kernel: 'Timp Windows',
     clock: 'Frecvență',
     cores: 'Nuclee',
     perCore: 'Pe nucleu',
     processes: 'Procese',
-    threads: 'Fire',
-    handles: 'Descriptori',
+    threads: 'Fire de execuție',
+    handles: 'Descriptori (handle-uri)',
   },
   memory: {
     used: 'Utilizată',
     available: 'Disponibilă',
     cached: 'În cache',
-    committed: 'Angajată',
+    committed: 'Memorie promisă programelor',
     ofTotal: '{{used}} din {{total}}',
     speed: 'Frecvență',
     slots: '{{used}} din {{total}} sloturi',
@@ -324,7 +359,7 @@ const ro = {
     idle: 'Nimic nu folosește asta acum.',
     viewAll: 'Vezi toate procesele',
   },
-  storage: { free: '{{free}} liberi din {{total}}', used: '{{percent}}% utilizat' },
+  storage: { free: '{{free}} liberi din {{total}}', used: '{{percent, percent}} utilizat' },
   system: { uptime: 'Timp de funcționare', since: 'Pornit din {{date}}' },
 
   alert: {
@@ -335,7 +370,7 @@ const ro = {
     cpuSustained: {
       title: 'Procesorul este solicitat de ceva timp',
       cause:
-        'Procesorul a fost în medie la {{percent}}% timp de peste {{seconds}} secunde. Rulează ceva ce poate nu ai pornit tu.',
+        'Procesorul a fost în medie la {{percent, percent}} timp de peste {{seconds}} secunde. Rulează ceva ce poate nu ai pornit tu.',
     },
     cpuThrottled: {
       title: 'Procesorul rulează mai încet decât poate',
@@ -349,12 +384,12 @@ const ro = {
     memoryPressure: {
       title: 'Calculatorul rămâne fără memorie',
       cause:
-        '{{faults}} erori de pagină pe secundă și aproape deloc memorie liberă — Windows mută pagini pe disc ca să facă față, iar asta încetinește totul.',
+        '{{faults}} citiri de memorie de pe disc pe secundă și aproape deloc memorie liberă — Windows mută pagini pe disc ca să facă față, iar asta încetinește totul.',
     },
     memoryCommit: {
-      title: 'Memoria angajată este aproape de limită',
+      title: 'Memoria promisă programelor este aproape de limită',
       cause:
-        '{{percent}}% din limita de angajare este folosită. Alocările noi pot începe să eșueze, ceea ce aplicațiile raportează de obicei ca lipsă de memorie.',
+        '{{percent, percent}} din limita de memorie promisă este folosită. Alocările noi pot începe să eșueze, ceea ce aplicațiile raportează de obicei ca lipsă de memorie.',
     },
     diskSaturated: {
       title: '{{disk}} este ocupat continuu',
@@ -368,7 +403,7 @@ const ro = {
     diskSpace: {
       title: '{{disk}} este aproape plin',
       cause:
-        'Doar {{percent}}% liber. Sub acest prag Windows nu mai poate pagina, actualiza sau scrie fișiere temporare în mod fiabil.',
+        'Doar {{percent, percent}} liber. Sub acest prag Windows nu mai poate pagina, actualiza sau scrie fișiere temporare în mod fiabil.',
     },
     diskHealth: {
       title: '{{disk}} raportează că se defectează',
@@ -387,18 +422,21 @@ const ro = {
     thermalCpu: {
       title: 'Procesorul se supraîncălzește',
       cause:
-        '{{celsius}}°C. La această temperatură cipul se protejează încetinind, iar căldura susținută îi scurtează viața. Verifică dacă ventilatoarele și fantele sunt libere.',
+        '{{celsius, celsius}}. La această temperatură cipul se protejează încetinind, iar căldura susținută îi scurtează viața. Verifică dacă ventilatoarele și fantele sunt libere.',
     },
     networkErrors: {
       title: '{{adapter}} pierde pachete',
       cause:
         '{{errors}} pe secundă. Pe cablu asta înseamnă de obicei un cablu sau un port defect; pe Wi-Fi, semnal slab sau un canal aglomerat.',
     },
-    batteryLow: { title: 'Bateria este descărcată', cause: '{{percent}}% rămas și nu se încarcă.' },
+    batteryLow: {
+      title: 'Bateria este descărcată',
+      cause: '{{percent, percent}} rămas și nu se încarcă.',
+    },
     batteryHealth: {
       title: 'Bateria s-a uzat',
       cause:
-        'Mai păstrează {{percent}}% din capacitatea inițială. Este normal odată cu vârsta, dar autonomia va scădea în continuare.',
+        'Mai păstrează {{percent, percent}} din capacitatea inițială. Este normal odată cu vârsta, dar autonomia va scădea în continuare.',
     },
   },
 
@@ -420,6 +458,9 @@ const ro = {
     copy: 'Copiază raportul',
     copied: 'Copiat',
     close: 'Închide',
+    done: 'Gata',
+    showInProcesses: 'Arată în Procese',
+    showInProcessesFor: 'Arată în Procese: {{name}}',
     working: 'Se analizează…',
     failed: 'Vitals nu a putut ajunge la propriul motor de măsurare pentru a răspunde.',
     report: {
@@ -441,6 +482,29 @@ const ro = {
     title: 'Nu sosesc măsurători',
     noSampler:
       'Vitals nu poate ajunge la partea din el care măsoară calculatorul. Nu este nimic în neregulă cu mașina — de obicei repornirea aplicației Vitals rezolvă asta.',
+  },
+
+  health: {
+    label: 'Cum se descurcă calculatorul tău',
+    clear: 'Totul e în regulă: nimic nu necesită atenția ta acum.',
+    attention: 'Necesită atenție: {{title}}',
+    waiting: 'Se așteaptă primele măsurători…',
+  },
+
+  firstRun: {
+    title: 'Bun venit în Vitals',
+    body: 'Trei lucruri pe care le vor cei mai mulți oameni la început. Alege oricare dintre ele sau niciunul.',
+    diagnose: 'Află de ce merge încet calculatorul',
+    diagnoseHint: 'Se uită la ce se întâmplă acum și numește aplicațiile responsabile.',
+    watchdog: 'Urmărește blocajele și avertizează-mă',
+    watchdogHint:
+      'Pornește când te conectezi la Windows, folosește foarte puțin procesor și numește programul din spatele unui blocaj. Îl poți opri din Setări.',
+    watchdogOn: 'Watchdog-ul pentru blocaje este pornit. Îl poți opri din Setări.',
+    watchdogFailed: 'Watchdog-ul nu a putut fi pornit: {{reason}}',
+    taskManager: 'Deschide Vitals cu Ctrl+Shift+Esc',
+    taskManagerHint:
+      'Deschide Setările la „Înlocuiește Task Manager”, ca scurtătura obișnuită să deschidă Vitals. Windows îți cere mai întâi permisiunea.',
+    dismissLabel: 'Închide cardul de bun venit',
   },
 } as const;
 
@@ -471,6 +535,30 @@ export function registerDashboardStrings(): void {
 
   i18n.addResourceBundle('en', DASHBOARD_NS, en, true, false);
   i18n.addResourceBundle('ro', DASHBOARD_NS, ro, true, false);
+  registerValueFormatters();
+}
+
+/**
+ * `{{percent, percent}}` and `{{celsius, celsius}}` in the strings above.
+ *
+ * Alert values arrive from Rust as bare, already-rounded numbers, and four
+ * consumers interpolate them (the widget, the diagnosis dialog, its report,
+ * the health strip). Writing "{{percent}}%" in the template baked English
+ * spacing into Romanian ("43%" where it should be "43 %"); a formatter keeps
+ * the number exactly as Rust rounded it and lets the locale place the sign,
+ * without each consumer having to remember to pre-format.
+ */
+function registerValueFormatters(): void {
+  const formatter = i18n.services.formatter;
+  if (formatter === undefined) return;
+  const asNumber = (value: unknown): number | null =>
+    typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : null;
+  formatter.add('percent', (value: unknown, lng: string | undefined) =>
+    formatPercent(asNumber(value), lng, 0),
+  );
+  formatter.add('celsius', (value: unknown, lng: string | undefined) =>
+    formatTemperature(asNumber(value), lng),
+  );
 }
 
 /** Exported for the parity test, which asserts en and ro define the same keys. */

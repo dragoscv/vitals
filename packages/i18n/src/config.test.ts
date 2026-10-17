@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { defaultLocale, i18n, initI18n, isSupportedLocale, locales } from './config';
 import en from './locales/en.json';
@@ -128,5 +128,29 @@ describe('initI18n', () => {
     await initI18n('en');
     expect(i18n.language).toBe('en');
     expect(i18n.t('nav.processes')).toBe('Processes');
+  });
+});
+
+describe('<html lang>', () => {
+  // The package runs under the node environment; a minimal stand-in for
+  // `document` is all the sync touches.
+  const root = { lang: 'en' };
+  beforeAll(() => {
+    vi.stubGlobal('document', { documentElement: root });
+  });
+  afterAll(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('follows the locale initI18n is called with, so a screen reader speaks Romanian with Romanian rules', async () => {
+    await initI18n('ro');
+    expect(root.lang).toBe('ro');
+  });
+
+  it('follows a later changeLanguage from settings, not only the initial locale', async () => {
+    await i18n.changeLanguage('en');
+    expect(root.lang).toBe('en');
+    await i18n.changeLanguage('ro');
+    expect(root.lang).toBe('ro');
   });
 });

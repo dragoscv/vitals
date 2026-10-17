@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 
 import { cn, focusRing, Tooltip, useReducedMotion } from '@vitals/ui';
 
-import { navItems, type RouteId } from './navigation';
+import { navGroupIds, navItems, type RouteId } from './navigation';
 import { SHELL_NS } from './strings';
 
 export interface SidebarProps {
@@ -31,7 +31,7 @@ interface IndicatorBox {
  * item.
  */
 function useIndicator(
-  list: React.RefObject<HTMLUListElement | null>,
+  list: React.RefObject<HTMLDivElement | null>,
   active: string,
   collapsed: boolean,
 ): IndicatorBox | null {
@@ -78,7 +78,7 @@ export function Sidebar({
 }: SidebarProps) {
   const { t } = useTranslation();
   const { t: ts } = useTranslation(SHELL_NS);
-  const listRef = useRef<HTMLUListElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const indicator = useIndicator(listRef, active, collapsed);
   const reduced = useReducedMotion();
   // The first placement is not a movement: sliding in from the top on launch
@@ -111,7 +111,7 @@ export function Sidebar({
    * sampler for every section the user passes through on the way to the one
    * they wanted.
    */
-  function onKeyDown(event: KeyboardEvent<HTMLUListElement>) {
+  function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     const keys = ['ArrowDown', 'ArrowUp', 'Home', 'End'];
     if (!keys.includes(event.key)) return;
 
@@ -149,10 +149,16 @@ export function Sidebar({
       className="shell-chrome flex shrink-0 flex-col transition-[width] duration-(--duration-normal) ease-(--ease-out-quart)"
       style={{ width: collapsed ? COLLAPSED_WIDTH : EXPANDED_WIDTH }}
     >
-      <ul
+      {/*
+       * One scroll container holding every group, so the indicator and the
+       * roving arrow keys still span all twelve items: arrowing past the
+       * last item of "Now" lands on the first of "Machine", not nowhere.
+       */}
+      <div
         ref={listRef}
+        data-nav-list
         onKeyDown={onKeyDown}
-        className="relative flex min-h-0 flex-1 flex-col gap-0.5 overflow-x-hidden overflow-y-auto p-2"
+        className="relative flex min-h-0 flex-1 flex-col gap-2 overflow-x-hidden overflow-y-auto p-2"
       >
         {/*
          * One indicator for the whole list, always mounted, moved by
@@ -168,7 +174,7 @@ export function Sidebar({
          * active item is identifiable without distinguishing the accent tint.
          */}
         {indicator !== null && (
-          <li
+          <div
             aria-hidden="true"
             data-nav-indicator
             className={cn(
@@ -184,68 +190,36 @@ export function Sidebar({
             }}
           >
             <span className="absolute top-1/2 left-0 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-[var(--color-accent)] shadow-[0_0_8px_var(--color-accent)]" />
-          </li>
+          </div>
         )}
-        {navItems.map((item) => {
-          const label = t(item.labelKey);
-          const isActive = item.id === active;
-          const Icon = item.icon;
-
-          const button = (
-            <button
-              type="button"
-              data-nav-item={item.id}
-              // Collapsed, only the icon renders, so the visible text that
-              // normally names the button is gone. The tooltip is not a
-              // substitute: it names the trigger via `aria-describedby`, which
-              // is a description, not a name.
-              aria-label={collapsed ? label : undefined}
-              // `aria-current` rather than `aria-selected`: these are links to
-              // locations, not options in a listbox, and `aria-selected` on a
-              // button is ignored by every screen reader.
-              aria-current={isActive ? 'page' : undefined}
-              tabIndex={isActive ? 0 : -1}
-              onClick={() => onNavigate(item.id)}
-              className={cn(
-                'group relative flex h-9 w-full items-center gap-2.5 rounded-[var(--radius-control)] px-2.5 text-left',
-                'transition-colors duration-(--duration-fast)',
-                collapsed && 'justify-center px-0',
-                isActive
-                  ? // Not `--color-accent`: on the indicator's accent-subtle
-                    // fill it measured 4.12:1 in light mode, under AA.
-                    'text-[var(--color-accent-text)]'
-                  : 'text-[var(--color-fg-muted)] hover:bg-[var(--color-bg-inset)]/70 hover:text-[var(--color-fg-default)]',
-                focusRing,
-                'focus-visible:-outline-offset-2',
-              )}
-            >
-              <Icon
-                aria-hidden="true"
-                className={cn(
-                  'size-4 shrink-0 transition-transform duration-(--duration-normal) ease-(--ease-spring)',
-                  'group-hover:scale-110',
-                  isActive && 'drop-shadow-[0_0_6px_var(--color-accent)]',
-                )}
-              />
-              {!collapsed && <span className="truncate text-sm font-medium">{label}</span>}
-            </button>
-          );
-
+        {navGroupIds.map((group, groupIndex) => {
+          const headingId = `nav-group-${group}`;
           return (
-            <li key={item.id} className="relative">
-              {/* Collapsed, the icon is the only label there is, so the
-                  tooltip stops being decoration and becomes the name. */}
-              {collapsed ? (
-                <Tooltip content={label} side="right">
-                  {button}
-                </Tooltip>
-              ) : (
-                button
-              )}
-            </li>
+            <div key={group} role="group" aria-labelledby={headingId}>
+              {/* Quiet on purpose: a label for skimming, not a destination.
+                  Collapsed there is no room for text, so the label stays for
+                  screen readers and the gap between groups marks the
+                  boundary (no hairline: the chrome draws no dividers, see
+                  styles.test.ts). Not a heading element: page titles own the
+                  outline, and three extra headings per page would be noise
+                  to anyone navigating by headings. */}
+              <div
+                id={headingId}
+                className={cn(
+                  collapsed
+                    ? 'sr-only'
+                    : 'px-2.5 pt-1 pb-1 text-2xs font-medium tracking-wide text-[var(--color-fg-subtle)] uppercase',
+                )}
+              >
+                {ts(`sidebar.group.${group}`)}
+              </div>
+              <ul className={cn('flex flex-col gap-0.5', collapsed && groupIndex > 0 && 'pt-2')}>
+                {navItems.filter((item) => item.group === group).map((item) => renderItem(item))}
+              </ul>
+            </div>
           );
         })}
-      </ul>
+      </div>
 
       <div className={cn('flex shrink-0 items-center gap-1 p-2', collapsed && 'flex-col')}>
         <SidebarAction
@@ -271,6 +245,66 @@ export function Sidebar({
       </div>
     </nav>
   );
+
+  function renderItem(item: (typeof navItems)[number]): React.JSX.Element {
+    const label = t(item.labelKey);
+    const isActive = item.id === active;
+    const Icon = item.icon;
+
+    const button = (
+      <button
+        type="button"
+        data-nav-item={item.id}
+        // Collapsed, only the icon renders, so the visible text that
+        // normally names the button is gone. The tooltip is not a
+        // substitute: it names the trigger via `aria-describedby`, which
+        // is a description, not a name.
+        aria-label={collapsed ? label : undefined}
+        // `aria-current` rather than `aria-selected`: these are links to
+        // locations, not options in a listbox, and `aria-selected` on a
+        // button is ignored by every screen reader.
+        aria-current={isActive ? 'page' : undefined}
+        tabIndex={isActive ? 0 : -1}
+        onClick={() => onNavigate(item.id)}
+        className={cn(
+          'group relative flex h-9 w-full items-center gap-2.5 rounded-[var(--radius-control)] px-2.5 text-left',
+          'transition-colors duration-(--duration-fast)',
+          collapsed && 'justify-center px-0',
+          isActive
+            ? // Not `--color-accent`: on the indicator's accent-subtle
+              // fill it measured 4.12:1 in light mode, under AA.
+              'text-[var(--color-accent-text)]'
+            : 'text-[var(--color-fg-muted)] hover:bg-[var(--color-bg-inset)]/70 hover:text-[var(--color-fg-default)]',
+          focusRing,
+          'focus-visible:-outline-offset-2',
+        )}
+      >
+        <Icon
+          aria-hidden="true"
+          className={cn(
+            'size-4 shrink-0 transition-transform duration-(--duration-normal) ease-(--ease-spring)',
+            'group-hover:scale-110',
+            isActive && 'drop-shadow-[0_0_6px_var(--color-accent)]',
+          )}
+        />
+        {!collapsed && <span className="truncate text-sm font-medium">{label}</span>}
+      </button>
+    );
+
+    return (
+      <li key={item.id} className="relative">
+        {/* Collapsed, the icon is the only label there is, so the
+                  tooltip stops being decoration and becomes the name. */}
+        {collapsed ? (
+          <Tooltip content={label} side="right">
+            {button}
+          </Tooltip>
+        ) : (
+          button
+        )}
+      </li>
+    );
+  }
 }
 
 function SidebarAction({

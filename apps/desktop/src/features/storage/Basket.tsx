@@ -176,7 +176,7 @@ export function BasketDialog({
         }
       >
         {shownError !== null && (
-          <p role="alert" className="mb-2 text-2xs text-[var(--color-status-danger)]">
+          <p role="alert" className="mb-2 text-2xs text-[var(--color-danger-text)]">
             {t('basket.failed', { message: shownError })}
           </p>
         )}

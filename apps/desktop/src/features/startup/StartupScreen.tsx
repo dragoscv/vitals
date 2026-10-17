@@ -268,7 +268,7 @@ export function StartupScreen({
       </header>
 
       {state.error !== null && state.error !== NO_HOST && (
-        <p role="alert" className="text-2xs text-[var(--color-status-danger)]">
+        <p role="alert" className="text-2xs text-[var(--color-danger-text)]">
           {t('stale', { message: state.error })}
         </p>
       )}
@@ -328,7 +328,7 @@ export function StartupScreen({
         </p>
       )}
       {failure !== null && (
-        <p role="alert" className="text-2xs text-[var(--color-status-danger)]">
+        <p role="alert" className="text-2xs text-[var(--color-danger-text)]">
           {failure}
         </p>
       )}
@@ -681,7 +681,7 @@ function ServiceTable({
                       <span
                         className={
                           service.startType === 'unknown'
-                            ? 'text-[var(--color-status-warn)]'
+                            ? 'text-[var(--color-warn-text)]'
                             : undefined
                         }
                       >

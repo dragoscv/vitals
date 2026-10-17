@@ -15,7 +15,7 @@ ever differ, that one applies.
 - **No warranty.** The software is provided as it is, without any warranty. Vitals can end,
   suspend and reprioritise processes and change startup entries; those actions do what they say,
   and you are responsible for using them.
-- **Young software.** Version 0.9 is the first stable release. Expect rough edges and keep backups
+- **Young software.** Version 1.0 is the first stable release. Expect rough edges and keep backups
   of anything that matters, as you would with any software.
 - **Your own machine.** Use Vitals on computers you own or are allowed to administer. Remote access
   gives the paired device the scope you chose; give control scope only to devices you trust.

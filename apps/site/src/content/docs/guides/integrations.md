@@ -45,10 +45,11 @@ A ready-made package adds CPU, memory, disk, GPU and alert sensors to Home Assis
 same generated types the app itself uses. No dependencies; ESM with full type declarations.
 
 ```sh
-pnpm add @vitals-app/client@next
+pnpm add @vitals-app/client
 ```
 
-The `next` tag follows the beta. The source is `packages/client` in the repository (named
+The source and a full usage guide are in
+[`packages/client`](https://github.com/dragoscv/vitals/tree/main/packages/client) (named
 `@vitals/client` inside the monorepo; the `@vitals` npm scope belongs to another project).
 
 ## Discovery

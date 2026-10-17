@@ -53,23 +53,25 @@ Honest numbers: when something cannot be measured, Vitals shows a dash, never a 
 
 Private by design: no accounts, no ads, no telemetry, no analytics. Nothing leaves your computer unless you turn on remote access yourself.
 
-Free and open source (MIT), forever. Available in English and Romanian.
+Free and open source (MIT). Available in English and Romanian.
 
 ## What's new in this version (≤ 1500 characters)
 
-What's new in 1.0.0
+What's new in 1.0.2
+
+• Security: the TLS library built into Vitals (rustls) is updated to 0.23.46, which fixes four published advisories. The Store version makes no internet requests of its own, so this keeps a dependency current rather than closing a hole you were exposed to
+• Release fixes behind the scenes; the Windows app itself works as in 1.0.0
+
+New in 1.0, the first stable release
 
 • Program icons in the process list, including services and other accounts' processes
 • Totals above the CPU, memory, disk, network and GPU columns
 • Power usage and power trend columns, plus Type, Working set, Disk read, Disk write and Parent PID
 • Bring to front: right-click an app to restore and raise its window
-• The Apps filter now counts every program with a window, as Task Manager does
 • Temperatures for the CPU, NVIDIA graphics cards and every drive, and SSD health with hours on and data written
-• CPU speed, current and base
-• Optional CPU load on the taskbar button, turning amber above 75 % and red above 90 %
-• Each kind of hardware has its own colour in Performance
+• CPU speed, and optional CPU load on the taskbar button
 
-Fixed: charts now use your accent colour; storage and device cards no longer cut off their content; columns resize instead of sorting when you drag their edge; Threads, Handles and Uptime can be turned on again.
+Fixed: charts use your accent colour; storage and device cards no longer cut off their content; columns resize instead of sorting when you drag their edge.
 
 ## Features (up to 20, ≤ 200 characters each)
 
@@ -112,7 +114,7 @@ https://vitals.dragoscatalin.ro
 
 ## Support contact
 
-https://github.com/dragoscv/vitals/issues
+dragoscv12@gmail.com
 
 ## Copyright and trademark info
 

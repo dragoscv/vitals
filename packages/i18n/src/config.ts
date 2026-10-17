@@ -12,6 +12,28 @@ export const defaultLocale: Locale = 'en';
 export const i18n: I18nInstance = i18next;
 
 /**
+ * Mirrors the active language onto `<html lang>`.
+ *
+ * Screen readers pick their voice and pronunciation rules from `lang`; the
+ * pages ship `lang="en"`, so a Romanian UI was read with English phonetics.
+ * Every webview (main, HUD, mobile) initialises through `initI18n`, so the
+ * listener lives here rather than in each entry point. No-op without a DOM
+ * (CLI, Node tests).
+ */
+export function syncDocumentLang(lng: string | undefined): void {
+  if (typeof document === 'undefined' || !lng) return;
+  document.documentElement.lang = lng;
+}
+
+let langListenerAttached = false;
+
+function attachLangListener(): void {
+  if (langListenerAttached) return;
+  langListenerAttached = true;
+  i18next.on('languageChanged', syncDocumentLang);
+}
+
+/**
  * Initialises i18next.
  *
  * `escapeValue` is disabled because React already escapes interpolated values;
@@ -33,8 +55,10 @@ export async function initI18n(
   locale: Locale = defaultLocale,
   options: InitOptions = {},
 ): Promise<I18nInstance> {
+  attachLangListener();
   if (i18next.isInitialized) {
     await i18next.changeLanguage(locale);
+    syncDocumentLang(i18next.language);
     return i18next;
   }
 
@@ -52,6 +76,7 @@ export async function initI18n(
     returnNull: false,
   });
 
+  syncDocumentLang(i18next.language);
   return i18next;
 }
 

@@ -8,12 +8,16 @@ hero:
   tagline: A fast, native system monitor and task manager for Windows. Free and open source under the MIT licence. Watch it from your phone, scrape it with Prometheus, script it from a terminal.
   image:
     file: ../../assets/logo.svg
-    alt: The Vitals logo, a white pulse line in a teal rounded square.
+    alt: The Vitals logo, a white pulse line in a green rounded square.
   actions:
-    - text: Download for Windows
-      link: https://github.com/dragoscv/vitals/releases/latest/download/Vitals_x64-setup.exe
+    - text: Get it from the Microsoft Store
+      link: https://apps.microsoft.com/detail/9P95RK5VMGPJ
       icon: download
       variant: primary
+    - text: Download the installer
+      link: /download/
+      icon: right-arrow
+      variant: secondary
     - text: View on GitHub
       link: https://github.com/dragoscv/vitals
       icon: external
@@ -22,8 +26,9 @@ hero:
 
 import { Aside, Card, CardGrid, Tabs, TabItem, LinkCard } from '@astrojs/starlight/components';
 
-<Aside type="note" title="Vitals 0.9">
-  Windows 10 and 11, x64. macOS and Linux are on the roadmap.
+<Aside type="note" title="Vitals 1.0">
+  Windows 10 and 11, x64 (ARM64 in preview), plus Android phone, Wear OS and TV apps. Windows only
+  on the desktop; there are no dated plans for macOS or Linux.
 </Aside>
 
 ## What it does
@@ -51,8 +56,9 @@ import { Aside, Card, CardGrid, Tabs, TabItem, LinkCard } from '@astrojs/starlig
     by one sampler so they always agree.
   </Card>
   <Card title="Light on your machine" icon="rocket">
-    Under 1% CPU at idle, enforced by a budget test in CI. A monitor that shows up as a top consumer
-    in its own process list has failed at its job.
+    The Windows sampler has a 30 ms-per-sample budget enforced in CI — at most about 3 % of one core
+    at the one-second rate while visible — and it samples only every 20 seconds when hidden. A
+    monitor that shows up as a top consumer in its own process list has failed at its job.
   </Card>
   <Card title="No telemetry" icon="information">
     No analytics, no crash reporting, no account. The only automatic request is an update check, and
@@ -67,39 +73,48 @@ import { Aside, Card, CardGrid, Tabs, TabItem, LinkCard } from '@astrojs/starlig
 ## Install
 
 <Tabs syncKey="install">
-  <TabItem label="Installer">
-    Download [`Vitals_x64-setup.exe`](https://github.com/dragoscv/vitals/releases/latest/download/Vitals_x64-setup.exe)
-    and run it. There is no wizard; it installs in about five seconds. Windows SmartScreen will
-    warn you on first run because the builds are not signed with a commercial certificate. The
-    [download page](/download/) explains why and how to verify the file yourself.
+  <TabItem label="Microsoft Store">
+    Get [Vitals: System Monitor](https://apps.microsoft.com/detail/9P95RK5VMGPJ) from the
+    Microsoft Store. There is no SmartScreen warning and the Store keeps it up to date. The Store
+    build leaves out the built-in updater, the Task Manager replacement and the optional sensors
+    service.
   </TabItem>
   <TabItem label="winget">
     ```powershell
     winget install Vitals.Vitals
     ```
-
-    <Aside type="caution" title="Coming soon">
-      The winget package has not been published yet. Use the installer until it is.
-    </Aside>
-
   </TabItem>
   <TabItem label="Scoop">
     ```powershell
     scoop bucket add vitals https://github.com/dragoscv/scoop-vitals
-    scoop install vitals
+    scoop install vitals/vitals
     ```
+  </TabItem>
+  <TabItem label="Installer">
+    Download [`Vitals_x64-setup.exe`](https://github.com/dragoscv/vitals/releases/latest/download/Vitals_x64-setup.exe)
+    and run it. There is no wizard. Windows SmartScreen will warn you on first run because the
+    builds are not signed with a commercial certificate. The
+    [download page](/download/) explains why and how to verify the file yourself.
   </TabItem>
   <TabItem label="Chocolatey">
     ```powershell
     choco install vitals
     ```
 
-    <Aside type="caution" title="Coming soon">
-      The Chocolatey package has not been published yet. Use the installer until it is.
+    <Aside type="caution" title="Pending moderation">
+      The 1.0 package is waiting for Chocolatey's moderators; until it is approved only an old 0.9
+      pre-release is listed. Use one of the other options meanwhile.
     </Aside>
 
   </TabItem>
 </Tabs>
+
+## Phone, watch and TV
+
+Every [GitHub release](https://github.com/dragoscv/vitals/releases/latest) carries three Android
+APKs: `Vitals_<version>_android.apk` for phones, `_wear.apk` for Wear OS and `_tv.apk` for Android
+and Google TV. Each monitors the device it runs on and can watch paired Windows PCs on your local
+network. Google Play listings are coming later.
 
 ## Next steps
 

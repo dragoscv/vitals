@@ -1,7 +1,7 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { RingBuffer } from './ring-buffer';
-import { TimeSeriesChart } from './TimeSeriesChart';
+import { summariseSeries, TimeSeriesChart } from './TimeSeriesChart';
 import { installCanvasMock, type RecordingContext } from './test/canvas-mock';
 
 let recording: RecordingContext;
@@ -40,6 +40,65 @@ describe('TimeSeriesChart', () => {
       />,
     );
     expect(screen.getByRole('img', { name: 'CPU history' })).toBeTruthy();
+  });
+
+  it('names itself with a summary of the data, so a screen reader learns what the chart shows', () => {
+    render(
+      <TimeSeriesChart
+        series={[{ buffer: filled([10, 20, 60]), color: 'red' }]}
+        revision={0}
+        ariaLabel="CPU"
+        describe={(s) => `CPU: average ${s.average}, peak ${s.peak}`}
+      />,
+    );
+    expect(screen.getByRole('img', { name: 'CPU: average 30, peak 60' })).toBeTruthy();
+  });
+
+  it('refreshes the summary at most every five seconds, not on every tick', () => {
+    let now = 1_000;
+    vi.spyOn(performance, 'now').mockImplementation(() => now);
+    const buffer = filled([10], 10);
+    const series = [{ buffer, color: 'red' }];
+    const describe = (s: { peak: number }): string => `peak ${s.peak}`;
+    const { rerender } = render(
+      <TimeSeriesChart series={series} revision={0} ariaLabel="CPU" describe={describe} />,
+    );
+    expect(screen.getByRole('img', { name: 'peak 10' })).toBeTruthy();
+
+    buffer.push(90);
+    now += 1_000;
+    rerender(<TimeSeriesChart series={series} revision={1} ariaLabel="CPU" describe={describe} />);
+    expect(screen.getByRole('img', { name: 'peak 10' }), 'held for five seconds').toBeTruthy();
+
+    now += 5_000;
+    rerender(<TimeSeriesChart series={series} revision={2} ariaLabel="CPU" describe={describe} />);
+    expect(screen.getByRole('img', { name: 'peak 90' })).toBeTruthy();
+  });
+
+  it('falls back to the title while there is nothing to summarise', () => {
+    render(
+      <TimeSeriesChart
+        series={[{ buffer: new RingBuffer(4), color: 'red' }]}
+        revision={0}
+        ariaLabel="CPU"
+        describe={() => 'never'}
+      />,
+    );
+    expect(screen.getByRole('img', { name: 'CPU' })).toBeTruthy();
+  });
+
+  it('summarises gaps as absent rather than as zero', () => {
+    const buffer = new RingBuffer(4);
+    buffer.push(40);
+    buffer.pushGap();
+    buffer.push(20);
+    buffer.pushGap();
+    expect(summariseSeries([{ buffer, color: 'red' }])).toEqual({
+      average: 30,
+      peak: 40,
+      latest: null,
+      samples: 2,
+    });
   });
 
   it('redraws when revision changes and NOT when the parent re-renders with the same revision', () => {

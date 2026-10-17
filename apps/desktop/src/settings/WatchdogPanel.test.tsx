@@ -155,8 +155,18 @@ describe('WatchdogPanel', () => {
     await waitFor(() =>
       expect(a.save).toHaveBeenCalledWith({
         ...defaultWatchdogConfig,
+        // On, because Windows said it is registered and nothing was saved
+        // here yet: the switch follows the machine, not the default.
+        enabled: true,
         sound: { kind: 'file', value: path },
       }),
     );
+  });
+
+  it('starts off on a fresh install, because the watchdog is opt-in', async () => {
+    const fresh: WatchdogStatus = { available: true, registered: false, running: false };
+    render(<WatchdogPanel api={api({ status: vi.fn(() => Promise.resolve(fresh)) })} />);
+    await screen.findByText(/^Not running\./);
+    expect(screen.getByRole('switch').getAttribute('aria-checked')).toBe('false');
   });
 });

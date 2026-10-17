@@ -11,6 +11,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import app.vitals.core.model.ControlError
+import app.vitals.core.loggingHandler
 import app.vitals.core.net.ApiFailure
 import app.vitals.core.net.VitalsClient
 import app.vitals.core.net.WakeOnLan
@@ -44,7 +45,13 @@ import kotlinx.coroutines.withTimeoutOrNull
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 
-private val Context.tvSettings by preferencesDataStore(name = "tv-settings")
+// A corrupt file would otherwise throw on every read; defaults are the safe fallback.
+private val Context.tvSettings by preferencesDataStore(
+    name = "tv-settings",
+    corruptionHandler = androidx.datastore.core.handlers.ReplaceFileCorruptionHandler {
+        androidx.datastore.preferences.core.emptyPreferences()
+    },
+)
 
 /**
  * Everything the TV app holds, one per process: the paired PCs, one live
@@ -56,7 +63,7 @@ private val Context.tvSettings by preferencesDataStore(name = "tv-settings")
  * run just because the app was opened once.
  */
 class TvGraph(private val app: Application) {
-    val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default + loggingHandler("VitalsTv"))
     val pairings = PairingStore(app)
     val device: DeviceMonitor = AndroidDeviceMonitor(app)
 

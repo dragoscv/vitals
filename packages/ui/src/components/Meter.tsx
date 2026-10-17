@@ -38,6 +38,15 @@ export interface MeterProps {
    * for a value the user has just acted on.
    */
   readonly live?: boolean;
+  /**
+   * Draw only the track, without the label/value row.
+   *
+   * For callers that already print the reading next to the meter — the
+   * Performance rail shows the percentage in its own header, and repeating it
+   * underneath read as two different numbers. `valueText` still names the
+   * value to assistive technology.
+   */
+  readonly hideValue?: boolean;
 }
 
 /**
@@ -58,6 +67,7 @@ export const Meter = forwardRef<HTMLDivElement, MeterProps>(function Meter(
     valueText,
     tone = 'accent',
     live = false,
+    hideValue = false,
     ...rest
   },
   ref,
@@ -67,14 +77,16 @@ export const Meter = forwardRef<HTMLDivElement, MeterProps>(function Meter(
 
   return (
     <div ref={ref} className={cn('flex flex-col gap-1', className)} {...rest}>
-      <div className="flex items-baseline justify-between gap-2 text-2xs">
-        <span className="truncate text-[var(--color-fg-muted)]">{label}</span>
-        <span className="tnum shrink-0 font-mono text-[var(--color-fg-default)]">
-          {/* Polite, never assertive: an assertive region interrupts whatever
-              the user is currently reading, and no metric is worth that. */}
-          <AnimatedValue value={valueText} live={live} />
-        </span>
-      </div>
+      {!hideValue && (
+        <div className="flex items-baseline justify-between gap-2 text-2xs">
+          <span className="truncate text-[var(--color-fg-muted)]">{label}</span>
+          <span className="tnum shrink-0 font-mono text-[var(--color-fg-default)]">
+            {/* Polite, never assertive: an assertive region interrupts whatever
+                the user is currently reading, and no metric is worth that. */}
+            <AnimatedValue value={valueText} live={live} />
+          </span>
+        </div>
+      )}
       <div
         role="meter"
         aria-label={accessibleLabel}

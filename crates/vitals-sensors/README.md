@@ -5,17 +5,18 @@ the hottest core and package power through the signed
 [PawnIO](https://pawnio.eu) driver and serves them **read-only** on
 `\\.\pipe\vitals-sensors`. The app only reads the pipe; it never opens the
 driver. Decision: [ADR-0034](../../docs/adr/0034-cpu-sensors-service.md).
-Ported from codai's `codai-sensors`, with RAPL package power added.
+Ported from `codai-sensors`, the author's own code in the codai project,
+relicensed MIT by its copyright holder for Vitals; RAPL package power added.
 
 ## Commands
 
-| Command                                   | What it does                                                                                                                                                                                                                                                                                         |
-| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `service`                                 | Run under the SCM (service `vitals-sensors`).                                                                                                                                                                                                                                                        |
-| `read`                                    | Elevated console debug: open PawnIO directly, print one line (two reads 1 s apart, so power is present). Exit 0 ok, 5 access denied, 1 other.                                                                                                                                                        |
-| `install [--pawnio-setup <PawnIO_setup>]` | Elevated. Installs PawnIO 2.2.0 if missing (SHA-256-checked copy, `-install -silent`), copies itself to `%ProgramFiles%\Vitals Sensors\`, creates and starts the auto-start service, waits for the first reading. Log: `%ProgramData%\Vitals Sensors\install.log`. Exit 5 not elevated, 3 no PawnIO. |
-| `uninstall`                               | Elevated. Stops and deletes the service, removes the install directory. Never removes PawnIO.                                                                                                                                                                                                        |
-| `version`                                 | `vitals-sensors <version>`                                                                                                                                                                                                                                                                           |
+| Command                                   | What it does                                                                                                                                                                                                                                                                                                                                                                                    |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `service`                                 | Run under the SCM (service `vitals-sensors`).                                                                                                                                                                                                                                                                                                                                                   |
+| `read`                                    | Elevated console debug: open PawnIO directly, print one line (two reads 1 s apart, so power is present). Exit 0 ok, 5 access denied, 1 other.                                                                                                                                                                                                                                                   |
+| `install [--pawnio-setup <PawnIO_setup>]` | Elevated. Installs PawnIO 2.2.0 if missing (SHA-256-checked copy, `-install -silent`), copies itself to `Program Files\Vitals Sensors\` (resolved via `FOLDERID_ProgramFiles`, never `%ProgramFiles%`), creates and starts the auto-start service, waits for the first reading. Log: `Program Files\Vitals Sensors\install.log` (admin-only, capped at 1 MB). Exit 5 not elevated, 3 no PawnIO. |
+| `uninstall`                               | Elevated. Stops and deletes the service, removes the install directory. Never removes PawnIO.                                                                                                                                                                                                                                                                                                   |
+| `version`                                 | `vitals-sensors <version>`                                                                                                                                                                                                                                                                                                                                                                      |
 
 The app does all of this from **Devices & sensors → CPU temperature and
 power**, with one administrator prompt.
@@ -40,8 +41,11 @@ message (`read_line`), not as an error.
 ## Modules
 
 `modules/IntelMSR.bin` and `modules/AMDFamily17.bin` are the signed
-PawnIO.Modules 0.2.11 release (LGPL-2.1, `modules/COPYING`). They are
-embedded in the exe and SHA-256-pinned in `src/lib.rs`.
+[PawnIO.Modules 0.2.11](https://github.com/namazso/PawnIO.Modules/tree/0.2.11)
+release, © 2025 namazso, LGPL-2.1-or-later (`modules/COPYING`). They are
+embedded unmodified in the exe and SHA-256-pinned in `src/lib.rs`;
+`scripts/bundle-sensors.ps1` installs the licence text beside the exe and
+`THIRD_PARTY_NOTICES.md` lists them with their source.
 
 - Intel: `TjMax` 0x1A2, package 0x1B1, hottest core 0x19C on every logical
   CPU, RAPL 0x606/0x611.

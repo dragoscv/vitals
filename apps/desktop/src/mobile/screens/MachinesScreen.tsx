@@ -32,7 +32,7 @@ export function MachinesScreen({ pairings, machines, onOpen, pairFailed }: Machi
     <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-3 pb-4">
       <h1 className="mb-3 text-lg font-semibold">{t('mobile.machines.title')}</h1>
       {pairFailed && (
-        <p role="alert" className="mb-3 text-2xs text-[var(--color-status-danger)]">
+        <p role="alert" className="mb-3 text-2xs text-[var(--color-danger-text)]">
           {t('mobile.empty.pairFailedBody')}
         </p>
       )}

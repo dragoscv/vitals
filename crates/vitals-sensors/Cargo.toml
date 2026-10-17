@@ -38,6 +38,10 @@ windows = { version = "0.62.2", features = [
         "Win32_System_Registry",
         "Win32_System_SystemInformation",
         "Win32_System_Threading",
+        # SHGetKnownFolderPath for the install directory: the elevated
+        # installer must not take Program Files from the caller's environment.
+        "Win32_UI_Shell",
+        "Win32_System_Com",
 ] }
 
 [lints]

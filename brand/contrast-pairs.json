@@ -120,6 +120,150 @@
       "fg": "oklch(0.74 0.13 152)",
       "bg": "oklch(0.22 0.02 210)",
       "use": "body"
+    },
+    {
+      "name": "light: fg-subtle on bg-base (status/caption text)",
+      "fg": "oklch(0.52 0.008 260)",
+      "bg": "oklch(0.98 0.002 260)",
+      "use": "body"
+    },
+    {
+      "name": "light: fg-subtle on bg-raised (status/caption text)",
+      "fg": "oklch(0.52 0.008 260)",
+      "bg": "oklch(1 0 0)",
+      "use": "body"
+    },
+    {
+      "name": "light: fg-subtle on bg-inset (status/caption text)",
+      "fg": "oklch(0.52 0.008 260)",
+      "bg": "oklch(0.94 0.004 260)",
+      "use": "body"
+    },
+    {
+      "name": "light: ok-text on bg-base (status/caption text)",
+      "fg": "oklch(0.5 0.13 150)",
+      "bg": "oklch(0.98 0.002 260)",
+      "use": "body"
+    },
+    {
+      "name": "light: ok-text on bg-raised (status/caption text)",
+      "fg": "oklch(0.5 0.13 150)",
+      "bg": "oklch(1 0 0)",
+      "use": "body"
+    },
+    {
+      "name": "light: ok-text on bg-inset (status/caption text)",
+      "fg": "oklch(0.5 0.13 150)",
+      "bg": "oklch(0.94 0.004 260)",
+      "use": "body"
+    },
+    {
+      "name": "light: warn-text on bg-base (status/caption text)",
+      "fg": "oklch(0.5 0.1 70)",
+      "bg": "oklch(0.98 0.002 260)",
+      "use": "body"
+    },
+    {
+      "name": "light: warn-text on bg-raised (status/caption text)",
+      "fg": "oklch(0.5 0.1 70)",
+      "bg": "oklch(1 0 0)",
+      "use": "body"
+    },
+    {
+      "name": "light: warn-text on bg-inset (status/caption text)",
+      "fg": "oklch(0.5 0.1 70)",
+      "bg": "oklch(0.94 0.004 260)",
+      "use": "body"
+    },
+    {
+      "name": "light: danger-text on bg-base (status/caption text)",
+      "fg": "oklch(0.5 0.19 25)",
+      "bg": "oklch(0.98 0.002 260)",
+      "use": "body"
+    },
+    {
+      "name": "light: danger-text on bg-raised (status/caption text)",
+      "fg": "oklch(0.5 0.19 25)",
+      "bg": "oklch(1 0 0)",
+      "use": "body"
+    },
+    {
+      "name": "light: danger-text on bg-inset (status/caption text)",
+      "fg": "oklch(0.5 0.19 25)",
+      "bg": "oklch(0.94 0.004 260)",
+      "use": "body"
+    },
+    {
+      "name": "dark: fg-subtle on bg-base (status/caption text)",
+      "fg": "oklch(0.64 0.007 260)",
+      "bg": "oklch(0.17 0.006 260)",
+      "use": "body"
+    },
+    {
+      "name": "dark: fg-subtle on bg-raised (status/caption text)",
+      "fg": "oklch(0.64 0.007 260)",
+      "bg": "oklch(0.23 0.008 260)",
+      "use": "body"
+    },
+    {
+      "name": "dark: fg-subtle on bg-inset (status/caption text)",
+      "fg": "oklch(0.64 0.007 260)",
+      "bg": "oklch(0.14 0.006 260)",
+      "use": "body"
+    },
+    {
+      "name": "dark: ok-text on bg-base (status/caption text)",
+      "fg": "oklch(0.72 0.15 150)",
+      "bg": "oklch(0.17 0.006 260)",
+      "use": "body"
+    },
+    {
+      "name": "dark: ok-text on bg-raised (status/caption text)",
+      "fg": "oklch(0.72 0.15 150)",
+      "bg": "oklch(0.23 0.008 260)",
+      "use": "body"
+    },
+    {
+      "name": "dark: ok-text on bg-inset (status/caption text)",
+      "fg": "oklch(0.72 0.15 150)",
+      "bg": "oklch(0.14 0.006 260)",
+      "use": "body"
+    },
+    {
+      "name": "dark: warn-text on bg-base (status/caption text)",
+      "fg": "oklch(0.8 0.14 75)",
+      "bg": "oklch(0.17 0.006 260)",
+      "use": "body"
+    },
+    {
+      "name": "dark: warn-text on bg-raised (status/caption text)",
+      "fg": "oklch(0.8 0.14 75)",
+      "bg": "oklch(0.23 0.008 260)",
+      "use": "body"
+    },
+    {
+      "name": "dark: warn-text on bg-inset (status/caption text)",
+      "fg": "oklch(0.8 0.14 75)",
+      "bg": "oklch(0.14 0.006 260)",
+      "use": "body"
+    },
+    {
+      "name": "dark: danger-text on bg-base (status/caption text)",
+      "fg": "oklch(0.7 0.17 25)",
+      "bg": "oklch(0.17 0.006 260)",
+      "use": "body"
+    },
+    {
+      "name": "dark: danger-text on bg-raised (status/caption text)",
+      "fg": "oklch(0.7 0.17 25)",
+      "bg": "oklch(0.23 0.008 260)",
+      "use": "body"
+    },
+    {
+      "name": "dark: danger-text on bg-inset (status/caption text)",
+      "fg": "oklch(0.7 0.17 25)",
+      "bg": "oklch(0.14 0.006 260)",
+      "use": "body"
     }
   ]
 }

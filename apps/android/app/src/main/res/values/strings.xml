@@ -197,6 +197,8 @@
     <string name="settings_about_body">Vitals measures this phone and, if you pair one, a Windows PC on your home network. No ads, no account, no analytics of our own: nothing is sent to the developer.</string>
     <string name="settings_privacy">Privacy policy</string>
     <string name="settings_source">Source code</string>
+    <string name="settings_licences">Open-source licences</string>
+    <string name="settings_licences_body">Vitals is MIT-licensed and built on the open-source libraries below. Tap one to read its licence.</string>
 
     <!-- Notifications -->
     <string name="channel_alerts">Warnings</string>

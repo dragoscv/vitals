@@ -482,14 +482,10 @@ main h2.text-lg {
   line-height: 2rem;
   font-weight: 650;
   letter-spacing: -0.02em;
-  background: linear-gradient(
-    100deg,
-    var(--color-fg-default) 30%,
-    color-mix(in oklch, var(--color-accent) 70%, var(--color-fg-default))
-  );
-  background-clip: text;
-  -webkit-background-clip: text;
-  color: transparent;
+  /* Solid, not the accent gradient clipped to the text it once was (DES-20):
+     the tail of a long title faded towards the accent and lost contrast,
+     and every page competed with its own content for the accent colour. */
+  color: var(--color-fg-default);
   width: fit-content;
 }
 
@@ -524,5 +520,40 @@ header.shell-chrome {
   main h2.text-lg {
     background: none;
     color: var(--color-fg-default);
+  }
+}
+
+/*
+ * ---- Windows Contrast themes -------------------------------------------
+ *
+ * Forced colours repaint backgrounds as Canvas and drop box-shadow. The
+ * selected process row (tint + inset bar), the active sidebar item (indicator
+ * fill + bar) and the per-core bars are all carried by exactly those two
+ * properties, so they vanish; the gradient page title is `color: transparent`
+ * over a background that is removed, so it can vanish too. Shared controls
+ * (meter, progress, switch, segmented) are handled in @vitals/ui theme.css.
+ */
+@media (forced-colors: active) {
+  main h2.text-lg {
+    background: none;
+    background-clip: border-box;
+    -webkit-background-clip: border-box;
+    color: CanvasText;
+  }
+
+  [role='row'][aria-selected='true'] {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+
+  nav.shell-chrome [aria-current='page'] {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+
+  /* Per-core bars (CpuPanel): each bar's height is the reading. */
+  .perf-panel [role='img'] .items-end > div {
+    forced-color-adjust: none;
+    background: Highlight;
   }
 }

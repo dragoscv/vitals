@@ -25,11 +25,17 @@ const en = {
     hideToTray: 'Hide to tray',
     quit: 'Quit Vitals',
     menu: 'Window menu',
+    skipToContent: 'Skip to content',
   },
   sidebar: {
     collapse: 'Collapse sidebar',
     expand: 'Expand sidebar',
     openSettings: 'Open settings',
+    group: {
+      now: 'Now',
+      machine: 'Machine',
+      more: 'More',
+    },
   },
   settings: {
     general: {
@@ -235,11 +241,17 @@ const ro = {
     hideToTray: 'Ascunde în zona de notificare',
     quit: 'Ieși din Vitals',
     menu: 'Meniul ferestrei',
+    skipToContent: 'Sari la conținut',
   },
   sidebar: {
     collapse: 'Restrânge bara laterală',
     expand: 'Extinde bara laterală',
     openSettings: 'Deschide setările',
+    group: {
+      now: 'Acum',
+      machine: 'Calculator',
+      more: 'Mai mult',
+    },
   },
   settings: {
     general: {

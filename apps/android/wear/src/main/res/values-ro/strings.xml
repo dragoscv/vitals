@@ -8,6 +8,20 @@
     <string name="channel_alerts">Alerte PC</string>
     <string name="channel_alerts_description">Când un PC asociat se supraîncălzește, rămâne fără memorie sau se chinuie</string>
 
+    <string name="alert_cpu_sustained">Procesorul este ocupat de ceva vreme</string>
+    <string name="alert_cpu_throttled">Procesorul este încetinit</string>
+    <string name="alert_memory_pressure">Memoria este aproape plină</string>
+    <string name="alert_memory_commit">Programele au cerut aproape toată memoria</string>
+    <string name="alert_disk_saturated">Un disc lucrează la maximum</string>
+    <string name="alert_disk_latency">Un disc răspunde greu</string>
+    <string name="alert_disk_space">Un disc rămâne fără spațiu</string>
+    <string name="alert_disk_health">Un disc raportează o problemă de sănătate</string>
+    <string name="alert_gpu_throttled">Placa video este încetinită</string>
+    <string name="alert_thermal_cpu">Procesorul este prea fierbinte</string>
+    <string name="alert_network_errors">Conexiunea la rețea pierde date</string>
+    <string name="alert_battery_low">Bateria este descărcată</string>
+    <string name="alert_battery_health">Bateria se uzează</string>
+
     <string name="loading">Se încarcă…</string>
     <string name="empty_title">Niciun PC încă</string>
     <string name="empty_body">Asociază un PC în aplicația Vitals de pe telefon. Apare aici singur.</string>

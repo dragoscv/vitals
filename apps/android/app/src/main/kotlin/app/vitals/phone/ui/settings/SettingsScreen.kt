@@ -38,7 +38,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import app.vitals.core.pairing.Pairing
 import app.vitals.core.pairing.Scope
 import app.vitals.phone.BuildConfig
@@ -54,6 +56,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun SettingsScreen() {
     val context = LocalContext.current
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
     val graph = context.graph
     val scope = rememberCoroutineScope()
     val pairings by graph.pairings.pairings.collectAsStateWithLifecycle()
@@ -62,6 +65,7 @@ fun SettingsScreen() {
     val glass by graph.settings.glass.collectAsStateWithLifecycle(GlassMode.Auto)
     var renaming by remember { mutableStateOf<Pairing?>(null) }
     var removing by remember { mutableStateOf<Pairing?>(null) }
+    var licences by remember { mutableStateOf(false) }
     var notificationsAllowed by remember { mutableStateOf(notificationsGranted(context)) }
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
         notificationsAllowed = it
@@ -113,7 +117,10 @@ fun SettingsScreen() {
                                     if (Build.VERSION.SDK_INT >= 33 && !notificationsAllowed) {
                                         permission.launch(Manifest.permission.POST_NOTIFICATIONS)
                                     }
-                                    WatchService.start(context)
+                                    // The DataStore write may finish after the user left.
+                                    if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+                                        WatchService.start(context)
+                                    }
                                 }
                             }
                         },
@@ -175,10 +182,15 @@ fun SettingsScreen() {
                             Text(stringResource(R.string.settings_source))
                         }
                     }
+                    TextButton(onClick = { licences = true }) {
+                        Text(stringResource(R.string.settings_licences))
+                    }
                 }
             }
         }
     }
+
+    if (licences) LicencesDialog(onDismiss = { licences = false })
 
     renaming?.let { p ->
         var name by remember(p.id) { mutableStateOf(p.label) }

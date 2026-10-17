@@ -203,6 +203,8 @@
     <string name="settings_about_body">Vitals measures this TV and, if you pair one, a Windows PC on your home network. No ads, no account, no analytics: nothing is sent to the developer.</string>
     <string name="settings_privacy">Privacy policy: vitals.dragoscatalin.ro/privacy</string>
     <string name="settings_source">Source code: github.com/dragoscv/vitals</string>
+    <string name="settings_licences">Open-source licences</string>
+    <string name="settings_licences_body">Vitals is MIT-licensed and built on the open-source libraries below. Select one to read its licence.</string>
 
     <!-- Alerts (the desktop's alert kinds, in plain words) -->
     <string name="alert_cpu_sustained">The processor has been busy for a while</string>

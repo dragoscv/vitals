@@ -690,6 +690,13 @@ pub async fn get_process_icons(
 /// Takes the path rather than a `ProcessKey`: the caller already holds the
 /// executable path from the process detail, and re-deriving it here would
 /// open a second handle for a value we were just given.
+///
+/// Deliberately still sync, so on the main thread. `SHOpenFolderAndSelectItems`
+/// requires COM initialised on the calling thread, preferably as an STA; the
+/// main thread is one (`WebView2` needs it), a blocking-pool thread is not, and
+/// a shell call on an uninitialised thread fails or misbehaves depending on
+/// which shell extensions are loaded. Moving it off needs an apartment guard
+/// around the call in `vitals_win::actions::shell`.
 #[tauri::command]
 #[cfg(windows)]
 #[allow(clippy::needless_pass_by_value)]
@@ -699,6 +706,9 @@ pub fn open_file_location(path: String) -> CommandResult<()> {
 }
 
 /// Shows the shell's Properties dialog for a file.
+///
+/// Sync for the reason on [`open_file_location`]: `ShellExecuteExW` with the
+/// "properties" verb loads shell extensions that expect an STA.
 #[tauri::command]
 #[cfg(windows)]
 #[allow(clippy::needless_pass_by_value)]
@@ -756,7 +766,11 @@ pub fn get_taskmgr_replacement() -> CommandResult<TaskManagerReplacement> {
 ///
 /// Writes `HKLM`, so this triggers a UAC prompt on the first change. A
 /// declined prompt comes back as [`CommandError::Refused`], and so does an
-/// attempt to displace another tool's hook. `async` because the elevated
+/// attempt to displace another tool's hook, and so does turning it on from a
+/// copy outside Program Files (Scoop, portable, a dev build) — the check runs
+/// before the UAC prompt, so the user is never asked to approve something
+/// that will be refused, and the message the switch shows says why. `async`
+/// because the elevated
 /// child is waited on, and the wait must not block the command thread that
 /// the rest of the UI is invoking on.
 #[tauri::command]
@@ -782,10 +796,20 @@ pub async fn set_taskmgr_replacement(enabled: bool) -> CommandResult<TaskManager
 ///
 /// The tray menu's "Open Windows Task Manager" needs this: with the hook
 /// on, a plain `taskmgr.exe` launch would start a second Vitals instead.
+///
+/// Off the main thread: the launch attaches as a debugger and drains the
+/// child's start-up debug events before detaching, which waits on the child.
+/// Safe on a pool thread because the whole create–drain–detach sequence runs
+/// inside the one closure, and the debug API only requires that the thread
+/// which created the debuggee is the one that waits on and detaches it.
 #[tauri::command]
 #[cfg(windows)]
-pub fn launch_real_taskmgr() -> CommandResult<()> {
-    vitals_win::actions::launch_real_task_manager()?;
+pub async fn launch_real_taskmgr() -> CommandResult<()> {
+    tauri::async_runtime::spawn_blocking(vitals_win::actions::launch_real_task_manager)
+        .await
+        .map_err(|err| CommandError::Internal {
+            message: format!("the Task Manager launch was abandoned: {err}"),
+        })??;
     Ok(())
 }
 

@@ -100,7 +100,7 @@ export function UsersScreen({ reader }: UsersScreenProps): React.JSX.Element {
       </header>
 
       {state.error !== null && state.error !== NO_HOST && (
-        <p role="alert" className="text-2xs text-[var(--color-status-danger)]">
+        <p role="alert" className="text-2xs text-[var(--color-danger-text)]">
           {state.error}
         </p>
       )}

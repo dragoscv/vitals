@@ -430,7 +430,7 @@ pub fn pawnio_version_ok(version: Option<&str>) -> bool {
 pub fn read_pipe(timeout: std::time::Duration) -> Result<Reading, String> {
     let deadline = std::time::Instant::now() + timeout;
     loop {
-        match std::fs::File::open(PIPE_NAME) {
+        match open_pipe_client(PIPE_NAME) {
             Ok(mut f) => return Reading::parse(&read_line(&mut f)?),
             Err(e) => {
                 if std::time::Instant::now() >= deadline {
@@ -440,6 +440,35 @@ pub fn read_pipe(timeout: std::time::Duration) -> Result<Reading, String> {
             }
         }
     }
+}
+
+/// `SECURITY_SQOS_PRESENT`: the next flags are a quality-of-service request.
+#[cfg(windows)]
+pub const SECURITY_SQOS_PRESENT: u32 = 0x0010_0000;
+/// `SECURITY_IDENTIFICATION`: the server may learn who we are, not act as us.
+#[cfg(windows)]
+pub const SECURITY_IDENTIFICATION: u32 = 0x0001_0000;
+
+/// Opens a named pipe for reading as a client that cannot be impersonated.
+///
+/// A plain `File::open` on a pipe grants the server `SecurityImpersonation`:
+/// whoever owns the pipe name can call `ImpersonateNamedPipeClient` and act
+/// as this process's user. If the real service is stopped, any local
+/// account can create `\\.\pipe\vitals-sensors` first — and the elevated
+/// installer reads this pipe, so that squatter would get an administrator
+/// token. Identification-level lets the server learn who connected and
+/// nothing more.
+///
+/// # Errors
+///
+/// When the pipe does not exist, is busy, or refuses the open.
+#[cfg(windows)]
+pub fn open_pipe_client(name: &str) -> std::io::Result<std::fs::File> {
+    use std::os::windows::fs::OpenOptionsExt as _;
+    std::fs::OpenOptions::new()
+        .read(true)
+        .security_qos_flags(SECURITY_SQOS_PRESENT | SECURITY_IDENTIFICATION)
+        .open(name)
 }
 
 /// Reads up to the first newline.

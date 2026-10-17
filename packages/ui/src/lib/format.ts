@@ -50,15 +50,21 @@ export function formatThroughput(bytesPerSec: number | null, locale?: string): s
   return `${formatBytes(bytesPerSec, locale)}/s`;
 }
 
-/** Formats a 0..100 percentage. */
+/**
+ * Formats a 0..100 percentage.
+ *
+ * Through `style: 'percent'` rather than a hand-appended "%", because the
+ * sign's position and spacing are part of the locale: English writes
+ * "43.2%", Romanian "43,2 %". Gluing "%" on produced "43,2%" for Romanian,
+ * which is wrong there in the same way "43.2 %" would be in English.
+ */
 export function formatPercent(value: number | null, locale?: string, digits = 1): string {
   if (value === null || !Number.isFinite(value)) return '—';
-  return (
-    new Intl.NumberFormat(locale, {
-      minimumFractionDigits: digits,
-      maximumFractionDigits: digits,
-    }).format(value) + '%'
-  );
+  return new Intl.NumberFormat(locale, {
+    style: 'percent',
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  }).format(value / 100);
 }
 
 /** Formats a frequency given in hertz, scaling to MHz or GHz. */
@@ -71,10 +77,21 @@ export function formatFrequency(hertz: number | null, locale?: string): string {
   return `${new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(hertz / 1e6)} MHz`;
 }
 
-/** Formats a temperature in Celsius. */
+/**
+ * Formats a temperature in Celsius.
+ *
+ * As an `Intl` unit so the spacing follows the locale ("73°C" in English,
+ * "73 °C" in Romanian). Values that round to zero are written as zero:
+ * "-0 °C" is a rounding artefact, not a reading.
+ */
 export function formatTemperature(celsius: number | null, locale?: string): string {
   if (celsius === null || !Number.isFinite(celsius)) return '—';
-  return `${new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(celsius)}°C`;
+  const rounded = Math.round(celsius) === 0 ? 0 : celsius;
+  return new Intl.NumberFormat(locale, {
+    style: 'unit',
+    unit: 'celsius',
+    maximumFractionDigits: 0,
+  }).format(rounded);
 }
 
 export function formatWatts(watts: number | null, locale?: string): string {
@@ -83,14 +100,82 @@ export function formatWatts(watts: number | null, locale?: string): string {
   return `${new Intl.NumberFormat(locale, { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(watts)} W`;
 }
 
+/** The parts of a duration, as `Intl.DurationFormat` takes them. */
+interface DurationParts {
+  days?: number;
+  hours?: number;
+  minutes?: number;
+  seconds?: number;
+}
+
+type DurationFormatter = { format(parts: DurationParts): string };
+type DurationFormatCtor = new (
+  locale?: string,
+  options?: { style?: 'long' | 'short' | 'narrow'; secondsDisplay?: 'always' | 'auto' },
+) => DurationFormatter;
+
+/**
+ * `Intl.DurationFormat`, where the engine has it.
+ *
+ * Looked up at call time and typed by hand: it is recent (WebView2 has it,
+ * older engines and some test environments do not), and the TypeScript lib
+ * this package targets may not declare it.
+ */
+function durationFormat(
+  locale: string | undefined,
+  alwaysSeconds: boolean,
+): DurationFormatter | null {
+  const ctor = (Intl as unknown as { DurationFormat?: DurationFormatCtor }).DurationFormat;
+  if (ctor === undefined) return null;
+  try {
+    return new ctor(locale, {
+      style: 'narrow',
+      ...(alwaysSeconds && { secondsDisplay: 'always' as const }),
+    });
+  } catch {
+    return null;
+  }
+}
+
+/** Unit letters used only when `Intl.DurationFormat` is missing. */
+const FALLBACK_UNIT: Readonly<Record<keyof DurationParts, string>> = {
+  days: 'd',
+  hours: 'h',
+  minutes: 'm',
+  seconds: 's',
+};
+
+/**
+ * Formats the given parts in the locale's own duration style ("3d 4h" in
+ * English, "3 z, 4 h" in Romanian), falling back to compact English letters
+ * where the engine has no `Intl.DurationFormat`.
+ */
+export function formatDurationParts(parts: DurationParts, locale?: string): string {
+  // An all-zero duration formats as "" by default (zero units are hidden);
+  // asking for seconds explicitly gives "0s" / "0 s" instead.
+  const allZero = Object.values(parts).every((v) => v === 0 || v === undefined);
+  const formatter = durationFormat(locale, allZero);
+  if (formatter !== null) {
+    const text = formatter.format(allZero ? { seconds: 0 } : parts);
+    if (text !== '') return text;
+  }
+  const entries = (Object.keys(FALLBACK_UNIT) as (keyof DurationParts)[])
+    .filter((unit) => parts[unit] !== undefined)
+    .map((unit) => `${parts[unit] ?? 0}${FALLBACK_UNIT[unit]}`);
+  return entries.length > 0 ? entries.join(' ') : `0${FALLBACK_UNIT.seconds}`;
+}
+
 /**
  * Formats a duration in seconds as an uptime string.
  *
  * Uses the largest two units that are non-zero — "3d 4h" rather than
  * "3d 4h 12m 7s". Precision below the second-largest unit is never what
  * someone reading an uptime wants.
+ *
+ * Unit names come from the locale (Romanian says "z" for days, not "d"),
+ * through `Intl.DurationFormat` where available.
  */
-export function formatUptime(seconds: number): string {
+export function formatUptime(seconds: number, locale?: string): string {
   if (!Number.isFinite(seconds) || seconds < 0) return '—';
 
   const days = Math.floor(seconds / 86_400);
@@ -98,10 +183,14 @@ export function formatUptime(seconds: number): string {
   const minutes = Math.floor((seconds % 3_600) / 60);
   const secs = Math.floor(seconds % 60);
 
-  if (days > 0) return `${days}d ${hours}h`;
-  if (hours > 0) return `${hours}h ${minutes}m`;
-  if (minutes > 0) return `${minutes}m ${secs}s`;
-  return `${secs}s`;
+  // A zero second unit is dropped ("3d", not "3d 0h"), except when it is
+  // the only unit, so a just-started process reads "0s" rather than nothing.
+  const pair = (big: DurationParts, small: DurationParts): DurationParts =>
+    Object.values(small)[0] === 0 ? big : { ...big, ...small };
+  if (days > 0) return formatDurationParts(pair({ days }, { hours }), locale);
+  if (hours > 0) return formatDurationParts(pair({ hours }, { minutes }), locale);
+  if (minutes > 0) return formatDurationParts(pair({ minutes }, { seconds: secs }), locale);
+  return formatDurationParts({ seconds: secs }, locale);
 }
 
 /**

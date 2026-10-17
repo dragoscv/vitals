@@ -492,21 +492,60 @@ mod tests {
 
     #[test]
     fn our_own_process_holds_handles_and_at_least_one_is_named() {
-        // SAFETY: no preconditions.
-        let key = key_for(unsafe { windows_sys::Win32::System::Threading::GetCurrentProcessId() });
-        let handles = for_process(key).expect("enumerate our own handles");
+        // A handle the test owns and knows the name of, so the assertion is
+        // about THIS row being typed and named, not "something somewhere".
+        // It once failed under a loaded full verify with "no handle could be
+        // typed": the naming worker shares one 750 ms budget across every
+        // handle, and a starved worker thread can spend it before reaching
+        // any. That is the documented honest outcome (`None`), so the test
+        // retries a bounded number of times; a broken NtQueryObject or
+        // duplication fails all five attempts.
+        use windows_sys::Win32::System::Threading::CreateEventW;
 
-        assert!(
-            !handles.is_empty(),
-            "a running process always holds handles"
+        // SAFETY: no preconditions.
+        let pid = unsafe { windows_sys::Win32::System::Threading::GetCurrentProcessId() };
+        let name = format!("vitals-handles-test-{pid}");
+        let wide: Vec<u16> = name.encode_utf16().chain(std::iter::once(0)).collect();
+        // SAFETY: default security, manual-reset, unsignalled, and a
+        // NUL-terminated name that outlives the call.
+        let event = unsafe { CreateEventW(std::ptr::null(), 1, 0, wide.as_ptr()) };
+        assert!(!event.is_null(), "CreateEventW failed");
+        let event_value = event as u64;
+
+        let key = key_for(pid);
+        let mut last = None;
+        for _ in 0..5 {
+            let handles = for_process(key).expect("enumerate our own handles");
+            assert!(
+                handles.iter().all(|h| h.pid == key.pid),
+                "a handle was attributed to the wrong process"
+            );
+            let ours = handles.iter().find(|h| h.value == event_value).cloned();
+            assert!(
+                ours.is_some(),
+                "the event handle {event_value:#x} we just opened is missing from {} rows",
+                handles.len()
+            );
+            if ours.as_ref().is_some_and(|h| h.kind.is_some()) {
+                last = ours;
+                break;
+            }
+            last = ours;
+        }
+
+        // SAFETY: our own handle, closed once.
+        unsafe { windows_sys::Win32::Foundation::CloseHandle(event) };
+
+        let ours = last.expect("found above");
+        assert_eq!(
+            ours.kind.as_deref(),
+            Some("Event"),
+            "our event was never typed in five attempts — NtQueryObject or the duplication is broken"
         );
         assert!(
-            handles.iter().any(|h| h.kind.is_some()),
-            "no handle could be typed — NtQueryObject or the duplication is broken"
-        );
-        assert!(
-            handles.iter().all(|h| h.pid == key.pid),
-            "a handle was attributed to the wrong process"
+            ours.name.as_deref().is_some_and(|n| n.ends_with(&name)),
+            "our event was typed but its name was {:?}, expected …{name}",
+            ours.name
         );
     }
 

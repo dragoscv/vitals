@@ -347,6 +347,9 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     server::start_local_api(app.handle());
     arm_reveal_safety_net(app.handle().clone());
     updates::spawn(app.handle());
+    // A dead renderer otherwise leaves a blank window until a relaunch.
+    #[cfg(windows)]
+    crashlog::reload_on_renderer_exit(app.handle());
     // Off the setup thread: it can spawn a process and run `reg`, and the
     // window must not wait for either.
     #[cfg(windows)]

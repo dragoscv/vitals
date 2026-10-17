@@ -20,7 +20,7 @@ use vitals_core::units::{Bytes, BytesPerSec, Percent};
 
 use crate::cpu::{CpuSampler, logical_core_count, process_cpu_percent};
 use crate::disk::rate::compute_rates as compute_disk_rates;
-use crate::disk::{DiskCounters, enumerate_volumes, volume_counters};
+use crate::disk::{DiskCounters, volume_counters};
 use crate::gpu::adapters::GpuSampler;
 use crate::memory::MemorySampler;
 use crate::network::{NetworkCounters, compute_rates as compute_net_rates, enumerate_adapters};
@@ -726,8 +726,12 @@ fn build_cpu_metrics(
 /// volume — so a disk with two partitions reports each one's share, and the
 /// dashboard's sum is the physical total. The media kind arrives already
 /// refined from the enumerator, on the two-second cadence of this cache.
+///
+/// The cached enumerator, never the blocking one: this runs on the sampler
+/// thread, and a sleeping network share answered `GetDiskFreeSpaceExW` only
+/// after its SMB timeout, stalling every frame behind it.
 fn build_disk_metrics() -> Vec<DiskMetrics> {
-    enumerate_volumes()
+    crate::disk::volumes::enumerate_volumes_cached()
         .into_iter()
         .map(|v| DiskMetrics {
             id: v.id,

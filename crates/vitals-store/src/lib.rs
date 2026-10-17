@@ -22,10 +22,12 @@
 #![allow(clippy::missing_const_for_fn)]
 
 pub mod db;
+pub mod flight;
 pub mod recorder;
 pub mod retention;
 
 pub use db::{Store, StoreError};
+pub use flight::{FlightEntry, FlightRecorder};
 pub use recorder::{FLIGHT_FRAMES, Recorder};
 pub use retention::{Resolution, RetentionPolicy};
 pub use vitals_core::history::MachineSample;

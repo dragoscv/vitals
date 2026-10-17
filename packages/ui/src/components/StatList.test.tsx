@@ -28,6 +28,22 @@ describe('StatList', () => {
     expect(screen.getByText('In use')).toBeTruthy();
   });
 
+  it('keeps an unmeasured headline figure under omitNull as a dash explained by its tooltip', () => {
+    render(
+      <StatList
+        stats={[{ key: 'swap', label: 'Page file', value: null, unavailable: 'Not reported' }]}
+        omitNull
+      />,
+    );
+
+    const dash = screen.getByLabelText('Not reported');
+    expect(
+      dash.textContent,
+      'the sentence must not sit in the value cell, where it truncated',
+    ).toBe('—');
+    expect(dash.getAttribute('title')).toBe('Not reported');
+  });
+
   it('renders nothing at all when every row is omitted, rather than an empty list element', () => {
     const { container } = render(
       <StatList stats={[{ key: 'a', label: 'A', value: null }]} omitNull />,

@@ -6,8 +6,10 @@
 //! `%APPDATA%\Vitals\watchdog.json`, which the watchdog re-reads within a
 //! second, and it owns the `HKCU\…\Run` value that starts the watchdog at
 //! logon. The installer puts `vitals-watchdog.exe` in `watchdog\` beside
-//! the app; the first launch after install registers and starts it, so a
-//! fresh install is protected without anyone opening Settings.
+//! the app, but nothing registers or starts it until the user turns it on —
+//! from the first-run card on the dashboard or from Settings. A program that
+//! starts itself at every sign-in is a decision the user makes, not one an
+//! install makes for them (PRIVACY.md promises exactly that).
 
 // The commands and `ensure_default` are Windows-only, so off Windows the
 // config helpers have no caller. They stay compiled everywhere because their
@@ -358,40 +360,51 @@ pub async fn test_watchdog_sound(sound: WatchdogSound, volume: u8) -> CommandRes
     })
 }
 
-/// At launch: on the first one after an install, turn the watchdog on
-/// unless the user has already decided ("decided" is the settings file
-/// existing — it is only ever written from the Settings panel or here).
-/// On every later one, if it is enabled but not running, start it again:
-/// the installer ends it before replacing the file, so without this an
-/// update would leave the machine unwatched until the next sign-in.
+/// What a launch should do about the watchdog, given its settings file.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LaunchAction {
+    /// Not decided yet (no file), or turned off: touch nothing.
+    Nothing,
+    /// Turned on: make sure the logon entry exists and it is running.
+    Restart,
+}
+
+/// Reads the decision from the file at `path`.
+///
+/// A missing file means the user has not been asked, and that is answered
+/// with nothing — not with "on", which is what the first version did and
+/// what put a logon entry on every fresh install without a word. A file the
+/// user wrote keeps its value, so nobody who already chose loses the choice.
+fn launch_action(path: &std::path::Path) -> LaunchAction {
+    let Ok(text) = std::fs::read_to_string(path) else {
+        return LaunchAction::Nothing;
+    };
+    let enabled = serde_json::from_str::<serde_json::Value>(&text)
+        .ok()
+        .and_then(|v| v.get("enabled").and_then(serde_json::Value::as_bool))
+        .unwrap_or(false);
+    if enabled {
+        LaunchAction::Restart
+    } else {
+        LaunchAction::Nothing
+    }
+}
+
+/// At launch: if the user turned the watchdog on and it is not running,
+/// start it again. The installer ends it before replacing the file, so
+/// without this an update would leave the machine unwatched until the next
+/// sign-in. It never turns the watchdog on by itself.
 #[cfg(windows)]
 pub fn ensure_default() {
     let Some(path) = config_path() else { return };
     if bundled_exe().is_none() {
         return;
     }
-    if let Ok(text) = std::fs::read_to_string(&path) {
-        let enabled = serde_json::from_str::<serde_json::Value>(&text)
-            .ok()
-            .and_then(|v| v.get("enabled").and_then(serde_json::Value::as_bool))
-            .unwrap_or(false);
-        if enabled
-            && !running()
-            && let Err(error) = enable()
-        {
-            tracing::warn!(?error, "could not restart the watchdog");
-        }
-        return;
-    }
-    let config = WatchdogConfig {
-        enabled: true,
-        sensitivity: "normal".into(),
-        sound: WatchdogSound::Default,
-        volume: 80,
-    };
-    let result = write_config(&config).and_then(|()| enable());
-    if let Err(error) = result {
-        tracing::warn!(?error, "could not turn the watchdog on at first launch");
+    if launch_action(&path) == LaunchAction::Restart
+        && !running()
+        && let Err(error) = enable()
+    {
+        tracing::warn!(?error, "could not restart the watchdog");
     }
 }
 
@@ -437,5 +450,53 @@ mod tests {
         let mut loud = config("normal", WatchdogSound::Silent);
         loud.volume = 101;
         assert!(validate(&loud).is_err());
+    }
+
+    /// A fresh directory per test, so parallel tests never share a file.
+    fn scratch(name: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "vitals-watchdog-test-{name}-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("creates the scratch dir");
+        dir
+    }
+
+    #[test]
+    fn a_fresh_install_with_no_settings_file_is_left_off_and_nothing_is_written() {
+        let dir = scratch("fresh");
+        let path = dir.join("watchdog.json");
+
+        assert_eq!(launch_action(&path), LaunchAction::Nothing);
+        // Deciding must not create the file either: its absence is what
+        // tells the first-run card the user has not been asked yet.
+        assert!(!path.exists());
+        assert_eq!(
+            std::fs::read_dir(&dir).expect("lists").count(),
+            0,
+            "nothing may be written on a fresh install"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn an_existing_choice_is_kept_whichever_way_it_went() {
+        let dir = scratch("kept");
+        let path = dir.join("watchdog.json");
+
+        let on = serde_json::to_string(&config("normal", WatchdogSound::Default)).expect("json");
+        std::fs::write(&path, on).expect("writes");
+        assert_eq!(launch_action(&path), LaunchAction::Restart);
+
+        let mut off = config("normal", WatchdogSound::Default);
+        off.enabled = false;
+        std::fs::write(&path, serde_json::to_string(&off).expect("json")).expect("writes");
+        assert_eq!(launch_action(&path), LaunchAction::Nothing);
+
+        // A damaged file is not a "yes".
+        std::fs::write(&path, "{ not json").expect("writes");
+        assert_eq!(launch_action(&path), LaunchAction::Nothing);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

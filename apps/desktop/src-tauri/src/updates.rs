@@ -1,5 +1,5 @@
-//! Background updates: check shortly after launch, download quietly, install
-//! when the user quits.
+//! Background updates: check shortly after launch and every twelve hours
+//! after, download quietly, install when the user quits.
 //!
 //! Startup is never delayed — the check runs after the window is up and the
 //! sampler is ticking. The signed installer is verified as it downloads
@@ -46,6 +46,14 @@ impl std::fmt::Debug for PendingInstall {
 /// request never competes with the first paint.
 const FIRST_CHECK_DELAY: std::time::Duration = std::time::Duration::from_secs(20);
 
+/// How long between checks after the first.
+///
+/// A system monitor runs for weeks from the tray; checking only at launch
+/// meant a machine that is never rebooted never learned of a fix. Twice a
+/// day is one small HTTPS request each time — nothing a user could notice —
+/// and a security fix still reaches everyone within a day.
+const RECHECK_EVERY: std::time::Duration = std::time::Duration::from_secs(12 * 60 * 60);
+
 /// Starts the background check. No-op in debug builds, which have no
 /// installer to replace.
 pub fn spawn(app: &tauri::AppHandle) {
@@ -58,13 +66,32 @@ pub fn spawn(app: &tauri::AppHandle) {
         return;
     }
     let app = app.clone();
-    tauri::async_runtime::spawn(async move {
-        let _ =
-            tauri::async_runtime::spawn_blocking(|| std::thread::sleep(FIRST_CHECK_DELAY)).await;
-        if let Err(error) = fetch(&app).await {
-            tracing::info!(%error, "background update check did not complete");
-        }
-    });
+    // A plain thread rather than a task: it sleeps for twelve hours at a
+    // time, which would pin a worker of the blocking pool for as long. A
+    // parked thread costs a stack and nothing else.
+    let _ = std::thread::Builder::new()
+        .name("vitals-updates".into())
+        .stack_size(256 * 1024)
+        .spawn(move || {
+            std::thread::sleep(FIRST_CHECK_DELAY);
+            loop {
+                // With one already downloaded there is nothing newer to
+                // want until it is installed on quit. Skipped rather than
+                // ending the loop: turning the setting off drops the
+                // download, and turning it back on must find it again.
+                if !update_ready(&app)
+                    && let Err(error) = tauri::async_runtime::block_on(fetch(&app))
+                {
+                    tracing::info!(%error, "background update check did not complete");
+                }
+                std::thread::sleep(RECHECK_EVERY);
+            }
+        });
+}
+
+fn update_ready(app: &tauri::AppHandle) -> bool {
+    app.try_state::<PendingInstall>()
+        .is_some_and(|p| p.ready.lock().is_some())
 }
 
 async fn fetch(app: &tauri::AppHandle) -> Result<(), tauri_plugin_updater::Error> {

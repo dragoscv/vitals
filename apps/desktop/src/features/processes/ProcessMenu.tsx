@@ -24,7 +24,7 @@ import { displayName, type Process } from '@vitals/protocol';
 
 import { priorities, type ProcessPriority } from './actions';
 import { ProcessFlag, hasFlag } from './constants';
-import { PROCESSES_NS, fallback } from './strings';
+import { PROCESSES_NS } from './strings';
 
 /**
  * Highest first, which is the reverse of the wire order.
@@ -37,18 +37,19 @@ const MENU_ORDER: readonly ProcessPriority[] = [...priorities].reverse();
 /**
  * Translation key per wire value.
  *
- * Written out rather than derived by string manipulation so `fallback` can
- * typecheck it. A derived `process.action.priority.${string}` is opaque to
- * the compiler, which is exactly how a missing translation reaches the UI as
- * a raw key path.
+ * Written out rather than derived by string manipulation so every key is
+ * greppable against the locale files. A derived key is opaque to search,
+ * which is exactly how a missing translation reaches the UI as a raw key
+ * path. `process.action.priority` itself is the submenu label, so the levels
+ * live beside it under `process.priorityLevel`.
  */
 const PRIORITY_KEYS = {
-  idle: 'process.action.priority.idle',
-  'below-normal': 'process.action.priority.belowNormal',
-  normal: 'process.action.priority.normal',
-  'above-normal': 'process.action.priority.aboveNormal',
-  high: 'process.action.priority.high',
-  realtime: 'process.action.priority.realtime',
+  idle: 'process.priorityLevel.idle',
+  'below-normal': 'process.priorityLevel.belowNormal',
+  normal: 'process.priorityLevel.normal',
+  'above-normal': 'process.priorityLevel.aboveNormal',
+  high: 'process.priorityLevel.high',
+  realtime: 'process.priorityLevel.realtime',
 } as const satisfies Record<ProcessPriority, string>;
 
 export interface ProcessMenuProps {
@@ -118,7 +119,7 @@ export function ProcessMenu(props: ProcessMenuProps): React.JSX.Element {
       >
         {descendantCount === 0
           ? t('process.action.endTree')
-          : t('process.action.endTreeCount', fallback('process.action.endTreeCount'), {
+          : t('process.action.endTreeCount', {
               count: descendantCount,
             })}
       </ContextMenuItem>
@@ -141,7 +142,7 @@ export function ProcessMenu(props: ProcessMenuProps): React.JSX.Element {
                 props.onSetPriority(priority);
               }}
             >
-              {t(PRIORITY_KEYS[priority], fallback(PRIORITY_KEYS[priority]))}
+              {t(PRIORITY_KEYS[priority])}
             </ContextMenuItem>
           ))}
         </ContextMenuSubContent>
@@ -168,10 +169,10 @@ export function ProcessMenu(props: ProcessMenuProps): React.JSX.Element {
       <ContextMenuSeparator />
 
       <ContextMenuItem onSelect={props.onSearchOnline}>
-        {t('process.action.searchOnline', fallback('process.action.searchOnline'))}
+        {t('process.action.searchOnline')}
       </ContextMenuItem>
       <ContextMenuItem onSelect={props.onCopyDetails}>
-        {t('process.action.copyDetails', fallback('process.action.copyDetails'))}
+        {t('process.action.copyDetails')}
       </ContextMenuItem>
     </ContextMenuContent>
   );

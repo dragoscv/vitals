@@ -1626,10 +1626,22 @@ pub struct VolumeDto {
 /// Never fails as a whole: a drive that refuses `GetDiskFreeSpaceEx` — an
 /// empty card reader, a disconnected network mapping — is omitted by the
 /// enumerator rather than blanking the picker.
+///
+/// Off the main thread: a mapped drive whose server is asleep holds
+/// `GetDiskFreeSpaceExW` for the length of an SMB timeout, and on the main
+/// thread that froze every window when the Storage screen opened.
 #[tauri::command]
 #[cfg(windows)]
-#[must_use]
-pub fn get_volumes() -> Vec<VolumeDto> {
+pub async fn get_volumes() -> CommandResult<Vec<VolumeDto>> {
+    tauri::async_runtime::spawn_blocking(collect_volumes)
+        .await
+        .map_err(|err| CommandError::Internal {
+            message: format!("the volume read was abandoned: {err}"),
+        })
+}
+
+#[cfg(windows)]
+fn collect_volumes() -> Vec<VolumeDto> {
     vitals_win::disk::enumerate_volumes()
         .into_iter()
         .map(|volume| {

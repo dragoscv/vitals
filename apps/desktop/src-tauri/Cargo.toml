@@ -52,6 +52,11 @@ parking_lot = { workspace = true }
 vitals-win = { workspace = true }
 # Exit codes of the sensors helper; the client itself lives in vitals-win.
 vitals-sensors = { workspace = true }
+# The renderer-exit handler (`crashlog::reload_on_renderer_exit`). Tauri
+# hands out the raw WebView2 controller but not the event, so this is the
+# binding Tauri itself uses — pinned to the version wry already locks, so it
+# adds no crate to the build.
+webview2-com = "0.39.1"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 vitals-linux = { workspace = true }

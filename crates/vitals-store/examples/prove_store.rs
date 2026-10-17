@@ -44,8 +44,14 @@ fn main() {
     #[cfg(not(windows))]
     println!("no sampler on this platform; exercising the store only");
 
+    // The flight recording lives in memory now; this handle is what the
+    // export command reads.
+    let flight = rec.flight();
     rec.flush().expect("flush");
     drop(rec);
+    // Before the reader below reopens the file, which starts a new log.
+    let wal = path.with_extension("sqlite-wal");
+    let wal_after_shutdown = std::fs::metadata(&wal).map_or(0, |m| m.len());
 
     // Read back through a fresh connection, as the Tauri command does.
     let store = Store::open(&path, vitals_store::RetentionPolicy::default()).expect("reopen");
@@ -70,8 +76,12 @@ fn main() {
         );
     }
 
-    let frames = store.flight_frames().expect("frames");
-    println!("flight recorder holds {} frames", frames.len());
+    let frames = flight.frames();
+    println!(
+        "flight recorder holds {} frames in memory; {} rows written to the legacy table",
+        frames.len(),
+        store.legacy_flight_rows().expect("legacy rows")
+    );
     if let Some((seq, ts, bytes)) = frames.first() {
         let parsed: serde_json::Value = serde_json::from_slice(bytes).expect("valid json");
         // The whole point of storing raw bytes: what comes out must be a
@@ -90,9 +100,12 @@ fn main() {
     }
 
     println!(
-        "\ndatabase: {} bytes, {} fine rows",
+        "\ndatabase: {} bytes ({} live), {} fine rows, budget {} bytes",
         store.size_bytes().expect("size"),
-        store.count(Resolution::Second).expect("count")
+        store.live_bytes().expect("live"),
+        store.count(Resolution::Second).expect("count"),
+        store.policy().max_bytes
     );
+    println!("wal after shutdown checkpoint: {wal_after_shutdown} bytes");
     println!("path: {}", path.display());
 }

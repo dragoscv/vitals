@@ -949,15 +949,40 @@ mod tests {
     fn handles_do_not_leak_across_many_operations() {
         // A leaked handle keeps an exited process alive as a zombie, which
         // then appears in our own process list.
+        //
+        // Each `set_priority` opens a process handle in THIS process, so a
+        // leak shows as our own handle count growing by one per call. The
+        // tolerance absorbs handles other tests open on parallel threads
+        // meanwhile; a one-per-call leak over 500 calls is five times it.
+        use windows_sys::Win32::System::Threading::{GetCurrentProcess, GetProcessHandleCount};
+        fn own_handle_count() -> u32 {
+            let mut count = 0_u32;
+            // SAFETY: pseudo-handle to ourselves and a live out-pointer.
+            let ok = unsafe { GetProcessHandleCount(GetCurrentProcess(), &raw mut count) };
+            assert_ne!(ok, 0, "GetProcessHandleCount failed");
+            count
+        }
+        const CALLS: u32 = 500;
+        const TOLERANCE: u32 = 100;
+
         let mut child = spawn_victim();
         let key = key_for(child.id());
 
-        for _ in 0..200 {
-            let _ = set_priority(key, Priority::Normal);
+        // One call first, so any one-time lazy allocation is in the baseline.
+        set_priority(key, Priority::Normal).expect("our own child accepts Normal priority");
+        let before = own_handle_count();
+        for _ in 0..CALLS {
+            set_priority(key, Priority::Normal).expect("our own child accepts Normal priority");
         }
+        let after = own_handle_count();
 
         child.kill().expect("cleanup");
         child.wait().expect("cleanup");
+
+        assert!(
+            after <= before + TOLERANCE,
+            "handle count grew from {before} to {after} over {CALLS} set_priority calls"
+        );
     }
 
     #[test]

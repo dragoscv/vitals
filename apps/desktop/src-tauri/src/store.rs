@@ -25,6 +25,24 @@ fn now_secs() -> i64 {
         .map_or(0, |d| i64::try_from(d.as_secs()).unwrap_or(i64::MAX))
 }
 
+/// Runs store I/O on the blocking pool.
+///
+/// A sync command runs on the main thread, which is also the window's event
+/// loop: a history query against a cold, multi-hundred-megabyte file, or a
+/// two-minute flight recording written to a network share, froze every
+/// window for as long as the disk took.
+async fn off_main<T, F>(what: &'static str, work: F) -> CommandResult<T>
+where
+    T: Send + 'static,
+    F: FnOnce() -> CommandResult<T> + Send + 'static,
+{
+    tauri::async_runtime::spawn_blocking(work)
+        .await
+        .map_err(|err| CommandError::Internal {
+            message: format!("the {what} was abandoned: {err}"),
+        })?
+}
+
 /// Applies the "keep data for N days" setting.
 #[tauri::command]
 #[allow(clippy::needless_pass_by_value)]
@@ -38,7 +56,13 @@ pub fn set_retention_days(state: tauri::State<'_, AppState>, days: u32) -> Comma
 ///
 /// Returns an empty list — not an error — when history is off or the file
 /// does not exist yet; the chart shows "no history recorded" either way.
-#[tauri::command]
+///
+/// `command(async)` rather than an `async fn` with `spawn_blocking`: the LAN
+/// server calls this directly as a plain function from its own threads, and
+/// an `async fn` would hand it a future. The attribute keeps the function
+/// synchronous for that caller while Tauri runs the command off the main
+/// thread, which is the part that mattered.
+#[tauri::command(async)]
 pub fn query_machine_history(seconds: u32) -> CommandResult<Vec<MachineSample>> {
     if !store_path().exists() {
         return Ok(Vec::new());
@@ -63,7 +87,31 @@ pub struct HistoryUsage {
 }
 
 #[tauri::command]
-pub fn get_history_usage() -> CommandResult<HistoryUsage> {
+// Tauri injects the handle by value; it is only read here.
+#[allow(clippy::needless_pass_by_value)]
+pub async fn get_history_usage(app: tauri::AppHandle) -> CommandResult<HistoryUsage> {
+    let flight_frames = flight_frames(&app).len();
+    off_main("history usage read", move || {
+        read_history_usage().map(|usage| HistoryUsage {
+            flight_frames: u64::try_from(flight_frames).unwrap_or(0),
+            ..usage
+        })
+    })
+    .await
+}
+
+/// The flight recording, from the sampler's in-memory ring.
+///
+/// Empty before the sampler starts, which is the truth: nothing has been
+/// recorded yet.
+fn flight_frames(app: &tauri::AppHandle) -> Vec<vitals_store::FlightEntry> {
+    use tauri::Manager;
+    app.try_state::<crate::sampling::SamplerHandle>()
+        .map(|sampler| sampler.flight().frames())
+        .unwrap_or_default()
+}
+
+fn read_history_usage() -> CommandResult<HistoryUsage> {
     if !store_path().exists() {
         return Ok(HistoryUsage {
             bytes: 0,
@@ -78,7 +126,7 @@ pub fn get_history_usage() -> CommandResult<HistoryUsage> {
     Ok(HistoryUsage {
         bytes: store.size_bytes().map_err(map)?,
         fine_rows: store.count(vitals_store::Resolution::Second).map_err(map)?,
-        flight_frames: u64::try_from(store.flight_frames().map_err(map)?.len()).unwrap_or(0),
+        flight_frames: 0,
     })
 }
 
@@ -110,18 +158,11 @@ pub struct FlightRecording {
 /// Not a command: the webview never wants a two-minute recording as a JSON
 /// value, only written to a file, so it was registered for weeks and
 /// unreachable. `write_flight_recording` is the one entry point.
-fn export_flight_recording(app: &tauri::AppHandle) -> CommandResult<FlightRecording> {
-    let frames = if store_path().exists() {
-        open_reader()?
-            .flight_frames()
-            .map_err(|e| CommandError::Internal {
-                message: format!("flight recorder: {e}"),
-            })?
-    } else {
-        Vec::new()
-    };
-
-    let frames = frames
+///
+/// Infallible since the recording moved into memory: there is no file to
+/// fail to open.
+fn export_flight_recording(app: &tauri::AppHandle) -> FlightRecording {
+    let frames = flight_frames(app)
         .into_iter()
         .map(|(seq, ts, bytes)| FlightFrame {
             seq,
@@ -135,12 +176,12 @@ fn export_flight_recording(app: &tauri::AppHandle) -> CommandResult<FlightRecord
     #[cfg(not(windows))]
     let host = None;
 
-    Ok(FlightRecording {
+    FlightRecording {
         app_version: app.package_info().version.to_string(),
         exported_at: now_secs(),
         host,
         frames,
-    })
+    }
 }
 
 /// Writes the recording to `path`, which the user chose in a save dialog.
@@ -149,13 +190,15 @@ fn export_flight_recording(app: &tauri::AppHandle) -> CommandResult<FlightRecord
 /// need write access to arbitrary paths, and so a two-minute recording is
 /// serialised once instead of crossing the IPC boundary and back.
 #[tauri::command]
-#[allow(clippy::needless_pass_by_value)]
-pub fn write_flight_recording(app: tauri::AppHandle, path: String) -> CommandResult<()> {
-    let recording = export_flight_recording(&app)?;
-    let json = serde_json::to_vec_pretty(&recording).map_err(|e| CommandError::Internal {
-        message: format!("serialising the recording: {e}"),
-    })?;
-    std::fs::write(&path, json).map_err(|e| CommandError::Internal {
-        message: format!("writing {path}: {e}"),
+pub async fn write_flight_recording(app: tauri::AppHandle, path: String) -> CommandResult<()> {
+    off_main("flight recording export", move || {
+        let recording = export_flight_recording(&app);
+        let json = serde_json::to_vec_pretty(&recording).map_err(|e| CommandError::Internal {
+            message: format!("serialising the recording: {e}"),
+        })?;
+        std::fs::write(&path, json).map_err(|e| CommandError::Internal {
+            message: format!("writing {path}: {e}"),
+        })
     })
+    .await
 }

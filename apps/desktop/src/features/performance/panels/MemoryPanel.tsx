@@ -13,7 +13,7 @@
  * thrashing.
  */
 
-import { useRef } from 'react';
+import { useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { TimeSeriesChart } from '@vitals/charts';
@@ -22,6 +22,7 @@ import { formatBytes, formatCount, formatFrequency, formatPercent } from '@vital
 
 import type { MetricHistory } from '../../dashboard/history';
 import { useThemeColors } from '../../dashboard/widgets/useThemeColors';
+import { useChartDescriber } from '../chartSummary';
 import { StatList } from '../StatList';
 import { PERFORMANCE_NS } from '../strings';
 
@@ -38,6 +39,10 @@ export function MemoryPanel({
   const scope = useRef<HTMLDivElement>(null);
   const colors = useThemeColors(scope);
   const { memory } = system;
+  const describe = useChartDescriber(
+    t('memory.title'),
+    useCallback((v: number) => formatPercent(v, locale, 0), [locale]),
+  );
 
   const usedPercent = memory.total > 0 ? (memory.used / memory.total) * 100 : 0;
 
@@ -65,6 +70,7 @@ export function MemoryPanel({
           grid={{ horizontalLines: 4 }}
           className="min-h-0"
           ariaLabel={t('memory.title')}
+          describe={describe}
         />
       </div>
 
@@ -96,7 +102,8 @@ export function MemoryPanel({
             value:
               memory.pageFaultsPerSec !== null
                 ? `${formatCount(Math.round(memory.pageFaultsPerSec), locale)}/s`
-                : t('unavailable'),
+                : null,
+            unavailable: t('unavailable'),
             hint: t('memory.faultsHint'),
           },
           {
@@ -119,7 +126,8 @@ export function MemoryPanel({
               // empty one.
               memory.swapUsed !== null
                 ? `${formatBytes(memory.swapUsed, locale)} / ${formatBytes(memory.swapTotal, locale)}`
-                : t('unavailable'),
+                : null,
+            unavailable: t('unavailable'),
           },
           {
             key: 'reserved',

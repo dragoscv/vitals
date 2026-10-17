@@ -12,5 +12,4 @@ Fiecare versiune publicată are și propria pagină pe
 control `SHA256SUMS.txt` și notele de lansare. [Cea mai recentă
 versiune](https://github.com/dragoscv/vitals/releases/latest) este mereu la un clic distanță.
 
-Vitals folosește [versionarea semantică](https://semver.org). Cât timp versiunea începe cu `0.`, o
-versiune minoră poate încă schimba comportamentul; istoricul spune explicit când se întâmplă asta.
+Vitals folosește [versionarea semantică](https://semver.org).

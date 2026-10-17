@@ -21,7 +21,7 @@ import { ExportButton } from '../../components/ExportButton';
 import type { ExportColumn } from '../../lib/export';
 import { COLUMNS, type ColumnId } from './columns';
 import type { KindFilter, ProcessRow } from './model';
-import { PROCESSES_NS, columnLabel, fallback } from './strings';
+import { PROCESSES_NS, columnLabel } from './strings';
 
 export interface ProcessToolbarProps {
   readonly query: string;
@@ -66,10 +66,10 @@ export function ProcessToolbar(props: ProcessToolbarProps): React.JSX.Element {
         className="w-64 max-w-full min-w-40 flex-initial"
         value={props.query}
         onValueChange={props.onQueryChange}
-        placeholder={t('process.search.placeholder', fallback('process.search.placeholder'))}
-        aria-label={t('process.search.placeholder', fallback('process.search.placeholder'))}
+        placeholder={t('process.search.placeholder')}
+        aria-label={t('process.search.placeholder')}
         clearLabel={t('common.close')}
-        resultsAnnouncement={t('process.results', fallback('process.results'), {
+        resultsAnnouncement={t('process.results', {
           shown: props.shown,
           total: props.total,
         })}
@@ -78,10 +78,10 @@ export function ProcessToolbar(props: ProcessToolbarProps): React.JSX.Element {
       <SegmentedControl<KindFilter>
         value={props.kind}
         onValueChange={props.onKindChange}
-        ariaLabel={t('process.filter.all', fallback('process.filter.all'))}
+        ariaLabel={t('process.filter.label')}
         options={kinds.map((entry) => ({
           value: entry.value,
-          label: t(entry.key, fallback(entry.key as never)),
+          label: t(entry.key),
         }))}
       />
 
@@ -89,9 +89,7 @@ export function ProcessToolbar(props: ProcessToolbarProps): React.JSX.Element {
         checked={props.grouped}
         onCheckedChange={(checked) => props.onGroupedChange(checked === true)}
         label={
-          <span className="text-2xs text-[var(--color-fg-muted)]">
-            {t('process.group.byApp', fallback('process.group.byApp'))}
-          </span>
+          <span className="text-2xs text-[var(--color-fg-muted)]">{t('process.group.byApp')}</span>
         }
       />
 
@@ -106,7 +104,7 @@ export function ProcessToolbar(props: ProcessToolbarProps): React.JSX.Element {
           the order exists to prevent. Nothing in this toolbar may change
           size with hover state. */}
         <span className="mr-1 text-2xs whitespace-nowrap text-[var(--color-fg-muted)] tabular-nums">
-          {t('process.results', fallback('process.results'), {
+          {t('process.results', {
             shown: props.shown,
             total: props.total,
           })}
@@ -116,7 +114,7 @@ export function ProcessToolbar(props: ProcessToolbarProps): React.JSX.Element {
           <DropdownMenuTrigger asChild>
             <Button size="sm" variant="ghost">
               <Columns3 aria-hidden className="size-4" />
-              {t('process.columns', fallback('process.columns'))}
+              {t('process.columns')}
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">

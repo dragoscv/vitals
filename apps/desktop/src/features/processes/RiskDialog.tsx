@@ -13,7 +13,6 @@ import { useTranslation } from 'react-i18next';
 import { Badge, Button, DialogContent, DialogRoot, type BadgeProps } from '@vitals/ui';
 
 import type { ActionPlan, ActionRisk } from './actions';
-import { fallback } from './strings';
 
 export type RiskAction = 'terminate' | 'terminate-tree' | 'suspend';
 
@@ -71,12 +70,12 @@ export function RiskDialog({
   const title = ((): string => {
     if (request === null) return '';
     if (request.action === 'suspend') {
-      return t('process.confirm.suspendTitle', fallback('process.confirm.suspendTitle'), {
+      return t('process.confirm.suspendTitle', {
         name: request.processName,
       });
     }
     if (request.action === 'terminate-tree' && request.childCount > 0) {
-      return t('process.confirm.treeTitle', fallback('process.confirm.treeTitle'), {
+      return t('process.confirm.treeTitle', {
         name: request.processName,
         count: request.childCount,
       });
@@ -109,7 +108,7 @@ export function RiskDialog({
                 {...(denied && { loading: busy, loadingLabel: t('common.loading') })}
                 data-testid="risk-elevate"
               >
-                {t('process.confirm.elevate', fallback('process.confirm.elevate'))}
+                {t('process.confirm.elevate')}
               </Button>
             )}
             {!blocked && !denied && (
@@ -121,8 +120,8 @@ export function RiskDialog({
                 data-testid="risk-confirm"
               >
                 {request?.action === 'suspend'
-                  ? t('process.confirm.proceedSuspend', fallback('process.confirm.proceedSuspend'))
-                  : t('process.confirm.proceed', fallback('process.confirm.proceed'))}
+                  ? t('process.confirm.proceedSuspend')
+                  : t('process.confirm.proceed')}
               </Button>
             )}
           </>
@@ -130,7 +129,7 @@ export function RiskDialog({
       >
         <div className="space-y-3">
           <Badge tone={TONE[risk]} data-testid="risk-badge">
-            {t(`process.risk.${risk}`, fallback(`process.risk.${risk}` as never))}
+            {t(`process.risk.${risk}`)}
           </Badge>
 
           {/* The consequence comes from the backend as a translation key, so
@@ -141,8 +140,8 @@ export function RiskDialog({
             {request === null ? '' : t(request.plan.consequence)}
           </p>
           {denied && (
-            <p role="status" className="text-sm text-[var(--color-status-warn)]">
-              {t('process.confirm.denied', fallback('process.confirm.denied'))}
+            <p role="status" className="text-sm text-[var(--color-warn-text)]">
+              {t('process.confirm.denied')}
             </p>
           )}
         </div>

@@ -58,4 +58,25 @@ class PairingAndWolTest {
             "http://8.8.8.8:7331", "http://172.32.0.1:7331", "http://evil.example:7331", "http://[2001:db8::1]:7331",
         ).forEach { org.junit.Assert.assertFalse(it, app.vitals.core.net.LanAddress.isPrivate(it)) }
     }
+
+    @Test
+    fun a_public_name_or_a_malformed_ip_that_starts_like_a_private_one_is_refused() {
+        listOf(
+            "http://10.0.0.1.evil.com:7331",
+            "http://10.0.0.256.1:7331",
+            "http://10.0.0.256:7331",
+            "http://192.168.1:7331",
+            "http://192.168.1.1.1:7331",
+            "http://10.0.0.0001:7331",
+            "http://10.evil.0.1:7331",
+            "http://fd.example.com:7331",
+            "http://fc00.example:7331",
+            "http://[2001:db8::fd]:7331",
+            "http://[fec0::1]:7331",
+        ).forEach { org.junit.Assert.assertFalse(it, app.vitals.core.net.LanAddress.isPrivate(it)) }
+        listOf(
+            "http://127.0.0.1:7331", "http://169.254.3.4:7331", "http://[fd12:3456::1]:7331",
+            "http://[fc00::1]:7331", "http://[febf::1]:7331", "http://[::1]:7331", "http://localhost:7331",
+        ).forEach { org.junit.Assert.assertTrue(it, app.vitals.core.net.LanAddress.isPrivate(it)) }
+    }
 }

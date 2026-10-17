@@ -168,7 +168,7 @@ export function DeviceTreePanel({ api }: { readonly api: HardwareApi }): React.J
         </Button>
       </div>
       {error !== null && (
-        <p role="alert" className="text-2xs text-[var(--color-status-danger)]">
+        <p role="alert" className="text-2xs text-[var(--color-danger-text)]">
           {t('stale', { message: error })}
         </p>
       )}
@@ -391,7 +391,7 @@ const DeviceRow = forwardRef<
         )}
       </div>
       {device.status === 'problem' && (
-        <p className="text-2xs text-[var(--color-status-warn)]">
+        <p className="text-2xs text-[var(--color-warn-text)]">
           {t('tree.problem', {
             code: device.problemCode ?? 0,
             message: device.problem ?? '',
@@ -417,7 +417,7 @@ function StatusIcon({ device }: { readonly device: DeviceInfo }) {
         <AlertTriangle
           role="img"
           aria-label={t('tree.hasProblem')}
-          className="size-4 text-[var(--color-status-warn)]"
+          className="size-4 text-[var(--color-warn-text)]"
         />
       );
     case 'disabled':

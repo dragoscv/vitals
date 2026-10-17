@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Vitals local API
-  version: 0.1.0
+  version: 1.0.0
   summary: The LAN HTTP API served by a running Vitals desktop.
   description: |
     Vitals is a Windows system monitor. When the user turns on **Remote

@@ -187,11 +187,23 @@ class VitalsClient(
                 }
 
                 override fun onResponse(call: Call, response: Response) {
-                    response.use {
-                        val result = runCatching { handle(it) }
-                        if (!cont.isActive) return
-                        result.fold(cont::resume) { e -> cont.resumeWithException(e) }
+                    // Reading the body happens here, on OkHttp's thread, and can
+                    // fail half-way (Wi-Fi drops, PC sleeps mid-response). That is
+                    // the same fact as onFailure — nothing answered — and must not
+                    // reach the caller as an exception: no scope in the app has a
+                    // handler that would expect it, so it crashed the process.
+                    val result = try {
+                        response.use { handle(it) }
+                    } catch (e: IOException) {
+                        ApiResult.Err(ApiFailure.Unreachable(e.javaClass.simpleName))
+                    } catch (e: RuntimeException) {
+                        // Includes CancellationException: handed to the coroutine,
+                        // which re-throws it there. Throwing it on OkHttp's
+                        // dispatcher thread instead would kill the process.
+                        if (cont.isActive) cont.resumeWithException(e)
+                        return
                     }
+                    if (cont.isActive) cont.resume(result)
                 }
             })
         }

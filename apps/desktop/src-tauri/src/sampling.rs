@@ -10,10 +10,12 @@
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Condvar, Mutex, PoisonError};
 use std::thread;
 use std::time::{Duration, Instant};
 
 use tauri::{AppHandle, Emitter, Manager};
+use vitals_store::FlightRecorder;
 
 use crate::state::AppState;
 
@@ -23,6 +25,80 @@ pub const FRAME_EVENT: &str = "vitals://frame";
 /// Event name for sampler failures.
 pub const ERROR_EVENT: &str = "vitals://sampler-error";
 
+/// Wakes the sampler out of its sleep when the sample rate changes.
+///
+/// One per process because there is one sampler, and a static because the
+/// rate is written by [`AppState::set_sample_rate`], which has no handle to
+/// the sampler. Without the wake a window shown after a minute hidden kept
+/// its stale numbers for the rest of a twenty-second background interval,
+/// and resuming from Pause relied on a five-times-a-second poll.
+pub static RATE_WAKE: Wake = Wake::new();
+
+/// A sleep that can be cut short.
+///
+/// Replaces 50 ms sleep slices, which woke the sampler twenty times a
+/// second all day — including while hidden at one frame per twenty seconds,
+/// when every one of those wake-ups was for nothing. A condition variable
+/// sleeps for the whole remaining interval and is woken only by a stop or a
+/// rate change.
+#[derive(Debug)]
+pub struct Wake {
+    /// Set by [`Self::notify`], cleared by the waiter that consumes it, so a
+    /// notification that lands while the sampler is busy sampling is not
+    /// lost — the next wait returns at once instead.
+    pending: Mutex<bool>,
+    signal: Condvar,
+}
+
+impl Wake {
+    #[must_use]
+    pub const fn new() -> Self {
+        Self {
+            pending: Mutex::new(false),
+            signal: Condvar::new(),
+        }
+    }
+
+    /// Wakes the waiter, or the next one if nobody is waiting.
+    pub fn notify(&self) {
+        *self.pending.lock().unwrap_or_else(PoisonError::into_inner) = true;
+        self.signal.notify_all();
+    }
+
+    /// Sleeps up to `total`. Returns `true` if cut short by a notification
+    /// or `stop`, `false` if the time simply ran out.
+    ///
+    /// `stop` is checked under the lock that [`Self::notify`] takes, and
+    /// [`SamplerHandle::stop`] sets it before notifying, so a stop can never
+    /// slip between the check and the wait.
+    pub fn wait(&self, total: Duration, stop: &AtomicBool) -> bool {
+        let deadline = Instant::now() + total;
+        let mut pending = self.pending.lock().unwrap_or_else(PoisonError::into_inner);
+        loop {
+            if *pending || stop.load(Ordering::Relaxed) {
+                *pending = false;
+                return true;
+            }
+            let now = Instant::now();
+            if now >= deadline {
+                return false;
+            }
+            // Spurious wake-ups loop back to the checks above.
+            pending = self
+                .signal
+                .wait_timeout(pending, deadline - now)
+                .unwrap_or_else(PoisonError::into_inner)
+                .0;
+        }
+    }
+}
+
+impl Default for Wake {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// Handle to a running sampler thread.
 #[derive(Debug)]
 pub struct SamplerHandle {
@@ -30,15 +106,24 @@ pub struct SamplerHandle {
     /// Taken by [`Self::stop_and_wait`]. A `Mutex` because the handle lives
     /// in Tauri's managed state, which hands out `&self` only.
     thread: parking_lot::Mutex<Option<thread::JoinHandle<()>>>,
+    /// The last frames, in memory, for the bug-report export.
+    flight: FlightRecorder,
 }
 
 impl SamplerHandle {
     /// Signals the thread to stop at its next tick.
     ///
     /// Cooperative rather than a kill: a sampler interrupted mid-syscall can
-    /// leak the kernel buffer it was filling.
+    /// leak the kernel buffer it was filling. Wakes a sleeping sampler so
+    /// the stop is seen at once, not at the end of the interval.
     pub fn stop(&self) {
         self.stop.store(true, Ordering::Relaxed);
+        RATE_WAKE.notify();
+    }
+
+    /// The flight recording the export reads.
+    pub fn flight(&self) -> &FlightRecorder {
+        &self.flight
     }
 
     /// Stops the sampler and waits for its final flush, up to `limit`.
@@ -47,8 +132,8 @@ impl SamplerHandle {
     /// below never ran and the loop's closing `save_history` / `rec.flush()`
     /// was dead code: every Quit lost up to a minute of app history. The
     /// wait is bounded — a sampler stuck in a syscall must not turn Quit
-    /// into a hang — and the loop polls `stop` every 50 ms, so it exits
-    /// well inside the limit in practice.
+    /// into a hang — and `stop` wakes the sampler's sleep, so it exits well
+    /// inside the limit in practice.
     pub fn stop_and_wait(&self, limit: Duration) {
         self.stop();
         let Some(handle) = self.thread.lock().take() else {
@@ -81,6 +166,8 @@ impl Drop for SamplerHandle {
 pub fn spawn(app: AppHandle) -> SamplerHandle {
     let stop = Arc::new(AtomicBool::new(false));
     let thread_stop = Arc::clone(&stop);
+    let flight = FlightRecorder::default();
+    let thread_flight = flight.clone();
 
     // Startup, not the hot path: if the OS refuses a thread, aborting with a
     // message is the right outcome — there is nothing to show without it.
@@ -90,17 +177,18 @@ pub fn spawn(app: AppHandle) -> SamplerHandle {
         // 512 KiB: the default 2 MiB is wasteful for a thread whose deepest
         // allocation is a process buffer that lives on the heap anyway.
         .stack_size(512 * 1024)
-        .spawn(move || run(&app, &thread_stop))
+        .spawn(move || run(&app, &thread_stop, &thread_flight))
         .expect("the sampler thread must start; the app is useless without it");
 
     SamplerHandle {
         stop,
         thread: parking_lot::Mutex::new(Some(thread)),
+        flight,
     }
 }
 
 /// The sampling loop.
-fn run(app: &AppHandle, stop: &AtomicBool) {
+fn run(app: &AppHandle, stop: &AtomicBool, flight: &FlightRecorder) {
     let mut backend = Backend::new();
 
     // The store lives in the sampler; the commands need a handle to the same
@@ -111,29 +199,16 @@ fn run(app: &AppHandle, stop: &AtomicBool) {
         state.attach_history(backend.history());
     }
 
-    // The time-series store and flight recorder. Opened here so the SQLite
-    // connection lives on the one thread that writes it. A failure to open
-    // (read-only profile, corrupt file) disables recording and says so once;
-    // it must never stop sampling.
     let mut applied = crate::state::RecordingSettings::default();
-    let mut recorder = match vitals_store::Recorder::open(&crate::state::store_path()) {
-        Ok(mut r) => {
-            // `reconcile_recorder` only pushes a *change*, and `applied`
-            // starts equal to the defaults — so the default "keep 7 days"
-            // was never applied and the store kept its built-in 30 days of
-            // 5-minute and a year of hourly rows. Pushed once here instead.
-            r.set_retention_days(applied.retention_days);
-            Some(r)
-        }
-        Err(error) => {
-            tracing::warn!(%error, "history store unavailable; recording disabled");
-            None
-        }
-    };
+    let mut recorder = open_recorder(flight, &applied);
 
     // Backoff so a persistent failure does not spam the UI with a toast per
     // tick. Resets on the first success.
     let mut consecutive_failures = 0_u32;
+
+    // Emit failures counted separately from sampling failures: they are a
+    // different fault (IPC, not the machine) and must not reset each other.
+    let mut emit_failures = 0_u64;
 
     // History used to be written only when this loop exited. This is a task
     // manager: its user kills processes for a living, and a killed Vitals
@@ -144,11 +219,11 @@ fn run(app: &AppHandle, stop: &AtomicBool) {
 
     while !stop.load(Ordering::Relaxed) {
         let Some(interval) = current_interval(app) else {
-            // Paused. Poll the flag rather than sampling, so resuming is
-            // immediate but a paused app costs nothing. Without this branch
-            // Paused would silently behave like some default rate, and the
-            // setting would appear to do nothing.
-            sleep_interruptibly(PAUSED_POLL_INTERVAL, stop);
+            // Paused. Sleep until the rate changes or the app quits, so
+            // resuming is immediate and a paused app costs nothing. Without
+            // this branch Paused would silently behave like some default
+            // rate, and the setting would appear to do nothing.
+            RATE_WAKE.wait(PAUSED_RECHECK, stop);
             continue;
         };
         let started = Instant::now();
@@ -181,6 +256,10 @@ fn run(app: &AppHandle, stop: &AtomicBool) {
                     if let Err(error) = rec.observe(&mut frame) {
                         tracing::warn!(%error, "recorder write failed");
                     }
+                } else if let Err(error) = flight.record(&mut frame) {
+                    // No store (read-only profile, unopenable file): the
+                    // flight recording is memory-only and still works.
+                    tracing::warn!(%error, "flight recorder failed");
                 }
                 // The LAN server, only while it is running: a clone of a
                 // 600-process keyframe every tick for a server that is off
@@ -210,9 +289,20 @@ fn run(app: &AppHandle, stop: &AtomicBool) {
                 if let Some(taskbar) = app.try_state::<crate::taskbar::TaskbarLoad>() {
                     taskbar.observe(frame.system().cpu.total.0);
                 }
-                if app.emit(FRAME_EVENT, &frame).is_err() {
-                    // The window is gone. Nothing to sample for.
-                    break;
+                // An emit failure used to `break` the loop, on the theory that
+                // it meant the window was gone. It does not: the window is
+                // hidden, not destroyed, when closed to the tray, and a
+                // transient IPC error ended sampling for the rest of the
+                // session — the tray, alerts, history and the LAN server all
+                // went silent with no way back short of a restart. Quitting is
+                // signalled by `stop`, which this loop already honours.
+                if let Err(error) = app.emit(FRAME_EVENT, &frame) {
+                    emit_failures = emit_failures.saturating_add(1);
+                    // First, then every 600th (ten minutes at 1 Hz): enough to
+                    // see in a log, not enough to fill one.
+                    if emit_failures == 1 || emit_failures.is_multiple_of(600) {
+                        tracing::warn!(%error, emit_failures, "frame emit failed; still sampling");
+                    }
                 }
                 #[cfg(windows)]
                 if last_flush.elapsed() >= HISTORY_FLUSH_INTERVAL {
@@ -234,19 +324,16 @@ fn run(app: &AppHandle, stop: &AtomicBool) {
             }
         }
 
-        // Subtract the work from the interval so cadence stays honest. A
+        // Measured from when the sample started so cadence stays honest. A
         // fixed sleep after a 13ms sample makes a "1 Hz" rate actually
         // 0.987 Hz, and every rate computed from it is quietly wrong.
-        let elapsed = started.elapsed();
-        let remaining = interval.saturating_sub(elapsed);
-
-        if remaining.is_zero() {
+        if started.elapsed() >= interval {
             // Sampling took longer than the interval. Yield rather than
             // spinning, so a slow machine degrades to a lower rate instead
             // of pinning a core.
             thread::yield_now();
         } else {
-            sleep_interruptibly(remaining, stop);
+            sleep_until_due(started, interval, stop, || current_interval(app));
         }
     }
 
@@ -258,6 +345,32 @@ fn run(app: &AppHandle, stop: &AtomicBool) {
     }
     if let Some(rec) = recorder.as_mut() {
         let _ = rec.flush();
+    }
+}
+
+/// Opens the time-series store, recording frames into `flight`.
+///
+/// Opened on the sampler thread so the SQLite connection lives on the one
+/// thread that writes it. A failure to open (read-only profile, a file that
+/// could not be recovered) disables recording and says so once; it must
+/// never stop sampling.
+fn open_recorder(
+    flight: &FlightRecorder,
+    applied: &crate::state::RecordingSettings,
+) -> Option<vitals_store::Recorder> {
+    match vitals_store::Recorder::open_with_flight(&crate::state::store_path(), flight.clone()) {
+        Ok(mut r) => {
+            // `reconcile_recorder` only pushes a *change*, and `applied`
+            // starts equal to the defaults — so the default "keep 7 days"
+            // was never applied and the store kept its built-in 30 days of
+            // 5-minute and a year of hourly rows. Pushed once here instead.
+            r.set_retention_days(applied.retention_days);
+            Some(r)
+        }
+        Err(error) => {
+            tracing::warn!(%error, "history store unavailable; recording disabled");
+            None
+        }
     }
 }
 
@@ -318,26 +431,40 @@ fn reconcile_recorder(
 #[cfg(windows)]
 const HISTORY_FLUSH_INTERVAL: Duration = Duration::from_secs(60);
 
-/// Sleeps in slices so a stop request is honoured promptly.
+/// Sleeps until the tick that started at `started` is due again.
 ///
-/// A single long sleep would keep the app alive for up to the full interval
-/// after the window closes, which reads as a hang.
-fn sleep_interruptibly(total: Duration, stop: &AtomicBool) {
-    const SLICE: Duration = Duration::from_millis(50);
-
-    let mut remaining = total;
-    while !remaining.is_zero() && !stop.load(Ordering::Relaxed) {
-        let slice = remaining.min(SLICE);
-        thread::sleep(slice);
-        remaining = remaining.saturating_sub(slice);
+/// A rate change wakes the sleep and the deadline is recomputed against the
+/// new interval from the same start, so a window shown fifteen seconds into
+/// a twenty-second background interval samples now rather than in five
+/// seconds, and slowing down does not sample an extra frame early. A pause
+/// or a stop ends the sleep; the loop handles both.
+fn sleep_until_due(
+    started: Instant,
+    mut interval: Duration,
+    stop: &AtomicBool,
+    interval_now: impl Fn() -> Option<Duration>,
+) {
+    loop {
+        let remaining = interval.saturating_sub(started.elapsed());
+        if remaining.is_zero() || !RATE_WAKE.wait(remaining, stop) {
+            return;
+        }
+        if stop.load(Ordering::Relaxed) {
+            return;
+        }
+        match interval_now() {
+            Some(next) => interval = next,
+            None => return,
+        }
     }
 }
 
-/// How often a paused sampler checks whether it has been resumed.
+/// How long a paused sampler sleeps before looking again on its own.
 ///
-/// Short enough that resuming feels instant, long enough that a paused app
-/// is genuinely idle.
-const PAUSED_POLL_INTERVAL: Duration = Duration::from_millis(200);
+/// Every way out of Pause goes through [`AppState::set_sample_rate`], which
+/// wakes it at once, so this is only a backstop against a future path that
+/// forgets to. Long, because a paused app should be genuinely idle.
+const PAUSED_RECHECK: Duration = Duration::from_secs(5);
 
 /// Reads the current interval from shared state, or `None` when paused.
 ///
@@ -542,48 +669,73 @@ mod tests {
     }
 
     #[test]
-    fn an_interruptible_sleep_returns_early() {
-        // A full-interval sleep after the window closes reads as a hang.
-        let stop = Arc::new(AtomicBool::new(false));
-        let flag = Arc::clone(&stop);
-
+    fn a_two_second_wait_returns_within_a_tenth_of_a_second_of_being_signalled() {
+        // A rate change or a quit must not wait out the interval: a full
+        // twenty-second background sleep after the window closes reads as a
+        // hang, and after it is shown as stale numbers.
+        let wake = Arc::new(Wake::new());
+        let signaller = Arc::clone(&wake);
+        let stop = AtomicBool::new(false);
         thread::spawn(move || {
             thread::sleep(Duration::from_millis(60));
-            flag.store(true, Ordering::Relaxed);
+            signaller.notify();
         });
 
         let started = Instant::now();
-        sleep_interruptibly(Duration::from_secs(5), &stop);
+        let woken = wake.wait(Duration::from_secs(2), &stop);
         let elapsed = started.elapsed();
 
+        assert!(woken, "reported a timeout");
         assert!(
-            elapsed < Duration::from_millis(500),
-            "sleep ignored the stop flag for {elapsed:?}"
+            elapsed < Duration::from_millis(160),
+            "the signal took {elapsed:?} to land"
         );
     }
 
     #[test]
-    fn a_completed_sleep_takes_roughly_the_requested_time() {
+    fn an_unsignalled_wait_sleeps_the_whole_interval_rather_than_returning_early() {
+        let wake = Wake::new();
         let stop = AtomicBool::new(false);
         let started = Instant::now();
-        sleep_interruptibly(Duration::from_millis(120), &stop);
+        let woken = wake.wait(Duration::from_millis(300), &stop);
         let elapsed = started.elapsed();
 
+        assert!(!woken, "claimed a signal nobody sent");
         assert!(
-            elapsed >= Duration::from_millis(100),
+            elapsed >= Duration::from_millis(300),
             "returned early: {elapsed:?}"
         );
-        assert!(
-            elapsed < Duration::from_millis(400),
-            "overslept: {elapsed:?}"
-        );
     }
 
     #[test]
-    fn a_zero_sleep_returns_immediately() {
+    fn a_signal_sent_while_the_sampler_was_busy_ends_its_next_wait_at_once() {
+        // A rate change landing mid-sample would otherwise be lost and the
+        // sampler would sleep the full old interval.
+        let wake = Wake::new();
+        let stop = AtomicBool::new(false);
+        wake.notify();
+        let started = Instant::now();
+        assert!(wake.wait(Duration::from_secs(2), &stop));
+        assert!(started.elapsed() < Duration::from_millis(50));
+        // And it is consumed: the wait after that sleeps normally.
+        assert!(!wake.wait(Duration::from_millis(30), &stop));
+    }
+
+    #[test]
+    fn a_stop_already_requested_ends_the_wait_without_sleeping() {
+        let wake = Wake::new();
+        let stop = AtomicBool::new(true);
+        let started = Instant::now();
+        assert!(wake.wait(Duration::from_secs(2), &stop));
+        assert!(started.elapsed() < Duration::from_millis(50));
+    }
+
+    #[test]
+    fn a_zero_wait_returns_immediately() {
+        let wake = Wake::new();
         let stop = AtomicBool::new(false);
         let started = Instant::now();
-        sleep_interruptibly(Duration::ZERO, &stop);
+        assert!(!wake.wait(Duration::ZERO, &stop));
         assert!(started.elapsed() < Duration::from_millis(20));
     }
 
@@ -595,6 +747,7 @@ mod tests {
             let _handle = SamplerHandle {
                 stop: Arc::clone(&stop),
                 thread: parking_lot::Mutex::new(None),
+                flight: FlightRecorder::default(),
             };
         }
         assert!(
@@ -619,6 +772,7 @@ mod tests {
         let handle = SamplerHandle {
             stop,
             thread: parking_lot::Mutex::new(Some(thread)),
+            flight: FlightRecorder::default(),
         };
         handle.stop_and_wait(Duration::from_secs(2));
         assert!(
@@ -634,6 +788,7 @@ mod tests {
         let handle = SamplerHandle {
             stop,
             thread: parking_lot::Mutex::new(Some(thread)),
+            flight: FlightRecorder::default(),
         };
         let started = Instant::now();
         handle.stop_and_wait(Duration::from_millis(50));

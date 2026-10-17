@@ -5,16 +5,35 @@ description: Descarcă Vitals pentru Windows, verifică programul de instalare �
 
 import { Aside, LinkButton } from '@astrojs/starlight/components';
 
+<LinkButton href="https://apps.microsoft.com/detail/9P95RK5VMGPJ" icon="download">
+  Ia-l din Microsoft Store
+</LinkButton>
 <LinkButton
   href="https://github.com/dragoscv/vitals/releases/latest/download/Vitals_x64-setup.exe"
   icon="download"
+  variant="secondary"
 >
-  Descarcă pentru Windows (x64)
+  Descarcă programul de instalare (x64)
 </LinkButton>
 
-<Aside type="note" title="Vitals 0.9">
-  Windows 10 și 11. macOS și Linux sunt în plan.
+<Aside type="note" title="Vitals 1.0">
+  Windows 10 și 11. Pe desktop doar Windows; nu există planuri datate pentru macOS sau Linux.
 </Aside>
+
+## Variante de instalare
+
+1. **Microsoft Store** — [Vitals: System Monitor](https://apps.microsoft.com/detail/9P95RK5VMGPJ).
+   Fără avertisment SmartScreen, iar Store-ul îl ține la zi. Versiunea din Store nu are actualizarea
+   automată proprie, înlocuirea Task Manager și serviciul opțional de senzori.
+2. **winget** — `winget install Vitals.Vitals`
+3. **Scoop** — `scoop bucket add vitals https://github.com/dragoscv/scoop-vitals`, apoi
+   `scoop install vitals/vitals`
+4. **Program de instalare** — fișierele de mai jos. SmartScreen avertizează la prima rulare;
+   [vezi de ce](#windows-smartscreen).
+5. **Chocolatey** — `choco install vitals`. Pachetul 1.0 așteaptă moderarea; până la aprobare este
+   listată doar o versiune preliminară veche, 0.9.
+
+winget și Scoop se actualizează automat la fiecare versiune.
 
 ## Fișiere
 
@@ -30,6 +49,14 @@ import { Aside, LinkButton } from '@astrojs/starlight/components';
 
 Aceste linkuri indică mereu cea mai recentă versiune. Versiunile mai vechi, notele de lansare și
 build-urile nocturne sunt pe [pagina de versiuni](https://github.com/dragoscv/vitals/releases).
+
+## Telefon, ceas și televizor
+
+Fiecare [versiune de pe GitHub](https://github.com/dragoscv/vitals/releases/latest) are trei fișiere
+APK pentru Android: `Vitals_<versiune>_android.apk` pentru telefoane, `_wear.apk` pentru Wear OS și
+`_tv.apk` pentru Android TV și Google TV. Fiecare monitorizează dispozitivul pe care rulează și poate
+urmări PC-urile Windows asociate din rețeaua locală. Prima dată, Android îți cere să permiți
+instalarea din browser sau din managerul de fișiere. Listările din Google Play urmează mai târziu.
 
 ## Cerințe de sistem
 
@@ -79,9 +106,10 @@ Programul de instalare nu pune întrebări. Pentru scripturi:
 
 ## Actualizări
 
-Vitals verifică în fundal dacă există o versiune nouă, la scurt timp după pornire. Când găsește una,
-o descarcă, îi verifică semnătura și o instalează când închizi aplicația. O actualizare cu semnătură
-lipsă sau greșită este refuzată. Poți dezactiva verificarea din **Setări → Despre**.
+Versiunea din programul de instalare verifică în fundal dacă există o versiune nouă, la scurt timp
+după pornire. Când găsește una, o descarcă, îi verifică semnătura și o instalează când închizi
+aplicația. O actualizare cu semnătură lipsă sau greșită este refuzată. Poți dezactiva verificarea
+din **Setări → Despre**. Versiunea din Microsoft Store este actualizată de Store.
 
 ## Dezinstalare
 

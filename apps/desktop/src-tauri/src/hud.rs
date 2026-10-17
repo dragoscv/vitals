@@ -75,8 +75,11 @@ fn show_clickable(window: &tauri::WebviewWindow) -> CommandResult<()> {
 /// Hide rather than close on the way out: recreating the webview costs a
 /// process start and loses the sparkline history, and this is bound to a
 /// global shortcut people press repeatedly.
+///
+/// `async` because the first press creates the window; see
+/// [`set_hud_visible`] for why that must not happen in a sync command.
 #[tauri::command]
-pub fn toggle_hud(app: tauri::AppHandle) -> CommandResult<bool> {
+pub async fn toggle_hud(app: tauri::AppHandle) -> CommandResult<bool> {
     if let Some(window) = app.get_webview_window(LABEL) {
         let visible = window.is_visible().unwrap_or(false);
         if visible {
@@ -87,7 +90,7 @@ pub fn toggle_hud(app: tauri::AppHandle) -> CommandResult<bool> {
         return Ok(!visible);
     }
 
-    set_hud_visible(app, true)
+    set_hud_visible(app, true).await
 }
 
 /// Drives the overlay to a known state, creating it if needed.
@@ -95,11 +98,19 @@ pub fn toggle_hud(app: tauri::AppHandle) -> CommandResult<bool> {
 /// This is what the settings switch and the "re-open on start" path call. A
 /// toggle cannot serve them: restoring a stored `true` at launch must not
 /// close an overlay a race left open.
+///
+/// `async` with nothing to await, on purpose. Tauri runs a sync command on
+/// the main thread, and `WebviewWindowBuilder::build` dispatches to the main
+/// thread and waits for it — Tauri documents this as a deadlock on Windows.
+/// An async command runs on the async runtime instead, so the build's
+/// round-trip to the event loop has a free main thread to land on.
 #[tauri::command]
 // Tauri's command macro injects the handle by value; it cannot hand us a
 // borrow, and the early-return branches do not consume it.
 #[allow(clippy::needless_pass_by_value)]
-pub fn set_hud_visible(app: tauri::AppHandle, visible: bool) -> CommandResult<bool> {
+// See above: the `async` is what moves the command off the main thread.
+#[allow(clippy::unused_async)]
+pub async fn set_hud_visible(app: tauri::AppHandle, visible: bool) -> CommandResult<bool> {
     if let Some(window) = app.get_webview_window(LABEL) {
         if visible {
             show_clickable(&window)?;

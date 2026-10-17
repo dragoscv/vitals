@@ -16,10 +16,10 @@ const badge = cva(
           'border-[var(--color-border-default)] bg-[var(--color-bg-subtle)] text-[var(--color-fg-muted)]',
         accent:
           'border-[var(--color-accent-border)] bg-[var(--color-accent-subtle)] text-[var(--color-accent)]',
-        ok: 'border-[var(--color-status-ok)]/40 bg-[var(--color-status-ok)]/12 text-[var(--color-status-ok)]',
-        warn: 'border-[var(--color-status-warn)]/40 bg-[var(--color-status-warn)]/12 text-[var(--color-status-warn)]',
+        ok: 'border-[var(--color-status-ok)]/40 bg-[var(--color-status-ok)]/12 text-[var(--color-ok-text)]',
+        warn: 'border-[var(--color-status-warn)]/40 bg-[var(--color-status-warn)]/12 text-[var(--color-warn-text)]',
         danger:
-          'border-[var(--color-status-danger)]/40 bg-[var(--color-status-danger)]/12 text-[var(--color-status-danger)]',
+          'border-[var(--color-status-danger)]/40 bg-[var(--color-status-danger)]/12 text-[var(--color-danger-text)]',
         info: 'border-[var(--color-status-info)]/40 bg-[var(--color-status-info)]/12 text-[var(--color-status-info)]',
       },
     },

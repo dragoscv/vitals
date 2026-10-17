@@ -48,10 +48,11 @@ aceleași tipuri generate pe care le folosește și aplicația. Fără dependen�
 tipuri complete.
 
 ```sh
-pnpm add @vitals-app/client@next
+pnpm add @vitals-app/client
 ```
 
-Eticheta `next` urmează versiunea beta. Sursa este `packages/client` în depozit (numit
+Sursa și un ghid complet de utilizare sunt în
+[`packages/client`](https://github.com/dragoscv/vitals/tree/main/packages/client) (numit
 `@vitals/client` în monorepo; scope-ul npm `@vitals` aparține altui proiect).
 
 ## Descoperire

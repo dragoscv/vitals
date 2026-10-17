@@ -32,6 +32,9 @@ baselineprofile = "1.5.0"
 benchmark = "1.5.0"
 uiautomator = "2.4.0"
 junit = "4.13.2"
+# Open-source licences screen (Settings → About): the plugin writes the
+# dependency list with licence texts into res/raw at build time.
+aboutlibraries = "15.3.0"
 
 [libraries]
 compose-bom = { module = "androidx.compose:compose-bom", version.ref = "compose-bom" }
@@ -88,6 +91,7 @@ profileinstaller = { module = "androidx.profileinstaller:profileinstaller", vers
 benchmark-macro = { module = "androidx.benchmark:benchmark-macro-junit4", version.ref = "benchmark" }
 uiautomator = { module = "androidx.test.uiautomator:uiautomator", version.ref = "uiautomator" }
 junit = { module = "junit:junit", version.ref = "junit" }
+aboutlibraries-core = { module = "com.mikepenz:aboutlibraries-core", version.ref = "aboutlibraries" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
@@ -96,3 +100,4 @@ android-test = { id = "com.android.test", version.ref = "agp" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 baselineprofile = { id = "androidx.baselineprofile", version.ref = "baselineprofile" }
+aboutlibraries = { id = "com.mikepenz.aboutlibraries.plugin.android", version.ref = "aboutlibraries" }

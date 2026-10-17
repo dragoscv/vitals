@@ -21,7 +21,9 @@
   --sl-color-gray-6: oklch(0.22 0.02 210);
   --sl-color-black: oklch(0.16 0.015 210);
 
-  --sl-font: 'Segoe UI Variable Text', 'Segoe UI', Inter, system-ui, -apple-system, sans-serif;
+  /* Same stacks as the app (packages/ui theme.css): Inter is not shipped. */
+  --sl-font: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+  --sl-font-mono: 'Cascadia Mono', Consolas, ui-monospace, monospace;
 }
 
 :root[data-theme='light'] {
@@ -48,13 +50,13 @@
 
 [data-has-hero] .page {
   background:
-    radial-gradient(60rem 30rem at 85% -10%, oklch(0.7 0.13 195 / 0.14), transparent 70%),
+    radial-gradient(60rem 30rem at 85% -10%, oklch(0.7 0.13 152 / 0.14), transparent 70%),
     var(--sl-color-black);
 }
 
 :root[data-theme='light'][data-has-hero] .page {
   background:
-    radial-gradient(60rem 30rem at 85% -10%, oklch(0.7 0.13 195 / 0.16), transparent 70%),
+    radial-gradient(60rem 30rem at 85% -10%, oklch(0.7 0.13 152 / 0.16), transparent 70%),
     var(--sl-color-black);
 }
 

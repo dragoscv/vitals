@@ -32,6 +32,10 @@ internal class StorageReader(private val context: Context) {
         val uuid: UUID = runCatching { storage.getUuidForPath(dir) }.getOrNull() ?: return@mapNotNull null
         val total = runCatching { stats.getTotalBytes(uuid) }.getOrNull() ?: dir.totalSpace
         val free = runCatching { stats.getFreeBytes(uuid) }.getOrNull() ?: dir.usableSpace
+        // An unmounted card or an emulator volume reports 0 bytes. Kept, it
+        // turned into "NaN %" and an empty-but-NaN bar on every surface; a
+        // volume with no size is not a volume the user can act on.
+        if (total <= 0) return@mapNotNull null
         // Categories come from the media store's own accounting, queried per
         // user; they need usage access and are only defined for the primary volume.
         val ext = if (usageAccess && v.isPrimary) {

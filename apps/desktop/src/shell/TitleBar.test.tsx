@@ -64,6 +64,27 @@ beforeAll(async () => {
 });
 
 describe('TitleBar', () => {
+  it('offers a skip link first that focuses the content without changing the route', () => {
+    const { controls } = harness();
+    const main = document.createElement('main');
+    main.id = 'main-content';
+    main.tabIndex = -1;
+    document.body.append(main);
+    try {
+      const before = window.location.hash;
+      const { container } = render(<TitleBar controls={controls}>Dashboard</TitleBar>);
+      const link = screen.getByRole('link', { name: 'Skip to content' });
+      // First in the tab order: nothing focusable precedes it.
+      expect(container.querySelector('a, button')).toBe(link);
+      fireEvent.click(link);
+      expect(document.activeElement).toBe(main);
+      // Routes live in the fragment; following the href would navigate.
+      expect(window.location.hash).toBe(before);
+    } finally {
+      main.remove();
+    }
+  });
+
   it('exposes each caption button by its accessible name', () => {
     const { controls } = harness();
     render(<TitleBar controls={controls}>Dashboard</TitleBar>);

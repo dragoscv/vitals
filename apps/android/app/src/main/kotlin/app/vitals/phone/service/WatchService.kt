@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
+import android.util.Log
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
@@ -55,9 +56,19 @@ class WatchService : LifecycleService() {
             }
             return START_NOT_STICKY
         }
-        goForeground(emptyList())
-        if (loop == null) loop = lifecycleScope.launch { run() }
-        return START_STICKY
+        if (!goForeground(emptyList())) {
+            stopSelf()
+            return START_NOT_STICKY
+        }
+        // A loop that ended (nothing watched, then a toggle turned back on)
+        // is not null but is finished; restarting only on null left the
+        // service foreground with nothing polling.
+        if (loop?.isActive != true) loop = lifecycleScope.launch { run() }
+        // Not sticky: a system restart arrives with the app in the background,
+        // where Android 12+ refuses startForeground and the process dies with
+        // ForegroundServiceStartNotAllowedException. The user's toggle and the
+        // app's own start are the only legitimate ways in.
+        return START_NOT_STICKY
     }
 
     private suspend fun run() {
@@ -70,7 +81,10 @@ class WatchService : LifecycleService() {
                 return
             }
             val results = coroutineScope { watched.map { p -> async { poll(p) } }.awaitAll() }
-            goForeground(results)
+            if (!goForeground(results)) {
+                stopSelf()
+                return
+            }
             delay(POLL_MS)
         }
     }
@@ -109,7 +123,8 @@ class WatchService : LifecycleService() {
         return ids.keys != before
     }
 
-    private fun goForeground(watched: List<Notifications.Watched>) {
+    /** False when the system refused foreground (background start, missing permission); the caller stops. */
+    private fun goForeground(watched: List<Notifications.Watched>): Boolean {
         val stop = PendingIntent.getService(
             this,
             1,
@@ -117,19 +132,42 @@ class WatchService : LifecycleService() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         val notification = Notifications.ongoing(this, watched, stop)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            startForeground(Notifications.ONGOING_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
-        } else {
-            startForeground(Notifications.ONGOING_ID, notification)
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                startForeground(Notifications.ONGOING_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+            } else {
+                startForeground(Notifications.ONGOING_ID, notification)
+            }
+            true
+        } catch (e: IllegalStateException) {
+            // ForegroundServiceStartNotAllowedException (API 31) is one of these.
+            Log.w(TAG, "foreground refused", e)
+            false
+        } catch (e: SecurityException) {
+            Log.w(TAG, "foreground refused", e)
+            false
         }
     }
 
     companion object {
         private const val POLL_MS = 5_000L
         private const val ACTION_STOP = "app.vitals.action.STOP_WATCHING"
+        private const val TAG = "WatchService"
 
+        /**
+         * Safe to call from a coroutine that may finish after the app left the
+         * foreground: Android 12+ then refuses the start with an
+         * IllegalStateException, and the right outcome is "not started", not a
+         * crash. The next visit to the app starts it again.
+         */
         fun start(context: Context) {
-            ContextCompat.startForegroundService(context, Intent(context, WatchService::class.java))
+            try {
+                ContextCompat.startForegroundService(context, Intent(context, WatchService::class.java))
+            } catch (e: IllegalStateException) {
+                Log.w(TAG, "start refused", e)
+            } catch (e: SecurityException) {
+                Log.w(TAG, "start refused", e)
+            }
         }
     }
 }

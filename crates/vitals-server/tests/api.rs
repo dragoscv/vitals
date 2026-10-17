@@ -487,7 +487,10 @@ async fn the_web_app_is_served_without_a_token_but_carries_no_data() {
 async fn path_traversal_is_refused() {
     let h = start().await;
     let (status, _) = request(&h.base, "GET", "/../../etc/passwd", None, None).await;
-    assert!(status == 400 || status == 404, "status was {status}");
+    // 400 from the `..` check in `assets`, not 404 from the resolver: a 404
+    // would mean the guard was skipped and the path reached the backing
+    // store, which is exactly what this exists to prevent.
+    assert_eq!(status, 400);
 }
 
 #[tokio::test]
@@ -874,6 +877,12 @@ async fn a_non_loopback_peer_is_refused_even_when_the_bypass_is_on() {
     // network-path request as the server sees it. Skipped, not faked, on a
     // machine with no LAN interface.
     let Some(interface) = vitals_server::interfaces().into_iter().next() else {
+        // A CI runner always has a network interface: a skip there means
+        // `interfaces()` broke, not that the machine lacks one.
+        assert!(
+            std::env::var_os("CI").is_none(),
+            "no LAN interface found under CI; interfaces() is broken"
+        );
         eprintln!("no LAN interface on this machine; cannot exercise the non-loopback path");
         return;
     };

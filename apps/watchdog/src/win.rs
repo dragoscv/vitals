@@ -45,14 +45,44 @@ pub fn run_at_top_priority() -> bool {
 
 /// Wake-up delay of an ordinary-priority thread, in microseconds.
 ///
-/// The probe sleeps 10 ms at a time at `THREAD_PRIORITY_NORMAL` in a Normal
+/// The probe sleeps 250 ms at a time at `THREAD_PRIORITY_NORMAL` in a Normal
 /// process — the same scheduling class as the threads that draw the cursor
 /// and handle input in ordinary apps — and records how late it woke. CPU
 /// percent cannot tell "busy but yielding" (a below-normal build) from "busy
 /// and in the way"; this can.
+///
+/// # Why 250 ms and not 10
+///
+/// Lateness is the gap between the timer expiring and the thread getting a
+/// core, so it does not depend on how long the thread asked to sleep: a
+/// starved scheduler makes a 250 ms sleep exactly as late as a 10 ms one.
+/// The 10 ms probe woke 64 times a second at the default timer resolution
+/// and up to 100 when another app raised it, forever, on every machine the
+/// watchdog is installed on — the most frequent wake-up of anything we
+/// ship, for a reading the loop consumes once a second.
+///
+/// What the coarser probe gives up is sampling density: four looks a second
+/// instead of up to a hundred, so a stall shorter than the gap between two
+/// looks can be missed. That is acceptable because the detector never acts
+/// on one tick: it needs [`crate::detect::NEEDED`] bad seconds out of
+/// [`crate::detect::WINDOW`], corroborated by the foreground window, and a
+/// starvation that lasts for seconds is seen on every look. The thresholds
+/// (30–100 ms) are unchanged because the quantity measured is the same.
 #[derive(Debug, Clone)]
 pub struct LagProbe {
     worst_us: Arc<AtomicU64>,
+}
+
+/// How long the probe asks to sleep. See [`LagProbe`] for the trade-off.
+const PROBE_SLEEP: Duration = Duration::from_millis(250);
+/// One tick of the default timer, the most a sleep overshoots on a calm
+/// machine. Anything past `PROBE_SLEEP + TIMER_TICK` is scheduling delay.
+const TIMER_TICK: Duration = Duration::from_micros(15_625);
+
+/// Scheduling delay in a sleep that asked for `asked` and took `took`.
+fn lateness_us(asked: Duration, took: Duration) -> u64 {
+    let late = took.saturating_sub(asked + TIMER_TICK);
+    u64::try_from(late.as_micros()).unwrap_or(u64::MAX)
 }
 
 impl LagProbe {
@@ -63,18 +93,15 @@ impl LagProbe {
         std::thread::Builder::new()
             .name("lag-probe".into())
             .spawn(move || {
-                // The default timer resolution is 15.6 ms, so a 10 ms sleep
-                // normally takes up to ~16 ms. Anything past that is delay.
-                const ASKED: Duration = Duration::from_millis(10);
-                const TICK: Duration = Duration::from_micros(15_625);
                 // SAFETY: pseudo-handle of the calling thread.
                 unsafe { SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_NORMAL) };
                 loop {
                     let before = Instant::now();
-                    std::thread::sleep(ASKED);
-                    let late = before.elapsed().saturating_sub(TICK);
-                    let us = u64::try_from(late.as_micros()).unwrap_or(u64::MAX);
-                    shared.fetch_max(us, Ordering::Relaxed);
+                    std::thread::sleep(PROBE_SLEEP);
+                    shared.fetch_max(
+                        lateness_us(PROBE_SLEEP, before.elapsed()),
+                        Ordering::Relaxed,
+                    );
                 }
             })?;
         Ok(Self { worst_us })
@@ -774,6 +801,21 @@ pub fn start_hotkeys(tx: Sender<Action>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_sleep_that_overshoots_by_one_timer_tick_is_not_counted_as_lag() {
+        let calm = PROBE_SLEEP + Duration::from_millis(15);
+        assert_eq!(lateness_us(PROBE_SLEEP, calm), 0);
+        assert_eq!(lateness_us(PROBE_SLEEP, PROBE_SLEEP), 0);
+    }
+
+    #[test]
+    fn lateness_past_the_timer_tick_is_reported_in_full_at_the_coarser_probe_interval() {
+        // A thread starved for 80 ms is 80 ms late whatever it asked to
+        // sleep, so the detector's thresholds still mean what they say.
+        let starved = PROBE_SLEEP + TIMER_TICK + Duration::from_millis(80);
+        assert_eq!(lateness_us(PROBE_SLEEP, starved), 80_000);
+    }
 
     #[test]
     fn a_restart_never_carries_the_consent_that_unlocks_a_critical_process() {

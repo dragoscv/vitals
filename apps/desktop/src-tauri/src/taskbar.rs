@@ -40,6 +40,10 @@ struct Shared {
     /// Latest CPU reading, 0–100; `None` hides the bar.
     target: Option<f32>,
     enabled: bool,
+    /// Whether the animator last found the bar showable (enabled, window
+    /// visible and not minimised). Written by the animator, read by
+    /// [`TaskbarLoad::observe`].
+    showing: bool,
 }
 
 /// Drives the taskbar progress; managed as Tauri state.
@@ -56,6 +60,7 @@ impl TaskbarLoad {
                 Mutex::new(Shared {
                     target: None,
                     enabled: true,
+                    showing: false,
                 }),
                 Condvar::new(),
             )),
@@ -68,12 +73,21 @@ impl TaskbarLoad {
         this
     }
 
-    /// The latest CPU reading. Wakes the animator only if it changed.
+    /// The latest CPU reading. Wakes the animator if it changed, or on
+    /// every reading while the bar is not showing.
+    ///
+    /// The second case is how a hidden window is noticed coming back: there
+    /// is no show event here, and the animator sleeps without a timeout
+    /// while hidden, so the first reading after the window reappears — the
+    /// sampler speeds up the moment it does — is what wakes it.
     pub fn observe(&self, cpu_percent: f32) {
         let (lock, wake) = &*self.shared;
         let mut state = lock.lock();
-        if state.target.is_none_or(|t| (t - cpu_percent).abs() >= 0.5) {
+        let changed = state.target.is_none_or(|t| (t - cpu_percent).abs() >= 0.5);
+        if changed {
             state.target = Some(cpu_percent.clamp(0.0, 100.0));
+        }
+        if changed || !state.showing {
             wake.notify_one();
         }
     }
@@ -127,6 +141,7 @@ fn animate(app: &AppHandle, shared: &(Mutex<Shared>, Condvar)) {
         let show = enabled
             && window.is_visible().unwrap_or(false)
             && !window.is_minimized().unwrap_or(false);
+        lock.lock().showing = show;
 
         let now = Instant::now();
         let dt = now
@@ -159,14 +174,22 @@ fn animate(app: &AppHandle, shared: &(Mutex<Shared>, Condvar)) {
             true
         };
 
-        if settled {
-            // Nothing to animate: sleep until a new reading or a setting
-            // change, with a one-second cap so a window that is shown or
-            // restored picks the bar back up within a frame of data.
+        if !settled {
+            std::thread::sleep(FRAME);
+        } else if show {
+            // Nothing to animate, bar on screen: sleep until a new reading
+            // or a setting change, with a one-second cap so a window that
+            // is hidden or minimised loses its bar promptly — neither
+            // raises an event this thread can wait on.
             let mut state = lock.lock();
             wake.wait_for(&mut state, Duration::from_secs(1));
         } else {
-            std::thread::sleep(FRAME);
+            // Hidden, minimised or switched off: nothing will change until
+            // a reading or a setting arrives, and both wake this. It used
+            // to poll once a second for the whole time the app sat in the
+            // tray.
+            let mut state = lock.lock();
+            wake.wait(&mut state);
         }
     }
 }

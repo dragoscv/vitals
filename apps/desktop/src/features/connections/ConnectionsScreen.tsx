@@ -168,7 +168,7 @@ export function ConnectionsScreen({
           Blanking a list the user is reading is worse than showing old data
           that is labelled as old. */}
       {state.error !== null && state.error !== NO_HOST && (
-        <p role="alert" className="text-2xs text-[var(--color-status-danger)]">
+        <p role="alert" className="text-2xs text-[var(--color-danger-text)]">
           {t('stale', { message: state.error })}
         </p>
       )}

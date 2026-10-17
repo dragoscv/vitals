@@ -44,8 +44,8 @@ const SEVERITY_ICON: Readonly<Record<Severity, typeof Info>> = {
 };
 
 const SEVERITY_TONE: Readonly<Record<Severity, string>> = {
-  critical: 'text-[var(--color-status-danger)]',
-  warning: 'text-[var(--color-status-warn)]',
+  critical: 'text-[var(--color-danger-text)]',
+  warning: 'text-[var(--color-warn-text)]',
   info: 'text-[var(--color-fg-muted)]',
 };
 
@@ -161,7 +161,7 @@ function AlertsStrip({
   if (alerts.length === 0) {
     return (
       <p className="flex items-center gap-2 border-t border-[var(--color-border-subtle)] px-4 py-2 text-2xs text-[var(--color-fg-muted)]">
-        <CheckCircle2 aria-hidden className="size-3.5 shrink-0 text-[var(--color-status-ok)]" />
+        <CheckCircle2 aria-hidden className="size-3.5 shrink-0 text-[var(--color-ok-text)]" />
         <span>{t('alert.none')}</span>
       </p>
     );

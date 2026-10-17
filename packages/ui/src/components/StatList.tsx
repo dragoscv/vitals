@@ -21,6 +21,13 @@ export interface Stat {
   readonly hint?: string | undefined;
   /** Rendered after the value — a badge, a warning. */
   readonly extra?: ReactNode | undefined;
+  /**
+   * Why `value` is null, for a figure the panel is about ("Not reported by
+   * your hardware"). The row is kept even under `omitNull` and shows an em
+   * dash carrying this sentence as its tooltip and accessible name: printed
+   * in the value cell, the sentence was truncated to "Not reported by y…".
+   */
+  readonly unavailable?: string | undefined;
 }
 
 export interface StatListProps {
@@ -71,7 +78,9 @@ export function StatList({
   unavailableLabel,
   className,
 }: StatListProps): React.JSX.Element | null {
-  const visible = omitNull ? stats.filter((stat) => stat.value !== null) : stats;
+  const visible = omitNull
+    ? stats.filter((stat) => stat.value !== null || stat.unavailable !== undefined)
+    : stats;
   if (visible.length === 0) return null;
 
   return (
@@ -83,7 +92,10 @@ export function StatList({
             {stat.value === null ? (
               <span
                 className="tnum font-mono text-sm text-[var(--color-fg-subtle)]"
-                {...(unavailableLabel !== undefined && { 'aria-label': unavailableLabel })}
+                {...((stat.unavailable ?? unavailableLabel) !== undefined && {
+                  'aria-label': stat.unavailable ?? unavailableLabel,
+                })}
+                {...(stat.unavailable !== undefined && { title: stat.unavailable })}
               >
                 —
               </span>

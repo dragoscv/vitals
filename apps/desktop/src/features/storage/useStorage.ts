@@ -19,7 +19,11 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { formatBytes } from '@vitals/ui';
+import { i18n } from '@vitals/i18n';
+
 import { peekPrefetched, prefetch, takePrefetched } from '../../lib/prefetch';
+import { reportSuccess } from '../../lib/reportSuccess';
 import { hasTauriHost } from '../../shell/host';
 import type {
   BasketItem,
@@ -35,7 +39,8 @@ import type {
   WindowsCleanupProgress,
   WindowsCleanupReport,
 } from './model';
-import { addToBasket, removeFromBasket } from './model';
+import { addToBasket, measuredFreed, removeFromBasket } from './model';
+import { STORAGE_NS } from './strings';
 import { errorMessage, isCommandError } from '../../lib/commandError';
 
 /** Reported when there is no Tauri host, so the screen can explain itself. */
@@ -403,6 +408,17 @@ export function useStorage(source?: StorageSource): StorageState {
           .map((item) => item.path.toLowerCase()),
       );
       setBasket((current) => current.filter((item) => !settled.has(item.path.toLowerCase())));
+      const moved = next.items.filter((item) => item.outcome === 'recycled').length;
+      if (moved > 0) {
+        const left = next.items.length - moved;
+        void reportSuccess(
+          i18n.t(left === 0 ? 'basket.reportAll' : 'basket.reportSome', {
+            ns: STORAGE_NS,
+            count: moved,
+            left,
+          }),
+        );
+      }
       const totals = next.scan;
       if (totals !== null) {
         setSnapshot((current) =>
@@ -445,6 +461,16 @@ export function useStorage(source?: StorageSource): StorageState {
       const report = await sourceRef.current.windowsCleanup(path, confirmed);
       if (!mounted.current) return;
       setWindowsRun({ path, running: false, progress: null, report, error: null, declined: false });
+      const freed = measuredFreed(report);
+      if (report.outcome !== 'toolFailed' && freed !== null && freed.bytes > 0) {
+        const size = formatBytes(freed.bytes, i18n.language);
+        void reportSuccess(
+          i18n.t(freed.from === 'location' ? 'windows.freed' : 'windows.freedDrive', {
+            ns: STORAGE_NS,
+            size,
+          }),
+        );
+      }
       // The row shows what is there now, as measured after the tool exited.
       if (report.locationAfter !== null) {
         const after = report.locationAfter;

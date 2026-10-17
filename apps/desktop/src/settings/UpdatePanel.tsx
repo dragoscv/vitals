@@ -165,7 +165,7 @@ function UpdateMessage({ state }: { readonly state: UpdateState }) {
 
     case 'error':
       return (
-        <p className="text-2xs text-[var(--color-status-danger)]">
+        <p className="text-2xs text-[var(--color-danger-text)]">
           {t('settings.about.update.error', { message: state.message })}
         </p>
       );

@@ -37,11 +37,24 @@
 //!    and the elevated child is Vitals. [`is_task_manager_elevation_hop`] lets
 //!    the app recognise that case and hand back to the real program.
 
-use std::path::Path;
+use std::ffi::OsString;
+use std::os::windows::ffi::OsStringExt as _;
+use std::path::{Path, PathBuf};
 
 use vitals_core::error::{Error, Result};
+use windows::Win32::System::Com::CoTaskMemFree;
+use windows::Win32::UI::Shell::{FOLDERID_ProgramFiles, KF_FLAG_DEFAULT, SHGetKnownFolderPath};
 use windows_sys::Win32::Foundation::{
-    CloseHandle, DBG_CONTINUE, ERROR_CANCELLED, GetLastError, HANDLE,
+    CloseHandle, DBG_CONTINUE, ERROR_CANCELLED, GetLastError, HANDLE, LocalFree,
+};
+use windows_sys::Win32::Security::Authorization::{
+    BuildTrusteeWithSidW, GetEffectiveRightsFromAclW, GetNamedSecurityInfoW, SE_FILE_OBJECT,
+    TRUSTEE_W,
+};
+use windows_sys::Win32::Security::{
+    ACL, CreateWellKnownSid, DACL_SECURITY_INFORMATION, PSECURITY_DESCRIPTOR,
+    SECURITY_MAX_SID_SIZE, WELL_KNOWN_SID_TYPE, WinAuthenticatedUserSid, WinBuiltinUsersSid,
+    WinWorldSid,
 };
 use windows_sys::Win32::System::Diagnostics::Debug::{
     CREATE_PROCESS_DEBUG_EVENT, ContinueDebugEvent, DEBUG_EVENT, DebugActiveProcessStop,
@@ -52,6 +65,7 @@ use windows_sys::Win32::System::Registry::{
     REG_SZ, RegCloseKey, RegCreateKeyExW, RegDeleteValueW, RegOpenKeyExW, RegQueryValueExW,
     RegSetValueExW,
 };
+use windows_sys::Win32::System::SystemInformation::GetSystemDirectoryW;
 use windows_sys::Win32::System::Threading::{
     CreateProcessW, DEBUG_ONLY_THIS_PROCESS, GetExitCodeProcess, INFINITE, PROCESS_INFORMATION,
     STARTUPINFOW, WaitForSingleObject,
@@ -192,11 +206,21 @@ pub fn set_replacement(enabled: bool, our_exe: &Path) -> Result<()> {
 /// [`set_replacement`] so the elevated pass cannot recurse into another UAC
 /// prompt if something has gone wrong with the token.
 ///
+/// Turning the hook **on** first proves the executable sits where only an
+/// administrator can change it ([`ensure_hook_target_is_admin_only`]). The
+/// check lives here rather than in [`set_replacement`] so the elevated pass
+/// repeats it: that pass is the one holding the rights that make the write
+/// dangerous.
+///
 /// # Errors
 ///
-/// [`Error::AccessDenied`] when not elevated; [`Error::Os`] otherwise.
+/// [`Error::Refused`] when this copy of Vitals runs from a folder ordinary
+/// accounts could change; [`Error::AccessDenied`] when not elevated;
+/// [`Error::Os`] otherwise.
 pub fn write_replacement(enabled: bool, our_exe: &Path) -> Result<()> {
     if enabled {
+        ensure_hook_target_is_admin_only(our_exe)?;
+
         let path = our_exe.to_str().ok_or_else(|| Error::Os {
             context: format!("{} is not representable as UTF-8", our_exe.display()),
             code: 0,
@@ -216,6 +240,233 @@ pub fn write_replacement(enabled: bool, our_exe: &Path) -> Result<()> {
         };
         delete_value(key.raw(), DEBUGGER_VALUE)
     }
+}
+
+/// Refuses to point the hook at an executable an ordinary account could
+/// replace.
+///
+/// Task Manager auto-elevates, and the loader runs the IFEO debugger with the
+/// token Task Manager would have had. So whoever can swap the file the hook
+/// names gets an administrator process the next time anyone presses
+/// Ctrl+Shift+Esc — silently, with no UAC prompt. A Scoop install, a portable
+/// copy in Downloads or a `target\debug` build all live in folders the user
+/// (and therefore any malware running as the user) can write. Only the
+/// per-machine install under Program Files is safe to name.
+///
+/// Two independent checks, because each alone has a gap: the location rules
+/// out user folders without trusting an ACL that might have been loosened by
+/// hand, and the ACL catches a Program Files folder someone did loosen.
+/// The Program Files path comes from the shell's known-folder API, never from
+/// `%ProgramFiles%`: the environment belongs to the caller, so an elevated
+/// pass that trusted it could be told "Program Files" is anywhere.
+fn ensure_hook_target_is_admin_only(our_exe: &Path) -> Result<()> {
+    let program_files = known_program_files().ok_or_else(|| {
+        Error::Refused(
+            "Vitals could not locate the Program Files folder, so it cannot confirm this copy \
+             is protected; the Task Manager replacement was left off"
+                .to_owned(),
+        )
+    })?;
+    // Canonical, so a junction or a short name cannot spell a user folder as
+    // something under Program Files.
+    let exe = std::fs::canonicalize(our_exe)?;
+    let root = std::fs::canonicalize(&program_files).unwrap_or(program_files);
+
+    if let Some(reason) = hook_location_problem(&exe, &root) {
+        return Err(Error::Refused(reason));
+    }
+
+    let folder = exe.parent().unwrap_or(&exe);
+    for path in [folder, exe.as_path()] {
+        // Fail closed: an ACL that cannot be read is not evidence of safety.
+        let open = writable_by_ordinary_users(path).unwrap_or(true);
+        if open {
+            return Err(Error::Refused(format!(
+                "{} can be changed by accounts that are not administrators, so pointing \
+                 Task Manager at it would let them run programs as administrator; \
+                 reinstall Vitals for all users to use this setting",
+                path.display()
+            )));
+        }
+    }
+    Ok(())
+}
+
+/// Why `exe` is not an acceptable hook target, judged on location alone, or
+/// `None` when it is inside `program_files`.
+///
+/// Pure, so the rule can be tested without installing anything. Compared on
+/// whole components, case-insensitively: `C:\Program Files Evil\vitals.exe`
+/// shares a text prefix with Program Files and must not pass.
+fn hook_location_problem(exe: &Path, program_files: &Path) -> Option<String> {
+    let exe_text = normalised(exe);
+    let root = normalised(program_files);
+    let inside = !root.is_empty()
+        && exe_text.len() > root.len() + 1
+        && exe_text.starts_with(&root)
+        && exe_text.as_bytes().get(root.len()) == Some(&b'\\')
+        && !exe_text.split('\\').any(|part| part == "..");
+    if inside {
+        return None;
+    }
+    let folder = exe.parent().unwrap_or(exe).display().to_string();
+    Some(format!(
+        "Vitals can replace Task Manager only when it is installed for all users in Program \
+         Files; this copy runs from {folder}, where a program running as you could swap it \
+         and be started as administrator"
+    ))
+}
+
+/// Lower-case, backslash-separated, without the `\\?\` prefix `canonicalize`
+/// adds or a trailing separator.
+fn normalised(path: &Path) -> String {
+    let text = path.to_string_lossy().replace('/', "\\");
+    let text = text.strip_prefix(r"\\?\UNC\").map_or_else(
+        || text.strip_prefix(r"\\?\").unwrap_or(&text).to_owned(),
+        |rest| format!(r"\\{rest}"),
+    );
+    text.trim_end_matches('\\').to_ascii_lowercase()
+}
+
+/// `FOLDERID_ProgramFiles` from the shell — the 64-bit Program Files for
+/// this 64-bit process.
+fn known_program_files() -> Option<PathBuf> {
+    // SAFETY: the GUID is a static; the returned buffer is freed below.
+    let raw =
+        unsafe { SHGetKnownFolderPath(&FOLDERID_ProgramFiles, KF_FLAG_DEFAULT, None) }.ok()?;
+    // SAFETY: on success `raw` is a NUL-terminated string from the shell.
+    let text = unsafe { raw.to_string() }.ok();
+    // SAFETY: allocated by the shell with CoTaskMemAlloc, freed exactly once.
+    unsafe { CoTaskMemFree(Some(raw.0.cast_const().cast())) };
+    text.map(PathBuf::from)
+}
+
+/// Rights that would let an account replace a file or plant one in a folder:
+/// write/add-file, append/add-subdirectory, delete-child, delete, write-DAC,
+/// write-owner, and the generic write/all bits an ACE may still carry.
+const REPLACE_RIGHTS: u32 =
+    0x0002 | 0x0004 | 0x0040 | 0x0001_0000 | 0x0004_0000 | 0x0008_0000 | 0x4000_0000 | 0x1000_0000;
+
+/// Whether Everyone, Authenticated Users or Users hold any right in
+/// [`REPLACE_RIGHTS`] on `path`.
+fn writable_by_ordinary_users(path: &Path) -> Result<bool> {
+    let text = path.to_str().ok_or_else(|| Error::Os {
+        context: format!("{} is not representable as UTF-8", path.display()),
+        code: 0,
+    })?;
+    let path_w = wide(text);
+    let mut dacl: *mut ACL = std::ptr::null_mut();
+    let mut descriptor: PSECURITY_DESCRIPTOR = std::ptr::null_mut();
+
+    // SAFETY: `path_w` is NUL-terminated; the out-pointers are live; the
+    // descriptor that owns `dacl` is freed by `FreeLocal` below.
+    let status = unsafe {
+        GetNamedSecurityInfoW(
+            path_w.as_ptr(),
+            SE_FILE_OBJECT,
+            DACL_SECURITY_INFORMATION,
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+            &raw mut dacl,
+            std::ptr::null_mut(),
+            &raw mut descriptor,
+        )
+    };
+    if status != ERROR_SUCCESS {
+        return Err(Error::Os {
+            context: format!("GetNamedSecurityInfoW({text})"),
+            code: status.cast_signed(),
+        });
+    }
+    let _owner = FreeLocal(descriptor);
+
+    // A NULL DACL grants everyone everything.
+    if dacl.is_null() {
+        return Ok(true);
+    }
+
+    for kind in [WinWorldSid, WinAuthenticatedUserSid, WinBuiltinUsersSid] {
+        if rights_of(dacl, kind)? & REPLACE_RIGHTS != 0 {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+/// The effective rights `dacl` grants the well-known group `kind`.
+fn rights_of(dacl: *const ACL, kind: WELL_KNOWN_SID_TYPE) -> Result<u32> {
+    let mut sid = [0_u8; SECURITY_MAX_SID_SIZE as usize];
+    let mut size = SECURITY_MAX_SID_SIZE;
+    // SAFETY: `sid` is a buffer of `size` bytes, the documented maximum.
+    let made = unsafe {
+        CreateWellKnownSid(
+            kind,
+            std::ptr::null_mut(),
+            sid.as_mut_ptr().cast(),
+            &raw mut size,
+        )
+    };
+    if made == 0 {
+        // SAFETY: no preconditions.
+        let code = unsafe { GetLastError() };
+        return Err(Error::Os {
+            context: "CreateWellKnownSid".to_owned(),
+            code: code.cast_signed(),
+        });
+    }
+
+    // SAFETY: every field of TRUSTEE_W is a pointer or integer for which zero
+    // is valid; BuildTrusteeWithSidW fills in the ones that matter.
+    let mut trustee: TRUSTEE_W = unsafe { std::mem::zeroed() };
+    // SAFETY: `sid` outlives every use of `trustee` in this function.
+    unsafe { BuildTrusteeWithSidW(&raw mut trustee, sid.as_mut_ptr().cast()) };
+
+    let mut rights = 0_u32;
+    // SAFETY: `dacl` came from GetNamedSecurityInfoW and is still owned by
+    // the caller's descriptor; the trustee and out-pointer are live.
+    let status = unsafe { GetEffectiveRightsFromAclW(dacl, &raw const trustee, &raw mut rights) };
+    if status != ERROR_SUCCESS {
+        return Err(Error::Os {
+            context: "GetEffectiveRightsFromAclW".to_owned(),
+            code: status.cast_signed(),
+        });
+    }
+    Ok(rights)
+}
+
+/// Frees a `LocalAlloc`'d security descriptor on drop.
+struct FreeLocal(PSECURITY_DESCRIPTOR);
+
+impl Drop for FreeLocal {
+    fn drop(&mut self) {
+        if !self.0.is_null() {
+            // SAFETY: allocated by GetNamedSecurityInfoW with LocalAlloc,
+            // freed exactly once.
+            unsafe { LocalFree(self.0) };
+        }
+    }
+}
+
+/// The System32 directory, from the kernel rather than `%SystemRoot%`.
+///
+/// Every path an elevated process builds to a Windows tool goes through
+/// here. The environment is inherited from whoever started the process, so
+/// an elevated child that read `SystemRoot` would run `taskmgr.exe`,
+/// `dism.exe` or `reg.exe` from wherever an unelevated caller pointed it.
+/// `None` only if the call fails, which no supported Windows does.
+#[must_use]
+pub fn system_directory() -> Option<PathBuf> {
+    let mut buffer = [0_u16; 520];
+    let capacity = u32::try_from(buffer.len()).unwrap_or(0);
+    // SAFETY: `buffer` holds `capacity` UTF-16 units for the call.
+    let written = unsafe { GetSystemDirectoryW(buffer.as_mut_ptr(), capacity) };
+    let written = usize::try_from(written).ok()?;
+    // Zero is failure; a value at or above the capacity is the size needed,
+    // meaning nothing usable was written.
+    if written == 0 || written >= buffer.len() {
+        return None;
+    }
+    Some(PathBuf::from(OsString::from_wide(&buffer[..written])))
 }
 
 /// Re-reads the key and checks it says what the caller asked for.
@@ -471,8 +722,13 @@ pub fn is_elevated() -> bool {
 }
 
 fn launch_task_manager_as_debuggee() -> Result<()> {
-    let system_root = std::env::var("SystemRoot").unwrap_or_else(|_| r"C:\Windows".to_owned());
-    let path = format!(r"{system_root}\System32\taskmgr.exe");
+    // Not `%SystemRoot%`: this also runs in the elevated hop, where an
+    // inherited environment variable must not choose the program.
+    let system32 = system_directory().ok_or_else(|| Error::Os {
+        context: "GetSystemDirectoryW".to_owned(),
+        code: 0,
+    })?;
+    let path = system32.join("taskmgr.exe").to_string_lossy().into_owned();
 
     // `CreateProcessW` may write to the command line buffer, so it is a
     // mutable vector rather than a pointer into a literal.
@@ -886,5 +1142,87 @@ mod tests {
         // Some uninstallers blank the value rather than deleting it; treating
         // that as "replaced by other" would permanently block the setting.
         assert_eq!(unquote("\"\""), "");
+    }
+
+    const PF: &str = r"C:\Program Files";
+
+    #[test]
+    fn a_per_machine_install_under_program_files_may_own_the_hook() {
+        let exe = Path::new(r"C:\Program Files\Vitals\vitals-desktop.exe");
+        assert_eq!(hook_location_problem(exe, Path::new(PF)), None);
+        // `canonicalize` output and a different case are the same place.
+        let verbatim = Path::new(r"\\?\c:\PROGRAM FILES\Vitals\vitals-desktop.exe");
+        assert_eq!(hook_location_problem(verbatim, Path::new(PF)), None);
+    }
+
+    #[test]
+    fn a_copy_in_a_user_writable_folder_is_refused_and_the_reason_names_the_folder() {
+        // Scoop, a portable copy, a dev build: whoever can swap these files
+        // gets an elevated process on the next Ctrl+Shift+Esc.
+        for exe in [
+            r"C:\Users\ana\scoop\apps\vitals\current\vitals-desktop.exe",
+            r"C:\Users\ana\Downloads\vitals-desktop.exe",
+            r"E:\gh\vitals\target\debug\vitals-desktop.exe",
+        ] {
+            let reason = hook_location_problem(Path::new(exe), Path::new(PF))
+                .unwrap_or_else(|| panic!("{exe} must be refused"));
+            assert!(reason.contains("Program Files"), "{reason}");
+            let folder = Path::new(exe).parent().unwrap().display().to_string();
+            assert!(reason.contains(&folder), "{reason}");
+        }
+    }
+
+    #[test]
+    fn a_folder_that_merely_starts_with_the_program_files_text_is_refused() {
+        // A text prefix test would accept this; a user can create it.
+        let exe = Path::new(r"C:\Program Files Evil\vitals-desktop.exe");
+        assert!(hook_location_problem(exe, Path::new(PF)).is_some());
+        let exe = Path::new(r"C:\Program Files\..\Users\ana\vitals-desktop.exe");
+        assert!(hook_location_problem(exe, Path::new(PF)).is_some());
+    }
+
+    #[test]
+    fn program_files_itself_and_an_empty_root_are_never_a_valid_target() {
+        assert!(hook_location_problem(Path::new(PF), Path::new(PF)).is_some());
+        let exe = Path::new(r"C:\Program Files\Vitals\vitals-desktop.exe");
+        assert!(hook_location_problem(exe, Path::new("")).is_some());
+    }
+
+    #[test]
+    fn enabling_the_hook_from_a_test_binary_is_refused_before_any_registry_write() {
+        // The test runner lives under `target\`, a user-writable folder; the
+        // refusal must come from the location gate, not from a missing
+        // elevation that a different machine might not hit.
+        let exe = std::env::current_exe().unwrap();
+        let err = write_replacement(true, &exe).unwrap_err();
+        assert!(matches!(err, Error::Refused(_)), "{err:?}");
+    }
+
+    #[test]
+    fn the_program_files_folder_is_admin_only_and_the_drive_root_is_not() {
+        // Exercises the real ACL reader in both directions, so neither a
+        // reader that always says "open" nor one that always says "closed"
+        // passes. The system drive's root grants Authenticated Users
+        // "create folders" on every default install — the very right that
+        // lets someone plant a file.
+        let pf = known_program_files().expect("FOLDERID_ProgramFiles resolves");
+        assert!(
+            !writable_by_ordinary_users(&pf).unwrap(),
+            "{}",
+            pf.display()
+        );
+        let system = system_directory().expect("GetSystemDirectoryW");
+        let root = system.ancestors().last().expect("a drive root").to_owned();
+        assert!(
+            writable_by_ordinary_users(&root).unwrap(),
+            "{}",
+            root.display()
+        );
+    }
+
+    #[test]
+    fn the_system_directory_comes_from_the_kernel_and_contains_taskmgr() {
+        let dir = system_directory().expect("GetSystemDirectoryW");
+        assert!(dir.join("taskmgr.exe").is_file(), "{}", dir.display());
     }
 }

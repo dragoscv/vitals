@@ -1,6 +1,6 @@
 import { act, cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
-import { Toaster, toast } from './Toaster';
+import { ERROR_TOAST_DURATION, Toaster, toast } from './Toaster';
 
 afterEach(() => {
   toast.dismiss();
@@ -25,6 +25,29 @@ async function mountWithToast(kind: 'default' | 'success' = 'default') {
 const toaster = () => document.querySelector('[data-sonner-toaster]');
 
 describe('Toaster', () => {
+  it('keeps an error toast up until it is closed, while other toasts still time out', async () => {
+    // An error is the message someone may need to read twice; five seconds
+    // is not enough for a slow reader or anyone who looked away.
+    render(<Toaster regionLabel="Notificări" closeLabel="Închide notificarea" />);
+    let errorId: string | number = '';
+    let infoId: string | number = '';
+    let customId: string | number = '';
+    await act(async () => {
+      errorId = toast.error('Failed');
+      infoId = toast('Saved');
+      customId = toast.error('Briefly', { duration: 12_000 });
+      await new Promise((resolve) => {
+        setTimeout(resolve, 0);
+      });
+    });
+    const byId = (id: string | number) =>
+      toast.getToasts().find((t) => t.id === id) as { duration?: number } | undefined;
+    expect(ERROR_TOAST_DURATION).toBeGreaterThanOrEqual(10_000);
+    expect(byId(errorId)?.duration).toBe(ERROR_TOAST_DURATION);
+    expect(byId(infoId)?.duration).toBeUndefined();
+    expect(byId(customId)?.duration).toBe(12_000);
+  });
+
   it('names the region and the close button with the caller-supplied translations, not sonner’s English', async () => {
     await mountWithToast();
 

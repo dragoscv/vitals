@@ -78,8 +78,8 @@ export interface WidgetFrameProps {
 
 const HEADLINE_TONE = {
   default: 'text-[var(--color-fg-default)]',
-  warn: 'text-[var(--color-status-warn)]',
-  danger: 'text-[var(--color-status-danger)]',
+  warn: 'text-[var(--color-warn-text)]',
+  danger: 'text-[var(--color-danger-text)]',
 } as const;
 
 export function WidgetFrame({

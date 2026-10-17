@@ -59,6 +59,17 @@ use vitals_core::sample::{Frame, FramePayload, FrameSeq};
 
 type Stream = interprocess::local_socket::Stream;
 
+/// The client's end of the connection.
+///
+/// On Windows a plain `std::fs::File`, opened with an identification-only
+/// security quality of service (see [`connect_client`]). `interprocess`
+/// opens client pipes with the default, which is `SecurityImpersonation`,
+/// and offers no way to change it.
+#[cfg(windows)]
+type ClientStream = std::fs::File;
+#[cfg(not(windows))]
+type ClientStream = Stream;
+
 /// How long `snapshot` waits for the sampler to produce a complete frame
 /// before answering with an error.
 ///
@@ -97,6 +108,53 @@ pub fn default_pipe_name() -> String {
 
 fn resolve(name: &str) -> io::Result<Name<'static>> {
     name.to_owned().to_ns_name::<GenericNamespaced>()
+}
+
+/// How long [`connect_client`] keeps retrying a pipe whose every instance is
+/// busy. The server opens a fresh instance after each accept, so the gap is
+/// milliseconds; `interprocess` waited the same way.
+#[cfg(windows)]
+const BUSY_WAIT: Duration = Duration::from_secs(5);
+
+/// Opens the attach pipe as a client that cannot be impersonated.
+///
+/// The pipe name is per user but not secret, and the pipe only exists while
+/// the app runs. Any local account can create `\\.\pipe\vitals-<user>` first
+/// while the app is closed. With the default impersonation level, the CLI —
+/// which a user may well run from an elevated prompt — would then hand that
+/// squatter its token through `ImpersonateNamedPipeClient`.
+/// `SECURITY_IDENTIFICATION` lets the server learn who connected and nothing
+/// more.
+#[cfg(windows)]
+fn connect_client(name: &str) -> io::Result<ClientStream> {
+    use std::os::windows::fs::OpenOptionsExt as _;
+    const SECURITY_SQOS_PRESENT: u32 = 0x0010_0000;
+    const SECURITY_IDENTIFICATION: u32 = 0x0001_0000;
+    const ERROR_PIPE_BUSY: i32 = 231;
+
+    let path = format!(r"\\.\pipe\{name}");
+    let deadline = std::time::Instant::now() + BUSY_WAIT;
+    loop {
+        let opened = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .security_qos_flags(SECURITY_SQOS_PRESENT | SECURITY_IDENTIFICATION)
+            .open(&path);
+        match opened {
+            Err(error)
+                if error.raw_os_error() == Some(ERROR_PIPE_BUSY)
+                    && std::time::Instant::now() < deadline =>
+            {
+                thread::sleep(Duration::from_millis(20));
+            }
+            other => return other,
+        }
+    }
+}
+
+#[cfg(not(windows))]
+fn connect_client(name: &str) -> io::Result<ClientStream> {
+    Stream::connect(resolve(name)?)
 }
 
 /// The attach pipe's DACL: protected (no inherited entries), full access for
@@ -592,7 +650,7 @@ fn serve_subscribe(out: &mut Stream, shared: &Shared) -> io::Result<()> {
 /// The CLI's end of the pipe.
 #[derive(Debug)]
 pub struct AttachClient {
-    stream: BufReader<Stream>,
+    stream: BufReader<ClientStream>,
 }
 
 impl AttachClient {
@@ -602,7 +660,7 @@ impl AttachClient {
     /// Nothing is listening under `name`; or the app speaks another model
     /// version, in which case the error says which side to upgrade.
     pub fn connect(name: &str) -> io::Result<(Self, Hello)> {
-        let stream = Stream::connect(resolve(name)?)?;
+        let stream = connect_client(name)?;
         let mut client = Self {
             stream: BufReader::new(stream),
         };

@@ -1,19 +1,23 @@
 # Privacy Policy
 
-**Effective date:** 29 September 2026 · **Applies to:** Vitals 0.9.0-beta.1 and
-later, for Windows, Android and Wear OS · [Politica de confidențialitate în limba română](#politica-de-confidențialitate)
+**Effective date:** 17 October 2026 · **Applies to:** Vitals 1.0.x and later:
+the Windows desktop app, the `vitals` command-line tool (including
+`vitals serve`), the optional sensors service and lag watchdog, the Android
+phone, Wear OS and Google TV apps, and the Samsung (Tizen) TV app ·
+[Politica de confidențialitate în limba română](#politica-de-confidențialitate)
 
 **For app store reviewers:** Vitals collects no personal data, has no
 telemetry, analytics, accounts or crash reporting, and the developer receives
 no data. The only automatic network request is an update check to GitHub,
 which the user can turn off. On Android, the QR scanner (Google ML Kit) sends
 Google anonymous diagnostics about itself; see
-[Vitals for Android and Wear OS](#vitals-for-android-and-wear-os).
+[Vitals for Android, Wear OS and Google TV](#vitals-for-android-wear-os-and-google-tv).
 
 ## In short
 
 - Vitals is a free, open-source (MIT) system monitor and task manager for
-  Windows. Everything it measures stays on your computer.
+  Windows, with companion apps for Android phones, Wear OS watches, Google TV
+  and Samsung TVs. Everything it measures stays on your devices.
 - There is no telemetry, no analytics, no advertising, no account and no
   crash reporting. **The developer does not receive any data from you or
   your computer.**
@@ -37,20 +41,23 @@ The controller for the only processing described here (the update check) is:
 
 ## Network connections
 
-| Connection                           | When                                                                                                                       | What the other side receives                                              | How to stop it                                              |
-| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| Update check to GitHub               | About 20 s after launch, when "Install updates automatically" is on (default: on); also when you click "Check for updates" | Your IP address, the User-Agent, the app version, target and architecture | Settings → About → turn off "Install updates automatically" |
-| Update download from GitHub          | When an update is available                                                                                                | The same as above                                                         | As above                                                    |
-| External links (GitHub, the website) | Only when you click one                                                                                                    | What your browser sends to any website                                    | Do not click                                                |
-| "Search online" for a process        | Only when you click it                                                                                                     | The process **name**, sent to DuckDuckGo in your browser                  | Do not click                                                |
-| Microsoft WebView2 download          | Only by the installer, only if WebView2 is missing                                                                         | What Microsoft's download service receives                                | Install WebView2 beforehand                                 |
+| Connection                           | When                                                                                                                       | What the other side receives                                                              | How to stop it                                              |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| Update check to GitHub               | About 20 s after launch, when "Install updates automatically" is on (default: on); also when you click "Check for updates" | Your IP address, the User-Agent, the app version, target and architecture                 | Settings → About → turn off "Install updates automatically" |
+| Update download from GitHub          | When an update is available                                                                                                | The same as above                                                                         | As above                                                    |
+| External links (GitHub, the website) | Only when you click one                                                                                                    | What your browser sends to any website                                                    | Do not click                                                |
+| "Search online"                      | Only when you click it, on a process, app, device or startup entry                                                         | That **name** (process, app, device or startup entry), sent to DuckDuckGo in your browser | Do not click                                                |
+| PawnIO download from GitHub          | Only when you install the optional sensors service (see [Sensors service](#sensors-service-optional))                      | The same as for the update check                                                          | Do not install the sensors service                          |
+| Microsoft WebView2 download          | Only by the installer, only if WebView2 is missing                                                                         | What Microsoft's download service receives                                                | Install WebView2 beforehand                                 |
 
 Updates are verified with a minisign signature before they are installed,
 downloaded in the background, and installed when you quit the app.
 
 GitHub is an independent controller for the data it receives. See the
 [GitHub General Privacy Statement](https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement).
-The developer does not receive GitHub's logs of these requests.
+The developer does not receive GitHub's logs of these requests. DuckDuckGo is
+an independent controller for searches you send it; see the
+[DuckDuckGo privacy policy](https://duckduckgo.com/privacy).
 
 ## What listens on your computer
 
@@ -58,10 +65,19 @@ The developer does not receive GitHub's logs of these requests.
 | ----------------------------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Local API on `127.0.0.1:7330`             | Always on while Vitals runs | Only programs on this computer. It is bound to loopback and cannot be reached from the network. Programs running as your user can read metrics and control processes through it; the `vitals` command-line tool uses it. |
 | Named pipe `vitals-<USERNAME>`            | Always on while Vitals runs | Your user account and administrators                                                                                                                                                                                     |
-| Remote access (LAN server, TCP port 7331) | **Off by default**          | Devices on your local network that you have paired                                                                                                                                                                       |
+| Remote access (LAN server, TCP port 7331) | **Off by default**          | Devices on the network you chose; most of it only with a token from pairing (below)                                                                                                                                      |
 
 When remote access is on:
 
+- The server listens on the network adapter you chose in Settings → Remote
+  access. If you did not choose one, it listens on every network the PC is
+  connected to (including VPNs and virtual adapters). `vitals serve` on the
+  command line always listens on every network and prints its token once.
+- Two addresses answer without a token: `/api/v1/health` (the app version
+  and that something is listening) and `/api/v1/pair` (exchanging the
+  six-digit code shown on the PC for a token; one code, five guesses, five
+  minutes). Everything else, including the Prometheus endpoint `/metrics`
+  and the web page's data, needs a valid token.
 - Vitals advertises the computer name and app version on your local network
   over mDNS (`_vitals._tcp`).
 - A paired device can read process names, the user accounts that own them,
@@ -96,20 +112,26 @@ Everything below stays on your computer. Unless noted, files are under
 
 Nothing in these files is sent anywhere by Vitals.
 
-## Vitals for Android and Wear OS
+## Vitals for Android, Wear OS and Google TV
 
-The Android phone app and the Wear OS watch app monitor the device they run
-on and, if you pair one, a PC running Vitals on your local network.
+The Android phone app, the Wear OS watch app and the Google TV app monitor
+the device they run on and, if you pair one, a PC running Vitals on your
+local network. The phone and TV apps come in two editions: the one from
+Google Play (`play`) and the APK published on GitHub (`github`). They differ
+only in all-files access, which only the GitHub edition can request.
 
 **What the apps read on the device.** Processor, graphics, memory, battery,
 temperature, storage, network and sensor readings, through Android's public
-interfaces. Two readings need special access that you grant yourself in
+interfaces. The phone and TV apps also list the apps installed on the device
+that have a launcher icon (their names, versions, and install and update
+times), which Android allows without any special access; the list stays on
+the device. Two readings need special access that you grant yourself in
 Android's settings, and each stays empty until you do:
 
-| Access                                       | What it enables                                                  | Where it stays |
-| -------------------------------------------- | ---------------------------------------------------------------- | -------------- |
-| Usage access (`PACKAGE_USAGE_STATS`)         | Time in each app and each app's data use, on the Apps tab        | On the device  |
-| All-files access (`MANAGE_EXTERNAL_STORAGE`) | The storage map, largest folders and cleanup of files you choose | On the device  |
+| Access                                       | What it enables                                                                        | Where it stays |
+| -------------------------------------------- | -------------------------------------------------------------------------------------- | -------------- |
+| Usage access (`PACKAGE_USAGE_STATS`)         | Time in each app and each app's data use, on the Apps tab                              | On the device  |
+| All-files access (`MANAGE_EXTERNAL_STORAGE`) | The storage map, largest folders and cleanup of files you choose (GitHub edition only) | On the device  |
 
 The watch app does not request either. Deleting a file is always your
 explicit action, confirmed on screen.
@@ -118,6 +140,7 @@ explicit action, confirmed on screen.
 
 | Connection                            | When                                  | What the other side receives                                                                                                                                                                                                                                                                                       |
 | ------------------------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Pairing with a PC                     | When you enter the PC's pairing code  | The code and a name for this device (the device's name unless you type another), so the PC can show which device holds the token                                                                                                                                                                                   |
 | To a PC you paired                    | While a screen or widget shows it     | The pairing token; plain HTTP on your local network, as described under remote access above                                                                                                                                                                                                                        |
 | mDNS discovery (`_vitals._tcp`)       | On the Add PC screen                  | Devices on your local network see the query                                                                                                                                                                                                                                                                        |
 | Wake-on-LAN                           | Only when you tap Wake up             | A broadcast packet on your local network containing the PC's MAC address                                                                                                                                                                                                                                           |
@@ -137,10 +160,18 @@ Android backup and deleted when you uninstall:
 | Device history (on by default, can be turned off in Settings) | Machine-wide readings of this device (processor, memory, battery, network), one a minute while the app is open and every 15 minutes in the background; no app names | 7 days                               |
 | Settings and widget cache                                     | Your choices and the last values a widget showed                                                                                                                    | Until you uninstall                  |
 
-**Permissions.** Camera (only to scan the pairing QR code), notifications
-(alerts you set up), network state and Wi-Fi multicast (discovery),
-vibration, and a foreground service that runs only while you watch a PC in
-the background.
+**Permissions.** Every permission the apps declare, by app:
+
+| Permission                                                                         | Phone               | TV                  | Watch | Why                                                                 |
+| ---------------------------------------------------------------------------------- | ------------------- | ------------------- | ----- | ------------------------------------------------------------------- |
+| `INTERNET`, `ACCESS_NETWORK_STATE`, `ACCESS_WIFI_STATE`                            | Yes                 | Yes                 | Yes   | Talking to paired PCs on your network; the network readings         |
+| `CHANGE_WIFI_MULTICAST_STATE`                                                      | Yes                 | Yes                 | Yes   | Finding PCs with mDNS                                               |
+| `CAMERA`                                                                           | Yes                 | No                  | No    | Only to scan the pairing QR code                                    |
+| `POST_NOTIFICATIONS`                                                               | Yes                 | No                  | Yes   | Alerts you set up                                                   |
+| `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_SPECIAL_USE`                             | Yes                 | No                  | No    | Watching a PC in the background, only while you have turned that on |
+| `WAKE_LOCK`, `VIBRATE`                                                             | Vibrate only        | No                  | Yes   | Keeping a reading current on the watch; vibrating on an alert       |
+| `PACKAGE_USAGE_STATS` (special access)                                             | Yes                 | Yes                 | No    | Time and data per app, once you grant it                            |
+| `MANAGE_EXTERNAL_STORAGE` (special access), `READ_EXTERNAL_STORAGE` (≤ Android 10) | GitHub edition only | GitHub edition only | No    | The storage map and cleanup, once you grant it                      |
 
 ## Changes Vitals makes to Windows, only when you ask
 
@@ -149,8 +180,59 @@ the background.
 Execution Options`. The uninstaller removes it if it names Vitals.
 - **Start with Windows:** writes a value under the current user's `Run` key
   (`HKCU`).
+- **Lag watchdog (off until you turn it on):** a small separate program,
+  `vitals-watchdog.exe`, that watches for windows that stop responding and
+  tells you which program is behind a freeze. It never ends anything unless
+  you press a button. Vitals does not turn it on by itself: you choose it on
+  the welcome card or in Settings → Lag watchdog. When it is on:
+  - it starts when you sign in, through the `VitalsWatchdog` value under the
+    current user's `Run` key (`HKCU`), or the Store package's startup task;
+  - its settings are in `%APPDATA%\Vitals\watchdog.json`;
+  - it keeps a log of what it noticed, including **process names**, in
+    `%LOCALAPPDATA%\Vitals\watchdog\watchdog.log` (started again past 1 MB);
+  - if it was installed by hand with `vitals-watchdog --install`, a copy of
+    the program is kept in `%LOCALAPPDATA%\Vitals\watchdog`.
+
+  Nothing it records is sent anywhere. To remove it, turn it off in
+  Settings (this removes the sign-in entry), sign out or end
+  `vitals-watchdog.exe`, and delete the files above.
+
 - **Elevated process actions:** run through a Windows UAC prompt.
 - **Uninstalling an app:** runs that app's own uninstaller.
+
+## Sensors service (optional)
+
+Windows does not let a normal program read CPU temperature and power. If you
+choose **Devices & sensors → CPU temperature and power → Install** (one
+administrator prompt), Vitals:
+
+- downloads `PawnIO_setup.exe` 2.2.0 from
+  [github.com/namazso/PawnIO.Setup](https://github.com/namazso/PawnIO.Setup)
+  (GitHub receives what it receives for the update check), checks it against
+  a SHA-256 hash built into Vitals and refuses any other file;
+- runs it, which installs the PawnIO **kernel driver**, published and signed
+  by its own author;
+- installs a small service, `vitals-sensors`, that runs as **SYSTEM** from
+  `C:\Program Files\Vitals Sensors`, starts with Windows, and serves only
+  temperature, power and fan readings, read-only, to programs on this
+  computer through the `vitals-sensors` named pipe. Its install log is in the
+  same folder.
+
+Nothing is sent anywhere. Uninstalling Vitals, or choosing **Remove** there,
+stops and deletes the service and its folder. **PawnIO stays installed**,
+because other tools (such as FanControl and LibreHardwareMonitor) use the
+same driver. To remove it, uninstall **PawnIO** from Windows Settings → Apps →
+Installed apps, once no other program needs it. The Microsoft Store edition
+does not offer the sensors service.
+
+## The Samsung TV app (Tizen)
+
+The Samsung TV app shows PCs you pair with it. It stores the paired PCs
+(address, name and token) and your language choice in the app's own storage
+on the TV, deleted when you uninstall the app. It connects only to the PCs
+you pair, over plain HTTP on your local network, sending the pairing code and
+then the token; it contains no analytics or advertising. Samsung may collect
+data about the TV and app installs under its own privacy policy.
 
 ## Legal basis
 
@@ -175,10 +257,29 @@ the authority in the EU country where you live.
 
 ## How to remove everything
 
-Uninstalling Vitals keeps your data. To delete it, remove the
-`%LOCALAPPDATA%\Vitals` folder after uninstalling. Revoke any remote-access
-tokens first, and clear the site data for Vitals in your phone's browser.
-On Android and Wear OS, uninstalling the app deletes everything it stored.
+Uninstalling Vitals removes the program, the sensors service and the
+sign-in entries it created, and keeps your data. To delete everything:
+
+1. In Vitals, revoke any remote-access tokens and turn off the lag watchdog
+   and "Start with Windows" (these remove their sign-in entries).
+2. Uninstall Vitals from Windows Settings → Apps.
+3. Delete these folders:
+
+- `%LOCALAPPDATA%\Vitals` (history, logs, tokens, the watchdog log);
+- `%APPDATA%\Vitals` (watchdog settings);
+- `%APPDATA%\app.vitals.desktop` (settings and dashboard layout);
+- `%LOCALAPPDATA%\app.vitals.desktop` (the WebView2 browser data,
+  `EBWebView`);
+- `C:\Program Files\Vitals Sensors`, if it is still there.
+
+4. If they are still there, delete the values `Vitals` and `VitalsWatchdog`
+   under `HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run`.
+5. If you installed the sensors service and no other program needs it,
+   uninstall **PawnIO** from Windows Settings → Apps.
+6. Clear the site data for Vitals in your phone's browser.
+
+On Android, Wear OS, Google TV and Samsung TVs, uninstalling the app deletes
+everything it stored.
 
 ## The website
 
@@ -201,8 +302,11 @@ ships.
 
 # Politica de confidențialitate
 
-**Data intrării în vigoare:** 29 septembrie 2026 · **Se aplică:** Vitals
-0.9.0-beta.1 și versiunile ulterioare, pentru Windows, Android și Wear OS
+**Data intrării în vigoare:** 17 octombrie 2026 · **Se aplică:** Vitals 1.0.x
+și versiunile ulterioare: aplicația desktop pentru Windows, instrumentul în
+linie de comandă `vitals` (inclusiv `vitals serve`), serviciul opțional de
+senzori și watchdogul pentru blocaje, aplicațiile Android pentru telefon,
+Wear OS și Google TV, și aplicația pentru televizoare Samsung (Tizen)
 
 **Pentru evaluatorii magazinelor de aplicații:** Vitals nu colectează date
 personale, nu are telemetrie, analiză, conturi sau raportare a erorilor, iar
@@ -210,12 +314,14 @@ dezvoltatorul nu primește nicio dată. Singura cerere automată în rețea este
 verificarea actualizărilor pe GitHub, pe care utilizatorul o poate dezactiva.
 Pe Android, scanerul de coduri QR (Google ML Kit) trimite către Google date de
 diagnosticare anonime despre el însuși; vedeți
-[Vitals pentru Android și Wear OS](#vitals-pentru-android-și-wear-os).
+[Vitals pentru Android, Wear OS și Google TV](#vitals-pentru-android-wear-os-și-google-tv).
 
 ## Pe scurt
 
 - Vitals este un monitor de sistem și manager de activități gratuit și open
-  source (MIT) pentru Windows. Tot ce măsoară rămâne pe calculatorul dvs.
+  source (MIT) pentru Windows, cu aplicații însoțitoare pentru telefoane
+  Android, ceasuri Wear OS, Google TV și televizoare Samsung. Tot ce măsoară
+  rămâne pe dispozitivele dvs.
 - Nu există telemetrie, analiză, publicitate, cont sau raportare a erorilor.
   **Dezvoltatorul nu primește nicio dată de la dvs. sau de la calculatorul
   dvs.**
@@ -240,20 +346,23 @@ actualizărilor) este:
 
 ## Conexiuni în rețea
 
-| Conexiune                                         | Când                                                                                                                                          | Ce primește cealaltă parte                                        | Cum o opriți                                                     |
-| ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- | ---------------------------------------------------------------- |
-| Verificarea actualizărilor pe GitHub              | La aproximativ 20 s după pornire, când „Instalează actualizările automat” este activă (implicit: activă); și când apăsați „Caută actualizări” | Adresa IP, User-Agent, versiunea, ținta și arhitectura aplicației | Setări → Despre → dezactivați „Instalează actualizările automat” |
-| Descărcarea actualizării de pe GitHub             | Când există o actualizare                                                                                                                     | La fel ca mai sus                                                 | Ca mai sus                                                       |
-| Linkuri externe (GitHub, site-ul)                 | Doar când apăsați pe unul                                                                                                                     | Ce trimite browserul oricărui site                                | Nu apăsați                                                       |
-| „Search online” (căutare online) pentru un proces | Doar când apăsați                                                                                                                             | **Numele** procesului, trimis către DuckDuckGo în browser         | Nu apăsați                                                       |
-| Descărcarea Microsoft WebView2                    | Doar de către programul de instalare, doar dacă WebView2 lipsește                                                                             | Ce primește serviciul de descărcare Microsoft                     | Instalați WebView2 în prealabil                                  |
+| Conexiune                             | Când                                                                                                                                          | Ce primește cealaltă parte                                                                               | Cum o opriți                                                     |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| Verificarea actualizărilor pe GitHub  | La aproximativ 20 s după pornire, când „Instalează actualizările automat” este activă (implicit: activă); și când apăsați „Caută actualizări” | Adresa IP, User-Agent, versiunea, ținta și arhitectura aplicației                                        | Setări → Despre → dezactivați „Instalează actualizările automat” |
+| Descărcarea actualizării de pe GitHub | Când există o actualizare                                                                                                                     | La fel ca mai sus                                                                                        | Ca mai sus                                                       |
+| Linkuri externe (GitHub, site-ul)     | Doar când apăsați pe unul                                                                                                                     | Ce trimite browserul oricărui site                                                                       | Nu apăsați                                                       |
+| „Search online” (căutare online)      | Doar când apăsați, pe un proces, o aplicație, un dispozitiv sau o intrare de pornire                                                          | Acel **nume** (proces, aplicație, dispozitiv sau intrare de pornire), trimis către DuckDuckGo în browser | Nu apăsați                                                       |
+| Descărcarea PawnIO de pe GitHub       | Doar când instalați serviciul opțional de senzori (vedeți [Serviciul de senzori](#serviciul-de-senzori-opțional))                             | La fel ca la verificarea actualizărilor                                                                  | Nu instalați serviciul de senzori                                |
+| Descărcarea Microsoft WebView2        | Doar de către programul de instalare, doar dacă WebView2 lipsește                                                                             | Ce primește serviciul de descărcare Microsoft                                                            | Instalați WebView2 în prealabil                                  |
 
 Actualizările sunt verificate cu o semnătură minisign înainte de instalare,
 sunt descărcate în fundal și se instalează când închideți aplicația.
 
 GitHub este operator independent pentru datele pe care le primește. Vedeți
 [Declarația generală de confidențialitate GitHub](https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement).
-Dezvoltatorul nu primește jurnalele GitHub ale acestor cereri.
+Dezvoltatorul nu primește jurnalele GitHub ale acestor cereri. DuckDuckGo este
+operator independent pentru căutările pe care i le trimiteți; vedeți
+[politica de confidențialitate DuckDuckGo](https://duckduckgo.com/privacy).
 
 ## Ce ascultă pe calculatorul dvs.
 
@@ -261,10 +370,19 @@ Dezvoltatorul nu primește jurnalele GitHub ale acestor cereri.
 | --------------------------------------------- | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | API local pe `127.0.0.1:7330`                 | Mereu pornit cât rulează Vitals | Doar programele de pe acest calculator. Este legat de loopback și nu poate fi accesat din rețea. Programele care rulează sub utilizatorul dvs. pot citi valori și controla procese prin el; instrumentul în linie de comandă `vitals` îl folosește. |
 | Named pipe `vitals-<USERNAME>`                | Mereu pornit cât rulează Vitals | Contul dvs. de utilizator și administratorii                                                                                                                                                                                                        |
-| Acces la distanță (server LAN, port TCP 7331) | **Oprit implicit**              | Dispozitivele din rețeaua locală pe care le-ați asociat                                                                                                                                                                                             |
+| Acces la distanță (server LAN, port TCP 7331) | **Oprit implicit**              | Dispozitivele din rețeaua aleasă; aproape totul doar cu un token obținut la asociere (mai jos)                                                                                                                                                      |
 
 Când accesul la distanță este pornit:
 
+- Serverul ascultă pe adaptorul de rețea ales în Setări → Acces la distanță.
+  Dacă nu ați ales unul, ascultă pe toate rețelele la care este conectat
+  PC-ul (inclusiv VPN-uri și adaptoare virtuale). `vitals serve` din linia de
+  comandă ascultă mereu pe toate rețelele și afișează tokenul o singură dată.
+- Două adrese răspund fără token: `/api/v1/health` (versiunea aplicației și
+  faptul că ceva ascultă) și `/api/v1/pair` (schimbul codului de șase cifre
+  afișat pe PC pe un token; un cod, cinci încercări, cinci minute). Tot
+  restul, inclusiv punctul Prometheus `/metrics` și datele paginii web, cere
+  un token valid.
 - Vitals anunță numele calculatorului și versiunea aplicației în rețeaua
   locală prin mDNS (`_vitals._tcp`).
 - Un dispozitiv asociat poate citi numele proceselor, conturile de utilizator
@@ -301,34 +419,41 @@ fișierele se află în `%LOCALAPPDATA%\Vitals`.
 
 Vitals nu trimite nicăieri nimic din aceste fișiere.
 
-## Vitals pentru Android și Wear OS
+## Vitals pentru Android, Wear OS și Google TV
 
-Aplicația pentru telefon Android și aplicația pentru ceas Wear OS
-monitorizează dispozitivul pe care rulează și, dacă asociați unul, un PC cu
-Vitals din rețeaua locală.
+Aplicația pentru telefon Android, aplicația pentru ceas Wear OS și aplicația
+pentru Google TV monitorizează dispozitivul pe care rulează și, dacă asociați
+unul, un PC cu Vitals din rețeaua locală. Aplicațiile pentru telefon și TV au
+două ediții: cea din Google Play (`play`) și APK-ul publicat pe GitHub
+(`github`). Diferă doar prin accesul la toate fișierele, pe care numai ediția
+GitHub îl poate cere.
 
 **Ce citesc aplicațiile pe dispozitiv.** Procesor, placă grafică, memorie,
 baterie, temperatură, stocare, rețea și senzori, prin interfețele publice ale
-Android. Două citiri au nevoie de acces special, pe care îl acordați
+Android. Aplicațiile pentru telefon și TV listează și aplicațiile instalate
+care au pictogramă în lansator (numele, versiunile și datele de instalare și
+actualizare), ceea ce Android permite fără acces special; lista rămâne pe
+dispozitiv. Două citiri au nevoie de acces special, pe care îl acordați
 dumneavoastră din setările Android; fiecare rămâne goală până atunci:
 
-| Acces                                                | Ce permite                                                                       | Unde rămâne   |
-| ---------------------------------------------------- | -------------------------------------------------------------------------------- | ------------- |
-| Acces la utilizare (`PACKAGE_USAGE_STATS`)           | Timpul petrecut în fiecare aplicație și datele folosite de ea, în fila Aplicații | Pe dispozitiv |
-| Acces la toate fișierele (`MANAGE_EXTERNAL_STORAGE`) | Harta stocării, cele mai mari dosare și curățarea fișierelor alese de dvs.       | Pe dispozitiv |
+| Acces                                                | Ce permite                                                                                      | Unde rămâne   |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ------------- |
+| Acces la utilizare (`PACKAGE_USAGE_STATS`)           | Timpul petrecut în fiecare aplicație și datele folosite de ea, în fila Aplicații                | Pe dispozitiv |
+| Acces la toate fișierele (`MANAGE_EXTERNAL_STORAGE`) | Harta stocării, cele mai mari dosare și curățarea fișierelor alese de dvs. (doar ediția GitHub) | Pe dispozitiv |
 
 Aplicația pentru ceas nu le cere. Ștergerea unui fișier este mereu o acțiune
 explicită a dvs., confirmată pe ecran.
 
 **Conexiuni în rețea.**
 
-| Conexiune                                 | Când                                        | Ce primește cealaltă parte                                                                                                                                                                                                                                                                                                   |
-| ----------------------------------------- | ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Către un PC asociat                       | Cât timp un ecran sau un widget îl afișează | Tokenul de asociere; HTTP simplu în rețeaua locală, ca la accesul la distanță de mai sus                                                                                                                                                                                                                                     |
-| Descoperire mDNS (`_vitals._tcp`)         | Pe ecranul Adaugă PC                        | Dispozitivele din rețeaua locală văd interogarea                                                                                                                                                                                                                                                                             |
-| Wake-on-LAN                               | Doar când apăsați Trezește                  | Un pachet broadcast în rețeaua locală, cu adresa MAC a PC-ului                                                                                                                                                                                                                                                               |
-| Diagnosticare Google ML Kit               | Când deschideți scanerul QR                 | Google primește modelul și versiunea sistemului, pachetul și versiunea aplicației, un identificator per instalare care nu vă identifică și date de performanță și erori ale scanerului. Imaginea camerei nu părăsește dispozitivul. Vedeți [declarația Google](https://developers.google.com/ml-kit/android-data-disclosure) |
-| Telefon către ceas (servicii Google Play) | Când un ceas este asociat cu telefonul      | PC-urile asociate și ultimele lor valori, prin Wearable Data Layer, de la dispozitiv la dispozitiv                                                                                                                                                                                                                           |
+| Conexiune                                 | Când                                          | Ce primește cealaltă parte                                                                                                                                                                                                                                                                                                   |
+| ----------------------------------------- | --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Asocierea cu un PC                        | Când introduceți codul de asociere al PC-ului | Codul și un nume pentru acest dispozitiv (numele dispozitivului, dacă nu scrieți altul), ca PC-ul să arate ce dispozitiv deține tokenul                                                                                                                                                                                      |
+| Către un PC asociat                       | Cât timp un ecran sau un widget îl afișează   | Tokenul de asociere; HTTP simplu în rețeaua locală, ca la accesul la distanță de mai sus                                                                                                                                                                                                                                     |
+| Descoperire mDNS (`_vitals._tcp`)         | Pe ecranul Adaugă PC                          | Dispozitivele din rețeaua locală văd interogarea                                                                                                                                                                                                                                                                             |
+| Wake-on-LAN                               | Doar când apăsați Trezește                    | Un pachet broadcast în rețeaua locală, cu adresa MAC a PC-ului                                                                                                                                                                                                                                                               |
+| Diagnosticare Google ML Kit               | Când deschideți scanerul QR                   | Google primește modelul și versiunea sistemului, pachetul și versiunea aplicației, un identificator per instalare care nu vă identifică și date de performanță și erori ale scanerului. Imaginea camerei nu părăsește dispozitivul. Vedeți [declarația Google](https://developers.google.com/ml-kit/android-data-disclosure) |
+| Telefon către ceas (servicii Google Play) | Când un ceas este asociat cu telefonul        | PC-urile asociate și ultimele lor valori, prin Wearable Data Layer, de la dispozitiv la dispozitiv                                                                                                                                                                                                                           |
 
 Aplicațiile nu conțin instrumente proprii de analiză, publicitate sau
 raportare a erorilor și nu fac alte conexiuni. Google Play și Android pot
@@ -343,10 +468,18 @@ din backupul Android și ștearsă la dezinstalare:
 | Istoricul dispozitivului (pornit implicit, se poate opri din Setări) | Valori la nivelul întregului dispozitiv (procesor, memorie, baterie, rețea), una pe minut cât aplicația este deschisă și la 15 minute în fundal; fără numele aplicațiilor | 7 zile                                |
 | Setări și cache pentru widgeturi                                     | Alegerile dvs. și ultimele valori afișate de un widget                                                                                                                    | Până la dezinstalare                  |
 
-**Permisiuni.** Camera (doar pentru scanarea codului QR de asociere),
-notificări (alertele pe care le configurați), starea rețelei și multicast
-Wi-Fi (descoperire), vibrații și un serviciu în prim-plan care rulează doar
-cât urmăriți un PC în fundal.
+**Permisiuni.** Toate permisiunile declarate de aplicații, pe aplicație:
+
+| Permisiune                                                                        | Telefon            | TV                 | Ceas | De ce                                                         |
+| --------------------------------------------------------------------------------- | ------------------ | ------------------ | ---- | ------------------------------------------------------------- |
+| `INTERNET`, `ACCESS_NETWORK_STATE`, `ACCESS_WIFI_STATE`                           | Da                 | Da                 | Da   | Comunicarea cu PC-urile asociate din rețea; citirile de rețea |
+| `CHANGE_WIFI_MULTICAST_STATE`                                                     | Da                 | Da                 | Da   | Găsirea PC-urilor prin mDNS                                   |
+| `CAMERA`                                                                          | Da                 | Nu                 | Nu   | Doar pentru scanarea codului QR de asociere                   |
+| `POST_NOTIFICATIONS`                                                              | Da                 | Nu                 | Da   | Alertele pe care le configurați                               |
+| `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_SPECIAL_USE`                            | Da                 | Nu                 | Nu   | Urmărirea unui PC în fundal, doar cât ați pornit-o            |
+| `WAKE_LOCK`, `VIBRATE`                                                            | Doar vibrații      | Nu                 | Da   | Menținerea la zi a unei citiri pe ceas; vibrația la o alertă  |
+| `PACKAGE_USAGE_STATS` (acces special)                                             | Da                 | Da                 | Nu   | Timp și date pe aplicație, după ce îl acordați                |
+| `MANAGE_EXTERNAL_STORAGE` (acces special), `READ_EXTERNAL_STORAGE` (≤ Android 10) | Doar ediția GitHub | Doar ediția GitHub | Nu   | Harta stocării și curățarea, după ce îl acordați              |
 
 ## Modificări pe care Vitals le face în Windows, doar la cererea dvs.
 
@@ -356,10 +489,65 @@ File Execution Options`. Programul de dezinstalare o elimină dacă indică
   spre Vitals.
 - **Pornire odată cu Windows:** scrie o valoare în cheia `Run` a
   utilizatorului curent (`HKCU`).
+- **Watchdog pentru blocaje (oprit până îl porniți):** un mic program separat,
+  `vitals-watchdog.exe`, care observă ferestrele care nu mai răspund și vă
+  spune ce program se află în spatele unui blocaj. Nu închide nimic decât
+  dacă apăsați un buton. Vitals nu îl pornește singur: îl alegeți din cardul
+  de bun venit sau din Setări → Watchdog pentru blocaje. Când este pornit:
+  - pornește la conectare, prin valoarea `VitalsWatchdog` din cheia `Run` a
+    utilizatorului curent (`HKCU`) sau prin sarcina de pornire a pachetului
+    din Store;
+  - setările lui sunt în `%APPDATA%\Vitals\watchdog.json`;
+  - păstrează un jurnal cu ce a observat, inclusiv **numele proceselor**, în
+    `%LOCALAPPDATA%\Vitals\watchdog\watchdog.log` (reluat de la zero peste
+    1 MB);
+  - dacă a fost instalat manual cu `vitals-watchdog --install`, o copie a
+    programului este păstrată în `%LOCALAPPDATA%\Vitals\watchdog`.
+
+  Nimic din ce înregistrează nu este trimis nicăieri. Pentru a-l elimina,
+  opriți-l din Setări (asta șterge intrarea de la conectare), deconectați-vă
+  sau închideți `vitals-watchdog.exe` și ștergeți fișierele de mai sus.
+
 - **Acțiuni cu drepturi ridicate asupra proceselor:** trec prin solicitarea
   UAC a Windows.
 - **Dezinstalarea unei aplicații:** rulează programul de dezinstalare al
   acelei aplicații.
+
+## Serviciul de senzori (opțional)
+
+Windows nu permite unui program obișnuit să citească temperatura și puterea
+procesorului. Dacă alegeți **Dispozitive și senzori → Temperatura și puterea
+procesorului → Instalează** (o singură solicitare de administrator), Vitals:
+
+- descarcă `PawnIO_setup.exe` 2.2.0 de pe
+  [github.com/namazso/PawnIO.Setup](https://github.com/namazso/PawnIO.Setup)
+  (GitHub primește ce primește la verificarea actualizărilor), îl verifică
+  după un hash SHA-256 inclus în Vitals și refuză orice alt fișier;
+- îl rulează, ceea ce instalează **driverul de kernel** PawnIO, publicat și
+  semnat de autorul lui;
+- instalează un mic serviciu, `vitals-sensors`, care rulează ca **SYSTEM**
+  din `C:\Program Files\Vitals Sensors`, pornește odată cu Windows și oferă
+  doar citiri de temperatură, putere și ventilatoare, numai pentru citire,
+  programelor de pe acest calculator, prin named pipe-ul `vitals-sensors`.
+  Jurnalul de instalare este în același dosar.
+
+Nu se trimite nimic nicăieri. Dezinstalarea Vitals, sau alegerea
+**Elimină** în același loc, oprește și șterge serviciul și dosarul lui.
+**PawnIO rămâne instalat**, pentru că alte instrumente (de exemplu FanControl
+și LibreHardwareMonitor) folosesc același driver. Pentru a-l elimina,
+dezinstalați **PawnIO** din Setări Windows → Aplicații → Aplicații
+instalate, când niciun alt program nu mai are nevoie de el. Ediția din
+Microsoft Store nu oferă serviciul de senzori.
+
+## Aplicația pentru televizoare Samsung (Tizen)
+
+Aplicația pentru televizoare Samsung afișează PC-urile pe care le asociați cu
+ea. Păstrează PC-urile asociate (adresa, numele și tokenul) și limba aleasă
+în stocarea proprie a aplicației pe televizor, ștearsă la dezinstalare. Se
+conectează doar la PC-urile asociate, prin HTTP simplu în rețeaua locală,
+trimițând codul de asociere și apoi tokenul; nu conține instrumente de
+analiză sau publicitate. Samsung poate colecta date despre televizor și
+instalări conform propriei politici de confidențialitate.
 
 ## Temeiul juridic
 
@@ -387,11 +575,31 @@ din țara UE în care locuiți.
 
 ## Cum ștergeți totul
 
-Dezinstalarea Vitals păstrează datele. Pentru a le șterge, eliminați dosarul
-`%LOCALAPPDATA%\Vitals` după dezinstalare. Revocați mai întâi tokenurile de
-acces la distanță și ștergeți datele site-ului Vitals din browserul
-telefonului.
-Pe Android și Wear OS, dezinstalarea aplicației șterge tot ce a stocat.
+Dezinstalarea Vitals elimină programul, serviciul de senzori și intrările de
+la conectare create de el și păstrează datele. Pentru a șterge totul:
+
+1. În Vitals, revocați tokenurile de acces la distanță și opriți watchdogul
+   pentru blocaje și „Pornire odată cu Windows” (acestea își șterg intrările
+   de la conectare).
+2. Dezinstalați Vitals din Setări Windows → Aplicații.
+3. Ștergeți aceste dosare:
+
+- `%LOCALAPPDATA%\Vitals` (istoric, jurnale, tokenuri, jurnalul
+  watchdogului);
+- `%APPDATA%\Vitals` (setările watchdogului);
+- `%APPDATA%\app.vitals.desktop` (setările și aranjamentul panoului);
+- `%LOCALAPPDATA%\app.vitals.desktop` (datele browserului WebView2,
+  `EBWebView`);
+- `C:\Program Files\Vitals Sensors`, dacă mai există.
+
+4. Dacă mai există, ștergeți valorile `Vitals` și `VitalsWatchdog` din
+   `HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run`.
+5. Dacă ați instalat serviciul de senzori și niciun alt program nu are nevoie
+   de el, dezinstalați **PawnIO** din Setări Windows → Aplicații.
+6. Ștergeți datele site-ului Vitals din browserul telefonului.
+
+Pe Android, Wear OS, Google TV și televizoarele Samsung, dezinstalarea
+aplicației șterge tot ce a stocat.
 
 ## Site-ul
 

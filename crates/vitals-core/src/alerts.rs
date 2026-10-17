@@ -560,10 +560,11 @@ fn evaluate(s: &SystemMetrics) -> Vec<Alert> {
                 Severity::Warning,
                 label.clone(),
                 "cause",
-                vec![
-                    ("disk", label.as_str().into()),
-                    ("ms", round(f64::from(disk.response_ms.unwrap_or(0.0)))),
-                ],
+                // `ms` only when measured: an unmeasured latency is absent,
+                // not 0 ms (`DiskLatency` implies it is present).
+                std::iter::once(("disk", label.as_str().into()))
+                    .chain(disk.response_ms.map(|ms| ("ms", round(f64::from(ms)))))
+                    .collect(),
                 Some(AlertRoute::Processes),
             ));
         }

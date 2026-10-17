@@ -14,10 +14,11 @@ import kotlin.math.roundToInt
 object Format {
     const val DASH = "\u2014"
 
-    fun percent(v: Float?): String = v?.let { "${it.roundToInt()} %" } ?: DASH
+    /** NaN or infinity (a ratio over a zero total) is unmeasured, not a number — and roundToInt would throw on NaN. */
+    fun percent(v: Float?): String = v?.takeIf { it.isFinite() }?.let { "${it.roundToInt()} %" } ?: DASH
 
     /** Without the space, for a tile or complication where width is scarce. */
-    fun percentCompact(v: Float?): String = v?.let { "${it.roundToInt()}%" } ?: DASH
+    fun percentCompact(v: Float?): String = v?.takeIf { it.isFinite() }?.let { "${it.roundToInt()}%" } ?: DASH
 
     fun celsius(v: Float?): String = v?.let { "${it.roundToInt()} °C" } ?: DASH
 

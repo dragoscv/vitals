@@ -2,6 +2,8 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
+    // Same as :app: res/raw/aboutlibraries.json for the licences panel.
+    alias(libs.plugins.aboutlibraries)
 }
 
 // Google TV: Compose for TV (androidx.tv.material3), no Leanback library.
@@ -84,6 +86,7 @@ dependencies {
     implementation(libs.datastore.preferences)
     implementation(libs.work.runtime)
     implementation(libs.profileinstaller)
+    implementation(libs.aboutlibraries.core)
     debugImplementation(libs.compose.ui.tooling)
 
     testImplementation(libs.junit)

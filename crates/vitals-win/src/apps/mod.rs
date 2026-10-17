@@ -246,6 +246,12 @@ mod tests {
     fn a_listed_app_resolves_to_exactly_the_command_the_list_showed() {
         let scan = enumerate_installed_apps();
         let Some(app) = scan.apps.iter().find(|a| a.uninstall_string.is_some()) else {
+            // GitHub's Windows image ships dozens of uninstallable apps; a
+            // skip there means enumeration broke, not that none exist.
+            assert!(
+                std::env::var_os("CI").is_none(),
+                "no uninstallable app found under CI; enumeration is broken"
+            );
             eprintln!("no uninstallable app on this machine; nothing to compare");
             return;
         };

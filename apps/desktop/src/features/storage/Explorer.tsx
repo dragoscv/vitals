@@ -54,6 +54,7 @@ import {
   cn,
   formatBytes,
   formatCount,
+  formatPercent,
   useReducedMotion,
 } from '@vitals/ui';
 import { useVirtualizer } from '@tanstack/react-virtual';
@@ -323,7 +324,7 @@ function ScanExplorer({
       )}
 
       {error !== null && (
-        <p role="alert" className="text-2xs text-[var(--color-status-danger)]">
+        <p role="alert" className="text-2xs text-[var(--color-danger-text)]">
           {t('explore.failed', { message: error })}
         </p>
       )}
@@ -432,25 +433,33 @@ function Breadcrumb({
   );
 }
 
-/** Reads the palette from CSS so light, dark and high contrast just work. */
+/**
+ * Reads the palette from CSS so light, dark and high contrast just work.
+ *
+ * No hex fallbacks (DES-24): they were a second, drifting palette, and one
+ * hid a bug — the edge read `--color-bg-canvas`, a token that never existed,
+ * so the map was outlined in near-black `#111` on the light theme too. A
+ * missing token now degrades to the system's neutral `GrayText`, which is
+ * visibly wrong in review rather than silently plausible.
+ */
 function readPalette(element: HTMLElement): MapPalette {
   const style = getComputedStyle(element);
-  const v = (name: string, fallback: string) => style.getPropertyValue(name).trim() || fallback;
+  const v = (name: string) => style.getPropertyValue(name).trim() || 'GrayText';
   return {
     branches: [
-      v('--color-chart-cpu', '#4f8cff'),
-      v('--color-chart-memory', '#a06cff'),
-      v('--color-chart-disk', '#28b487'),
-      v('--color-chart-network', '#f0a030'),
-      v('--color-chart-gpu', '#e0507a'),
-      v('--color-chart-power', '#30b0c8'),
+      v('--color-chart-cpu'),
+      v('--color-chart-memory'),
+      v('--color-chart-disk'),
+      v('--color-chart-network'),
+      v('--color-chart-gpu'),
+      v('--color-chart-power'),
     ],
-    files: v('--color-chart-neutral', '#8a8f98'),
-    smaller: v('--color-border-subtle', '#40444c'),
-    warn: v('--color-status-warn', '#e0a020'),
-    edge: v('--color-bg-canvas', v('--color-bg-default', '#111')),
-    text: v('--color-fg-on-accent', '#fff'),
-    hover: v('--color-fg-default', '#fff'),
+    files: v('--color-chart-neutral'),
+    smaller: v('--color-border-subtle'),
+    warn: v('--color-status-warn'),
+    edge: v('--color-bg-base'),
+    text: v('--color-fg-on-accent'),
+    hover: v('--color-fg-default'),
   };
 }
 
@@ -611,7 +620,7 @@ function MapCanvas({
       : `${label(hovered) ?? ''} · ${formatBytes(hovered.allocated, locale)} · ${t(
           'explore.share',
           {
-            percent: `${Math.round((hovered.allocated / Math.max(1, here.allocated)) * 1000) / 10} %`,
+            percent: formatPercent((hovered.allocated / Math.max(1, here.allocated)) * 100, locale),
             parent: here.name,
           },
         )}${
@@ -695,7 +704,7 @@ function MapCanvas({
       {tip !== null && (
         <p
           aria-hidden
-          className="pointer-events-none absolute bottom-1 left-1 max-w-[90%] truncate rounded bg-[var(--color-bg-elevated,rgba(0,0,0,.7))] px-2 py-0.5 text-2xs"
+          className="pointer-events-none absolute bottom-1 left-1 max-w-[90%] truncate rounded bg-[var(--color-bg-raised)] px-2 py-0.5 text-2xs"
         >
           {tip}
         </p>
@@ -745,10 +754,14 @@ function FolderList({
   }
 
   return (
-    <div className="flex flex-col gap-1">
+    // `min-h-0` + a non-shrinking summary row (DES-2): the list's scroller
+    // flexes from a zero basis, and in a card that sizes to its content the
+    // summary line and the basket hint below the explorer collided. The
+    // summary is its own row and the list never takes its space.
+    <div className="flex min-h-0 flex-col gap-1 pb-1">
       {here.ownFiles > 0 && (
-        <p className="flex items-center gap-1.5 text-2xs text-[var(--color-fg-muted)]">
-          <FileText aria-hidden className="size-4" />
+        <p className="flex shrink-0 items-center gap-1.5 text-2xs leading-4 text-[var(--color-fg-muted)]">
+          <FileText aria-hidden className="size-4 shrink-0" />
           {t('explore.ownFiles', {
             count: here.ownFiles,
             n: formatCount(here.ownFiles, locale),
@@ -756,105 +769,108 @@ function FolderList({
           · {formatBytes(here.ownAllocated, locale)}
         </p>
       )}
-      <div
-        ref={scrollRef}
-        className={cn(
-          'pane-scroll rounded-md border border-[var(--color-border-subtle)]',
-          // Under the map the list shares the screen with it: a lower cap
-          // keeps map and list visible together.
-          compact && 'max-h-[min(20rem,35vh)]',
-        )}
-        onKeyDown={menu.onKeyDown}
-      >
-        <ul
-          className="relative w-full"
-          style={{ height: `${String(virtualizer.getTotalSize())}px` }}
+      {/* No folders, only loose files: no empty bordered box under the line. */}
+      {items.length > 0 && (
+        <div
+          ref={scrollRef}
+          className={cn(
+            'pane-scroll rounded-md border border-[var(--color-border-subtle)]',
+            // Under the map the list shares the screen with it: a lower cap
+            // keeps map and list visible together.
+            compact && 'max-h-[min(20rem,35vh)]',
+          )}
+          onKeyDown={menu.onKeyDown}
         >
-          {virtualizer.getVirtualItems().map((row) => {
-            const item = items[row.index];
-            if (item === undefined) return null;
-            const share = item.allocated / total;
-            const entry: BasketItem = {
-              path: item.path,
-              name: item.name,
-              kind: 'folder',
-              allocated: item.allocated,
-            };
-            const selected = inBasket(basket, item.path);
-            return (
-              <li
-                key={row.key}
-                className={`absolute inset-x-0 flex items-center gap-1 pr-1.5 ${rowRule(row.index)}`}
-                style={{
-                  top: 0,
-                  height: ROW_HEIGHT,
-                  transform: `translateY(${String(row.start)}px)`,
-                }}
-              >
-                <ContextMenu {...menu.rootProps(item.path)}>
-                  <ContextMenuTrigger asChild>
-                    <button
-                      type="button"
-                      className="flex h-full min-w-0 flex-1 items-center gap-2 px-2.5 text-left hover:bg-[var(--color-accent-subtle)] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-accent)] disabled:cursor-default"
-                      disabled={!item.hasChildren}
-                      aria-label={
-                        item.hasChildren ? t('explore.open', { name: item.name }) : item.name
-                      }
-                      onContextMenu={menu.onContextMenu}
-                      onClick={() => {
-                        onOpen(item.node);
-                      }}
-                    >
-                      <Folder
-                        aria-hidden
-                        className="size-4 shrink-0 text-[var(--color-fg-subtle)]"
-                      />
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm" title={item.path}>
-                          {item.name}
-                        </span>
-                        {/* The share bar: how much of this folder it is. */}
-                        <span
+          <ul
+            className="relative w-full"
+            style={{ height: `${String(virtualizer.getTotalSize())}px` }}
+          >
+            {virtualizer.getVirtualItems().map((row) => {
+              const item = items[row.index];
+              if (item === undefined) return null;
+              const share = item.allocated / total;
+              const entry: BasketItem = {
+                path: item.path,
+                name: item.name,
+                kind: 'folder',
+                allocated: item.allocated,
+              };
+              const selected = inBasket(basket, item.path);
+              return (
+                <li
+                  key={row.key}
+                  className={`absolute inset-x-0 flex items-center gap-1 pr-1.5 ${rowRule(row.index)}`}
+                  style={{
+                    top: 0,
+                    height: ROW_HEIGHT,
+                    transform: `translateY(${String(row.start)}px)`,
+                  }}
+                >
+                  <ContextMenu {...menu.rootProps(item.path)}>
+                    <ContextMenuTrigger asChild>
+                      <button
+                        type="button"
+                        className="flex h-full min-w-0 flex-1 items-center gap-2 px-2.5 text-left hover:bg-[var(--color-accent-subtle)] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-accent)] disabled:cursor-default"
+                        disabled={!item.hasChildren}
+                        aria-label={
+                          item.hasChildren ? t('explore.open', { name: item.name }) : item.name
+                        }
+                        onContextMenu={menu.onContextMenu}
+                        onClick={() => {
+                          onOpen(item.node);
+                        }}
+                      >
+                        <Folder
                           aria-hidden
-                          className="mt-0.5 block h-1 rounded-full bg-[var(--color-accent)] opacity-70 transition-[width] duration-300"
-                          style={{ width: `${String(Math.max(0.5, share * 100))}%` }}
+                          className="size-4 shrink-0 text-[var(--color-fg-subtle)]"
                         />
-                      </span>
-                      {item.incomplete !== null && (
-                        <Badge
-                          tone="warn"
-                          title={t('incompleteHint', { reason: t(`skip.${item.incomplete}`) })}
-                        >
-                          {t('incomplete')}
-                        </Badge>
-                      )}
-                      <span className="tnum w-20 shrink-0 text-right font-mono text-2xs">
-                        {formatBytes(item.allocated, locale)}
-                      </span>
-                      <span className="tnum hidden w-20 shrink-0 text-right font-mono text-2xs text-[var(--color-fg-subtle)] @3xl/main:block">
-                        {formatCount(item.files, locale)}
-                      </span>
-                    </button>
-                  </ContextMenuTrigger>
-                  <PathMenuItems
-                    item={entry}
-                    selected={selected}
-                    onReveal={onReveal}
-                    onToggleBasket={onToggleBasket}
-                    open={{
-                      disabled: !item.hasChildren,
-                      run: () => {
-                        onOpen(item.node);
-                      },
-                    }}
-                  />
-                </ContextMenu>
-                <BasketToggle item={entry} selected={selected} onToggle={onToggleBasket} />
-              </li>
-            );
-          })}
-        </ul>
-      </div>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm" title={item.path}>
+                            {item.name}
+                          </span>
+                          {/* The share bar: how much of this folder it is. */}
+                          <span
+                            aria-hidden
+                            className="mt-0.5 block h-1 rounded-full bg-[var(--color-accent)] opacity-70 transition-[width] duration-300"
+                            style={{ width: `${String(Math.max(0.5, share * 100))}%` }}
+                          />
+                        </span>
+                        {item.incomplete !== null && (
+                          <Badge
+                            tone="warn"
+                            title={t('incompleteHint', { reason: t(`skip.${item.incomplete}`) })}
+                          >
+                            {t('incomplete')}
+                          </Badge>
+                        )}
+                        <span className="tnum w-20 shrink-0 text-right font-mono text-2xs">
+                          {formatBytes(item.allocated, locale)}
+                        </span>
+                        <span className="tnum hidden w-20 shrink-0 text-right font-mono text-2xs text-[var(--color-fg-subtle)] @3xl/main:block">
+                          {formatCount(item.files, locale)}
+                        </span>
+                      </button>
+                    </ContextMenuTrigger>
+                    <PathMenuItems
+                      item={entry}
+                      selected={selected}
+                      onReveal={onReveal}
+                      onToggleBasket={onToggleBasket}
+                      open={{
+                        disabled: !item.hasChildren,
+                        run: () => {
+                          onOpen(item.node);
+                        },
+                      }}
+                    />
+                  </ContextMenu>
+                  <BasketToggle item={entry} selected={selected} onToggle={onToggleBasket} />
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }

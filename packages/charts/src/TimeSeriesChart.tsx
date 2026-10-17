@@ -2,6 +2,50 @@ import { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import { render, resizeCanvas } from './renderer';
 import type { GridOptions, ScaleOptions, Series } from './renderer';
 
+/** What a screen reader is told about the primary (first) series. */
+export interface ChartSummary {
+  /** Mean of the retained samples, gaps ignored. */
+  readonly average: number;
+  /** Highest retained sample. */
+  readonly peak: number;
+  /** Newest sample, or `null` when it is a gap. */
+  readonly latest: number | null;
+  /** Samples that are real readings rather than gaps. */
+  readonly samples: number;
+}
+
+/**
+ * The accessible name is refreshed at most this often. A label rewritten
+ * every second is noise for anyone reading it, and the canvas is never a
+ * live region, so nothing is announced on change — the figure is simply
+ * current enough when someone moves to it.
+ */
+export const SUMMARY_INTERVAL_MS = 5_000;
+
+/** Average, peak and latest of the first series, or `null` with no readings. */
+export function summariseSeries(series: readonly Series[]): ChartSummary | null {
+  const buffer = series[0]?.buffer;
+  if (buffer === undefined) return null;
+  let sum = 0;
+  let count = 0;
+  let peak = Number.NEGATIVE_INFINITY;
+  for (let i = 0; i < buffer.size; i += 1) {
+    const v = buffer.at(i);
+    if (v === undefined || Number.isNaN(v)) continue;
+    sum += v;
+    count += 1;
+    if (v > peak) peak = v;
+  }
+  if (count === 0) return null;
+  const last = buffer.last;
+  return {
+    average: sum / count,
+    peak,
+    latest: last === undefined || Number.isNaN(last) ? null : last,
+    samples: count,
+  };
+}
+
 export interface TimeSeriesChartProps {
   readonly series: readonly Series[];
   readonly scale?: ScaleOptions;
@@ -17,7 +61,16 @@ export interface TimeSeriesChartProps {
    * cheap signal that a repaint is due.
    */
   readonly revision: number;
+  /** The chart's name, used alone until there is data to summarise. */
   readonly ariaLabel?: string;
+  /**
+   * Turns the first series' figures into the accessible name, e.g.
+   * "Processor, recent history: average 12 %, peak 48 %". A title alone tells
+   * a screen-reader user that a chart exists and nothing about what it
+   * shows. Formatting stays with the caller, which knows the unit and the
+   * locale.
+   */
+  readonly describe?: (summary: ChartSummary) => string;
 }
 
 /**
@@ -37,6 +90,7 @@ export function TimeSeriesChart({
   className,
   revision,
   ariaLabel,
+  describe,
 }: TimeSeriesChartProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -79,6 +133,31 @@ export function TimeSeriesChart({
     draw();
   }, [draw, revision]);
 
+  // Written straight to the attribute rather than through state: a state
+  // update per tick would re-render every chart's parent for a string that
+  // changes at most every five seconds. React never sets `aria-label` on
+  // this element when `describe` is given, so it cannot overwrite it.
+  const describedAt = useRef(Number.NEGATIVE_INFINITY);
+  const describeRef = useRef(describe);
+  useLayoutEffect(() => {
+    describeRef.current = describe;
+  }, [describe]);
+  useLayoutEffect(() => {
+    const canvas = canvasRef.current;
+    const fn = describeRef.current;
+    if (!canvas || fn === undefined) return;
+    const now = performance.now();
+    const hasLabel = canvas.hasAttribute('aria-label');
+    if (hasLabel && now - describedAt.current < SUMMARY_INTERVAL_MS) return;
+    const summary = summariseSeries(optionsRef.current.series);
+    if (summary === null) {
+      if (ariaLabel !== undefined) canvas.setAttribute('aria-label', ariaLabel);
+      return;
+    }
+    canvas.setAttribute('aria-label', fn(summary));
+    describedAt.current = now;
+  }, [revision, ariaLabel]);
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -95,7 +174,7 @@ export function TimeSeriesChart({
       ref={canvasRef}
       className={className}
       role="img"
-      aria-label={ariaLabel}
+      {...(describe === undefined && ariaLabel !== undefined && { 'aria-label': ariaLabel })}
       // Charts are decorative to a screen reader; the accompanying numeric
       // readout carries the information, so this is labelled but not focusable.
       style={{ display: 'block', width: '100%', height: '100%' }}

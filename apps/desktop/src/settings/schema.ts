@@ -55,6 +55,12 @@ export interface AppSettings {
   readonly resourceVisibility: Readonly<Record<string, 'hidden' | 'shown'>>;
   /** The Performance page's "show hidden devices" switch. */
   readonly showHiddenResources: boolean;
+  /**
+   * The dashboard's first-run card was dismissed. Persisted here because it
+   * is a per-user preference like any other, and a card that comes back on
+   * every launch is nagging, not onboarding.
+   */
+  readonly firstRunDismissed: boolean;
 }
 
 /**
@@ -101,6 +107,7 @@ export const defaultSettings: AppSettings = {
 
   resourceVisibility: {},
   showHiddenResources: false,
+  firstRunDismissed: false,
 };
 
 function bool(value: unknown, fallback: boolean): boolean {
@@ -199,5 +206,6 @@ export function parseSettings(raw: unknown): AppSettings {
 
     resourceVisibility: parseVisibility(record['resourceVisibility']),
     showHiddenResources: bool(record['showHiddenResources'], defaultSettings.showHiddenResources),
+    firstRunDismissed: bool(record['firstRunDismissed'], defaultSettings.firstRunDismissed),
   };
 }

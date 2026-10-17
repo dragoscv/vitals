@@ -119,6 +119,9 @@ impl AppState {
 
     pub fn set_sample_rate(&self, rate: SampleRate) {
         *self.rate.write() = rate;
+        // The sampler sleeps for the whole interval; this is what makes a
+        // rate change take effect now rather than at the end of it.
+        crate::sampling::RATE_WAKE.notify();
     }
 
     /// Replaces the published process sample. Called by the sampler thread.

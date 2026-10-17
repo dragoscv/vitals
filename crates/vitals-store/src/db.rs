@@ -30,6 +30,26 @@ pub type Result<T> = std::result::Result<T, StoreError>;
 /// Bumped when a migration is added to [`Store::migrate`].
 const SCHEMA_VERSION: i64 = 1;
 
+/// Free pages handed back to the filesystem per maintenance pass.
+///
+/// Bounded so a pass after a large prune never stalls the sampler thread
+/// for one long vacuum; 512 pages of 4 KiB is 2 MiB a minute, which drains
+/// any realistic backlog within the hour.
+const RECLAIM_PAGES: u32 = 512;
+
+/// Below this size an existing file is converted to incremental
+/// auto-vacuum on open.
+///
+/// The conversion is a full `VACUUM`: it rewrites the file, which is
+/// instant for the few megabytes the default tiers produce and is exactly
+/// what must not happen at launch to a file that is somehow hundreds of
+/// megabytes. A larger file is converted on the next Clear instead.
+const CONVERT_ON_OPEN_BELOW: u64 = 16 * 1024 * 1024;
+
+/// Upper bound on eviction rounds in one maintenance pass, so a budget
+/// that cannot be met (smaller than an empty schema) cannot spin.
+const MAX_EVICTION_ROUNDS: u32 = 64;
+
 /// The tiers, finest first. Each is a table named `machine_<suffix>`.
 const TIERS: [(Resolution, &str); 4] = [
     (Resolution::Second, "1s"),
@@ -69,6 +89,14 @@ impl Store {
     }
 
     fn configure(conn: Connection, policy: RetentionPolicy) -> Result<Self> {
+        // Incremental auto-vacuum lets `maintain` hand pruned pages back to
+        // the filesystem a few at a time. Without it a file only ever grows:
+        // deleted rows become free pages that SQLite reuses but never
+        // returns, so the 512 MB cap would bound the data, not the file.
+        // The pragma only takes effect before the first table exists, so it
+        // must precede both the WAL switch and `migrate`; on an existing
+        // file it is a no-op until a `VACUUM` (see `convert_if_small`).
+        conn.execute_batch("PRAGMA auto_vacuum = INCREMENTAL;")?;
         // WAL lets the UI read while the sampler writes; `synchronous=NORMAL`
         // is safe under WAL and avoids an fsync per insert. Losing the last
         // second of a usage chart in a power cut is acceptable; a 1 Hz fsync
@@ -81,6 +109,27 @@ impl Store {
         let mut store = Self { conn, policy };
         store.migrate()?;
         Ok(store)
+    }
+
+    /// Converts a pre-existing, non-incremental file while that is cheap.
+    ///
+    /// Called by the writer ([`crate::Recorder::open`]) only. Readers open
+    /// their own connection per command, and a `VACUUM` from one of them
+    /// would contend with the sampler's writes for the whole rewrite.
+    pub fn convert_if_small(&self) -> Result<()> {
+        if self.auto_vacuum_mode()? == AUTO_VACUUM_INCREMENTAL {
+            return Ok(());
+        }
+        if self.size_bytes()? < CONVERT_ON_OPEN_BELOW {
+            self.conn.execute_batch("VACUUM;")?;
+        }
+        Ok(())
+    }
+
+    fn auto_vacuum_mode(&self) -> Result<i64> {
+        Ok(self
+            .conn
+            .query_row("PRAGMA auto_vacuum", [], |r| r.get(0))?)
     }
 
     fn migrate(&mut self) -> Result<()> {
@@ -209,6 +258,9 @@ impl Store {
     /// completed, so calling this every minute costs a handful of small
     /// queries. Buckets still open at `now` are left alone — a five-minute
     /// average of ninety seconds would be a lie about the other 210.
+    ///
+    /// Then enforces the byte budget ([`RetentionPolicy::max_bytes`]) and
+    /// returns a bounded number of free pages to the filesystem.
     pub fn maintain(&self, now: i64) -> Result<()> {
         let tx = self.conn.unchecked_transaction()?;
 
@@ -271,6 +323,103 @@ impl Store {
         }
 
         tx.commit()?;
+
+        self.enforce_budget()?;
+        self.reclaim()?;
+        Ok(())
+    }
+
+    /// Evicts the oldest data until the live pages fit the byte budget.
+    ///
+    /// Measured on live pages (`page_count - freelist_count`), not the file
+    /// size: free pages are reused before the file grows, so counting them
+    /// would evict real data to pay for space that is already empty — and
+    /// on a file not yet converted to incremental auto-vacuum the file never
+    /// shrinks, so the loop would delete everything.
+    ///
+    /// Oldest first across all tiers, as the policy promises: each round
+    /// takes the tier holding the single oldest row and drops the oldest
+    /// quarter of it. The defaults produce a few megabytes, so this is a
+    /// guard against the unforeseen rather than a routine path.
+    fn enforce_budget(&self) -> Result<()> {
+        let budget = self.policy.max_bytes;
+        for _ in 0..MAX_EVICTION_ROUNDS {
+            if self.live_bytes()? <= budget {
+                return Ok(());
+            }
+            let Some(table) = self.tier_with_oldest_row()? else {
+                return Ok(());
+            };
+            let rows: i64 =
+                self.conn
+                    .query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |r| r.get(0))?;
+            let evict = (rows / 4).max(1);
+            self.conn.execute(
+                &format!(
+                    "DELETE FROM {table} WHERE ts IN (
+                        SELECT ts FROM {table} ORDER BY ts LIMIT ?1)"
+                ),
+                params![evict],
+            )?;
+        }
+        Ok(())
+    }
+
+    fn tier_with_oldest_row(&self) -> Result<Option<&'static str>> {
+        let mut oldest: Option<(i64, &'static str)> = None;
+        for (resolution, _) in TIERS {
+            let table = table_for(resolution);
+            let min: Option<i64> =
+                self.conn
+                    .query_row(&format!("SELECT MIN(ts) FROM {table}"), [], |r| r.get(0))?;
+            if let Some(ts) = min
+                && oldest.is_none_or(|(best, _)| ts < best)
+            {
+                oldest = Some((ts, table));
+            }
+        }
+        Ok(oldest.map(|(_, table)| table))
+    }
+
+    /// Bytes held by pages that contain data.
+    pub fn live_bytes(&self) -> Result<u64> {
+        let free: i64 = self
+            .conn
+            .query_row("PRAGMA freelist_count", [], |r| r.get(0))?;
+        let page_size: i64 = self.conn.query_row("PRAGMA page_size", [], |r| r.get(0))?;
+        let total = self.size_bytes()?;
+        let free_bytes = u64::try_from(free.saturating_mul(page_size)).unwrap_or(0);
+        Ok(total.saturating_sub(free_bytes))
+    }
+
+    /// Returns up to [`RECLAIM_PAGES`] free pages to the filesystem.
+    ///
+    /// A no-op on a file not yet converted to incremental auto-vacuum,
+    /// which SQLite handles by ignoring the pragma.
+    ///
+    /// Stepped to completion rather than run with `execute_batch`: the
+    /// pragma frees one page per `sqlite3_step`, and a batch steps each
+    /// statement once — so it returned exactly one page and the file never
+    /// shrank (caught by the budget test, not by reading the docs).
+    fn reclaim(&self) -> Result<()> {
+        let mut stmt = self
+            .conn
+            .prepare(&format!("PRAGMA incremental_vacuum({RECLAIM_PAGES})"))?;
+        let mut rows = stmt.query([])?;
+        while rows.next()?.is_some() {}
+        Ok(())
+    }
+
+    /// Folds the write-ahead log into the database and truncates it.
+    ///
+    /// Called on shutdown. Left alone, the `-wal` file keeps its high-water
+    /// size between launches, which for a store written once a second is
+    /// several megabytes of duplicate pages sitting next to the real file.
+    /// A reader holding a snapshot makes the checkpoint partial rather than
+    /// failing, which is fine: the next launch finishes it.
+    pub fn checkpoint(&self) -> Result<()> {
+        self.conn
+            .query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |_| Ok(()))?;
         Ok(())
     }
 
@@ -308,6 +457,9 @@ impl Store {
     }
 
     /// Deletes everything and reclaims the space.
+    ///
+    /// Also the moment a file too large to convert on open is switched to
+    /// incremental auto-vacuum: the `VACUUM` here rewrites the file anyway.
     pub fn clear(&self) -> Result<()> {
         for (_, suffix) in TIERS {
             self.conn
@@ -315,53 +467,38 @@ impl Store {
         }
         self.conn.execute("DELETE FROM rollup_cursor", [])?;
         self.conn.execute("DELETE FROM flight_frames", [])?;
-        self.conn.execute_batch("VACUUM;")?;
+        self.conn
+            .execute_batch("PRAGMA auto_vacuum = INCREMENTAL; VACUUM;")?;
         Ok(())
     }
 
     // ── Flight recorder ────────────────────────────────────────────────
 
-    /// Appends a raw frame, keeping at most `keep` of them.
+    /// Empties the legacy `flight_frames` table.
     ///
-    /// The frame is stored as the bytes the caller hands over (JSON on the
-    /// wire today) so the export is exactly what the UI saw, not a
-    /// re-serialisation that might disagree with it.
-    pub fn record_frame(&self, seq: i64, ts: i64, frame: &[u8], keep: u64) -> Result<()> {
-        let tx = self.conn.unchecked_transaction()?;
-        tx.execute(
-            "INSERT OR REPLACE INTO flight_frames (seq, ts, frame) VALUES (?1, ?2, ?3)",
-            params![seq, ts, frame],
-        )?;
-        tx.execute(
-            "DELETE FROM flight_frames WHERE seq NOT IN (
-                SELECT seq FROM flight_frames ORDER BY seq DESC LIMIT ?1)",
-            params![i64::try_from(keep).unwrap_or(i64::MAX)],
-        )?;
-        tx.commit()?;
-        Ok(())
-    }
-
-    /// Every recorded frame, oldest first.
-    pub fn flight_frames(&self) -> Result<Vec<(i64, i64, Vec<u8>)>> {
-        let mut stmt = self
-            .conn
-            .prepare_cached("SELECT seq, ts, frame FROM flight_frames ORDER BY seq")?;
-        let rows = stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?;
-        rows.map(|r| r.map_err(StoreError::from)).collect()
-    }
-
-    /// Empties the flight recorder.
-    ///
-    /// Its frames are keyed by the sampler's `seq`, which restarts at 1 each
-    /// launch. Left in place, the previous session's high numbers outrank
-    /// every new frame in the "keep the last N" trim, so each new frame was
-    /// deleted the moment it was written and an export after a restart
-    /// contained only the old session.
+    /// The flight recorder lives in memory now ([`crate::FlightRecorder`]):
+    /// writing every frame here cost an `INSERT`, a trimming `DELETE` and a
+    /// WAL commit a second, all day, for a user who never asked for history.
+    /// The table stays so older and newer builds can share one file without
+    /// a migration; this clears whatever an older build left in it, because
+    /// those frames describe a previous session and PRIVACY.md promises the
+    /// recording is cleared at each launch.
     pub fn clear_flight_frames(&self) -> Result<()> {
         self.conn.execute("DELETE FROM flight_frames", [])?;
         Ok(())
     }
+
+    /// Rows left in the legacy `flight_frames` table. For tests.
+    pub fn legacy_flight_rows(&self) -> Result<u64> {
+        let n: i64 = self
+            .conn
+            .query_row("SELECT COUNT(*) FROM flight_frames", [], |r| r.get(0))?;
+        Ok(u64::try_from(n).unwrap_or(0))
+    }
 }
+
+/// `PRAGMA auto_vacuum` value for incremental mode.
+const AUTO_VACUUM_INCREMENTAL: i64 = 2;
 
 /// SQLite has one integer type, signed 64-bit. Byte counts above 2^63 do not
 /// occur on hardware that exists; saturating is fine and never wraps.
@@ -497,26 +634,108 @@ mod tests {
     }
 
     #[test]
-    fn flight_recorder_keeps_only_the_last_n() {
-        let s = store();
-        for seq in 0..10 {
-            s.record_frame(seq, seq, b"{}", 4).unwrap();
-        }
-        let frames = s.flight_frames().unwrap();
-        assert_eq!(
-            frames.iter().map(|f| f.0).collect::<Vec<_>>(),
-            vec![6, 7, 8, 9]
-        );
-    }
-
-    #[test]
     fn clear_empties_every_table() {
         let s = store();
         s.insert(&sample(1, 1.0)).unwrap();
-        s.record_frame(1, 1, b"{}", 10).unwrap();
+        s.conn
+            .execute(
+                "INSERT INTO flight_frames (seq, ts, frame) VALUES (1, 1, x'7b7d')",
+                [],
+            )
+            .unwrap();
         s.clear().unwrap();
         assert_eq!(s.count(Resolution::Second).unwrap(), 0);
-        assert!(s.flight_frames().unwrap().is_empty());
+        assert_eq!(s.legacy_flight_rows().unwrap(), 0);
+    }
+
+    fn temp_path(name: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("vitals-db-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir.join("history.sqlite")
+    }
+
+    #[test]
+    fn a_new_file_is_created_with_incremental_auto_vacuum_so_pruned_space_can_be_returned() {
+        let path = temp_path("autovac");
+        let s = Store::open(&path, RetentionPolicy::default()).unwrap();
+        assert_eq!(s.auto_vacuum_mode().unwrap(), AUTO_VACUUM_INCREMENTAL);
+    }
+
+    #[test]
+    fn a_small_legacy_file_is_converted_to_incremental_auto_vacuum_by_the_writer() {
+        let path = temp_path("convert");
+        {
+            // What an older build produced: no auto-vacuum at all.
+            let conn = Connection::open(&path).unwrap();
+            conn.execute_batch("PRAGMA auto_vacuum = NONE; CREATE TABLE t (x INTEGER);")
+                .unwrap();
+        }
+        let s = Store::open(&path, RetentionPolicy::default()).unwrap();
+        // A reader's open must not rewrite the file under the sampler.
+        assert_eq!(s.auto_vacuum_mode().unwrap(), 0);
+        s.convert_if_small().unwrap();
+        assert_eq!(s.auto_vacuum_mode().unwrap(), AUTO_VACUUM_INCREMENTAL);
+    }
+
+    #[test]
+    fn maintain_evicts_the_oldest_rows_until_the_store_fits_its_byte_budget() {
+        let path = temp_path("budget");
+        let mut s = Store::open(&path, RetentionPolicy::default()).unwrap();
+        // Two days of seconds: far more than a 256 KiB budget holds, and all
+        // inside a retention window long enough that pruning alone keeps it.
+        s.set_policy(RetentionPolicy {
+            enabled: true,
+            tiers: vec![(Resolution::Second, 10 * 86_400)],
+            max_bytes: u64::MAX,
+        });
+        let tx = s.conn.unchecked_transaction().unwrap();
+        for ts in 0..20_000 {
+            Store::insert_into(&tx, "machine_1s", &sample(ts, 1.0)).unwrap();
+        }
+        tx.commit().unwrap();
+        let before = s.live_bytes().unwrap();
+        let budget = 256 * 1024;
+        assert!(before > budget, "fixture too small: {before}");
+
+        s.set_policy(RetentionPolicy {
+            max_bytes: budget,
+            ..s.policy().clone()
+        });
+        s.maintain(20_000).unwrap();
+
+        assert!(s.live_bytes().unwrap() <= budget, "still over budget");
+        let kept = s.query_at(Resolution::Second, 0, 30_000).unwrap();
+        assert!(!kept.is_empty(), "evicted everything");
+        // Oldest first: what survives is the newest end, contiguous to it.
+        assert_eq!(kept.last().map(|x| x.ts), Some(19_999));
+        assert!(kept[0].ts > 0, "the oldest rows were not the ones evicted");
+        // And the freed pages went back to the filesystem, not just the
+        // freelist: the file itself shrank.
+        assert!(s.size_bytes().unwrap() < before, "file did not shrink");
+    }
+
+    #[test]
+    fn a_store_within_its_budget_loses_nothing_to_eviction() {
+        let s = store();
+        for ts in 0..100 {
+            s.insert(&sample(ts, 1.0)).unwrap();
+        }
+        s.maintain(100).unwrap();
+        assert_eq!(s.count(Resolution::Second).unwrap(), 100);
+    }
+
+    #[test]
+    fn a_checkpoint_truncates_the_write_ahead_log() {
+        let path = temp_path("ckpt");
+        let s = Store::open(&path, RetentionPolicy::default()).unwrap();
+        for ts in 0..500 {
+            s.insert(&sample(ts, 1.0)).unwrap();
+        }
+        let wal = path.with_extension("sqlite-wal");
+        assert!(std::fs::metadata(&wal).unwrap().len() > 0);
+        s.checkpoint().unwrap();
+        assert_eq!(std::fs::metadata(&wal).unwrap().len(), 0);
     }
 
     #[test]

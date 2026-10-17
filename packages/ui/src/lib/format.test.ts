@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   formatBytes,
   formatCount,
+  formatDurationParts,
   formatFrequency,
   formatLatency,
   formatPercent,
@@ -68,6 +69,18 @@ describe('formatPercent', () => {
   it('supports whole-number display', () => {
     expect(formatPercent(42.35, L, 0)).toBe('42%');
   });
+
+  it('places and spaces the sign as the locale does, so Romanian reads "43,2 %"', () => {
+    // Gluing "%" on by hand produced "43,2%" — wrong in Romanian. The
+    // non-breaking space is the locale's own, so a wrapped line cannot leave
+    // the sign stranded on the next row.
+    expect(formatPercent(43.2, 'ro-RO')).toBe('43,2\u00a0%');
+  });
+
+  it('renders an unmeasured value as a dash, never as 0%', () => {
+    expect(formatPercent(null, L)).toBe('—');
+    expect(formatPercent(Number.NaN, L)).toBe('—');
+  });
 });
 
 describe('formatFrequency', () => {
@@ -86,14 +99,35 @@ describe('formatFrequency', () => {
 
 describe('formatUptime', () => {
   it('shows the two most significant units only', () => {
-    expect(formatUptime(3 * 86_400 + 4 * 3_600 + 12 * 60)).toBe('3d 4h');
-    expect(formatUptime(4 * 3_600 + 12 * 60)).toBe('4h 12m');
-    expect(formatUptime(12 * 60 + 7)).toBe('12m 7s');
-    expect(formatUptime(7)).toBe('7s');
+    expect(formatUptime(3 * 86_400 + 4 * 3_600 + 12 * 60, L)).toBe('3d 4h');
+    expect(formatUptime(4 * 3_600 + 12 * 60, L)).toBe('4h 12m');
+    expect(formatUptime(12 * 60 + 7, L)).toBe('12m 7s');
+    expect(formatUptime(7, L)).toBe('7s');
+  });
+
+  it('drops a zero second unit but never renders an empty string', () => {
+    expect(formatUptime(3 * 86_400, L)).toBe('3d');
+    expect(formatUptime(0, L)).toBe('0s');
+  });
+
+  it('uses the locale’s own unit names, so Romanian says days as "z"', () => {
+    expect(formatUptime(3 * 86_400 + 4 * 3_600, 'ro-RO')).toBe('3 z, 4 h');
   });
 
   it('rejects a negative duration', () => {
     expect(formatUptime(-1)).toBe('—');
+  });
+
+  it('falls back to compact letters where the engine has no Intl.DurationFormat', () => {
+    const intl = Intl as unknown as { DurationFormat?: unknown };
+    const saved = intl.DurationFormat;
+    intl.DurationFormat = undefined;
+    try {
+      expect(formatUptime(4 * 3_600 + 12 * 60, L)).toBe('4h 12m');
+      expect(formatDurationParts({ seconds: 0 }, L)).toBe('0s');
+    } finally {
+      intl.DurationFormat = saved;
+    }
   });
 });
 
@@ -112,6 +146,11 @@ describe('formatLatency', () => {
 describe('formatTemperature and formatWatts', () => {
   it('rounds temperature to whole degrees', () => {
     expect(formatTemperature(72.6, L)).toBe('73°C');
+  });
+
+  it('spaces the degree sign as the locale does and never shows "-0"', () => {
+    expect(formatTemperature(81, 'ro-RO')).toBe('81 °C');
+    expect(formatTemperature(-0.2, L)).toBe('0°C');
   });
 
   it('scales watt precision with magnitude', () => {

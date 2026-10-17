@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -61,8 +62,11 @@ internal fun DeviceSensorsTab(padding: PaddingValues) {
                 Text(stringResource(R.string.device_hardware_sensors, sensors!!.size), style = MaterialTheme.typography.titleMedium)
             }
         }
-        items(sensors.orEmpty(), key = { it.type + it.name }) { s ->
-            val key = s.type + s.name
+        // type+name repeats on real phones (two "BMI260 Accelerometer"s from
+        // different HALs, or wake-up twins), and a duplicate LazyColumn key
+        // crashes the list. Vendor and the position make it unique.
+        itemsIndexed(sensors.orEmpty(), key = { i, s -> "${s.type}|${s.name}|${s.vendor}|$i" }) { i, s ->
+            val key = "${s.type}|${s.name}|${s.vendor}|$i"
             SectionCard(
                 s.name,
                 accent = Palette.Accent,

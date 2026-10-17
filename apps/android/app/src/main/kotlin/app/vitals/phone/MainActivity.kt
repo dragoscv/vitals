@@ -10,6 +10,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import app.vitals.phone.service.WatchService
 import kotlinx.coroutines.flow.first
@@ -51,7 +52,12 @@ class MainActivity : ComponentActivity() {
         // otherwise stay off without saying so. Started from here because an
         // activity in front is allowed to start a foreground service.
         lifecycleScope.launch {
-            if (graph.settings.watched.first().isNotEmpty()) WatchService.start(this@MainActivity)
+            val any = graph.settings.watched.first().isNotEmpty()
+            // The read can finish after the user already left; a foreground
+            // service started from the background is refused on Android 12+.
+            if (any && lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+                WatchService.start(this@MainActivity)
+            }
         }
     }
 

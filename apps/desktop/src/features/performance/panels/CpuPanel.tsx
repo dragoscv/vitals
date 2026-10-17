@@ -22,10 +22,11 @@ import {
   formatUptime,
   formatWatts,
 } from '@vitals/ui';
-import { useRef } from 'react';
+import { useCallback, useRef } from 'react';
 
 import { useThemeColors } from '../../dashboard/widgets/useThemeColors';
 import type { MetricHistory } from '../../dashboard/history';
+import { useChartDescriber } from '../chartSummary';
 import { StatList } from '../StatList';
 import { PERFORMANCE_NS } from '../strings';
 
@@ -42,6 +43,10 @@ export function CpuPanel({
   const scope = useRef<HTMLDivElement>(null);
   const colors = useThemeColors(scope);
   const { cpu } = system;
+  const describe = useChartDescriber(
+    t('cpu.title'),
+    useCallback((v: number) => formatPercent(v, locale, 0), [locale]),
+  );
 
   return (
     <div ref={scope} className="perf-panel" data-category="cpu">
@@ -64,6 +69,7 @@ export function CpuPanel({
           grid={{ horizontalLines: 4 }}
           className="min-h-0"
           ariaLabel={t('cpu.title')}
+          describe={describe}
         />
       </div>
 
@@ -83,10 +89,8 @@ export function CpuPanel({
             label: t('cpu.speed'),
             // Effective, not nominal: modern chips park and boost constantly,
             // and the base clock says nothing about now.
-            value:
-              cpu.effectiveClock !== null
-                ? formatFrequency(cpu.effectiveClock, locale)
-                : t('unavailable'),
+            value: cpu.effectiveClock !== null ? formatFrequency(cpu.effectiveClock, locale) : null,
+            unavailable: t('unavailable'),
           },
           {
             key: 'maxSpeed',
@@ -116,16 +120,18 @@ export function CpuPanel({
             label: t('cpu.handles'),
             value: cpu.handleCount !== null ? formatCount(cpu.handleCount, locale) : null,
           },
-          { key: 'uptime', label: t('cpu.uptime'), value: formatUptime(cpu.uptimeSecs) },
+          { key: 'uptime', label: t('cpu.uptime'), value: formatUptime(cpu.uptimeSecs, locale) },
           {
             key: 'switches',
             label: t('cpu.contextSwitches'),
             value: cpu.contextSwitches !== null ? formatCount(cpu.contextSwitches, locale) : null,
+            hint: t('cpu.contextSwitchesHint'),
           },
           {
             key: 'interrupts',
             label: t('cpu.interrupts'),
             value: cpu.interrupts !== null ? formatCount(cpu.interrupts, locale) : null,
+            hint: t('cpu.interruptsHint'),
           },
         ]}
       />

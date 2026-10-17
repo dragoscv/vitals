@@ -89,7 +89,13 @@ describe('preferences', () => {
     // no in-app route back to a usable one.
     const merged = mergePreferences({ visible: ['cpu'] });
     expect(merged.visible).toContain('name');
-    expect(merged.visible).toContain('pid');
+    // PID is optional and hidden by default (DES-17): not forced back.
+    expect(merged.visible).not.toContain('pid');
+  });
+
+  it('hides the PID column by default, leaving the room to the figures people came for', () => {
+    expect(DEFAULT_PREFERENCES.visible).not.toContain('pid');
+    expect(toggleColumn(['name', 'pid'], 'pid')).toEqual(['name']);
   });
 
   it('discards unknown column ids', () => {

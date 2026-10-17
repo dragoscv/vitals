@@ -9,7 +9,7 @@ of those changes, change this file with it.
 **Vitals** — _See what your computer is actually doing._
 
 A fast, native system monitor and task manager for Windows. Free and open
-source (MIT), forever. It answers "why is my PC slow?" in plain words, with
+source (MIT). It answers "why is my PC slow?" in plain words, with
 honest numbers: a reading the hardware cannot report is shown as unknown,
 never as zero.
 
@@ -20,17 +20,18 @@ never as zero.
 | Website         | <https://vitals.dragoscatalin.ro>                                                     |
 | Source          | <https://github.com/dragoscv/vitals>                                                  |
 | Microsoft Store | <https://apps.microsoft.com/detail/9P95RK5VMGPJ> (listed as "Vitals: System Monitor") |
-| Status          | 0.9, stable on Windows                                                                |
+| Status          | 1.0, stable on Windows                                                                |
 | Contact         | dragoscv12@gmail.com                                                                  |
 
 **Platforms**
 
 - Windows 10/11 x64 — stable. Windows 11 ARM64 — preview.
 - Android phone and Wear OS — native apps that monitor the device itself and,
-  optionally, paired Windows PCs on the local network.
+  optionally, paired Windows PCs on the local network. APKs are attached to
+  each GitHub release; Google Play listings come later.
 - Google TV and Samsung TVs (Tizen) — watch the Windows PCs on your home
   network from the TV.
-- macOS and Linux — on the roadmap; not published.
+- macOS and Linux — not published, and no dated plans.
 
 **What it does**
 
@@ -67,7 +68,7 @@ never as zero.
 **Vitals** — _Vezi ce face de fapt calculatorul tău._
 
 Un monitor de sistem și manager de activități rapid și nativ pentru Windows.
-Gratuit și open source (licența MIT), pentru totdeauna. Îți spune pe înțeles
+Gratuit și open source (licența MIT). Îți spune pe înțeles
 de ce îți merge greu PC-ul, cu cifre oneste: o valoare pe care hardware-ul nu o
 raportează apare ca necunoscută, niciodată ca zero.
 
@@ -78,17 +79,18 @@ raportează apare ca necunoscută, niciodată ca zero.
 | Site            | <https://vitals.dragoscatalin.ro>                                           |
 | Cod sursă       | <https://github.com/dragoscv/vitals>                                        |
 | Microsoft Store | <https://apps.microsoft.com/detail/9P95RK5VMGPJ> („Vitals: System Monitor”) |
-| Stadiu          | 0.9, stabil pe Windows                                                      |
+| Stadiu          | 1.0, stabil pe Windows                                                      |
 | Contact         | dragoscv12@gmail.com                                                        |
 
 **Platforme**
 
 - Windows 10/11 x64 — stabil. Windows 11 ARM64 — previzualizare.
 - Telefon Android și Wear OS — aplicații native care monitorizează dispozitivul
-  și, opțional, PC-urile Windows asociate din rețeaua locală.
+  și, opțional, PC-urile Windows asociate din rețeaua locală. Fișierele APK
+  sunt atașate fiecărei versiuni de pe GitHub; Google Play urmează mai târziu.
 - Google TV și televizoare Samsung (Tizen) — urmărești de pe televizor
   PC-urile Windows din rețeaua de acasă.
-- macOS și Linux — în plan; nepublicate.
+- macOS și Linux — nepublicate și fără planuri datate.
 
 **Ce face**
 

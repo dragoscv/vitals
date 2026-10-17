@@ -167,6 +167,33 @@ function whenIdle(run: () => void): void {
 }
 
 /**
+ * Runs `start` once the document is visible — now, or on the first
+ * `visibilitychange` that makes it so. Returns a cancel function.
+ *
+ * An autostart launch at logon starts hidden in the tray, often for the
+ * whole session. Preloading there mounted every screen and fired every
+ * section's prefetch — registry walks, the service manager, a storage scan
+ * — during the busiest minute of boot, for a window nobody had opened. The
+ * preload exists to make a first visit fast; a first visit needs a visible
+ * window, so that is when it starts.
+ */
+export function whenVisible(start: () => void, doc: Document = document): () => void {
+  if (doc.visibilityState === 'visible') {
+    start();
+    return () => undefined;
+  }
+  const onChange = (): void => {
+    if (doc.visibilityState !== 'visible') return;
+    doc.removeEventListener('visibilitychange', onChange);
+    start();
+  };
+  doc.addEventListener('visibilitychange', onChange);
+  return () => {
+    doc.removeEventListener('visibilitychange', onChange);
+  };
+}
+
+/**
  * Fades and lifts the content area when the section changes.
  *
  * Short and small on purpose — 140 ms and four pixels. This is a window
@@ -322,17 +349,20 @@ export function RouteView({
   useEffect(() => {
     if (!hasTauriHost()) return;
     let live = true;
-    void preloadRoutes().then(() => {
-      if (!live) return;
-      // A transition, so React may split the work and a click interrupts it.
-      startTransition(() => {
-        setVisited((current) =>
-          current.size === routeIds.length ? current : new Set([...current, ...routeIds]),
-        );
+    const cancel = whenVisible(() => {
+      void preloadRoutes().then(() => {
+        if (!live) return;
+        // A transition, so React may split the work and a click interrupts it.
+        startTransition(() => {
+          setVisited((current) =>
+            current.size === routeIds.length ? current : new Set([...current, ...routeIds]),
+          );
+        });
       });
     });
     return () => {
       live = false;
+      cancel();
     };
   }, []);
 

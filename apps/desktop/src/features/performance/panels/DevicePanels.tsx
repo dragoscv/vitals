@@ -15,7 +15,7 @@
  *   so a utilisation percentage would be invented rather than measured.
  */
 
-import { useRef } from 'react';
+import { useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { TimeSeriesChart } from '@vitals/charts';
@@ -36,6 +36,7 @@ import {
 
 import type { MetricHistory } from '../../dashboard/history';
 import { useThemeColors } from '../../dashboard/widgets/useThemeColors';
+import { useChartDescriber } from '../chartSummary';
 import { StatList } from '../StatList';
 import { PERFORMANCE_NS } from '../strings';
 
@@ -52,6 +53,8 @@ export function GpuPanel({
   const scope = useRef<HTMLDivElement>(null);
   const colors = useThemeColors(scope);
   const buffer = history.gpu.get(gpu.id);
+  const percent = useCallback((v: number) => formatPercent(v, locale, 0), [locale]);
+  const describe = useChartDescriber(gpu.name, percent);
 
   return (
     <div ref={scope} className="perf-panel" data-category="gpu">
@@ -68,6 +71,7 @@ export function GpuPanel({
             grid={{ horizontalLines: 4 }}
             className="min-h-0"
             ariaLabel={gpu.name}
+            describe={describe}
           />
         )}
       </div>
@@ -120,7 +124,8 @@ export function GpuPanel({
             value:
               gpu.memoryUsed !== null && gpu.memoryTotal !== null
                 ? `${formatBytes(gpu.memoryUsed, locale)} / ${formatBytes(gpu.memoryTotal, locale)}`
-                : t('unavailable'),
+                : null,
+            unavailable: t('unavailable'),
           },
           {
             key: 'shared',
@@ -180,6 +185,11 @@ export function DiskPanel({
   const buffer = history.diskActive.get(disk.id);
   const used = disk.total - disk.free;
   const life = disk.health?.lifeRemaining ?? null;
+  const percent = useCallback((v: number) => formatPercent(v, locale, 0), [locale]);
+  const describe = useChartDescriber(
+    `${disk.mount ?? disk.name} — ${t('disk.activeTime')}`,
+    percent,
+  );
 
   return (
     <div ref={scope} className="perf-panel" data-category="disk">
@@ -196,15 +206,14 @@ export function DiskPanel({
             grid={{ horizontalLines: 4 }}
             className="min-h-0"
             ariaLabel={disk.mount ?? disk.name}
+            describe={describe}
           />
         )}
       </div>
 
       {disk.health?.failing === true && (
         <div className="rounded-md border border-[var(--color-status-danger)]/40 bg-[var(--color-status-danger)]/10 p-2.5">
-          <p className="text-sm font-medium text-[var(--color-status-danger)]">
-            {t('disk.failing')}
-          </p>
+          <p className="text-sm font-medium text-[var(--color-danger-text)]">{t('disk.failing')}</p>
           <p className="mt-0.5 text-2xs text-[var(--color-fg-muted)]">{t('disk.failingHint')}</p>
         </div>
       )}
@@ -280,7 +289,7 @@ export function DiskPanel({
             label: t('disk.powerOnHours'),
             value:
               disk.health?.powerOnHours != null
-                ? formatUptime(disk.health.powerOnHours * 3600)
+                ? formatUptime(disk.health.powerOnHours * 3600, locale)
                 : null,
           },
           {
@@ -319,6 +328,8 @@ export function NetworkPanel({
   const colors = useThemeColors(scope);
   const rx = history.netRx.get(nic.id);
   const tx = history.netTx.get(nic.id);
+  const rate = useCallback((v: number) => formatThroughput(v, locale), [locale]);
+  const describe = useChartDescriber(`${nic.name} — ${t('network.receive')}`, rate);
 
   return (
     <div ref={scope} className="perf-panel" data-category="network">
@@ -348,6 +359,7 @@ export function NetworkPanel({
             grid={{ horizontalLines: 4 }}
             className="min-h-0"
             ariaLabel={nic.name}
+            describe={describe}
           />
         )}
       </div>

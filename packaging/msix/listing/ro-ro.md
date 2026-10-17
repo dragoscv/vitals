@@ -53,23 +53,25 @@ Cifre oneste: când ceva nu se poate măsura, Vitals arată o liniuță, nicioda
 
 Privat din principiu: fără conturi, fără reclame, fără telemetrie, fără analiză. Nimic nu pleacă de pe calculatorul tău decât dacă pornești singur accesul la distanță.
 
-Gratuit și open source (MIT), pentru totdeauna. Disponibil în română și engleză.
+Gratuit și open source (MIT). Disponibil în română și engleză.
 
 ## Ce e nou în această versiune (≤ 1500 caractere)
 
-Ce e nou în 1.0.0
+Ce e nou în 1.0.2
+
+• Securitate: biblioteca TLS inclusă în Vitals (rustls) este actualizată la 0.23.46, care repară patru vulnerabilități publicate. Versiunea din Store nu face singură cereri pe internet, deci actualizarea ține la zi o dependență, nu închide o breșă la care erai expus
+• Reparații în procesul de lansare; aplicația Windows funcționează la fel ca în 1.0.0
+
+Nou în 1.0, prima versiune stabilă
 
 • Pictogramele programelor în lista de procese, inclusiv pentru servicii și procesele altor conturi
 • Totaluri deasupra coloanelor pentru procesor, memorie, disc, rețea și placa video
 • Coloane pentru consumul de energie și tendința lui, plus Tip, Set de lucru, Citire disc, Scriere disc și PID părinte
 • Adu în față: cu clic dreapta pe o aplicație îi restaurezi și îi ridici fereastra
-• Filtrul Aplicații numără acum fiecare program cu fereastră, ca Task Manager
-• Temperaturile procesorului, ale plăcilor video NVIDIA și ale fiecărei unități de stocare, plus starea unităților SSD, cu orele de funcționare și datele scrise
-• Frecvența procesorului, actuală și de bază
-• Opțional, încărcarea procesorului pe butonul din bara de activități, galben peste 75 % și roșu peste 90 %
-• Fiecare tip de componentă are culoarea lui în Performanță
+• Temperaturile procesorului, ale plăcilor video NVIDIA și ale fiecărei unități de stocare, plus starea unităților SSD
+• Frecvența procesorului și, opțional, încărcarea lui pe butonul din bara de activități
 
-Reparat: graficele folosesc acum culoarea ta de accent; cardurile de stocare și dispozitive nu își mai taie conținutul; coloanele se redimensionează în loc să se sorteze când le tragi marginea; coloanele Fire de execuție, Handle-uri și Durată de funcționare pot fi afișate din nou.
+Reparat: graficele folosesc culoarea ta de accent; cardurile de stocare și dispozitive nu își mai taie conținutul; coloanele se redimensionează în loc să se sorteze când le tragi marginea.
 
 ## Funcții (până la 20, ≤ 200 caractere fiecare)
 
@@ -101,3 +103,7 @@ task manager, monitor sistem, pc lent, temperatura procesor, curățare disc, s�
 ## Politica de confidențialitate
 
 https://vitals.dragoscatalin.ro/ro/privacy/
+
+## Contact pentru asistență
+
+dragoscv12@gmail.com

@@ -72,13 +72,21 @@ impl WindowsHost {
             .with(Capability::HandleEnumeration)
             .with(Capability::SetEfficiencyMode)
             .with(Capability::PerProcessGpu)
-            .with(Capability::UninstallApplications);
+            .with(Capability::UninstallApplications)
+            // Reachable through `set_startup_enabled`, `control_service`,
+            // `set_service_start_type` and `run_windows_cleanup`, all
+            // registered — yet reported NotImplemented, so the UI greyed out
+            // features that worked. Not elevation-gated: each handler tries
+            // unelevated and raises its own UAC prompt for that one action
+            // when Windows refuses, so an unelevated Vitals can do them all.
+            .with(Capability::ManageStartupItems)
+            .with(Capability::ManageServices)
+            .with(Capability::DiskCleanup);
 
         // Possible without privilege, not yet written. Each moves up to the
         // list above in the commit that implements it.
         for cap in [
             Capability::TrimWorkingSet,
-            Capability::ManageStartupItems,
             Capability::ErrorReports,
             Capability::WindowFlashCapture,
         ] {
@@ -102,18 +110,17 @@ impl WindowsHost {
         // Privileged mutation. None of these has code behind it yet — there
         // is no `close_connection`, `block_program` or power-plan writer in
         // this crate and no command exposes one — so they are NotImplemented
-        // whatever the privilege. The earlier form advertised all six as
+        // whatever the privilege. The earlier form advertised these (and the
+        // services and cleanup capabilities, since implemented) as
         // available the moment the app ran elevated, which is the same
         // defect the "always available" list above records: a capability
         // must track what the UI can actually reach. When one is written it
         // becomes `helper_available || elevated` gated, in that commit.
         for cap in [
             Capability::ManagePowerPlans,
-            Capability::ManageServices,
             Capability::ManageScheduledTasks,
             Capability::FirewallControl,
             Capability::CloseConnection,
-            Capability::DiskCleanup,
         ] {
             caps = caps.without(cap, Unavailable::NotImplemented);
         }
@@ -268,12 +275,34 @@ mod tests {
             Capability::FirewallControl,
             Capability::CloseConnection,
             Capability::ManagePowerPlans,
-            Capability::ManageServices,
             Capability::ManageScheduledTasks,
-            Capability::DiskCleanup,
         ] {
             assert!(!caps.has(cap), "{cap:?} advertised with no implementation");
             assert_eq!(caps.reason(cap), Some(Unavailable::NotImplemented));
+        }
+    }
+
+    #[test]
+    fn startup_services_and_cleanup_are_offered_because_their_commands_are_registered() {
+        // Each handler raises its own UAC prompt, so neither privilege nor
+        // the helper changes the answer. Checked at both extremes.
+        for host in [
+            WindowsHost::new(),
+            WindowsHost {
+                elevated: true,
+                helper_available: true,
+                sidecar_available: true,
+            },
+        ] {
+            let caps = host.capabilities();
+            for cap in [
+                Capability::ManageStartupItems,
+                Capability::ManageServices,
+                Capability::DiskCleanup,
+            ] {
+                assert!(caps.has(cap), "{cap:?} not offered for {host:?}");
+                assert_ne!(caps.reason(cap), Some(Unavailable::NotImplemented));
+            }
         }
     }
 

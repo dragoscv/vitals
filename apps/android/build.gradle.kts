@@ -16,4 +16,5 @@ plugins {
     alias(libs.plugins.kotlin.compose) apply false
     alias(libs.plugins.kotlin.serialization) apply false
     alias(libs.plugins.baselineprofile) apply false
+    alias(libs.plugins.aboutlibraries) apply false
 }

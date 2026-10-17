@@ -39,9 +39,15 @@ const en = {
     threads: 'Threads',
     handles: 'Handles',
     uptime: 'Up time',
-    kernelTime: 'Kernel time',
+    // The share spent in the operating system rather than in programs.
+    // "Kernel" means nothing to the person this screen is for.
+    kernelTime: 'Windows itself',
     contextSwitches: 'Context switches',
+    contextSwitchesHint:
+      'How often the processor swaps from one task to another each second. Only unusual when it is far higher than normal for this machine.',
     interrupts: 'Interrupts',
+    interruptsHint:
+      'Signals from hardware — keyboard, disk, network — asking the processor for attention. A sudden jump can point to a misbehaving driver.',
     perCore: 'Logical processors',
     coreLabel: 'Core {{index}}',
     throttled: 'Running below capability',
@@ -56,16 +62,16 @@ const en = {
     cached: 'Cached',
     cachedHint:
       'File data Windows is keeping in RAM because it is free to do so. Counted as available, and given back the moment a program needs it.',
-    committed: 'Committed',
+    committed: 'Memory promised to programs (commit)',
     commitHint:
       'Memory programs have reserved, which can exceed physical RAM. When this reaches its limit, allocations start failing.',
-    pagedPool: 'Paged pool',
-    nonPagedPool: 'Non-paged pool',
+    pagedPool: 'Windows memory that may move to disk (paged pool)',
+    nonPagedPool: 'Windows memory that stays in RAM (non-paged pool)',
     hardwareReserved: 'Hardware reserved',
     swap: 'Page file',
-    faults: 'Page faults',
+    faults: 'Memory reads from disk (hard faults)',
     faultsHint:
-      'The number that actually indicates memory pressure. A machine at 90% with no faulting is fine; one at 60% that is faulting heavily is not.',
+      'The number that actually indicates memory pressure. A machine at 90 % with no reads from disk is fine; one at 60 % reading heavily from disk is not.',
     speed: 'Speed',
     slots: 'Slots used',
     formFactor: 'Form factor',
@@ -221,12 +227,16 @@ const ro = {
     baseSpeed: 'Frecvență de bază',
     maxSpeed: 'Frecvență maximă',
     processes: 'Procese',
-    threads: 'Fire',
-    handles: 'Descriptori',
+    threads: 'Fire de execuție',
+    handles: 'Descriptori (handle-uri)',
     uptime: 'Timp de funcționare',
-    kernelTime: 'Timp în nucleu',
+    kernelTime: 'Timp Windows',
     contextSwitches: 'Comutări de context',
+    contextSwitchesHint:
+      'De câte ori pe secundă trece procesorul de la o sarcină la alta. E neobișnuit doar când e mult peste ce e normal pentru acest calculator.',
     interrupts: 'Întreruperi',
+    interruptsHint:
+      'Semnale de la hardware — tastatură, disc, rețea — care cer atenția procesorului. O creștere bruscă poate indica un driver defect.',
     perCore: 'Procesoare logice',
     coreLabel: 'Nucleu {{index}}',
     throttled: 'Rulează sub capacitate',
@@ -241,16 +251,16 @@ const ro = {
     cached: 'În cache',
     cachedHint:
       'Date din fișiere pe care Windows le păstrează în RAM pentru că poate. Sunt considerate disponibile și sunt eliberate imediat ce un program are nevoie.',
-    committed: 'Angajată',
+    committed: 'Memorie promisă programelor',
     commitHint:
       'Memorie rezervată de programe, care poate depăși memoria fizică. Când atinge limita, alocările încep să eșueze.',
-    pagedPool: 'Pool paginabil',
-    nonPagedPool: 'Pool nepaginabil',
+    pagedPool: 'Memorie Windows care poate trece pe disc (pool paginabil)',
+    nonPagedPool: 'Memorie Windows care rămâne în RAM (pool nepaginabil)',
     hardwareReserved: 'Rezervată de hardware',
     swap: 'Fișier de paginare',
-    faults: 'Erori de pagină',
+    faults: 'Citiri de memorie de pe disc',
     faultsHint:
-      'Numărul care indică într-adevăr presiunea pe memorie. O mașină la 90% fără erori este în regulă; una la 60% cu erori multe nu este.',
+      'Numărul care indică într-adevăr presiunea pe memorie. Un calculator la 90 % fără citiri de pe disc este în regulă; unul la 60 % care citește mult de pe disc nu este.',
     speed: 'Frecvență',
     slots: 'Sloturi folosite',
     formFactor: 'Format',
@@ -261,7 +271,7 @@ const ro = {
     title: 'Placă video',
     engines: 'Motoare',
     enginesHint:
-      'Un singur procent „GPU" ascunde exact cazul care contează: sistemul poate sta la 5% în total în timp ce motorul de decodare video este la maxim.',
+      'Un singur procent „GPU” ascunde exact cazul care contează: sistemul poate sta la 5 % în total în timp ce motorul de decodare video este la maxim.',
     engine: {
       '3d': '3D',
       decode: 'Decodare video',

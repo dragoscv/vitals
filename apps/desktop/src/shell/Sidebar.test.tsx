@@ -49,7 +49,7 @@ describe('Sidebar', () => {
     const listTop = 100;
     const original = HTMLElement.prototype.getBoundingClientRect;
     HTMLElement.prototype.getBoundingClientRect = function rect(this: HTMLElement) {
-      if (this.tagName === 'UL') return { top: listTop, height: 500 } as DOMRect;
+      if (this.dataset['navList'] !== undefined) return { top: listTop, height: 500 } as DOMRect;
       const id = this.dataset['navItem'];
       if (id !== undefined) {
         const index = navItems.findIndex((item) => item.id === id);
@@ -76,6 +76,27 @@ describe('Sidebar', () => {
   it('renders every destination', () => {
     renderSidebar();
     expect(navButtons()).toHaveLength(navItems.length);
+  });
+
+  it('groups destinations under quiet Now / Machine / More labels, in the Ctrl+number order', () => {
+    renderSidebar();
+    const ids = (name: string): (string | undefined)[] =>
+      within(screen.getByRole('group', { name }))
+        .getAllByRole('button')
+        .map((b) => b.dataset['navItem']);
+    expect(ids('Now').slice(0, 3)).toEqual(['dashboard', 'performance', 'processes']);
+    expect(ids('Machine')).toEqual([
+      'startup',
+      'services',
+      'storage',
+      'installedApps',
+      'devices',
+      'network',
+    ]);
+    expect(ids('More')).toEqual(['appHistory', 'users', 'benchmarks']);
+    // Document order across groups is the flat order, so arrows and
+    // Ctrl+1…9 agree with what the eye sees.
+    expect(navButtons().map((b) => b.dataset['navItem'])).toEqual(navItems.map((i) => i.id));
   });
 
   it('marks only the active destination with aria-current', () => {

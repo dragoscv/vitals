@@ -190,11 +190,19 @@ describe('PerformanceScreen', () => {
 
     const rail = screen.getByRole('navigation', { name: 'Resources' });
     fireEvent.click(within(rail).getByRole('button', { name: /Ethernet/ }));
-    expect(screen.getByRole('img', { name: 'Ethernet' })).toBeTruthy();
+    // The chart's name now opens with the adapter and goes on to summarise
+    // the data ("Ethernet — Receive, recent history: average …").
+    expect(screen.getByRole('img', { name: /^Ethernet/ })).toBeTruthy();
 
     fireEvent.click(within(rail).getByRole('button', { name: /Tailscale/ }));
-    expect(screen.getByRole('img', { name: 'Tailscale' })).toBeTruthy();
-    expect(screen.queryByRole('img', { name: 'Ethernet' })).toBeNull();
+    expect(screen.getByRole('img', { name: /^Tailscale/ })).toBeTruthy();
+    expect(screen.queryByRole('img', { name: /^Ethernet/ })).toBeNull();
+  });
+
+  it('names the CPU chart with a summary of its data, not just its title', () => {
+    mount({});
+    const chart = screen.getByRole('img', { name: /^CPU, recent history: average .+%, peak .+%$/ });
+    expect(chart.tagName).toBe('CANVAS');
   });
 
   it('offers thermals a copy-summary menu but no Hide either', async () => {
@@ -320,7 +328,9 @@ describe('PerformanceScreen', () => {
       const rail = screen.getByRole('navigation', { name: 'Resources' });
       fireEvent.click(within(rail).getByRole('button', { name: /Memory/ }));
 
-      expect(screen.getAllByText('Not reported by your hardware').length).toBeGreaterThan(0);
+      // A dash named by the sentence: printed in the cell it truncated.
+      const dash = screen.getAllByLabelText('Not reported by your hardware')[0];
+      expect(dash?.textContent).toBe('—');
     });
   });
 

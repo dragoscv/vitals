@@ -11,8 +11,10 @@ use vitals_sensors::{
 };
 use windows::Win32::Foundation::{CloseHandle, HANDLE};
 use windows::Win32::Security::{GetTokenInformation, TOKEN_ELEVATION, TOKEN_QUERY, TokenElevation};
+use windows::Win32::System::Com::CoTaskMemFree;
 use windows::Win32::System::Registry::{HKEY_LOCAL_MACHINE, RRF_RT_REG_SZ, RegGetValueW};
 use windows::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
+use windows::Win32::UI::Shell::{FOLDERID_ProgramFiles, KF_FLAG_DEFAULT, SHGetKnownFolderPath};
 use windows::core::HSTRING;
 use windows_service::service::{
     ServiceAccess, ServiceErrorControl, ServiceInfo, ServiceStartType, ServiceState, ServiceType,
@@ -79,37 +81,73 @@ fn require_elevated() -> Result<(), Failure> {
     }
 }
 
-fn env_dir(var: &str, fallback: &str) -> PathBuf {
-    std::env::var_os(var).map_or_else(|| PathBuf::from(fallback), PathBuf::from)
+/// Program Files from the shell's known-folder API.
+///
+/// Never `%ProgramFiles%`: this runs elevated, with an environment inherited
+/// from the unelevated user who launched it. Trusting the variable let that
+/// user choose where a SYSTEM service's executable is copied — a folder they
+/// can write, and therefore a file they can replace and have the SCM run as
+/// SYSTEM. No fallback either: guessing `C:\Program Files` on a machine
+/// where it is elsewhere is the same mistake with a constant.
+fn program_files() -> Result<PathBuf, Failure> {
+    // SAFETY: the GUID is a static; the returned buffer is freed below.
+    let raw = unsafe { SHGetKnownFolderPath(&FOLDERID_ProgramFiles, KF_FLAG_DEFAULT, None) }
+        .map_err(|e| format!("locate Program Files: {e}"))?;
+    // SAFETY: on success `raw` is a NUL-terminated string from the shell.
+    let text = unsafe { raw.to_string() };
+    // SAFETY: allocated by the shell with CoTaskMemAlloc, freed exactly once.
+    unsafe { CoTaskMemFree(Some(raw.0.cast_const().cast())) };
+    text.map(PathBuf::from)
+        .map_err(|e| Failure::from(format!("locate Program Files: {e}")))
 }
 
-/// `%ProgramFiles%\Vitals Sensors` — admin-only, so the file the SCM starts
+/// `Program Files\Vitals Sensors` — admin-only, so the file the SCM starts
 /// as SYSTEM cannot be replaced by the user who asked for it.
-pub fn install_dir() -> PathBuf {
-    env_dir("ProgramFiles", r"C:\Program Files").join("Vitals Sensors")
+///
+/// # Errors
+///
+/// When the shell cannot say where Program Files is.
+pub fn install_dir() -> Result<PathBuf, Failure> {
+    Ok(program_files()?.join("Vitals Sensors"))
 }
 
-fn log_path() -> PathBuf {
-    env_dir("ProgramData", r"C:\ProgramData")
-        .join("Vitals Sensors")
-        .join("install.log")
+/// The install log, inside the install directory.
+///
+/// It used to live in `%ProgramData%\Vitals Sensors`, created and appended
+/// to by this elevated process. `ProgramData` lets ordinary users create
+/// folders, so one could pre-create `Vitals Sensors` with a junction or an
+/// `install.log` symlink pointing anywhere, and the elevated append would
+/// write — or create — that target as administrator. Program Files offers
+/// no such opening: only administrators can create the folder at all.
+fn log_path(dir: &Path) -> PathBuf {
+    dir.join("install.log")
 }
+
+/// The log is truncated when it grows past this. Each install appends a
+/// dozen lines, so a megabyte is years of history; without a cap, a
+/// misbehaving retry loop would fill the system drive as administrator.
+const LOG_CAP_BYTES: u64 = 1024 * 1024;
 
 struct Log(Option<std::fs::File>);
 
 impl Log {
-    fn open() -> Self {
-        let p = log_path();
-        if let Some(d) = p.parent() {
-            let _ = std::fs::create_dir_all(d);
+    /// Opens the log in `dir`, or a console-only log when there is no
+    /// install directory to put it in.
+    fn open(dir: Option<&Path>) -> Self {
+        let Some(dir) = dir else {
+            return Self(None);
+        };
+        let _ = std::fs::create_dir_all(dir);
+        let path = log_path(dir);
+        let oversized = std::fs::metadata(&path).is_ok_and(|m| m.len() > LOG_CAP_BYTES);
+        let mut options = std::fs::OpenOptions::new();
+        options.create(true);
+        if oversized {
+            options.write(true).truncate(true);
+        } else {
+            options.append(true);
         }
-        Self(
-            std::fs::OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(p)
-                .ok(),
-        )
+        Self(options.open(path).ok())
     }
 
     fn line(&mut self, msg: &str) {
@@ -282,12 +320,12 @@ fn create_and_start(exe: &Path, log: &mut Log) -> Result<(), Failure> {
 
 pub fn install(pawnio_setup: Option<&Path>) -> Result<(), Failure> {
     require_elevated()?;
-    let mut log = Log::open();
+    let dir = install_dir()?;
+    let mut log = Log::open(Some(&dir));
     log.line(&format!(
         "vitals-sensors {} install",
         env!("CARGO_PKG_VERSION")
     ));
-    let dir = install_dir();
     let r = (|| -> Result<(), Failure> {
         ensure_pawnio(pawnio_setup, &dir, &mut log)?;
         remove_service(&mut log)?;
@@ -324,13 +362,15 @@ fn first_reading(log: &mut Log) -> Result<vitals_sensors::Reading, Failure> {
 
 pub fn uninstall() -> Result<(), Failure> {
     require_elevated()?;
-    let mut log = Log::open();
+    let dir = install_dir()?;
+    // Console only: the log lives in the directory this removes, and
+    // recreating it just to write "removed" would leave the folder behind.
+    let mut log = Log::open(None);
     log.line(&format!(
         "vitals-sensors {} uninstall",
         env!("CARGO_PKG_VERSION")
     ));
     remove_service(&mut log)?;
-    let dir = install_dir();
     if dir.exists() {
         // The running exe may be the installed copy, which Windows cannot
         // delete while it runs; remove what can be removed and say so.
@@ -343,4 +383,68 @@ pub fn uninstall() -> Result<(), Failure> {
     // also use; removing it is not ours to decide.
     log.line("PawnIO left installed (shared with other tools)");
     Ok(())
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_install_directory_is_the_known_program_files_folder_and_not_a_user_folder() {
+        let dir = install_dir().map_err(|f| f.message).unwrap();
+        assert!(dir.ends_with("Vitals Sensors"), "{}", dir.display());
+        let parent = dir.parent().unwrap().to_string_lossy().to_ascii_lowercase();
+        assert!(parent.ends_with("program files"), "{parent}");
+        let profile = std::env::var("USERPROFILE").unwrap_or_default();
+        assert!(
+            profile.is_empty() || !dir.starts_with(&profile),
+            "a user-writable install directory is a SYSTEM service anyone can replace"
+        );
+    }
+
+    #[test]
+    fn the_log_is_written_inside_the_admin_only_install_directory() {
+        // Not ProgramData, where a standard user can pre-plant a junction or
+        // a symlink for the elevated append to follow.
+        let dir = install_dir().map_err(|f| f.message).unwrap();
+        assert_eq!(log_path(&dir).parent(), Some(dir.as_path()));
+        assert!(
+            !log_path(&dir)
+                .to_string_lossy()
+                .to_ascii_lowercase()
+                .contains("programdata")
+        );
+    }
+
+    #[test]
+    fn an_oversized_log_is_truncated_rather_than_appended_to() {
+        let dir = std::env::temp_dir().join(format!("vitals-sensors-log-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = log_path(&dir);
+        std::fs::write(
+            &path,
+            vec![b'x'; usize::try_from(LOG_CAP_BYTES).unwrap() + 1],
+        )
+        .unwrap();
+        Log::open(Some(&dir)).line("fresh");
+        let len = std::fs::metadata(&path).unwrap().len();
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(len < 128, "the log kept growing past its cap: {len} bytes");
+    }
+
+    #[test]
+    fn a_log_under_the_cap_is_appended_to() {
+        let dir = std::env::temp_dir().join(format!("vitals-sensors-app-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = log_path(&dir);
+        std::fs::write(&path, b"earlier\n").unwrap();
+        Log::open(Some(&dir)).line("later");
+        let text = std::fs::read_to_string(&path).unwrap();
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(
+            text.starts_with("earlier\n") && text.contains("later"),
+            "{text}"
+        );
+    }
 }

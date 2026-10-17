@@ -55,8 +55,8 @@ const DUTY_CYCLE_GAP: Duration = Duration::from_millis(100);
 /// storm, or a synchronous WMI call, all of which cost multiples rather than
 /// percentages.
 ///
-/// At 1 Hz even the worst case is ~0.3% of a single core, which rounds to
-/// 0.0% in the process list we render.
+/// At 1 Hz the 30 ms worst case is 3% of a single core (30 ms / 1000 ms) —
+/// a ceiling, not the typical cost, which sits well under the budget.
 ///
 /// Debug builds are several times slower; the gate exists to catch
 /// algorithmic regressions, not an unoptimised compile.

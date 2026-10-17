@@ -30,20 +30,28 @@ data class DiscoveredPc(
 class Discovery(context: Context) {
     private val app = context.applicationContext
     private val nsd = app.getSystemService(NsdManager::class.java)
-    private val wifi = app.getSystemService(WifiManager::class.java)
+    /** Null on an Ethernet-only TV box with no Wi-Fi service; discovery still works without the lock. */
+    private val wifi: WifiManager? = app.getSystemService(WifiManager::class.java)
 
     fun scan(): Flow<List<DiscoveredPc>> = callbackFlow {
+        // Touched only on [executor]: NSD calls back on its own threads, and
+        // a LinkedHashMap mutated from two of them corrupts or throws.
         val found = linkedMapOf<String, DiscoveredPc>()
-        val lock = wifi.createMulticastLock("vitals-discovery").apply {
+        val lock = wifi?.createMulticastLock("vitals-discovery")?.apply {
             setReferenceCounted(false)
             acquire()
         }
         val executor = Executors.newSingleThreadExecutor()
+        val callbacks = java.util.concurrent.CopyOnWriteArrayList<NsdManager.ServiceInfoCallback>()
 
         fun publish() = trySend(found.values.toList())
 
-        fun resolved(info: NsdServiceInfo) {
-            val host = hostOf(info) ?: return
+        fun onExecutor(block: () -> Unit) {
+            runCatching { executor.execute(block) }
+        }
+
+        fun resolved(info: NsdServiceInfo) = onExecutor {
+            val host = hostOf(info) ?: return@onExecutor
             val txt = info.attributes
             found[info.serviceName] = DiscoveredPc(
                 name = info.serviceName,
@@ -55,17 +63,22 @@ class Discovery(context: Context) {
             publish()
         }
 
+        fun lost(name: String) = onExecutor {
+            found.remove(name)
+            publish()
+        }
+
         val listener = object : NsdManager.DiscoveryListener {
             override fun onServiceFound(info: NsdServiceInfo) {
                 if (Build.VERSION.SDK_INT >= 34) {
-                    nsd.registerServiceInfoCallback(info, executor, object : NsdManager.ServiceInfoCallback {
+                    val callback = object : NsdManager.ServiceInfoCallback {
                         override fun onServiceUpdated(updated: NsdServiceInfo) = resolved(updated)
-                        override fun onServiceLost() {
-                            found.remove(info.serviceName); publish()
-                        }
+                        override fun onServiceLost() = lost(info.serviceName)
                         override fun onServiceInfoCallbackRegistrationFailed(errorCode: Int) = Unit
                         override fun onServiceInfoCallbackUnregistered() = Unit
-                    })
+                    }
+                    runCatching { nsd.registerServiceInfoCallback(info, executor, callback) }
+                        .onSuccess { callbacks += callback }
                 } else {
                     @Suppress("DEPRECATION")
                     nsd.resolveService(info, object : NsdManager.ResolveListener {
@@ -75,10 +88,7 @@ class Discovery(context: Context) {
                 }
             }
 
-            override fun onServiceLost(info: NsdServiceInfo) {
-                found.remove(info.serviceName)
-                publish()
-            }
+            override fun onServiceLost(info: NsdServiceInfo) = lost(info.serviceName)
 
             override fun onDiscoveryStarted(serviceType: String) = Unit
             override fun onDiscoveryStopped(serviceType: String) = Unit
@@ -88,12 +98,17 @@ class Discovery(context: Context) {
             override fun onStopDiscoveryFailed(serviceType: String, errorCode: Int) = Unit
         }
 
-        publish()
+        onExecutor { publish() }
         nsd.discoverServices(SERVICE_TYPE, NsdManager.PROTOCOL_DNS_SD, listener)
         awaitClose {
             runCatching { nsd.stopServiceDiscovery(listener) }
+            // Each registered callback holds a resolver open in the system
+            // until it is unregistered; closing the screen must free them.
+            if (Build.VERSION.SDK_INT >= 34) {
+                callbacks.forEach { runCatching { nsd.unregisterServiceInfoCallback(it) } }
+            }
             executor.shutdown()
-            lock.release()
+            lock?.release()
         }
     }
 

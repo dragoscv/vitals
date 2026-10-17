@@ -16,7 +16,7 @@ use axum::{Json, Router};
 use futures_util::StreamExt as _;
 use serde::{Deserialize, Serialize};
 use tokio::net::TcpListener;
-use tokio::sync::{oneshot, watch};
+use tokio::sync::{Semaphore, oneshot, watch};
 use tokio_stream::wrappers::BroadcastStream;
 
 use crate::auth::Scope;
@@ -131,10 +131,18 @@ fn router_with_closing(state: ApiState, closing: watch::Receiver<bool>) -> Route
     //
     // `/pair` is public for the same kind of reason: it is how a caller
     // without a token gets one. Its own budget (one code, five guesses, five
-    // minutes) is the protection, not the bearer layer.
+    // minutes) is the protection, not the bearer layer — which is exactly why
+    // a web page must not be able to spend that budget: see `pair_guard`.
+    //
+    // One `.route(path, method(handler))` per line: the OpenAPI drift test
+    // reads the routes from this text, so the guard goes on as a layer of
+    // its own router rather than inline.
+    let pairing = Router::new()
+        .route("/api/v1/pair", axum::routing::post(pair))
+        .route_layer(middleware::from_fn(pair_guard));
     let public = Router::new()
         .route("/api/v1/health", get(health))
-        .route("/api/v1/pair", axum::routing::post(pair));
+        .merge(pairing);
 
     let guarded = Router::new()
         .route("/api/v1/snapshot", get(snapshot))
@@ -154,8 +162,51 @@ fn router_with_closing(state: ApiState, closing: watch::Receiver<bool>) -> Route
         .merge(guarded)
         .fallback(assets)
         .layer(axum::extract::DefaultBodyLimit::max(MAX_BODY_BYTES))
+        .layer(middleware::from_fn_with_state(
+            Arc::new(Semaphore::new(MAX_IN_FLIGHT)),
+            bounded,
+        ))
         .layer(middleware::map_response(security_headers))
         .with_state(state)
+}
+
+/// Requests whose handler may be running at once. Generous for a handful of
+/// phones and a CLI; small enough that a flood from one LAN host cannot
+/// queue unbounded `spawn_blocking` work (history reads SQLite, sensors ask
+/// WMI) on the machine being monitored.
+const MAX_IN_FLIGHT: usize = 64;
+
+/// How long a handler may take to produce its response head. Streams are not
+/// cut off by this: SSE and `WebSocket` answer at once and then keep the
+/// connection; only the time until the first byte is bounded. Fifteen
+/// seconds covers a cold WMI sensor read with room to spare.
+const HANDLER_DEADLINE: Duration = Duration::from_secs(15);
+
+/// Applies [`MAX_IN_FLIGHT`] and [`HANDLER_DEADLINE`].
+///
+/// Refuses rather than queues when full: a queue is just a slower way to run
+/// out of memory, and a client that gets 503 can back off and retry.
+async fn bounded(State(gate): State<Arc<Semaphore>>, request: Request, next: Next) -> Response {
+    let Ok(_permit) = gate.try_acquire() else {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            [(header::RETRY_AFTER, HeaderValue::from_static("1"))],
+            Json(ApiError {
+                error: "too many requests in flight".to_owned(),
+            }),
+        )
+            .into_response();
+    };
+    match tokio::time::timeout(HANDLER_DEADLINE, next.run(request)).await {
+        Ok(response) => response,
+        Err(_) => (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(ApiError {
+                error: "the request took too long".to_owned(),
+            }),
+        )
+            .into_response(),
+    }
 }
 
 /// The largest request body accepted. `/control` is the only route with a
@@ -294,6 +345,39 @@ async fn authorise(State(state): State<ApiState>, request: Request, next: Next) 
 fn loopback_grant(state: &ApiState, peer: Option<SocketAddr>) -> Option<Scope> {
     let scope = state.loopback_scope?;
     peer.filter(|addr| addr.ip().is_loopback()).map(|_| scope)
+}
+
+/// Refuses a pairing attempt that a web page made through the loopback
+/// interface.
+///
+/// `/pair` needs no token, and the desktop's `127.0.0.1:7330` listener is
+/// reachable by every page the user has open: a cross-origin "simple" POST
+/// needs no preflight, and DNS rebinding lets a page read the answer. A page
+/// could therefore spend the five guesses and burn the code on the TV's
+/// screen, or — while a code is showing — guess it. Nothing legitimate pairs
+/// over loopback with a browser: the TV and the phone reach the LAN address.
+///
+/// The same test as the auth bypass ([`is_local_caller`]) — no `Origin`,
+/// loopback `Host` — applied only to loopback peers, so the TV's own web
+/// app (which does send an `Origin`) keeps working over the network. The
+/// check runs before the body is read: an unauthorised caller learns nothing
+/// about the body's shape and spends no attempt.
+async fn pair_guard(request: Request, next: Next) -> Response {
+    let peer = request
+        .extensions()
+        .get::<ConnectInfo<SocketAddr>>()
+        .map(|ConnectInfo(addr)| *addr);
+    let from_loopback = peer.is_some_and(|addr| addr.ip().is_loopback());
+    if from_loopback && !is_local_caller(&request) {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(ApiError {
+                error: PAIR_REFUSED.to_owned(),
+            }),
+        )
+            .into_response();
+    }
+    next.run(request).await
 }
 
 /// Whether a loopback request came from a local program rather than from a
@@ -660,16 +744,22 @@ struct ControlReply {
 }
 
 fn handle_control(state: &ApiState, scope: Scope, text: &str) -> String {
+    // Scope first, as in `control`: a read-only client is refused before the
+    // message is parsed, so it cannot map the request schema by watching
+    // parse errors change into "forbidden".
+    if !scope.allows_control() {
+        let reply = ControlReply {
+            ok: false,
+            error: Some(ControlError::Forbidden),
+        };
+        return serde_json::to_string(&reply).unwrap_or_else(|_| r#"{"ok":false}"#.to_owned());
+    }
     let reply = match serde_json::from_str::<ControlRequest>(text) {
         Err(error) => ControlReply {
             ok: false,
             error: Some(ControlError::Unsupported {
                 message: format!("could not read the request: {error}"),
             }),
-        },
-        Ok(_) if !scope.allows_control() => ControlReply {
-            ok: false,
-            error: Some(ControlError::Forbidden),
         },
         Ok(request) => match state.controller.apply(request) {
             Ok(()) => ControlReply {
@@ -868,7 +958,7 @@ mod tests {
     use std::net::SocketAddr;
     use std::sync::Arc;
 
-    use super::loopback_grant;
+    use super::{handle_control, loopback_grant};
     use crate::auth::{Scope, TokenSet};
     use crate::state::{ApiState, FrameSource, ServerLock};
 
@@ -929,5 +1019,28 @@ mod tests {
         // an auth bypass must not fire on missing information.
         let s = state(Some(Scope::Control));
         assert_eq!(loopback_grant(&s, None), None);
+    }
+
+    #[test]
+    fn a_read_scope_websocket_message_is_forbidden_before_it_is_parsed() {
+        // Malformed and well-formed messages must get the same answer, or a
+        // read-only client learns the schema from the difference.
+        let s = state(None);
+        let garbage = handle_control(&s, Scope::Read, "not json {");
+        let valid = handle_control(
+            &s,
+            Scope::Read,
+            r#"{"action":"suspend","key":{"pid":1,"startTime":1}}"#,
+        );
+        assert_eq!(garbage, valid);
+        assert!(garbage.contains("forbidden"), "{garbage}");
+        assert!(!garbage.contains("could not read"), "{garbage}");
+    }
+
+    #[test]
+    fn a_control_scope_websocket_message_that_does_not_parse_is_reported_as_unreadable() {
+        let s = state(None);
+        let reply = handle_control(&s, Scope::Control, "not json {");
+        assert!(reply.contains("could not read the request"), "{reply}");
     }
 }

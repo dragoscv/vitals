@@ -26,6 +26,7 @@ import androidx.wear.tiles.RequestBuilders
 import androidx.wear.tiles.TileBuilders
 import androidx.wear.tiles.TileService
 import app.vitals.ui.Format
+import app.vitals.core.loggingHandler
 import app.vitals.ui.Level
 import app.vitals.ui.Palette
 import app.vitals.ui.Thresholds
@@ -48,7 +49,7 @@ import kotlinx.coroutines.guava.future
  * hold the carousel on a blank tile for up to three seconds.
  */
 class VitalsTileService : TileService() {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default + loggingHandler("VitalsWearTile"))
 
     override fun onTileRequest(requestParams: RequestBuilders.TileRequest): ListenableFuture<TileBuilders.Tile> =
         scope.future {

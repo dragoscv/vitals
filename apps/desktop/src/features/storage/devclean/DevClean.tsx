@@ -140,14 +140,14 @@ export function DevClean({ locale, source }: DevCleanProps): React.JSX.Element {
           <>
             <Roots state={state} t={t} />
             {state.scanError !== null && (
-              <p role="alert" className="text-2xs text-[var(--color-status-danger)]">
+              <p role="alert" className="text-2xs text-[var(--color-danger-text)]">
                 {state.scan === null
                   ? t('dev.scan.failed', { message: state.scanError })
                   : t('dev.scan.stale', { message: state.scanError })}
               </p>
             )}
             {revealError !== null && (
-              <p role="alert" className="text-2xs text-[var(--color-status-danger)]">
+              <p role="alert" className="text-2xs text-[var(--color-danger-text)]">
                 {t('explore.failed', { message: revealError })}
               </p>
             )}
@@ -230,7 +230,7 @@ function Roots({ state, t }: { readonly state: DevCleanState; readonly t: T }) {
         {t('dev.roots.heading')}
       </h4>
       {state.rootsError !== null && (
-        <p role="alert" className="text-2xs text-[var(--color-status-warn)]">
+        <p role="alert" className="text-2xs text-[var(--color-warn-text)]">
           {t('dev.roots.failed', { message: state.rootsError })}
         </p>
       )}
@@ -807,7 +807,7 @@ function ProjectRow({ project, row }: { readonly project: Project; readonly row:
               >
                 <Command label={t('dev.restore')} command={artefact.restore} />
                 {artefact.sharedWithPnpmStore && (
-                  <p className="text-2xs text-[var(--color-status-warn)]">{t('dev.sharedPnpm')}</p>
+                  <p className="text-2xs text-[var(--color-warn-text)]">{t('dev.sharedPnpm')}</p>
                 )}
               </Row>
             );
@@ -859,7 +859,7 @@ function WorktreeRow({ worktree, row }: { readonly worktree: Worktree; readonly 
         className={
           worktree.id === null
             ? 'text-2xs text-[var(--color-fg-muted)]'
-            : 'text-2xs text-[var(--color-status-ok)]'
+            : 'text-2xs text-[var(--color-ok-text)]'
         }
       >
         {worktreeReason(worktree, t)}
@@ -1127,7 +1127,7 @@ function RunOutcome({
 }) {
   if (run.report === null) {
     return (
-      <p role="alert" className="text-sm text-[var(--color-status-warn)]">
+      <p role="alert" className="text-sm text-[var(--color-warn-text)]">
         {run.refused
           ? t('dev.report.refusedAll', { message: run.error ?? '' })
           : t('dev.report.failed', { message: run.error ?? '' })}

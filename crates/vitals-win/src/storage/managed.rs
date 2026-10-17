@@ -310,11 +310,12 @@ fn run_tool(name: &str, args: &[&str]) -> u32 {
     }
 }
 
-/// `%SystemRoot%\System32\<name>`, never a bare name: an elevated process
-/// resolving `dism.exe` through `PATH` would run whatever came first.
+/// `System32\<name>`, never a bare name: an elevated process resolving
+/// `dism.exe` through `PATH` would run whatever came first. The directory
+/// comes from the kernel, not `%SystemRoot%`, for the same reason — the
+/// environment is inherited from the unelevated caller.
 fn system32(name: &str) -> Option<PathBuf> {
-    let root = std::env::var_os("SystemRoot")?;
-    let path = PathBuf::from(root).join("System32").join(name);
+    let path = crate::actions::taskmgr::system_directory()?.join(name);
     path.is_file().then_some(path)
 }
 

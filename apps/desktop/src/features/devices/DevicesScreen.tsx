@@ -149,7 +149,7 @@ export function DevicesScreen({
       </header>
 
       {state.error !== null && state.error !== NO_HOST && (
-        <p role="alert" className="text-2xs text-[var(--color-status-danger)]">
+        <p role="alert" className="text-2xs text-[var(--color-danger-text)]">
           {t('stale', { message: state.error })}
         </p>
       )}
@@ -772,7 +772,7 @@ function SensorsServicePanel({
         <p className="mt-1 text-2xs text-[var(--color-fg-muted)]">{t('service.download')}</p>
       )}
       {status?.installed === true && !status.running && status.error !== null && (
-        <p className="mt-1 text-2xs text-[var(--color-status-warn)]">
+        <p className="mt-1 text-2xs text-[var(--color-warn-text)]">
           {t('service.notReading', { message: status.error })}
         </p>
       )}
@@ -798,7 +798,7 @@ function SensorsServicePanel({
           className={cn(
             'mt-2 text-2xs',
             message.tone === 'error'
-              ? 'text-[var(--color-status-danger)]'
+              ? 'text-[var(--color-danger-text)]'
               : 'text-[var(--color-fg-muted)]',
           )}
         >

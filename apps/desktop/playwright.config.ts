@@ -32,6 +32,9 @@ export default defineConfig({
   // could fix it. One in CI, where a shared runner's hiccup is not a
   // regression, and the trace from that retry is what explains it.
   retries: CI ? 1 : 0,
+  // A test that fails and then passes on that retry is still a red run: the
+  // retry exists to capture a trace of the flake, not to hide it.
+  failOnFlakyTests: CI,
   reporter: [['list'], ['html', { outputFolder: 'e2e-report', open: 'never' }]],
   use: {
     baseURL: BASE_URL,

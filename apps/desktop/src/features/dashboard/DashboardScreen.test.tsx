@@ -299,6 +299,17 @@ describe('DashboardScreen', () => {
 
       await screen.findByRole('dialog', { name: 'Why is my PC slow?' });
     });
+
+    it('puts the question at the top of the dashboard and answers it from there', async () => {
+      // The owner's call: the diagnosis is the front door, not a ghost
+      // button beside "Edit layout".
+      await renderDashboard();
+      const strip = screen.getByRole('region', { name: 'How your computer is doing' });
+
+      fireEvent.click(within(strip).getByRole('button', { name: 'Why is my PC slow?' }));
+
+      await screen.findByRole('dialog', { name: 'Why is my PC slow?' });
+    });
   });
 
   describe('alerts', () => {
