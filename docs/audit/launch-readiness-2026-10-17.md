@@ -164,7 +164,8 @@ budget median 2.5 ms on an idle VM) and `ws-codai` (Linux, TypeScript lanes).
 - winget PR microsoft/winget-pkgs#454976 is the first `Scope: user` / `Custom: /CurrentUser`
   manifest, written by `scripts/ci/winget-user-scope.ps1` in the release job. That makes item 8
   automatic. The validator wanted `ElevationRequirement` kept, so it was put back on the PR.
-- Microsoft Store submission 3 (MSIX 1.0.4.0, what's new in EN and RO) is in certification.
+- Microsoft Store submission 3 (MSIX 1.0.4.0, what's new in EN and RO) passed certification and
+  is live (Partner Center 2026-10-18: "In Microsoft Store", store presence = submission 3).
 - Play: 1.0.4 phone (37) and Wear (1000037) uploaded through the Console and sent for review.
   That restarted the 1.0.2 review (owner's choice). The release job's Play step can't commit
   while a review is open (`changesNotSentForReview`).
@@ -175,15 +176,18 @@ budget median 2.5 ms on an idle VM) and `ws-codai` (Linux, TypeScript lanes).
 
 ### Still open — owner only
 
-1. Partner Center: watch certification of submission 3 (1.0.4.0); submission 2 (1.0.3) is live.
-2. Chocolatey: reply to the moderator or resubmit 1.0.0 with the jsDelivr icon.
+1. ~~Partner Center: certification of submission 3 (1.0.4.0)~~ live 2026-10-18.
+2. Chocolatey: 1.0.0 was resubmitted with the jsDelivr icon on 2026-10-17 and passed validation,
+   verification and scanning (VirusTotal note only); it is "Ready for review" by a human
+   moderator. Push 1.0.4 once 1.0.0 is approved.
 3. Apply to SignPath Foundation (free OSS signing).
 4. Trademark clearance for "Vitals" (classes 9 and 42).
 5. Play: wait for the restarted review (1.0.4 phone + Wear); the TV track is not in that review.
 6. `npm dist-tag rm @vitals-app/client next` (needs 2FA).
 7. Real-OS checks on the vivobook (S17-02, S17-10): a portable copy is refused for the Task Manager hook, the sensors log is in Program Files, the CLI attaches from an elevated prompt, `netstat` shows the chosen adapter bind.
 8. ~~Hand-edited winget submission with `Scope: user`~~ done by the release job from 1.0.4 on
-   (#454976); watch that PR's validation.
+   (#454976); with `ElevationRequirement` restored, checks 01-07 pass and installation
+   validation (08) is running.
 
 ### Remaining engineering (P2, not started)
 
