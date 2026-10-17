@@ -97,11 +97,14 @@ expected.
 
 ## Silent install
 
-The installer asks no questions. To script it:
+The installer asks one question: install for you only, or for everyone on this PC. To script it:
 
 ```powershell
-.\Vitals_x64-setup.exe /S
+.\Vitals_x64-setup.exe /S /CurrentUser
 ```
+
+`/CurrentUser` installs to `%LOCALAPPDATA%\Programs\Vitals` with no administrator prompt.
+`/AllUsers` installs to `Program Files` for everyone and needs administrator rights.
 
 ## Updates
 
@@ -109,6 +112,12 @@ The installer build checks for a new version in the background shortly after it 
 is found it is downloaded, its signature is verified, and it is installed when you quit the app.
 An update with a missing or wrong signature is refused. You can turn the check off in
 **Settings → About**. The Microsoft Store build is updated by the Store instead.
+
+Installed for you only, an update needs no administrator approval. Installed for everyone, Windows
+asks an administrator to approve each update, so Vitals does not install it on quit, where nobody
+would see the prompt. Choose **Restart to update** in **Settings → About** or in the tray menu
+instead. Copies installed by Vitals 1.0.3 or earlier move to a per-user install on their next
+update, and **Settings → About** then offers to remove the old copy in `Program Files`.
 
 ## Uninstall
 

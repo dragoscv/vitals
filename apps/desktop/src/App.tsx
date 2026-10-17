@@ -15,6 +15,8 @@ import {
   reconcileAutostart,
 } from './lib/settingsSync';
 import { useHud } from './lib/useHud';
+import { reportSuccess } from './lib/reportSuccess';
+import { takeUpdateOutcome } from './lib/updater';
 import { useSettings } from './settings/store';
 import { AppShell } from './shell/AppShell';
 import { SHELL_NS } from './shell/strings';
@@ -217,6 +219,7 @@ function useTrayStringsSync(): void {
         pause: t('tray.pause'),
         taskManager: t('tray.taskManager'),
         quit: t('tray.quit'),
+        restartToUpdate: t('tray.restartToUpdate'),
         cpu: t('tray.cpu'),
         memory: t('tray.memory'),
         gpu: t('tray.gpu'),
@@ -230,6 +233,33 @@ function useTrayStringsSync(): void {
       i18n.off('languageChanged', push);
     };
   }, [t, i18n]);
+}
+
+/**
+ * Says, once, what became of the update the last session tried to install.
+ *
+ * A failed install on quit used to be invisible: the next launch was simply
+ * the old version again (DEV-3). A success is worth one line too — it is
+ * the only sign the update happened at all.
+ */
+function useUpdateOutcome(): void {
+  const { t } = useTranslation();
+  useEffect(() => {
+    void takeUpdateOutcome().then(async (outcome) => {
+      if (outcome === null) return;
+      if (outcome.kind === 'installed') {
+        await reportSuccess(
+          t('settings.about.update.installedToast', { version: outcome.version }),
+        );
+        return;
+      }
+      const { toast } = await import('@vitals/ui/toast');
+      toast.error(t('settings.about.update.failedToast', { version: outcome.version }), {
+        id: 'update-outcome',
+        description: t('settings.about.update.failedToastHint'),
+      });
+    });
+  }, [t]);
 }
 
 /**
@@ -253,6 +283,7 @@ export function App() {
   useAlertPrefsSync(settings, hydrated);
   useAlertStringsSync();
   useTrayStringsSync();
+  useUpdateOutcome();
   useHud(hydrated);
 
   useEffect(() => {

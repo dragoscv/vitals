@@ -285,7 +285,15 @@
         "auto": "Install updates automatically",
         "autoHint": "Checks GitHub shortly after launch and installs a signed update when you quit. Nothing is installed while you are using Vitals.",
         "store": "Updates come from the Microsoft Store.",
-        "pending": "Version {{version}} is downloaded and installs when you quit Vitals."
+        "pending": "Version {{version}} is downloaded and installs when you quit Vitals.",
+        "pendingApproval": "Version {{version}} is downloaded. Vitals is installed for everyone on this PC, so Windows asks an administrator to approve the update. Restart to update when you are ready.",
+        "installedToast": "Vitals updated to {{version}}",
+        "failedToast": "Version {{version}} was not installed",
+        "failedToastHint": "Vitals will try again. You can also restart to update from Settings › About.",
+        "leftover": "An older copy of Vitals is still installed for everyone in {{path}}. This copy now updates without asking for administrator rights; the old one can go.",
+        "leftoverRemove": "Remove the old copy",
+        "leftoverRemoved": "The old copy was removed",
+        "leftoverFailed": "The old copy could not be removed"
       },
       "legal": "Legal",
       "privacyPolicy": "Privacy policy",

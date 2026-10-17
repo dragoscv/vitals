@@ -142,6 +142,19 @@ budget median 2.5 ms on an idle VM) and `ws-codai` (Linux, TypeScript lanes).
 - **Microsoft Store**: submission 2 (MSIX 1.0.3.0 built on ws-vitals-win, 10 captured screenshots
   with captions in English and Romanian, 1.0.3 "What's new") is in certification.
 - Chocolatey 1.0.3 push answered 403: 1.0.0 is still waiting for the moderator (item 2 below).
+- **DEV-3 fixed** (S19-05, ADR 0038): `installMode: both`. A per-user copy updates on quit as
+  the invoker (`RunAsInvoker`), so no UAC prompt. A 1.0.0–1.0.3 Program Files copy moves to a
+  per-user install on its next unelevated update, and Settings › About then offers to remove
+  the old copy. A Program Files copy someone chose waits for "Restart to update" (tray and
+  Settings), where the prompt follows a click. Proven on the vivobook unelevated, both paths,
+  with `scripts/ci/update-proof.ps1 -Local`. **Limit:** an unelevated 1.0.3 still runs the old
+  updater and cannot reach the next release on quit; it gets there with one manual update.
+- **Computer-use MCP on the vivobook** (S19-06): `vivobook-computer` in VS Code's `mcp.json`,
+  codai-computer over ssh stdio (nothing listens on the network), proven by clicks.
+- **Devcloud outage, fixed at the source:** codai's GPU reaper deleted `ws-codai` and
+  `ws-vitals-win` at 12:15Z (no `reaper=keep`). The reaper now skips `app=devcloud` (codai
+  `0768d3c59`), workspaces are created with `reaper=keep` (vmui `3d330fe`), `ws-vitals-win` was
+  recreated. `ws-codai` is not recreated yet.
 
 ### Still open — owner only
 
@@ -152,11 +165,11 @@ budget median 2.5 ms on an idle VM) and `ws-codai` (Linux, TypeScript lanes).
 5. Play: wait for review; check whether production access already exists (Android launches separately).
 6. `npm dist-tag rm @vitals-app/client next` (needs 2FA).
 7. Real-OS checks on the vivobook (S17-02, S17-10): a portable copy is refused for the Task Manager hook, the sensors log is in Program Files, the CLI attaches from an elevated prompt, `netstat` shows the chosen adapter bind.
+8. First release after ADR 0038: one hand-edited winget submission with `Scope: user` and `Custom: /CurrentUser` (Komac carries the old `Scope: machine` forward; `packaging/winget/README.md`).
 
 ### Remaining engineering (P2, not started)
 
-**DEV-3 first** (reproduced on the vivobook 2026-10-17: an unelevated install-on-quit is cancelled
-by the UAC prompt), then DES-12 "End…" from the diagnosis dialog, DES-21 other empty-state actions,
+DES-12 "End…" from the diagnosis dialog, DES-21 other empty-state actions,
 SEC-8 query tokens, SEC-10 save path from IPC, SEC-16 PawnIO signer pin, DEV-6 manual update
 teardown, DEV-9 atomic token file, DEV-11 headless serve
 sensors, DEV-16 global HUD shortcut, ARM64 and Windows 10 test runs,

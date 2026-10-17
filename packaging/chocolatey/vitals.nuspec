@@ -36,7 +36,7 @@
     <summary>A modern, fast system monitor and task manager.</summary>
     <description>Vitals is a fast, native system monitor and task manager for Windows: a configurable dashboard, detailed performance metrics, full process control, network and storage management, and benchmarks. Free and open source (MIT). It sends no telemetry.
 
-The installer is per-machine and needs administrator rights, which Chocolatey already has.</description>
+Installed for the user running Chocolatey, so Vitals can install its own signed updates when you quit it without asking for administrator approval.</description>
   </metadata>
   <files>
     <file src="tools\**" target="tools" />

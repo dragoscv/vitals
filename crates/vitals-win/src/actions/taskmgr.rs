@@ -330,7 +330,7 @@ fn normalised(path: &Path) -> String {
 
 /// `FOLDERID_ProgramFiles` from the shell — the 64-bit Program Files for
 /// this 64-bit process.
-fn known_program_files() -> Option<PathBuf> {
+pub(crate) fn known_program_files() -> Option<PathBuf> {
     // SAFETY: the GUID is a static; the returned buffer is freed below.
     let raw =
         unsafe { SHGetKnownFolderPath(&FOLDERID_ProgramFiles, KF_FLAG_DEFAULT, None) }.ok()?;

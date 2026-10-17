@@ -3,7 +3,7 @@
   "initialGzipBytes": 211717.0,
   "shippedGzipBytes": 466465.0,
   "installerBytes": 5370361.0,
-  "hudGzipBytes": 122637.0,
+  "hudGzipBytes": 125296.0,
   "mobileGzipBytes": 153047.0,
   "targetDebugBytes": 16106127360,
   "incrementalSessionsPerCrate": 10

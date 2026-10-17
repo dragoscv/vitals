@@ -118,6 +118,7 @@ export async function pushTrayStrings(strings: {
   pause: string;
   taskManager: string;
   quit: string;
+  restartToUpdate: string;
   cpu: string;
   memory: string;
   gpu: string;

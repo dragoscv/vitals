@@ -21,16 +21,28 @@
          install-on-exit path a user's Quit runs.
       5. The installed executable now reports -To.
 
-    Must run elevated: the installer is perMachine, and the passive update it
-    starts on quit inherits our token instead of raising a UAC prompt nobody
-    is there to answer (DEV-3 covers the prompt itself). Steps 4-5 also need
-    an interactive desktop session: in a service or batch logon (the devcloud
-    agent) WebView2 never starts, so there is no page to ask to quit. Run it
-    there from an interactive scheduled task (/IT /RL HIGHEST). Leaves -To
-    installed unless -Uninstall is passed. Exit code = number of failed checks.
+    Against a published release (-From/-To on GitHub) it must run elevated:
+    1.0.0-1.0.3 installers are per-machine only.
+
+    -Local proves DEV-3 instead, and must NOT run elevated: -Dir holds two
+    installers and a latest.json built by update-proof-build.ps1 (throwaway
+    key, endpoint http://127.0.0.1:8765). A local HTTP server serves them,
+    -From is installed for the current user (-Scope user) or, with -Scope
+    legacy, an existing per-machine copy is expected to be updated into a
+    per-user one; quitting must install -To with no UAC prompt (consent.exe
+    never appears).
+
+    Steps 4-5 need an interactive desktop session: in a service or batch
+    logon (the devcloud agent) WebView2 never starts, so there is no page to
+    ask to quit. Run it from an interactive scheduled task (/IT, and /RL
+    HIGHEST only for the published-release mode). Leaves -To installed unless
+    -Uninstall is passed. Exit code = number of failed checks.
 
 .EXAMPLE
     pwsh -NoProfile -File scripts/ci/update-proof.ps1 -From 1.0.2 -To 1.0.3 -Uninstall
+
+.EXAMPLE
+    pwsh -NoProfile -File scripts/ci/update-proof.ps1 -Local -Dir C:\dev3 -From 1.99.0 -To 1.99.1 -Uninstall
 #>
 [CmdletBinding()]
 param(
@@ -38,7 +50,10 @@ param(
     [Parameter(Mandatory)][string]$To,
     [string]$Repository = 'dragoscv/vitals',
     [int]$TimeoutSeconds = 240,
-    [switch]$Uninstall
+    [switch]$Uninstall,
+    [switch]$Local,
+    [string]$Dir,
+    [ValidateSet('user', 'legacy')][string]$Scope = 'user'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -57,7 +72,16 @@ function Wait-Until([scriptblock]$Test, [int]$Seconds) {
 }
 
 $principal = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
-if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+$elevated = $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+if ($Local) {
+    if ($elevated) {
+        Write-Host 'update-proof -Local must NOT run elevated: it proves the unelevated path (DEV-3)' -ForegroundColor Red
+        exit 2
+    }
+    & (Join-Path $PSScriptRoot 'update-proof-local.ps1') -Dir $Dir -From $From -To $To -Scope $Scope -TimeoutSeconds $TimeoutSeconds -Uninstall:$Uninstall
+    exit $LASTEXITCODE
+}
+if (-not $elevated) {
     Write-Host 'update-proof must run elevated: the installer is perMachine' -ForegroundColor Red
     exit 2
 }

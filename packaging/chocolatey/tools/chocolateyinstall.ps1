@@ -20,8 +20,10 @@ $packageArgs = @{
   checksum64     = $checksum64
   checksumType64 = 'sha256'
   # NSIS silent install. The installer's own hooks close a running Vitals
-  # first, so an upgrade never leaves half-old files behind.
-  silentArgs     = '/S'
+  # first, so an upgrade never leaves half-old files behind. /CurrentUser
+  # (ADR 0038): a per-user copy updates itself on quit without a UAC
+  # prompt; a Program Files copy cannot, because the app runs unelevated.
+  silentArgs     = '/S /CurrentUser'
   validExitCodes = @(0)
   softwareName   = 'Vitals*'
 }

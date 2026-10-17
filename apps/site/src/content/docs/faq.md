@@ -80,7 +80,9 @@ Open **Settings → Apps → Installed apps** in Windows, find **Vitals** and ch
 works for both the Store and the installer version. The installer version keeps your settings and
 history in `%LOCALAPPDATA%\Vitals` so a reinstall picks up where you left off; delete that folder to
 remove them too. If you let the installer version replace Task Manager or installed the sensors
-service, the uninstaller removes both.
+service, the uninstaller removes both. The sensors service runs as SYSTEM, so removing it needs
+administrator rights: for a copy installed for you only, remove the service on the **Devices &
+sensors** page before you uninstall.
 
 ## Where do I report a problem?
 

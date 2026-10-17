@@ -1,6 +1,8 @@
 # 0025 — NSIS installer, `perMachine`
 
-- Status: Accepted
+- Status: Accepted; the install mode is superseded by
+  [0038](0038-nsis-both-scopes-and-unprompted-updates.md) — "none at run
+  time" was false for updates (DEV-3)
 - Date: 2026-09-10
 - Tracker: S10-02
 

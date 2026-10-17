@@ -98,11 +98,15 @@ Este de așteptat.
 
 ## Instalare silențioasă
 
-Programul de instalare nu pune întrebări. Pentru scripturi:
+Programul de instalare pune o singură întrebare: doar pentru tine sau pentru toți utilizatorii
+acestui PC. Pentru scripturi:
 
 ```powershell
-.\Vitals_x64-setup.exe /S
+.\Vitals_x64-setup.exe /S /CurrentUser
 ```
+
+`/CurrentUser` instalează în `%LOCALAPPDATA%\Programs\Vitals`, fără cerere de administrator.
+`/AllUsers` instalează în `Program Files` pentru toți și are nevoie de drepturi de administrator.
 
 ## Actualizări
 
@@ -110,6 +114,13 @@ Versiunea din programul de instalare verifică în fundal dacă există o versiu
 după pornire. Când găsește una, o descarcă, îi verifică semnătura și o instalează când închizi
 aplicația. O actualizare cu semnătură lipsă sau greșită este refuzată. Poți dezactiva verificarea
 din **Setări → Despre**. Versiunea din Microsoft Store este actualizată de Store.
+
+Instalată doar pentru tine, o actualizare nu cere aprobarea unui administrator. Instalată pentru
+toți, Windows cere aprobarea unui administrator la fiecare actualizare, așa că Vitals nu o
+instalează la închidere, unde nimeni n-ar vedea cererea. Alege **Repornește pentru actualizare** din
+**Setări → Despre** sau din meniul din bara de sistem. Copiile instalate de Vitals 1.0.3 sau mai
+vechi trec la o instalare pentru utilizatorul curent la următoarea actualizare, iar **Setări →
+Despre** oferă apoi ștergerea copiei vechi din `Program Files`.
 
 ## Dezinstalare
 

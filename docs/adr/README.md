@@ -32,7 +32,7 @@ D-numbers refer to the decision table in [`../TRACKER.md`](../TRACKER.md).
 | [0022](0022-accept-the-eleven-extras.md)                   | Accept all eleven extras                                | D22     |
 | [0023](0023-resolver-3-and-edition-2024.md)                | Cargo resolver 3 and Rust edition 2024                  | S10-02  |
 | [0024](0024-dual-typescript-compilers.md)                  | TypeScript 7 for `tsc`, TypeScript 6 for ESLint         | S10-02  |
-| [0025](0025-nsis-per-machine.md)                           | NSIS installer, `perMachine`                            | S10-02  |
+| [0025](0025-nsis-per-machine.md)                           | NSIS installer, `perMachine` (scope superseded by 0038) | S10-02  |
 | [0026](0026-panic-abort-in-release.md)                     | `panic = "abort"` in release                            | S10-02  |
 | [0027](0027-ts-rs-over-specta.md)                          | `ts-rs` over `specta` for generated bindings            | S10-02  |
 | [0028](0028-axum-for-the-lan-server.md)                    | axum for the LAN server                                 | S10-02  |
@@ -45,6 +45,7 @@ D-numbers refer to the decision table in [`../TRACKER.md`](../TRACKER.md).
 | [0035](0035-on-device-monitor.md)                          | The phone and the watch monitor themselves              | S15-04  |
 | [0036](0036-google-tv-app-and-pairing-codes.md)            | A Google TV app, and pairing by six-digit code          | S15-08  |
 | [0037](0037-play-and-github-android-flavours.md)           | A Play build without all-files access, a GitHub build   | S16-21  |
+| [0038](0038-nsis-both-scopes-and-unprompted-updates.md)    | NSIS `both`, and updates nobody has to approve          | DEV-3   |
 
 ## Writing a new one
 

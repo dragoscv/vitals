@@ -61,6 +61,10 @@ pub struct TrayStrings {
     /// reachable and is not itself Task Manager.
     pub task_manager: String,
     pub quit: String,
+    /// "Restart to update". Optional so a webview from before it existed
+    /// (none ships, but a mismatched dev build can) still deserialises.
+    #[serde(default = "default_restart_to_update")]
+    pub restart_to_update: String,
     pub cpu: String,
     pub memory: String,
     pub gpu: String,
@@ -75,12 +79,17 @@ impl Default for TrayStrings {
             pause: "Pause sampling".into(),
             task_manager: "Open Windows Task Manager".into(),
             quit: "Quit".into(),
+            restart_to_update: default_restart_to_update(),
             cpu: "CPU".into(),
             memory: "Memory".into(),
             gpu: "GPU".into(),
             still_running: "Vitals is still running in the tray.".into(),
         }
     }
+}
+
+fn default_restart_to_update() -> String {
+    "Restart to update".into()
 }
 
 /// Tray state, managed for the lifetime of the process.
@@ -104,6 +113,9 @@ struct MenuHandles {
     show: MenuItem<Wry>,
     pause: CheckMenuItem<Wry>,
     task_manager: MenuItem<Wry>,
+    /// Shown only while an update is downloaded (DEV-3): the one-click way
+    /// to install it, with any prompt following the click.
+    update: MenuItem<Wry>,
     quit: MenuItem<Wry>,
     /// Last value written to the pause checkbox, so the common case (no
     /// change) touches no OS state.
@@ -159,6 +171,7 @@ impl Tray {
             let _ = handles.show.set_text(&strings.show);
             let _ = handles.pause.set_text(&strings.pause);
             let _ = handles.task_manager.set_text(&strings.task_manager);
+            let _ = handles.update.set_text(&strings.restart_to_update);
             let _ = handles.quit.set_text(&strings.quit);
         }
         // Force the next observe to rewrite the tooltip in the new language.
@@ -204,6 +217,13 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
         None::<&str>,
     )?;
     let quit = MenuItem::with_id(app, "quit", &strings.quit, true, None::<&str>)?;
+    let update = MenuItem::with_id(
+        app,
+        "update",
+        &strings.restart_to_update,
+        false,
+        None::<&str>,
+    )?;
     // Only offered where there is a real Task Manager to open. On other
     // platforms the item would be a button that does nothing.
     let task_manager = MenuItem::with_id(
@@ -213,12 +233,13 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
         cfg!(windows),
         None::<&str>,
     )?;
-    let menu = Menu::with_items(app, &[&show, &pause, &task_manager, &quit])?;
+    let menu = Menu::with_items(app, &[&show, &pause, &task_manager, &update, &quit])?;
 
     *tray.menu.lock() = Some(MenuHandles {
         show,
         pause,
         task_manager,
+        update,
         quit,
         paused: is_paused(app),
     });
@@ -265,8 +286,26 @@ fn on_menu_event(app: &AppHandle, event: &MenuEvent) {
         "show" => reveal(app),
         "pause" => toggle_pause(app),
         "task_manager" => open_real_task_manager(),
+        "update" => {
+            // Off the event loop: the UAC prompt can sit for minutes.
+            let app = app.clone();
+            std::thread::spawn(move || {
+                if let Err(error) = crate::updates::install_now(&app) {
+                    tracing::warn!(%error, "restart to update from the tray failed");
+                }
+            });
+        }
         "quit" => app.exit(0),
         _ => {}
+    }
+}
+
+/// Enables "Restart to update" once an update is downloaded.
+pub fn set_update_ready(app: &AppHandle, ready: bool) {
+    if let Some(tray) = app.try_state::<Tray>()
+        && let Some(handles) = tray.menu.lock().as_ref()
+    {
+        let _ = handles.update.set_enabled(ready);
     }
 }
 

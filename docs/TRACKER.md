@@ -2755,6 +2755,45 @@ typed and named each handle in one ordered pass, so a handle that blocked
 kinds included. It now types every handle first (typing never blocks), then
 names non-`File` objects, then `File` objects last.
 
+### 2026-10-17 — S19-05 DEV-3 updates nobody has to approve, S19-06 vivobook MCP
+
+An unelevated 1.0.2 logged "the operation was canceled by the user (os error
+1223)" on quit: the per-machine setup needs UAC and the prompt appeared after
+the window had gone. The owner chose `installMode: both` (twice, the second
+time after seeing that `both` still requests `highest`). What makes it
+unprompted is `__COMPAT_LAYER=RunAsInvoker` on the setup the updater starts
+for a per-user copy, proven on the vivobook with a stub before any code; the
+rest is ADR 0038's decision table, a legacy migration and an honest
+"Restart to update" for a Program Files copy someone chose.
+
+Two things the first prover run caught: the template's own `AllUsers` value
+is written by every setup, including the passive update an elevated 1.0.3
+starts, so it could not mark a deliberate choice (now `VitalsScopeChosen`,
+written by `hooks.nsh` on a real install only); and the post-install
+shortcut lands after the executable is replaced, so the prover now waits for
+the relaunch, the setup's last step.
+
+```
+vivobook, /IT task without /RL HIGHEST (Medium integrity), throwaway key, local endpoint
+  update-proof.ps1 -Local -Scope user     1.99.0 -> 1.99.1  passed, no consent.exe
+  update-proof.ps1 -Local -Scope legacy   per-machine 1.99.0 -> per-user 1.99.1  passed
+    ok the setup restarted Vitals from the per-user folder
+    ok no UAC prompt (consent.exe) appeared during the update
+    ok the per-user copy has a Start menu shortcut
+    update marker: {"version":"1.99.1","error":""}
+  vitals-desktop --remove-machine-install  exit 0: Program Files\Vitals, HKLM entry,
+    common Start menu + public desktop links gone; the per-user app kept running
+  Settings > About "Remove the old copy" shown before, gone after (driven via the MCP)
+vivobook MCP (ssh stdio -> codai-computer 0.1.0, 19 tools)
+  list_windows; click 1600,432; Settings button + About tab by query
+local: clippy -D warnings 0, cargo test install 22 + updates/launch 20, vitest UpdatePanel 11/11,
+  check-drift 0 failures
+```
+
+Not proven here: an elevated `both` install on a fresh machine choosing
+"everyone" (the stock MultiUser page), and a 1.0.3 → 1.0.4 jump — 1.0.3 runs
+the old updater, which cannot take the per-user path; ADR 0038 says so.
+
 ## S13 — public beta 0.9.0-beta.1 (2026-09-28)
 
 Decided with the owner (ADR 0031): public repository, beta version, no code

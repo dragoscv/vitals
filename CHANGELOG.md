@@ -7,6 +7,33 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Updates now install when you quit, without a hidden administrator
+  prompt** (DEV-3). Vitals runs without administrator rights, and its
+  Program Files installation needed approval for every update, so the prompt
+  appeared as the window vanished, nobody answered it, and the next launch
+  was the old version again. Vitals can now be installed for you only
+  (`%LOCALAPPDATA%\Programs\Vitals`), and such a copy updates itself with no
+  prompt at all. Copies installed by 1.0.3 or earlier move there on their
+  next update (ADR 0038).
+
+### Added
+
+- **Restart to update**, in Settings › About and in the tray menu, for a copy
+  installed for everyone: Windows asks an administrator to approve its
+  updates, so the prompt now follows your click instead of your Quit.
+- After an update, Vitals says once whether it worked: "Vitals updated to x",
+  or "x was not installed" with a way to try again.
+- After moving out of Program Files, Settings › About offers to remove the
+  old copy (one administrator prompt). Start with Windows follows the move.
+
+### Changed
+
+- The installer asks whether to install for you only or for everyone on
+  this PC. `/S /CurrentUser` and `/S /AllUsers` script either; winget and
+  Chocolatey now install for the current user.
+
 ## [1.0.3] — 2026-10-17
 
 The launch-readiness release: eleven specialist reviews

@@ -83,6 +83,9 @@ Deschide **Setări → Aplicații → Aplicații instalate** în Windows, găse�
 și istoricul în `%LOCALAPPDATA%\Vitals`, ca o reinstalare să continue de unde ai rămas; șterge
 folderul ca să le elimini și pe ele. Dacă ai lăsat versiunea cu program de instalare să înlocuiască
 Task Manager sau ai instalat serviciul de senzori, programul de dezinstalare le elimină pe amândouă.
+Serviciul de senzori rulează ca SYSTEM, deci eliminarea lui cere drepturi de administrator: pentru
+o copie instalată doar pentru tine, elimină serviciul din pagina **Dispozitive și senzori** înainte
+de dezinstalare.
 
 ## Unde raportez o problemă?
 

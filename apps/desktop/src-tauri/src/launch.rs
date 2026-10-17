@@ -16,6 +16,9 @@
 //! - `--elevated-storage-cleanup <tool> <consent>` — the elevated child that
 //!   runs one Windows cleanup tool (Disk Cleanup with one handler, DISM
 //!   component cleanup, `powercfg /h off`) and exits with its code.
+//! - `--remove-machine-install` — the elevated child that removes an old
+//!   Program Files copy after this one moved to a per-user install (DEV-3).
+//!   Takes no path: it reads the folder from `HKLM` itself.
 //! - `<anything ending in taskmgr.exe>` as the first argument — Windows
 //!   launched us **as the debugger for Task Manager** because the hook is
 //!   on. This is the taskbar menu or Ctrl+Shift+Esc; proceed to normal
@@ -58,6 +61,8 @@ pub enum LaunchMode {
     ElevatedStorageCleanup { args: Vec<String> },
     /// Compact one WSL or Docker virtual disk as administrator and exit.
     ElevatedCompactVhd { args: Vec<String> },
+    /// Remove the old per-machine copy as administrator and exit.
+    RemoveMachineInstall,
 }
 
 /// Classifies the arguments this process was started with.
@@ -120,6 +125,12 @@ where
         };
     }
 
+    // Arguments after it are ignored, never used: the folder an elevated
+    // process deletes must not be chosen by whoever started it.
+    if first == vitals_win_arg::REMOVE_MACHINE_INSTALL {
+        return LaunchMode::RemoveMachineInstall;
+    }
+
     // The loader passes the original command line — typically
     // `C:\WINDOWS\system32\taskmgr.exe` or, for the taskbar, the same path
     // with `/4` or `/7` after it — so only the first token is inspected,
@@ -166,6 +177,10 @@ mod vitals_win_arg {
     pub const COMPACT_VHD: &str = vitals_win::storage::devclean::COMPACT_VHD_ARG;
     #[cfg(not(windows))]
     pub const COMPACT_VHD: &str = "--elevated-compact-vhd";
+    #[cfg(windows)]
+    pub const REMOVE_MACHINE_INSTALL: &str = vitals_win::install::REMOVE_MACHINE_INSTALL_ARG;
+    #[cfg(not(windows))]
+    pub const REMOVE_MACHINE_INSTALL: &str = "--remove-machine-install";
 }
 
 /// Runs a non-UI launch mode to completion.
@@ -183,6 +198,7 @@ pub fn run_headless(mode: &LaunchMode) -> i32 {
         LaunchMode::ElevatedStartupAction { args } => elevated_startup_action(args),
         LaunchMode::ElevatedStorageCleanup { args } => elevated_storage_cleanup(args),
         LaunchMode::ElevatedCompactVhd { args } => elevated_compact_vhd(args),
+        LaunchMode::RemoveMachineInstall => remove_machine_install(),
         LaunchMode::Normal | LaunchMode::AsTaskManager => {
             tracing::error!("run_headless called for a UI launch mode");
             2
@@ -277,6 +293,23 @@ fn elevated_compact_vhd(args: &[String]) -> i32 {
 #[cfg(not(windows))]
 fn elevated_compact_vhd(_args: &[String]) -> i32 {
     tracing::error!("virtual disk compaction is a Windows mechanism");
+    1
+}
+
+#[cfg(windows)]
+fn remove_machine_install() -> i32 {
+    if !vitals_win::actions::is_elevated() {
+        tracing::error!("removing the Program Files copy needs administrator rights");
+        return 1;
+    }
+    let code = vitals_win::install::remove_machine_install();
+    tracing::info!(code, "old per-machine copy removal finished");
+    i32::try_from(code).unwrap_or(i32::MAX)
+}
+
+#[cfg(not(windows))]
+fn remove_machine_install() -> i32 {
+    tracing::error!("per-machine installs are a Windows mechanism");
     1
 }
 
@@ -462,5 +495,22 @@ mod tests {
             }
         );
         assert_eq!(vitals_win_arg::COMPACT_VHD, "--elevated-compact-vhd");
+    }
+
+    #[test]
+    fn the_removal_child_never_starts_a_window_and_ignores_any_path_it_is_given() {
+        assert_eq!(
+            classify([vitals_win_arg::REMOVE_MACHINE_INSTALL]),
+            LaunchMode::RemoveMachineInstall
+        );
+        // A caller-chosen folder is not even carried into the mode.
+        assert_eq!(
+            classify([vitals_win_arg::REMOVE_MACHINE_INSTALL, r"C:\Windows"]),
+            LaunchMode::RemoveMachineInstall
+        );
+        assert_eq!(
+            vitals_win_arg::REMOVE_MACHINE_INSTALL,
+            "--remove-machine-install"
+        );
     }
 }

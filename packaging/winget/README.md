@@ -50,19 +50,27 @@ wingetcreate new "$base/Vitals_${v}_x64-setup.exe" "$base/Vitals_${v}_arm64-setu
 Komac and wingetcreate both detect most installer fields from the file. Check
 that the generated manifests say:
 
-| Field                                  | Value                                                    |
-| -------------------------------------- | -------------------------------------------------------- |
-| `PackageIdentifier`                    | `Vitals.Vitals`                                          |
-| `Publisher`                            | `Dragos Catalin Vladulescu`                              |
-| `PackageName`                          | `Vitals`                                                 |
-| `License`                              | `MIT`                                                    |
-| `InstallerType`                        | `nullsoft`                                               |
-| `Scope`                                | `machine` (the installer is per-machine, ADR 0025)       |
-| `InstallerSwitches.Silent`             | `/S`                                                     |
-| `InstallerSwitches.SilentWithProgress` | `/S`                                                     |
-| `Architecture`                         | `x64` and `arm64`, one installer each                    |
-| `ReleaseNotesUrl`                      | `https://github.com/dragoscv/vitals/releases/tag/v<ver>` |
-| `UpgradeBehavior`                      | `install` (NSIS upgrades in place)                       |
+| Field                                  | Value                                 |
+| -------------------------------------- | ------------------------------------- |
+| `PackageIdentifier`                    | `Vitals.Vitals`                       |
+| `Publisher`                            | `Dragos Catalin Vladulescu`           |
+| `PackageName`                          | `Vitals`                              |
+| `License`                              | `MIT`                                 |
+| `InstallerType`                        | `nullsoft`                            |
+| `Scope`                                | `user` (installMode `both`, ADR 0038) |
+| `InstallerSwitches.Silent`             | `/S`                                  |
+| `InstallerSwitches.SilentWithProgress` | `/S`                                  |
+| `InstallerSwitches.Custom`             | `/CurrentUser`                        |
+
+The manifest published for 1.0.0–1.0.3 says `Scope: machine`. `komac update`
+carries installer fields forward from the previous manifest, so the first
+release after ADR 0038 needs one hand-edited submission (`komac update
+Vitals.Vitals --version <v> --urls … ` without `--submit`, set `Scope: user`
+and `Custom: /CurrentUser` in the installer manifest, then `komac submit`).
+Every later release inherits them.
+| `Architecture` | `x64` and `arm64`, one installer each |
+| `ReleaseNotesUrl` | `https://github.com/dragoscv/vitals/releases/tag/v<ver>` |
+| `UpgradeBehavior` | `install` (NSIS upgrades in place) |
 
 Both tools need a GitHub token with `public_repo` scope to open the pull
 request; they prompt for one or read `GITHUB_TOKEN`. Review in winget-pkgs

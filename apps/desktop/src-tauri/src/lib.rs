@@ -43,6 +43,10 @@ use tauri::Manager;
 /// Panics if the Tauri runtime cannot start, which is unrecoverable.
 #[allow(clippy::expect_used)]
 pub fn run() {
+    // Before anything can start a child (DEV-3: the per-user update's setup
+    // ran under RunAsInvoker and restarted us with it in the environment).
+    #[cfg(windows)]
+    vitals_win::install::clear_inherited_compat_layer();
     init_logging();
 
     // Decided before the builder exists: two of these modes must never
@@ -56,7 +60,8 @@ pub fn run() {
         | launch::LaunchMode::ElevatedProcessAction { .. }
         | launch::LaunchMode::ElevatedStartupAction { .. }
         | launch::LaunchMode::ElevatedStorageCleanup { .. }
-        | launch::LaunchMode::ElevatedCompactVhd { .. } => {
+        | launch::LaunchMode::ElevatedCompactVhd { .. }
+        | launch::LaunchMode::RemoveMachineInstall => {
             std::process::exit(launch::run_headless(&mode));
         }
         launch::LaunchMode::AsTaskManager => {
@@ -105,7 +110,13 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
+        // The scope switch rides on every setup the plugin starts, from the
+        // background download and from the Settings panel alike (DEV-3).
+        .plugin(
+            tauri_plugin_updater::Builder::new()
+                .installer_args(updates::scope_args())
+                .build(),
+        )
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_notification::init())
         // `--minimized` is what the Run-key entry passes back to us; the
@@ -332,6 +343,12 @@ fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
         commands::set_taskbar_load,
         updates::set_auto_update,
         updates::get_pending_update,
+        updates::get_update_install_mode,
+        updates::prepare_update_install,
+        updates::install_update_now,
+        updates::take_update_outcome,
+        updates::get_leftover_install,
+        updates::remove_leftover_install,
         commands::set_tray_strings,
         commands::quit_app,
         // The overlay. `toggle_hud` is what the Ctrl+Shift+H shortcut
@@ -369,6 +386,12 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     // window must not wait for either.
     #[cfg(windows)]
     std::thread::spawn(watchdog::ensure_default);
+    // A copy that just moved out of Program Files (DEV-3) inherits a
+    // Start-with-Windows entry naming the old folder; point it here.
+    #[cfg(windows)]
+    if !crate::distribution::packaged() && vitals_win::install::repoint_autostart() {
+        tracing::info!("start with Windows now names this copy");
+    }
     Ok(())
 }
 

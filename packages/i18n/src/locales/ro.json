@@ -288,7 +288,15 @@
         "auto": "Instalează actualizările automat",
         "autoHint": "Verifică pe GitHub la scurt timp după pornire și instalează o actualizare semnată când închizi aplicația. Nimic nu se instalează cât timp folosești Vitals.",
         "store": "Actualizările vin din Microsoft Store.",
-        "pending": "Versiunea {{version}} este descărcată și se instalează când închizi Vitals."
+        "pending": "Versiunea {{version}} este descărcată și se instalează când închizi Vitals.",
+        "pendingApproval": "Versiunea {{version}} este descărcată. Vitals este instalat pentru toți utilizatorii acestui PC, așa că Windows cere aprobarea unui administrator pentru actualizare. Repornește pentru actualizare când ești gata.",
+        "installedToast": "Vitals a fost actualizat la {{version}}",
+        "failedToast": "Versiunea {{version}} nu a fost instalată",
+        "failedToastHint": "Vitals va încerca din nou. Poți reporni pentru actualizare și din Setări › Despre.",
+        "leftover": "O copie mai veche a Vitals este încă instalată pentru toți utilizatorii în {{path}}. Copia aceasta se actualizează acum fără drepturi de administrator; cea veche poate fi ștearsă.",
+        "leftoverRemove": "Șterge copia veche",
+        "leftoverRemoved": "Copia veche a fost ștearsă",
+        "leftoverFailed": "Copia veche nu a putut fi ștearsă"
       },
       "legal": "Informații legale",
       "privacyPolicy": "Politica de confidențialitate",
