@@ -106,3 +106,37 @@ bypasses SmartScreen.
 | 3    | QA gates                                   | QA-1/3/5/7/8/10/11                                             | CI install job, e2e vs real exe                                                                                                           |
 | 3    | Launch assets                              | DES-1/2/3/26, DOC-16/17, compare pages, hero GIF               | site, store listing (captures in cloud)                                                                                                   |
 | 4    | Android P1                                 | AND-6..48                                                      | `apps/android/**`                                                                                                                         |
+
+## Status (2026-10-17, end of day)
+
+Shipped to `main`; CI run 39016375831 green on all 12 jobs, including the installer round trip.
+
+| Commit  | Tracker    | Scope                                                                                                                                                                                                                                                                                                                          |
+| ------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 98eff6e | S17-01..12 | uninstall cleanup, processes i18n, a11y foundations + P1, docs truth pass, pipeline (nightly/tag split, updater key behind approval, CLI zips, pnpm quarantine, Android CI), backend robustness, Android P0, watchdog opt-in + first run + health strip, security P1, performance P1, design polish, legal packaging, QA gates |
+| f5c74bc | S17-13     | Android P1 (network-only auth, read-only watch tokens, tolerant enums, error states, TV D-pad, TalkBack, privacy)                                                                                                                                                                                                              |
+| 424e438 | S17-14     | real 1920×1080 captures from a clean devcloud VM, site hero, compare pages, FAQ, JSON-LD, OG image                                                                                                                                                                                                                             |
+| 0bf1eed | S17-15     | CI: Node 24, updater without `zip` (RUSTSEC-2026-0367..0369), installer budget for bundled licences                                                                                                                                                                                                                            |
+
+Gates run on devcloud: `ws-vitals-win` (Windows, c4d-standard-16; verify.ps1 in about 4 min, perf
+budget median 2.5 ms on an idle VM) and `ws-codai` (Linux, TypeScript lanes).
+
+### Still open — owner only
+
+1. Partner Center: upload the new screenshots and captions and submit (the 1.0.2 "What's new" text is in the repo).
+2. Chocolatey: reply to the moderator or resubmit 1.0.0 with the jsDelivr icon.
+3. Reject the two stuck nightly runs 38674240902 and 38843563046 (started under the old workflow).
+4. Apply to SignPath Foundation (free OSS signing).
+5. Trademark clearance for "Vitals" (classes 9 and 42).
+6. Play: wait for review; check whether production access already exists (Android launches separately).
+7. `npm dist-tag rm @vitals-app/client next` (needs 2FA).
+8. Tag 1.0.3 when satisfied. It is the first tag with the moved updater signing: check the `latest.json` signatures and a self-update from 1.0.2.
+9. Real-OS checks on the vivobook (S17-02, S17-10): a portable copy is refused for the Task Manager hook, the sensors log is in Program Files, the CLI attaches from an elevated prompt, `netstat` shows the chosen adapter bind.
+
+### Remaining engineering (P2, not started)
+
+PERF-8 minidumps, DES-12 "End…" from the diagnosis dialog, DES-21 other empty-state actions,
+SEC-8 query tokens, SEC-10 save path from IPC, SEC-16 PawnIO signer pin, DEV-6 manual update
+teardown, DEV-9 atomic token file, DEV-10 SDK summary/history/sensors/pair, DEV-11 headless serve
+sensors, DEV-16 global HUD shortcut, DEV-21 CLI control commands, ARM64 and Windows 10 test runs,
+a JDK on devcloud for Android gates.
