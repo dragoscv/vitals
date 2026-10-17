@@ -57,10 +57,15 @@ Gratuit și open source (MIT). Disponibil în română și engleză.
 
 ## Ce e nou în această versiune (≤ 1500 caractere)
 
-Ce e nou în 1.0.2
+Ce e nou în 1.0.3
 
-• Securitate: biblioteca TLS inclusă în Vitals (rustls) este actualizată la 0.23.46, care repară patru vulnerabilități publicate. Versiunea din Store nu face singură cereri pe internet, deci actualizarea ține la zi o dependență, nu închide o breșă la care erai expus
-• Reparații în procesul de lansare; aplicația Windows funcționează la fel ca în 1.0.0
+• O bandă de stare pe Tabloul de bord răspunde într-un rând la „de ce merge greu PC-ul?”
+• Un card la prima pornire explică Vitals; supravegherea blocajelor rămâne oprită până o pornești tu
+• Teme cu contrast Windows, contrast mai bun al textului, suport pentru tastatură și cititoare de ecran în lista de procese
+• Procesele sunt traduse complet în română; numerele urmează limba aleasă
+• Consumă mai puțin când e ascuns: eșantionarea se oprește când nu se uită nimeni
+• O cădere nativă lasă un fișier de diagnostic local și Vitals repornește în zona de notificare. Nu se trimite nimic nicăieri
+• Reparat: dezinstalarea elimină serviciul de senzori; o unitate de rețea blocată nu mai îngheață citirile
 
 Nou în 1.0, prima versiune stabilă
 

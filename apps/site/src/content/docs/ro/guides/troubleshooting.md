@@ -9,6 +9,9 @@ Vitals își scrie jurnalele în:
 
 - `%LOCALAPPDATA%\Vitals\logs\vitals.log` — jurnalul de diagnostic, rotit când crește prea mult.
 - `%LOCALAPPDATA%\Vitals\logs\crash.txt` — detaliile ultimei căderi, dacă a existat una.
+- `%LOCALAPPDATA%\Vitals\logs\crash.dmp` — un minidump al ultimei căderi native (stivele firelor și
+  modulele încărcate, fără conținutul memoriei). După o astfel de cădere, Windows repornește Vitals în
+  zona de notificare.
 
 Lipește `%LOCALAPPDATA%\Vitals\logs` în bara de adrese din Explorer ca să deschizi folderul. Atașează
 ambele fișiere când [raportezi o eroare](https://github.com/dragoscv/vitals/issues/new/choose). Ele

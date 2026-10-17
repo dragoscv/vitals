@@ -23,6 +23,9 @@ export type {
   ControlError,
   ControlPriority,
   Health,
+  PairOptions,
+  PairResult,
+  PairScope,
 } from './control';
 export {
   backoffDelay,

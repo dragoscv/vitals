@@ -7,6 +7,53 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.0.3] — 2026-10-17
+
+The launch-readiness release: eleven specialist reviews
+(`docs/audit/launch-readiness-2026-10-17.md`) and everything they found that
+would embarrass a public launch.
+
+### Added
+
+- **Health strip** across the top of the Dashboard: a one-line answer to "why
+  is my PC slow?", with a button that opens the full diagnosis.
+- **First-run card** that explains what Vitals does and lets you turn on the
+  freeze watchdog. The watchdog is now opt-in (it used to start itself).
+- **Command line:** `vitals kill`, `suspend`, `resume` and
+  `priority <pid> <level>`. Each checks the PID against a fresh sample, so a
+  recycled PID is never hit, and refuses processes Windows cannot do without.
+  The CLI now ships with the app as a zip on every release.
+- **SDK** (`@vitals-app/client`): `summary()`, `history()`, `sensors()` and
+  `VitalsClient.pair()` — every route of the local API now has a method.
+- **Crash dumps:** a native crash writes `logs\crash.dmp` (thread stacks and
+  modules, no memory contents) and Windows restarts Vitals to the tray.
+  Nothing is sent anywhere.
+- Windows Contrast themes are supported throughout.
+
+### Changed
+
+- Processes is fully translated into Romanian, numbers and units follow the
+  language, and the page language follows the app's.
+- The sampler sleeps when nothing is watching, the flight recorder keeps its
+  buffer in memory with history off, and hidden autostart no longer preloads
+  every screen.
+- Remote access can bind to one adapter you choose instead of every interface.
+- Text contrast, keyboard focus in the process list and chart summaries for
+  screen readers.
+
+### Fixed
+
+- Uninstalling removes the CPU sensors service and the autostart entry.
+- The Task Manager replacement only hooks a copy installed under Program
+  Files whose folder ordinary accounts cannot write to.
+- A mapped network drive that stops answering no longer stalls the sampler.
+- The window reloads by itself if its WebView2 renderer crashes.
+
+### Security
+
+- The updater no longer pulls in zip 4 (RUSTSEC-2026-0367/0368/0369); its
+  signing key is only reachable from the reviewed publish job.
+
 ## [1.0.2] — 2026-10-14
 
 ### Changed

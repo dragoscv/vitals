@@ -60,6 +60,21 @@ vitals eco 1234 --off  # revine la planificarea normală
 PID-ul este verificat întâi într-un eșantion proaspăt și refuzat dacă lipsește, așa că un PID
 refolosit nu este atins niciodată. La final se afișează starea citită înapoi.
 
+## Închiderea, suspendarea și prioritatea unui proces
+
+```powershell
+vitals kill 1234                    # închide PID-ul 1234
+vitals suspend 1234                 # îl îngheață
+vitals resume 1234                  # îl lasă să ruleze din nou
+vitals priority 1234 below-normal   # idle, below-normal, normal, above-normal, high, realtime
+```
+
+Se aplică aceeași verificare a PID-ului. Procesele fără de care Windows nu poate funcționa sunt
+refuzate, nu închise sau înghețate: aplicația desktop întreabă înainte să le atingă, iar un script
+nu poate fi întrebat. Un proces al altui cont are nevoie de un prompt ridicat. Când o comandă este
+refuzată, iese cu un cod diferit de zero și motivul pe ieșirea de erori, așa că unui script îi ajunge
+codul de ieșire.
+
 ## Server LAN fără interfață
 
 ```powershell
@@ -98,14 +113,18 @@ Opțiunile globale merg cu orice comandă.
 
 `--source`, `--attach` și `--no-attach` nu pot fi folosite împreună.
 
-| Comandă            | Opțiuni                                                                                                                                       |
-| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `vitals ps`        | `-f`, `--filter <TEXT>`: doar procesele al căror nume îl conține. `-n`, `--top <N>`: cei mai mari N consumatori (0, implicit, înseamnă toți). |
-| `vitals top`       | `-i`, `--interval <MS>`: intervalul de reîmprospătare în milisecunde, implicit 1000.                                                          |
-| `vitals info`      | Niciuna.                                                                                                                                      |
-| `vitals eco <PID>` | `--off`: revine la planificarea normală în loc să pornească modul de eficiență.                                                               |
-| `vitals report`    | `-d`, `--duration <SECUNDE>`: cât înregistrează, implicit 60. `-o`, `--output <CALE>`: unde scrie fișierul JSON.                              |
-| `vitals serve`     | `-p`, `--port <PORT>`: implicit 7331. `--token <TOKEN>`: folosește acest token în loc să genereze unul. `--control`: îi dă drept de control.  |
+| Comandă                         | Opțiuni                                                                                                                                       |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `vitals ps`                     | `-f`, `--filter <TEXT>`: doar procesele al căror nume îl conține. `-n`, `--top <N>`: cei mai mari N consumatori (0, implicit, înseamnă toți). |
+| `vitals top`                    | `-i`, `--interval <MS>`: intervalul de reîmprospătare în milisecunde, implicit 1000.                                                          |
+| `vitals info`                   | Niciuna.                                                                                                                                      |
+| `vitals eco <PID>`              | `--off`: revine la planificarea normală în loc să pornească modul de eficiență.                                                               |
+| `vitals kill <PID>`             | Niciuna. Închide procesul.                                                                                                                    |
+| `vitals suspend <PID>`          | Niciuna. Îngheață procesul până la `vitals resume`.                                                                                           |
+| `vitals resume <PID>`           | Niciuna.                                                                                                                                      |
+| `vitals priority <PID> <NIVEL>` | `idle`, `below-normal`, `normal`, `above-normal`, `high` sau `realtime`.                                                                      |
+| `vitals report`                 | `-d`, `--duration <SECUNDE>`: cât înregistrează, implicit 60. `-o`, `--output <CALE>`: unde scrie fișierul JSON.                              |
+| `vitals serve`                  | `-p`, `--port <PORT>`: implicit 7331. `--token <TOKEN>`: folosește acest token în loc să genereze unul. `--control`: îi dă drept de control.  |
 
 `serve` nu se atașează niciodată la aplicația desktop, ca un server fără interfață să nu se oprească
 odată cu fereastra.

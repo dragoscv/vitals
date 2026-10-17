@@ -24,7 +24,9 @@ fn help_lists_every_subcommand_the_cli_defines() {
     let help = String::from_utf8(out.stdout).expect("utf-8 help");
     // Mirrors `enum Commands` in main.rs. A subcommand missing from help is
     // a feature nobody will find.
-    for name in ["ps", "top", "info", "eco", "report", "serve"] {
+    for name in [
+        "ps", "top", "info", "eco", "kill", "suspend", "resume", "priority", "report", "serve",
+    ] {
         assert!(
             help.lines()
                 .any(|line| line.trim_start().starts_with(&format!("{name} "))),
@@ -79,4 +81,64 @@ fn info_succeeds_and_json_info_is_an_object() {
     let value: serde_json::Value =
         serde_json::from_slice(&out.stdout).expect("info --json prints only JSON on stdout");
     assert!(value.is_object(), "{value}");
+}
+
+/// Spawns a harmless process the test owns, so acting on it touches
+/// nothing else on the machine.
+#[cfg(windows)]
+fn sleeper() -> std::process::Child {
+    Command::new("ping")
+        .args(["-n", "120", "127.0.0.1"])
+        .stdout(std::process::Stdio::null())
+        .spawn()
+        .expect("spawn ping")
+}
+
+#[cfg(windows)]
+#[test]
+fn priority_suspend_resume_and_kill_act_on_a_real_process_by_pid() {
+    let mut child = sleeper();
+    let pid = child.id().to_string();
+
+    for args in [
+        vec!["priority", pid.as_str(), "below-normal"],
+        vec!["suspend", pid.as_str()],
+        vec!["resume", pid.as_str()],
+    ] {
+        let mut full = vec!["--source", "local", "--json"];
+        full.extend(&args);
+        let out = vitals(&full);
+        assert!(out.status.success(), "{args:?}: {out:?}");
+        let reply: serde_json::Value =
+            serde_json::from_slice(&out.stdout).expect("--json prints only JSON");
+        assert_eq!(
+            reply["pid"].as_u64(),
+            Some(u64::from(child.id())),
+            "{reply}"
+        );
+    }
+    assert!(
+        child.try_wait().expect("poll child").is_none(),
+        "suspend + resume must leave the process running"
+    );
+
+    let out = vitals(&["--source", "local", "kill", &pid]);
+    assert!(out.status.success(), "{out:?}");
+    let status = child.wait().expect("wait for the killed child");
+    assert!(!status.success(), "kill must end the process: {status:?}");
+}
+
+#[cfg(windows)]
+#[test]
+fn kill_refuses_a_pid_that_is_not_running_with_a_non_zero_exit() {
+    let mut child = sleeper();
+    let pid = child.id();
+    child.kill().expect("kill child");
+    child.wait().expect("reap child");
+
+    let out = vitals(&["--source", "local", "kill", &pid.to_string()]);
+    assert!(!out.status.success(), "{out:?}");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains(&format!("PID {pid}")), "{stderr}");
+    assert!(!stderr.contains("panicked"), "{stderr}");
 }

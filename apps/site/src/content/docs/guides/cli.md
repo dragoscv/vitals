@@ -59,6 +59,20 @@ vitals eco 1234 --off  # restore normal scheduling
 The PID is checked against a fresh sample first and refused if it is not there, so a recycled PID
 is never acted on. The state read back afterwards is printed.
 
+## Ending, pausing and reprioritising a process
+
+```powershell
+vitals kill 1234                    # end PID 1234
+vitals suspend 1234                 # freeze it
+vitals resume 1234                  # let it run again
+vitals priority 1234 below-normal   # idle, below-normal, normal, above-normal, high, realtime
+```
+
+The same PID check applies. Processes Windows cannot do without are refused rather than ended or
+frozen: the desktop app asks before touching them, and a script cannot be asked. A process that
+belongs to another account needs an elevated prompt. Each command exits non-zero with the reason on
+standard error when it is refused, so a script only has to check the exit code.
+
 ## Headless LAN server
 
 ```powershell
@@ -96,14 +110,18 @@ Global options work with every command.
 
 `--source`, `--attach` and `--no-attach` cannot be combined.
 
-| Command            | Options                                                                                                                                 |
-| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `vitals ps`        | `-f`, `--filter <TEXT>`: only processes whose name contains it. `-n`, `--top <N>`: the N highest consumers (0, the default, means all). |
-| `vitals top`       | `-i`, `--interval <MS>`: refresh interval in milliseconds, default 1000.                                                                |
-| `vitals info`      | None.                                                                                                                                   |
-| `vitals eco <PID>` | `--off`: restore normal scheduling instead of turning efficiency mode on.                                                               |
-| `vitals report`    | `-d`, `--duration <SECONDS>`: how long to record, default 60. `-o`, `--output <PATH>`: where to write the JSON.                         |
-| `vitals serve`     | `-p`, `--port <PORT>`: default 7331. `--token <TOKEN>`: use this token instead of generating one. `--control`: give it control scope.   |
+| Command                         | Options                                                                                                                                 |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `vitals ps`                     | `-f`, `--filter <TEXT>`: only processes whose name contains it. `-n`, `--top <N>`: the N highest consumers (0, the default, means all). |
+| `vitals top`                    | `-i`, `--interval <MS>`: refresh interval in milliseconds, default 1000.                                                                |
+| `vitals info`                   | None.                                                                                                                                   |
+| `vitals eco <PID>`              | `--off`: restore normal scheduling instead of turning efficiency mode on.                                                               |
+| `vitals kill <PID>`             | None. Ends the process.                                                                                                                 |
+| `vitals suspend <PID>`          | None. Freezes the process until `vitals resume`.                                                                                        |
+| `vitals resume <PID>`           | None.                                                                                                                                   |
+| `vitals priority <PID> <LEVEL>` | `idle`, `below-normal`, `normal`, `above-normal`, `high` or `realtime`.                                                                 |
+| `vitals report`                 | `-d`, `--duration <SECONDS>`: how long to record, default 60. `-o`, `--output <PATH>`: where to write the JSON.                         |
+| `vitals serve`                  | `-p`, `--port <PORT>`: default 7331. `--token <TOKEN>`: use this token instead of generating one. `--control`: give it control scope.   |
 
 `serve` never attaches to the desktop app, so a headless server does not go dark when the window
 closes.

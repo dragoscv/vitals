@@ -57,10 +57,15 @@ Free and open source (MIT). Available in English and Romanian.
 
 ## What's new in this version (≤ 1500 characters)
 
-What's new in 1.0.2
+What's new in 1.0.3
 
-• Security: the TLS library built into Vitals (rustls) is updated to 0.23.46, which fixes four published advisories. The Store version makes no internet requests of its own, so this keeps a dependency current rather than closing a hole you were exposed to
-• Release fixes behind the scenes; the Windows app itself works as in 1.0.0
+• A health strip across the Dashboard answers "why is my PC slow?" in one line
+• A first-run card explains Vitals; the freeze watchdog is now off until you turn it on
+• Windows Contrast themes, better text contrast, keyboard and screen reader support in the process list
+• Processes fully translated into Romanian; numbers follow your language
+• Uses less power when hidden: the sampler sleeps when nothing is watching
+• A native crash leaves a local crash dump and Vitals restarts to the tray. Nothing is sent anywhere
+• Fixed: uninstalling removes the sensors service; a stalled network drive no longer freezes the readings
 
 New in 1.0, the first stable release
 

@@ -7,10 +7,25 @@
  * that supplies its own (React Native, a proxying fetch).
  */
 
-import type { Alert, Frame, HostInfo, ProcessKey } from '@vitals/protocol';
+import type {
+  Alert,
+  Frame,
+  HostInfo,
+  MachineSample,
+  ProcessKey,
+  SensorLine,
+  Summary,
+} from '@vitals/protocol';
 
 import { type Attempt, type BackoffOptions, DEFAULT_BACKOFF, Reconnector } from './backoff';
-import type { ControlError, ControlReply, ControlRequest, Health } from './control';
+import type {
+  ControlError,
+  ControlReply,
+  ControlRequest,
+  Health,
+  PairOptions,
+  PairResult,
+} from './control';
 import { VitalsError } from './errors';
 
 /** Constructor arguments for {@link VitalsClient}. */
@@ -65,6 +80,63 @@ const JSON_HEADERS = { 'Content-Type': 'application/json' } as const;
 
 /** Talks to one Vitals server. Stateless apart from its configuration; share one per server. */
 export class VitalsClient {
+  /**
+   * `POST /api/v1/pair` — exchanges the six-digit code the desktop shows for
+   * a bearer token. Static because it is the one call made *before* a token
+   * exists; build a client from the result.
+   *
+   * Every refused code (wrong, expired, already used, too many attempts) is
+   * the same `forbidden` error on purpose: the server sends one body for all
+   * of them so the endpoint cannot be used to tell them apart. A server with
+   * pairing turned off answers `http` with status 404.
+   */
+  static async pair(options: PairOptions): Promise<PairResult> {
+    if (!/^\d{6}$/.test(options.code)) {
+      // Checked here as well as on the server because a malformed code is a
+      // typo, not a guess: failing locally keeps it from looking like one.
+      throw new VitalsError('protocol', 'a pairing code is exactly six digits');
+    }
+    const client = new VitalsClient({
+      baseUrl: options.baseUrl,
+      token: '',
+      ...(options.fetch !== undefined && { fetch: options.fetch }),
+    });
+    let response: Response;
+    try {
+      response = await client.request(
+        '/api/v1/pair',
+        {
+          method: 'POST',
+          headers: JSON_HEADERS,
+          body: JSON.stringify({
+            code: options.code,
+            ...(options.label !== undefined && { label: options.label }),
+          }),
+        },
+        false,
+      );
+    } catch (error) {
+      if (error instanceof VitalsError && error.kind === 'forbidden') {
+        throw new VitalsError('forbidden', 'the pairing code was refused', {
+          status: 403,
+          cause: error,
+        });
+      }
+      throw error;
+    }
+    const reply = await client.json<unknown>(response);
+    if (
+      !isRecord(reply) ||
+      typeof reply.token !== 'string' ||
+      (reply.scope !== 'read' && reply.scope !== 'control')
+    ) {
+      throw new VitalsError('protocol', 'the pairing reply is not { token, scope }', {
+        status: response.status,
+      });
+    }
+    return { token: reply.token, scope: reply.scope };
+  }
+
   private readonly baseUrl: string;
   private readonly token: string;
   private readonly fetchImpl: typeof globalThis.fetch;
@@ -116,6 +188,46 @@ export class VitalsClient {
     const response = await this.request('/api/v1/host');
     if (response.status === 204) return null;
     return this.json<HostInfo>(response);
+  }
+
+  /**
+   * `GET /api/v1/summary` — the machine now plus its busiest processes,
+   * about 3 KB against a keyframe's 250 KB. What a widget or a watch face
+   * wants. `top` defaults to 5 on the server and is clamped to 25 there, so
+   * asking for more returns 25 rather than failing.
+   *
+   * `null` before the first sampling tick, for the same reason as
+   * {@link snapshot}.
+   */
+  async summary(top?: number): Promise<Summary | null> {
+    const query = top !== undefined ? `?top=${String(Math.max(0, Math.trunc(top)))}` : '';
+    const response = await this.request(`/api/v1/summary${query}`);
+    if (response.status === 204) return null;
+    return this.json<Summary>(response);
+  }
+
+  /**
+   * `GET /api/v1/history` — machine-wide samples for the last `seconds`
+   * (default an hour; the server clamps to between one minute and a week),
+   * at whatever resolution the host keeps for that span. An empty array
+   * means the host records no history (it is off in Settings), not an idle
+   * machine.
+   */
+  async history(seconds?: number): Promise<MachineSample[]> {
+    const query =
+      seconds !== undefined ? `?seconds=${String(Math.max(0, Math.trunc(seconds)))}` : '';
+    const response = await this.request(`/api/v1/history${query}`);
+    return this.json<MachineSample[]>(response);
+  }
+
+  /**
+   * `GET /api/v1/sensors` — every sensor reading the host can make
+   * (temperatures, fans, voltages). An empty array means none are measurable
+   * on that machine, never "all zero".
+   */
+  async sensors(): Promise<SensorLine[]> {
+    const response = await this.request('/api/v1/sensors');
+    return this.json<SensorLine[]>(response);
   }
 
   /**

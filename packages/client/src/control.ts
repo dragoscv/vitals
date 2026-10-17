@@ -67,3 +67,24 @@ export interface Health {
    */
   modelVersion: number;
 }
+
+/** What a pairing grants: `read` sees everything, `control` may also act on processes. */
+export type PairScope = 'read' | 'control';
+
+/** Arguments for `VitalsClient.pair`. */
+export interface PairOptions {
+  /** Where the server listens, as for the client. */
+  baseUrl: string;
+  /** The six digits shown in the desktop's Remote access panel. */
+  code: string;
+  /** A name for this device, shown in the desktop's list of paired devices. */
+  label?: string;
+  /** Replaces the global `fetch`. */
+  fetch?: typeof globalThis.fetch;
+}
+
+/** What `POST /api/v1/pair` returns. Store the token; it is shown once. */
+export interface PairResult {
+  token: string;
+  scope: PairScope;
+}

@@ -28,6 +28,21 @@ repository — it serves live metrics on port 7332 with the token `dev`:
 cargo run -p vitals-server --example serve_dev
 ```
 
+Or pair from code with the six-digit code the Remote access panel shows. The
+token comes back once; store it.
+
+```ts
+const { token, scope } = await VitalsClient.pair({
+  baseUrl: 'http://192.168.1.20:7331',
+  code: '123456',
+  label: 'Kitchen dashboard',
+});
+```
+
+Every refused code (wrong, expired, used, too many attempts) is the same
+`forbidden` error by design. A server with pairing turned off answers `http`
+with status 404.
+
 ## Usage
 
 ```ts
@@ -48,13 +63,16 @@ if (frame === null) console.log('starting…');
 
 ### One-off reads
 
-| Method       | Route                  | Returns                                                    |
-| ------------ | ---------------------- | ---------------------------------------------------------- |
-| `health()`   | `GET /api/v1/health`   | `Health` — the one call that needs no token                |
-| `snapshot()` | `GET /api/v1/snapshot` | `Frame \| null` (`null` before the first tick, not zeroes) |
-| `host()`     | `GET /api/v1/host`     | `HostInfo \| null`                                         |
-| `alerts()`   | `GET /api/v1/alerts`   | `Alert[]` — empty is the healthy answer                    |
-| `metrics()`  | `GET /metrics`         | Prometheus text; `''` before the first tick                |
+| Method              | Route                  | Returns                                                        |
+| ------------------- | ---------------------- | -------------------------------------------------------------- |
+| `health()`          | `GET /api/v1/health`   | `Health` — the one call that needs no token                    |
+| `snapshot()`        | `GET /api/v1/snapshot` | `Frame \| null` (`null` before the first tick, not zeroes)     |
+| `summary(top?)`     | `GET /api/v1/summary`  | `Summary \| null` — about 3 KB; `top` defaults to 5, capped 25 |
+| `history(seconds?)` | `GET /api/v1/history`  | `MachineSample[]` — default an hour, 60 s to a week            |
+| `sensors()`         | `GET /api/v1/sensors`  | `SensorLine[]` — empty means none measurable, never "all zero" |
+| `host()`            | `GET /api/v1/host`     | `HostInfo \| null`                                             |
+| `alerts()`          | `GET /api/v1/alerts`   | `Alert[]` — empty is the healthy answer                        |
+| `metrics()`         | `GET /metrics`         | Prometheus text; `''` before the first tick                    |
 
 ### Live frames over SSE
 
@@ -144,14 +162,10 @@ try {
 
 ## Coverage
 
-Covered: `health`, `snapshot`, `host`, `alerts`, `stream` (SSE), `ws`
-(WebSocket), `control` and `/metrics`.
-
-Not yet wrapped: `GET /api/v1/summary`, `GET /api/v1/history`,
-`GET /api/v1/sensors` and `POST /api/v1/pair`. They are documented in
+Every route in
 [`docs/api/openapi.yaml`](https://github.com/dragoscv/vitals/blob/main/docs/api/openapi.yaml)
-and can be called with plain `fetch` and a `Bearer` header until the client
-grows methods for them.
+has a method: `health`, `pair`, `snapshot`, `summary`, `history`, `sensors`,
+`host`, `alerts`, `stream` (SSE), `ws` (WebSocket), `control` and `/metrics`.
 
 ## Licence
 

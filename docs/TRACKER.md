@@ -2727,6 +2727,24 @@ ws-vitals-win: tauri build (CI overlay)           BUILD_RC=0
                installer-roundtrip.ps1 (admin)    0 failure(s)
 ```
 
+### 2026-10-17 — S19 launch P2 and 1.0.3
+
+The P2 items with launch impact: native crash dumps (PERF-8), the four SDK
+methods the README admitted were missing (DEV-10) and the CLI process
+actions (DEV-21), plus the 1.0.3 release text and a script that proves the
+self-update end to end. The crash test was mutation-checked: with the
+exception filter not installed it fails "no crash.dmp after a crash".
+
+```
+ws-vitals-win verify.ps1                  All 12 gates passed (1399 Rust tests)
+ws-vitals-win cargo test -p vitals-win crash  2 passed, 1 ignored (child)
+  mutation: filter removed                a_native_crash_leaves_a_minidump_behind FAILED
+ws-vitals-win cargo test -p vitals-cli    40 unit + 6 integration passed
+  priority_suspend_resume_and_kill_act_on_a_real_process_by_pid  ok
+  kill_refuses_a_pid_that_is_not_running_with_a_non_zero_exit    ok
+ws-codai vitest @vitals/client            39 passed (6 new)
+```
+
 ## S13 — public beta 0.9.0-beta.1 (2026-09-28)
 
 Decided with the owner (ADR 0031): public repository, beta version, no code

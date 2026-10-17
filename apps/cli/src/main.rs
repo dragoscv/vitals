@@ -115,6 +115,33 @@ enum Commands {
         #[arg(long)]
         off: bool,
     },
+    /// End a process.
+    ///
+    /// The PID is matched against a fresh sample, so a recycled PID is never
+    /// hit. Critical and protected processes are refused: a script cannot see
+    /// the confirmation the desktop shows for them.
+    Kill {
+        /// The process ID, as `vitals ps` shows it.
+        pid: u32,
+    },
+    /// Freeze a process until `vitals resume`. Critical processes are refused.
+    Suspend {
+        /// The process ID, as `vitals ps` shows it.
+        pid: u32,
+    },
+    /// Let a suspended process run again.
+    Resume {
+        /// The process ID, as `vitals ps` shows it.
+        pid: u32,
+    },
+    /// Change a process's scheduling priority.
+    Priority {
+        /// The process ID, as `vitals ps` shows it.
+        pid: u32,
+        /// The new priority class.
+        #[arg(value_enum)]
+        level: commands::act::Level,
+    },
     /// Capture a diagnostic report for sharing.
     Report {
         /// Seconds to record before writing the report.
@@ -170,6 +197,21 @@ fn main() -> Result<()> {
         }
         Commands::Info => commands::info::run(&mut source, cli.json),
         Commands::Eco { pid, off } => commands::eco::run(&mut source, pid, !off, cli.json),
+        Commands::Kill { pid } => {
+            commands::act::run(&mut source, pid, commands::act::Action::Kill, cli.json)
+        }
+        Commands::Suspend { pid } => {
+            commands::act::run(&mut source, pid, commands::act::Action::Suspend, cli.json)
+        }
+        Commands::Resume { pid } => {
+            commands::act::run(&mut source, pid, commands::act::Action::Resume, cli.json)
+        }
+        Commands::Priority { pid, level } => commands::act::run(
+            &mut source,
+            pid,
+            commands::act::Action::Priority(level),
+            cli.json,
+        ),
         Commands::Report { duration, output } => commands::report::run(
             &mut source,
             Duration::from_secs(duration),
@@ -243,6 +285,35 @@ mod tests {
     fn eco_refuses_a_missing_or_non_numeric_pid() {
         assert!(Cli::try_parse_from(["vitals", "eco"]).is_err());
         assert!(Cli::try_parse_from(["vitals", "eco", "notepad"]).is_err());
+    }
+
+    #[test]
+    fn kill_suspend_resume_take_a_numeric_pid_and_nothing_else() {
+        for verb in ["kill", "suspend", "resume"] {
+            assert!(
+                Cli::try_parse_from(["vitals", verb, "4242"]).is_ok(),
+                "{verb}"
+            );
+            assert!(Cli::try_parse_from(["vitals", verb]).is_err(), "{verb}");
+            assert!(
+                Cli::try_parse_from(["vitals", verb, "notepad"]).is_err(),
+                "{verb}"
+            );
+        }
+    }
+
+    #[test]
+    fn priority_takes_a_pid_and_a_kebab_case_level() {
+        let cli = Cli::try_parse_from(["vitals", "priority", "4242", "below-normal"]).unwrap();
+        assert!(matches!(
+            cli.command,
+            Commands::Priority {
+                pid: 4242,
+                level: commands::act::Level::BelowNormal
+            }
+        ));
+        assert!(Cli::try_parse_from(["vitals", "priority", "4242", "turbo"]).is_err());
+        assert!(Cli::try_parse_from(["vitals", "priority", "4242"]).is_err());
     }
 
     #[test]

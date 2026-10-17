@@ -121,22 +121,30 @@ Shipped to `main`; CI run 39016375831 green on all 12 jobs, including the instal
 Gates run on devcloud: `ws-vitals-win` (Windows, c4d-standard-16; verify.ps1 in about 4 min, perf
 budget median 2.5 ms on an idle VM) and `ws-codai` (Linux, TypeScript lanes).
 
+### S19 — launch P2 and 1.0.3 (2026-10-17)
+
+- S19-01 PERF-8: native crash dumps (`logs\crash.dmp`) and restart after a crash.
+- S19-02 DEV-10: SDK `summary()`, `history()`, `sensors()`, `VitalsClient.pair()`.
+- S19-03 DEV-21: CLI `kill`, `suspend`, `resume`, `priority`.
+- S19-04: version 1.0.3, changelog, Store "What's new" EN+RO, `scripts/ci/update-proof.ps1`,
+  launch post drafts in `docs/launch/posts.md`.
+- Stuck nightly 38674240902 rejected (38843563046 had already been cancelled).
+- 1.0.3 is tagged with `PUBLISH_PLAY=false` so the Play review in progress is untouched.
+
 ### Still open — owner only
 
-1. Partner Center: upload the new screenshots and captions and submit (the 1.0.2 "What's new" text is in the repo).
+1. Partner Center: upload the new screenshots and captions and submit with the 1.0.3 MSIX (the 1.0.3 "What's new" text is in `packaging/msix/listing`).
 2. Chocolatey: reply to the moderator or resubmit 1.0.0 with the jsDelivr icon.
-3. Reject the two stuck nightly runs 38674240902 and 38843563046 (started under the old workflow).
-4. Apply to SignPath Foundation (free OSS signing).
-5. Trademark clearance for "Vitals" (classes 9 and 42).
-6. Play: wait for review; check whether production access already exists (Android launches separately).
-7. `npm dist-tag rm @vitals-app/client next` (needs 2FA).
-8. Tag 1.0.3 when satisfied. It is the first tag with the moved updater signing: check the `latest.json` signatures and a self-update from 1.0.2.
-9. Real-OS checks on the vivobook (S17-02, S17-10): a portable copy is refused for the Task Manager hook, the sensors log is in Program Files, the CLI attaches from an elevated prompt, `netstat` shows the chosen adapter bind.
+3. Apply to SignPath Foundation (free OSS signing).
+4. Trademark clearance for "Vitals" (classes 9 and 42).
+5. Play: wait for review; check whether production access already exists (Android launches separately).
+6. `npm dist-tag rm @vitals-app/client next` (needs 2FA).
+7. Real-OS checks on the vivobook (S17-02, S17-10): a portable copy is refused for the Task Manager hook, the sensors log is in Program Files, the CLI attaches from an elevated prompt, `netstat` shows the chosen adapter bind.
 
 ### Remaining engineering (P2, not started)
 
-PERF-8 minidumps, DES-12 "End…" from the diagnosis dialog, DES-21 other empty-state actions,
+DES-12 "End…" from the diagnosis dialog, DES-21 other empty-state actions,
 SEC-8 query tokens, SEC-10 save path from IPC, SEC-16 PawnIO signer pin, DEV-6 manual update
-teardown, DEV-9 atomic token file, DEV-10 SDK summary/history/sensors/pair, DEV-11 headless serve
-sensors, DEV-16 global HUD shortcut, DEV-21 CLI control commands, ARM64 and Windows 10 test runs,
+teardown, DEV-9 atomic token file, DEV-11 headless serve
+sensors, DEV-16 global HUD shortcut, ARM64 and Windows 10 test runs,
 a JDK on devcloud for Android gates.

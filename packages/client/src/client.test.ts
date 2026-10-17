@@ -109,6 +109,71 @@ describe('VitalsClient HTTP methods', () => {
     await expect(client(impl).host()).resolves.toBeNull();
   });
 
+  it('asks summary for the requested top count and returns null before the first tick', async () => {
+    const summary = { timestampMs: 1, top: [] };
+    const { impl, calls } = scripted(
+      { status: 204 },
+      { status: 200, body: JSON.stringify(summary) },
+    );
+    const c = client(impl);
+    await expect(c.summary()).resolves.toBeNull();
+    await expect(c.summary(3.7)).resolves.toEqual(summary);
+    expect(calls[0]?.url).toBe(`${BASE}/api/v1/summary`);
+    expect(calls[1]?.url).toBe(`${BASE}/api/v1/summary?top=3`);
+    expect(new Headers(calls[1]?.init?.headers).get('Authorization')).toBe(`Bearer ${TOKEN}`);
+  });
+
+  it('passes the history span in seconds and resolves an empty array when the host records none', async () => {
+    const { impl, calls } = scripted({ status: 200, body: '[]' }, { status: 200, body: '[]' });
+    const c = client(impl);
+    await expect(c.history()).resolves.toEqual([]);
+    await expect(c.history(600)).resolves.toEqual([]);
+    expect(calls[0]?.url).toBe(`${BASE}/api/v1/history`);
+    expect(calls[1]?.url).toBe(`${BASE}/api/v1/history?seconds=600`);
+  });
+
+  it('returns the sensor lines verbatim with the bearer token', async () => {
+    const line = { id: 'cpu', label: 'CPU Package', kind: 'temperature', value: 61.5 };
+    const { impl, calls } = scripted({ status: 200, body: JSON.stringify([line]) });
+    await expect(client(impl).sensors()).resolves.toEqual([line]);
+    expect(calls[0]?.url).toBe(`${BASE}/api/v1/sensors`);
+    expect(new Headers(calls[0]?.init?.headers).get('Authorization')).toBe(`Bearer ${TOKEN}`);
+  });
+
+  it('pairs without a bearer token, sending the code and label, and returns the token and scope', async () => {
+    const { impl, calls } = scripted({ status: 200, body: '{"token":"secret","scope":"read"}' });
+    await expect(
+      VitalsClient.pair({ baseUrl: `${BASE}/`, code: '123456', label: 'phone', fetch: impl }),
+    ).resolves.toEqual({ token: 'secret', scope: 'read' });
+    expect(calls[0]?.url).toBe(`${BASE}/api/v1/pair`);
+    expect(calls[0]?.init?.method).toBe('POST');
+    expect(new Headers(calls[0]?.init?.headers).get('Authorization')).toBeNull();
+    expect(JSON.parse(asText(calls[0]?.init?.body))).toEqual({ code: '123456', label: 'phone' });
+  });
+
+  it('refuses a malformed pairing code locally so a typo never spends a server attempt', async () => {
+    const { impl, calls } = scripted();
+    const error = await failure(VitalsClient.pair({ baseUrl: BASE, code: '12345', fetch: impl }));
+    expect(error.kind).toBe('protocol');
+    expect(calls).toHaveLength(0);
+  });
+
+  it('maps a refused pairing code to forbidden and a reply without a token to protocol', async () => {
+    const { impl } = scripted(
+      { status: 403, body: '{"error":"invalid pairing code"}' },
+      { status: 200, body: '{"scope":"read"}' },
+    );
+    const refused = await failure(
+      VitalsClient.pair({ baseUrl: BASE, code: '000000', fetch: impl }),
+    );
+    expect(refused.kind).toBe('forbidden');
+    expect(refused.status).toBe(403);
+    const malformed = await failure(
+      VitalsClient.pair({ baseUrl: BASE, code: '000000', fetch: impl }),
+    );
+    expect(malformed.kind).toBe('protocol');
+  });
+
   it('rejects with kind unauthorised on 401 from any authenticated route', async () => {
     const { impl } = scripted({ status: 401, body: '{"error":"a bearer token is required"}' });
     const error = await failure(client(impl).snapshot());

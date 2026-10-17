@@ -90,6 +90,13 @@ of the previous version updates itself (Settings → About → Check for
 updates). A signature made with the wrong key or format would show there as
 a failed update, not as a red workflow.
 
+`scripts/ci/update-proof.ps1 -From <previous> -To <new> -Uninstall` does both
+on a clean Windows machine, elevated: it checks each signature's minisign key
+id against `tauri.conf.json` and its trusted comment against the version,
+installs the previous release, waits for the app's own log to say the update
+was verified, quits through `quit_app` and reads the installed executable's
+version. Run it after every tag that touches the signing path.
+
 ## What a user sees
 
 The installed app polls

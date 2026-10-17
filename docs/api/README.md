@@ -20,7 +20,7 @@ Windows, a Unix socket of the same name elsewhere — and `vitals top`, `ps`,
 sampler. It speaks newline-delimited JSON:
 
 ```
-→ {"op":"hello"}      ← {"status":"ok","version":"1.0.2","modelVersion":1}
+→ {"op":"hello"}      ← {"status":"ok","version":"1.0.3","modelVersion":1}
 → {"op":"snapshot"}   ← one Frame (a complete keyframe), then the app hangs up
 → {"op":"subscribe"}  ← a complete keyframe, then every frame as it is sampled
 ```
@@ -62,7 +62,7 @@ If 7330 is already taken the app falls back to a port the OS chooses. Read the
 ```
 
 ```json
-{ "port": 7330, "pid": 12345, "version": "1.0.2" }
+{ "port": 7330, "pid": 12345, "version": "1.0.3" }
 ```
 
 The file is written when the app starts and removed when it exits. After a
@@ -133,7 +133,7 @@ same `401` whether the token is missing or merely unknown — that is deliberate
 
 ```powershell
 curl.exe -s "$V/api/v1/health"
-# {"ok":true,"version":"1.0.2","modelVersion":1}
+# {"ok":true,"version":"1.0.3","modelVersion":1}
 ```
 
 **The current picture** — the latest keyframe: every system reading and every
@@ -212,7 +212,9 @@ Other actions: `suspend`, `resume`, `set-priority` with an extra
 `"priority"` of `idle`, `below-normal`, `normal`, `above-normal`, `high` or
 `realtime`, and `set-efficiency-mode` with a required boolean `"enabled"`
 (Windows 11 efficiency mode — the leaf icon in Task Manager; `false` restores
-normal scheduling). The CLI wraps the last one as `vitals eco <pid> [--off]`.
+normal scheduling). The CLI has a command for each: `vitals kill`, `suspend`,
+`resume`, `priority <pid> <level>` and `eco <pid> [--off]`. On the same PC it
+acts with its own rights rather than through this endpoint.
 
 ## Reading the JSON
 

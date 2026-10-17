@@ -79,6 +79,15 @@ pub fn run() {
         launch::LaunchMode::Normal => {}
     }
 
+    // Only for the app proper: an elevated child that crashed should not be
+    // relaunched as a second window. `--minimized` because whoever was
+    // looking at the window just watched it vanish; bringing it back in their
+    // face a minute later is worse than a tray icon that is simply there.
+    #[cfg(windows)]
+    if !vitals_win::crash::register_restart("--minimized") {
+        tracing::warn!("Windows refused the restart-after-crash registration");
+    }
+
     tauri::Builder::default()
         // Single instance must be registered first so a second launch is
         // routed to the running window instead of starting a second sampler.
@@ -142,6 +151,12 @@ fn init_logging() {
                 .with_writer(crashlog::CappedLog::new(crashlog::open_log(&dir))),
         )
         .init();
+    // After `init` so a failure is logged. A native fault is not a panic and
+    // would otherwise leave nothing behind (PERF-8).
+    #[cfg(windows)]
+    if let Err(error) = vitals_win::crash::install(&dir) {
+        tracing::warn!(%error, "crash dumps are off");
+    }
 }
 
 /// Every command the webview may call.

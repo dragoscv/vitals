@@ -105,6 +105,11 @@ windows-sys = { version = "0.61.2", features = [
 	# `GetCurrentPackageFullName`: the Store (MSIX) build switches off what
 	# Store policy forbids, at run time, from the same binary.
 	"Win32_Storage_Packaging_Appx",
+	# Native crash dumps and relaunch (crash.rs): SetUnhandledExceptionFilter
+	# and MiniDumpWriteDump need the kernel types, RegisterApplicationRestart
+	# lives in Recovery.
+	"Win32_System_Kernel",
+	"Win32_System_Recovery",
 ] }
 
 [lints]

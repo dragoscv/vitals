@@ -428,17 +428,57 @@ impl Direct {
 
     fn local_control(request: ControlRequest) -> Result<()> {
         use vitals_win::actions;
-        match request {
-            ControlRequest::SetEfficiencyMode { key, enabled } => {
-                actions::set_efficiency_mode(key, enabled).map_err(Into::into)
+        // Never `Consent::Confirmed`: a script cannot see the risk dialog the
+        // desktop shows, so a critical or protected process is refused here
+        // as it is for a phone.
+        let outcome = match request {
+            ControlRequest::Terminate { key } => {
+                actions::terminate(key, 1, actions::Consent::Unconfirmed)
             }
-            other => anyhow::bail!("the CLI does not issue {other:?} directly"),
-        }
+            ControlRequest::Suspend { key } => actions::suspend(key, actions::Consent::Unconfirmed),
+            ControlRequest::Resume { key } => actions::resume(key),
+            ControlRequest::SetPriority { key, priority } => {
+                let level = parse_priority(&priority)
+                    .with_context(|| format!("unknown priority {priority:?}"))?;
+                actions::set_priority(key, level)
+            }
+            ControlRequest::SetEfficiencyMode { key, enabled } => {
+                actions::set_efficiency_mode(key, enabled)
+            }
+        };
+        outcome.map_err(|error| match error {
+            vitals_core::Error::Refused(_) => anyhow::anyhow!(
+                "refused: ending or freezing this process could crash Windows; \
+                 use the desktop app, which asks first"
+            ),
+            vitals_core::Error::AccessDenied { .. } => anyhow::anyhow!(
+                "access denied: the process belongs to another user or is protected; \
+                 try again from an elevated prompt"
+            ),
+            other => other.into(),
+        })
     }
 
     fn efficiency_mode(key: ProcessKey) -> Result<Option<bool>> {
         vitals_win::actions::efficiency_mode(key).map_err(Into::into)
     }
+}
+
+/// The control endpoint's priority spelling, parsed the way the desktop's
+/// controller parses it. Locally `realtime` is allowed: the person typing
+/// asked for it by name, which is the warning a phone never gets.
+#[cfg(windows)]
+fn parse_priority(value: &str) -> Option<vitals_win::Priority> {
+    use vitals_win::Priority as P;
+    Some(match value {
+        "idle" => P::Idle,
+        "below-normal" => P::BelowNormal,
+        "normal" => P::Normal,
+        "above-normal" => P::AboveNormal,
+        "high" => P::High,
+        "realtime" => P::Realtime,
+        _ => return None,
+    })
 }
 
 #[cfg(not(windows))]

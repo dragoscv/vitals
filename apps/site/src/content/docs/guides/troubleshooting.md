@@ -9,6 +9,8 @@ Vitals writes its logs to:
 
 - `%LOCALAPPDATA%\Vitals\logs\vitals.log` — the diagnostic log, rotated when it grows large.
 - `%LOCALAPPDATA%\Vitals\logs\crash.txt` — details of the last crash, if there was one.
+- `%LOCALAPPDATA%\Vitals\logs\crash.dmp` — a minidump of the last native crash (thread stacks and
+  loaded modules, no memory contents). Windows restarts Vitals to the tray after such a crash.
 
 Paste `%LOCALAPPDATA%\Vitals\logs` into the File Explorer address bar to open the folder. Attach
 both files when you [report a bug](https://github.com/dragoscv/vitals/issues/new/choose). They stay
