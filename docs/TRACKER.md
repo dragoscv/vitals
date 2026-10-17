@@ -156,7 +156,7 @@ Status values: `todo`, `doing`, `done`, `blocked`, `dropped`.
 | S14   | Storage: fast complete scans, navigation, cleanup, Turbo, extras     | doing (01–04 and 07 developer cleanup done; 05 Turbo in progress, 06 extras open)                  |
 | S15   | Android phone, Wear OS watch, TV: native apps + on-device monitor    | doing (01-07 done; Google TV, Tizen open)                                                          |
 | S16   | Hardening: latest deps, security, gates, dynamic tests               | done (01 deps, 02 security, 03 CI/repo, 04 gates, 05 tests, 06 brace-expansion advisories)         |
-| S18   | AI agents page: agentq + every AI client, local and cloud (ADR-0038) | done (9/9; 07 LAN route, OpenAPI, SDK, Prometheus, Android card)                                   |
+| S18   | AI agents page: agentq + every AI client, local and cloud (ADR-0038) | done (10/10; 07 LAN route, OpenAPI, SDK, Prometheus, Android card; 10 live check)                  |
 
 Per-item status lives in `tracker.csv`. This file records the reasoning; the
 CSV records the state.
@@ -164,6 +164,30 @@ CSV records the state.
 ---
 
 ## Verification log
+
+### 2026-10-17 — S18-10 live check of the AI page
+
+**Ask.** Open the AI page on this machine (debug build, real agentq and
+real sessions) and sign in to codai.
+
+**Found, both invisible to every test.**
+
+1. Every VS Code Copilot Chat session read "Untitled session". The
+   transcript has no metadata; VS Code keeps the chat list title in the
+   workspace `state.vscdb` (`chat.ChatSessionStore.index`). Read there, read
+   only, 50 ms busy timeout, at discovery (every 30 s), never per tick.
+2. "Sign in with codai" failed with `Not allowed to open url`. The
+   capability granted `opener:allow-open-url` with no URL scope, which
+   refuses everything — the About page links have been dead since 1.0.2
+   too. Scoped to the two origins the app opens. Opening the browser is now
+   best effort: the code and the address stay on screen if it fails.
+
+**Evidence.** `prove_agents`: `sessions (24 h): 53 (53 titled)`;
+`cargo test -p vitals-agents` 34 passed (new
+`a_vscode_session_takes_its_title_from_the_chat_list_index`); clippy
+`-D warnings` 0; desktop typecheck 0, vitest `src/features/agents` 0,
+eslint 0, drift 0. Live: titles on every card; Queues tab showed the
+adaptive cap at 3 with CPU 78 % and 70 GB free.
 
 ### 2026-10-17 — S18-07 AI page over the LAN: route, OpenAPI, SDK, Prometheus, Android
 

@@ -29,6 +29,13 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `agentqAction()`; the Android app shows which agents are working and
   which queues have someone waiting on each PC's Now tab.
 
+### Fixed
+
+- **"Report a problem" and "Source code" in About did nothing.** The window
+  was allowed to open links in your browser but no address was on the list,
+  so every link was refused silently. The list now names exactly the two
+  places Vitals opens: its GitHub page and the codai sign-in page.
+
 ## [1.0.2] — 2026-10-14
 
 ### Changed

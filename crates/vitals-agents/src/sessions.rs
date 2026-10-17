@@ -11,7 +11,8 @@
 //!
 //! Message content is never read into the model. The only text taken is the
 //! session name the client itself stores in its metadata (`workspace.yaml`
-//! `name`, Codex `thread_name`), cut to 80 characters, plus tool *names*.
+//! `name`, Codex `thread_name`, VS Code's `chat.ChatSessionStore.index` title
+//! in the workspace's `state.vscdb`), cut to 80 characters, plus tool *names*.
 //!
 //! # Cost
 //!
@@ -431,14 +432,25 @@ impl SessionTracker {
                     continue;
                 }
                 let folder = workspace_folder(&ws);
+                // The transcript has no metadata file; VS Code keeps the
+                // title it shows in the chat list in its workspace database.
+                let titles = vscode_titles(&ws.join("state.vscdb"));
                 for f in files(&tdir, "jsonl").into_iter().filter(|f| fresh(f)) {
+                    let mut yaml = HashMap::new();
+                    if let Some(t) = f
+                        .file_stem()
+                        .and_then(|s| s.to_str())
+                        .and_then(|id| titles.get(id))
+                    {
+                        yaml.insert("name".to_owned(), t.clone());
+                    }
                     found.push(Source {
                         path: f,
                         format: Format::Copilot,
                         client: AgentClient::VscodeCopilot,
                         meta_dir: None,
                         workspace: folder.clone(),
-                        yaml: HashMap::new(),
+                        yaml,
                     });
                 }
             }
@@ -734,6 +746,56 @@ fn parse_yaml(text: &str) -> HashMap<String, String> {
     m
 }
 
+/// `sessionId → title` from VS Code's chat list index
+/// (`ItemTable['chat.ChatSessionStore.index']` in the workspace `state.vscdb`).
+///
+/// Opened read-only with a short busy timeout: VS Code holds the database
+/// open and writes to it, and a locked read must cost the tick nothing but
+/// a missing title. Empty on any failure — the title is cosmetic.
+fn vscode_titles(db: &Path) -> HashMap<String, String> {
+    let mut out = HashMap::new();
+    if !db.is_file() {
+        return out;
+    }
+    let Ok(conn) = rusqlite::Connection::open_with_flags(
+        db,
+        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
+    ) else {
+        return out;
+    };
+    let _ = conn.busy_timeout(std::time::Duration::from_millis(50));
+    let Ok(raw) = conn.query_row(
+        "SELECT value FROM ItemTable WHERE key = 'chat.ChatSessionStore.index'",
+        [],
+        |r| r.get::<_, String>(0),
+    ) else {
+        return out;
+    };
+    parse_vscode_index(&raw, &mut out);
+    out
+}
+
+fn parse_vscode_index(raw: &str, out: &mut HashMap<String, String>) {
+    let Ok(v) = serde_json::from_str::<Value>(raw) else {
+        return;
+    };
+    let entries = v.get("entries").unwrap_or(&v);
+    let iter: Box<dyn Iterator<Item = &Value>> = match entries {
+        Value::Object(m) => Box::new(m.values()),
+        Value::Array(a) => Box::new(a.iter()),
+        _ => return,
+    };
+    for e in iter {
+        if let (Some(id), Some(t)) = (
+            e.get("sessionId").and_then(Value::as_str),
+            e.get("title").and_then(Value::as_str),
+        ) && !t.trim().is_empty()
+        {
+            out.insert(id.to_owned(), cut(t, 80));
+        }
+    }
+}
+
 /// `workspace.json` → `{"folder":"file:///e%3A/gh/vitals"}` → `e:\gh\vitals`.
 fn workspace_folder(ws: &Path) -> Option<String> {
     let v: Value =
@@ -781,6 +843,32 @@ mod tests {
         let _ = fs::remove_dir_all(&p);
         fs::create_dir_all(&p).unwrap();
         Tmp(p)
+    }
+
+    #[test]
+    fn a_vscode_session_takes_its_title_from_the_chat_list_index() {
+        let t = tmp("vscdb");
+        let db = t.0.join("state.vscdb");
+        let conn = rusqlite::Connection::open(&db).unwrap();
+        conn.execute_batch(
+            "CREATE TABLE ItemTable (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB)",
+        )
+        .unwrap();
+        let idx = r#"{"version":1,"entries":{"a1":{"sessionId":"a1","title":"Fix the sampler","lastMessageDate":1},"b2":{"sessionId":"b2","title":"  "}}}"#;
+        conn.execute(
+            "INSERT INTO ItemTable (key, value) VALUES ('chat.ChatSessionStore.index', ?1)",
+            [idx],
+        )
+        .unwrap();
+        drop(conn);
+        let titles = vscode_titles(&db);
+        assert_eq!(
+            titles.get("a1").map(String::as_str),
+            Some("Fix the sampler")
+        );
+        // a blank title stays absent so the UI says "Untitled", not ""
+        assert!(!titles.contains_key("b2"));
+        assert!(vscode_titles(&t.0.join("missing.vscdb")).is_empty());
     }
 
     #[test]

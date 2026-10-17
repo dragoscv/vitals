@@ -150,7 +150,12 @@ fn main() {
             r.wait_total_sec / 60.0
         );
     }
-    println!("sessions (24 h): {}", s.sessions.len());
+    // a count, not the titles: titles are the user's own words
+    println!(
+        "sessions (24 h): {} ({} titled)",
+        s.sessions.len(),
+        s.sessions.iter().filter(|x| x.title.is_some()).count()
+    );
     for x in s.sessions.iter().take(12) {
         println!(
             "  {:?} {:?} {:<20} active {:>4} min turns {:>3} tools {:>4} now={:?} model={:?} pid={:?}",

@@ -74,8 +74,14 @@ export function CloudAccount() {
     try {
       const a = await call<DeviceAuth>('start_cloud_sign_in');
       setAuth(a);
-      const { openUrl } = await import('@tauri-apps/plugin-opener');
-      await openUrl(a.verification_uri_complete ?? a.verification_uri);
+      // Best effort: if the browser cannot be opened the code on screen and
+      // the address still work, so a failure here must not end the sign-in.
+      try {
+        const { openUrl } = await import('@tauri-apps/plugin-opener');
+        await openUrl(a.verification_uri_complete ?? a.verification_uri);
+      } catch (cause: unknown) {
+        setError(errorMessage(cause));
+      }
       await call<boolean>('finish_cloud_sign_in', {
         deviceCode: a.device_code,
         interval: a.interval,
@@ -112,6 +118,9 @@ export function CloudAccount() {
             <code className="rounded bg-[var(--color-bg-subtle)] px-2 py-1 text-base font-semibold tracking-widest">
               {auth.user_code}
             </code>
+            <span className="mt-1 block text-2xs text-[var(--color-fg-subtle)]">
+              {t('cloud.codeAt', { address: auth.verification_uri })}
+            </span>
           </p>
         )}
         <div className="flex justify-center">
