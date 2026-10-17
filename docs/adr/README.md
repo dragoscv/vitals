@@ -46,6 +46,7 @@ D-numbers refer to the decision table in [`../TRACKER.md`](../TRACKER.md).
 | [0036](0036-google-tv-app-and-pairing-codes.md)            | A Google TV app, and pairing by six-digit code          | S15-08  |
 | [0037](0037-play-and-github-android-flavours.md)           | A Play build without all-files access, a GitHub build   | S16-21  |
 | [0038](0038-nsis-both-scopes-and-unprompted-updates.md)    | NSIS `both`, and updates nobody has to approve          | DEV-3   |
+| [0039](0039-ai-agents-page-and-agentq.md)                  | An AI page that watches agentq and every AI client      | S18-01  |
 
 ## Writing a new one
 

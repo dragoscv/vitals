@@ -122,7 +122,7 @@ fun DetailScreen(pairing: Pairing) {
             val bottom = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = padding.calculateBottomPadding() + 24.dp)
             AnimatedContent(tab, transitionSpec = { fadeIn() togetherWith fadeOut() }, label = "tab") { t ->
                 when (t) {
-                    DetailTab.Now -> NowTab(state, bottom)
+                    DetailTab.Now -> NowTab(pairing, state, bottom)
                     DetailTab.Sensors -> SensorsTab(pairing, bottom)
                     DetailTab.History -> HistoryTab(pairing, bottom)
                 }
@@ -132,7 +132,7 @@ fun DetailScreen(pairing: Pairing) {
 }
 
 @Composable
-private fun NowTab(state: LiveState, padding: PaddingValues) {
+private fun NowTab(pairing: Pairing, state: LiveState, padding: PaddingValues) {
     val system = state.view?.system
     LazyColumn(
         contentPadding = padding,
@@ -175,6 +175,7 @@ private fun NowTab(state: LiveState, padding: PaddingValues) {
         disks(system)
         networks(system)
         extras(system)
+        item(key = "agents") { AgentsCard(pairing, Modifier.animateItem()) }
     }
 }
 

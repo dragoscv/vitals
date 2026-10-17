@@ -1097,6 +1097,17 @@ jobs:
       # cargo-bins/cargo-binstall@main, an unpinned nested action this
       # repository's SHA-pinning policy refuses (v1.0.0 run 38494629401,
       # "is not allowed"), so the winget job could never start.
+      #
+      # Komac carries installer fields forward from the previous manifest,
+      # and 1.0.0-1.0.3 were published as Scope: machine. Since ADR 0038 the
+      # copy winget installs is the per-user one (it updates itself on quit
+      # without a UAC prompt), so the manifests are written to a folder,
+      # rewritten by winget-user-scope.ps1 and only then submitted.
+      - if: steps.gate.outputs.ok == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          sparse-checkout: scripts/ci
+          persist-credentials: false
       - if: steps.gate.outputs.ok == 'true'
         name: Submit to winget-pkgs (Komac)
         shell: pwsh
@@ -1114,8 +1125,16 @@ jobs:
           if ($hash -ne $env:KOMAC_SHA256) { throw "komac hash $hash does not match the pinned $env:KOMAC_SHA256" }
           $base = "https://github.com/$env:REPOSITORY/releases/download/$env:TAG"
           $urls = @("$base/Vitals_$($env:VERSION)_x64-setup.exe", "$base/Vitals_$($env:VERSION)_arm64-setup.exe")
-          & $komac update Vitals.Vitals --version $env:VERSION --urls @urls --release-notes-url "https://github.com/$env:REPOSITORY/releases/tag/$env:TAG" --submit
-          if ($LASTEXITCODE -ne 0) { throw "komac exited $LASTEXITCODE" }
+          $out = Join-Path $env:RUNNER_TEMP 'winget'
+          & $komac update Vitals.Vitals --version $env:VERSION --urls @urls --release-notes-url "https://github.com/$env:REPOSITORY/releases/tag/$env:TAG" --output $out --dry-run
+          if ($LASTEXITCODE -ne 0) { throw "komac update exited $LASTEXITCODE" }
+          $installer = Get-ChildItem $out -Recurse -Filter 'Vitals.Vitals.installer.yaml' | Select-Object -First 1
+          if ($null -eq $installer) { throw "komac wrote no installer manifest under $out" }
+          & pwsh -NoProfile -File scripts/ci/winget-user-scope.ps1 -Path $installer.FullName
+          if ($LASTEXITCODE -ne 0) { throw "winget-user-scope exited $LASTEXITCODE" }
+          Get-Content $installer.FullName
+          & $komac submit $installer.DirectoryName --yes
+          if ($LASTEXITCODE -ne 0) { throw "komac submit exited $LASTEXITCODE" }
 
   scoop:
     name: Scoop bucket

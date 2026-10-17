@@ -17,8 +17,9 @@
          a debugging port on its webview.
       3. The app's own log says it found -To and verified the download (the
          first check runs 20 s after launch).
-      4. The app is quit through its own `quit_app` command, which runs the
-         install-on-exit path a user's Quit runs.
+      4. The app is quit: through its own `quit_app` command when the webview
+         debugging port answers, else through the tray menu's Quit. Both run
+         the install-on-exit path a user's Quit runs.
       5. The installed executable now reports -To.
 
     Against a published release (-From/-To on GitHub) it must run elevated:
@@ -34,12 +35,12 @@
 
     Steps 4-5 need an interactive desktop session: in a service or batch
     logon (the devcloud agent) WebView2 never starts, so there is no page to
-    ask to quit. Run it from an interactive scheduled task (/IT, and /RL
+    ask to quit and no tray to click. Run it from an interactive scheduled task (/IT, and /RL
     HIGHEST only for the published-release mode). Leaves -To installed unless
     -Uninstall is passed. Exit code = number of failed checks.
 
 .EXAMPLE
-    pwsh -NoProfile -File scripts/ci/update-proof.ps1 -From 1.0.2 -To 1.0.3 -Uninstall
+    pwsh -NoProfile -File scripts/ci/update-proof.ps1 -From 1.0.3 -To 1.0.4 -Uninstall
 
 .EXAMPLE
     pwsh -NoProfile -File scripts/ci/update-proof.ps1 -Local -Dir C:\dev3 -From 1.99.0 -To 1.99.1 -Uninstall
@@ -135,21 +136,60 @@ $tail = if (Test-Path $log) { (Get-Content $log | Select-String 'update|up to da
 Write-Host $tail
 Assert-True ($found -and $tail -match [regex]::Escape($To)) "$From found $To and verified its signature"
 
-# ── 4. Quit through the app's own command ───────────────────────────────
-# CDP over a raw WebSocket: no Node, no Playwright on the machine under test.
-if ($found) {
-    $targets = $null
-    if (-not (Wait-Until { try { $script:targets = Invoke-RestMethod "http://127.0.0.1:$port/json"; $true } catch { $false } } 30)) {
-        Assert-True $false 'the webview debugging port answered (needs an interactive desktop session)'
-        Get-Process vitals-desktop -ErrorAction SilentlyContinue | Stop-Process -Force
-        exit $failures.Count
-    }
+# ── 4. Quit the way a user does ──────────────────────────────────────────────
+# The release executable ignores WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS, so the
+# debugging port is usually refused (proven on the 1.0.3 run). CDP is tried
+# first because it is exact; the fallback is the tray menu, which is what a
+# user's Quit runs anyway. The menu exposes no UI Automation items, so Quit is
+# reached with Up (it is the last item) and Enter. Needs the interactive
+# desktop session: run this from a task with LogonType Interactive.
+function Invoke-CdpQuit([int]$Port) {
+    try {
+        $targets = Invoke-RestMethod "http://127.0.0.1:$Port/json" -TimeoutSec 5
+    } catch { return $false }
     $page = $targets | Where-Object { $_.type -eq 'page' } | Select-Object -First 1
+    if ($null -eq $page) { return $false }
     $ws = [System.Net.WebSockets.ClientWebSocket]::new()
     $ws.ConnectAsync([uri]$page.webSocketDebuggerUrl, [Threading.CancellationToken]::None).Wait()
     $body = @{ id = 1; method = 'Runtime.evaluate'; params = @{ expression = "window.__TAURI_INTERNALS__.invoke('quit_app')" } } | ConvertTo-Json -Compress
     $bytes = [Text.Encoding]::UTF8.GetBytes($body)
     $ws.SendAsync([ArraySegment[byte]]::new($bytes), 'Text', $true, [Threading.CancellationToken]::None).Wait()
+    return $true
+}
+function Invoke-TrayQuit {
+    Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes, System.Windows.Forms
+    if (-not ('VitalsProof.Mouse' -as [type])) {
+        Add-Type -Namespace VitalsProof -Name Mouse -MemberDefinition '[DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y); [DllImport("user32.dll")] public static extern void mouse_event(uint f, uint x, uint y, uint d, System.UIntPtr e);'
+    }
+    $uia = [System.Windows.Automation.AutomationElement]
+    $root = $uia::RootElement
+    $scope = [System.Windows.Automation.TreeScope]::Descendants
+    $click = {
+        param($element, [uint32]$down, [uint32]$up)
+        $r = $element.Current.BoundingRectangle
+        [VitalsProof.Mouse]::SetCursorPos([int]($r.X + $r.Width / 2), [int]($r.Y + $r.Height / 2)) | Out-Null
+        [VitalsProof.Mouse]::mouse_event($down, 0, 0, 0, [UIntPtr]::Zero)
+        [VitalsProof.Mouse]::mouse_event($up, 0, 0, 0, [UIntPtr]::Zero)
+    }
+    $chevron = $root.FindFirst($scope, [System.Windows.Automation.PropertyCondition]::new($uia::NameProperty, 'Show Hidden Icons'))
+    if ($chevron) { & $click $chevron 0x02 0x04; Start-Sleep -Seconds 2 }
+    $buttons = [System.Windows.Automation.PropertyCondition]::new($uia::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button)
+    # The tray tooltip starts with "Vitals"; the taskbar's own window button
+    # carries the same name, so it is excluded by class.
+    $icon = $root.FindAll($scope, $buttons) |
+        Where-Object { $_.Current.Name -like 'Vitals*' -and $_.Current.ClassName -notlike 'Taskbar.*' } |
+        Select-Object -First 1
+    if ($null -eq $icon) { return $false }
+    & $click $icon 0x08 0x10
+    Start-Sleep -Seconds 1
+    [System.Windows.Forms.SendKeys]::SendWait('{UP}')
+    Start-Sleep -Milliseconds 300
+    [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
+    return $true
+}
+if ($found) {
+    $how = if (Invoke-CdpQuit $port) { 'debugging port' } elseif (Invoke-TrayQuit) { 'tray menu' } else { $null }
+    Assert-True ($null -ne $how) "asked the app to quit (via $how)"
     Assert-True (Wait-Until { $app.HasExited } 30) 'the app quit when asked'
 }
 

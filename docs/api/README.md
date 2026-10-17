@@ -20,7 +20,7 @@ Windows, a Unix socket of the same name elsewhere — and `vitals top`, `ps`,
 sampler. It speaks newline-delimited JSON:
 
 ```
-→ {"op":"hello"}      ← {"status":"ok","version":"1.0.3","modelVersion":1}
+→ {"op":"hello"}      ← {"status":"ok","version":"1.0.4","modelVersion":1}
 → {"op":"snapshot"}   ← one Frame (a complete keyframe), then the app hangs up
 → {"op":"subscribe"}  ← a complete keyframe, then every frame as it is sampled
 ```
@@ -62,7 +62,7 @@ If 7330 is already taken the app falls back to a port the OS chooses. Read the
 ```
 
 ```json
-{ "port": 7330, "pid": 12345, "version": "1.0.3" }
+{ "port": 7330, "pid": 12345, "version": "1.0.4" }
 ```
 
 The file is written when the app starts and removed when it exits. After a
@@ -133,7 +133,7 @@ same `401` whether the token is missing or merely unknown — that is deliberate
 
 ```powershell
 curl.exe -s "$V/api/v1/health"
-# {"ok":true,"version":"1.0.3","modelVersion":1}
+# {"ok":true,"version":"1.0.4","modelVersion":1}
 ```
 
 **The current picture** — the latest keyframe: every system reading and every
@@ -216,6 +216,52 @@ normal scheduling). The CLI has a command for each: `vitals kill`, `suspend`,
 `resume`, `priority <pid> <level>` and `eco <pid> [--off]`. On the same PC it
 acts with its own rights rather than through this endpoint.
 
+## The AI page: agentq queues and AI agent sessions
+
+`GET /api/v1/agents` returns what the desktop's AI page shows (ADR-0039):
+agentq's queues with who holds and who waits, worktree leases, background
+jobs, marks, the journal, and the AI coding agent sessions on the machine. A
+read token is enough. The headless `vitals serve` has no AI page and answers
+`404`; an empty list from the desktop means nothing is running.
+
+```powershell
+curl.exe -s -H "Authorization: Bearer $T" "$V/api/v1/agents"
+```
+
+This route is **always redacted**: home directories become `~`, and anything
+that looks like a credential — the word after `--token`, a `*_KEY=` value, a
+`ghp_` or `sk-` prefix, a long opaque string — becomes `[redacted]`. The ids an
+action needs (`id`, `leaseId`, `runId`, `session`, `sha`, `resource`, `slot`)
+are passed through untouched.
+
+A session's `activeMs`, `turns`, `userMessages`, `toolCalls` and `toolFailures`
+are `null` when the source does not report them — codai cloud sessions and
+Codex — and a measured number (possibly `0`) for sessions read from this PC.
+A cloud copy of a conversation that is also on this PC is listed once, as the
+local session.
+
+`POST /api/v1/agents/actions` runs an agentq action through agentq's own CLI
+and needs a **control** token. Every state change carries a reason, which
+agentq journals for the other agents:
+
+```powershell
+curl.exe -s -X POST -H "Authorization: Bearer $T" -H "Content-Type: application/json" `
+  -d '{"kind":"freeze","resource":"build:codai","reason":"incident: 500s since 08:12Z"}' `
+  "$V/api/v1/agents/actions"
+```
+
+| Status | Meaning                                                                                            |
+| ------ | -------------------------------------------------------------------------------------------------- |
+| `200`  | agentq ran. `{"ok":false,…}` is agentq refusing (busy, frozen, unknown ticket); `output` says why. |
+| `403`  | Your token is read-only. Checked before the body is read.                                          |
+| `404`  | This host has no AI page.                                                                          |
+| `422`  | Not an action, or refused before it ran (reason under four characters, malformed resource).        |
+| `503`  | agentq could not be started here.                                                                  |
+
+Kinds: `freeze`, `block`, `clear` (`resource`, `reason`), `break` (`resource`,
+`ticket`, `reason`), `note` (`message`), `unlease` (`path`, `leaseId`,
+`reason`), `killJob` (`job`), `reapTerminals` (`dryRun`).
+
 ## Reading the JSON
 
 **A field that is `null` was not measured. It is never zero-when-unknown.**
@@ -275,6 +321,8 @@ Series you will see (all gauges):
 | `vitals_uptime_seconds`              |                        |                                                          |
 | `vitals_process_cpu_percent`         | `name`, `pid`          | Top 20 processes by CPU, then private memory.            |
 | `vitals_process_memory_bytes`        | `name`, `pid`          | Private bytes, same top 20.                              |
+| `vitals_agents_sessions`             | `client`, `state`      | AI agent sessions; only pairs that exist (desktop only). |
+| `vitals_agentq_waiters`              | `resource`             | Tickets waiting per agentq queue; absent without agentq. |
 
 Per-process series are capped at twenty because one series per process on a
 600-process machine is 1200 series a second, and the tail is noise.

@@ -1,5 +1,4 @@
-Vitals 1.0.2, prima versiune pe Google Play.
-• Telefonul, ceasul sau televizorul: procesor, memorie, baterie, stocarea pe categorii și cache-ul aplicațiilor, timp și date pe aplicație, senzori, istoric și alerte
-• Asociezi un PC cu Windows prin cod QR sau, pe TV, prin cod de șase cifre; vezi procese și temperaturi, îl trezești, închizi un program blocat
-• Placă și complicații Wear OS, două widgeturi
-• Noul aspect „Totul e în regulă”
+Vitals 1.0.4
+• Vezi ce agenți AI de programare lucrează pe fiecare PC asociat și ce cozi de compilare au pe cineva în așteptare, în fila Acum
+• Vorbește cu PC-urile doar prin Wi-Fi sau Ethernet, niciodată prin datele mobile; îți cere o nouă asociere când PC-ul n-o mai acceptă
+• Navigare mai bună cu telecomanda pe TV, etichete pentru cititoare de ecran și alerte pe Wear OS

@@ -394,4 +394,14 @@
     <string name="scan_confirm_title">Asociezi acest PC?</string>
     <string name="scan_confirm_body">Codul indică %1$s. Asociază doar dacă este PC-ul tău și vezi acest cod pe ecranul lui acum.</string>
     <string name="settings_access_usage_disclosure">Îi permite lui Vitals să citească timpul pe ecran, deschiderile, datele și spațiul fiecărei aplicații din statisticile de utilizare Android. Citite doar pe acest telefon, nu sunt trimise nicăieri.</string>
+    <string name="agents_title">Agenți AI</string>
+    <string name="agents_none_working">Niciun agent nu lucrează acum.</string>
+    <string name="agents_more">și încă %1$d</string>
+    <string name="agents_queues_idle">Nu așteaptă nimic la coadă.</string>
+    <string name="agents_queue_value">%1$d rulează · %2$d așteaptă</string>
+    <string name="agents_client_other">Alt agent</string>
+    <string name="agents_state_working">Lucrează</string>
+    <string name="agents_state_waiting">Așteaptă</string>
+    <string name="agents_state_idle">Inactiv</string>
+    <string name="agents_state_ended">Încheiat</string>
 </resources>

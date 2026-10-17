@@ -110,6 +110,8 @@ tags:
     description: Reading the machine.
   - name: control
     description: Acting on processes. Needs the `control` scope.
+  - name: agents
+    description: The AI page — agentq queues and AI coding agent sessions (ADR-0039).
 
 security:
   - bearer: []
@@ -535,6 +537,111 @@ paths:
               schema:
                 $ref: '#/components/schemas/ControlError'
               example: { kind: unsupported, message: 'this host cannot act on processes' }
+
+  /api/v1/agents:
+    get:
+      tags: [agents]
+      summary: The AI page — agentq queues, leases, jobs and AI agent sessions.
+      description: |
+        One snapshot of what the desktop's AI page shows: agentq's queues
+        (who holds `build:codai`, who waits), worktree leases, background
+        jobs, marks, the journal, rollups, and the AI coding agent sessions
+        on the machine. The fields are generated from `vitals-core::agents`
+        (`AgentsSnapshot` in `@vitals/protocol`); the schema below lists the
+        top level and the parts a client most often reads.
+
+        **Redacted on this route, unconditionally.** Home directories
+        (`C:\Users\<name>`, `/home/<name>`) become `~`, and anything that
+        looks like a credential — the argument after `--token`, a
+        `*_KEY=` assignment, a `ghp_`/`sk-` prefix, a long opaque string —
+        becomes `[redacted]`. Identifiers an action needs (`id`, `leaseId`,
+        `runId`, `session`, `sha`, `resource`, `slot`) are passed through.
+
+        A request keeps the desktop's reader awake for 30 s; nothing is read
+        while nobody asks.
+
+        Unknown is `null`, as everywhere: a ticket whose holder cannot be
+        checked has `liveness: unknown`, a session without token data has
+        `tokensIn: null`.
+      operationId: agents
+      responses:
+        '200':
+          description: The snapshot. Empty lists mean nothing is running, not that the host cannot tell.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentsSnapshot'
+        '401':
+          $ref: '#/components/responses/Unauthorised'
+        '404':
+          description: This host offers no AI page (the headless CLI server).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+  /api/v1/agents/actions:
+    post:
+      tags: [agents, control]
+      summary: Run an agentq action — freeze, clear, break a ticket, note, unlease, kill a job.
+      description: |
+        Needs the `control` scope. Vitals never touches agentq's files: the
+        action runs through agentq's own CLI, which takes its lock, journals
+        the change with the reason and enforces its own rules. Every action
+        that changes state carries a `reason` of at least four characters,
+        because other agents read it.
+
+        The scope check runs **before** the body is parsed, as on
+        `/api/v1/control`: a read-only token gets `403` for a malformed and a
+        well-formed body alike, and before the host says whether it offers
+        the AI page at all.
+      operationId: agentsAction
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgentqAction'
+            examples:
+              freeze:
+                value:
+                  { kind: freeze, resource: 'build:codai', reason: 'incident: 500s since 08:12Z' }
+              note:
+                value: { kind: note, message: 'do not touch apps/x until the migration lands' }
+      responses:
+        '200':
+          description: agentq ran. `ok` is agentq's verdict; `false` with its output (busy, frozen, unknown ticket) is still a 200.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentqActionOutcome'
+        '401':
+          $ref: '#/components/responses/Unauthorised'
+        '403':
+          description: The token is `read`-only. Answered before the body is read.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ControlError'
+              example: { kind: forbidden }
+        '404':
+          description: This host offers no AI page.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '422':
+          description: Not an `AgentqAction`, or refused before anything ran (a reason under four characters, a malformed resource or slot path).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '503':
+          description: agentq could not be started on this host (not installed, `pwsh` missing).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
 
   /metrics:
     get:
@@ -1736,3 +1843,251 @@ components:
         error:
           description: Present only when `ok` is false.
           $ref: '#/components/schemas/ControlError'
+
+    AgentsSnapshot:
+      type: object
+      description: |
+        Everything the AI page renders. Generated from `vitals-core::agents`;
+        the nested objects not spelled out here are `AgentqLease`,
+        `AgentqRelease`, `AgentqJob`, `AgentqMark`, `AgentqCaller`,
+        `CloudDown`, `MachineCap`, `JournalEvent` and `AgentqStats` in
+        `@vitals/protocol`.
+      required:
+        [
+          takenAtMs,
+          agentqInstalled,
+          resources,
+          leases,
+          releases,
+          jobs,
+          marks,
+          registry,
+          cloudDown,
+          machine,
+          journal,
+          stats,
+          sessions,
+        ]
+      properties:
+        takenAtMs:
+          type: integer
+          description: Unix milliseconds at which the snapshot was assembled.
+        agentqInstalled:
+          type: boolean
+          description: Whether agentq's state directory exists. `false` means the lists below are empty because there is nothing to read.
+        resources:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentqResource'
+        leases:
+          type: array
+          items: { type: object }
+        releases:
+          type: array
+          items: { type: object }
+        jobs:
+          type: array
+          items: { type: object }
+        marks:
+          type: array
+          items: { type: object }
+        registry:
+          type: array
+          items: { type: object }
+        cloudDown:
+          type: array
+          items: { type: object }
+        machine:
+          type: [object, 'null']
+        journal:
+          type: array
+          description: Newest first, bounded.
+          items: { type: object }
+        stats:
+          type: object
+        sessions:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentSession'
+
+    AgentqResource:
+      type: object
+      description: One agentq queue. Holders first, then waiters by priority.
+      required: [name, kind, capacity, tickets]
+      properties:
+        name:
+          type: string
+          examples: ['build:codai', 'build:machine', 'commit:vitals']
+        kind:
+          type: string
+          enum: [build, machine, install, commit, land, deploy, other]
+        capacity:
+          type: [integer, 'null']
+        tickets:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentqTicket'
+
+    AgentqTicket:
+      type: object
+      required: [id, resource, seq, held, liveness, yielded, wedged]
+      properties:
+        id:
+          type: string
+          description: The ticket id `POST /api/v1/agents/actions` `break` takes. Never redacted.
+        resource:
+          type: string
+        seq:
+          type: integer
+        held:
+          type: boolean
+          description: '`true` holds the resource; `false` waits.'
+        lane:
+          type: [string, 'null']
+        priority:
+          type: [integer, 'null']
+        pid:
+          type: [integer, 'null']
+        session:
+          type: [string, 'null']
+        purpose:
+          type: [string, 'null']
+          description: Redacted.
+        cmd:
+          type: [string, 'null']
+          description: Redacted.
+        repo:
+          type: [string, 'null']
+        createdMs:
+          type: [integer, 'null']
+        acquiredMs:
+          type: [integer, 'null']
+        beatMs:
+          type: [integer, 'null']
+        liveness:
+          type: string
+          enum: [alive, stale, dead, unknown]
+          description: agentq's own rule — alive is pid present with a matching start time; stale is a heartbeat older than ten minutes.
+        yielded:
+          type: boolean
+        wedged:
+          type: boolean
+
+    AgentSession:
+      type: object
+      description: One conversation with an AI coding agent.
+      required:
+        [id, client, host, state, activeMs, turns, userMessages, toolCalls, toolFailures, topTools]
+      properties:
+        id:
+          type: string
+        client:
+          type: string
+          enum: [vscodeCopilot, copilotCli, codai, codex, claudeCode, other]
+        host:
+          type: string
+          description: '`local`, or a cloud host name.'
+        title:
+          type: [string, 'null']
+          description: Redacted.
+        workspace:
+          type: [string, 'null']
+          description: Redacted.
+        repo:
+          type: [string, 'null']
+        branch:
+          type: [string, 'null']
+        model:
+          type: [string, 'null']
+        state:
+          type: string
+          enum: [working, waiting, idle, ended]
+        startedMs:
+          type: [integer, 'null']
+        lastActivityMs:
+          type: [integer, 'null']
+        activeMs:
+          type: [integer, 'null']
+          description: >-
+            Sum of turn durations — time the agent was actually working. This
+            and the four counts below are `null` when the source does not report
+            them (codai cloud sessions, Codex), never `0`.
+        turns:
+          type: [integer, 'null']
+        userMessages:
+          type: [integer, 'null']
+        toolCalls:
+          type: [integer, 'null']
+        toolFailures:
+          type: [integer, 'null']
+        currentTool:
+          type: [string, 'null']
+        topTools:
+          type: array
+          items:
+            type: object
+            required: [name, count]
+            properties:
+              name: { type: string }
+              count: { type: integer }
+        tokensIn:
+          type: [integer, 'null']
+        tokensOut:
+          type: [integer, 'null']
+        pid:
+          type: [integer, 'null']
+
+    AgentqAction:
+      description: What a `control` token may ask agentq to do. Tagged by `kind`, camelCase.
+      oneOf:
+        - type: object
+          required: [kind, resource, reason]
+          properties:
+            kind: { type: string, enum: [freeze, block, clear] }
+            resource: { type: string }
+            reason: { type: string, minLength: 4 }
+        - type: object
+          required: [kind, resource, ticket, reason]
+          properties:
+            kind: { type: string, const: break }
+            resource: { type: string }
+            ticket: { type: string }
+            reason: { type: string, minLength: 4 }
+        - type: object
+          required: [kind, message]
+          properties:
+            kind: { type: string, const: note }
+            message: { type: string, minLength: 4 }
+        - type: object
+          required: [kind, path, leaseId, reason]
+          properties:
+            kind: { type: string, const: unlease }
+            path:
+              type: string
+              description: The slot directory, `<root>\.wt\<repo>\<slot>`. Anything else is refused.
+            leaseId: { type: string }
+            reason: { type: string, minLength: 4 }
+        - type: object
+          required: [kind, job]
+          properties:
+            kind: { type: string, const: killJob }
+            job: { type: string }
+        - type: object
+          required: [kind, dryRun]
+          properties:
+            kind: { type: string, const: reapTerminals }
+            dryRun: { type: boolean }
+
+    AgentqActionOutcome:
+      type: object
+      required: [ok, code, output]
+      properties:
+        ok:
+          type: boolean
+          description: agentq's exit status was success.
+        code:
+          type: [integer, 'null']
+          description: agentq's exit code; `null` when it was killed by a signal.
+        output:
+          type: string
+          description: agentq's stdout and stderr, the last 4 KB, redacted.

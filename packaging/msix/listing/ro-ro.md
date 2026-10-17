@@ -57,24 +57,21 @@ Gratuit și open source (MIT). Disponibil în română și engleză.
 
 ## Ce e nou în această versiune (≤ 1500 caractere)
 
-Ce e nou în 1.0.3
+Ce e nou în 1.0.4
 
+• Pagină nouă pentru agenții AI: vezi ce agenți AI de programare (VS Code Copilot, Copilot CLI, Codai, Codex, Claude Code) lucrează pe acest PC, ce face fiecare acum, plus cozile de compilare, worktree-urile și lucrările din fundal. Nu consumă nimic cât pagina e închisă
+• Reparat: linkurile din Despre se deschid din nou
+
+Nou și în 1.0.3:
 • O bandă de stare pe Tabloul de bord răspunde într-un rând la „de ce merge greu PC-ul?”
 • Un card la prima pornire explică Vitals; supravegherea blocajelor rămâne oprită până o pornești tu
-• Teme cu contrast Windows, contrast mai bun al textului, suport pentru tastatură și cititoare de ecran în lista de procese
+• Teme cu contrast Windows, text mai lizibil, tastatură și cititoare de ecran în lista de procese
 • Procesele sunt traduse complet în română; numerele urmează limba aleasă
 • Consumă mai puțin când e ascuns: eșantionarea se oprește când nu se uită nimeni
-• O cădere nativă lasă un fișier de diagnostic local și Vitals repornește în zona de notificare. Nu se trimite nimic nicăieri
+• O cădere lasă un fișier de diagnostic local și Vitals repornește în zona de notificare. Nu se trimite nimic
 • Reparat: dezinstalarea elimină serviciul de senzori; o unitate de rețea blocată nu mai îngheață citirile
 
-Nou în 1.0, prima versiune stabilă
-
-• Pictogramele programelor în lista de procese, inclusiv pentru servicii și procesele altor conturi
-• Totaluri deasupra coloanelor pentru procesor, memorie, disc, rețea și placa video
-• Coloane pentru consumul de energie și tendința lui, plus Tip, Set de lucru, Citire disc, Scriere disc și PID părinte
-• Adu în față: cu clic dreapta pe o aplicație îi restaurezi și îi ridici fereastra
-• Temperaturile procesorului, ale plăcilor video NVIDIA și ale fiecărei unități de stocare, plus starea unităților SSD
-• Frecvența procesorului și, opțional, încărcarea lui pe butonul din bara de activități
+Nou în 1.0: pictograme și totaluri în lista de procese, consumul de energie pe program, temperaturi pentru procesor, plăci video NVIDIA și fiecare unitate de stocare, plus starea SSD-urilor.
 
 ## Funcții (până la 20, ≤ 200 caractere fiecare)
 

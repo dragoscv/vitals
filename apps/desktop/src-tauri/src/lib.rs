@@ -5,6 +5,7 @@
 //! prepared frames, because a task manager whose own UI thread is busy
 //! aggregating numbers will misreport the machine it is measuring.
 
+pub mod agents;
 pub mod alerts;
 pub mod autostart;
 pub mod benchmarks;
@@ -130,6 +131,7 @@ pub fn run() {
         .manage(state::AppState::new())
         .manage(server::LanServer::new())
         .manage(alerts::Alerts::new())
+        .manage(agents::Agents::new())
         .manage(updates::PendingInstall::default())
         // The sampler starts with the app and stops when the handle drops at
         // shutdown. Managed so it stays alive for the process lifetime —
@@ -357,6 +359,15 @@ fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
         // overlay that a race had already opened.
         hud::toggle_hud,
         hud::set_hud_visible,
+        // The AI page (ADR-0039). The reader thread runs only while a
+        // subscription is live; actions go through agentq's own CLI.
+        agents::subscribe_agents,
+        agents::unsubscribe_agents,
+        agents::run_agentq_action,
+        agents::get_cloud_status,
+        agents::start_cloud_sign_in,
+        agents::finish_cloud_sign_in,
+        agents::cloud_sign_out,
     ]
 }
 
@@ -377,6 +388,7 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     tray::install(app.handle())?;
     app.manage(taskbar::TaskbarLoad::spawn(app.handle()));
     server::start_local_api(app.handle());
+    app.state::<agents::Agents>().spawn(app.handle().clone());
     arm_reveal_safety_net(app.handle().clone());
     updates::spawn(app.handle());
     // A dead renderer otherwise leaves a blank window until a relaunch.

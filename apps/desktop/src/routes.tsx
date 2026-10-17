@@ -96,6 +96,11 @@ const loadUsers = once(async () => {
   m.registerUsersStrings();
   return m;
 });
+const loadAgents = once(async () => {
+  const m = await import('./features/agents');
+  m.registerAgentsStrings();
+  return m;
+});
 
 const ConnectionsScreen = lazy(async () => ({
   default: (await loadConnections()).ConnectionsScreen,
@@ -111,6 +116,7 @@ const ProcessesScreen = lazy(async () => ({ default: (await loadProcesses()).Pro
 const StartupScreen = lazy(async () => ({ default: (await loadStartup()).StartupScreen }));
 const StorageScreen = lazy(async () => ({ default: (await loadStorage()).StorageScreen }));
 const UsersScreen = lazy(async () => ({ default: (await loadUsers()).UsersScreen }));
+const AgentsScreen = lazy(async () => ({ default: (await loadAgents()).AgentsScreen }));
 
 /**
  * What each section needs before its first paint: its chunk, then a
@@ -124,6 +130,8 @@ const UsersScreen = lazy(async () => ({ default: (await loadUsers()).UsersScreen
 const preloaders: readonly (() => Promise<unknown>)[] = [
   loadProcesses,
   loadPerformance,
+  // chunk only: the data is a live subscription that starts when the screen mounts
+  loadAgents,
   async () => (await loadStartup()).prefetchStartup(false),
   async () => (await loadStartup()).prefetchStartup(true),
   async () => (await loadApps()).prefetchApps(),
@@ -418,6 +426,8 @@ function RouteContent({
       return <PerformanceScreen />;
     case 'processes':
       return <ProcessesScreen />;
+    case 'agents':
+      return <AgentsScreen />;
     case 'network':
       return <ConnectionsScreen />;
     case 'startup':

@@ -1,5 +1,4 @@
-Vitals 1.0.2, the first release on Google Play.
-• This phone, watch or TV: processor, memory, battery, storage by category and app caches, per-app time and data, sensors, history and alerts
-• Pair a Windows PC by QR code, or by a six-digit code on TV; see its processes and temperatures, wake it, end a stuck program
-• Wear OS tile and complications, two home screen widgets
-• The new "All clear" look
+Vitals 1.0.4
+• See which AI coding agents are working on each paired PC and which build queues have someone waiting, on its Now tab
+• Only talks to your PCs over Wi-Fi or Ethernet, never mobile data; asks you to pair again when a PC stops accepting the pairing
+• Better TV remote navigation, screen reader labels and Wear OS alerts

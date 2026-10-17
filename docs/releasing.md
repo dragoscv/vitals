@@ -94,8 +94,10 @@ a failed update, not as a red workflow.
 on a clean Windows machine, elevated: it checks each signature's minisign key
 id against `tauri.conf.json` and its trusted comment against the version,
 installs the previous release, waits for the app's own log to say the update
-was verified, quits through `quit_app` and reads the installed executable's
-version. Run it after every tag that touches the signing path.
+was verified, quits (through `quit_app` when the webview debugging port
+answers, else through the tray menu; the release build refuses the port, so
+run it from an interactive elevated session) and reads the installed
+executable's version. Run it after every tag that touches the signing path.
 
 ## What a user sees
 

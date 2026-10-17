@@ -62,15 +62,19 @@ that the generated manifests say:
 | `InstallerSwitches.SilentWithProgress` | `/S`                                  |
 | `InstallerSwitches.Custom`             | `/CurrentUser`                        |
 
-The manifest published for 1.0.0–1.0.3 says `Scope: machine`. `komac update`
-carries installer fields forward from the previous manifest, so the first
-release after ADR 0038 needs one hand-edited submission (`komac update
-Vitals.Vitals --version <v> --urls … ` without `--submit`, set `Scope: user`
-and `Custom: /CurrentUser` in the installer manifest, then `komac submit`).
-Every later release inherits them.
 | `Architecture` | `x64` and `arm64`, one installer each |
 | `ReleaseNotesUrl` | `https://github.com/dragoscv/vitals/releases/tag/v<ver>` |
 | `UpgradeBehavior` | `install` (NSIS upgrades in place) |
+
+The manifests published for 1.0.0–1.0.3 say `Scope: machine`, and
+`komac update` carries installer fields forward from the previous manifest.
+The release job therefore never lets Komac submit directly: it runs
+`komac update … --output <dir> --dry-run`, rewrites the installer manifest
+with `scripts/ci/winget-user-scope.ps1` (`Scope: user`,
+`InstallerSwitches.Custom: /CurrentUser`, no `ElevationRequirement`,
+`%LocalAppData%\Programs\Vitals`), prints it, and then runs `komac submit
+<dir> --yes`. The script is idempotent, so later releases pass through it
+unchanged. To do the same by hand, run those three commands locally.
 
 Both tools need a GitHub token with `public_repo` scope to open the pull
 request; they prompt for one or read `GITHUB_TOKEN`. Review in winget-pkgs

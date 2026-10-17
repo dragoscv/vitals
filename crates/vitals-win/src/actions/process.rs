@@ -200,6 +200,8 @@ fn gate(risk: Risk, consent: Consent, pid: Pid) -> Result<()> {
 
 /// Verifies a handle still refers to the process we meant.
 ///
+/// (See also [`process_start_ms`], the read-only form other crates use.)
+///
 /// Between listing a process and acting on it, that process can exit and its
 /// PID be reused. Acting on the PID alone would then terminate an innocent
 /// process that happened to inherit the number — a real, reported failure
@@ -265,6 +267,35 @@ pub struct ActionPlan {
     pub risk: Risk,
     /// Translation key describing the consequence.
     pub consequence: &'static str,
+}
+
+/// A live process's creation time in Unix milliseconds, or `None` when it has
+/// exited or cannot be opened.
+///
+/// Read-only (`PROCESS_QUERY_LIMITED_INFORMATION`) and cheap — one handle, one
+/// call. Used to judge liveness the way agentq does: a pid counts as the same
+/// process only when its start time matches the one recorded, because pids are
+/// recycled within seconds on a busy machine.
+#[must_use]
+pub fn process_start_ms(pid: u32) -> Option<u64> {
+    const EPOCH_DIFFERENCE: i64 = 116_444_736_000_000_000;
+    let handle = ProcessHandle::open(Pid(pid), PROCESS_QUERY_LIMITED_INFORMATION).ok()?;
+    let (mut creation, mut exit, mut kernel, mut user) = (0i64, 0i64, 0i64, 0i64);
+    // SAFETY: valid handle; the four out-pointers reference live i64s.
+    let ok = unsafe {
+        windows_sys::Win32::System::Threading::GetProcessTimes(
+            handle.raw(),
+            (&raw mut creation).cast(),
+            (&raw mut exit).cast(),
+            (&raw mut kernel).cast(),
+            (&raw mut user).cast(),
+        )
+    };
+    // A non-zero exit time means the process is a zombie held open elsewhere.
+    if ok == FALSE || exit != 0 || creation <= EPOCH_DIFFERENCE {
+        return None;
+    }
+    u64::try_from((creation - EPOCH_DIFFERENCE) / 10_000).ok()
 }
 
 /// Assesses terminating a process without doing it.

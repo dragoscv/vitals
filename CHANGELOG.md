@@ -7,16 +7,9 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-### Fixed
+## [1.0.4] — 2026-10-18
 
-- **Updates now install when you quit, without a hidden administrator
-  prompt** (DEV-3). Vitals runs without administrator rights, and its
-  Program Files installation needed approval for every update, so the prompt
-  appeared as the window vanished, nobody answered it, and the next launch
-  was the old version again. Vitals can now be installed for you only
-  (`%LOCALAPPDATA%\Programs\Vitals`), and such a copy updates itself with no
-  prompt at all. Copies installed by 1.0.3 or earlier move there on their
-  next update (ADR 0038).
+The AI agents page, and updates that install themselves.
 
 ### Added
 
@@ -27,12 +20,51 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   or "x was not installed" with a way to try again.
 - After moving out of Program Files, Settings › About offers to remove the
   old copy (one administrator prompt). Start with Windows follows the move.
+- **AI agents page.** See which AI coding agents are working on this
+  machine — VS Code Copilot Chat, Copilot CLI, Codai, Codex and Claude Code —
+  what each is doing right now, how long the session has run and how much of
+  that it spent actually working, its turns, tool calls and the tool running
+  this second. Tabs for agentq's build queues and worktree slots, background
+  jobs and releases, a live journal, cloud agents from your codai account, and
+  24-hour insights (time spent waiting, slow builds, failures per repository).
+  Updates live every two seconds while the page is open and costs nothing
+  when it is not. Freeze or clear a queue, remove a dead ticket, release an
+  abandoned worktree, stop a background job or close idle agent terminals,
+  each with a reason that the other agents can read.
+- **AI agents over the network.** A paired phone, a script or Prometheus can
+  read the AI page at `GET /api/v1/agents` (read access) and run the same
+  queue actions at `POST /api/v1/agents/actions` (control access). User
+  folders and anything that looks like a password or key are hidden before
+  it leaves the PC. Prometheus gains `vitals_agents_sessions` and
+  `vitals_agentq_waiters`; the TypeScript client gains `agents()` and
+  `agentqAction()`; the Android app shows which agents are working and
+  which queues have someone waiting on each PC's Now tab.
 
 ### Changed
 
 - The installer asks whether to install for you only or for everyone on
   this PC. `/S /CurrentUser` and `/S /AllUsers` script either; winget and
   Chocolatey now install for the current user.
+
+### Fixed
+
+- **Updates now install when you quit, without a hidden administrator
+  prompt** (DEV-3). Vitals runs without administrator rights, and its
+  Program Files installation needed approval for every update, so the prompt
+  appeared as the window vanished, nobody answered it, and the next launch
+  was the old version again. Vitals can now be installed for you only
+  (`%LOCALAPPDATA%\Programs\Vitals`), and such a copy updates itself with no
+  prompt at all. Copies installed by 1.0.3 or earlier move there on their
+  next update (ADR 0038).
+- **"Report a problem" and "Source code" in About did nothing.** The window
+  was allowed to open links in your browser but no address was on the list,
+  so every link was refused silently. The list now names exactly the two
+  places Vitals opens: its GitHub page and the codai sign-in page.
+- **AI page: a conversation no longer appears twice once you sign in to
+  codai.** codai keeps a cloud copy of each local chat; the cloud list now
+  leaves out the ones already read from this PC. Cloud sessions report no
+  turns or tool calls, so those show a dash instead of a misleading 0 — in
+  the app, over the network (`null` in `GET /api/v1/agents`) and in the SDK.
 
 ## [1.0.3] — 2026-10-17
 
