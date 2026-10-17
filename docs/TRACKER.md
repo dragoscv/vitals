@@ -157,7 +157,7 @@ Status values: `todo`, `doing`, `done`, `blocked`, `dropped`.
 | S15   | Android phone, Wear OS watch, TV: native apps + on-device monitor    | doing (01-07 done; Google TV, Tizen open)                                                          |
 | S16   | Hardening: latest deps, security, gates, dynamic tests               | done (01 deps, 02 security, 03 CI/repo, 04 gates, 05 tests, 06 brace-expansion advisories)         |
 | S18   | AI agents page: agentq + every AI client, local and cloud (ADR-0039) | done (11/11; 07 LAN route, OpenAPI, SDK, Prometheus, Android card; 10-11 live check)               |
-| S20   | 1.0.4: S18 + DEV-3 in one release, winget Scope user                 | doing (S20-01; tag, store notes, vivobook proof)                                                   |
+| S20   | 1.0.4: S18 + DEV-3 in one release, winget Scope user                 | done (S20-01; MS Store sub 3 + Play in review, winget #454976 in validation)                       |
 
 Per-item status lives in `tracker.csv`. This file records the reasoning; the
 CSV records the state.
@@ -192,6 +192,32 @@ ws-vitals-win verify.ps1 on 0ce1f9f      All 12 gates passed in 91.9s, 1493 Rust
 CI 39072024514                           Rust (linux) unnecessary_wraps agents.rs:354; installer 102.3 % OVER
 WSL Ubuntu-24.04 (rustc 1.99) clippy --workspace --lib --bins --tests --benches --exclude vitals-win -D warnings  RC=0
 ```
+
+Released after that:
+
+```
+CI 39073463826 on 27bf537           all jobs green incl. Rust (linux), Build installer, Installer round trip
+tag v1.0.4 (deploy-clean, 27bf537)  release run 39074169746: Publish, winget, Scoop, npm ok; Play + Chocolatey failed
+latest.json                         version 1.0.4; windows-x86_64 + aarch64 signed, key id D0B1CA754CF27B0C,
+                                    trusted comments "file:Vitals_1.0.4_*-setup.exe version:1.0.4"
+winget                              microsoft/winget-pkgs#454976: Scope user, Custom /CurrentUser (validator then
+                                    asked for ElevationRequirement; restored on the PR and in the script)
+vivobook (Medium integrity, /IT)    update-proof.ps1 -Local -Scope user on a build of 27bf537: 1.99.0 -> 1.99.1,
+                                    "update verified", app quit, setup relaunched per-user, no consent.exe, PROOF_EXIT=0
+MS Store                            submission 3, MSIX 1.0.4.0 (8C96B6C7...), what's new EN 1135 / RO 1211 chars: in certification
+Play                                37 / 1000037 (1.0.4) uploaded in the Console and sent; it restarted the 1.0.2 review (owner)
+```
+
+The first vivobook run failed with "The operation was canceled by the user": the `both` setup
+asks for `highest`, so launching it plainly as an administrator raised UAC inside a task, and
+nobody was there to answer it. The prover now installs `-From` under `RunAsInvoker`, the same
+way the updater does. The release job's Play step failed with "Changes are sent for review
+automatically. The query parameter changesNotSentForReview must not be set" because a review
+was already open. Chocolatey answered 403 again: 1.0.0 is still in moderation.
+
+Not proven: a real 1.0.4 -> 1.0.5 update on quit (no 1.0.5 yet), an elevated fresh install
+that chooses "everyone", and 1.0.3 -> 1.0.4 on quit (the 1.0.3 updater cannot take the
+per-user path, as ADR 0038 says).
 
 ### 2026-10-17 — S18-11 codai sign-in exercised live
 

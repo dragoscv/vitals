@@ -48,10 +48,10 @@ else {
     $lines.Insert($at + 1, 'Scope: user')
 }
 
-# A per-user NSIS install never asks for elevation; leaving elevatesSelf
-# would make winget expect (and wait for) a UAC prompt that never comes.
-Remove-Key 'ElevationRequirement'
-
+# ElevationRequirement stays `elevatesSelf`: the `both` setup requests
+# `highest`, so an administrator still sees one UAC prompt even with
+# /CurrentUser (a standard user sees none). Dropping the key also fails the
+# winget validator's consistency check against earlier versions (PR #454976).
 Remove-Key 'InstallerSwitches'
 $at = Find-Key 'Scope'
 $lines.Insert($at + 1, 'InstallerSwitches:')

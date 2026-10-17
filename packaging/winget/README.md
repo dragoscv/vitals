@@ -71,8 +71,10 @@ The manifests published for 1.0.0–1.0.3 say `Scope: machine`, and
 The release job therefore never lets Komac submit directly: it runs
 `komac update … --output <dir> --dry-run`, rewrites the installer manifest
 with `scripts/ci/winget-user-scope.ps1` (`Scope: user`,
-`InstallerSwitches.Custom: /CurrentUser`, no `ElevationRequirement`,
-`%LocalAppData%\Programs\Vitals`), prints it, and then runs `komac submit
+`InstallerSwitches.Custom: /CurrentUser`, `%LocalAppData%\Programs\Vitals`;
+`ElevationRequirement: elevatesSelf` stays, because the validator rejects a
+version that drops it and an administrator still sees one prompt), prints
+it, and then runs `komac submit
 <dir> --yes`. The script is idempotent, so later releases pass through it
 unchanged. To do the same by hand, run those three commands locally.
 

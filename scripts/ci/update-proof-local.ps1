@@ -86,7 +86,13 @@ try {
     # ── 3. The copy to be updated ────────────────────────────────────────
     Get-Process vitals-desktop -ErrorAction SilentlyContinue | Stop-Process -Force
     if ($Scope -eq 'user') {
-        $p = Start-Process -FilePath $fromSetup -ArgumentList '/S', '/CurrentUser' -PassThru -Wait
+        # The `both` setup asks for `highest`, so started plainly by an
+        # administrator it raises UAC, and in a task nobody can answer it is
+        # cancelled ("The operation was canceled by the user", 2026-10-18).
+        # RunAsInvoker is what the updater itself uses for a per-user copy.
+        $env:__COMPAT_LAYER = 'RunAsInvoker'
+        try { $p = Start-Process -FilePath $fromSetup -ArgumentList '/S', '/CurrentUser' -PassThru -Wait }
+        finally { Remove-Item Env:__COMPAT_LAYER -ErrorAction SilentlyContinue }
         Assert-True ($p.ExitCode -eq 0) "per-user installer for $From exited 0 (got $($p.ExitCode))"
         Assert-True ($null -ne (Get-Reg HKCU)) 'registered under HKCU'
         $launch = $userExe

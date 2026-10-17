@@ -156,16 +156,34 @@ budget median 2.5 ms on an idle VM) and `ws-codai` (Linux, TypeScript lanes).
   `0768d3c59`), workspaces are created with `reaper=keep` (vmui `3d330fe`), `ws-vitals-win` was
   recreated. `ws-codai` is not recreated yet.
 
+### 1.0.4 (2026-10-18, S20-01)
+
+- Tag `v1.0.4` on `27bf537`: S18's AI agents page and DEV-3 in one release (S18's ADR is now
+  0039). Release run 39074169746: GitHub release, Scoop, npm and winget published; `latest.json`
+  names 1.0.4, both Windows entries signed by key `D0B1CA754CF27B0C` with 1.0.4 trusted comments.
+- winget PR microsoft/winget-pkgs#454976 is the first `Scope: user` / `Custom: /CurrentUser`
+  manifest, written by `scripts/ci/winget-user-scope.ps1` in the release job. That makes item 8
+  automatic. The validator wanted `ElevationRequirement` kept, so it was put back on the PR.
+- Microsoft Store submission 3 (MSIX 1.0.4.0, what's new in EN and RO) is in certification.
+- Play: 1.0.4 phone (37) and Wear (1000037) uploaded through the Console and sent for review.
+  That restarted the 1.0.2 review (owner's choice). The release job's Play step can't commit
+  while a review is open (`changesNotSentForReview`).
+- Chocolatey 403 again: 1.0.0 is still in moderation (item 2).
+- vivobook, unelevated (Medium integrity, `/IT` task): a build of the 1.0.4 tree installed per
+  user updated itself on quit, 1.99.0 -> 1.99.1, with no `consent.exe` (PROOF_EXIT=0). A real
+  1.0.4 -> 1.0.5 update on quit is still unproven until 1.0.5 exists.
+
 ### Still open — owner only
 
-1. Partner Center: watch certification of submission 2 (usually a few hours).
+1. Partner Center: watch certification of submission 3 (1.0.4.0); submission 2 (1.0.3) is live.
 2. Chocolatey: reply to the moderator or resubmit 1.0.0 with the jsDelivr icon.
 3. Apply to SignPath Foundation (free OSS signing).
 4. Trademark clearance for "Vitals" (classes 9 and 42).
-5. Play: wait for review; check whether production access already exists (Android launches separately).
+5. Play: wait for the restarted review (1.0.4 phone + Wear); the TV track is not in that review.
 6. `npm dist-tag rm @vitals-app/client next` (needs 2FA).
 7. Real-OS checks on the vivobook (S17-02, S17-10): a portable copy is refused for the Task Manager hook, the sensors log is in Program Files, the CLI attaches from an elevated prompt, `netstat` shows the chosen adapter bind.
-8. First release after ADR 0038: one hand-edited winget submission with `Scope: user` and `Custom: /CurrentUser` (Komac carries the old `Scope: machine` forward; `packaging/winget/README.md`).
+8. ~~Hand-edited winget submission with `Scope: user`~~ done by the release job from 1.0.4 on
+   (#454976); watch that PR's validation.
 
 ### Remaining engineering (P2, not started)
 
