@@ -23,4 +23,10 @@ ignore = [
   # only. The Windows build does not contain it, and Vitals never iterates a
   # GVariant string array.
   "RUSTSEC-2024-0429",
+  # zvariant / zvariant_derive / zbus_names (unmaintained, 2026-10-16): the
+  # D-Bus stack under zbus, which tauri-plugin-notification, -opener and
+  # -single-instance use on Linux only. No Windows build contains it.
+  "RUSTSEC-2026-0370", # zvariant
+  "RUSTSEC-2026-0371", # zbus_names
+  "RUSTSEC-2026-0372", # zvariant_derive
 ]
