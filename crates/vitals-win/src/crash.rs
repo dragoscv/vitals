@@ -263,12 +263,7 @@ mod tests {
         let dir = temp_dir("child");
         let exe = std::env::current_exe().unwrap();
         let mut child = std::process::Command::new(exe)
-            .args([
-                "--exact",
-                "crash::tests::crash_child",
-                "--ignored",
-                "--nocapture",
-            ])
+            .args(["--exact", "crash::tests::crash_child", "--nocapture"])
             .env(CHILD_DIR, &dir)
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
@@ -296,9 +291,10 @@ mod tests {
         let _ = std::fs::remove_dir_all(dir);
     }
 
-    /// Not a test on its own: the body of the child process above.
+    /// The body of the child process above. Without the variable the parent
+    /// sets it does nothing, so a plain `cargo test` passes it straight
+    /// through (CI forbids `#[ignore]` outside vitals-bench).
     #[test]
-    #[ignore = "run only as the crashing child of a_native_crash_leaves_a_minidump_behind"]
     fn crash_child() {
         let Some(dir) = std::env::var_os(CHILD_DIR) else {
             return;

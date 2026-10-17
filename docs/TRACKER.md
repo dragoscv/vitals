@@ -2745,6 +2745,16 @@ ws-vitals-win cargo test -p vitals-cli    40 unit + 6 integration passed
 ws-codai vitest @vitals/client            39 passed (6 new)
 ```
 
+CI 39020898506 (`760038b`) then failed two Windows jobs. Performance: the
+`#[ignore]` guard (only vitals-bench may ignore tests) caught the crash
+test's child; it now runs as a no-op without its environment variable.
+Rust test: `handles::our_own_process_holds_handles_and_at_least_one_is_named`
+— failing on main since `66e7cf0` too, never on devcloud. The naming worker
+typed and named each handle in one ordered pass, so a handle that blocked
+(the runner's processes hold synchronous pipes) silenced every row after it,
+kinds included. It now types every handle first (typing never blocks), then
+names non-`File` objects, then `File` objects last.
+
 ## S13 — public beta 0.9.0-beta.1 (2026-09-28)
 
 Decided with the owner (ADR 0031): public repository, beta version, no code

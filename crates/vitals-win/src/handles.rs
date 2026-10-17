@@ -252,7 +252,7 @@ unsafe fn parse_table(buffer: &[u8]) -> Vec<SystemHandleTableEntryInfoEx> {
 /// long as the thread might use it.
 fn describe(target: &ProcessHandle, rows: &mut [HandleInfo]) {
     let values: Vec<u64> = rows.iter().map(|row| row.value).collect();
-    let (sender, receiver) = mpsc::channel::<(usize, Option<String>, Option<String>)>();
+    let (sender, receiver) = mpsc::channel::<Described>();
 
     // The worker may outlive this call — a wedged name leaves it blocked in a
     // driver — so it cannot borrow the caller's handle. It gets its own
@@ -268,13 +268,36 @@ fn describe(target: &ProcessHandle, rows: &mut [HandleInfo]) {
     std::thread::Builder::new()
         .name("vitals-handle-names".into())
         .spawn(move || {
-            for (index, value) in values.into_iter().enumerate() {
+            // Three passes rather than one. Only naming a `File` object can
+            // block forever (the synchronous-pipe case above); typing never
+            // does, and naming an event, key or section never does. In one
+            // ordered pass, the first wedged pipe silenced every handle after
+            // it, kinds included. Now a wedged pipe costs only the `File`
+            // names that come after it.
+            let process = owned.0 as HANDLE;
+            let mut kinds: Vec<Option<String>> = Vec::with_capacity(values.len());
+            for (index, &value) in values.iter().enumerate() {
                 // SAFETY: `owned` is our own duplicate of the target process
-                // handle, open for the whole loop; `value` is a handle value
-                // the kernel reported for that process.
-                let described = unsafe { describe_one(owned.0 as HANDLE, value) };
-                if sender.send((index, described.0, described.1)).is_err() {
+                // handle, open for the whole closure; `value` is a handle
+                // value the kernel reported for that process.
+                let kind = unsafe { describe_one(process, value, OBJECT_TYPE_INFORMATION) };
+                if sender.send(Described::Kind(index, kind.clone())).is_err() {
                     // The caller gave up. Nothing left to report to.
+                    return;
+                }
+                kinds.push(kind);
+            }
+            let is_file = |index: &usize| kinds[*index].as_deref() == Some("File");
+            let (files, others): (Vec<usize>, Vec<usize>) =
+                (0..values.len()).partition(|index| is_file(index));
+            for index in others.into_iter().chain(files) {
+                if kinds[index].is_none() {
+                    // Could not be duplicated; naming would fail the same way.
+                    continue;
+                }
+                // SAFETY: as above.
+                let name = unsafe { describe_one(process, values[index], OBJECT_NAME_INFORMATION) };
+                if sender.send(Described::Name(index, name)).is_err() {
                     return;
                 }
             }
@@ -290,9 +313,13 @@ fn describe(target: &ProcessHandle, rows: &mut [HandleInfo]) {
                     deadline.checked_duration_since(std::time::Instant::now())
                 {
                     match receiver.recv_timeout(remaining) {
-                        Ok((index, kind, name)) => {
+                        Ok(Described::Kind(index, kind)) => {
                             if let Some(row) = rows.get_mut(index) {
                                 row.kind = kind;
+                            }
+                        }
+                        Ok(Described::Name(index, name)) => {
+                            if let Some(row) = rows.get_mut(index) {
                                 row.name = name;
                             }
                         }
@@ -302,6 +329,12 @@ fn describe(target: &ProcessHandle, rows: &mut [HandleInfo]) {
                 }
             },
         );
+}
+
+/// One result from the naming worker, by row index.
+enum Described {
+    Kind(usize, Option<String>),
+    Name(usize, Option<String>),
 }
 
 /// An owned process handle addressed as an integer so it can cross a thread.
@@ -355,7 +388,7 @@ fn duplicate_for_worker(target: &ProcessHandle) -> Option<OwnedHandle> {
 ///
 /// `process` must be an open handle carrying `PROCESS_DUP_HANDLE`, and
 /// `value` a handle value valid inside that process.
-unsafe fn describe_one(process: HANDLE, value: u64) -> (Option<String>, Option<String>) {
+unsafe fn describe_one(process: HANDLE, value: u64, class: i32) -> Option<String> {
     let mut local: HANDLE = std::ptr::null_mut();
 
     // SAFETY: guaranteed by the caller's contract; `local` is a live HANDLE.
@@ -374,19 +407,18 @@ unsafe fn describe_one(process: HANDLE, value: u64) -> (Option<String>, Option<S
     if status < 0 || local.is_null() {
         // Not every handle can be duplicated — kernel-only objects, and
         // handles the target opened without duplicate rights.
-        return (None, None);
+        return None;
     }
 
-    // SAFETY: `local` is a valid duplicate we own.
-    let kind = unsafe { query_string(local, OBJECT_TYPE_INFORMATION) };
-    // SAFETY: as above. This is the call that can block forever on a
-    // synchronous pipe, which is why the whole function runs off-thread.
-    let name = unsafe { query_string(local, OBJECT_NAME_INFORMATION) };
+    // SAFETY: `local` is a valid duplicate we own. The name class is the
+    // call that can block forever on a synchronous pipe, which is why the
+    // whole function runs off-thread.
+    let value = unsafe { query_string(local, class) };
 
     // SAFETY: closing our own duplicate exactly once.
     unsafe { windows_sys::Win32::Foundation::CloseHandle(local) };
 
-    (kind, name)
+    value
 }
 
 /// Reads a `UNICODE_STRING`-prefixed object information class.
