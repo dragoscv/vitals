@@ -10,6 +10,7 @@ members = [
     "crates/vitals-win",
     "crates/vitals-linux",
     "crates/vitals-macos",
+    "crates/vitals-agents",
     "apps/desktop/src-tauri",
     "apps/helper",
     "apps/cli",
@@ -38,6 +39,7 @@ vitals-sensors = { path = "crates/vitals-sensors" }
 vitals-win = { path = "crates/vitals-win" }
 vitals-linux = { path = "crates/vitals-linux" }
 vitals-macos = { path = "crates/vitals-macos" }
+vitals-agents = { path = "crates/vitals-agents" }
 
 # Only crates an existing member actually depends on belong here. A dependency
 # declared for a subsystem that does not exist yet misrepresents the

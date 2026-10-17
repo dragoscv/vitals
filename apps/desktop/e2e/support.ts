@@ -25,6 +25,17 @@ export const routes = [
     landmark: (scope: Locator) =>
       scope.getByRole('textbox', { name: 'Filter processes' }).or(noHost(scope)).first(),
   },
+  {
+    id: 'agents',
+    label: 'AI agents',
+    // Without a host the screen says "Vitals cannot reach the component…",
+    // which the shared no-host phrase does not match, so name it directly.
+    landmark: (scope: Locator) =>
+      scope
+        .getByRole('heading', { level: 2, name: /^AI agents/ })
+        .or(scope.getByRole('status').filter({ hasText: 'Vitals cannot reach the component' }))
+        .first(),
+  },
   { id: 'startup', label: 'Startup', landmark: heading('Startup apps') },
   { id: 'services', label: 'Services', landmark: heading('Services') },
   { id: 'appHistory', label: 'App history', landmark: heading('App history') },

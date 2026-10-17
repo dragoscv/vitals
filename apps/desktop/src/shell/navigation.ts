@@ -17,6 +17,7 @@ export const DIAGNOSE_EVENT = 'vitals:diagnose';
 export const OPEN_SETTINGS_EVENT = 'vitals:open-settings';
 import {
   Activity,
+  Bot,
   Boxes,
   ClockArrowUp,
   Cpu,
@@ -43,6 +44,7 @@ export const routeIds = [
   'dashboard',
   'performance',
   'processes',
+  'agents',
   'startup',
   'services',
   'appHistory',
@@ -80,6 +82,7 @@ export const navItems: readonly NavItem[] = [
   { id: 'dashboard', labelKey: 'nav.dashboard', icon: LayoutDashboard },
   { id: 'performance', labelKey: 'nav.performance', icon: Activity },
   { id: 'processes', labelKey: 'nav.processes', icon: ListTree },
+  { id: 'agents', labelKey: 'nav.agents', icon: Bot },
   { id: 'startup', labelKey: 'nav.startup', icon: ClockArrowUp },
   { id: 'services', labelKey: 'nav.services', icon: Server },
   { id: 'appHistory', labelKey: 'nav.appHistory', icon: Gauge },

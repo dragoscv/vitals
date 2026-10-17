@@ -156,6 +156,7 @@ Status values: `todo`, `doing`, `done`, `blocked`, `dropped`.
 | S14   | Storage: fast complete scans, navigation, cleanup, Turbo, extras     | doing (01–04 and 07 developer cleanup done; 05 Turbo in progress, 06 extras open)                  |
 | S15   | Android phone, Wear OS watch, TV: native apps + on-device monitor    | doing (01-07 done; Google TV, Tizen open)                                                          |
 | S16   | Hardening: latest deps, security, gates, dynamic tests               | done (01 deps, 02 security, 03 CI/repo, 04 gates, 05 tests, 06 brace-expansion advisories)         |
+| S18   | AI agents page: agentq + every AI client, local and cloud (ADR-0038) | doing (01–06, 08, 09 done; 07 LAN/SDK/Android waits for the LAN-QA work in router.rs to land)      |
 
 Per-item status lives in `tracker.csv`. This file records the reasoning; the
 CSV records the state.
@@ -163,6 +164,38 @@ CSV records the state.
 ---
 
 ## Verification log
+
+### 2026-10-17 — S18 AI agents page, agentq integration, machine optimisations
+
+**Ask.** A native Vitals page for agentq and every AI client (VS Code
+Copilot Chat, Copilot CLI, Codai, Codex, Claude), local and cloud, live,
+with actions; plus optimisations so more agents run well on this PC.
+
+**What.** ADR-0038. `crates/vitals-agents` reads agentq's coord files and
+the clients' session files incrementally; `src-tauri/src/agents.rs` runs the
+reader only while subscribed and pushes `vitals://agents`; actions shell out
+to agentq with a reason; cloud via the codai device flow, key in Credential
+Manager. In agentq: cloud-down circuit breaker with local fallback, adaptive
+`build:machine` cap, caller registry, idle-terminal reaper.
+
+**Evidence** (this machine, real data):
+
+```text
+pwsh processes 468, of which VS Code terminals 409 = 27.2 GB private
+reap-terminals.ps1: killed 111, freed 7151 MB (>3 h idle, no children, 0 CPU)
+Defender: + E:\.pnpm-store, ~/.cargo, ~/.rustup (others already excluded)
+agentq tests: cloud place 20/20, adaptive+reg 14/14, v1 30/30, v3 21/21
+prove_agents (release): resources=132ms leases=13ms jobs=13ms (cached)
+  journal-cold=79ms sessions-cold=669ms sessions-warm=141ms
+  5 busy queues, 8 leases, 200 jobs (24 h), 50 AI sessions (24 h)
+  stats 24 h: 531 runs, 127 failed, wait p50 3 s p90 568 s,
+  1333 agent-minutes spent waiting in queues
+cargo test -p vitals-agents: 28 passed; vitest agents+shell: 36 passed
+```
+
+**Not done yet.** LAN `/api/v1/agents`, SDK, Prometheus and the Android
+view (S18-07): `router.rs`, `state.rs` and `server.rs` are being edited by an
+active LAN-QA session; the route lands after theirs.
 
 ### 2026-09-30 — S16-06 Two brace-expansion advisories failed CI
 

@@ -31,6 +31,13 @@ vitals-ipc = { workspace = true }
 vitals-store = { workspace = true }
 vitals-server = { workspace = true }
 vitals-bench = { workspace = true }
+vitals-agents = { workspace = true }
+# Cloud agents on the AI page (ADR-0038). Already in the graph through
+# tauri-plugin-updater with these exact features, so nothing new is built.
+reqwest = { version = "0.13.5", default-features = false, features = ["json", "rustls-no-provider", "system-proxy", "form"] }
+# `rustls-no-provider` needs one installed; the updater installs `ring` the
+# same way (updater.rs) — whichever request comes first does it.
+rustls = { version = "0.23.46", default-features = false, features = ["ring"] }
 
 tauri = { version = "2.12.0", features = ["tray-icon", "image-png"] }
 tauri-plugin-opener = "2.6.0"
