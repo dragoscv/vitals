@@ -138,7 +138,13 @@ const CLOUD_EVERY: Duration = Duration::from_secs(30);
 #[derive(Debug, Default)]
 struct CloudCache {
     at: Option<Instant>,
-    sessions: Vec<vitals_core::agents::AgentSession>,
+    /// The last good answer: hosts plus the raw session list. Kept raw so
+    /// each tick filters it against the local sessions *of that tick* — a
+    /// conversation that just appeared locally must not also show as cloud.
+    fetched: Option<(
+        Vec<vitals_agents::cloud::Host>,
+        vitals_agents::cloud::Response,
+    )>,
 }
 
 impl CloudCache {
@@ -147,14 +153,28 @@ impl CloudCache {
             self.at = Some(Instant::now());
             if let Some(key) = cloud_key() {
                 match fetch_cloud(&key) {
-                    Ok(list) => self.sessions = list,
+                    Ok(f) => self.fetched = Some(f),
                     Err(e) => tracing::debug!(error = %e, "cloud sessions"),
                 }
             } else {
-                self.sessions.clear();
+                self.fetched = None;
             }
         }
-        snap.sessions.extend(self.sessions.iter().cloned());
+        let Some((hosts, res)) = &self.fetched else {
+            return;
+        };
+        let local: std::collections::HashSet<&str> =
+            snap.sessions.iter().map(|s| s.id.as_str()).collect();
+        match vitals_agents::cloud::parse_sessions(
+            res,
+            hosts,
+            &|id| local.contains(id),
+            vitals_agents::time::now_ms(),
+            24 * 3_600_000,
+        ) {
+            Ok(list) => snap.sessions.extend(list),
+            Err(e) => tracing::debug!(error = %e, "cloud sessions"),
+        }
     }
 }
 
@@ -203,16 +223,21 @@ fn http(req: &vitals_agents::cloud::Request) -> Result<vitals_agents::cloud::Res
     })
 }
 
-fn fetch_cloud(key: &str) -> Result<Vec<vitals_core::agents::AgentSession>, String> {
+fn fetch_cloud(
+    key: &str,
+) -> Result<
+    (
+        Vec<vitals_agents::cloud::Host>,
+        vitals_agents::cloud::Response,
+    ),
+    String,
+> {
     use vitals_agents::cloud;
     let hosts = cloud::parse_hosts(&http(&cloud::hosts_request(cloud::DEFAULT_GATEWAY, key))?)?;
-    let now = vitals_agents::time::now_ms();
-    cloud::parse_sessions(
-        &http(&cloud::sessions_request(cloud::DEFAULT_GATEWAY, key))?,
-        &hosts,
-        now,
-        24 * 3_600_000,
-    )
+    let res = http(&cloud::sessions_request(cloud::DEFAULT_GATEWAY, key))?;
+    // an error status is surfaced now, not on every later tick
+    cloud::parse_sessions(&res, &hosts, &|_| false, 0, u64::MAX)?;
+    Ok((hosts, res))
 }
 
 #[derive(Debug, Serialize)]

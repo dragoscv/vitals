@@ -13,8 +13,12 @@ export type AgentSession = { id: string, client: AgentClient,
 host: string, title: string | null, workspace: string | null, repo: string | null, branch: string | null, model: string | null, state: SessionState, startedMs: number | null, lastActivityMs: number | null, 
 /**
  * Sum of turn durations: time the agent was actually working.
+ *
+ * The counters below are `None` where the source does not report them
+ * (a codai cloud session lists only its title and timestamps), never `0`:
+ * "0 turns" next to a session that has run for hours is a false fact.
  */
-activeMs: number, turns: number, userMessages: number, toolCalls: number, toolFailures: number, 
+activeMs: number | null, turns: number | null, userMessages: number | null, toolCalls: number | null, toolFailures: number | null, 
 /**
  * The tool running right now, when a call has started and not completed.
  */

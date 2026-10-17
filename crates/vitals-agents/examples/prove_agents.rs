@@ -158,7 +158,7 @@ fn main() {
     );
     for x in s.sessions.iter().take(12) {
         println!(
-            "  {:?} {:?} {:<20} active {:>4} min turns {:>3} tools {:>4} now={:?} model={:?} pid={:?}",
+            "  {:?} {:?} {:<20} active {:>4?} min turns {:>3?} tools {:>4?} now={:?} model={:?} pid={:?}",
             x.client,
             x.state,
             x.repo
@@ -167,7 +167,7 @@ fn main() {
                 .chars()
                 .take(20)
                 .collect::<String>(),
-            x.active_ms / 60_000,
+            x.active_ms.map(|m| m / 60_000),
             x.turns,
             x.tool_calls,
             x.current_tool,

@@ -579,11 +579,12 @@ fn build(src: &Source, acc: &Acc, probe: ProcStart<'_>, now: u64) -> AgentSessio
             .started
             .or_else(|| yaml.get("created_at").and_then(|c| parse_iso_ms(c))),
         last_activity_ms: last,
-        active_ms: acc.active_ms + live_turn,
-        turns: acc.turns,
-        user_messages: acc.user_messages,
-        tool_calls: acc.tool_calls,
-        tool_failures: acc.tool_failures,
+        // the whole event file is read, so a zero here is a measured zero
+        active_ms: Some(acc.active_ms + live_turn),
+        turns: Some(acc.turns),
+        user_messages: Some(acc.user_messages),
+        tool_calls: Some(acc.tool_calls),
+        tool_failures: Some(acc.tool_failures),
         current_tool: if state == SessionState::Ended {
             None
         } else {
@@ -645,11 +646,12 @@ fn codex_sessions(home: &Path, now: u64) -> Vec<AgentSession> {
                 },
                 started_ms: None,
                 last_activity_ms: Some(updated),
-                active_ms: 0,
-                turns: 0,
-                user_messages: 0,
-                tool_calls: 0,
-                tool_failures: 0,
+                // only the index is read (rollouts are zstd): nothing measured
+                active_ms: None,
+                turns: None,
+                user_messages: None,
+                tool_calls: None,
+                tool_failures: None,
                 current_tool: None,
                 top_tools: Vec::new(),
                 tokens_in: None,
@@ -954,8 +956,8 @@ mod tests {
         let s = build(&src, &acc, &|_| None, now);
         assert_eq!(s.state, SessionState::Working);
         assert_eq!(s.current_tool.as_deref(), Some("run_in_terminal"));
-        assert_eq!((s.tool_calls, s.tool_failures), (2, 1));
-        assert_eq!(s.active_ms, 30_000, "open turn counts up to now");
+        assert_eq!((s.tool_calls, s.tool_failures), (Some(2), Some(1)));
+        assert_eq!(s.active_ms, Some(30_000), "open turn counts up to now");
         assert_eq!(s.repo.as_deref(), Some("vitals"));
     }
 
@@ -1071,6 +1073,6 @@ mod tests {
         let s = build(&t.sources[0], &acc, &|_| None, now);
         assert_eq!(s.id, "sid1");
         assert_eq!(s.repo.as_deref(), Some("dragoscv/agentq"));
-        assert_eq!(s.user_messages, 1);
+        assert_eq!(s.user_messages, Some(1));
     }
 }

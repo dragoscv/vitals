@@ -156,7 +156,7 @@ Status values: `todo`, `doing`, `done`, `blocked`, `dropped`.
 | S14   | Storage: fast complete scans, navigation, cleanup, Turbo, extras     | doing (01–04 and 07 developer cleanup done; 05 Turbo in progress, 06 extras open)                  |
 | S15   | Android phone, Wear OS watch, TV: native apps + on-device monitor    | doing (01-07 done; Google TV, Tizen open)                                                          |
 | S16   | Hardening: latest deps, security, gates, dynamic tests               | done (01 deps, 02 security, 03 CI/repo, 04 gates, 05 tests, 06 brace-expansion advisories)         |
-| S18   | AI agents page: agentq + every AI client, local and cloud (ADR-0038) | done (10/10; 07 LAN route, OpenAPI, SDK, Prometheus, Android card; 10 live check)                  |
+| S18   | AI agents page: agentq + every AI client, local and cloud (ADR-0038) | done (11/11; 07 LAN route, OpenAPI, SDK, Prometheus, Android card; 10-11 live check)               |
 
 Per-item status lives in `tracker.csv`. This file records the reasoning; the
 CSV records the state.
@@ -164,6 +164,31 @@ CSV records the state.
 ---
 
 ## Verification log
+
+### 2026-10-17 — S18-11 codai sign-in exercised live
+
+**Ask.** Finish the one S18 path no test had run: sign in to codai from the
+AI page and read what the cloud tab shows.
+
+**Result.** The device flow worked end to end (browser approval, key in
+Credential Manager, `/v1/hosts` and `/v1/sessions` 200). It exposed two
+faults in what the page then showed:
+
+1. Sessions jumped from 53 to 154: codai mirrors local chats, and 40 of its
+   100 rows carried the local id as `session_key` (bare for Copilot CLI,
+   `vscode:<workspace>:<id>` for VS Code). Those rows are now dropped against
+   the local ids of the same tick.
+2. Every cloud row claimed 0 turns, 0 tool calls, 0 s active. The list
+   endpoint carries no counts, so the five counters became `Option` in
+   `vitals-core` (`null` on the wire, a dash in the UI); Codex, read from its
+   index only, is `None` too. Local transcripts keep measured values.
+
+**Evidence.** Counts from the live API (no content printed): 100 rows, 19
+bare-id and 21 `vscode:` keys matched local sessions. New tests
+`a_cloud_copy_of_a_local_conversation_is_listed_once_and_counts_stay_unknown`
+and the desktop "dash, not zero" case; vitals-core bindings, vitals-agents,
+vitals-server, clippy `-D warnings`, desktop typecheck/vitest/eslint and
+drift all green.
 
 ### 2026-10-17 — S18-10 live check of the AI page
 

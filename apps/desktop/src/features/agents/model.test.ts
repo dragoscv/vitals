@@ -5,6 +5,7 @@ import {
   activeShare,
   byClient,
   eventTone,
+  formatCount,
   formatDuration,
   headline,
   repoName,
@@ -45,6 +46,13 @@ describe('agents model', () => {
     expect(activeShare(makeSession(), NOW)).toBeCloseTo(0.25);
     expect(activeShare(makeSession({ startedMs: null }), NOW)).toBeNull();
     expect(activeShare(makeSession({ activeMs: 99_999_999 }), NOW)).toBe(1);
+  });
+
+  it('a session that reports no counters shows a dash, not zero, and no active share', () => {
+    const cloud = makeSession({ activeMs: null, turns: null, toolCalls: null });
+    expect(activeShare(cloud, NOW)).toBeNull();
+    expect(formatCount(cloud.turns)).toBe('—');
+    expect(formatCount(0)).toBe('0');
   });
 
   it('live clients sort first', () => {

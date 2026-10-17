@@ -35,6 +35,11 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   was allowed to open links in your browser but no address was on the list,
   so every link was refused silently. The list now names exactly the two
   places Vitals opens: its GitHub page and the codai sign-in page.
+- **AI page: a conversation no longer appears twice once you sign in to
+  codai.** codai keeps a cloud copy of each local chat; the cloud list now
+  leaves out the ones already read from this PC. Cloud sessions report no
+  turns or tool calls, so those show a dash instead of a misleading 0 — in
+  the app, over the network (`null` in `GET /api/v1/agents`) and in the SDK.
 
 ## [1.0.2] — 2026-10-14
 

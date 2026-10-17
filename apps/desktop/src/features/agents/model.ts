@@ -117,11 +117,16 @@ export function repoName(value: string | null | undefined): string | null {
 
 /** Share of the session's life spent working, 0..1, or null when unknown. */
 export function activeShare(s: AgentSession, now: number): number | null {
-  if (s.startedMs === null) return null;
+  if (s.startedMs === null || s.activeMs === null) return null;
   const end = s.state === 'ended' ? (s.lastActivityMs ?? now) : now;
   const life = end - s.startedMs;
   if (life <= 0) return null;
   return Math.min(1, s.activeMs / life);
+}
+
+/** A count the source may not report: a dash, never a made-up 0. */
+export function formatCount(n: number | null): string {
+  return n === null ? '—' : String(n);
 }
 
 /** Holders then waiters, with the slot count the UI draws. */

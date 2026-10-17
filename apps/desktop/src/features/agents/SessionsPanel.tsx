@@ -16,7 +16,15 @@ import { useTranslation } from 'react-i18next';
 import type { AgentSession, AgentsSnapshot } from '@vitals/protocol';
 import { Badge, EmptyState, cn } from '@vitals/ui';
 
-import { activeShare, byClient, formatDuration, formatTokens, since, workFor } from './model';
+import {
+  activeShare,
+  byClient,
+  formatCount,
+  formatDuration,
+  formatTokens,
+  since,
+  workFor,
+} from './model';
 import { ClientMark, ShareBar, StateChip } from './parts';
 import { AGENTS_NS } from './strings';
 
@@ -137,8 +145,8 @@ function SessionCard({
         <dl className="grid grid-cols-4 gap-2 text-2xs">
           <Stat label={t('session.active')} value={formatDuration(s.activeMs)} />
           <Stat label={t('session.started')} value={since(s.startedMs, now)} />
-          <Stat label={t('session.turns')} value={String(s.turns)} />
-          <Stat label={t('session.tools')} value={String(s.toolCalls)} />
+          <Stat label={t('session.turns')} value={formatCount(s.turns)} />
+          <Stat label={t('session.tools')} value={formatCount(s.toolCalls)} />
         </dl>
         {share !== null && (
           <ShareBar
@@ -163,8 +171,8 @@ function SessionCard({
               <dl className="grid grid-cols-2 gap-2">
                 <Stat label={t('session.model')} value={s.model ?? '—'} />
                 <Stat label={t('session.lastActivity')} value={since(s.lastActivityMs, now)} />
-                <Stat label={t('session.prompts')} value={String(s.userMessages)} />
-                <Stat label={t('session.failures')} value={String(s.toolFailures)} />
+                <Stat label={t('session.prompts')} value={formatCount(s.userMessages)} />
+                <Stat label={t('session.failures')} value={formatCount(s.toolFailures)} />
                 <Stat
                   label={t('session.tokens')}
                   value={`${formatTokens(s.tokensIn)} / ${formatTokens(s.tokensOut)}`}

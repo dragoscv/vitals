@@ -2007,16 +2007,19 @@ components:
         lastActivityMs:
           type: [integer, 'null']
         activeMs:
-          type: integer
-          description: Sum of turn durations — time the agent was actually working.
+          type: [integer, 'null']
+          description: >-
+            Sum of turn durations — time the agent was actually working. This
+            and the four counts below are `null` when the source does not report
+            them (codai cloud sessions, Codex), never `0`.
         turns:
-          type: integer
+          type: [integer, 'null']
         userMessages:
-          type: integer
+          type: [integer, 'null']
         toolCalls:
-          type: integer
+          type: [integer, 'null']
         toolFailures:
-          type: integer
+          type: [integer, 'null']
         currentTool:
           type: [string, 'null']
         topTools:

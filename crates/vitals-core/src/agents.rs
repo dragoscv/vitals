@@ -408,12 +408,16 @@ pub struct AgentSession {
     #[cfg_attr(feature = "ts", ts(type = "number | null"))]
     pub last_activity_ms: Option<u64>,
     /// Sum of turn durations: time the agent was actually working.
-    #[cfg_attr(feature = "ts", ts(type = "number"))]
-    pub active_ms: u64,
-    pub turns: u32,
-    pub user_messages: u32,
-    pub tool_calls: u32,
-    pub tool_failures: u32,
+    ///
+    /// The counters below are `None` where the source does not report them
+    /// (a codai cloud session lists only its title and timestamps), never `0`:
+    /// "0 turns" next to a session that has run for hours is a false fact.
+    #[cfg_attr(feature = "ts", ts(type = "number | null"))]
+    pub active_ms: Option<u64>,
+    pub turns: Option<u32>,
+    pub user_messages: Option<u32>,
+    pub tool_calls: Option<u32>,
+    pub tool_failures: Option<u32>,
     /// The tool running right now, when a call has started and not completed.
     pub current_tool: Option<String>,
     /// Most-used tools, descending.

@@ -221,11 +221,18 @@ pub fn parse_hosts(res: &Response) -> Result<Vec<Host>, String> {
 /// Cloud sessions active in the last `window_ms`, as [`AgentSession`]s whose
 /// `host` names the device that executes them (or `cloud`).
 ///
+/// codai mirrors local conversations to the cloud: `session_key` is the local
+/// session id (Copilot CLI) or `vscode:<workspace>:<id>` (VS Code). A row
+/// whose key ends in an id `is_local` accepts is the same conversation the local
+/// reader already lists with real counts, so it is dropped rather than shown
+/// twice (measured 2026-10-17: 40 of 100 rows were such copies).
+///
 /// # Errors
 /// As [`parse_hosts`].
 pub fn parse_sessions(
     res: &Response,
     hosts: &[Host],
+    is_local: &dyn Fn(&str) -> bool,
     now: u64,
     window_ms: u64,
 ) -> Result<Vec<AgentSession>, String> {
@@ -244,6 +251,13 @@ pub fn parse_sessions(
                 .and_then(Value::as_str)
                 .and_then(parse_iso_ms);
             if last.is_none_or(|l| now.saturating_sub(l) > window_ms) {
+                return None;
+            }
+            if s.get("session_key")
+                .and_then(Value::as_str)
+                .and_then(|k| k.rsplit(':').next())
+                .is_some_and(is_local)
+            {
                 return None;
             }
             let device = s.get("executor_device_id").and_then(Value::as_str);
@@ -285,11 +299,12 @@ pub fn parse_sessions(
                     .and_then(Value::as_str)
                     .and_then(parse_iso_ms),
                 last_activity_ms: last,
-                active_ms: 0,
-                turns: 0,
-                user_messages: 0,
-                tool_calls: 0,
-                tool_failures: 0,
+                // the session list carries no turn or tool counts
+                active_ms: None,
+                turns: None,
+                user_messages: None,
+                tool_calls: None,
+                tool_failures: None,
                 current_tool: None,
                 top_tools: Vec::new(),
                 tokens_in: None,
@@ -368,11 +383,40 @@ mod tests {
             {"id":"a","title":"Refactor","created_at":"2026-10-17T03:00:00Z","last_event_at":"2026-10-17T03:59:30Z","executor_device_id":"d1","lease_expires_at":"2026-10-17T04:05:00Z","presence_count":1},
             {"id":"b","title":"Old","last_event_at":"2026-10-10T00:00:00Z"}
         ]}"#;
-        let s = parse_sessions(&(200, body.into()), &hosts, now, 24 * 3_600_000).unwrap();
+        let s =
+            parse_sessions(&(200, body.into()), &hosts, &|_| false, now, 24 * 3_600_000).unwrap();
         assert_eq!(s.len(), 1);
         assert_eq!(s[0].host, "DRAGOS");
         assert_eq!(s[0].state, SessionState::Working);
         assert_eq!(s[0].client, AgentClient::Codai);
+    }
+
+    #[test]
+    fn a_cloud_copy_of_a_local_conversation_is_listed_once_and_counts_stay_unknown() {
+        let now = parse_iso_ms("2026-10-17T04:00:00Z").unwrap();
+        let body = r#"{"sessions":[
+            {"id":"c1","session_key":"4dfcb7a2-e614-4995-a18c-5bc9e899e04f","last_event_at":"2026-10-17T03:59:00Z"},
+            {"id":"c2","session_key":"vscode:fef8502d:9f20dbae-1111-2222-3333-444455556666","last_event_at":"2026-10-17T03:59:00Z"},
+            {"id":"c3","session_key":"ux:only-in-the-cloud","last_event_at":"2026-10-17T03:59:00Z"}
+        ]}"#;
+        let local: std::collections::HashSet<&str> = [
+            "4dfcb7a2-e614-4995-a18c-5bc9e899e04f",
+            "9f20dbae-1111-2222-3333-444455556666",
+        ]
+        .into_iter()
+        .collect();
+        let s = parse_sessions(
+            &(200, body.into()),
+            &[],
+            &|id| local.contains(id),
+            now,
+            24 * 3_600_000,
+        )
+        .unwrap();
+        assert_eq!(s.iter().map(|x| x.id.as_str()).collect::<Vec<_>>(), ["c3"]);
+        // the list endpoint reports no turns: unknown, not zero
+        assert_eq!(s[0].turns, None);
+        assert_eq!(s[0].active_ms, None);
     }
 
     #[test]

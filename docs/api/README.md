@@ -232,6 +232,12 @@ that looks like a credential — the word after `--token`, a `*_KEY=` value, a
 action needs (`id`, `leaseId`, `runId`, `session`, `sha`, `resource`, `slot`)
 are passed through untouched.
 
+A session's `activeMs`, `turns`, `userMessages`, `toolCalls` and `toolFailures`
+are `null` when the source does not report them — codai cloud sessions and
+Codex — and a measured number (possibly `0`) for sessions read from this PC.
+A cloud copy of a conversation that is also on this PC is listed once, as the
+local session.
+
 `POST /api/v1/agents/actions` runs an agentq action through agentq's own CLI
 and needs a **control** token. Every state change carries a reason, which
 agentq journals for the other agents:
