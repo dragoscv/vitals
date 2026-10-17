@@ -49,7 +49,7 @@
   },
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",
-    "@playwright/test": "1.63.0",
+    "@playwright/test": "1.64.0",
     "@tailwindcss/vite": "catalog:",
     "@tauri-apps/cli": "catalog:",
     "@testing-library/react": "catalog:",
