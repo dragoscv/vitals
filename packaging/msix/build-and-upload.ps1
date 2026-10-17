@@ -21,6 +21,10 @@ $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 Set-Location $root
 
+# The devcloud runner sets CI=1, which the Tauri CLI parses as `--ci 1` and
+# rejects (it wants true/false). Same fix as scripts/screenshots/run.ps1.
+if ($env:CI) { $env:CI = 'true' }
+
 pnpm --filter '@vitals/desktop' exec tauri build --no-bundle --config '{"bundle":{"createUpdaterArtifacts":false}}'
 if ($LASTEXITCODE -ne 0) { throw "tauri build failed ($LASTEXITCODE)" }
 cargo build --release -p vitals-watchdog

@@ -130,10 +130,22 @@ budget median 2.5 ms on an idle VM) and `ws-codai` (Linux, TypeScript lanes).
   launch post drafts in `docs/launch/posts.md`.
 - Stuck nightly 38674240902 rejected (38843563046 had already been cancelled).
 - 1.0.3 is tagged with `PUBLISH_PLAY=false` so the Play review in progress is untouched.
+- **1.0.3 published** (tag `v1.0.3` on `d00d6a6`, release run 39022401994): GitHub release,
+  winget, Scoop and npm 1.0.3. `latest.json` names 1.0.3 and both Windows signatures carry the
+  app's minisign key id with 1.0.3 in the trusted comment.
+- **Self-update proved** with `scripts/ci/update-proof.ps1`: on ws-vitals-win, 1.0.2 found and
+  verified 1.0.3. On the vivobook, an elevated 1.0.2 found it, verified it, installed it on quit
+  and relaunched as 1.0.3 ("up to date"). The same quit from an **unelevated** 1.0.2 ended in
+  "operation was canceled by the user (os error 1223)": the per-machine passive installer needs
+  UAC and nobody saw the prompt. That is DEV-3, now reproduced, and the most important engineering
+  item left: most people run Vitals unelevated.
+- **Microsoft Store**: submission 2 (MSIX 1.0.3.0 built on ws-vitals-win, 10 captured screenshots
+  with captions in English and Romanian, 1.0.3 "What's new") is in certification.
+- Chocolatey 1.0.3 push answered 403: 1.0.0 is still waiting for the moderator (item 2 below).
 
 ### Still open — owner only
 
-1. Partner Center: upload the new screenshots and captions and submit with the 1.0.3 MSIX (the 1.0.3 "What's new" text is in `packaging/msix/listing`).
+1. Partner Center: watch certification of submission 2 (usually a few hours).
 2. Chocolatey: reply to the moderator or resubmit 1.0.0 with the jsDelivr icon.
 3. Apply to SignPath Foundation (free OSS signing).
 4. Trademark clearance for "Vitals" (classes 9 and 42).
@@ -143,7 +155,8 @@ budget median 2.5 ms on an idle VM) and `ws-codai` (Linux, TypeScript lanes).
 
 ### Remaining engineering (P2, not started)
 
-DES-12 "End…" from the diagnosis dialog, DES-21 other empty-state actions,
+**DEV-3 first** (reproduced on the vivobook 2026-10-17: an unelevated install-on-quit is cancelled
+by the UAC prompt), then DES-12 "End…" from the diagnosis dialog, DES-21 other empty-state actions,
 SEC-8 query tokens, SEC-10 save path from IPC, SEC-16 PawnIO signer pin, DEV-6 manual update
 teardown, DEV-9 atomic token file, DEV-11 headless serve
 sensors, DEV-16 global HUD shortcut, ARM64 and Windows 10 test runs,

@@ -23,8 +23,11 @@
 
     Must run elevated: the installer is perMachine, and the passive update it
     starts on quit inherits our token instead of raising a UAC prompt nobody
-    is there to answer (DEV-3 covers the prompt itself). Leaves -To installed
-    unless -Uninstall is passed. Exit code = number of failed checks.
+    is there to answer (DEV-3 covers the prompt itself). Steps 4-5 also need
+    an interactive desktop session: in a service or batch logon (the devcloud
+    agent) WebView2 never starts, so there is no page to ask to quit. Run it
+    there from an interactive scheduled task (/IT /RL HIGHEST). Leaves -To
+    installed unless -Uninstall is passed. Exit code = number of failed checks.
 
 .EXAMPLE
     pwsh -NoProfile -File scripts/ci/update-proof.ps1 -From 1.0.2 -To 1.0.3 -Uninstall
@@ -111,7 +114,12 @@ Assert-True ($found -and $tail -match [regex]::Escape($To)) "$From found $To and
 # ── 4. Quit through the app's own command ───────────────────────────────
 # CDP over a raw WebSocket: no Node, no Playwright on the machine under test.
 if ($found) {
-    $targets = Invoke-RestMethod "http://127.0.0.1:$port/json"
+    $targets = $null
+    if (-not (Wait-Until { try { $script:targets = Invoke-RestMethod "http://127.0.0.1:$port/json"; $true } catch { $false } } 30)) {
+        Assert-True $false 'the webview debugging port answered (needs an interactive desktop session)'
+        Get-Process vitals-desktop -ErrorAction SilentlyContinue | Stop-Process -Force
+        exit $failures.Count
+    }
     $page = $targets | Where-Object { $_.type -eq 'page' } | Select-Object -First 1
     $ws = [System.Net.WebSockets.ClientWebSocket]::new()
     $ws.ConnectAsync([uri]$page.webSocketDebuggerUrl, [Threading.CancellationToken]::None).Wait()

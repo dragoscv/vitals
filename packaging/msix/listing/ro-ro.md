@@ -76,8 +76,6 @@ Nou în 1.0, prima versiune stabilă
 • Temperaturile procesorului, ale plăcilor video NVIDIA și ale fiecărei unități de stocare, plus starea unităților SSD
 • Frecvența procesorului și, opțional, încărcarea lui pe butonul din bara de activități
 
-Reparat: graficele folosesc culoarea ta de accent; cardurile de stocare și dispozitive nu își mai taie conținutul; coloanele se redimensionează în loc să se sorteze când le tragi marginea.
-
 ## Funcții (până la 20, ≤ 200 caractere fiecare)
 
 - Un răspuns simplu, din citiri în timp real, la „de ce îmi merge greu PC-ul?”

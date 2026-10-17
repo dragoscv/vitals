@@ -76,8 +76,6 @@ New in 1.0, the first stable release
 • Temperatures for the CPU, NVIDIA graphics cards and every drive, and SSD health with hours on and data written
 • CPU speed, and optional CPU load on the taskbar button
 
-Fixed: charts use your accent colour; storage and device cards no longer cut off their content; columns resize instead of sorting when you drag their edge.
-
 ## Features (up to 20, ≤ 200 characters each)
 
 - A plain-language answer to "why is my PC slow?" from live readings
