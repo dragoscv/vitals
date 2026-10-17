@@ -1,0 +1,24 @@
+[package]
+name = "vitals-agents"
+version.workspace = true
+publish.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Reads agentq's coordination state and AI client sessions for the AI page (ADR-0038)."
+
+[dependencies]
+vitals-core = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+# VS Code keeps chat titles in the workspace state.vscdb; already in the graph via vitals-store.
+rusqlite = { workspace = true }
+
+[target.'cfg(windows)'.dev-dependencies]
+vitals-win = { workspace = true }
+
+[lints]
+workspace = true

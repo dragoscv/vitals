@@ -255,6 +255,50 @@ describe('VitalsClient HTTP methods', () => {
     });
     await expect(client(impl).metrics()).resolves.toBe('vitals_cpu_percent 12.5\n');
   });
+
+  it('fetches the AI page snapshot with the bearer token', async () => {
+    const snapshot = { takenAtMs: 1, agentqInstalled: true, resources: [], sessions: [] };
+    const { impl, calls } = scripted({ status: 200, body: JSON.stringify(snapshot) });
+    await expect(client(impl).agents()).resolves.toEqual(snapshot);
+    expect(calls[0]?.url).toBe(`${BASE}/api/v1/agents`);
+    expect(new Headers(calls[0]?.init?.headers).get('Authorization')).toBe(`Bearer ${TOKEN}`);
+  });
+
+  it('returns null from agents on 404 so "no AI page here" differs from "nothing running"', async () => {
+    const { impl } = scripted({ status: 404, body: '{"error":"no AI page"}' });
+    await expect(client(impl).agents()).resolves.toBeNull();
+  });
+
+  it('still rejects agents on 401 rather than hiding a bad token behind null', async () => {
+    const { impl } = scripted({ status: 401, body: '{"error":"a bearer token is required"}' });
+    expect((await failure(client(impl).agents())).kind).toBe('unauthorised');
+  });
+
+  it('posts an agentq action as tagged JSON and resolves with agentq own verdict', async () => {
+    const { impl, calls } = scripted({
+      status: 200,
+      body: '{"ok":false,"code":3,"output":"busy"}',
+    });
+    const outcome = await client(impl).agentqAction({
+      kind: 'freeze',
+      resource: 'build:codai',
+      reason: 'incident',
+    });
+    expect(outcome).toEqual({ ok: false, code: 3, output: 'busy' });
+    expect(calls[0]?.url).toBe(`${BASE}/api/v1/agents/actions`);
+    expect(calls[0]?.init?.method).toBe('POST');
+    expect(JSON.parse(asText(calls[0]?.init?.body))).toEqual({
+      kind: 'freeze',
+      resource: 'build:codai',
+      reason: 'incident',
+    });
+  });
+
+  it('rejects an agentq action from a read-only token with kind forbidden', async () => {
+    const { impl } = scripted({ status: 403, body: '{"kind":"forbidden"}' });
+    const error = await failure(client(impl).agentqAction({ kind: 'note', message: 'hello' }));
+    expect(error.kind).toBe('forbidden');
+  });
 });
 
 // ── Streaming ──────────────────────────────────────────────────────────

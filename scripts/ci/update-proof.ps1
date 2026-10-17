@@ -27,7 +27,7 @@
     unless -Uninstall is passed. Exit code = number of failed checks.
 
 .EXAMPLE
-    pwsh -NoProfile -File scripts/ci/update-proof.ps1 -From 1.0.2 -To 1.0.3 -Uninstall
+    pwsh -NoProfile -File scripts/ci/update-proof.ps1 -From 1.0.3 -To 1.0.4 -Uninstall
 #>
 [CmdletBinding()]
 param(

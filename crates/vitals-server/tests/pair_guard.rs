@@ -42,6 +42,7 @@ async fn start() -> Harness {
         // guard must not depend on that setting.
         loopback_scope: Some(Scope::Read),
         pairing: Some(Arc::clone(&desk)),
+        agents: None,
     };
     let handle = serve_on(state, "127.0.0.1:0".parse().unwrap())
         .await

@@ -8,6 +8,8 @@
  */
 
 import type {
+  AgentqAction,
+  AgentsSnapshot,
   Alert,
   Frame,
   HostInfo,
@@ -61,6 +63,16 @@ export interface StreamHandler {
 
 /** Stops a stream and cancels any pending reconnect. Idempotent. */
 export type Unsubscribe = () => void;
+
+/** What `POST /api/v1/agents/actions` answers when agentq ran. */
+export interface AgentqActionOutcome {
+  /** agentq's verdict. `false` is agentq refusing (busy, frozen, unknown ticket), not a transport failure. */
+  ok: boolean;
+  /** agentq's exit code; `null` when it was killed by a signal. */
+  code: number | null;
+  /** agentq's stdout and stderr, the last 4 KB, redacted by the server. */
+  output: string;
+}
 
 /** A live WebSocket session: frames in, control requests out. */
 export interface VitalsConnection {
@@ -240,6 +252,43 @@ export class VitalsClient {
   async alerts(): Promise<Alert[]> {
     const response = await this.request('/api/v1/alerts');
     return this.json<Alert[]>(response);
+  }
+
+  /**
+   * `GET /api/v1/agents` — the AI page: agentq queues, leases, jobs and the
+   * AI coding agent sessions on the host (ADR-0038).
+   *
+   * Resolves `null` when the host offers no AI page (the headless CLI
+   * server answers 404). That is a different fact from an empty snapshot,
+   * which means nothing is running, so it is not an exception. Paths and
+   * anything that looks like a credential arrive already redacted.
+   */
+  async agents(): Promise<AgentsSnapshot | null> {
+    try {
+      const response = await this.request('/api/v1/agents');
+      return await this.json<AgentsSnapshot>(response);
+    } catch (error) {
+      if (error instanceof VitalsError && error.status === 404) return null;
+      throw error;
+    }
+  }
+
+  /**
+   * `POST /api/v1/agents/actions` — run an agentq action (freeze, clear,
+   * break, note, unlease, kill a job). Needs a `control` token.
+   *
+   * Rejects with `forbidden` for a read-only token (checked before the body
+   * is read) and with `http` for 404 (no AI page), 422 (refused before it
+   * ran: a reason under four characters) and 503 (agentq not startable).
+   * Resolves with agentq's own verdict otherwise — check `ok`.
+   */
+  async agentqAction(action: AgentqAction): Promise<AgentqActionOutcome> {
+    const response = await this.request('/api/v1/agents/actions', {
+      method: 'POST',
+      headers: JSON_HEADERS,
+      body: JSON.stringify(action),
+    });
+    return this.json<AgentqActionOutcome>(response);
   }
 
   /**

@@ -74,6 +74,7 @@ async fn start() -> Harness {
         version: "0.0.0-test".into(),
         loopback_scope: None,
         pairing: None,
+        agents: None,
     };
     let handle = serve(state, 0).await.expect("bind");
     Harness {

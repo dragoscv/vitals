@@ -18,7 +18,33 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use vitals_server::state::ServerLock;
-use vitals_server::{ApiState, FrameSource, Scope, Token, TokenSet};
+use vitals_server::{
+    ActionError, ActionOutcome, AgentsProvider, ApiState, FrameSource, Scope, Token, TokenSet,
+};
+
+/// This machine's real AI page, so the phone card can be developed against
+/// live queues. Actions are refused: the dev token is `control`, and a
+/// development server must never break or unlease someone's real ticket.
+struct RealAgents;
+
+impl AgentsProvider for RealAgents {
+    fn snapshot(&self) -> vitals_core::agents::AgentsSnapshot {
+        #[cfg(windows)]
+        let probe = |pid| vitals_win::actions::process_start_ms(pid);
+        #[cfg(not(windows))]
+        let probe = |_| None;
+        vitals_agents::Reader::detect().read(&probe)
+    }
+
+    fn act(
+        &self,
+        _action: vitals_core::agents::AgentqAction,
+    ) -> Result<ActionOutcome, ActionError> {
+        Err(ActionError::Unavailable(
+            "serve_dev does not run agentq actions".into(),
+        ))
+    }
+}
 
 #[tokio::main]
 async fn main() {
@@ -67,6 +93,7 @@ async fn main() {
         // Nothing persists: a TV paired against this example is forgotten
         // when it exits, which is what a development server should do.
         pairing: Some(Arc::clone(&desk)),
+        agents: Some(Arc::new(RealAgents)),
     };
 
     let handle = vitals_server::serve(state, 7332).await.expect("bind 7332");

@@ -39,8 +39,8 @@ function options(): HTMLElement[] {
 describe('CommandPalette', () => {
   it('lists every section plus the actions', () => {
     renderPalette();
-    // Twelve routes and three actions.
-    expect(options()).toHaveLength(15);
+    // Thirteen routes and three actions.
+    expect(options()).toHaveLength(16);
     expect(screen.getByRole('option', { name: /Processes/ })).toBeTruthy();
     expect(screen.getByRole('option', { name: /Why is my PC slow/ })).toBeTruthy();
   });

@@ -6,6 +6,7 @@
 
 export {
   VitalsClient,
+  type AgentqActionOutcome,
   type VitalsClientOptions,
   type StreamHandler,
   type Unsubscribe,

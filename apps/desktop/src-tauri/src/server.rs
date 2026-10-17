@@ -190,6 +190,7 @@ impl LanServer {
             version: app.package_info().version.to_string(),
             loopback_scope,
             pairing: Some(Arc::clone(&self.pairing)),
+            agents: Some(Arc::new(crate::agents::LanAgents::new(app.clone()))),
         }
     }
 }
@@ -849,6 +850,7 @@ mod tests {
                 version: "test".into(),
                 loopback_scope: Some(Scope::Control),
                 pairing: None,
+                agents: None,
             };
             vitals_server::serve_on(state, "127.0.0.1:0".parse().unwrap())
                 .await

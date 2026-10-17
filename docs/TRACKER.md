@@ -156,6 +156,7 @@ Status values: `todo`, `doing`, `done`, `blocked`, `dropped`.
 | S14   | Storage: fast complete scans, navigation, cleanup, Turbo, extras     | doing (01–04 and 07 developer cleanup done; 05 Turbo in progress, 06 extras open)                  |
 | S15   | Android phone, Wear OS watch, TV: native apps + on-device monitor    | doing (01-07 done; Google TV, Tizen open)                                                          |
 | S16   | Hardening: latest deps, security, gates, dynamic tests               | done (01 deps, 02 security, 03 CI/repo, 04 gates, 05 tests, 06 brace-expansion advisories)         |
+| S18   | AI agents page: agentq + every AI client, local and cloud (ADR-0038) | done (11/11; 07 LAN route, OpenAPI, SDK, Prometheus, Android card; 10-11 live check)               |
 
 Per-item status lives in `tracker.csv`. This file records the reasoning; the
 CSV records the state.
@@ -163,6 +164,144 @@ CSV records the state.
 ---
 
 ## Verification log
+
+### 2026-10-17 — S18-11 codai sign-in exercised live
+
+**Ask.** Finish the one S18 path no test had run: sign in to codai from the
+AI page and read what the cloud tab shows.
+
+**Result.** The device flow worked end to end (browser approval, key in
+Credential Manager, `/v1/hosts` and `/v1/sessions` 200). It exposed two
+faults in what the page then showed:
+
+1. Sessions jumped from 53 to 154: codai mirrors local chats, and 40 of its
+   100 rows carried the local id as `session_key` (bare for Copilot CLI,
+   `vscode:<workspace>:<id>` for VS Code). Those rows are now dropped against
+   the local ids of the same tick.
+2. Every cloud row claimed 0 turns, 0 tool calls, 0 s active. The list
+   endpoint carries no counts, so the five counters became `Option` in
+   `vitals-core` (`null` on the wire, a dash in the UI); Codex, read from its
+   index only, is `None` too. Local transcripts keep measured values.
+
+**Evidence.** Counts from the live API (no content printed): 100 rows, 19
+bare-id and 21 `vscode:` keys matched local sessions. New tests
+`a_cloud_copy_of_a_local_conversation_is_listed_once_and_counts_stay_unknown`
+and the desktop "dash, not zero" case; vitals-core bindings, vitals-agents,
+vitals-server, clippy `-D warnings`, desktop typecheck/vitest/eslint and
+drift all green.
+
+### 2026-10-17 — S18-10 live check of the AI page
+
+**Ask.** Open the AI page on this machine (debug build, real agentq and
+real sessions) and sign in to codai.
+
+**Found, both invisible to every test.**
+
+1. Every VS Code Copilot Chat session read "Untitled session". The
+   transcript has no metadata; VS Code keeps the chat list title in the
+   workspace `state.vscdb` (`chat.ChatSessionStore.index`). Read there, read
+   only, 50 ms busy timeout, at discovery (every 30 s), never per tick.
+2. "Sign in with codai" failed with `Not allowed to open url`. The
+   capability granted `opener:allow-open-url` with no URL scope, which
+   refuses everything — the About page links have been dead since 1.0.2
+   too. Scoped to the two origins the app opens. Opening the browser is now
+   best effort: the code and the address stay on screen if it fails.
+
+**Evidence.** `prove_agents`: `sessions (24 h): 53 (53 titled)`;
+`cargo test -p vitals-agents` 34 passed (new
+`a_vscode_session_takes_its_title_from_the_chat_list_index`); clippy
+`-D warnings` 0; desktop typecheck 0, vitest `src/features/agents` 0,
+eslint 0, drift 0. Live: titles on every card; Queues tab showed the
+adaptive cap at 3 with CPU 78 % and 70 GB free.
+
+### 2026-10-17 — S18-07 AI page over the LAN: route, OpenAPI, SDK, Prometheus, Android
+
+**Ask.** Expose the AI page on the LAN: `GET /api/v1/agents` (read, paths and
+secrets redacted) and `POST /api/v1/agents/actions` (control, authorised
+before the body is parsed); OpenAPI + drift test; SDK methods; Prometheus
+series with absence omitted; a read-only Android card in en+ro.
+
+**What.** `vitals-server::agents`: an `AgentsProvider` the host supplies
+(like `Controller`), and a redaction walk over the **serialised JSON**, so a
+field added to `AgentsSnapshot` later is scrubbed by default; only `id`,
+`leaseId`, `runId`, `session`, `sha`, `resource`, `slot` pass through. Home
+directories become `~`; the word after `--token`/`Bearer`, a `*_KEY=` value,
+`ghp_`/`sk-`-style prefixes and long opaque non-hex strings become
+`[redacted]` (shas and UUIDs survive). `/agents/actions` takes `Bytes` and
+checks scope before anything else — before parsing, and before saying
+whether the host has an AI page. The desktop's `LanAgents` renews one shared
+subscription per request, so the reader runs while a phone or scraper asks
+and parks 30 s after. `prometheus::render_agents` emits
+`vitals_agents_sessions{client,state}` only for observed pairs and
+`vitals_agentq_waiters{resource}` only when agentq is installed (an empty
+queue is a real `0`). SDK `agents()` (404 → `null`) and `agentqAction()`.
+Android: partial `Agents.kt` model, `VitalsClient.agents()`, `AgentsCard` on
+the Now tab (hidden on 404 and on machines with neither agentq nor
+sessions), contract fixture `agents.json` written by `android_contract.rs`
+through the same redaction. `prove_lan` and `serve_dev` serve the real
+machine's agentq state, refusing actions.
+
+**Evidence.**
+
+```text
+devcloud vitals-win, scripts/verify.ps1: All 12 gates passed in 80s
+  rust: tests 1414 passed; clippy -D warnings clean; perf median 1.48 ms
+cargo test -p vitals-server: lib 73 passed (9 redaction + 3 prometheus agents),
+  tests/agents.rs 7 passed (read sees redacted snapshot; read cannot act and
+  gets byte-identical 403 for valid and garbage bodies; 403 before 404;
+  control runs and output is redacted; 422 for bad kind / short reason;
+  agent series only with a provider)
+vitest @vitals/client: 38 passed (5 new)
+gradle :core:testDebugUnitTest ContractTest 5/5 (agents card decode),
+  :app/:tv/:wear compile OK
+prove_lan on this PC: /api/v1/agents 200, agentqInstalled=true queues=4
+  leases=11 jobs=200 sessions=52 journal=300 (235 KB); home directory in
+  body: false; ticket cmd shows ~\.copilot\hooks\run-build.ps1 …;
+  /metrics: vitals_agents_sessions{client="vscodeCopilot",state="working"} 7,
+  vitals_agentq_waiters{resource="build:vitals"} 0
+```
+
+**Mutation proof** (devcloud, router.rs mutated on the VM only):
+
+```text
+serve the snapshot unredacted   -> a_read_token_sees_the_snapshot_with_homes_and_secrets_redacted FAILED
+parse the body before the scope -> a_read_token_cannot_act_and_is_refused_before_the_body_is_parsed FAILED
+```
+
+**Size.** `size-budget.json` `shippedGzipBytes` raised 454 218 → 483 400
+(measured 462.8 KB + ~2 %): the growth is the S18 AI page chunk from
+`d837903`, not this change (no frontend file touched here).
+
+### 2026-10-17 — S18 AI agents page, agentq integration, machine optimisations
+
+**Ask.** A native Vitals page for agentq and every AI client (VS Code
+Copilot Chat, Copilot CLI, Codai, Codex, Claude), local and cloud, live,
+with actions; plus optimisations so more agents run well on this PC.
+
+**What.** ADR-0038. `crates/vitals-agents` reads agentq's coord files and
+the clients' session files incrementally; `src-tauri/src/agents.rs` runs the
+reader only while subscribed and pushes `vitals://agents`; actions shell out
+to agentq with a reason; cloud via the codai device flow, key in Credential
+Manager. In agentq: cloud-down circuit breaker with local fallback, adaptive
+`build:machine` cap, caller registry, idle-terminal reaper.
+
+**Evidence** (this machine, real data):
+
+```text
+pwsh processes 468, of which VS Code terminals 409 = 27.2 GB private
+reap-terminals.ps1: killed 111, freed 7151 MB (>3 h idle, no children, 0 CPU)
+Defender: + E:\.pnpm-store, ~/.cargo, ~/.rustup (others already excluded)
+agentq tests: cloud place 20/20, adaptive+reg 14/14, v1 30/30, v3 21/21
+prove_agents (release): resources=132ms leases=13ms jobs=13ms (cached)
+  journal-cold=79ms sessions-cold=669ms sessions-warm=141ms
+  5 busy queues, 8 leases, 200 jobs (24 h), 50 AI sessions (24 h)
+  stats 24 h: 531 runs, 127 failed, wait p50 3 s p90 568 s,
+  1333 agent-minutes spent waiting in queues
+cargo test -p vitals-agents: 28 passed; vitest agents+shell: 36 passed
+```
+
+**S18-07** landed in a follow-up entry the same day (below the S18 entry
+in time, above it in this log).
 
 ### 2026-09-30 — S16-06 Two brace-expansion advisories failed CI
 

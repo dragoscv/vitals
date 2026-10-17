@@ -57,8 +57,12 @@ Free and open source (MIT). Available in English and Romanian.
 
 ## What's new in this version (≤ 1500 characters)
 
-What's new in 1.0.3
+What's new in 1.0.4
 
+• New AI agents page: see which AI coding agents (VS Code Copilot, Copilot CLI, Codai, Codex, Claude Code) are working on this PC, what each is doing now, and their build queues, worktrees and background jobs. Costs nothing while the page is closed
+• Fixed: the links in About open in your browser again
+
+Also new in 1.0.3:
 • A health strip across the Dashboard answers "why is my PC slow?" in one line
 • A first-run card explains Vitals; the freeze watchdog is now off until you turn it on
 • Windows Contrast themes, better text contrast, keyboard and screen reader support in the process list
@@ -67,16 +71,7 @@ What's new in 1.0.3
 • A native crash leaves a local crash dump and Vitals restarts to the tray. Nothing is sent anywhere
 • Fixed: uninstalling removes the sensors service; a stalled network drive no longer freezes the readings
 
-New in 1.0, the first stable release
-
-• Program icons in the process list, including services and other accounts' processes
-• Totals above the CPU, memory, disk, network and GPU columns
-• Power usage and power trend columns, plus Type, Working set, Disk read, Disk write and Parent PID
-• Bring to front: right-click an app to restore and raise its window
-• Temperatures for the CPU, NVIDIA graphics cards and every drive, and SSD health with hours on and data written
-• CPU speed, and optional CPU load on the taskbar button
-
-Fixed: charts use your accent colour; storage and device cards no longer cut off their content; columns resize instead of sorting when you drag their edge.
+New in 1.0: program icons and totals in the process list, power usage per program, temperatures for the CPU, NVIDIA graphics cards and every drive, and SSD health.
 
 ## Features (up to 20, ≤ 200 characters each)
 

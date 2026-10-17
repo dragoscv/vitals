@@ -102,6 +102,9 @@ windows-sys = { version = "0.61.2", features = [
 	# The Task Manager hook refuses an executable ordinary accounts could
 	# replace: GetNamedSecurityInfoW + GetEffectiveRightsFromAclW read the DACL.
 	"Win32_Security_Authorization",
+	# The codai cloud key for the AI page (ADR-0038) lives in Credential
+	# Manager, never in a file Vitals writes.
+	"Win32_Security_Credentials",
 	# `GetCurrentPackageFullName`: the Store (MSIX) build switches off what
 	# Store policy forbids, at run time, from the same binary.
 	"Win32_Storage_Packaging_Appx",

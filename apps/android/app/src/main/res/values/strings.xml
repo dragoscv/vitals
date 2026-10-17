@@ -405,4 +405,14 @@
     <string name="scan_confirm_title">Pair with this PC?</string>
     <string name="scan_confirm_body">The code points to %1$s. Pair only if it is your PC and you see this code on its screen now.</string>
     <string name="settings_access_usage_disclosure">Lets Vitals read screen time, launches, data and storage per app from Android’s usage statistics. Read on this phone only, never sent anywhere.</string>
+    <string name="agents_title">AI agents</string>
+    <string name="agents_none_working">No agent is working right now.</string>
+    <string name="agents_more">and %1$d more</string>
+    <string name="agents_queues_idle">Nothing is queued.</string>
+    <string name="agents_queue_value">%1$d running · %2$d waiting</string>
+    <string name="agents_client_other">Other agent</string>
+    <string name="agents_state_working">Working</string>
+    <string name="agents_state_waiting">Waiting</string>
+    <string name="agents_state_idle">Idle</string>
+    <string name="agents_state_ended">Ended</string>
 </resources>

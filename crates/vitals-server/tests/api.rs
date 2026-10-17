@@ -107,6 +107,7 @@ fn state_with(
         version: "0.0.0-test".into(),
         loopback_scope,
         pairing: None,
+        agents: None,
     }
 }
 
@@ -213,6 +214,8 @@ const GUARDED_ROUTES: &[(&str, &str)] = &[
     ("GET", "/api/v1/host"),
     ("GET", "/api/v1/alerts"),
     ("POST", "/api/v1/control"),
+    ("GET", "/api/v1/agents"),
+    ("POST", "/api/v1/agents/actions"),
     ("GET", "/metrics"),
 ];
 

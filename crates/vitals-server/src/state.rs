@@ -7,6 +7,7 @@ use tokio::sync::broadcast;
 use vitals_core::provider::HostInfo;
 use vitals_core::sample::Frame;
 
+use crate::agents::AgentsProvider;
 use crate::auth::{Scope, TokenSet};
 use crate::control::Controller;
 use crate::pairing::PairingDesk;
@@ -255,6 +256,10 @@ pub struct ApiState {
     /// `POST /api/v1/pair` answer 404. Shared by every listener a host runs,
     /// so a code shown once is redeemable on whichever the TV reaches.
     pub pairing: Option<Arc<PairingDesk>>,
+    /// The AI page's data (ADR-0038). `None` — the CLI, the prover without
+    /// agentq — makes `/api/v1/agents` answer 404, so a client can tell
+    /// "this host has no AI page" from "nothing is running".
+    pub agents: Option<Arc<dyn AgentsProvider>>,
 }
 
 impl std::fmt::Debug for ApiState {
@@ -264,6 +269,7 @@ impl std::fmt::Debug for ApiState {
             .field("has_assets", &self.assets.is_some())
             .field("loopback_scope", &self.loopback_scope)
             .field("has_pairing", &self.pairing.is_some())
+            .field("has_agents", &self.agents.is_some())
             .finish_non_exhaustive()
     }
 }

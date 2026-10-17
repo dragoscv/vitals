@@ -9,6 +9,7 @@ import app.vitals.core.model.ProcessState
 import app.vitals.core.model.SensorLine
 import app.vitals.core.model.Summary
 import app.vitals.core.model.ThrottleReason
+import app.vitals.core.model.activeSessions
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.JsonElement
@@ -95,5 +96,25 @@ class ContractTest {
         assertTrue(alerts.single().values.containsKey("percent"))
         val host = roundTrip("host.json", HostInfo.serializer())
         assertEquals(32, host.logicalCores)
+    }
+
+    @Test
+    fun the_agents_card_reads_what_the_pc_serves() {
+        // Lenient, not roundTrip: the card mirrors only the fields it shows
+        // (Agents.kt explains why). A renamed field it does read still fails.
+        val snap = WireJson.Lenient.decodeFromString(
+            app.vitals.core.model.AgentsSnapshot.serializer(),
+            text("agents.json"),
+        )
+        assertTrue(snap.agentqInstalled)
+        val queue = snap.resources.single()
+        assertEquals("build:codai", queue.name)
+        assertEquals(1, queue.holding)
+        assertEquals(1, queue.waiting)
+        val session = snap.sessions.single()
+        assertEquals(app.vitals.core.model.AgentClient.VscodeCopilot, session.client)
+        assertEquals(app.vitals.core.model.SessionState.Working, session.state)
+        assertEquals("run_in_terminal", session.currentTool)
+        assertEquals(listOf(session), snap.activeSessions)
     }
 }
