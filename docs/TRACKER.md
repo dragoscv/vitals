@@ -157,6 +157,7 @@ Status values: `todo`, `doing`, `done`, `blocked`, `dropped`.
 | S15   | Android phone, Wear OS watch, TV: native apps + on-device monitor    | doing (01-07 done; Google TV, Tizen open)                                                          |
 | S16   | Hardening: latest deps, security, gates, dynamic tests               | done (01 deps, 02 security, 03 CI/repo, 04 gates, 05 tests, 06 brace-expansion advisories)         |
 | S18   | AI agents page: agentq + every AI client, local and cloud (ADR-0039) | done (11/11; 07 LAN route, OpenAPI, SDK, Prometheus, Android card; 10-11 live check)               |
+| S20   | 1.0.4: S18 + DEV-3 in one release, winget Scope user                 | doing (S20-01; tag, store notes, vivobook proof)                                                   |
 
 Per-item status lives in `tracker.csv`. This file records the reasoning; the
 CSV records the state.
@@ -164,6 +165,33 @@ CSV records the state.
 ---
 
 ## Verification log
+
+### 2026-10-18 — S20-01 1.0.4: S18 folded onto DEV-3
+
+**Ask.** Release 1.0.4 with DEV-3; the owner then asked to take over S18's
+unpushed `release/1.0.4` (28b9fd5 AI agents page, 74a5ee7 update-proof tray
+quit) and fold everything into the same release.
+
+Both slices had claimed ADR 0038. DEV-3 was on main first, so S18's ADR is
+now 0039 (every `ADR-0038` reference in S18's files, plus the generated
+binding comment). CHANGELOG `[1.0.4]` merges DEV-3's Unreleased entries with
+S18's. `update-proof.ps1` keeps DEV-3's `-Local` mode and gains S18's tray
+fallback. The winget job no longer submits Komac's output as is:
+`scripts/ci/winget-user-scope.ps1` rewrites the installer manifest to
+`Scope: user` / `Custom: /CurrentUser` first, tried against the real 1.0.2
+manifest (and idempotent on a second run).
+
+Windows-only verification missed two things CI then caught: S18's
+non-Windows `clear_key` stub trips `clippy::unnecessary_wraps` on Linux, and
+S18's crates push the installer to 5,365.2 KB against a 5,244.5 KB budget
+(raised to measured + 2 %, the S17-15 rule). ws-codai no longer exists, so
+the Linux leg ran in WSL.
+
+```
+ws-vitals-win verify.ps1 on 0ce1f9f      All 12 gates passed in 91.9s, 1493 Rust tests
+CI 39072024514                           Rust (linux) unnecessary_wraps agents.rs:354; installer 102.3 % OVER
+WSL Ubuntu-24.04 (rustc 1.99) clippy --workspace --lib --bins --tests --benches --exclude vitals-win -D warnings  RC=0
+```
 
 ### 2026-10-17 — S18-11 codai sign-in exercised live
 

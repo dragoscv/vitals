@@ -351,6 +351,9 @@ fn store_key(_key: &str) -> Result<(), String> {
     Err("cloud sign-in needs Windows Credential Manager".into())
 }
 #[cfg(not(windows))]
+// The signature must match the Windows `clear_key`, which can fail: both are
+// handed to the same `spawn_blocking` in `cloud_sign_out`.
+#[allow(clippy::unnecessary_wraps)]
 fn clear_key() -> Result<(), String> {
     Ok(())
 }
