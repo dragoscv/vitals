@@ -20,6 +20,14 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   when it is not. Freeze or clear a queue, remove a dead ticket, release an
   abandoned worktree, stop a background job or close idle agent terminals,
   each with a reason that the other agents can read.
+- **AI agents over the network.** A paired phone, a script or Prometheus can
+  read the AI page at `GET /api/v1/agents` (read access) and run the same
+  queue actions at `POST /api/v1/agents/actions` (control access). User
+  folders and anything that looks like a password or key are hidden before
+  it leaves the PC. Prometheus gains `vitals_agents_sessions` and
+  `vitals_agentq_waiters`; the TypeScript client gains `agents()` and
+  `agentqAction()`; the Android app shows which agents are working and
+  which queues have someone waiting on each PC's Now tab.
 
 ## [1.0.2] — 2026-10-14
 

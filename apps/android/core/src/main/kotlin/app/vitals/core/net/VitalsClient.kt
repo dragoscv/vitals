@@ -106,6 +106,14 @@ class VitalsClient(
     suspend fun history(seconds: Int): ApiResult<List<MachineSample>> =
         get("/api/v1/history?seconds=$seconds", ListSerializer(MachineSample.serializer()))
 
+    /**
+     * `GET /api/v1/agents` — the PC's AI page, redacted. `Http(404)` means the
+     * PC offers no AI page (an older build, or the headless server), which a
+     * screen shows by hiding the card, not as an error.
+     */
+    suspend fun agents(): ApiResult<app.vitals.core.model.AgentsSnapshot> =
+        get("/api/v1/agents", app.vitals.core.model.AgentsSnapshot.serializer())
+
     /** `POST /api/v1/control`. `204` is success; anything else carries a [ControlError]. */
     suspend fun control(request: ControlRequest): ApiResult<Unit> {
         val body = WireJson.Lenient.encodeToString(ControlRequest.serializer(), request)

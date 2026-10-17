@@ -404,3 +404,71 @@ pub async fn run_agentq_action(
         output: out.output,
     })
 }
+
+/// The subscriber id every LAN caller shares. Far above anything
+/// [`Agents::subscribe`] hands out, so it can never collide with a window.
+const LAN_SUBSCRIBER: u64 = u64::MAX;
+
+/// What the LAN server serves at `/api/v1/agents` (S18-07).
+///
+/// A request counts as someone looking: it renews one shared subscription,
+/// so the reader thread runs while a phone (or a Prometheus scraper) keeps
+/// asking and parks [`LEASE`] after the last request — the same rule as the
+/// window. The scraper case is deliberate: a user who points Prometheus at
+/// the AI series has asked for them to be current.
+pub struct LanAgents {
+    app: AppHandle,
+}
+
+impl std::fmt::Debug for LanAgents {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LanAgents").finish_non_exhaustive()
+    }
+}
+
+impl LanAgents {
+    #[must_use]
+    pub fn new(app: AppHandle) -> Self {
+        Self { app }
+    }
+
+    fn agents(&self) -> Option<Agents> {
+        self.app.try_state::<Agents>().map(|s| s.inner().clone())
+    }
+}
+
+impl vitals_server::AgentsProvider for LanAgents {
+    fn snapshot(&self) -> AgentsSnapshot {
+        let Some(agents) = self.agents() else {
+            return AgentsSnapshot::default();
+        };
+        agents.subscribe(Some(LAN_SUBSCRIBER));
+        match agents.latest() {
+            Some(s) => (*s).clone(),
+            // First request since start: read once now rather than answer
+            // with an empty snapshot that looks like "nothing running".
+            None => vitals_agents::Reader::detect().read(&probe),
+        }
+    }
+
+    fn act(
+        &self,
+        action: AgentqAction,
+    ) -> Result<vitals_server::ActionOutcome, vitals_server::ActionError> {
+        use vitals_server::ActionError;
+        // Validation first, so a short reason is a 422 and never a "could
+        // not start pwsh" that sends the user looking for the wrong problem.
+        vitals_agents::actions::plan(&action).map_err(ActionError::Invalid)?;
+        let bin = vitals_agents::actions::default_bin()
+            .ok_or_else(|| ActionError::Unavailable("no user profile".into()))?;
+        let out = vitals_agents::actions::run(&action, &bin).map_err(ActionError::Unavailable)?;
+        if let Some(agents) = self.agents() {
+            agents.poke();
+        }
+        Ok(vitals_server::ActionOutcome {
+            ok: out.ok,
+            code: out.code,
+            output: out.output,
+        })
+    }
+}

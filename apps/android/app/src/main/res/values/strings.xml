@@ -388,4 +388,14 @@
     <string name="device_started">Started</string>
     <string name="device_core_count">Cores</string>
     <string name="device_each_core">Each core</string>
+    <string name="agents_title">AI agents</string>
+    <string name="agents_none_working">No agent is working right now.</string>
+    <string name="agents_more">and %1$d more</string>
+    <string name="agents_queues_idle">Nothing is queued.</string>
+    <string name="agents_queue_value">%1$d running · %2$d waiting</string>
+    <string name="agents_client_other">Other agent</string>
+    <string name="agents_state_working">Working</string>
+    <string name="agents_state_waiting">Waiting</string>
+    <string name="agents_state_idle">Idle</string>
+    <string name="agents_state_ended">Ended</string>
 </resources>

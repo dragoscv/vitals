@@ -31,6 +31,8 @@ mdns-sd = { workspace = true }
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time", "net", "signal"] }
 vitals-core = { workspace = true, features = ["fixtures"] }
+# The provers serve this machine's real agentq state at /api/v1/agents.
+vitals-agents = { workspace = true }
 
 [target.'cfg(windows)'.dev-dependencies]
 vitals-win = { workspace = true }

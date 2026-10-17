@@ -13,8 +13,36 @@ use std::sync::Arc;
 #[cfg(windows)]
 use std::time::Duration;
 
+use vitals_core::agents::{AgentqAction, AgentsSnapshot};
 use vitals_server::state::ServerLock;
-use vitals_server::{ApiState, FrameSource, Scope, Token, TokenSet};
+use vitals_server::{
+    ActionError, ActionOutcome, AgentsProvider, ApiState, FrameSource, Scope, Token, TokenSet,
+};
+
+/// This machine's real agentq state and AI sessions, read on each request.
+/// Actions are refused: the prover holds a read token and must never mark,
+/// break or unlease anything on the machine it runs on.
+struct RealAgents;
+
+impl AgentsProvider for RealAgents {
+    fn snapshot(&self) -> AgentsSnapshot {
+        vitals_agents::Reader::detect().read(&start_ms)
+    }
+
+    fn act(&self, _action: AgentqAction) -> Result<ActionOutcome, ActionError> {
+        Err(ActionError::Unavailable("the prover does not act".into()))
+    }
+}
+
+#[cfg(windows)]
+fn start_ms(pid: u32) -> Option<u64> {
+    vitals_win::actions::process_start_ms(pid)
+}
+
+#[cfg(not(windows))]
+fn start_ms(_pid: u32) -> Option<u64> {
+    None
+}
 
 #[tokio::main]
 async fn main() {
@@ -35,6 +63,7 @@ async fn main() {
         version: "prove".into(),
         loopback_scope: None,
         pairing: None,
+        agents: Some(Arc::new(RealAgents)),
     };
 
     let handle = vitals_server::serve(state, 0).await.expect("bind");
@@ -82,6 +111,68 @@ async fn main() {
         "  ... {} series total",
         metrics.lines().filter(|l| l.starts_with("vitals_")).count()
     );
+    for line in metrics
+        .lines()
+        .filter(|l| l.starts_with("vitals_agents_") || l.starts_with("vitals_agentq_"))
+        .take(12)
+    {
+        println!("  {line}");
+    }
+
+    println!("\n--- GET /api/v1/agents (with token) ---");
+    let agents = get(&base, "/api/v1/agents", Some(&secret)).await;
+    summarise_agents(&agents);
+}
+
+fn summarise_agents(response: &str) {
+    println!("  status: {}", first_line(response));
+    let Some((_, body)) = response.split_once("\r\n\r\n") else {
+        println!("  (no body)");
+        return;
+    };
+    let snap: AgentsSnapshot = match serde_json::from_str(body) {
+        Ok(s) => s,
+        Err(error) => {
+            println!("  body did not decode as AgentsSnapshot: {error}");
+            return;
+        }
+    };
+    println!(
+        "  agentqInstalled={} queues={} leases={} jobs={} sessions={} journal={} bytes={}",
+        snap.agentq_installed,
+        snap.resources.len(),
+        snap.leases.len(),
+        snap.jobs.len(),
+        snap.sessions.len(),
+        snap.journal.len(),
+        body.len()
+    );
+    for r in snap.resources.iter().take(6) {
+        let held = r.tickets.iter().filter(|t| t.held).count();
+        println!(
+            "  queue {}: {held} holding, {} waiting",
+            r.name,
+            r.tickets.len() - held
+        );
+    }
+    if let Some(cmd) = snap
+        .resources
+        .iter()
+        .flat_map(|r| &r.tickets)
+        .find_map(|t| t.cmd.as_deref())
+    {
+        println!("  a ticket cmd as a phone sees it: {cmd}");
+    }
+    if let Some(path) = snap.leases.iter().find_map(|l| l.path.as_deref()) {
+        println!("  a lease path as a phone sees it: {path}");
+    }
+    // The guarantee, on real data: no user profile path survives.
+    let home = std::env::var("USERPROFILE").unwrap_or_default();
+    let leaked = !home.is_empty()
+        && body
+            .to_lowercase()
+            .contains(&home.to_lowercase().replace('\\', "\\\\"));
+    println!("  home directory present in body: {leaked}");
 }
 
 fn first_line(response: &str) -> &str {

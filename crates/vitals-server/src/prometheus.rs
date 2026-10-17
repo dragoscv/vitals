@@ -423,6 +423,74 @@ fn gauge(out: &mut String, name: &str, help: &str, body: impl FnOnce(&mut String
     body(out);
 }
 
+/// The AI page's series (ADR-0038), appended to [`render`]'s output.
+///
+/// Same rule as everything else here: what was not observed is omitted.
+/// Sessions are counted per `(client, state)` pair that exists — there is no
+/// series for "Codex, working: 0" on a machine that has never run Codex. A
+/// machine without agentq has no `vitals_agentq_waiters` at all, which is
+/// different from a queue with nobody waiting (`0`, emitted, because the
+/// queue exists and was read).
+#[must_use]
+pub fn render_agents(snapshot: &vitals_core::agents::AgentsSnapshot) -> String {
+    use std::collections::BTreeMap;
+
+    let mut out = String::new();
+
+    let mut sessions: BTreeMap<(String, String), u32> = BTreeMap::new();
+    for s in &snapshot.sessions {
+        *sessions
+            .entry((label_of(&s.client), label_of(&s.state)))
+            .or_default() += 1;
+    }
+    if !sessions.is_empty() {
+        gauge(
+            &mut out,
+            "vitals_agents_sessions",
+            "AI coding agent sessions by client and state.",
+            |o| {
+                for ((client, state), n) in &sessions {
+                    let _ = writeln!(
+                        o,
+                        "vitals_agents_sessions{{client=\"{}\",state=\"{}\"}} {n}",
+                        escape(client),
+                        escape(state)
+                    );
+                }
+            },
+        );
+    }
+
+    if snapshot.agentq_installed && !snapshot.resources.is_empty() {
+        gauge(
+            &mut out,
+            "vitals_agentq_waiters",
+            "Tickets waiting (not holding) in each agentq queue.",
+            |o| {
+                for r in &snapshot.resources {
+                    let waiting = r.tickets.iter().filter(|t| !t.held).count();
+                    let _ = writeln!(
+                        o,
+                        "vitals_agentq_waiters{{resource=\"{}\"}} {waiting}",
+                        escape(&r.name)
+                    );
+                }
+            },
+        );
+    }
+
+    out
+}
+
+/// The serde name of a unit enum variant (`vscodeCopilot`, `working`), so a
+/// label matches what the JSON API says.
+fn label_of<T: serde::Serialize>(value: &T) -> String {
+    match serde_json::to_value(value) {
+        Ok(serde_json::Value::String(s)) => s,
+        _ => "other".to_owned(),
+    }
+}
+
 /// Escapes a label value per the exposition format.
 fn escape(value: &str) -> String {
     let mut out = String::with_capacity(value.len());
@@ -636,5 +704,131 @@ mod tests {
         s.disks[0].total = Bytes(1);
         s.disks[0].read = BytesPerSec(0);
         assert!(render(&s, &[], 0).contains("vitals_disk_capacity_bytes"));
+    }
+
+    mod agents {
+        use super::super::render_agents;
+        use vitals_core::agents::{
+            AgentClient, AgentSession, AgentqResource, AgentqTicket, AgentsSnapshot, Liveness,
+            ResourceKind, SessionState,
+        };
+
+        fn session(client: AgentClient, state: SessionState) -> AgentSession {
+            AgentSession {
+                id: "s".into(),
+                client,
+                host: "local".into(),
+                title: None,
+                workspace: None,
+                repo: None,
+                branch: None,
+                model: None,
+                state,
+                started_ms: None,
+                last_activity_ms: None,
+                active_ms: 0,
+                turns: 0,
+                user_messages: 0,
+                tool_calls: 0,
+                tool_failures: 0,
+                current_tool: None,
+                top_tools: Vec::new(),
+                tokens_in: None,
+                tokens_out: None,
+                pid: None,
+            }
+        }
+
+        fn ticket(held: bool) -> AgentqTicket {
+            AgentqTicket {
+                id: "t".into(),
+                resource: "build:codai".into(),
+                seq: 1,
+                held,
+                lane: None,
+                priority: None,
+                pid: None,
+                session: None,
+                purpose: None,
+                cmd: None,
+                repo: None,
+                created_ms: None,
+                acquired_ms: None,
+                beat_ms: None,
+                liveness: Liveness::Unknown,
+                yielded: false,
+                wedged: false,
+            }
+        }
+
+        fn resource(name: &str, tickets: Vec<AgentqTicket>) -> AgentqResource {
+            AgentqResource {
+                name: name.into(),
+                kind: ResourceKind::of(name),
+                capacity: None,
+                tickets,
+            }
+        }
+
+        #[test]
+        fn sessions_are_counted_per_client_and_state_with_the_json_spelling() {
+            let snap = AgentsSnapshot {
+                sessions: vec![
+                    session(AgentClient::VscodeCopilot, SessionState::Working),
+                    session(AgentClient::VscodeCopilot, SessionState::Working),
+                    session(AgentClient::CopilotCli, SessionState::Idle),
+                ],
+                ..AgentsSnapshot::default()
+            };
+            let out = render_agents(&snap);
+            assert!(
+                out.contains(
+                    "vitals_agents_sessions{client=\"vscodeCopilot\",state=\"working\"} 2"
+                ),
+                "{out}"
+            );
+            assert!(
+                out.contains("vitals_agents_sessions{client=\"copilotCli\",state=\"idle\"} 1"),
+                "{out}"
+            );
+            // No fabricated zero for a pair that was never observed.
+            assert!(!out.contains("state=\"ended\""), "{out}");
+            assert_eq!(out.matches("# TYPE vitals_agents_sessions ").count(), 1);
+        }
+
+        #[test]
+        fn a_queue_counts_only_its_waiters_and_an_empty_queue_is_a_real_zero() {
+            let snap = AgentsSnapshot {
+                agentq_installed: true,
+                resources: vec![
+                    resource(
+                        "build:codai",
+                        vec![ticket(true), ticket(false), ticket(false)],
+                    ),
+                    resource("commit:vitals", vec![ticket(true)]),
+                ],
+                ..AgentsSnapshot::default()
+            };
+            let out = render_agents(&snap);
+            assert!(
+                out.contains("vitals_agentq_waiters{resource=\"build:codai\"} 2"),
+                "{out}"
+            );
+            assert!(
+                out.contains("vitals_agentq_waiters{resource=\"commit:vitals\"} 0"),
+                "{out}"
+            );
+        }
+
+        #[test]
+        fn a_machine_without_agentq_or_sessions_emits_no_agent_series_at_all() {
+            assert_eq!(render_agents(&AgentsSnapshot::default()), "");
+            let not_installed = AgentsSnapshot {
+                agentq_installed: false,
+                resources: vec![resource("build:x", vec![ticket(false)])],
+                ..AgentsSnapshot::default()
+            };
+            assert!(!render_agents(&not_installed).contains("vitals_agentq_waiters"));
+        }
     }
 }

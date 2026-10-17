@@ -11,6 +11,8 @@
 //! | `GET /api/v1/stream`   | Server-sent events, one per frame              |
 //! | `GET /api/v1/ws`       | WebSocket: frames out, control commands in     |
 //! | `GET /api/v1/host`     | Host facts                                      |
+//! | `GET /api/v1/agents`   | The AI page: agentq queues and AI sessions      |
+//! | `POST /api/v1/agents/actions` | An agentq action (control scope)         |
 //! | `GET /api/v1/health`   | Liveness, unauthenticated                       |
 //! | `POST /api/v1/pair`    | Six-digit code for a token, unauthenticated     |
 //! | `GET /metrics`         | Prometheus text exposition                     |
@@ -35,6 +37,7 @@
 //! [`FrameSource`] and a [`Controller`] and serves them; the desktop app and
 //! the CLI's `serve` command are both callers.
 
+pub mod agents;
 pub mod auth;
 pub mod control;
 pub mod lan;
@@ -44,6 +47,7 @@ pub mod prometheus;
 pub mod router;
 pub mod state;
 
+pub use agents::{ActionError, ActionOutcome, AgentsProvider};
 pub use auth::{Scope, Token, TokenSet};
 pub use control::{ControlError, ControlRequest, Controller};
 pub use lan::{Interface, interfaces, pairing_qr_svg, pairing_url};

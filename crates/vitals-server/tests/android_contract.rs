@@ -217,4 +217,73 @@ fn writes_the_android_contract_fixtures() {
             bios_version: Some("FM".into()),
         },
     );
+
+    // As `/api/v1/agents` serves it: through the same redaction.
+    write(
+        "agents.json",
+        &vitals_server::agents::redact_snapshot(&agents_snapshot()),
+    );
+}
+
+fn agents_snapshot() -> vitals_core::agents::AgentsSnapshot {
+    use vitals_core::agents::{
+        AgentClient, AgentSession, AgentqResource, AgentqTicket, AgentsSnapshot, Liveness,
+        ResourceKind, SessionState, ToolCount,
+    };
+    let ticket = |id: &str, held: bool| AgentqTicket {
+        id: id.into(),
+        resource: "build:codai".into(),
+        seq: 1,
+        held,
+        lane: Some("gate".into()),
+        priority: Some(0),
+        pid: Some(4242),
+        session: Some("sess-1".into()),
+        purpose: Some("vitest gate".into()),
+        cmd: Some("pnpm test".into()),
+        repo: Some("codai".into()),
+        created_ms: Some(1_700_000_000_000),
+        acquired_ms: held.then_some(1_700_000_001_000),
+        beat_ms: Some(1_700_000_002_000),
+        liveness: Liveness::Alive,
+        yielded: false,
+        wedged: false,
+    };
+    AgentsSnapshot {
+        taken_at_ms: 1_700_000_003_000,
+        agentq_installed: true,
+        resources: vec![AgentqResource {
+            name: "build:codai".into(),
+            kind: ResourceKind::Build,
+            capacity: Some(1),
+            tickets: vec![ticket("t1", true), ticket("t2", false)],
+        }],
+        sessions: vec![AgentSession {
+            id: "sess-1".into(),
+            client: AgentClient::VscodeCopilot,
+            host: "local".into(),
+            title: Some("expose the AI page on the LAN".into()),
+            workspace: None,
+            repo: Some("vitals".into()),
+            branch: Some("main".into()),
+            model: None,
+            state: SessionState::Working,
+            started_ms: Some(1_700_000_000_000),
+            last_activity_ms: Some(1_700_000_002_500),
+            active_ms: 2_500,
+            turns: 1,
+            user_messages: 1,
+            tool_calls: 3,
+            tool_failures: 0,
+            current_tool: Some("run_in_terminal".into()),
+            top_tools: vec![ToolCount {
+                name: "read_file".into(),
+                count: 2,
+            }],
+            tokens_in: None,
+            tokens_out: None,
+            pid: None,
+        }],
+        ..AgentsSnapshot::default()
+    }
 }

@@ -214,6 +214,46 @@ Other actions: `suspend`, `resume`, `set-priority` with an extra
 (Windows 11 efficiency mode — the leaf icon in Task Manager; `false` restores
 normal scheduling). The CLI wraps the last one as `vitals eco <pid> [--off]`.
 
+## The AI page: agentq queues and AI agent sessions
+
+`GET /api/v1/agents` returns what the desktop's AI page shows (ADR-0038):
+agentq's queues with who holds and who waits, worktree leases, background
+jobs, marks, the journal, and the AI coding agent sessions on the machine. A
+read token is enough. The headless `vitals serve` has no AI page and answers
+`404`; an empty list from the desktop means nothing is running.
+
+```powershell
+curl.exe -s -H "Authorization: Bearer $T" "$V/api/v1/agents"
+```
+
+This route is **always redacted**: home directories become `~`, and anything
+that looks like a credential — the word after `--token`, a `*_KEY=` value, a
+`ghp_` or `sk-` prefix, a long opaque string — becomes `[redacted]`. The ids an
+action needs (`id`, `leaseId`, `runId`, `session`, `sha`, `resource`, `slot`)
+are passed through untouched.
+
+`POST /api/v1/agents/actions` runs an agentq action through agentq's own CLI
+and needs a **control** token. Every state change carries a reason, which
+agentq journals for the other agents:
+
+```powershell
+curl.exe -s -X POST -H "Authorization: Bearer $T" -H "Content-Type: application/json" `
+  -d '{"kind":"freeze","resource":"build:codai","reason":"incident: 500s since 08:12Z"}' `
+  "$V/api/v1/agents/actions"
+```
+
+| Status | Meaning                                                                                            |
+| ------ | -------------------------------------------------------------------------------------------------- |
+| `200`  | agentq ran. `{"ok":false,…}` is agentq refusing (busy, frozen, unknown ticket); `output` says why. |
+| `403`  | Your token is read-only. Checked before the body is read.                                          |
+| `404`  | This host has no AI page.                                                                          |
+| `422`  | Not an action, or refused before it ran (reason under four characters, malformed resource).        |
+| `503`  | agentq could not be started here.                                                                  |
+
+Kinds: `freeze`, `block`, `clear` (`resource`, `reason`), `break` (`resource`,
+`ticket`, `reason`), `note` (`message`), `unlease` (`path`, `leaseId`,
+`reason`), `killJob` (`job`), `reapTerminals` (`dryRun`).
+
 ## Reading the JSON
 
 **A field that is `null` was not measured. It is never zero-when-unknown.**
@@ -273,6 +313,8 @@ Series you will see (all gauges):
 | `vitals_uptime_seconds`              |                        |                                                          |
 | `vitals_process_cpu_percent`         | `name`, `pid`          | Top 20 processes by CPU, then private memory.            |
 | `vitals_process_memory_bytes`        | `name`, `pid`          | Private bytes, same top 20.                              |
+| `vitals_agents_sessions`             | `client`, `state`      | AI agent sessions; only pairs that exist (desktop only). |
+| `vitals_agentq_waiters`              | `resource`             | Tickets waiting per agentq queue; absent without agentq. |
 
 Per-process series are capped at twenty because one series per process on a
 600-process machine is 1200 series a second, and the tail is noise.

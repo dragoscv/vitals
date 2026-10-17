@@ -64,6 +64,14 @@ on the machine showed it.
 7. **Privacy.** Prompts are never read past the event type. Paths and titles
    go through the frame redaction when LAN redaction is on.
 
+   _Amended 2026-10-17 (S18-07):_ the LAN route redacts **unconditionally**,
+   not behind a setting. Home directories become `~`, credential-looking
+   values become `[redacted]`, and only identifiers an action needs (`id`,
+   `leaseId`, `runId`, `session`, `sha`, `resource`, `slot`) pass through.
+   The walk is over the serialised JSON, so a field added later is redacted
+   by default. The phone card is read-only; actions over LAN are for scripts
+   holding a `control` token (`vitals-server::agents`).
+
 ## Consequences
 
 - One page answers "which agents are working, who started them, for how long,

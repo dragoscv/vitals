@@ -146,6 +146,8 @@ fn router_with_closing(state: ApiState, closing: watch::Receiver<bool>) -> Route
         .route("/api/v1/host", get(host))
         .route("/api/v1/alerts", get(alerts))
         .route("/api/v1/control", axum::routing::post(control))
+        .route("/api/v1/agents", get(agents))
+        .route("/api/v1/agents/actions", axum::routing::post(agents_action))
         .route("/metrics", get(metrics))
         .route_layer(middleware::from_fn_with_state(state.clone(), authorise))
         .layer(axum::Extension(Closing(closing)));
@@ -158,9 +160,10 @@ fn router_with_closing(state: ApiState, closing: watch::Receiver<bool>) -> Route
         .with_state(state)
 }
 
-/// The largest request body accepted. `/control` is the only route with a
-/// body and its largest request is well under 1 KiB; axum's 2 MB default was
-/// three orders of magnitude of free memory for an authenticated caller.
+/// The largest request body accepted. `/control` and `/agents/actions` are
+/// the routes with a body and their largest request (an action with a
+/// reason) is well under 1 KiB; axum's 2 MB default was three orders of
+/// magnitude of free memory for an authenticated caller.
 const MAX_BODY_BYTES: usize = 16 * 1024;
 
 /// The largest `WebSocket` message accepted from a client. Clients send only
@@ -496,13 +499,104 @@ async fn metrics(State(state): State<ApiState>) -> Response {
         Some(vitals_core::sample::FramePayload::Keyframe { processes, .. }) => processes.as_slice(),
         _ => [].as_slice(),
     };
+    let mut body = prometheus::render(system, processes, PROMETHEUS_TOP_N);
+    // A host without an AI page contributes no agent series at all: absent,
+    // not zero (see `prometheus::render_agents`).
+    if let Some(provider) = state.agents.clone() {
+        match tokio::task::spawn_blocking(move || provider.snapshot()).await {
+            Ok(snapshot) => body.push_str(&prometheus::render_agents(&snapshot)),
+            Err(error) => tracing::warn!(%error, "agents provider panicked"),
+        }
+    }
 
     (
         [(
             header::CONTENT_TYPE,
             HeaderValue::from_static("text/plain; version=0.0.4; charset=utf-8"),
         )],
-        prometheus::render(system, processes, PROMETHEUS_TOP_N),
+        body,
+    )
+        .into_response()
+}
+
+/// The AI page's snapshot (ADR-0038), redacted: home directories become
+/// `~` and anything that looks like a credential is hidden, on every field
+/// except the identifiers an action needs (see [`crate::agents`]).
+///
+/// `404` when the host offers no AI page, so a client can tell "not here"
+/// from "nothing running", which is an empty snapshot.
+async fn agents(State(state): State<ApiState>) -> Response {
+    let Some(provider) = state.agents.clone() else {
+        return agents_not_offered();
+    };
+    match tokio::task::spawn_blocking(move || provider.snapshot()).await {
+        Ok(snapshot) => Json(crate::agents::redact_snapshot(&snapshot)).into_response(),
+        Err(error) => {
+            tracing::warn!(%error, "agents provider panicked");
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+    }
+}
+
+/// Runs an agentq action (freeze, clear, break, note, unlease, kill a job).
+///
+/// The same order as [`control`], for the same reason: the scope is checked
+/// on raw `Bytes` before the body is parsed, so a read-only token gets 403
+/// for a malformed request and a well-formed one alike and cannot map the
+/// schema from the difference. Only then is the host asked whether it has
+/// an AI page at all.
+async fn agents_action(
+    State(state): State<ApiState>,
+    axum::Extension(granted): axum::Extension<Granted>,
+    body: axum::body::Bytes,
+) -> Response {
+    if !granted.scope.allows_control() {
+        return (StatusCode::FORBIDDEN, Json(ControlError::Forbidden)).into_response();
+    }
+    let Some(provider) = state.agents.clone() else {
+        return agents_not_offered();
+    };
+    let action = match serde_json::from_slice::<vitals_core::agents::AgentqAction>(&body) {
+        Ok(action) => action,
+        Err(error) => {
+            return (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                Json(ApiError {
+                    error: format!("could not read the action: {error}"),
+                }),
+            )
+                .into_response();
+        }
+    };
+    match tokio::task::spawn_blocking(move || provider.act(action)).await {
+        Ok(Ok(outcome)) => Json(crate::agents::redact_outcome(outcome)).into_response(),
+        Ok(Err(crate::agents::ActionError::Invalid(message))) => (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(ApiError {
+                error: crate::agents::redact_text(&message),
+            }),
+        )
+            .into_response(),
+        Ok(Err(crate::agents::ActionError::Unavailable(message))) => (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(ApiError {
+                error: crate::agents::redact_text(&message),
+            }),
+        )
+            .into_response(),
+        Err(error) => {
+            tracing::warn!(%error, "agents action panicked");
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+    }
+}
+
+fn agents_not_offered() -> Response {
+    (
+        StatusCode::NOT_FOUND,
+        Json(ApiError {
+            error: "this server does not offer the AI page".to_owned(),
+        }),
     )
         .into_response()
 }
@@ -885,6 +979,7 @@ mod tests {
             version: "test".into(),
             loopback_scope,
             pairing: None,
+            agents: None,
         }
     }
 

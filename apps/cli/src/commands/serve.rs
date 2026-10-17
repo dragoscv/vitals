@@ -110,6 +110,7 @@ pub fn run(options: &Options) -> Result<()> {
         version: env!("CARGO_PKG_VERSION").to_owned(),
         loopback_scope: None,
         pairing: Some(desk),
+        agents: None,
     };
 
     let runtime = tokio::runtime::Builder::new_multi_thread()

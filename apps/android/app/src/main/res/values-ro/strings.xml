@@ -377,4 +377,14 @@
     <string name="device_started">Pornit</string>
     <string name="device_core_count">Nuclee</string>
     <string name="device_each_core">Fiecare nucleu</string>
+    <string name="agents_title">Agenți AI</string>
+    <string name="agents_none_working">Niciun agent nu lucrează acum.</string>
+    <string name="agents_more">și încă %1$d</string>
+    <string name="agents_queues_idle">Nu așteaptă nimic la coadă.</string>
+    <string name="agents_queue_value">%1$d rulează · %2$d așteaptă</string>
+    <string name="agents_client_other">Alt agent</string>
+    <string name="agents_state_working">Lucrează</string>
+    <string name="agents_state_waiting">Așteaptă</string>
+    <string name="agents_state_idle">Inactiv</string>
+    <string name="agents_state_ended">Încheiat</string>
 </resources>
