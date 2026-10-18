@@ -166,7 +166,7 @@ CSV records the state.
 
 ## Verification log
 
-### 2026-10-18 — S21-07 the crash dump tests cannot hang the suite; CI job timeouts
+### 2026-10-18 — S21-07 the vitals-win suite can neither hang nor crash; CI job timeouts
 
 **Symptom.** CI "Rust test (windows)" sat in `cargo test -p vitals-win --lib`
 until cancelled on 07b011d (75 min, run 39091340540) and on 8059efe attempt 1
@@ -195,11 +195,32 @@ rather than appended. `crash_child` also sets `SEM_FAILCRITICALERRORS`.
 `timeout-minutes` on every job in `ci.yml` (12; Rust test windows 25) and
 `release.yml` (11), about three times the slowest recent successful run.
 
+**Second failure, found by the first fix's CI run.** dde402d (run 39109261384) died twice — attempt 1 and its re-run — with
+`0xc0000005 STATUS_ACCESS_VIOLATION` at 630/797, right after
+`startup_task::tests::an_unpackaged_process_reports_unknown_rather_than_off`;
+all seven crash tests had passed. Looping the suite would not reproduce it:
+devcloud 60 runs at 4 threads, 300 runs of the `startup` filter, and a
+diagnostic branch on a real windows-latest runner with CI's exact cache and
+command (18 runs) were all green. The cause is an interleaving, so it was
+written down as one. `startup_task.rs` makes `WinRT` calls on threads that
+never initialised COM; they borrow the implicit multithreaded apartment
+that the task scheduler and WMI readers open and close around every call,
+and the `windows` crate caches the activation factories they obtain. When
+the last of those threads calls `CoUninitialize`, the MTA is torn down
+under the cached factories and the next call jumps into released memory.
+The new child-process test does exactly that — another thread opens the
+MTA, `WinRT` calls borrow it, the thread closes it, `WinRT` again — and died
+`0xc0000005` 10 times out of 10 before the fix, 0 out of 10 after. Fix:
+`keep_mta_alive()` calls `CoIncrementMTAUsage` once before any `WinRT`
+call, the documented way to keep the MTA up whatever other threads do. The
+desktop app runs the same readers on its own thread pool, so this was a
+latent crash in the app as well, not only in the tests.
+
 **Proof limits.** A deadlock seen twice in about fifteen CI runs cannot be
 reproduced on demand; the evidence is the missing tests in both hung logs, the
 documented behaviour of the API, and repeat runs that no longer stop.
 
-**Verification.** devcloud ws-vitals-win on 8059efe + this change: job 20261018-074649-77a5f3 ran cargo test -p vitals-win --lib -- --test-threads=16 fifteen times in a row, "RUN 1 rc=0 secs=10" ... "RUN 15 rc=0 secs=2", each "797 passed; 0 failed" with all seven crash::tests ok, exit=0 in 44.3 s. verify.ps1 job 20261018-074908-42c6a3: "1536 Rust tests passed", "All 12 gates passed in 70.1s".
+**Verification.** devcloud ws-vitals-win. Hang fix (dde402d): job 20261018-074649-77a5f3 ran cargo test -p vitals-win --lib -- --test-threads=16 fifteen times, each "797 passed; 0 failed" with all seven crash::tests ok. Access violation: new child test before the MTA fix, job 20261018-090634-5cce76, "CHILD 1 rc=0xc0000005" ... "CHILD 10 rc=0xc0000005"; after, job 20261018-091529-f917f7, "CHILD 1 rc=0x00000000" ... "CHILD 10 rc=0x00000000", "5 passed; 0 failed". A/B 40+40 interleaved runs at 16 threads, job 20261018-092435-c65169: one failure in each arm (actions::process suspended-state test, the same 1 in 40 with or without the new test: pre-existing, not this change), no 0xc0000005 and no hang in 80 runs. verify.ps1 job 20261018-092828-7ac651: "1538 Rust tests passed", "All 12 gates passed in 93.5s".
 
 ### 2026-10-18 — S21-06 per-user uninstall removes the sensors service with consent
 
