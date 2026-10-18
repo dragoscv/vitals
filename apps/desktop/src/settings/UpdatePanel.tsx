@@ -20,7 +20,6 @@ import {
   pendingBackgroundUpdate,
   quitInstallMode,
   removeLeftoverInstall,
-  restartIntoUpdate,
   type QuitInstall,
   type UpdateState,
 } from '../lib/updater';
@@ -87,7 +86,9 @@ export function UpdateSection() {
   async function restart() {
     const version = state.kind === 'ready' ? state.version : '';
     setState({ kind: 'installing', version });
-    const failure = await restartIntoUpdate();
+    // The download sits where the background updater keeps its own, so the
+    // install is the same backend path, with its teardown and its way back.
+    const failure = await installBackgroundUpdateNow();
     // `null` means the process is on its way out; leave the installing state
     // on screen rather than flashing something else during teardown.
     if (failure !== null) setState(failure);

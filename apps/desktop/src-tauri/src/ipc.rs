@@ -26,7 +26,12 @@ use vitals_ipc::AttachServer;
 /// bound — the app keeps working; only attaching does not.
 #[derive(Debug)]
 pub struct AttachPipe {
-    server: Option<AttachServer>,
+    /// Taken by [`Self::stop`], so [`Self::restart`] can tell a stopped pipe
+    /// from a running one. A `Mutex` because managed state is shared by
+    /// reference; uncontended, the sampler's per-tick check stays cheap.
+    server: parking_lot::Mutex<Option<AttachServer>>,
+    name: String,
+    version: String,
 }
 
 impl AttachPipe {
@@ -35,8 +40,19 @@ impl AttachPipe {
     /// an unusual account name must not stop the monitor from starting.
     #[must_use]
     pub fn start(version: &str) -> Self {
-        let name = vitals_ipc::attach::default_pipe_name();
-        let server = match AttachServer::start(&name, version.to_owned()) {
+        Self::start_named(vitals_ipc::attach::default_pipe_name(), version)
+    }
+
+    fn start_named(name: String, version: &str) -> Self {
+        Self {
+            server: parking_lot::Mutex::new(Self::bind(&name, version)),
+            name,
+            version: version.to_owned(),
+        }
+    }
+
+    fn bind(name: &str, version: &str) -> Option<AttachServer> {
+        match AttachServer::start(name, version.to_owned()) {
             Ok(server) => {
                 tracing::info!(pipe = %name, "attach pipe listening");
                 Some(server)
@@ -45,14 +61,16 @@ impl AttachPipe {
                 tracing::warn!(pipe = %name, %error, "attach pipe not started");
                 None
             }
-        };
-        Self { server }
+        }
     }
 
     /// One atomic load; the sampler reads this before cloning a frame.
     #[must_use]
     pub fn has_clients(&self) -> bool {
-        self.server.as_ref().is_some_and(AttachServer::has_clients)
+        self.server
+            .lock()
+            .as_ref()
+            .is_some_and(AttachServer::has_clients)
     }
 
     /// A client is waiting for a complete view and the pipe has none. The
@@ -60,19 +78,33 @@ impl AttachPipe {
     #[must_use]
     pub fn wants_keyframe(&self) -> bool {
         self.server
+            .lock()
             .as_ref()
             .is_some_and(AttachServer::wants_keyframe)
     }
 
     pub fn publish(&self, frame: &Arc<Frame>) {
-        if let Some(server) = &self.server {
+        if let Some(server) = self.server.lock().as_ref() {
             server.publish(frame);
         }
     }
 
+    /// Stops accepting; dropping the server stops it.
     pub fn stop(&self) {
-        if let Some(server) = &self.server {
-            server.stop();
+        drop(self.server.lock().take());
+    }
+
+    /// Binds again after [`Self::stop`]; a no-op while running.
+    pub fn restart(&self) {
+        let mut server = self.server.lock();
+        if server.is_none() {
+            *server = Self::bind(&self.name, &self.version);
+            // The old accept thread drops its listener only once it has
+            // woken and seen the stop; until then the name can still be held.
+            if server.is_none() {
+                std::thread::sleep(std::time::Duration::from_millis(250));
+                *server = Self::bind(&self.name, &self.version);
+            }
         }
     }
 }
@@ -87,5 +119,57 @@ pub fn start(app: &tauri::AppHandle) {
 pub fn stop(app: &tauri::AppHandle) {
     if let Some(pipe) = app.try_state::<AttachPipe>() {
         pipe.stop();
+    }
+}
+
+/// Listens again after [`stop`], for an update that did not start.
+pub fn restart(app: &tauri::AppHandle) {
+    if let Some(pipe) = app.try_state::<AttachPipe>() {
+        pipe.restart();
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+    use vitals_ipc::attach::AttachClient;
+
+    fn unique_name(tag: &str) -> String {
+        format!("vitals-test-{tag}-{}", std::process::id())
+    }
+
+    #[test]
+    fn a_pipe_stopped_for_an_update_that_did_not_start_accepts_clients_again_after_restart() {
+        // ENG2-1: a declined UAC prompt left `vitals top` unable to attach
+        // for the rest of the session, because nothing bound the pipe again.
+        let name = unique_name("restart");
+        let pipe = AttachPipe::start_named(name.clone(), "9.9.9");
+        assert!(
+            AttachClient::connect(&name).is_ok(),
+            "not listening at start"
+        );
+
+        pipe.stop();
+        assert!(
+            pipe.server.lock().is_none(),
+            "stop left the server in place"
+        );
+
+        pipe.restart();
+        assert!(pipe.server.lock().is_some(), "restart did not bind");
+        let (_client, hello) = AttachClient::connect(&name).unwrap();
+        assert_eq!(hello.version, "9.9.9");
+    }
+
+    #[test]
+    fn restarting_a_running_pipe_keeps_the_listener_it_has() {
+        // A second bind of the same name would fail and, if it replaced the
+        // running server with `None`, silently stop attaching.
+        let name = unique_name("running");
+        let pipe = AttachPipe::start_named(name.clone(), "1.0.0");
+        pipe.restart();
+        assert!(pipe.server.lock().is_some());
+        assert!(AttachClient::connect(&name).is_ok());
     }
 }

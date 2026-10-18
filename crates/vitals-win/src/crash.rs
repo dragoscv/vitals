@@ -32,7 +32,7 @@ use std::os::windows::ffi::OsStrExt;
 use std::path::Path;
 use std::ptr::{null, null_mut};
 use std::sync::OnceLock;
-use std::sync::atomic::{AtomicBool, AtomicPtr, AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicPtr, AtomicU32, AtomicUsize, Ordering};
 
 use windows_sys::Win32::Foundation::{CloseHandle, GENERIC_WRITE, HANDLE, INVALID_HANDLE_VALUE};
 use windows_sys::Win32::Storage::FileSystem::{CREATE_ALWAYS, CreateFileW, FILE_ATTRIBUTE_NORMAL};
@@ -74,6 +74,57 @@ static PENDING_THREAD: AtomicU32 = AtomicU32::new(0);
 /// A second fault while the first is being dumped must not wait on a dump
 /// thread that will never answer it.
 static ENTERED: AtomicBool = AtomicBool::new(false);
+/// The filter that was installed before ours, called after the dump so a
+/// runtime that set one first (`WebView2`, a driver shim) still sees the
+/// fault. Zero when there was none. Stored as an address because
+/// `LPTOP_LEVEL_EXCEPTION_FILTER` is not `Sync`.
+static PREVIOUS: AtomicUsize = AtomicUsize::new(0);
+
+/// The signature `SetUnhandledExceptionFilter` takes and returns.
+type Filter = unsafe extern "system" fn(*const EXCEPTION_POINTERS) -> i32;
+
+/// What a filter returned by `SetUnhandledExceptionFilter` was.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Previous {
+    /// No filter was installed.
+    Nothing,
+    /// Ours: nobody replaced it.
+    Ours,
+    /// Someone else's, at this address: chain to it.
+    Other(usize),
+}
+
+/// Pure, so the one rule that matters — never chain to ourselves, which
+/// would recurse until the stack the filter runs on is gone — is tested.
+fn classify_previous(previous: usize, ours: usize) -> Previous {
+    if previous == 0 {
+        Previous::Nothing
+    } else if previous == ours {
+        Previous::Ours
+    } else {
+        Previous::Other(previous)
+    }
+}
+
+fn our_address() -> usize {
+    on_unhandled as Filter as usize
+}
+
+/// Installs [`on_unhandled`] and remembers whatever it displaced. Returns
+/// whether ours was already the filter.
+fn set_filter() -> bool {
+    // SAFETY: `on_unhandled` has the signature the filter type requires and
+    // is a plain function that lives for the life of the process.
+    let previous = unsafe { SetUnhandledExceptionFilter(Some(on_unhandled)) };
+    match classify_previous(previous.map_or(0, |f| f as usize), our_address()) {
+        Previous::Ours => true,
+        Previous::Nothing => false,
+        Previous::Other(address) => {
+            PREVIOUS.store(address, Ordering::SeqCst);
+            false
+        }
+    }
+}
 
 /// Starts the dump thread and installs the unhandled-exception filter.
 /// Idempotent: a second call keeps the first directory.
@@ -116,10 +167,23 @@ pub fn install(dir: &Path) -> std::io::Result<()> {
         .stack_size(256 * 1024)
         .spawn(dump_thread)?;
 
-    // SAFETY: `on_unhandled` has the signature the filter type requires and
-    // is a plain function that lives for the life of the process.
-    unsafe { SetUnhandledExceptionFilter(Some(on_unhandled)) };
+    let _ = set_filter();
     Ok(())
+}
+
+/// Puts the filter back if something installed after [`install`] replaced
+/// it, chaining to the newcomer (ENG2-15). Returns whether ours was still
+/// in place; `false` before [`install`] has run, without installing.
+///
+/// The app calls this once its window and webview exist: `WebView2` and the
+/// GPU stack load during setup, and any of them may call
+/// `SetUnhandledExceptionFilter`, silently turning the dumps off.
+#[must_use]
+pub fn reassert() -> bool {
+    if DUMPER.get().is_none() {
+        return false;
+    }
+    set_filter()
 }
 
 /// Asks Windows Error Reporting to relaunch the app with `args` after a
@@ -149,6 +213,15 @@ unsafe extern "system" fn on_unhandled(info: *const EXCEPTION_POINTERS) -> i32 {
             SetEvent(dumper.request as HANDLE);
             WaitForSingleObject(dumper.done as HANDLE, DUMP_TIMEOUT_MS);
         }
+    }
+    let previous = PREVIOUS.load(Ordering::SeqCst);
+    if let Previous::Other(address) = classify_previous(previous, our_address()) {
+        // SAFETY: the address was returned by SetUnhandledExceptionFilter as
+        // the installed filter, which is a function of exactly this type,
+        // and module code is never unloaded while it is the filter.
+        let chained: Filter = unsafe { std::mem::transmute::<usize, Filter>(address) };
+        // SAFETY: called with the pointers Windows gave us, as it would have.
+        return unsafe { chained(info) };
     }
     EXCEPTION_CONTINUE_SEARCH
 }
@@ -255,6 +328,44 @@ mod tests {
         // Stacks and modules only: a heap dump of a test process is tens of
         // megabytes; this one must stay small enough to attach to an issue.
         assert!(bytes.len() < 16 * 1024 * 1024, "{} bytes", bytes.len());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn a_displaced_filter_is_chained_but_ours_never_is_so_a_fault_cannot_recurse() {
+        let ours = our_address();
+        assert_eq!(classify_previous(0, ours), Previous::Nothing);
+        assert_eq!(classify_previous(ours, ours), Previous::Ours);
+        assert_eq!(classify_previous(0x1234, ours), Previous::Other(0x1234));
+    }
+
+    #[test]
+    fn reasserting_before_install_neither_installs_nor_claims_to_be_in_place() {
+        // No test in this binary installs in-process (only the crash child
+        // does, in its own process), so the dumper is absent here.
+        assert!(DUMPER.get().is_none());
+        assert!(!reassert());
+    }
+
+    #[test]
+    fn the_writer_output_is_overwritten_rather_than_appended() {
+        // Two dump sizes cannot be compared: a dump's size follows the threads
+        // alive at that instant, and parallel tests start and end them. So the
+        // file is pre-filled with junk larger than any dump this writer makes
+        // (the test above bounds it at 16 MiB): an append would keep the junk
+        // at the front and the length above it.
+        let dir = temp_dir("writer");
+        let path = dir.join(DUMP_FILE);
+        let junk = vec![b'X'; 17 * 1024 * 1024];
+        std::fs::write(&path, &junk).unwrap();
+        assert!(write_dump(&wide(path.as_os_str()), null(), 0));
+        let bytes = std::fs::read(&path).unwrap();
+        assert_eq!(
+            &bytes[..4],
+            b"MDMP",
+            "the old contents are still at the front"
+        );
+        assert!(bytes.len() < junk.len(), "{} bytes: appended", bytes.len());
         let _ = std::fs::remove_dir_all(dir);
     }
 

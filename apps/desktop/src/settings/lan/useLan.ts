@@ -35,7 +35,7 @@ export interface LanState {
   readonly error: string | null;
   /** The most recent pairing, shown until dismissed. Holds the secret. */
   readonly pairing: Pairing | null;
-  start(port?: number): Promise<void>;
+  start(port?: number, address?: string): Promise<void>;
   stop(): Promise<void>;
   pair(label: string, scope: Scope, address?: string): Promise<void>;
   revoke(prefix: string): Promise<void>;
@@ -111,9 +111,9 @@ export function useLan(api?: LanApi, pollMs: number = CODE_POLL_MS): LanState {
   );
 
   const start = useCallback(
-    (port?: number) =>
+    (port?: number, address?: string) =>
       run(async () => {
-        await resolved.start(port);
+        await resolved.start(port, address);
       }),
     [run, resolved],
   );

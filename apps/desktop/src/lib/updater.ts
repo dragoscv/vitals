@@ -50,8 +50,6 @@ export type UpdateState =
 interface PendingUpdate {
   readonly version: string;
   readonly body?: string | undefined;
-  download(onEvent?: (event: DownloadEvent) => void): Promise<void>;
-  install(): Promise<void>;
 }
 
 type DownloadEvent =
@@ -135,17 +133,22 @@ export async function checkForUpdate(): Promise<
 }
 
 /**
- * Download and install, reporting progress as a percentage.
+ * Download, reporting progress as a percentage, then leave the update
+ * waiting for "Restart to update".
  *
  * The percentage is `null` until the server has told us how big the download
  * is: some endpoints omit `Content-Length`, and a bar that jumps to a
  * fabricated number is worse than an honest indeterminate one. Same rule as
  * every other reading in this application — unmeasured is not zero.
  *
- * Download and install are two calls so the backend can prepare the setup
- * in between (DEV-3): a per-user copy's setup is told to run without asking
- * for administrator rights, and the attempt is recorded so the next launch
- * can say whether it worked.
+ * Through the backend's `download_update`, never the plugin's own
+ * `download`/`install` (ENG2-5, DEV-6): the plugin's install started the
+ * setup with none of the app's teardown — the sampler, the local API and the
+ * attach pipe kept running while their binary was replaced — and with no
+ * way back when the setup did not start. The download lands where the
+ * background updater keeps its own, so [`installBackgroundUpdateNow`] does
+ * the install, with the teardown, the no-prompt preparation and the restart
+ * on failure all in one place.
  */
 export async function downloadAndInstall(
   update: PendingUpdate,
@@ -155,7 +158,9 @@ export async function downloadAndInstall(
   let received = 0;
 
   try {
-    await update.download((event) => {
+    const { invoke, Channel } = await core();
+    const channel = new Channel<DownloadEvent>();
+    channel.onmessage = (event) => {
       switch (event.event) {
         case 'Started': {
           const length = event.data.contentLength;
@@ -173,28 +178,12 @@ export async function downloadAndInstall(
           break;
         }
       }
+    };
+    const version = await invoke<string>('download_update', {
+      version: update.version,
+      onEvent: channel,
     });
-    const { invoke } = await core();
-    await invoke('prepare_update_install', { version: update.version });
-    await update.install();
-    return { kind: 'ready', version: update.version };
-  } catch (error) {
-    return { kind: 'error', message: messageOf(error) };
-  }
-}
-
-/**
- * Restart into the newly installed version.
- *
- * Returns an error state rather than throwing: if the relaunch fails the user
- * is still sitting in the old app and needs to be told, not left staring at a
- * button that did nothing.
- */
-export async function restartIntoUpdate(): Promise<UpdateState | null> {
-  try {
-    const { relaunch } = await import('@tauri-apps/plugin-process');
-    await relaunch();
-    return null;
+    return { kind: 'ready', version };
   } catch (error) {
     return { kind: 'error', message: messageOf(error) };
   }

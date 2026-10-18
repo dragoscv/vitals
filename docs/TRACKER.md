@@ -201,6 +201,45 @@ local API row also claimed tokenless control; corrected EN+RO.
 
 **Verification.** See the row in `tracker.csv`.
 
+### 2026-10-18 — S21-03 elevation and install (ENG2/SEC2)
+
+**Ask.** Lane S21 elevation/install from the ENG2 audit of 1e12096: a
+declined UAC prompt on "Restart to update" left the app with no tray, a
+hidden window and nothing sampling (ENG2-1); the Settings download installed
+through the plugin with none of the app's teardown (ENG2-5); `__COMPAT_LAYER`
+stayed set after a failed start and stripped elevation from later elevated
+children (ENG2-4); elevated children logged and armed crash dumps in the
+caller's `%LOCALAPPDATA%` (SEC2-1); the sensors helper copied whatever file
+sat at its own path in a user-writable folder (SEC2-2); the Task Manager
+hook was "confirmed" by any `vitals-desktop.exe` (SEC2-12); a third-party
+exception filter silently disabled dumps (ENG2-15); history writes ran on the
+UI thread (ENG2-14); the LAN panel picked an adapter after binding all of
+them (SEC-9).
+
+**Decisions.** The plugin's default `on_before_exit` runs Tauri's
+`cleanup_before_exit`, which removes the tray for good _before_ the setup is
+started, so a failed start cannot be undone; ours hides the tray and windows
+and `resume_after_failed_install` reverses every step of
+`stop_for_install`. The webview loses `updater:download`/`install` and
+`process:allow-restart` (capability `updater:allow-check` only): one install
+path, in Rust. The sensors helper reads its own mapped image through a handle
+that denies delete sharing and checks the mapped name did not change across
+the open — a running image can be renamed, not overwritten, and the test
+`the_mapped_name_follows_a_rename_of_the_running_executable` measures the
+assumption. Not done here: a per-user uninstall still cannot remove the
+SYSTEM sensors service without administrator rights. That needs `hooks.nsh`,
+which the parallel S21 AI lane owns; the limit stays documented in the FAQ
+(EN+RO) and the hook comment.
+
+**Verification.**
+
+```text
+agentq run -Where cloud -Ws codai: cargo clippy --workspace --lib --bins --tests --benches --exclude vitals-win -- -D warnings -> exit 0 (job 20261018-023716-b08c7b; first run caught 3 E0308 in sampling.rs tests + missing_fields_in_debug, fixed)
+agentq run -Where cloud -Ws vitals-win: scripts/verify.ps1 -> All 12 gates passed in 76.9s (job 20261018-023811-7d2edb): ts typecheck+lint+tests 21/21, clippy, 1507 Rust tests passed, perf budget median 1.48 ms / 30 ms, bindings + contracts no drift, size budgets
+rebased onto eb6397c (S21-02): verify.ps1 on ws-vitals-win -> All 12 gates passed in 103s (job 20261018-025338-b06932; Rust tests 59.5 s, perf median 1.50 ms); the first attempt wedged the workspace agent (heartbeat frozen) and needed an instance reset
+new tests: ipc a_pipe_stopped_for_an_update_that_did_not_start_accepts_clients_again_after_restart, restarting_a_running_pipe_keeps_the_listener_it_has; sampling a_sampler_stopped_for_an_update_that_did_not_start_samples_again_and_stops_on_quit, restarting_a_running_sampler_never_starts_a_second_one_beside_it; launch every_elevated_child_is_headless_...; crash chain/reassert/overwrite; sensors image rename (child process) + trust_problem; taskmgr exact-copy confirmation; UpdatePanel downloads only + installs through install_update_now, declined prompt says why; RemoteAccessPanel binds the adapter shown
+```
+
 ### 2026-10-18 — S21-02 CI: idle cost gate, real installer round trip, update proof
 
 **Ask.** PERF-1 (no idle CPU/RAM gate), QA2-2 (uninstall checks were vacuous: nothing turned

@@ -87,12 +87,14 @@ pub fn get_app_history(state: tauri::State<'_, AppState>) -> CommandResult<AppHi
 ///
 /// Permanent, and written through to disk immediately — the frontend confirms
 /// with the user before calling this.
+///
+/// Async and on the blocking pool (ENG2-14): it writes the history file and
+/// waits on the history lock the sampler holds during a flush, neither of
+/// which belongs on the UI thread.
 #[tauri::command]
 #[cfg(windows)]
-#[allow(clippy::needless_pass_by_value)]
-pub fn clear_app_history(state: tauri::State<'_, AppState>) -> CommandResult<()> {
-    state.clear_history();
-    Ok(())
+pub async fn clear_app_history(app: tauri::AppHandle) -> CommandResult<()> {
+    off_main(app, AppState::clear_history).await
 }
 
 /// Turns accumulation on or off, mirroring the "Record history" setting.
@@ -101,12 +103,31 @@ pub fn clear_app_history(state: tauri::State<'_, AppState>) -> CommandResult<()>
 /// call arrives the store records nothing: a user who has never opened
 /// Settings has the default (off), and a tally that started before their
 /// preference was known would be recording without consent.
+///
+/// Async for the same reason as [`clear_app_history`]: turning it off saves
+/// the file.
 #[tauri::command]
 #[cfg(windows)]
-#[allow(clippy::needless_pass_by_value)]
-pub fn set_history_enabled(state: tauri::State<'_, AppState>, enabled: bool) -> CommandResult<()> {
-    state.set_history_enabled(enabled);
-    Ok(())
+pub async fn set_history_enabled(app: tauri::AppHandle, enabled: bool) -> CommandResult<()> {
+    off_main(app, move |state| state.set_history_enabled(enabled)).await
+}
+
+/// Runs `work` against the managed [`AppState`] on the blocking pool.
+#[cfg(windows)]
+async fn off_main(
+    app: tauri::AppHandle,
+    work: impl FnOnce(&AppState) + Send + 'static,
+) -> CommandResult<()> {
+    use tauri::Manager;
+    tauri::async_runtime::spawn_blocking(move || {
+        if let Some(state) = app.try_state::<AppState>() {
+            work(&state);
+        }
+    })
+    .await
+    .map_err(|err| CommandError::Internal {
+        message: format!("the history change was abandoned: {err}"),
+    })
 }
 
 /// Placeholder stubs for non-Windows platforms.

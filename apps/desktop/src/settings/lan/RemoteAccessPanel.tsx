@@ -85,6 +85,39 @@ export function RemoteAccessPanel({ api, codePollMs }: RemoteAccessPanelProps = 
           {t('settings.remote.explainer')}
         </p>
 
+        {/* Chosen before the switch, because it decides what the server
+            binds (SEC-9): the listener is on that adapter only. Locked while
+            running — the socket cannot move, and a picker that changed only
+            the QR address would point phones at an adapter nothing listens
+            on. */}
+        {interfaces.length > 0 && (
+          <SettingsRow
+            label={t('settings.remote.interface')}
+            // Spread rather than `cond ? x : undefined`: under
+            // `exactOptionalPropertyTypes` the prop is `string`, not
+            // `string | undefined`, so passing undefined is a type error.
+            {...(interfaces.length > 1 && {
+              description: t('settings.remote.interfaceHint'),
+            })}
+          >
+            {({ labelId }) => (
+              <Select
+                ariaLabel={t('settings.remote.interface')}
+                aria-labelledby={labelId}
+                disabled={running || lan.busy}
+                {...(chosen !== undefined && { value: chosen })}
+                onValueChange={setAddress}
+                options={interfaces.map((iface) => ({
+                  value: iface.address,
+                  // The adapter name matters: it is how someone recognises
+                  // "this is my Wi-Fi" versus "this is the Hyper-V switch".
+                  label: `${iface.name} — ${iface.address}`,
+                }))}
+              />
+            )}
+          </SettingsRow>
+        )}
+
         <SettingsRow
           label={t('settings.remote.enable')}
           description={t('settings.remote.enableHint')}
@@ -99,7 +132,7 @@ export function RemoteAccessPanel({ api, codePollMs }: RemoteAccessPanelProps = 
                 checked={running}
                 disabled={lan.busy}
                 onCheckedChange={(next) => {
-                  void (next ? lan.start() : lan.stop());
+                  void (next ? lan.start(undefined, chosen) : lan.stop());
                 }}
               />
             )
@@ -126,36 +159,15 @@ export function RemoteAccessPanel({ api, codePollMs }: RemoteAccessPanelProps = 
 
       {running && (
         <SettingsSection title={t('settings.remote.pairTitle')}>
-          <SettingsRow
-            label={t('settings.remote.interface')}
-            // Spread rather than `cond ? x : undefined`: under
-            // `exactOptionalPropertyTypes` the prop is `string`, not
-            // `string | undefined`, so passing undefined is a type error.
-            {...(interfaces.length > 1 && {
-              description: t('settings.remote.interfaceHint'),
-            })}
-          >
-            {({ labelId }) =>
-              interfaces.length === 0 ? (
+          {interfaces.length === 0 && (
+            <SettingsRow label={t('settings.remote.interface')}>
+              {() => (
                 <span className="text-2xs text-[var(--color-fg-muted)]">
                   {t('settings.remote.noInterfaces')}
                 </span>
-              ) : (
-                <Select
-                  ariaLabel={t('settings.remote.interface')}
-                  aria-labelledby={labelId}
-                  {...(chosen !== undefined && { value: chosen })}
-                  onValueChange={setAddress}
-                  options={interfaces.map((iface) => ({
-                    value: iface.address,
-                    // The adapter name matters: it is how someone recognises
-                    // "this is my Wi-Fi" versus "this is the Hyper-V switch".
-                    label: `${iface.name} — ${iface.address}`,
-                  }))}
-                />
-              )
-            }
-          </SettingsRow>
+              )}
+            </SettingsRow>
+          )}
 
           <SettingsRow label={t('settings.remote.deviceName')}>
             {({ labelId }) => (

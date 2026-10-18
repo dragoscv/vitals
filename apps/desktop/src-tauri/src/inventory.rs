@@ -1184,7 +1184,7 @@ fn setup_outcome(code: i32) -> CommandResult<()> {
         other => Err(CommandError::Internal {
             message: format!(
                 "the sensors helper failed (exit {other}); details are in \
-                 %ProgramData%\\Vitals Sensors\\install.log"
+                  install.log in the Vitals Sensors folder under Program Files"
             ),
         }),
     }

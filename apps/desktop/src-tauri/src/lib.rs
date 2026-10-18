@@ -48,12 +48,20 @@ pub fn run() {
     // ran under RunAsInvoker and restarted us with it in the environment).
     #[cfg(windows)]
     vitals_win::install::clear_inherited_compat_layer();
-    init_logging();
 
     // Decided before the builder exists: two of these modes must never
     // create a window, and one of them is the elevated child that a running
     // instance is waiting on right now.
+    //
+    // And before anything touches the disk (SEC2-1): the elevated children
+    // inherit the environment of the unelevated user who started them, so
+    // a log directory resolved from `%LOCALAPPDATA%` is a folder that user
+    // chose. A junction planted there turned `vitals.log` and `crash.dmp`
+    // into an administrator write to any file on the machine. Headless
+    // modes therefore log to stderr only and write no crash files at all.
     let mode = launch::classify(std::env::args().skip(1));
+    let headless = launch::is_headless(&mode);
+    init_logging(!headless);
     tracing::debug!(?mode, args = ?std::env::args().collect::<Vec<_>>(), "launch classified");
     match mode {
         launch::LaunchMode::SetReplacement { .. }
@@ -83,6 +91,14 @@ pub fn run() {
             tracing::info!("launched in place of Task Manager");
         }
         launch::LaunchMode::Normal => {}
+    }
+
+    // After classification and only for the app proper, for the reason
+    // above. A native fault is not a panic and would otherwise leave nothing
+    // behind (PERF-8).
+    #[cfg(windows)]
+    if let Err(error) = vitals_win::crash::install(&crashlog::log_dir()) {
+        tracing::warn!(%error, "crash dumps are off");
     }
 
     // Only for the app proper: an elevated child that crashed should not be
@@ -148,13 +164,23 @@ pub fn run() {
 /// build has no console, so without the file a warning logged in the field
 /// was written to nowhere. The panic hook goes in first so even a panic
 /// during setup leaves `crash.txt`.
-fn init_logging() {
+///
+/// `to_file: false` for the headless and elevated modes: stderr only, no
+/// panic file, nothing created on disk (SEC2-1).
+fn init_logging(to_file: bool) {
     use tracing_subscriber::prelude::*;
 
-    let dir = crashlog::log_dir();
-    crashlog::install_panic_hook(dir.clone());
     let filter = tracing_subscriber::EnvFilter::try_from_env("VITALS_LOG")
         .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
+    if !to_file {
+        tracing_subscriber::registry()
+            .with(filter)
+            .with(tracing_subscriber::fmt::layer().with_writer(std::io::stderr))
+            .init();
+        return;
+    }
+    let dir = crashlog::log_dir();
+    crashlog::install_panic_hook(dir.clone());
     tracing_subscriber::registry()
         .with(filter)
         .with(tracing_subscriber::fmt::layer())
@@ -164,12 +190,6 @@ fn init_logging() {
                 .with_writer(crashlog::CappedLog::new(crashlog::open_log(&dir))),
         )
         .init();
-    // After `init` so a failure is logged. A native fault is not a panic and
-    // would otherwise leave nothing behind (PERF-8).
-    #[cfg(windows)]
-    if let Err(error) = vitals_win::crash::install(&dir) {
-        tracing::warn!(%error, "crash dumps are off");
-    }
 }
 
 /// Every command the webview may call.
@@ -346,7 +366,7 @@ fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
         updates::set_auto_update,
         updates::get_pending_update,
         updates::get_update_install_mode,
-        updates::prepare_update_install,
+        updates::download_update,
         updates::install_update_now,
         updates::take_update_outcome,
         updates::get_leftover_install,
@@ -405,7 +425,28 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     if !crate::distribution::packaged() && vitals_win::install::repoint_autostart() {
         tracing::info!("start with Windows now names this copy");
     }
+    // WebView2 and the GPU stack load during setup and may install their own
+    // unhandled-exception filter, silently replacing the dump writer
+    // (ENG2-15). Checked now and once more after the webview has had time
+    // to start its renderer; a displaced filter is chained, not dropped.
+    #[cfg(windows)]
+    {
+        reassert_crash_filter();
+        std::thread::spawn(|| {
+            std::thread::sleep(std::time::Duration::from_secs(15));
+            reassert_crash_filter();
+        });
+    }
     Ok(())
+}
+
+#[cfg(windows)]
+fn reassert_crash_filter() {
+    if !vitals_win::crash::reassert() {
+        tracing::info!(
+            "the crash dump filter was not in place; reinstalled where crash dumps are on"
+        );
+    }
 }
 
 /// Teardown that must happen however the app ends.

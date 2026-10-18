@@ -237,4 +237,20 @@ describe('RemoteAccessPanel', () => {
     const alert = await screen.findByRole('alert');
     expect(alert.textContent).toContain('already in use');
   });
+
+  it('binds the server to the adapter shown, not to every interface', async () => {
+    // SEC-9: the panel offered "Wi-Fi" and started a server listening on the
+    // WSL bridge and every other adapter as well.
+    const start = vi.fn<LanApi['start']>(() => Promise.resolve(7331));
+    const off: LanStatus = { ...RUNNING, running: false, port: null };
+    render(<RemoteAccessPanel api={fakeApi({ start }, off)} />);
+
+    expect(await screen.findByRole('combobox', { name: /network adapter/i })).toBeTruthy();
+    (await screen.findByRole('switch', { name: /allow devices on this network/i })).click();
+
+    await waitFor(() => {
+      expect(start).toHaveBeenCalledTimes(1);
+    });
+    expect(start.mock.calls[0]?.[1]).toBe('192.168.1.20');
+  });
 });

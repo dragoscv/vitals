@@ -102,7 +102,10 @@ impl Default for Wake {
 /// Handle to a running sampler thread.
 #[derive(Debug)]
 pub struct SamplerHandle {
-    stop: Arc<AtomicBool>,
+    /// The current run's stop flag. Replaced by [`Self::restart`], so a
+    /// previous thread that has not yet noticed its stop keeps seeing `true`
+    /// and exits rather than running on beside the new one.
+    stop: parking_lot::Mutex<Arc<AtomicBool>>,
     /// Taken by [`Self::stop_and_wait`]. A `Mutex` because the handle lives
     /// in Tauri's managed state, which hands out `&self` only.
     thread: parking_lot::Mutex<Option<thread::JoinHandle<()>>>,
@@ -117,7 +120,7 @@ impl SamplerHandle {
     /// leak the kernel buffer it was filling. Wakes a sleeping sampler so
     /// the stop is seen at once, not at the end of the interval.
     pub fn stop(&self) {
-        self.stop.store(true, Ordering::Relaxed);
+        self.stop.lock().store(true, Ordering::Relaxed);
         RATE_WAKE.notify();
     }
 
@@ -151,6 +154,33 @@ impl SamplerHandle {
             );
         }
     }
+
+    /// Starts sampling again after [`Self::stop_and_wait`]. A no-op while a
+    /// run is still going.
+    ///
+    /// For the update path (ENG2-1): the sampler is stopped before the setup
+    /// starts so its last flush lands, and when the setup then does not
+    /// start — a declined UAC prompt — the app must not be left as a window
+    /// that no longer measures anything.
+    pub fn restart(&self, app: AppHandle) {
+        let flight = self.flight.clone();
+        if self.restart_with(|stop| start_thread(app, stop, flight)) {
+            tracing::info!("sampler restarted");
+        }
+    }
+
+    /// The decision half of [`Self::restart`]: a fresh stop flag, and a new
+    /// thread only when none is running. Returns whether one was started.
+    fn restart_with(&self, start: impl FnOnce(Arc<AtomicBool>) -> thread::JoinHandle<()>) -> bool {
+        let mut thread = self.thread.lock();
+        if thread.as_ref().is_some_and(|h| !h.is_finished()) {
+            return false;
+        }
+        let stop = Arc::new(AtomicBool::new(false));
+        *self.stop.lock() = Arc::clone(&stop);
+        *thread = Some(start(stop));
+        true
+    }
 }
 
 impl Drop for SamplerHandle {
@@ -165,26 +195,31 @@ impl Drop for SamplerHandle {
 /// cannot leave a thread sampling forever.
 pub fn spawn(app: AppHandle) -> SamplerHandle {
     let stop = Arc::new(AtomicBool::new(false));
-    let thread_stop = Arc::clone(&stop);
     let flight = FlightRecorder::default();
-    let thread_flight = flight.clone();
+    let thread = start_thread(app, Arc::clone(&stop), flight.clone());
 
+    SamplerHandle {
+        stop: parking_lot::Mutex::new(stop),
+        thread: parking_lot::Mutex::new(Some(thread)),
+        flight,
+    }
+}
+
+fn start_thread(
+    app: AppHandle,
+    stop: Arc<AtomicBool>,
+    flight: FlightRecorder,
+) -> thread::JoinHandle<()> {
     // Startup, not the hot path: if the OS refuses a thread, aborting with a
     // message is the right outcome — there is nothing to show without it.
     #[allow(clippy::expect_used)]
-    let thread = thread::Builder::new()
+    thread::Builder::new()
         .name("vitals-sampler".into())
         // 512 KiB: the default 2 MiB is wasteful for a thread whose deepest
         // allocation is a process buffer that lives on the heap anyway.
         .stack_size(512 * 1024)
-        .spawn(move || run(&app, &thread_stop, &thread_flight))
-        .expect("the sampler thread must start; the app is useless without it");
-
-    SamplerHandle {
-        stop,
-        thread: parking_lot::Mutex::new(Some(thread)),
-        flight,
-    }
+        .spawn(move || run(&app, &stop, &flight))
+        .expect("the sampler thread must start; the app is useless without it")
 }
 
 /// The sampling loop.
@@ -639,6 +674,63 @@ impl Backend {
 mod tests {
     use super::*;
 
+    /// A stand-in sampler thread: runs until its stop flag is set.
+    fn idle_thread(stop: Arc<AtomicBool>) -> thread::JoinHandle<()> {
+        thread::spawn(move || {
+            while !stop.load(Ordering::Relaxed) {
+                thread::sleep(Duration::from_millis(5));
+            }
+        })
+    }
+
+    fn handle_with(thread: thread::JoinHandle<()>, stop: Arc<AtomicBool>) -> SamplerHandle {
+        SamplerHandle {
+            stop: parking_lot::Mutex::new(stop),
+            thread: parking_lot::Mutex::new(Some(thread)),
+            flight: FlightRecorder::default(),
+        }
+    }
+
+    #[test]
+    fn a_sampler_stopped_for_an_update_that_did_not_start_samples_again_and_stops_on_quit() {
+        // ENG2-1: after a declined UAC prompt the window stayed open with
+        // nothing measuring. The restarted run must also obey the next stop,
+        // or Quit would leave it running without its final flush.
+        let stop = Arc::new(AtomicBool::new(false));
+        let handle = handle_with(idle_thread(Arc::clone(&stop)), stop);
+        handle.stop_and_wait(Duration::from_secs(2));
+        assert!(handle.thread.lock().is_none());
+
+        assert!(handle.restart_with(idle_thread));
+        let running = handle
+            .thread
+            .lock()
+            .as_ref()
+            .is_some_and(|h| !h.is_finished());
+        assert!(running, "restart did not start a thread");
+
+        handle.stop_and_wait(Duration::from_secs(2));
+        assert!(
+            handle.thread.lock().is_none(),
+            "the restarted run ignored stop"
+        );
+    }
+
+    #[test]
+    fn restarting_a_running_sampler_never_starts_a_second_one_beside_it() {
+        let stop = Arc::new(AtomicBool::new(false));
+        let handle = handle_with(idle_thread(Arc::clone(&stop)), Arc::clone(&stop));
+        let mut started = false;
+        assert!(!handle.restart_with(|s| {
+            started = true;
+            idle_thread(s)
+        }));
+        assert!(!started);
+        // The original flag is still the live one, so stop reaches it.
+        handle.stop_and_wait(Duration::from_secs(2));
+        assert!(stop.load(Ordering::Relaxed));
+    }
+
     #[test]
     fn a_watching_phone_lifts_a_hidden_window_to_live_rate() {
         use vitals_core::sample::SampleRate;
@@ -745,7 +837,7 @@ mod tests {
         let stop = Arc::new(AtomicBool::new(false));
         {
             let _handle = SamplerHandle {
-                stop: Arc::clone(&stop),
+                stop: parking_lot::Mutex::new(Arc::clone(&stop)),
                 thread: parking_lot::Mutex::new(None),
                 flight: FlightRecorder::default(),
             };
@@ -769,11 +861,7 @@ mod tests {
             thread::sleep(Duration::from_millis(30));
             thread_flushed.store(true, Ordering::Relaxed);
         });
-        let handle = SamplerHandle {
-            stop,
-            thread: parking_lot::Mutex::new(Some(thread)),
-            flight: FlightRecorder::default(),
-        };
+        let handle = handle_with(thread, stop);
         handle.stop_and_wait(Duration::from_secs(2));
         assert!(
             flushed.load(Ordering::Relaxed),
@@ -785,11 +873,7 @@ mod tests {
     fn stop_and_wait_gives_up_at_the_limit_rather_than_hanging_quit() {
         let stop = Arc::new(AtomicBool::new(false));
         let thread = thread::spawn(|| thread::sleep(Duration::from_secs(3)));
-        let handle = SamplerHandle {
-            stop,
-            thread: parking_lot::Mutex::new(Some(thread)),
-            flight: FlightRecorder::default(),
-        };
+        let handle = handle_with(thread, stop);
         let started = Instant::now();
         handle.stop_and_wait(Duration::from_millis(50));
         assert!(started.elapsed() < Duration::from_secs(1));

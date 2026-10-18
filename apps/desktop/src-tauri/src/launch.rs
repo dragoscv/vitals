@@ -152,6 +152,32 @@ fn is_taskmgr_path(arg: &str) -> bool {
         .is_some_and(|name| name.eq_ignore_ascii_case("taskmgr.exe"))
 }
 
+/// Whether this launch runs without a window and exits — every mode
+/// [`run_headless`] handles. These are the modes that may be elevated
+/// children started by an unelevated parent, so they must not log to a
+/// file or arm crash dumps: both resolve their folder from an environment
+/// the parent controls (SEC2-1).
+///
+/// `AsTaskManager` counts as a window here even though Task Manager's
+/// elevation hop turns it headless later: that decision needs the token,
+/// and the hop is handled before the crash filter is installed.
+///
+/// Pure; exhaustive by construction, since a new mode will not compile
+/// until it is placed on one side.
+#[must_use]
+pub const fn is_headless(mode: &LaunchMode) -> bool {
+    match mode {
+        LaunchMode::SetReplacement { .. }
+        | LaunchMode::LaunchRealTaskManager
+        | LaunchMode::ElevatedProcessAction { .. }
+        | LaunchMode::ElevatedStartupAction { .. }
+        | LaunchMode::ElevatedStorageCleanup { .. }
+        | LaunchMode::ElevatedCompactVhd { .. }
+        | LaunchMode::RemoveMachineInstall => true,
+        LaunchMode::Normal | LaunchMode::AsTaskManager => false,
+    }
+}
+
 /// The internal argument spellings, shared with `vitals-win` on Windows.
 ///
 /// On other platforms the constant is repeated here so the classifier still
@@ -349,6 +375,28 @@ mod tests {
     #[test]
     fn no_arguments_is_a_normal_launch() {
         assert_eq!(classify(Vec::<&str>::new()), LaunchMode::Normal);
+    }
+
+    #[test]
+    fn every_elevated_child_is_headless_so_it_writes_no_log_or_dump_into_a_user_folder() {
+        // SEC2-1: each of these may run as administrator with the caller's
+        // %LOCALAPPDATA%; any file it created there could be a junction.
+        let elevated_children = [
+            classify([vitals_win_arg::SET_REPLACEMENT, "on"]),
+            classify([vitals_win_arg::PROCESS_ACTION, "terminate", "1", "2"]),
+            classify([vitals_win_arg::STARTUP_ACTION, "x"]),
+            classify([vitals_win_arg::STORAGE_CLEANUP, "x"]),
+            classify([vitals_win_arg::COMPACT_VHD, "x"]),
+            classify([vitals_win_arg::REMOVE_MACHINE_INSTALL]),
+            classify(["--launch-real-taskmgr"]),
+        ];
+        for mode in &elevated_children {
+            assert!(is_headless(mode), "{mode:?} would log to a file");
+        }
+        assert!(!is_headless(&LaunchMode::Normal));
+        assert!(!is_headless(&classify([
+            r"C:\Windows\System32\taskmgr.exe"
+        ])));
     }
 
     #[test]

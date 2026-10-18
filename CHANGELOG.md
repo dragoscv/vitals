@@ -7,6 +7,29 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Declining the administrator prompt for an update no longer leaves Vitals
+  half-stopped.** The tray icon, the window, sampling, the local API and the
+  `vitals top` pipe all come back, and the download stays ready for another
+  try. Updates downloaded from Settings › About now install the same way, so
+  they get the same clean stop and the same way back.
+- The Remote access panel binds the server to the network adapter you pick,
+  instead of to every adapter on the PC. Choose the adapter before you turn
+  sharing on.
+- Elevated helper runs (Task Manager switch, ending a protected process,
+  clean-up, removing an old copy) no longer write a log or crash dump into
+  your user folder while running as administrator.
+- The sensors helper installs a copy of exactly the file that is running, so
+  swapping the file in a per-user install folder during the prompt cannot
+  turn a different program into the SYSTEM service.
+- Turning Task Manager replacement on is confirmed only when Windows names
+  this exact copy, not any file called `vitals-desktop.exe`.
+- Crash dumps keep working after WebView2 or a graphics driver installs its
+  own crash handler; theirs is called after ours.
+- Clearing app history and turning recording on or off no longer pause the
+  window while the file is written.
+
 ## [1.0.4] — 2026-10-18
 
 The AI agents page, and updates that install themselves.

@@ -42,6 +42,10 @@ windows = { version = "0.62.2", features = [
         # installer must not take Program Files from the caller's environment.
         "Win32_UI_Shell",
         "Win32_System_Com",
+        # The helper copies its own mapped image, not the file at its path
+        # (SEC2-2): GetModuleHandleW + GetMappedFileNameW.
+        "Win32_System_LibraryLoader",
+        "Win32_System_ProcessStatus",
 ] }
 
 [lints]

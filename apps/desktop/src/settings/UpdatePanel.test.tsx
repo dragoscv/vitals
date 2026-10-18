@@ -25,30 +25,40 @@ vi.mock('../shell/host', () => ({
 // throw on import, so the state machine must never see them here.
 const plugin = vi.hoisted(() => ({
   check: vi.fn(),
-  relaunch: vi.fn(() => Promise.resolve()),
 }));
 
 vi.mock('@tauri-apps/plugin-updater', () => ({ check: plugin.check }));
-vi.mock('@tauri-apps/plugin-process', () => ({ relaunch: plugin.relaunch }));
-
-// The backend commands the panel asks, answered per test.
-interface Backend {
-  answers: Record<string, unknown>;
-  calls: { cmd: string; args: unknown }[];
-}
-const backend = vi.hoisted((): Backend => ({ answers: {}, calls: [] }));
-vi.mock('@tauri-apps/api/core', () => ({
-  invoke: vi.fn((cmd: string, args?: unknown) => {
-    backend.calls.push({ cmd, args });
-    const answer = backend.answers[cmd];
-    return answer instanceof Error ? Promise.reject(answer) : Promise.resolve(answer ?? null);
-  }),
-}));
 
 type DownloadEvent =
   | { event: 'Started'; data: { contentLength?: number } }
   | { event: 'Progress'; data: { chunkLength: number } }
   | { event: 'Finished' };
+
+interface FakeChannel {
+  onmessage: (event: DownloadEvent) => void;
+}
+
+// The backend commands the panel asks, answered per test. `download` plays
+// the backend's `download_update`: it receives the progress channel.
+interface Backend {
+  answers: Record<string, unknown>;
+  calls: { cmd: string; args: unknown }[];
+  download: ((channel: FakeChannel) => Promise<unknown>) | null;
+}
+const backend = vi.hoisted((): Backend => ({ answers: {}, calls: [], download: null }));
+vi.mock('@tauri-apps/api/core', () => ({
+  Channel: class {
+    onmessage: (event: DownloadEvent) => void = () => undefined;
+  },
+  invoke: vi.fn((cmd: string, args?: { onEvent?: FakeChannel }) => {
+    backend.calls.push({ cmd, args });
+    if (cmd === 'download_update' && backend.download !== null && args?.onEvent) {
+      return backend.download(args.onEvent);
+    }
+    const answer = backend.answers[cmd];
+    return answer instanceof Error ? Promise.reject(answer) : Promise.resolve(answer ?? null);
+  }),
+}));
 
 function checkButton(): HTMLButtonElement {
   return screen.getByRole('button', { name: 'Check for updates' });
@@ -64,6 +74,7 @@ beforeEach(async () => {
   plugin.check.mockReset();
   backend.answers = {};
   backend.calls = [];
+  backend.download = null;
   vi.unstubAllEnvs();
   // Production-like by default: DEV is true under vitest, which would send
   // every test down the `unconfigured` path and prove nothing.
@@ -125,12 +136,7 @@ describe('the update section', () => {
   });
 
   it('reports the version and notes when an update is available', async () => {
-    plugin.check.mockResolvedValue({
-      version: '2.0.0',
-      body: 'Faster sampling.',
-      download: vi.fn(() => Promise.resolve()),
-      install: vi.fn(() => Promise.resolve()),
-    });
+    plugin.check.mockResolvedValue({ version: '2.0.0', body: 'Faster sampling.' });
 
     render(<UpdateSection />);
     fireEvent.click(checkButton());
@@ -146,15 +152,16 @@ describe('the update section', () => {
     let emit: (event: DownloadEvent) => void = () => undefined;
     let finish: () => void = () => undefined;
 
-    plugin.check.mockResolvedValue({
-      version: '2.0.0',
-      download: (onEvent: (event: DownloadEvent) => void) =>
-        new Promise<void>((resolve) => {
-          emit = onEvent;
-          finish = resolve;
-        }),
-      install: vi.fn(() => Promise.resolve()),
-    });
+    plugin.check.mockResolvedValue({ version: '2.0.0' });
+    backend.download = (channel) =>
+      new Promise((resolve) => {
+        emit = (event) => {
+          channel.onmessage(event);
+        };
+        finish = () => {
+          resolve('2.0.0');
+        };
+      });
 
     render(<UpdateSection />);
     fireEvent.click(checkButton());
@@ -217,19 +224,13 @@ describe('the update section', () => {
     expect(retry.disabled).toBe(false);
   });
 
-  it('prepares the setup between download and install, so a per-user copy is never prompted', async () => {
-    const order: string[] = [];
-    plugin.check.mockResolvedValue({
-      version: '2.0.0',
-      download: vi.fn(() => {
-        order.push('download');
-        return Promise.resolve();
-      }),
-      install: vi.fn(() => {
-        order.push(`install after ${backend.calls.map((c) => c.cmd).join(',')}`);
-        return Promise.resolve();
-      }),
-    });
+  it('downloads only, and installs through the backend that stops and restores the app around the setup', async () => {
+    // ENG2-5: the plugin's own install started the setup with the sampler,
+    // the local API and the attach pipe still running, and with no way back
+    // when the prompt was declined. The handle the check returns has no
+    // download or install here: if the panel reached for either, it throws.
+    plugin.check.mockResolvedValue({ version: '2.0.0' });
+    backend.answers.download_update = '2.0.0';
 
     render(<UpdateSection />);
     fireEvent.click(checkButton());
@@ -238,11 +239,30 @@ describe('the update section', () => {
     await waitFor(() => {
       expect(screen.getByText('Version 2.0.0 is ready to install.')).toBeTruthy();
     });
-    expect(order[0]).toBe('download');
-    expect(order[1]).toContain('prepare_update_install');
-    expect(backend.calls.find((c) => c.cmd === 'prepare_update_install')?.args).toEqual({
-      version: '2.0.0',
+    const download = backend.calls.find((c) => c.cmd === 'download_update');
+    expect((download?.args as { version?: string } | undefined)?.version).toBe('2.0.0');
+    expect(backend.calls.some((c) => c.cmd === 'install_update_now')).toBe(false);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Restart to update' }));
+    await waitFor(() => {
+      expect(backend.calls.some((c) => c.cmd === 'install_update_now')).toBe(true);
     });
+  });
+
+  it('says why a declined prompt after a manual download did not install, and keeps the app usable', async () => {
+    plugin.check.mockResolvedValue({ version: '2.0.0' });
+    backend.answers.download_update = '2.0.0';
+    backend.answers.install_update_now = new Error('the update was not installed: os error 1223');
+
+    render(<UpdateSection />);
+    fireEvent.click(checkButton());
+    fireEvent.click(await screen.findByRole('button', { name: 'Download update' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Restart to update' }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/os error 1223/)).toBeTruthy();
+    });
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy();
   });
 
   it('says a Program Files copy needs approval and offers the click instead of waiting for quit', async () => {

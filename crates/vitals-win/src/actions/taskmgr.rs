@@ -1059,15 +1059,23 @@ fn is_vitals_executable(path: &str) -> bool {
     })
 }
 
-/// Case-insensitive path comparison, quotes already stripped.
+/// Whether the registered debugger is exactly `ours`, quotes already
+/// stripped.
+///
+/// Whole paths, canonicalised where the file exists, then compared
+/// [`normalised`]. It used to fall back to "the file name is
+/// `vitals-desktop.exe`", so `confirm` accepted a hook naming *any* copy —
+/// a portable one in Downloads included — as proof that the elevated pass
+/// had written ours (SEC2-12).
 fn paths_match(registered: &str, ours: &Path) -> bool {
-    ours.to_str().is_some_and(|ours| {
-        registered.eq_ignore_ascii_case(ours)
-            // An installed path and `current_exe()` can differ by separator
-            // normalisation, so fall back to the file name — which is what
-            // `is_vitals_executable` already accepted.
-            || is_vitals_executable(registered)
-    })
+    let canonical = |p: &Path| std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf());
+    same_path(&canonical(Path::new(registered)), &canonical(ours))
+}
+
+/// Pure half of [`paths_match`]: equal after [`normalised`].
+fn same_path(a: &Path, b: &Path) -> bool {
+    let (a, b) = (normalised(a), normalised(b));
+    !a.is_empty() && a == b
 }
 
 #[cfg(test)]
@@ -1142,6 +1150,28 @@ mod tests {
         // Some uninstallers blank the value rather than deleting it; treating
         // that as "replaced by other" would permanently block the setting.
         assert_eq!(unquote("\"\""), "");
+    }
+
+    #[test]
+    fn confirmation_needs_this_exact_copy_not_any_file_called_vitals_desktop() {
+        let ours = Path::new(r"C:\Program Files\Vitals\vitals-desktop.exe");
+        assert!(same_path(
+            Path::new(r"\\?\c:\program files\vitals\VITALS-DESKTOP.EXE"),
+            ours
+        ));
+        assert!(same_path(
+            Path::new(r"C:/Program Files/Vitals/vitals-desktop.exe"),
+            ours
+        ));
+        assert!(!same_path(
+            Path::new(r"C:\Users\ana\Downloads\vitals-desktop.exe"),
+            ours
+        ));
+        assert!(!paths_match(
+            r"C:\Users\ana\Downloads\vitals-desktop.exe",
+            ours
+        ));
+        assert!(!same_path(Path::new(""), Path::new("")));
     }
 
     const PF: &str = r"C:\Program Files";

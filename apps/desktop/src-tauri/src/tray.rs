@@ -309,6 +309,18 @@ pub fn set_update_ready(app: &AppHandle, ready: bool) {
     }
 }
 
+/// Hides or shows the notification-area icon without destroying it.
+///
+/// The update path hides it right before the setup starts, so no dead icon
+/// lingers after the process exits, and shows it again when the setup did
+/// not start — removing it instead, as Tauri's own pre-exit cleanup does,
+/// left a running app with no tray after a declined UAC prompt (ENG2-1).
+pub fn set_visible(app: &AppHandle, visible: bool) {
+    if let Some(handle) = app.tray_by_id(TRAY_ID) {
+        let _ = handle.set_visible(visible);
+    }
+}
+
 /// Starts the built-in Task Manager, bypassing our own IFEO hook if it is on.
 ///
 /// Failure is logged, not surfaced: the tray has no UI to show an error in,

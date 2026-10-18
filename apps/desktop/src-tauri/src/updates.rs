@@ -29,6 +29,9 @@ use tauri::Manager;
 pub struct PendingInstall {
     ready: Mutex<Option<(tauri_plugin_updater::Update, Vec<u8>)>>,
     enabled: AtomicBool,
+    /// Labels of the windows the pre-install hook hid, so a setup that did
+    /// not start can put back exactly what the user was looking at.
+    hidden: Mutex<Vec<String>>,
 }
 
 impl Default for PendingInstall {
@@ -36,6 +39,7 @@ impl Default for PendingInstall {
         Self {
             ready: Mutex::new(None),
             enabled: AtomicBool::new(true),
+            hidden: Mutex::new(Vec::new()),
         }
     }
 }
@@ -45,6 +49,7 @@ impl std::fmt::Debug for PendingInstall {
         f.debug_struct("PendingInstall")
             .field("ready", &self.ready.lock().is_some())
             .field("enabled", &self.enabled.load(Ordering::Relaxed))
+            .field("hidden", &*self.hidden.lock())
             .finish()
     }
 }
@@ -101,8 +106,40 @@ fn update_ready(app: &tauri::AppHandle) -> bool {
         .is_some_and(|p| p.ready.lock().is_some())
 }
 
-async fn fetch(app: &tauri::AppHandle) -> Result<(), tauri_plugin_updater::Error> {
+/// The updater every download in this app goes through.
+///
+/// With our own pre-exit hook rather than the plugin's default, which runs
+/// Tauri's `cleanup_before_exit`: that removes the tray icon for good and
+/// hides every window, and it runs *before* the setup is started — so when
+/// the start then failed (a declined UAC prompt, os error 1223) the app
+/// went on running invisibly, with no tray and nothing sampling (ENG2-1).
+/// Ours hides instead, and [`resume_after_failed_install`] undoes it.
+fn updater(
+    app: &tauri::AppHandle,
+) -> Result<tauri_plugin_updater::Updater, tauri_plugin_updater::Error> {
     use tauri_plugin_updater::UpdaterExt;
+    let hook_app = app.clone();
+    app.updater_builder()
+        .on_before_exit(move || hide_for_install(&hook_app))
+        .build()
+}
+
+/// Hides the tray icon and every visible window, remembering which, right
+/// before the setup starts. Reversible on purpose; see [`updater`].
+fn hide_for_install(app: &tauri::AppHandle) {
+    let mut hidden = Vec::new();
+    for (label, window) in app.webview_windows() {
+        if window.is_visible().unwrap_or(false) && window.hide().is_ok() {
+            hidden.push(label);
+        }
+    }
+    if let Some(pending) = app.try_state::<PendingInstall>() {
+        *pending.hidden.lock() = hidden;
+    }
+    crate::tray::set_visible(app, false);
+}
+
+async fn fetch(app: &tauri::AppHandle) -> Result<(), tauri_plugin_updater::Error> {
     let enabled = || {
         app.try_state::<PendingInstall>()
             .is_some_and(|p| p.enabled.load(Ordering::Relaxed))
@@ -111,7 +148,7 @@ async fn fetch(app: &tauri::AppHandle) -> Result<(), tauri_plugin_updater::Error
         tracing::info!("automatic updates are off; not checking");
         return Ok(());
     }
-    let Some(update) = app.updater()?.check().await? else {
+    let Some(update) = updater(app)?.check().await? else {
         tracing::info!("up to date");
         return Ok(());
     };
@@ -123,6 +160,72 @@ async fn fetch(app: &tauri::AppHandle) -> Result<(), tauri_plugin_updater::Error
         crate::tray::set_update_ready(app, true);
     }
     Ok(())
+}
+
+/// Progress of [`download_update`], in the shape the panel already reads
+/// from the plugin's own download.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(tag = "event", content = "data", rename_all_fields = "camelCase")]
+pub enum DownloadEvent {
+    Started { content_length: Option<u64> },
+    Progress { chunk_length: usize },
+    Finished,
+}
+
+/// The Settings panel's "Download update": downloads into the same slot the
+/// background check fills, so installing it is [`install_now`] with its
+/// teardown and its restart on failure — never the plugin's own `install`,
+/// which stopped nothing and restarted nothing (ENG2-5, DEV-6).
+///
+/// Returns the version downloaded. Refuses when the server now offers a
+/// different version from the one the user was shown.
+#[tauri::command]
+pub async fn download_update(
+    app: tauri::AppHandle,
+    version: String,
+    on_event: tauri::ipc::Channel<DownloadEvent>,
+) -> Result<String, crate::commands::CommandError> {
+    let internal = |e: tauri_plugin_updater::Error| crate::commands::CommandError::Internal {
+        message: e.to_string(),
+    };
+    let update = updater(&app)
+        .map_err(internal)?
+        .check()
+        .await
+        .map_err(internal)?
+        .ok_or_else(|| crate::commands::CommandError::NotFound {
+            message: "there is no update to download any more".into(),
+        })?;
+    if update.version != version {
+        return Err(crate::commands::CommandError::Refused {
+            message: format!(
+                "the update on offer changed from {version} to {}; check again",
+                update.version
+            ),
+        });
+    }
+    let mut first = true;
+    let bytes = update
+        .download(
+            |chunk_length, content_length| {
+                if first {
+                    first = false;
+                    let _ = on_event.send(DownloadEvent::Started { content_length });
+                }
+                let _ = on_event.send(DownloadEvent::Progress { chunk_length });
+            },
+            || {
+                let _ = on_event.send(DownloadEvent::Finished);
+            },
+        )
+        .await
+        .map_err(internal)?;
+    let downloaded = update.version.clone();
+    if let Some(pending) = app.try_state::<PendingInstall>() {
+        *pending.ready.lock() = Some((update, bytes));
+    }
+    crate::tray::set_update_ready(&app, true);
+    Ok(downloaded)
 }
 
 /// The version downloaded and waiting for the app to quit, if any.
@@ -208,15 +311,9 @@ pub async fn get_update_install_mode() -> QuitInstall {
     quit_install()
 }
 
-/// Called by the Settings panel right before it asks the plugin to install
-/// what it downloaded: the same no-prompt preparation as the install on
-/// quit, and the same outcome marker. A copy that needs approval gets no
-/// preparation — its prompt now follows the click, which is the point.
-#[tauri::command]
-pub async fn prepare_update_install(version: String) {
-    prepare(&version);
-}
-
+/// The no-prompt preparation every setup start gets, plus the outcome
+/// marker. A copy that needs approval gets no `RunAsInvoker` — its prompt
+/// follows the click, which is the point.
 fn prepare(version: &str) {
     #[cfg(windows)]
     {
@@ -230,6 +327,16 @@ fn prepare(version: &str) {
         }
     }
     outcome::expect(version);
+}
+
+/// Undoes [`prepare`]'s environment change. Every path on which the setup
+/// did not start must call it (ENG2-4): left set, `__COMPAT_LAYER` is
+/// inherited by every elevated child the app later starts for the user — the
+/// Task Manager switch, ending a protected process — and `RunAsInvoker`
+/// silently strips their elevation.
+fn unprepare() {
+    #[cfg(windows)]
+    vitals_win::install::clear_inherited_compat_layer();
 }
 
 /// Installs the waiting update now, raising the UAC prompt in front of the
@@ -250,7 +357,9 @@ pub async fn install_update_now(
 
 /// "Restart to update", from the Settings panel or the tray. Returns only on
 /// failure: on success the plugin exits the process and the setup restarts
-/// it. A declined prompt keeps the download, so the offer stays.
+/// it. A declined prompt keeps the download, so the offer stays — and puts
+/// back everything stopped for the install, so the app the user is still
+/// looking at goes on working (ENG2-1).
 ///
 /// # Errors
 ///
@@ -270,19 +379,41 @@ pub fn install_now(app: &tauri::AppHandle) -> Result<(), String> {
     };
     let message = error.to_string();
     tracing::warn!(%message, "restart to update did not start the setup");
+    unprepare();
+    resume_after_failed_install(app);
     outcome::failed(&update.version, &message);
     *pending.ready.lock() = Some((update, bytes));
     Err(format!("the update was not installed: {message}"))
 }
 
 /// The sampler and servers stop before the setup replaces the binary, as on
-/// quit.
+/// quit. Each step has its inverse in [`resume_after_failed_install`].
 fn stop_for_install(app: &tauri::AppHandle) {
     if let Some(sampler) = app.try_state::<crate::sampling::SamplerHandle>() {
         sampler.stop_and_wait(std::time::Duration::from_secs(2));
     }
     crate::server::stop_local_api(app);
     crate::ipc::stop(app);
+}
+
+/// Puts back what [`stop_for_install`] and the pre-install hook took down,
+/// when the setup did not start.
+fn resume_after_failed_install(app: &tauri::AppHandle) {
+    crate::ipc::restart(app);
+    crate::server::start_local_api(app);
+    if let Some(sampler) = app.try_state::<crate::sampling::SamplerHandle>() {
+        sampler.restart(app.clone());
+    }
+    let hidden = app
+        .try_state::<PendingInstall>()
+        .map(|p| std::mem::take(&mut *p.hidden.lock()))
+        .unwrap_or_default();
+    for label in hidden {
+        if let Some(window) = app.get_webview_window(&label) {
+            let _ = window.show();
+        }
+    }
+    crate::tray::set_visible(app, true);
 }
 
 /// Called on `Exit`. Installs the verified update, if one is waiting.
@@ -308,6 +439,7 @@ pub fn install_on_exit(app: &tauri::AppHandle) {
                     // The setup would raise a prompt nobody sees: keep the
                     // download for next time rather than lose it to a 1223.
                     tracing::warn!(%error, "not installing on quit: cannot avoid a UAC prompt");
+                    unprepare();
                     return;
                 }
             }
@@ -330,6 +462,9 @@ pub fn install_on_exit(app: &tauri::AppHandle) {
     outcome::expect(&version);
     if let Err(error) = update.install(bytes) {
         tracing::warn!(%error, "the downloaded update could not be installed");
+        // The process is exiting anyway; cleared for symmetry, so no path
+        // that failed to start the setup leaves the layer set.
+        unprepare();
         outcome::failed(&version, &error.to_string());
     }
 }

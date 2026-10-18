@@ -49,7 +49,12 @@ export interface PairingCodeStatus {
 
 export interface LanApi {
   status(): Promise<LanStatus>;
-  start(port?: number): Promise<number>;
+  /**
+   * `address` binds the listener to that adapter only. Without it the
+   * backend binds every interface, which is what SEC-9 found: the panel let
+   * the user pick "Wi-Fi" and then listened on the Hyper-V switch too.
+   */
+  start(port?: number, address?: string): Promise<number>;
   stop(): Promise<void>;
   pair(request: { label: string; scope: Scope; address?: string }): Promise<Pairing>;
   revoke(prefix: string): Promise<void>;
@@ -66,7 +71,8 @@ async function invoke<T>(command: string, args?: Record<string, unknown>): Promi
 
 export const tauriLanApi: LanApi = {
   status: () => invoke<LanStatus>('get_lan_status'),
-  start: (port) => invoke<number>('start_lan_server', { port: port ?? null }),
+  start: (port, address) =>
+    invoke<number>('start_lan_server', { port: port ?? null, address: address ?? null }),
   stop: () => invoke<void>('stop_lan_server'),
   pair: (request) =>
     invoke<Pairing>('create_pairing', {
