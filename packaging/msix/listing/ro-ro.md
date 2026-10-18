@@ -57,7 +57,9 @@ Gratuit și open source (MIT). Disponibil în română și engleză.
 
 ## Ce e nou în această versiune (≤ 1500 caractere)
 
-Ce e nou în 1.0.5
+Ce e nou în 1.0.6
+
+1.0.6 este prima versiune publicată cu schimbările din 1.0.5, plus o reparație la semnarea versiunilor.
 
 • Actualizările se instalează cât ești plecat: după zece minute fără nicio fereastră Vitals deschisă, actualizarea descărcată se instalează și Vitals revine în zona de notificare. Niciodată în timpul unei reporniri sau deconectări Windows
 • Dacă refuzi solicitarea de actualizare, Vitals nu mai rămâne pe jumătate oprit

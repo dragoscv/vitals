@@ -57,7 +57,9 @@ Free and open source (MIT). Available in English and Romanian.
 
 ## What's new in this version (≤ 1500 characters)
 
-What's new in 1.0.5
+What's new in 1.0.6
+
+1.0.6 is the first published build of the 1.0.5 changes, plus a fix to release signing.
 
 • Updates install while you are away: after ten minutes with no Vitals window open, a downloaded update installs and Vitals comes back in the tray. Never during a Windows restart or sign-out
 • Declining an update prompt no longer leaves Vitals half-stopped

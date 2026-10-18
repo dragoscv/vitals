@@ -704,7 +704,10 @@ jobs:
       # never in the build job (SEC2-4). APKs get apksigner (v2+v3, what
       # Android verifies); bundles get jarsigner, the signature Play's upload
       # check reads. The key goes to a 0600 file in RUNNER_TEMP and is
-      # deleted in the same step, whatever happens.
+      # deleted in the same step, whatever happens. The signing itself is
+      # scripts/ci/sign-android.sh, testable locally with a throwaway key:
+      # the inline version died silently on v1.0.5 (build-tools 37 renamed
+      # apksigner's "Signer #1 certificate" lines and a bare grep exited 1).
       - name: Sign Android APKs and bundles
         shell: bash
         env:
@@ -714,45 +717,18 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          if [ -z "$KEYSTORE_B64" ] || [ -z "$ANDROID_KEY_ALIAS" ]; then
-            echo "::error::ANDROID_KEYSTORE_B64 / ANDROID_KEY_ALIAS are not set; refusing to publish unsigned Android builds"; exit 1
-          fi
-          ks="$RUNNER_TEMP/upload.jks"
-          trap 'rm -f "$ks"' EXIT
-          umask 077
-          printf '%s' "$KEYSTORE_B64" | base64 -d > "$ks"
-          bt=$(printf '%s\n' "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
-          echo "build-tools: $bt"
-          mkdir -p play
-          for apk in android-unsigned/apk/*.apk; do
-            out="publish/$(basename "$apk")"
-            # AGP normally zip-aligns the unsigned APK already (16 KB pages
-            # for the native libraries, which Android 15+ devices need);
-            # align only when the check says otherwise. apksigner keeps it.
-            src="$apk"
-            if ! "$bt/zipalign" -c -P 16 4 "$apk" >/dev/null 2>&1; then
-              "$bt/zipalign" -P 16 -f 4 "$apk" "$RUNNER_TEMP/aligned.apk"; src="$RUNNER_TEMP/aligned.apk"
+          for name in KEYSTORE_B64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
+            if [ -z "${!name}" ]; then
+              echo "::error::the secret behind $name is not set; refusing to publish unsigned Android builds"; exit 1
             fi
-            "$bt/apksigner" sign --ks "$ks" --ks-key-alias "$ANDROID_KEY_ALIAS" \
-              --ks-pass env:ANDROID_KEYSTORE_PASSWORD --key-pass env:ANDROID_KEY_PASSWORD \
-              --out "$out" "$src"
-            rm -f "$out.idsig"
-            "$bt/apksigner" verify --print-certs "$out" | grep -E 'Signer #1 certificate (DN|SHA-256)'
           done
-          for aab in android-unsigned/play/*.aab; do
-            out="play/$(basename "$aab")"
-            cp "$aab" "$out"
-            jarsigner -keystore "$ks" -storepass:env ANDROID_KEYSTORE_PASSWORD -keypass:env ANDROID_KEY_PASSWORD \
-              -digestalg SHA-256 "$out" "$ANDROID_KEY_ALIAS" >/dev/null
-            # Captured first: `grep -q` closing the pipe early would fail
-            # jarsigner with SIGPIPE under pipefail and read as "not verified".
-            verified=$(jarsigner -verify "$out")
-            grep -q 'jar verified' <<<"$verified" || { echo "::error::$out did not verify after signing"; exit 1; }
-            echo "signed $out"
-          done
-          apks=(publish/*.apk); aabs=(play/*.aab)
-          test "${#apks[@]}" -eq 3
-          test "${#aabs[@]}" -eq 3
+          export SIGN_KEYSTORE="$RUNNER_TEMP/android-upload.jks"
+          trap 'rm -f "$SIGN_KEYSTORE"' EXIT
+          umask 077
+          if ! printf '%s' "$KEYSTORE_B64" | base64 -d > "$SIGN_KEYSTORE"; then
+            echo "::error::ANDROID_KEYSTORE_B64 is not valid base64"; exit 1
+          fi
+          bash scripts/ci/sign-android.sh android-unsigned publish play
 
       # Bundles are not release assets: Play is the only consumer, and the
       # `play` job takes them from here, signed.

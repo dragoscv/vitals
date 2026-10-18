@@ -1,4 +1,4 @@
-Vitals 1.0.5
+Vitals 1.0.6
 • The AI agents card follows each PC's LAN sharing setting and shows agents it does not recognise yet as "Other agent"
 • Over a VPN, Vitals talks to your PCs only when the VPN runs over Wi-Fi or Ethernet, never mobile data
 • Wear OS: open-source licences screen

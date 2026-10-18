@@ -1,4 +1,4 @@
-Vitals 1.0.5
+Vitals 1.0.6
 • Cardul cu agenți AI urmează setarea de partajare în rețea a fiecărui PC și arată agenții pe care nu-i recunoaște încă drept „Alt agent”
 • Printr-un VPN, Vitals vorbește cu PC-urile doar când VPN-ul merge prin Wi-Fi sau Ethernet, niciodată prin datele mobile
 • Wear OS: ecran cu licențele open-source

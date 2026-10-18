@@ -7,9 +7,37 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-## [1.0.5] — 2026-10-18
+## [1.0.6] — 2026-10-18
 
-Updates that install while you are away, and a safer AI page.
+The first published build of the 1.0.5 changes: 1.0.5 was tagged but never
+published, so everything listed under [1.0.5] below reaches you with this
+release. In short:
+
+- Updates install while you are away: after ten minutes with no Vitals window
+  open, a downloaded update installs and Vitals comes back in the tray. Never
+  during a Windows restart or sign-out.
+- Declining the administrator prompt for an update no longer leaves Vitals
+  half-stopped.
+- AI page: the codai sign-in is read-only and is revoked when you sign out;
+  other accounts on this PC cannot read your agent sessions.
+- Remote access binds to the network adapter you pick.
+- Uninstalling a per-user copy also removes the optional sensors service.
+- Android: the AI agents card follows each PC's LAN sharing setting; Wear OS
+  gains an open-source licences screen.
+
+### Fixed
+
+- **Release signing of the Android builds.** The release stopped before
+  publishing anything because the signing step did not understand the output
+  of the newest Android build tools, and it failed without saying why. It now
+  checks every signature explicitly (one signer, the upload certificate, the
+  16 KB alignment) and names whatever fails.
+
+## [1.0.5] — 2026-10-18 (not published)
+
+Updates that install while you are away, and a safer AI page. Tagged but
+never published: the release stopped at Android signing. These changes ship
+in 1.0.6.
 
 ### Changed
 

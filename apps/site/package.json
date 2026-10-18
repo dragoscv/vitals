@@ -1,6 +1,6 @@
 {
   "name": "@vitals/site",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "private": true,
   "type": "module",
   "description": "Website and documentation for Vitals, served at https://vitals.dragoscatalin.ro",

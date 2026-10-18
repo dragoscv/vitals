@@ -195,7 +195,20 @@ Pushing a `v*` tag runs `.github/workflows/release.yml`:
      the `play` job uploads. The upload keystore (`ANDROID_KEYSTORE_B64` and
      its passwords) is decoded into a 0600 temp file inside that one step and
      deleted when it ends; a missing secret fails the release rather than
-     publishing unsigned APKs.
+     publishing unsigned APKs. The signing is `scripts/ci/sign-android.sh`:
+     it checks each APK for exactly one signer whose certificate SHA-256
+     equals the keystore's, a v2/v3 signature and 16 KB alignment, verifies
+     each bundle, and prints an `::error::` naming whatever failed. Test it
+     before changing it, with a throwaway key and the `android-unsigned`
+     artefact of any run (`gh run download <run> -n android-unsigned`):
+     `keytool -genkeypair -keystore t.jks -alias upload ...`, then
+     `SIGN_KEYSTORE=t.jks ANDROID_KEY_ALIAS=upload ANDROID_KEYSTORE_PASSWORD=...
+ ANDROID_KEY_PASSWORD=... bash scripts/ci/sign-android.sh <dir> out/apk out/play`
+     (Git Bash works on Windows; `BUILD_TOOLS` picks a build-tools version).
+     v1.0.5 never published because the step before it grepped apksigner's
+     output for `Signer #1 certificate`, which build-tools 37 prints as
+     `V3.0 Signer: certificate`, and the empty grep ended the step with no
+     message.
    - `latest.json` with `windows-x86_64` and `windows-aarch64` (plus
      `darwin-universal`, `darwin-aarch64`, `darwin-x86_64` and
      `linux-x86_64` when those are published). `version` has no leading `v`.

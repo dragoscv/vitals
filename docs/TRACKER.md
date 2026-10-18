@@ -166,6 +166,74 @@ CSV records the state.
 
 ## Verification log
 
+<!-- S21-10 begin -->
+
+### 2026-10-18 — S21-10 Android signing step reports every failure; 1.0.6
+
+**Symptom.** Tag v1.0.5, release run 39124737920: every build green, owner
+approved, then Publish (job 117673581700) failed in "Sign Android APKs and
+bundles" 1.7 s after printing `build-tools: .../build-tools/37.0.0`, with no
+error line. No GitHub release was created (`gh release view v1.0.5`:
+release not found), so nothing reached users.
+
+**Belief, then proof.** Three silent-exit candidates under `set -e -o
+pipefail`: an empty `grep`, a glob that matched nothing, `zipalign -c`.
+The run's own `android-unsigned` artefact (3 APKs in `apk/`, 3 bundles in
+`play/`, so the layout was right) signed locally with a throwaway keystore
+settled it:
+
+```
+zipalign -c rc=0, apksigner sign rc=0, apksigner verify rc=0 (all three APKs)
+build-tools 37.0.0: V3.0 Signer: certificate DN: CN=throwaway
+                    V3.0 Signer: certificate SHA-256 digest: 1c17c605...
+build-tools 36.0.0: Signer #1 certificate SHA-256 digest: 1c17c605...
+```
+
+The step piped `apksigner verify --print-certs` into
+`grep -E 'Signer #1 certificate (DN|SHA-256)'`. GitHub's runner picked the
+newest build-tools, 37.0.0, which words the lines differently; grep matched
+nothing, exited 1, and `pipefail` ended the step with nothing printed. The
+signature itself was fine.
+
+**Fix.** `scripts/ci/sign-android.sh`, called by the step, so it can be run
+locally against any run's artefact. It no longer reads the tool's wording for
+a decision: it compares the APK's certificate SHA-256 with the keystore's own
+(`keytool -exportcert | sha256sum`), requires a v2 or v3 signature, exactly
+one signer and kept 16 KB alignment, checks `jar verified.` for bundles (an
+unsigned jar also exits 0), counts 3 + 3 outputs, and prints an `::error::`
+for each failure plus an ERR trap for anything unanticipated. The `play` job
+reads only the signed `play-bundles` and its checks already say what failed.
+
+```
+Git Bash, throwaway keystore, run 39124737920's android-unsigned:
+  CASE bt37 rc=0        all 3 APKs and 3 bundles signed with 1c17c605...
+  CASE bt36 rc=0        (Signer #1 wording, same result)
+  CASE badpass rc=1     ::error::keytool could not read alias from the keystore ...
+  CASE badalias rc=1    ::error::keytool could not read alias from the keystore ...
+  CASE layout rc=1      ::error::expected 3 APKs in .../apk and 3 bundles in .../play, found 1 and 3
+  CASE nokeystore rc=1  ::error::keystore .../missing.jks is missing or empty ...
+  MUT wrongcert rc=1    ::error::.../Vitals_1.0.5_android.apk is not signed with the upload certificate 0000
+  MUT nosign rc=1       ::error::.../vitals-android.aab did not verify after signing
+shellcheck scripts/ci/sign-android.sh: clean; actionlint release.yml: only the
+  pre-existing SC2129 style notes in the Play "Track" step
+```
+
+**1.0.6.** A fixed workflow needs a new tag (a tag's re-run uses the tag's
+workflow and v* tags are immutable). `scripts/version.ps1 -Set 1.0.6` +
+`cargo update --workspace`; CHANGELOG [1.0.6] is the first published build of
+the 1.0.5 changes and [1.0.5] is marked not published; Store what's new EN
+1172 / RO 1350 characters (limit 1500), Play EN 275 / RO 315 (limit 500, both
+name 1.0.6); tizen config.xml, docs/api examples and script usage examples.
+
+```
+devcloud ws-vitals-win, agentq-cloud 20261018-181536-55bcd9, scripts/verify.ps1:
+  All 12 gates passed in 96.4s (format, drift, notices, ts, bundle, size,
+  clippy, rust tests, bindings, perf budget, target size)
+scripts/version.ps1 -Check v1.0.6    every manifest says 1.0.6
+```
+
+<!-- S21-10 end -->
+
 ### 2026-10-18 — S21-09 suspended-state test waits for a started child; 1.0.5; tracker truth (S21-08)
 
 **Flaky test.** `actions::process::tests::a_suspended_process_is_reported_suspended_so_the_menu_can_offer_resume`
