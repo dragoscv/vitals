@@ -413,6 +413,7 @@
     <string name="agents_client_other">Other agent</string>
     <string name="agents_state_working">Working</string>
     <string name="agents_state_waiting">Waiting</string>
-    <string name="agents_state_idle">Idle</string>
+    <string name="agents_state_idle">Waiting for you</string>
     <string name="agents_state_ended">Ended</string>
+    <string name="agents_state_unknown">Status unknown</string>
 </resources>

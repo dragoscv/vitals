@@ -166,6 +166,27 @@ CSV records the state.
 
 ## Verification log
 
+### 2026-10-18 — S21-01 Android: agents card, Wear licences, VPN rule
+
+**Ask.** Lane S21 android: AND2-1, AND2-4, AND2-5, I18N2-5, LEG2-11, QA2-8.
+
+**Decisions.** The desktop is moving `/api/v1/agents` to opt-in sharing with
+an allowlist of fields, so the phone treats 404/403 as "not shared" (card
+hidden, asked again every five minutes) and every free-text field as optional.
+The polling policy is a pure function (`AgentsPoll`) so it is tested without a
+screen. VPN: `NetworkCapabilities.getUnderlyingNetworks()` is a system API an
+app cannot call; Android merges the underlying transports into the VPN's own
+capabilities, so a VPN is trusted only when Wi-Fi or Ethernet is among them and
+mobile data is not. A user reaching home through their own VPN over mobile data
+loses that path; the alternative hands the bearer token to whatever answers at
+a private address inside a VPN provider's network.
+
+**Verification.**
+
+```text
+run-build (queue) cmd /c gradlew :core:testDebugUnitTest :shared-ui:testDebugUnitTest :wear:testDebugUnitTest :app:assembleGithubDebug :app:compilePlayDebugKotlin :tv:compileGithubDebugKotlin :wear:assembleDebug :app:lintPlayDebug :wear:lintDebug -> BUILD SUCCESSFUL in 4m 50s (254 tasks); core AgentsPollTest 6/6, LanNetworkTest 5/5, ContractTest 7/7 (2 new), RobustnessTest 6/6; wear 4/4, shared-ui 5/5; lint 0 errors; wear re-gate after LocalResources fix BUILD SUCCESSFUL 18s, wear lint 2 pre-existing warnings
+```
+
 ### 2026-10-18 — S20-01 1.0.4: S18 folded onto DEV-3
 
 **Ask.** Release 1.0.4 with DEV-3; the owner then asked to take over S18's

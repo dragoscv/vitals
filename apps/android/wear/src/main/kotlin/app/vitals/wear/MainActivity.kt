@@ -57,6 +57,7 @@ private object Routes {
     const val DETAIL = "pc/{id}"
     const val SENSORS = "pc/{id}/sensors"
     const val PROCESSES = "pc/{id}/processes"
+    const val LICENCES = "licences"
 
     fun detail(id: String) = "pc/${android.net.Uri.encode(id)}"
     fun sensors(id: String) = "${detail(id)}/sensors"
@@ -78,9 +79,11 @@ private fun VitalsNav(controller: WearController, device: app.vitals.device.Devi
                     onOpen = { nav.navigate(Routes.detail(it)) },
                     device = device,
                     onOpenSelf = { nav.navigate(Routes.SELF) },
+                    onOpenLicences = { nav.navigate(Routes.LICENCES) },
                 )
             }
             composable(Routes.SELF) { app.vitals.wear.ui.WatchSelfScreen(device) }
+            composable(Routes.LICENCES) { app.vitals.wear.ui.LicencesScreen() }
             composable(Routes.DETAIL) { entry ->
                 val id = remember(entry) { entry.arguments?.getString("id").orEmpty() }
                 PcDetailScreen(

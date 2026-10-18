@@ -113,4 +113,7 @@
     <string name="channel_alerts_warning">PC warnings</string>
     <string name="fail_no_phone">Needs your phone nearby</string>
     <string name="complication_spoken">%1$s: %2$s</string>
+    <!-- S21 (LEG2-11) -->
+    <string name="licences_title">Open-source licences</string>
+    <string name="licences_body">Vitals is MIT-licensed and built on these open-source libraries. Tap one to read its licence.</string>
 </resources>

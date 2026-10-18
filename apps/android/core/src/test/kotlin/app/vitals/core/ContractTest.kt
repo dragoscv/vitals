@@ -117,4 +117,41 @@ class ContractTest {
         assertEquals("run_in_terminal", session.currentTool)
         assertEquals(listOf(session), snap.activeSessions)
     }
+
+    @Test
+    fun agent_enums_a_newer_desktop_added_decode_to_unknown_instead_of_hiding_the_card() {
+        // AND2-1: with generated serializers one new client, state or
+        // liveness failed the whole answer and the card vanished.
+        val raw = text("agents.json")
+            .replace("\"vscodeCopilot\"", "\"cursorAgent\"")
+            .replace("\"working\"", "\"thinking\"")
+            .replace("\"alive\"", "\"zombie\"")
+        val snap = WireJson.Lenient.decodeFromString(app.vitals.core.model.AgentsSnapshot.serializer(), raw)
+        val session = snap.sessions.single()
+        assertEquals(app.vitals.core.model.AgentClient.Unknown, session.client)
+        assertEquals(app.vitals.core.model.SessionState.Unknown, session.state)
+        assertTrue(snap.resources.single().tickets.all { it.liveness == app.vitals.core.model.Liveness.Unknown })
+        // An unknown state is never counted as someone working.
+        assertTrue(snap.activeSessions.isEmpty())
+    }
+
+    @Test
+    fun the_allowlisted_answer_without_any_free_text_still_decodes() {
+        // The PC's sharing allowlist sends no title, command, purpose, host or
+        // repo. Every one of them must be optional, or the card disappears the
+        // day the desktop stops sending it.
+        val raw = """{"takenAtMs":1,"agentqInstalled":true,""" +
+            """"resources":[{"name":"build:x","tickets":[{"held":true,"liveness":"alive"}]}],""" +
+            """"sessions":[{"id":"s","client":"codex","state":"waiting"}]}"""
+        val snap = WireJson.Lenient.decodeFromString(app.vitals.core.model.AgentsSnapshot.serializer(), raw)
+        val session = snap.sessions.single()
+        assertNull(session.title)
+        assertNull(session.repo)
+        assertNull(session.host)
+        assertNull(snap.resources.single().tickets.single().purpose)
+        assertEquals(listOf(session), snap.activeSessions)
+        // And an empty object is an empty answer, not a failure.
+        val empty = WireJson.Lenient.decodeFromString(app.vitals.core.model.AgentsSnapshot.serializer(), "{}")
+        assertTrue(empty.sessions.isEmpty() && empty.resources.isEmpty() && !empty.agentqInstalled)
+    }
 }

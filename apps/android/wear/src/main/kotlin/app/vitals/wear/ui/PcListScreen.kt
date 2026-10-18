@@ -17,6 +17,8 @@ import androidx.compose.ui.unit.dp
 import androidx.wear.compose.foundation.lazy.TransformingLazyColumn
 import androidx.wear.compose.foundation.lazy.items
 import androidx.wear.compose.foundation.lazy.rememberTransformingLazyColumnState
+import androidx.wear.compose.material3.Button
+import androidx.wear.compose.material3.ButtonDefaults
 import androidx.wear.compose.material3.ListHeader
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.ScreenScaffold
@@ -42,6 +44,7 @@ fun PcListScreen(
     onOpen: (String) -> Unit,
     device: app.vitals.device.DeviceMonitor,
     onOpenSelf: () -> Unit,
+    onOpenLicences: () -> Unit,
 ) {
     val listState = rememberTransformingLazyColumnState()
     val spec = rememberTransformationSpec()
@@ -79,6 +82,17 @@ fun PcListScreen(
                         transformation = SurfaceTransformation(spec),
                     )
                 }
+            }
+            // The watch has no settings screen; the licences (LEG2-11) sit at
+            // the end of the list, where "about" lives in most Wear apps.
+            item(key = "licences") {
+                Button(
+                    onClick = onOpenLicences,
+                    modifier = Modifier.fillMaxWidth().transformedHeight(this, spec),
+                    transformation = SurfaceTransformation(spec),
+                    colors = ButtonDefaults.filledTonalButtonColors(),
+                    label = { Text(stringResource(R.string.licences_title), maxLines = 2) },
+                )
             }
         }
     }

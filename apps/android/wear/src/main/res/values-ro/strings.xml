@@ -114,4 +114,7 @@
     <string name="channel_alerts_warning">Avertismente PC</string>
     <string name="fail_no_phone">Telefonul trebuie să fie aproape</string>
     <string name="complication_spoken">%1$s: %2$s</string>
+    <!-- S21 (LEG2-11) -->
+    <string name="licences_title">Licențe open source</string>
+    <string name="licences_body">Vitals are licență MIT și folosește bibliotecile open source de mai jos. Atinge una ca să-i citești licența.</string>
 </resources>

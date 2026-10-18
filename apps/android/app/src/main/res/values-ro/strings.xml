@@ -402,6 +402,7 @@
     <string name="agents_client_other">Alt agent</string>
     <string name="agents_state_working">Lucrează</string>
     <string name="agents_state_waiting">Așteaptă</string>
-    <string name="agents_state_idle">Inactiv</string>
+    <string name="agents_state_idle">Te așteaptă pe tine</string>
     <string name="agents_state_ended">Încheiat</string>
+    <string name="agents_state_unknown">Stare necunoscută</string>
 </resources>

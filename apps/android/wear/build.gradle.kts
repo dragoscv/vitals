@@ -2,6 +2,9 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
+    // res/raw/aboutlibraries.json for the licences screen (LEG2-11): the watch
+    // APK is its own binary and carries its own notices.
+    alias(libs.plugins.aboutlibraries)
 }
 
 android {
@@ -88,6 +91,7 @@ dependencies {
     implementation(libs.coroutines.play.services)
     implementation(libs.coroutines.guava)
     implementation(libs.profileinstaller)
+    implementation(libs.aboutlibraries.core)
 
     debugImplementation(libs.compose.ui.tooling)
 
