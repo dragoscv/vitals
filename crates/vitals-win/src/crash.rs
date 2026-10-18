@@ -304,6 +304,52 @@ mod tests {
 
     /// Set by the parent test to make the re-executed test binary crash.
     const CHILD_DIR: &str = "VITALS_CRASH_TEST_DIR";
+    /// Set by the parent test to make the re-executed test binary write a
+    /// dump, without crashing, to the path it names.
+    const CHILD_WRITE: &str = "VITALS_CRASH_TEST_WRITE";
+
+    /// Runs one test of this binary in a process of its own and returns its
+    /// exit status.
+    ///
+    /// Every dump in these tests is written by a child, never by the test
+    /// binary itself. `MiniDumpWriteDump` on its own process suspends every
+    /// other thread; with a dozen tests running in parallel one of them is
+    /// sooner or later suspended holding the heap or loader lock that dbghelp
+    /// then needs, and the whole suite hangs with nothing on screen (CI ran
+    /// 75 minutes that way twice, after `crash_child ... ok`). The child runs
+    /// only the one test on one thread, so nothing else can hold a lock.
+    ///
+    /// Bounded: a child that hangs anyway — dbghelp, Windows Error Reporting
+    /// keeping a dead process open — is killed and fails this test instead
+    /// of stalling the suite.
+    fn run_child(test: &str, var: &str, value: &std::ffi::OsStr) -> std::process::ExitStatus {
+        let exe = std::env::current_exe().unwrap();
+        let mut child = std::process::Command::new(exe)
+            .args(["--exact", test, "--test-threads=1", "--nocapture"])
+            .env(var, value)
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .unwrap();
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
+        loop {
+            if let Some(status) = child.try_wait().unwrap() {
+                return status;
+            }
+            if std::time::Instant::now() > deadline {
+                let _ = child.kill();
+                let _ = child.wait();
+                panic!("the child running {test} did not exit within 60 s");
+            }
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+    }
+
+    /// Has a child process write a dump to `path` and says whether it did.
+    fn write_dump_in_child(path: &Path) -> bool {
+        run_child("crash::tests::write_child", CHILD_WRITE, path.as_os_str()).success()
+    }
 
     fn temp_dir(tag: &str) -> std::path::PathBuf {
         let dir = std::env::temp_dir().join(format!(
@@ -322,7 +368,7 @@ mod tests {
     fn the_writer_produces_a_file_with_the_minidump_signature() {
         let dir = temp_dir("writer");
         let path = dir.join(DUMP_FILE);
-        assert!(write_dump(&wide(path.as_os_str()), null(), 0));
+        assert!(write_dump_in_child(&path), "the writer reported failure");
         let bytes = std::fs::read(&path).unwrap();
         assert_eq!(&bytes[..4], b"MDMP", "not a minidump");
         // Stacks and modules only: a heap dump of a test process is tens of
@@ -358,7 +404,7 @@ mod tests {
         let path = dir.join(DUMP_FILE);
         let junk = vec![b'X'; 17 * 1024 * 1024];
         std::fs::write(&path, &junk).unwrap();
-        assert!(write_dump(&wide(path.as_os_str()), null(), 0));
+        assert!(write_dump_in_child(&path), "the writer reported failure");
         let bytes = std::fs::read(&path).unwrap();
         assert_eq!(
             &bytes[..4],
@@ -372,27 +418,7 @@ mod tests {
     #[test]
     fn a_native_crash_leaves_a_minidump_behind() {
         let dir = temp_dir("child");
-        let exe = std::env::current_exe().unwrap();
-        let mut child = std::process::Command::new(exe)
-            .args(["--exact", "crash::tests::crash_child", "--nocapture"])
-            .env(CHILD_DIR, &dir)
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .spawn()
-            .unwrap();
-        // Bounded: if Windows Error Reporting ever holds the dead process
-        // open, this test fails instead of hanging the whole suite.
-        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
-        let status = loop {
-            if let Some(status) = child.try_wait().unwrap() {
-                break status;
-            }
-            if std::time::Instant::now() > deadline {
-                let _ = child.kill();
-                panic!("the crashing child did not exit within 60 s");
-            }
-            std::thread::sleep(std::time::Duration::from_millis(100));
-        };
+        let status = run_child("crash::tests::crash_child", CHILD_DIR, dir.as_os_str());
         assert!(
             !status.success(),
             "the child was meant to crash: {status:?}"
@@ -400,6 +426,19 @@ mod tests {
         let bytes = std::fs::read(dir.join(DUMP_FILE)).expect("no crash.dmp after a crash");
         assert_eq!(&bytes[..4], b"MDMP");
         let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// The body of the writer children above; a no-op without the variable,
+    /// like `crash_child`. Exits non-zero (a panic) when the writer fails.
+    #[test]
+    fn write_child() {
+        let Some(path) = std::env::var_os(CHILD_WRITE) else {
+            return;
+        };
+        assert!(
+            write_dump(&wide(&path), null(), 0),
+            "MiniDumpWriteDump failed"
+        );
     }
 
     /// The body of the child process above. Without the variable the parent
@@ -414,9 +453,10 @@ mod tests {
         // session WER would otherwise wait for someone to close it.
         // SAFETY: no preconditions.
         unsafe {
-            windows_sys::Win32::System::Diagnostics::Debug::SetErrorMode(
-                windows_sys::Win32::System::Diagnostics::Debug::SEM_NOGPFAULTERRORBOX,
-            );
+            use windows_sys::Win32::System::Diagnostics::Debug::{
+                SEM_FAILCRITICALERRORS, SEM_NOGPFAULTERRORBOX, SetErrorMode,
+            };
+            SetErrorMode(SEM_NOGPFAULTERRORBOX | SEM_FAILCRITICALERRORS);
         }
         install(Path::new(&dir)).unwrap();
         // SAFETY: deliberately not. Writing through null is the access

@@ -166,6 +166,41 @@ CSV records the state.
 
 ## Verification log
 
+### 2026-10-18 — S21-07 the crash dump tests cannot hang the suite; CI job timeouts
+
+**Symptom.** CI "Rust test (windows)" sat in `cargo test -p vitals-win --lib`
+until cancelled on 07b011d (75 min, run 39091340540) and on 8059efe attempt 1
+(about 40 min, run 39104946200). The last line was `crash::tests::crash_child
+... ok`; the re-run passed in 40 s. Neither commit touched a crate, and no
+job had `timeout-minutes`, so each hang held a Windows runner until someone
+noticed.
+
+**Root cause.** In both hung logs the three tests that never reported were
+the two that called `write_dump` on the test binary itself and the one that
+waits for the crash child; in the passing re-run all six appear.
+`MiniDumpWriteDump` suspends every other thread of the process it dumps, and
+Microsoft documents calling it from a separate process. With 16 tests running
+in parallel, one of them is now and then suspended holding the heap or loader
+lock dbghelp then needs: the writer waits for a thread that waits for the
+writer, forever, with nothing on screen. The product path is unaffected — its
+dump runs at the moment of a crash, from a dedicated thread, and the crashing
+thread waits at most 15 s.
+
+**Fix.** Every dump in these tests is written by a child: the test binary
+re-executed with `--exact <test> --test-threads=1`, stdin/stdout/stderr null,
+killed and failed after 60 s. `write_child` (a no-op without its variable,
+like `crash_child`) panics when the writer fails, so the parent still proves
+the file is written, starts with `MDMP`, stays under 16 MiB and is overwritten
+rather than appended. `crash_child` also sets `SEM_FAILCRITICALERRORS`.
+`timeout-minutes` on every job in `ci.yml` (12; Rust test windows 25) and
+`release.yml` (11), about three times the slowest recent successful run.
+
+**Proof limits.** A deadlock seen twice in about fifteen CI runs cannot be
+reproduced on demand; the evidence is the missing tests in both hung logs, the
+documented behaviour of the API, and repeat runs that no longer stop.
+
+**Verification.** devcloud ws-vitals-win on 8059efe + this change: job 20261018-074649-77a5f3 ran cargo test -p vitals-win --lib -- --test-threads=16 fifteen times in a row, "RUN 1 rc=0 secs=10" ... "RUN 15 rc=0 secs=2", each "797 passed; 0 failed" with all seven crash::tests ok, exit=0 in 44.3 s. verify.ps1 job 20261018-074908-42c6a3: "1536 Rust tests passed", "All 12 gates passed in 70.1s".
+
 ### 2026-10-18 — S21-06 per-user uninstall removes the sensors service with consent
 
 **Ask.** With `installMode: both` (ADR 0038) a per-user copy runs its
