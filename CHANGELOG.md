@@ -7,8 +7,35 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.0.5] — 2026-10-18
+
+Updates that install while you are away, and a safer AI page.
+
+### Changed
+
+- **AI page: signing in to codai is read-only.** Vitals asks codai only for
+  permission to read your agents, never to act for you. Signing out revokes
+  the key on codai's side, and uninstalling deletes it from this PC. The
+  privacy notice now describes this sign-in.
+- **AI page over the network needs a pairing token, even from this PC.**
+  `/api/v1/agents`, its actions and the agent series in `/metrics` are no
+  longer part of the token-free local read, so another account on the same PC
+  cannot read your agent sessions. A paired token presented locally is now
+  honoured instead of being treated as the token-free read.
+- The AI page's queue actions refuse to run while Vitals runs as
+  administrator, run only agentq from your own profile folder, and stop after
+  two minutes.
+- The AI page stops reading agent data while its window is hidden.
+- **Android:** the AI agents card follows the PC's LAN sharing setting and
+  copes with agent types it does not know yet ("Other agent"); Vitals talks to
+  your PCs over a VPN only when that VPN runs over Wi-Fi or Ethernet; Wear OS
+  gains an open-source licences screen.
+
 ### Fixed
 
+- A rare crash when Windows closed the background COM apartment that the
+  startup-task readers were using. Vitals now keeps it open for as long as it
+  runs.
 - **Updates install again on PCs where Vitals lives in the tray.** An update
   used to install only when you quit, and for most people the only "quit" is a
   Windows restart, which ended the session under the setup: three releases

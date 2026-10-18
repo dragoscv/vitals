@@ -11,7 +11,7 @@
   Prints the gs:// path of the package.
 
 .EXAMPLE
-  agentq run -Where cloud -Ws vitals-win -- pwsh -NoProfile -File packaging/msix/build-and-upload.ps1 -Version 1.0.4.0
+  agentq run -Where cloud -Ws vitals-win -- pwsh -NoProfile -File packaging/msix/build-and-upload.ps1 -Version 1.0.5.0
 #>
 param(
   [Parameter(Mandatory)][string]$Version,

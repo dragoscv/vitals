@@ -57,19 +57,17 @@ Free and open source (MIT). Available in English and Romanian.
 
 ## What's new in this version (≤ 1500 characters)
 
-What's new in 1.0.4
+What's new in 1.0.5
 
-• New AI agents page: see which AI coding agents (VS Code Copilot, Copilot CLI, Codai, Codex, Claude Code) are working on this PC, what each is doing now, and their build queues, worktrees and background jobs. Costs nothing while the page is closed
+• Updates install while you are away: after ten minutes with no Vitals window open, a downloaded update installs and Vitals comes back in the tray. Never during a Windows restart or sign-out
+• Declining an update prompt no longer leaves Vitals half-stopped
+• AI page: the codai sign-in is read-only and is revoked when you sign out; other accounts on this PC cannot read your agent sessions
+• Remote access binds to the network adapter you pick
+• Fixed: a rare crash in the startup apps readers; crash dumps keep working after WebView2 or a graphics driver adds its own handler
+
+Also new in 1.0.4:
+• AI agents page: see which AI coding agents (VS Code Copilot, Copilot CLI, Codai, Codex, Claude Code) are working on this PC, what each is doing now, and their build queues, worktrees and background jobs. Costs nothing while the page is closed
 • Fixed: the links in About open in your browser again
-
-Also new in 1.0.3:
-• A health strip across the Dashboard answers "why is my PC slow?" in one line
-• A first-run card explains Vitals; the freeze watchdog is now off until you turn it on
-• Windows Contrast themes, better text contrast, keyboard and screen reader support in the process list
-• Processes fully translated into Romanian; numbers follow your language
-• Uses less power when hidden: the sampler sleeps when nothing is watching
-• A native crash leaves a local crash dump and Vitals restarts to the tray. Nothing is sent anywhere
-• Fixed: uninstalling removes the sensors service; a stalled network drive no longer freezes the readings
 
 New in 1.0: program icons and totals in the process list, power usage per program, temperatures for the CPU, NVIDIA graphics cards and every drive, and SSD health.
 

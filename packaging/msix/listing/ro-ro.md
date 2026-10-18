@@ -57,19 +57,17 @@ Gratuit și open source (MIT). Disponibil în română și engleză.
 
 ## Ce e nou în această versiune (≤ 1500 caractere)
 
-Ce e nou în 1.0.4
+Ce e nou în 1.0.5
 
+• Actualizările se instalează cât ești plecat: după zece minute fără nicio fereastră Vitals deschisă, actualizarea descărcată se instalează și Vitals revine în zona de notificare. Niciodată în timpul unei reporniri sau deconectări Windows
+• Dacă refuzi solicitarea de actualizare, Vitals nu mai rămâne pe jumătate oprit
+• Pagina AI: conectarea la codai e doar pentru citire și e revocată când te deconectezi; alte conturi de pe acest PC nu-ți pot citi sesiunile agenților
+• Accesul de la distanță ascultă doar pe adaptorul de rețea ales
+• Reparat: o cădere rară la citirea aplicațiilor de pornire; fișierele de diagnostic merg și după ce WebView2 sau un driver video își adaugă propriul handler
+
+Nou și în 1.0.4:
 • Pagină nouă pentru agenții AI: vezi ce agenți AI de programare (VS Code Copilot, Copilot CLI, Codai, Codex, Claude Code) lucrează pe acest PC, ce face fiecare acum, plus cozile de compilare, worktree-urile și lucrările din fundal. Nu consumă nimic cât pagina e închisă
 • Reparat: linkurile din Despre se deschid din nou
-
-Nou și în 1.0.3:
-• O bandă de stare pe Tabloul de bord răspunde într-un rând la „de ce merge greu PC-ul?”
-• Un card la prima pornire explică Vitals; supravegherea blocajelor rămâne oprită până o pornești tu
-• Teme cu contrast Windows, text mai lizibil, tastatură și cititoare de ecran în lista de procese
-• Procesele sunt traduse complet în română; numerele urmează limba aleasă
-• Consumă mai puțin când e ascuns: eșantionarea se oprește când nu se uită nimeni
-• O cădere lasă un fișier de diagnostic local și Vitals repornește în zona de notificare. Nu se trimite nimic
-• Reparat: dezinstalarea elimină serviciul de senzori; o unitate de rețea blocată nu mai îngheață citirile
 
 Nou în 1.0: pictograme și totaluri în lista de procese, consumul de energie pe program, temperaturi pentru procesor, plăci video NVIDIA și fiecare unitate de stocare, plus starea SSD-urilor.
 

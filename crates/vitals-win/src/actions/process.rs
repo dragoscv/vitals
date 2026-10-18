@@ -1105,12 +1105,60 @@ mod tests {
         }
     }
 
+    /// A `cmd` that has finished starting up: it has read a line from stdin
+    /// and answered on stdout.
+    ///
+    /// Suspending a process while its loader is still mapping DLLs lets the
+    /// loader's thread pool create a worker *after* `NtSuspendProcess`
+    /// returned. That worker is not suspended; it parks on its work queue
+    /// (`WrQueue`), which `read_suspended` rightly treats as a wait the
+    /// thread can wake from, so the process reads as running until the idle
+    /// worker retires. Measured on devcloud 2026-10-18: suspending 2 ms after
+    /// spawn left 1 in 20 children with three `Suspended` threads and one new
+    /// `WrQueue` thread for the whole 3 s window, and the full suite at 16
+    /// threads hit the same race about once in 40 runs. A child that has
+    /// echoed a line is past its loader, so the test measures detection, not
+    /// startup timing. The stdout reader drains until the child dies, so cmd
+    /// never blocks on a full pipe or sees it closed.
+    fn spawn_ready_victim() -> (std::process::Child, std::thread::JoinHandle<()>) {
+        use std::io::{BufRead, Write};
+        let mut child = Command::new("cmd")
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .expect("spawn a test process");
+        let stdout = child.stdout.take().expect("piped stdout");
+        let (ready_tx, ready_rx) = std::sync::mpsc::channel();
+        let reader = std::thread::spawn(move || {
+            let mut ready = Some(ready_tx);
+            for line in std::io::BufReader::new(stdout).lines() {
+                let Ok(line) = line else { break };
+                if line.trim_end() == "vitals-ready"
+                    && let Some(tx) = ready.take()
+                {
+                    let _ = tx.send(());
+                }
+            }
+        });
+        child
+            .stdin
+            .as_mut()
+            .expect("piped stdin")
+            .write_all(b"echo vitals-ready\r\n")
+            .expect("write to cmd");
+        ready_rx
+            .recv_timeout(std::time::Duration::from_secs(20))
+            .expect("cmd answered within 20 s");
+        (child, reader)
+    }
+
     #[test]
     fn a_suspended_process_is_reported_suspended_so_the_menu_can_offer_resume() {
         // The state used to be a constant `Running`: after Suspend the row
         // still said Running, the menu offered Suspend again, and the process
         // could not be resumed from Vitals at all.
-        let mut child = spawn_victim();
+        let (mut child, stdout) = spawn_ready_victim();
         let key = key_for(child.id());
         assert!(
             !is_suspended_now(child.id()),
@@ -1141,6 +1189,7 @@ mod tests {
 
         child.kill().expect("kill");
         child.wait().expect("wait");
+        stdout.join().expect("stdout reader");
         assert!(after_suspend, "a paused process must read as suspended");
         assert!(
             !after_resume,

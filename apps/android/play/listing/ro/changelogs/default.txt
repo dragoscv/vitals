@@ -1,4 +1,4 @@
-Vitals 1.0.4
-• Vezi ce agenți AI de programare lucrează pe fiecare PC asociat și ce cozi de compilare au pe cineva în așteptare, în fila Acum
-• Vorbește cu PC-urile doar prin Wi-Fi sau Ethernet, niciodată prin datele mobile; îți cere o nouă asociere când PC-ul n-o mai acceptă
-• Navigare mai bună cu telecomanda pe TV, etichete pentru cititoare de ecran și alerte pe Wear OS
+Vitals 1.0.5
+• Cardul cu agenți AI urmează setarea de partajare în rețea a fiecărui PC și arată agenții pe care nu-i recunoaște încă drept „Alt agent”
+• Printr-un VPN, Vitals vorbește cu PC-urile doar când VPN-ul merge prin Wi-Fi sau Ethernet, niciodată prin datele mobile
+• Wear OS: ecran cu licențele open-source

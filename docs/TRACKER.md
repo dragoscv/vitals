@@ -166,6 +166,81 @@ CSV records the state.
 
 ## Verification log
 
+### 2026-10-18 — S21-09 suspended-state test waits for a started child; 1.0.5; tracker truth (S21-08)
+
+**Flaky test.** `actions::process::tests::a_suspended_process_is_reported_suspended_so_the_menu_can_offer_resume`
+failed about once in 40 runs of the full `vitals-win` suite at 16 threads
+("a paused process must read as suspended", jobs 20261018-091913-8d08 and
+-092404-cd4c). It never failed alone: 300 isolated runs beside 16 CPU burners
+and 280 full-suite runs (80 default, 200 at 16 threads) all passed. A probe
+that suspended `cmd` at fixed delays after spawn found the race on the first
+try:
+
+```
+PROBE delay=2 st=0 before=[(2, 6), (2, 0), (2, 0)] after3s=[(5, 5), (5, 5), (5, 5), (5, 15)]
+PROBE delay=2 never=1/20       (delay 0, 10, 50, 200, 1000 ms: 0/20 each)
+```
+
+Three threads before `NtSuspendProcess`, four after: the loader's thread pool
+created a worker after the suspend returned. The three original threads say
+`Suspended`; the new one sits in `WrQueue` for the whole three seconds. That
+thread can run, so `read_suspended` answering "not suspended" is correct and
+stays as it is. The 5 s poll could not help, because the state never changes
+until the idle worker retires. The test now uses `spawn_ready_victim`, which
+sends `echo vitals-ready` to `cmd` and waits for the answer before suspending,
+so the child is past its loader and the test checks detection rather than
+start-up timing. A reader thread drains stdout until the child dies.
+
+```
+devcloud ws-vitals-win, job 20261018-110559-aedf0e, the fix:
+  cargo test -p vitals-win --lib -- --nocapture --test-threads=16, 100 times
+  RUN 25 ok / RUN 50 ok / RUN 75 ok / RUN 100 ok / FAILS=0 of 100
+cargo clippy -p vitals-win --all-targets -- -D warnings      clean
+devcloud ws-vitals-win, job 20261018-112431-675ec3, scripts/verify.ps1 on the 1.0.5 tree:
+  1538 Rust tests passed
+  All 12 gates passed in 82.8s (132.9s if run one after another).
+```
+
+The first verify attempt (20261018-112131-4fef07) failed only in the ts lane's
+`pnpm install` ("Access is denied" writing
+`node_modules/.pnpm-workspace-state-v1.json` on the workspace); the unchanged
+rerun passed.
+
+**Tracker truth.** S16-12 is done as superseded (0.9.0 was never tagged; the
+stable line is 1.0.x). S16-20, S17-02 and S17-06 are done on evidence. S17-10
+is done for the code; the five checks that need a real non-admin Windows
+session are now S21-08. Channels, checked live on 2026-10-18 at about 10:2x Z:
+
+```
+GitHub          v1.0.4 Latest (2026-10-17T22:44Z)
+Microsoft Store displaycatalog 9P95RK5VMGPJ: DragosCatalin.VitalsSystemMonitor_1.0.4.0_x64__2n7wyqrzmk6fw
+Scoop           dragoscv/scoop-vitals bucket/vitals.json "version": 1.0.4
+npm             @vitals-app/client dist-tags {"next":"0.9.0-beta.1","latest":"1.0.4"}
+winget          manifests/v/Vitals/Vitals: 1.0.1, 1.0.2; PR #454696 (1.0.3) and #454976 (1.0.4) OPEN,
+                #454976 labels Azure-Pipeline-Passed, Validation-Completed (waits on a moderator)
+Chocolatey      feed: 0.9.0-beta1 (Exempted); 1.0.0 "Ready for review" (human moderation)
+Play            play.google.com/store/apps/details?id=app.vitals -> 404 (production review open)
+```
+
+S17-02's proof is CI 39115776641 on f979769, job Installer round trip
+(117642435924): machine, per-user and upgrade passes each report "silent
+uninstall exits 0", "HKCU Run 'Vitals' does not name the removed install",
+"StartupApproved\Run 'Vitals' is gone", "sc query vitals-sensors reports no
+such service", "C:\Program Files\Vitals Sensors is absent"; "installer round
+trip: 0 failure(s)". S17-06's proof is the 1.0.3 and 1.0.4 tag releases (see
+S19-04 and S20-01 above: signed latest.json, vivobook self-update).
+
+**1.0.5.** `scripts/version.ps1 -Set 1.0.5` then `cargo update --workspace`;
+`-Check v1.0.5` prints "every manifest says 1.0.5". CHANGELOG `[Unreleased]`
+became `[1.0.5]`, with the S21-01 (Android), S21-04 (AI page sign-in and local
+API) and S21-07 (WinRT apartment crash) entries that had been left out. Store
+what's new is 1083 characters in English and 1245 in Romanian; the Play notes
+are 274 and 314 characters and both name 1.0.5. Tizen `config.xml`, the API
+examples and the usage lines in the MSIX, update-proof, winget and round-trip
+scripts moved to 1.0.5. Not changed: `docs/releasing.md`, ADR 0038 and the
+site's "1.0.3 or earlier" notes, which describe history, and the
+`updates.rs` test fixtures, which use 1.0.4 as sample data.
+
 ### 2026-10-18 — S21-07 the vitals-win suite can neither hang nor crash; CI job timeouts
 
 **Symptom.** CI "Rust test (windows)" sat in `cargo test -p vitals-win --lib`

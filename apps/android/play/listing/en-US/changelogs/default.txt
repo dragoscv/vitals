@@ -1,4 +1,4 @@
-Vitals 1.0.4
-• See which AI coding agents are working on each paired PC and which build queues have someone waiting, on its Now tab
-• Only talks to your PCs over Wi-Fi or Ethernet, never mobile data; asks you to pair again when a PC stops accepting the pairing
-• Better TV remote navigation, screen reader labels and Wear OS alerts
+Vitals 1.0.5
+• The AI agents card follows each PC's LAN sharing setting and shows agents it does not recognise yet as "Other agent"
+• Over a VPN, Vitals talks to your PCs only when the VPN runs over Wi-Fi or Ethernet, never mobile data
+• Wear OS: open-source licences screen

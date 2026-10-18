@@ -40,7 +40,7 @@
     -Uninstall is passed. Exit code = number of failed checks.
 
 .EXAMPLE
-    pwsh -NoProfile -File scripts/ci/update-proof.ps1 -From 1.0.3 -To 1.0.4 -Uninstall
+    pwsh -NoProfile -File scripts/ci/update-proof.ps1 -From 1.0.4 -To 1.0.5 -Uninstall
 
 .EXAMPLE
     pwsh -NoProfile -File scripts/ci/update-proof.ps1 -Local -Dir C:\dev3 -From 1.99.0 -To 1.99.1 -Uninstall
