@@ -40,7 +40,14 @@ param(
     # Re-run every turbo task instead of replaying cached results. For when
     # you suspect the cache, not for everyday use: turbo's key already covers
     # the package's files, its dependencies' files and the root configs.
-    [switch]$Force
+    [switch]$Force,
+
+    # Linux clippy, CI's exact arguments, on the devcloud Linux workspace
+    # (agentq run -Where cloud -Ws codai). `auto` (default) runs it when
+    # agentq is installed and reports a skip otherwise; `on` fails when it
+    # cannot run; `off` skips it. CI's Linux leg caught Windows-only dead
+    # code three times that no local Windows gate could see (QA2-4).
+    [ValidateSet('auto', 'on', 'off')][string]$LinuxClippy = 'auto'
 )
 
 $ErrorActionPreference = 'Continue'
@@ -105,10 +112,37 @@ $ts = @(
 )
 if (-not $SkipBuild) {
     $ts += @{ Name = 'build: frontend bundle'; Script = 'pnpm --filter @vitals/desktop build:vite' }
-    # Only meaningful after a build, and the installer half is skipped here:
-    # a full `tauri build` is minutes, whereas the asset budgets catch the
-    # regression that actually happens day to day - an eager import.
-    $ts += @{ Name = 'build: size budget'; Script = 'pwsh -NoProfile -File scripts/check-size.ps1 -SkipInstaller' }
+    # Only meaningful after a build. The installer half needs a `tauri
+    # build` (minutes), so it is checked only when an installer newer than
+    # the last change to the desktop sources exists: a stale installer would
+    # measure yesterday's code. CI's build job always measures it.
+    $installerFresh = 'pwsh -NoProfile -File scripts/check-size.ps1 -SkipInstaller'
+    $nsis = Get-ChildItem (Join-Path $root 'target/release/bundle/nsis') -Filter '*-setup.exe' -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    $lastChange = git log -1 --format=%cI -- apps/desktop crates Cargo.lock 2>$null
+    if ($nsis -and $lastChange -and $nsis.LastWriteTime -gt [datetime]$lastChange) {
+        $installerFresh = 'pwsh -NoProfile -File scripts/check-size.ps1'
+        Write-Host "  note: measuring the installer too ($($nsis.Name), built $($nsis.LastWriteTime))" -ForegroundColor DarkGray
+    } else {
+        Write-Host '  note: no installer newer than the last desktop change; installer size is checked by CI (build a fresh one with tauri build to check it here)' -ForegroundColor DarkGray
+    }
+    $ts += @{ Name = 'build: size budget'; Script = $installerFresh }
+}
+
+# CI's Linux clippy leg, on the devcloud Linux workspace. Its own lane: it
+# waits on the network and a remote compile, not on this machine.
+$linux = @()
+$agentq = Join-Path $HOME '.copilot\bin\agentq.ps1'
+if ($LinuxClippy -ne 'off') {
+    if (Test-Path $agentq) {
+        # Single-quoted inner command: bash receives CI's argv unchanged, and
+        # agentq cannot strip a `--` that is inside one argument.
+        $cmd = "`$env:AGENTQ_CLOUD_STRICT='1'; & '$agentq' run -Resource build -Where cloud -Ws codai -Purpose 'verify.ps1 linux clippy' '--' bash -lc 'cargo clippy --workspace --lib --bins --tests --benches --exclude vitals-win -- -D warnings'"
+        $linux += @{ Name = 'rust: clippy (linux, devcloud)'; Script = $cmd }
+    } elseif ($LinuxClippy -eq 'on') {
+        $linux += @{ Name = 'rust: clippy (linux, devcloud)'; Script = "Write-Host 'agentq is not installed: cannot reach the devcloud Linux workspace'; exit 1" }
+    } else {
+        Write-Host '  note: Linux clippy skipped (no agentq); CI runs it' -ForegroundColor DarkGray
+    }
 }
 
 $total = [System.Diagnostics.Stopwatch]::StartNew()
@@ -117,6 +151,7 @@ $jobs = [ordered]@{
     rust   = Start-ThreadJob -ScriptBlock $runLane -ArgumentList $root, $rust
     ts     = Start-ThreadJob -ScriptBlock $runLane -ArgumentList $root, $ts
 }
+if ($linux.Count) { $jobs['linux'] = Start-ThreadJob -ScriptBlock $runLane -ArgumentList $root, $linux }
 
 $results = [System.Collections.Generic.List[object]]::new()
 $pending = [System.Collections.Generic.List[object]]::new()

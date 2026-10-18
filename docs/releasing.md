@@ -161,7 +161,10 @@ Pushing a `v*` tag runs `.github/workflows/release.yml`:
    | `linux-x64`       | `ubuntu-22.04`   | `.AppImage`, `.deb`, `.rpm`                              | only if `PUBLISH_LINUX` |
 
    No leg holds the updater key or writes a `.sig`; `publish` signs (see
-   _GitHub secrets_). The `vitals-cli_<v>_<arch>.zip` is the `vitals`
+   _GitHub secrets_). The Android leg (phone, Wear OS and TV, `github` APKs
+   and `play` bundles) builds **unsigned** for the same reason (SEC2-4,
+   2026-10-18: it used to decode the upload keystore before anyone had
+   approved the run). The `vitals-cli_<v>_<arch>.zip` is the `vitals`
    command-line tool (`apps/cli`) with `LICENSE` and
    `THIRD_PARTY_NOTICES.md`; it is not bundled into the installer yet.
 
@@ -185,8 +188,14 @@ Pushing a `v*` tag runs `.github/workflows/release.yml`:
 5. **publish** gathers every published artefact and only then writes the
    files that must see all of them at once — doing it in a build leg meant
    two runners racing to upload the same `latest.json`:
-   - On a tag, the updater signatures (`.sig` beside each installer), made
-     after the owner's approval.
+   - The updater signatures (`.sig` beside each installer), made after the
+     owner's approval.
+   - The Android signatures, also after approval: `apksigner` (v2/v3) on the
+     three APKs attached to the release, `jarsigner` on the three bundles
+     the `play` job uploads. The upload keystore (`ANDROID_KEYSTORE_B64` and
+     its passwords) is decoded into a 0600 temp file inside that one step and
+     deleted when it ends; a missing secret fails the release rather than
+     publishing unsigned APKs.
    - `latest.json` with `windows-x86_64` and `windows-aarch64` (plus
      `darwin-universal`, `darwin-aarch64`, `darwin-x86_64` and
      `linux-x86_64` when those are published). `version` has no leading `v`.
@@ -217,35 +226,72 @@ titled **"Vitals 0.9.0-beta.1 (public beta)"**, and the notes open with a
 Revisit this once stable releases exist, if betas should reach opt-in
 testers only; that needs a second updater endpoint, not a GitHub flag.
 
-### Nightlies
+### No nightlies; manual builds
 
-At 03:00 UTC, when `main` has moved since the current `nightly` tag (or by
-hand, via _Run workflow_), the same build runs without `verify` — `main` is
-gated by CI on every push — and publishes to the moving `nightly` tag as a
-**pre-release**, which is never "latest". The previous nightly is deleted
-first so the tag moves. Nightlies are versioned
-`<base>-nightly.<yyyymmdd>.g<sha>` and get no `latest.json` and no updater
-signature: an updater pointed at a moving target would offer the same "new"
-build forever. Running the workflow by hand with _nightly_ unticked builds
-everything and publishes nothing.
+Scheduled nightlies were dropped on 2026-10-18 (PM2-7). The last one
+published on 2026-09-29; every scheduled run after that skipped all its
+jobs, nobody installed them, and a moving `nightly` pre-release beside real
+releases confused the download page. The stale `nightly` pre-release
+(0.9.0, 2026-09-29) and its tag are left for the owner to delete
+(`gh release delete nightly --cleanup-tag`). CI builds the installer and runs the
+full installer round trip on every push to `main`, which is what a
+nightly used to prove.
 
-A nightly **does not wait for approval** and **never blocks a tag**
-(QA-4, since 2026-10-17). Before, every publish ran in the `release`
-environment and all runs on `main` shared one concurrency group, so a
-nightly nobody approved held the queue for days and every later nightly
-and tag release waited behind it. Now:
+_Run workflow_ on **Release** from any branch still builds every platform
+(Windows, macOS, Linux, Android) and **publishes nothing**: no tag, no
+release, no signing, no channel. Its artefacts (unsigned installers,
+unsigned Android builds) stay on the run page for 30 days. It is versioned
+`<base>-build.<yyyymmdd>.g<sha>`, so an installer taken from it names one
+commit. Each ref has its own concurrency group and a newer manual run
+cancels the older; a tag has its own group and is never cancelled.
 
-- each tag has its own concurrency group (`release-refs/tags/v…`), is never
-  cancelled, and its `publish` job still waits in the `release` environment;
-- scheduled and manual runs share `release-nightly`, and a newer one cancels
-  the older;
-- a nightly's `publish` runs without an environment. It can only create the
-  `nightly` pre-release, which no installed copy polls; the updater key is
-  not read.
+## What CI proves about the installer
 
-Because the nightly no longer waits for a reviewer, anyone who can push to
-`main` can cause a nightly pre-release; that was already true of what the
-nightly contains, and `main` is protected by its ruleset.
+The `Installer round trip` job in `ci.yml` installs the installer built on
+every push to `main` and, before uninstalling, switches on everything the
+app can leave on a machine, asserting each is present first so the
+removal checks cannot pass vacuously (QA2-2):
+
+| Feature             | How it is switched on (as the app does)                                                                                                               | Asserted gone after uninstall                                           |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| CPU sensors service | `sensors\vitals-sensors.exe install --pawnio-setup <pinned PawnIO 2.2.0>`; if the driver cannot load, the same LocalSystem service registered by hand | `sc query vitals-sensors` = 1060, `Program Files\Vitals Sensors` absent |
+| Task Manager        | `vitals-desktop.exe --set-taskmgr-replacement on` (the elevated child the switch spawns)                                                              | IFEO `taskmgr.exe` `Debugger` no longer names it                        |
+| Start with Windows  | HKCU `Run\Vitals` = `<exe> --minimized` + `StartupApproved\Run`                                                                                       | both values gone                                                        |
+| Lag watchdog        | HKCU `Run\VitalsWatchdog` = `"<install>\watchdog\vitals-watchdog.exe"`, process started                                                               | value gone, process gone                                                |
+
+Then a **per-user** pass (`/S /CurrentUser` into
+`%LOCALAPPDATA%\Programs\Vitals`, HKCU uninstall entry) and an **upgrade**
+pass: the newest published release whose version differs from the build,
+then the new installer over it; the version moves, the install stays per
+machine, a settings file survives, and the first launch restores an
+enabled watchdog.
+
+While the per-machine copy is installed, `scripts/ci/idle-budget.ps1`
+measures the app at rest (PERF-1): launched `--minimized` (tray only, what
+Start with Windows runs) and with the dashboard visible, 60 s to settle,
+then three 40 s windows over the app plus every WebView2 child. CPU is
+reported as a percentage of one core, memory as private bytes and working
+set; the median of the three is compared with `idle-budget.json` and the
+table goes to the run summary. Budgets are the measured median plus 50 %;
+raise them in a reviewed diff, never to make CI pass
+(`idle-budget.ps1 -Update` rewrites them from a run).
+
+`scripts/ci/roundtrip-proof.ps1` runs all of it on a Windows machine you
+own (the devcloud `vitals-win` workspace): it builds the installer, fetches
+the previous release and calls the two scripts.
+
+**Update proof** (`update-proof.yml`, manual): installs the previous
+published release on a hosted runner, lets it find, download and verify
+the latest, quits it as a user would, and asserts the installed version
+moved. Run it after approving a release's publish job.
+
+**Dependabot**: a dependency bump changes `THIRD_PARTY_NOTICES.md`, which
+CI checks. `dependabot-notices.yml` regenerates the file on the Dependabot
+branch and starts CI on the new commit. It runs on `pull_request` (never
+`pull_request_target`), only for branches Dependabot opened in this
+repository, with `contents: write` for that one job, and executes no
+dependency code: `cargo metadata`, `pnpm install --ignore-scripts` and the
+notices script.
 
 ## Secrets and variables
 
@@ -253,16 +299,17 @@ nightly contains, and `main` is protected by its ruleset.
 never printed; variables are plain switches. None of these are needed for
 CI, only for releases.
 
-| Secret                               | Needed for               | What it is and where to get it                                                                                                                                                                                     |
-| ------------------------------------ | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `TAURI_SIGNING_PRIVATE_KEY`          | every tag (**required**) | The updater minisign key; see _The key_ above.                                                                                                                                                                     |
-| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | every tag (**required**) | Its password.                                                                                                                                                                                                      |
-| `WINDOWS_CERTIFICATE`                | Authenticode (optional)  | The code-signing certificate as a base64 PFX (`[Convert]::ToBase64String([IO.File]::ReadAllBytes('vitals.pfx'))`), from the certificate vendor (docs/distribution.md). Absent: unsigned, with a notice in the log. |
-| `WINDOWS_CERTIFICATE_PASSWORD`       | Authenticode (optional)  | The PFX password.                                                                                                                                                                                                  |
-| `NPM_TOKEN`                          | npm                      | npmjs.com → avatar → _Access Tokens_ → _Generate New Token_ → **Granular**, read and write on the `@vitals` scope (create the `vitals` organisation first).                                                        |
-| `WINGET_TOKEN`                       | winget                   | A **classic** GitHub token with `public_repo`, from an account that has a fork of `microsoft/winget-pkgs`; the action pushes to the fork and opens the pull request from it.                                       |
-| `SCOOP_DEPLOY_KEY`                   | Scoop                    | Private half of an ed25519 deploy key with write access on `dragoscv/scoop-vitals` only (the public half is registered there).                                                                                     |
-| `CHOCO_API_KEY`                      | Chocolatey               | community.chocolatey.org → _Account_ → API key.                                                                                                                                                                    |
+| Secret                                                                                            | Needed for               | What it is and where to get it                                                                                                                                                                                     |
+| ------------------------------------------------------------------------------------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `TAURI_SIGNING_PRIVATE_KEY`                                                                       | every tag (**required**) | The updater minisign key; see _The key_ above.                                                                                                                                                                     |
+| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`                                                              | every tag (**required**) | Its password.                                                                                                                                                                                                      |
+| `WINDOWS_CERTIFICATE`                                                                             | Authenticode (optional)  | The code-signing certificate as a base64 PFX (`[Convert]::ToBase64String([IO.File]::ReadAllBytes('vitals.pfx'))`), from the certificate vendor (docs/distribution.md). Absent: unsigned, with a notice in the log. |
+| `WINDOWS_CERTIFICATE_PASSWORD`                                                                    | Authenticode (optional)  | The PFX password.                                                                                                                                                                                                  |
+| `NPM_TOKEN`                                                                                       | npm                      | npmjs.com → avatar → _Access Tokens_ → _Generate New Token_ → **Granular**, read and write on the `@vitals` scope (create the `vitals` organisation first).                                                        |
+| `WINGET_TOKEN`                                                                                    | winget                   | A **classic** GitHub token with `public_repo`, from an account that has a fork of `microsoft/winget-pkgs`; the action pushes to the fork and opens the pull request from it.                                       |
+| `SCOOP_DEPLOY_KEY`                                                                                | Scoop                    | Private half of an ed25519 deploy key with write access on `dragoscv/scoop-vitals` only (the public half is registered there).                                                                                     |
+| `CHOCO_API_KEY`                                                                                   | Chocolatey               | community.chocolatey.org → _Account_ → API key.                                                                                                                                                                    |
+| `ANDROID_KEYSTORE_B64` + `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD` | every tag (**required**) | The Play upload key (base64 of the `.jks`) and its passwords. Read only by **Sign Android APKs and bundles** in `publish`, after approval.                                                                         |
 
 | Variable         | Effect when `true`                                                                                                                          |
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -281,9 +328,25 @@ Publishing macOS or Linux turns that leg from advisory into a hard gate:
 once a real sampler exists for that platform.
 
 A channel whose variable is `true` but whose secret is missing skips with a
-notice; it never fails the release. The GitHub release is already public by
-the time the channels run, so a channel failure never un-publishes anything
-— rerun just that job.
+notice; it never fails the release.
+
+Two channels can refuse a correct upload for reasons that are the store's
+state, not the package (QA2-6, 2026-10-18):
+
+- **Chocolatey** answers a bare `403 (Forbidden)` to every push while the
+  first version still waits in human moderation. The job then reads the
+  public feed: with no approved version of `vitals` it ends green with a
+  warning in the run summary (rerun the job after approval); with an
+  approved version a 403 is a real refusal and fails.
+- **Google Play** refuses `changesNotSentForReview` in one state ("Changes
+  are sent for review automatically ... must not be set", v1.0.4) and
+  requires it in another ("Changes cannot be sent for review
+  automatically", after a rejected review, v1.0.2). The state cannot be read
+  beforehand, so each upload tries the flag `PLAY_DRAFT_APP` suggests and,
+  only if that commit fails, retries once with the opposite; the summary
+  says when it did. The GitHub release is already public by
+  the time the channels run, so a channel failure never un-publishes anything
+  — rerun just that job.
 
 ### Authenticode, when a certificate exists
 

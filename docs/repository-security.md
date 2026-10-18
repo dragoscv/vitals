@@ -18,8 +18,9 @@ each exists because its absence was found in an audit on 2026-09-29.
 | Advisories                                                   | `cargo audit --deny warnings`, `pnpm audit`, Dependabot alerts + malware alerts | Security → Dependabot                                                          |
 | Secret scanning + push protection                            | Repository settings                                                             | Security → Secret scanning                                                     |
 
-The `release` environment means a nightly or a tag builds everything and
-then stops at **Publish** until the owner approves it in the Actions run.
+The `release` environment means a tag builds everything and then stops at
+**Publish** until the owner approves it in the Actions run (only tags
+publish; a manual run of Release builds and publishes nothing).
 Nothing is uploaded, and no updater manifest changes, before that click.
 
 ## Owner actions (need the account, not the code)

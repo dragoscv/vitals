@@ -166,6 +166,29 @@ CSV records the state.
 
 ## Verification log
 
+### 2026-10-18 — S21-02 CI: idle cost gate, real installer round trip, update proof
+
+**Ask.** PERF-1 (no idle CPU/RAM gate), QA2-2 (uninstall checks were vacuous: nothing turned
+the features on), QA2-3 (Dependabot PRs red on notices), QA2-6 (Choco 403 / Play
+`changesNotSentForReview`), SEC2-4 (Android upload key decoded before approval), PM2-7
+(nightlies nobody installs).
+
+**Decisions.** The idle gate measures the installed release build, the app plus every
+WebView2 child, as a percentage of one core so a bigger runner does not hide a regression;
+it runs inside the round trip so one install serves both. Every removal check is now preceded
+by a presence check. Dependabot notices run on `pull_request` (never `pull_request_target`)
+and execute no dependency code. Budgets are the first measured baseline plus 50 %.
+
+**Verification.**
+
+```text
+devcloud vitals-win (agentq-cloud 20261018-021901-e8602d): scripts/verify.ps1 -> All 12 gates passed in 48.5s; 1493 Rust tests; perf full sample median 1.57 ms (budget 30)
+devcloud vitals-win (20261018-022000-7061fa): roundtrip-proof.ps1 -> installer round trip: 0 failure(s), ROUNDTRIP_EXIT=0 (machine pass with real PawnIO 2.2.0 + vitals-sensors service, IFEO, Run, StartupApproved, watchdog all present before and gone after; per-user /CurrentUser pass; upgrade 1.0.3 -> 1.0.4 keeps settings + restores watchdog)
+idle (16 cores, WebView2 x6 + app): hidden cpu 12.26 % of one core (9.29 / 12.26 / 12.72), private 184 MB, working set 380.4 MB; visible cpu 9.87 % (7.96 / 9.87 / 13.51), private 184.7 MB, working set 379.9 MB; budgets 16.1 / 282 / 587 and 15.4 / 276 / 571 (baseline run 20261018-020437-d3c0ec + 50 %)
+devcloud ws-codai (20261018-023000-7eb82b): cargo clippy --workspace --lib --bins --tests --benches --exclude vitals-win -- -D warnings -> Finished, LC_EXIT=0
+actionlint 1.7.12: only pre-existing SC2129 style notes in release.yml; ParseFile 0 errors on 4 scripts; check-drift 0 failures; prettier clean
+```
+
 ### 2026-10-18 — S21-01 Android: agents card, Wear licences, VPN rule
 
 **Ask.** Lane S21 android: AND2-1, AND2-4, AND2-5, I18N2-5, LEG2-11, QA2-8.

@@ -1,0 +1,102 @@
+name: Dependabot notices
+
+# Every Dependabot cargo or npm pull request changed the dependency list and
+# so failed CI's "Third-party notices are current" check, until someone
+# regenerated THIRD_PARTY_NOTICES.md by hand (QA2-3). This workflow does that
+# on the pull request itself and pushes the file to the Dependabot branch.
+#
+# Why `pull_request` and not `pull_request_target`: pull_request_target runs
+# with a write token in the BASE repository's context, and checking out and
+# running the pull request's code there is the classic way to hand a write
+# token to untrusted code. Here the event is `pull_request`; GitHub gives a
+# Dependabot-triggered run a read-only token unless the workflow asks for
+# more, which this one does for exactly one job, guarded so it only runs for
+# a branch Dependabot opened in this repository (never a fork, never a human).
+#
+# What runs while that token exists: pinned actions, `cargo metadata`
+# (resolves the lockfile; runs no build script), `pnpm install
+# --ignore-scripts` (no dependency code), and scripts/third-party-notices.ps1
+# from this repository. No dependency code is compiled or executed, so a
+# malicious package version in the bump cannot reach the token. CI itself
+# builds and tests the bump with its usual read-only token.
+#
+# A push made with GITHUB_TOKEN starts no workflow, so the CI run on the new
+# head commit is started explicitly (workflow_dispatch on the branch); its
+# checks attach to that commit and show on the pull request.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dependabot-notices-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  notices:
+    name: Regenerate notices
+    if: >-
+      github.actor == 'dependabot[bot]' &&
+      github.event.pull_request.user.login == 'dependabot[bot]' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      startsWith(github.event.pull_request.head.ref, 'dependabot/')
+    runs-on: ubuntu-latest
+    permissions:
+      # Push the regenerated file to the Dependabot branch.
+      contents: write
+      # Start CI on the new head commit.
+      actions: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 1
+
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # rust-toolchain.toml
+        with:
+          toolchain: 1.99.0
+
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24
+
+      # --ignore-scripts: nothing from the bumped packages runs here.
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Regenerate THIRD_PARTY_NOTICES.md
+        id: regen
+        shell: pwsh
+        run: |
+          pwsh -NoProfile -File scripts/third-party-notices.ps1
+          if ($LASTEXITCODE -ne 0) { throw "third-party-notices.ps1 exited $LASTEXITCODE" }
+          git diff --quiet -- THIRD_PARTY_NOTICES.md
+          $changed = $LASTEXITCODE -ne 0
+          $global:LASTEXITCODE = 0
+          # Nothing else may change: the script writes one file.
+          $other = @(git status --porcelain | Where-Object { $_ -notmatch 'THIRD_PARTY_NOTICES\.md$' })
+          if ($other.Count) { throw "unexpected changes: $($other -join '; ')" }
+          "changed=$($changed.ToString().ToLower())" | Add-Content $env:GITHUB_OUTPUT
+          Write-Host "notices changed: $changed"
+
+      - name: Push to the Dependabot branch
+        if: steps.regen.outputs.changed == 'true'
+        env:
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add THIRD_PARTY_NOTICES.md
+          git commit -m 'chore(deps): regenerate third-party notices'
+          git push origin "HEAD:refs/heads/$BRANCH"
+
+      - name: Start CI on the new commit
+        if: steps.regen.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: gh workflow run ci.yml --repo "$GITHUB_REPOSITORY" --ref "$BRANCH"

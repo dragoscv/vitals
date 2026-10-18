@@ -1,0 +1,77 @@
+name: Update proof
+
+# The end-to-end check that the published release reaches installed copies:
+# scripts/ci/update-proof.ps1 installs the PREVIOUS release, lets it find,
+# download and verify the latest one against the key baked into the app,
+# quits it the way a user does, and asserts the installed executable is now
+# the latest (SEC-5: a mis-signed release looks fine on GitHub and no
+# installed copy ever accepts it, silently on both sides).
+#
+# Manual only. It reads nothing secret and writes nothing: the installers
+# and latest.json come from the public release. Run it after approving a
+# release's publish job. Hosted Windows runners are elevated (1.0.0-1.0.3
+# installers are per machine) and have an interactive desktop, which the
+# tray-menu quit needs when the webview debugging port is refused.
+
+on:
+  workflow_dispatch:
+    inputs:
+      from:
+        description: 'Version installed first (default: the release before the latest)'
+        type: string
+        required: false
+      to:
+        description: 'Version expected after the update (default: the latest release)'
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    name: Update proof (${{ inputs.from || 'previous' }} -> ${{ inputs.to || 'latest' }})
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          sparse-checkout: |
+            scripts/ci
+            apps/desktop/src-tauri/tauri.conf.json
+          sparse-checkout-cone-mode: false
+
+      - name: Versions
+        id: v
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FROM: ${{ inputs.from }}
+          TO: ${{ inputs.to }}
+        run: |
+          $tags = @(gh release list --repo $env:GITHUB_REPOSITORY --exclude-drafts --exclude-pre-releases --limit 10 --json tagName --jq '.[].tagName' | Where-Object { $_ -match '^v\d' })
+          if ($LASTEXITCODE -ne 0) { throw "gh release list exited $LASTEXITCODE" }
+          $to = if ($env:TO) { $env:TO } else { $tags[0] -replace '^v', '' }
+          $from = if ($env:FROM) { $env:FROM } else { ($tags | Where-Object { ($_ -replace '^v', '') -ne $to } | Select-Object -First 1) -replace '^v', '' }
+          if (-not $from -or -not $to) { throw "could not decide versions (from '$from', to '$to')" }
+          "from=$from" | Add-Content $env:GITHUB_OUTPUT
+          "to=$to" | Add-Content $env:GITHUB_OUTPUT
+          Write-Host "update proof: $from -> $to"
+
+      - name: Prove the update
+        shell: pwsh
+        env:
+          FROM: ${{ steps.v.outputs.from }}
+          TO: ${{ steps.v.outputs.to }}
+        run: |
+          pwsh -NoProfile -File scripts/ci/update-proof.ps1 -From $env:FROM -To $env:TO -Uninstall
+          if ($LASTEXITCODE -ne 0) { throw "update proof: $LASTEXITCODE check(s) failed" }
+          "Update proof passed: $env:FROM -> $env:TO" | Add-Content $env:GITHUB_STEP_SUMMARY
+
+      - if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: update-proof-log
+          path: ~/AppData/Local/Vitals/logs/
+          if-no-files-found: ignore
+          retention-days: 14

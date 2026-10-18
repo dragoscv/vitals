@@ -5,6 +5,11 @@ on:
     branches: [main, dev]
   pull_request:
     branches: [main, dev]
+  # dependabot-notices.yml starts CI this way after pushing regenerated
+  # notices to a Dependabot branch: a push made with GITHUB_TOKEN starts no
+  # workflow by itself. The checks attach to the commit, so they show on the
+  # pull request.
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -43,11 +48,14 @@ jobs:
     name: Changes
     runs-on: ubuntu-latest
     outputs:
-      code: ${{ steps.filter.outputs.code }}
-      android: ${{ steps.android.outputs.android }}
+      # A manual run (dependabot-notices.yml) has no "before" to diff
+      # against: run everything.
+      code: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.code }}
+      android: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.android.outputs.android }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4
+        if: github.event_name != 'workflow_dispatch'
         id: filter
         with:
           predicate-quantifier: every
@@ -65,6 +73,7 @@ jobs:
       # Separate step: `code` needs predicate-quantifier `every` (exclusions),
       # this one is a plain "any of" match.
       - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4
+        if: github.event_name != 'workflow_dispatch'
         id: android
         with:
           filters: |
@@ -368,7 +377,7 @@ jobs:
   build:
     name: Build installer
     needs: changes
-    if: needs.changes.outputs.code == 'true' && github.event_name != 'pull_request'
+    if: needs.changes.outputs.code == 'true' && github.event_name == 'push'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -421,12 +430,14 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-  # Installs the installer the job above built, launches the app, uninstalls
-  # it and proves nothing of ours survived: no process, no install folder,
-  # no Run value or Task Manager IFEO entry naming it, no LocalSystem
-  # `vitals-sensors` service (QA-1, QA-2). Until this job the installer was
-  # first run by a user. Hosted Windows runners are elevated, which the
-  # perMachine installer needs. No checkout of build output: only the script.
+  # Installs the installer the job above built, turns on everything the app
+  # can leave behind (sensors service, Task Manager replacement, Start with
+  # Windows, the watchdog), uninstalls it and proves all of it is gone; then
+  # a per-user install and an upgrade over the previous release (QA-1,
+  # QA-2, QA2-2). While the per-machine copy is installed it also measures
+  # the app's idle CPU and memory against idle-budget.json (PERF-1). Hosted
+  # Windows runners are elevated and have a desktop, which the per-machine
+  # passes and the webview need. No checkout of build output: scripts only.
   installer-roundtrip:
     name: Installer round trip
     needs: build
@@ -434,18 +445,55 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          sparse-checkout: scripts/ci
+          sparse-checkout: |
+            scripts/ci
+            idle-budget.json
+          sparse-checkout-cone-mode: false
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: vitals-installer
           path: installer
-      - name: Install, launch, uninstall
+      # The newest published release whose version differs from this build:
+      # right after a release, main still carries that release's version, so
+      # "latest" would be an install over the same version.
+      - name: Previous release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $setup = @(Get-ChildItem installer -Filter *-setup.exe)[0]
+          $current = (($setup.VersionInfo.ProductVersion -split '[^0-9]+' | Where-Object { $_ }) | Select-Object -First 3) -join '.'
+          $tags = gh release list --repo $env:GITHUB_REPOSITORY --exclude-drafts --exclude-pre-releases --limit 10 --json tagName --jq '.[].tagName'
+          if ($LASTEXITCODE -ne 0) { throw "gh release list exited $LASTEXITCODE" }
+          $prev = $tags | Where-Object { $_ -match '^v\d' -and ($_ -replace '^v', '') -ne $current } | Select-Object -First 1
+          if (-not $prev) { throw "no published release other than $current" }
+          $v = $prev -replace '^v', ''
+          New-Item -ItemType Directory -Force -Path previous | Out-Null
+          gh release download $prev --repo $env:GITHUB_REPOSITORY --pattern "Vitals_${v}_x64-setup.exe" --dir previous
+          if ($LASTEXITCODE -ne 0) { throw "gh release download exited $LASTEXITCODE" }
+          Write-Host "this build: $current; upgrade from: $v"
+      - name: Round trip (machine, per-user, upgrade) and idle budget
         shell: pwsh
         run: |
           $setup = @(Get-ChildItem installer -Filter *-setup.exe)
           if ($setup.Count -ne 1) { throw "expected one *-setup.exe, found $($setup.Count)" }
-          pwsh -NoProfile -File scripts/ci/installer-roundtrip.ps1 -Setup $setup[0].FullName
+          $previous = @(Get-ChildItem previous -Filter *-setup.exe)[0].FullName
+          # idle-budget runs inside the machine pass, against the installed app.
+          $idle = Join-Path $env:RUNNER_TEMP 'idle-budget-ci.ps1'
+          Set-Content -Path $idle -Encoding utf8NoBOM -Value @(
+            'param([string]$Exe)'
+            "& '$((Resolve-Path scripts/ci/idle-budget.ps1).Path)' -Exe `$Exe -RequireWebView -Out '$env:RUNNER_TEMP\idle.json'"
+            'exit $LASTEXITCODE'
+          )
+          pwsh -NoProfile -File scripts/ci/installer-roundtrip.ps1 -Setup $setup[0].FullName -Previous $previous -WhileInstalled $idle
           if ($LASTEXITCODE -ne 0) { throw "installer round trip: $LASTEXITCODE failure(s)" }
+      - if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: idle-budget
+          path: ${{ runner.temp }}/idle.json
+          if-no-files-found: ignore
+          retention-days: 30
 
   # Android contract and unit tests on every push, not only at release: the
   # contract fixtures are written by a Rust test, so a Rust change can break

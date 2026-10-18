@@ -1,0 +1,24 @@
+{
+  "comment": "Idle cost of the installed app, median of 3 windows after a 60 s settle (scripts/ci/idle-budget.ps1). First baseline measured on the devcloud vitals-win workspace (16 logical cores, WebView2 running) plus 50 %; raise deliberately, never to make CI pass.",
+  "measured": {
+    "version": "1.0.4",
+    "logicalCores": 16,
+    "date": "2026-10-18"
+  },
+  "hidden": {
+    "cpuPercent": 16.1,
+    "cpuPercentMeasured": 10.7,
+    "privateMB": 282,
+    "privateMBMeasured": 187.4,
+    "workingSetMB": 587,
+    "workingSetMBMeasured": 390.8
+  },
+  "visible": {
+    "cpuPercent": 15.4,
+    "cpuPercentMeasured": 10.26,
+    "privateMB": 276,
+    "privateMBMeasured": 183.4,
+    "workingSetMB": 571,
+    "workingSetMBMeasured": 380.4
+  }
+}
