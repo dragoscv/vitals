@@ -51,3 +51,17 @@ publisher. Select **More info**, then **Run anyway**. To confirm the file is gen
 
 Look at `crash.txt` in the logs folder. If WebView2 is missing or damaged, reinstall it from
 [Microsoft](https://developer.microsoft.com/microsoft-edge/webview2/) and run the installer again.
+
+## The sensors service is still there after uninstalling
+
+The optional sensors service runs as SYSTEM from `C:\Program Files\Vitals Sensors`. Uninstalling a
+copy of Vitals installed for you only asks for administrator rights to remove it; if that prompt was
+declined, the service stays. To remove it, open **Command Prompt** as administrator and run:
+
+```bat
+"C:\Program Files\Vitals Sensors\vitals-sensors.exe" uninstall
+```
+
+Then delete `C:\Program Files\Vitals Sensors` if it is still there. If Vitals is still installed,
+**Devices & sensors → Remove** does the same with one prompt. PawnIO stays installed either way;
+uninstall it from Windows Settings → Apps once no other program needs it.

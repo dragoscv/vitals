@@ -30,6 +30,11 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - The sensors helper installs a copy of exactly the file that is running, so
   swapping the file in a per-user install folder during the prompt cannot
   turn a different program into the SYSTEM service.
+- Uninstalling a copy of Vitals installed for you only now removes the
+  optional sensors service too: it asks for administrator rights with one
+  Windows prompt. If you decline, the service stays and the uninstaller shows
+  the command to remove it later. Before, the SYSTEM service and its folder in
+  Program Files were left behind silently. Updates never remove it.
 - Turning Task Manager replacement on is confirmed only when Windows names
   this exact copy, not any file called `vitals-desktop.exe`.
 - Crash dumps keep working after WebView2 or a graphics driver installs its

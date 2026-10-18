@@ -81,8 +81,10 @@ works for both the Store and the installer version. The installer version keeps 
 history in `%LOCALAPPDATA%\Vitals` so a reinstall picks up where you left off; delete that folder to
 remove them too. If you let the installer version replace Task Manager or installed the sensors
 service, the uninstaller removes both. The sensors service runs as SYSTEM, so removing it needs
-administrator rights: for a copy installed for you only, remove the service on the **Devices &
-sensors** page before you uninstall.
+administrator rights: for a copy installed for you only, the uninstaller asks for them with one
+Windows prompt. If you decline it, the service stays and the uninstaller shows how to remove it
+later (see [Troubleshooting](/guides/troubleshooting/#the-sensors-service-is-still-there-after-uninstalling)).
+You can also remove it on the **Devices & sensors** page before you uninstall.
 
 ## Where do I report a problem?
 

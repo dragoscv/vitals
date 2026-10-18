@@ -55,3 +55,19 @@ este autentic, vezi [Verifică descărcarea](/ro/download/#verifică-descărcare
 Uită-te în `crash.txt` din folderul de jurnale. Dacă WebView2 lipsește sau este deteriorat,
 reinstalează-l de la [Microsoft](https://developer.microsoft.com/microsoft-edge/webview2/) și rulează
 din nou programul de instalare.
+
+## Serviciul de senzori a rămas după dezinstalare
+
+Serviciul opțional de senzori rulează ca SYSTEM din `C:\Program Files\Vitals Sensors`. Dezinstalarea
+unei copii Vitals instalate doar pentru tine cere drepturi de administrator ca să-l elimine; dacă ai
+refuzat solicitarea, serviciul rămâne. Ca să-l elimini, deschide **Command Prompt** ca administrator
+și rulează:
+
+```bat
+"C:\Program Files\Vitals Sensors\vitals-sensors.exe" uninstall
+```
+
+Apoi șterge `C:\Program Files\Vitals Sensors` dacă mai există. Dacă Vitals este încă instalat,
+**Dispozitive și senzori → Elimină** face același lucru cu o singură solicitare. PawnIO rămâne
+instalat oricum; dezinstalează-l din Setări Windows → Aplicații când niciun alt program nu mai are
+nevoie de el.

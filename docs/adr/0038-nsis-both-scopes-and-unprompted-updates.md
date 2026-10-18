@@ -85,8 +85,11 @@ Options weighed (asked twice, the second time with the evidence below):
   updates once by hand (or runs Vitals elevated once). From 1.0.4 on, every
   path above applies.
 - Uninstalling a per-user copy without administrator rights cannot remove a
-  sensors service the user once enabled; the uninstaller tries and leaves it
-  for the helper's own Settings switch. The Task Manager replacement stays
+  sensors service the user once enabled by itself. Since S21-06 the
+  uninstaller asks: when the helper answers NOT_ELEVATED it runs it again
+  with the `runas` verb (one UAC prompt, only when the service or its folder
+  exists, never on `/UPDATE`); declined, it leaves the service and shows the
+  admin command that removes it. The Task Manager replacement stays
   admin-only, as 0025 required.
 - `scripts/ci/update-proof.ps1 -Local` proves the per-user and legacy paths
   unelevated against two throwaway-signed builds

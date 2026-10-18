@@ -166,6 +166,40 @@ CSV records the state.
 
 ## Verification log
 
+### 2026-10-18 — S21-06 per-user uninstall removes the sensors service with consent
+
+**Ask.** With `installMode: both` (ADR 0038) a per-user copy runs its
+uninstaller unelevated. If its owner had turned the sensors service on,
+`vitals-sensors uninstall` exited 5 (NOT_ELEVATED), the `sc.exe` fallback
+failed the same way, and a LocalSystem AutoStart service plus
+`C:\Program Files\Vitals Sensors` outlived the app with no message. S21-03
+left this open because `hooks.nsh` belonged to the parallel AI lane.
+
+**Decision.** Ask, do not orphan. `NSIS_HOOK_PREUNINSTALL`, still inside
+`$UpdateMode <> 1` (an update never removes sensors): nothing happens unless
+`HKLM\SYSTEM\CurrentControlSet\Services\vitals-sensors` or the folder exists,
+so nobody who never enabled sensors sees a prompt. Exit 5, and only 5,
+triggers `ExecShellWait "runas"` on the bundled helper (one UAC prompt naming
+`vitals-sensors.exe`) after clearing an inherited `__COMPAT_LAYER`
+(`RunAsInvoker` would start it with the same standard token). ExecShellWait
+returns no exit code, so the SCM key is polled for up to 5 s. Declined or
+failed: `DetailPrint` plus a `MessageBox` (`/SD IDOK`, EN or RO by
+`$LANGUAGE`) giving the admin command. The per-machine path is unchanged
+(helper exits 0 -> `RMDir /r /REBOOTOK`). Rejected: removing it from the app
+at first run of the uninstaller (the app is already gone) and a scheduled
+task (a new SYSTEM surface to clean up a SYSTEM surface). The in-app
+Devices & sensors **Remove** already existed and is now named in the docs.
+
+**Proof limits.** CI and devcloud run the round trip elevated, so the
+per-user uninstaller there inherits an administrator token and the helper's
+own `uninstall` succeeds directly: the new per-user assertions prove the hook
+runs the removal for a per-user copy, not the UAC prompt. The prompt branch
+is held by a guard test on `hooks.nsh` and by makensis compiling it (local
+makensis 3.x against a stub harness, exit 0; a probe checked the
+`${U+XXXX}` Romanian text and the `ExecShellWait` error flag).
+
+**Verification.** devcloud ws-vitals-win on 3a56221 + this change: verify.ps1 job 20261018-062501-5f627a "All 12 gates passed in 45.7s", 1535 Rust tests (incl. updates::a_per_user_uninstall_asks_for_administrator_rights_before_leaving_the_sensors_service). roundtrip-proof.ps1 job 20261018-062559-30f8f3 (real installer built from the tree, 624 s): per-user pass "vitals-sensors 1.0.4 install ... exited 0", "before uninstall: the vitals-sensors service exists", "silent uninstall exits 0", "sc query vitals-sensors reports no such service", "C:\Program Files\Vitals Sensors is absent"; machine + upgrade passes unchanged; "installer round trip: 0 failure(s)", ROUNDTRIP_EXIT=0. The runner is an administrator, so the per-user uninstaller inherits an elevated token and the helper succeeds without the runas retry: the UAC branch itself is proven by the guard test and makensis compiling it, not by a prompt. An earlier roundtrip run (20261018-060454-a3f3b8) stopped producing output in the idle-budget step and was killed; the rerun passed.
+
 ### 2026-10-18 — S21-05 updates install while idle, never during a restart
 
 **Symptom.** The owner's PC ran Vitals 0.9.0 on 2026-10-18 although 1.0.0,

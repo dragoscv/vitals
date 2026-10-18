@@ -41,7 +41,10 @@
       1. machine  `setup.exe /S /AllUsers` -> Program Files, everything on,
                   launch, uninstall, all gone.
       2. user     `setup.exe /S /CurrentUser` -> %LOCALAPPDATA%\Programs\
-                  Vitals, HKCU uninstall entry, launch, uninstall, gone.
+                  Vitals, HKCU uninstall entry, launch, the sensors service
+                  installed from the per-user copy's helper (S21-06),
+                  uninstall, gone - the SYSTEM service and Program Files\
+                  Vitals Sensors included.
       3. upgrade  -Previous (the last published release) installed per
                   machine, a settings file written, then -Setup over it:
                   the executable reports the new version, the install
@@ -50,6 +53,16 @@
 
     Must run elevated (pass 1 and 3 install per machine; GitHub's Windows
     runners are elevated). Exit code is the number of failed assertions.
+
+    Elevation and the per-user pass: the per-user uninstaller is started from
+    this elevated script, so it inherits an administrator token and the
+    helper's own `uninstall` succeeds at once. The branch a real standard
+    user reaches (helper exits 5, hooks.nsh retries it with the "runas" verb,
+    one UAC prompt) is therefore NOT driven here: on these runners a UAC
+    prompt is approved silently or never shown, so the pass proves the hook
+    reaches and runs the removal for a per-user copy, not the prompt itself.
+    That branch is held by a guard test on hooks.nsh (updates.rs) and by
+    makensis compiling it, not by this script.
 
 .PARAMETER Setup
     Path to the NSIS `*-setup.exe` under test.
@@ -351,6 +364,9 @@ if ('user' -in $Pass) {
     Assert-True ($null -ne (Find-Shortcut $exe)) 'a Start Menu shortcut targets the per-user executable'
     if (Test-Path $exe) {
         Test-Launch $exe
+        # S21-06: a per-user copy whose owner turned sensors on. Before this
+        # pass covered it, its uninstaller could not remove the service.
+        Enable-Sensors $userDir
         Enable-Autostart $exe
         Enable-Watchdog $userDir
     }

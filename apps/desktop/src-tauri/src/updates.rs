@@ -861,6 +861,30 @@ mod config_guard {
         assert!(hooks.contains(r#"$MultiUser.InstallMode == "CurrentUser""#));
         assert!(hooks.contains(r#"CreateShortcut "$SMPROGRAMS\${PRODUCTNAME}.lnk""#));
     }
+
+    #[test]
+    fn a_per_user_uninstall_asks_for_administrator_rights_before_leaving_the_sensors_service() {
+        // S21-06: the helper exits NOT_ELEVATED (5) in a per-user
+        // uninstaller; that code, and only that code, must trigger the
+        // elevated retry, and a refusal must tell the user what is left.
+        let hooks = include_str!("../windows/hooks.nsh");
+        #[cfg(windows)]
+        assert_eq!(vitals_sensors::exit::NOT_ELEVATED, 5);
+        assert!(hooks.contains("${If} $0 == 5"));
+        assert!(hooks.contains(r#"ExecShellWait "runas" "$1" "uninstall""#));
+        assert!(hooks.contains(r#"MessageBox MB_ICONINFORMATION|MB_OK "$5" /SD IDOK"#));
+        // Someone who never turned sensors on is never prompted.
+        assert!(hooks.contains(r"SYSTEM\CurrentControlSet\Services\vitals-sensors"));
+        // An update never removes it, consent or not.
+        let removal = hooks
+            .find("Removing the Vitals sensors service")
+            .unwrap_or(0);
+        let guard = hooks[..removal].rfind("${If} $UpdateMode <> 1");
+        assert!(
+            guard.is_some(),
+            "the removal must sit inside the not-updating branch"
+        );
+    }
 }
 
 /// The result of the last install attempt, once, at launch.

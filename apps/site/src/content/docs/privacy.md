@@ -38,8 +38,10 @@ Google TV apps, and the Samsung (Tizen) TV app. Effective 17 October 2026.
   `PawnIO_setup.exe` from [github.com/namazso](https://github.com/namazso/PawnIO.Setup), checked
   against a built-in SHA-256 hash, which installs the PawnIO kernel driver; Vitals then adds a
   SYSTEM service in `C:\Program Files\Vitals Sensors` that serves temperature, power and fan
-  readings on this computer only. Uninstalling Vitals removes the service; PawnIO stays installed
-  because other tools share it — uninstall **PawnIO** from Windows Settings → Apps to remove it.
+  readings on this computer only. Uninstalling Vitals removes the service (a copy installed for you
+  only asks for administrator rights first; decline and it stays, with the command to remove it
+  later); PawnIO stays installed because other tools share it — uninstall **PawnIO** from Windows
+  Settings → Apps to remove it.
 - **Your data stays on your machine.** Settings, history, logs and crash details are stored in
   `%LOCALAPPDATA%\Vitals`, `%APPDATA%\Vitals` and `%APPDATA%\app.vitals.desktop` (the WebView2 data
   is in `%LOCALAPPDATA%\app.vitals.desktop`) and are never uploaded. They leave the machine only if

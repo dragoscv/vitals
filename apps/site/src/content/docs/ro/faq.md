@@ -84,8 +84,10 @@ Deschide **Setări → Aplicații → Aplicații instalate** în Windows, găse�
 folderul ca să le elimini și pe ele. Dacă ai lăsat versiunea cu program de instalare să înlocuiască
 Task Manager sau ai instalat serviciul de senzori, programul de dezinstalare le elimină pe amândouă.
 Serviciul de senzori rulează ca SYSTEM, deci eliminarea lui cere drepturi de administrator: pentru
-o copie instalată doar pentru tine, elimină serviciul din pagina **Dispozitive și senzori** înainte
-de dezinstalare.
+o copie instalată doar pentru tine, programul de dezinstalare le cere printr-o singură solicitare
+Windows. Dacă o refuzi, serviciul rămâne, iar programul de dezinstalare îți arată cum îl elimini mai
+târziu (vezi [Depanare](/ro/guides/troubleshooting/#serviciul-de-senzori-a-rămas-după-dezinstalare)).
+Îl poți elimina și din pagina **Dispozitive și senzori** înainte de dezinstalare.
 
 ## Unde raportez o problemă?
 

@@ -223,7 +223,11 @@ administrator prompt), Vitals:
   same folder.
 
 Nothing is sent anywhere. Uninstalling Vitals, or choosing **Remove** there,
-stops and deletes the service and its folder. **PawnIO stays installed**,
+stops and deletes the service and its folder. A copy of Vitals installed for
+you only asks for administrator rights to do so; if you decline, the service
+stays and the uninstaller shows the command that removes it,
+`"C:\Program Files\Vitals Sensors\vitals-sensors.exe" uninstall`, to run from
+a Command Prompt opened as administrator. **PawnIO stays installed**,
 because other tools (such as FanControl and LibreHardwareMonitor) use the
 same driver. To remove it, uninstall **PawnIO** from Windows Settings → Apps →
 Installed apps, once no other program needs it. The Microsoft Store edition
@@ -274,7 +278,9 @@ sign-in entries it created, and keeps your data. To delete everything:
 - `%APPDATA%\app.vitals.desktop` (settings and dashboard layout);
 - `%LOCALAPPDATA%\app.vitals.desktop` (the WebView2 browser data,
   `EBWebView`);
-- `C:\Program Files\Vitals Sensors`, if it is still there.
+- `C:\Program Files\Vitals Sensors`, if it is still there (first run
+  `"C:\Program Files\Vitals Sensors\vitals-sensors.exe" uninstall` from a
+  Command Prompt opened as administrator, which also deletes the service).
 
 4. If they are still there, delete the values `Vitals` and `VitalsWatchdog`
    under `HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run`.
@@ -538,7 +544,12 @@ procesorului → Instalează** (o singură solicitare de administrator), Vitals:
   Jurnalul de instalare este în același dosar.
 
 Nu se trimite nimic nicăieri. Dezinstalarea Vitals, sau alegerea
-**Elimină** în același loc, oprește și șterge serviciul și dosarul lui.
+**Elimină** în același loc, oprește și șterge serviciul și dosarul lui. O
+copie Vitals instalată doar pentru dvs. cere pentru aceasta drepturi de
+administrator; dacă refuzați, serviciul rămâne, iar programul de dezinstalare
+arată comanda care îl elimină,
+`"C:\Program Files\Vitals Sensors\vitals-sensors.exe" uninstall`, de rulat
+într-un Command Prompt deschis ca administrator.
 **PawnIO rămâne instalat**, pentru că alte instrumente (de exemplu FanControl
 și LibreHardwareMonitor) folosesc același driver. Pentru a-l elimina,
 dezinstalați **PawnIO** din Setări Windows → Aplicații → Aplicații
@@ -596,7 +607,9 @@ la conectare create de el și păstrează datele. Pentru a șterge totul:
 - `%APPDATA%\app.vitals.desktop` (setările și aranjamentul panoului);
 - `%LOCALAPPDATA%\app.vitals.desktop` (datele browserului WebView2,
   `EBWebView`);
-- `C:\Program Files\Vitals Sensors`, dacă mai există.
+- `C:\Program Files\Vitals Sensors`, dacă mai există (rulați întâi
+  `"C:\Program Files\Vitals Sensors\vitals-sensors.exe" uninstall` într-un
+  Command Prompt deschis ca administrator, care șterge și serviciul).
 
 4. Dacă mai există, ștergeți valorile `Vitals` și `VitalsWatchdog` din
    `HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run`.

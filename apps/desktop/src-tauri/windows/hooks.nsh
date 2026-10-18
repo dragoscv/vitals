@@ -119,36 +119,97 @@
     ;
     ; The bundled copy is preferred: it is not the image the service runs,
     ; so it can delete the installed one. Skipped on /UPDATE: an update must
-    ; not switch off sensors the user enabled. `uninstall` needs
-    ; administrator rights; a per-user uninstaller (installMode both) that
-    ; lacks them falls through to sc.exe below, which fails the same way and
-    ; leaves the service for the helper's own Settings switch to remove.
+    ; not switch off sensors the user enabled.
+    ;
+    ; S21-06: `uninstall` needs administrator rights. A per-machine
+    ; uninstaller has them; a per-user one (installMode both, ADR 0038)
+    ; usually does not, and until 1.0.4 it fell through to sc.exe, which
+    ; failed the same way and left a SYSTEM service and its Program Files
+    ; folder behind for an app that was gone. The helper answers
+    ; NOT_ELEVATED (5) without touching anything, so that exit code is the
+    ; signal to ask: the same helper again with the "runas" verb, one UAC
+    ; prompt naming vitals-sensors.exe. Declining is the user's call; they
+    ; get the manual command instead of a silent leftover.
+    ;
+    ; Nothing is asked unless the service's SCM key exists (readable by any
+    ; user) or its folder does, so someone who never turned sensors on never
+    ; sees a prompt. Asked even under /S: an unattended per-user uninstall is
+    ; rare (winget runs it in front of the person), and a prompt they can
+    ; decline beats a privileged service nobody knows is there.
     StrCpy $1 ""
     ${If} ${FileExists} "$INSTDIR\sensors\vitals-sensors.exe"
       StrCpy $1 "$INSTDIR\sensors\vitals-sensors.exe"
     ${ElseIf} ${FileExists} "$PROGRAMFILES64\Vitals Sensors\vitals-sensors.exe"
       StrCpy $1 "$PROGRAMFILES64\Vitals Sensors\vitals-sensors.exe"
     ${EndIf}
-    StrCpy $0 "skipped"
-    ${If} $1 != ""
+    ClearErrors
+    ReadRegStr $4 HKLM "SYSTEM\CurrentControlSet\Services\vitals-sensors" "ImagePath"
+    ${If} ${Errors}
+    ${AndIfNot} ${FileExists} "$PROGRAMFILES64\Vitals Sensors\*.*"
+      ; Never installed: nothing to remove, nothing to ask.
+      StrCpy $0 0
+    ${ElseIf} $1 == ""
+      StrCpy $0 "skipped"
+    ${Else}
       DetailPrint "Removing the Vitals sensors service..."
       nsExec::ExecToLog '"$1" uninstall'
       Pop $0
       DetailPrint "vitals-sensors uninstall exited: $0"
+      ${If} $0 == 5
+        DetailPrint "The sensors service runs as SYSTEM: asking for administrator rights to remove it..."
+        ; ENG2-4: an inherited __COMPAT_LAYER=RunAsInvoker would start the
+        ; "elevated" helper with this same standard token.
+        System::Call 'kernel32::SetEnvironmentVariable(t "__COMPAT_LAYER", p 0)'
+        ClearErrors
+        ExecShellWait "runas" "$1" "uninstall" SW_HIDE
+        ${If} ${Errors}
+          ; Declined, or no administrator could approve it.
+          StrCpy $0 "declined"
+        ${Else}
+          ; ExecShellWait gives no exit code, so the SCM key is the answer.
+          ; It goes when the last handle closes, a moment after the helper.
+          StrCpy $0 "declined"
+          ${For} $6 1 20
+            ClearErrors
+            ReadRegStr $4 HKLM "SYSTEM\CurrentControlSet\Services\vitals-sensors" "ImagePath"
+            ${If} ${Errors}
+              StrCpy $0 0
+              ${Break}
+            ${EndIf}
+            Sleep 250
+          ${Next}
+          ${If} $0 == 0
+            DetailPrint "Vitals sensors service removed."
+          ${EndIf}
+        ${EndIf}
+      ${EndIf}
     ${EndIf}
-    ; A failed or missing helper must still not leave a SYSTEM service
-    ; pointing at a deleted file. Both calls are no-ops when it never existed.
-    ${If} $0 != 0
-      nsExec::ExecToLog '"$SYSDIR\sc.exe" stop vitals-sensors'
-      Pop $2
-      Sleep 1000
-      nsExec::ExecToLog '"$SYSDIR\sc.exe" delete vitals-sensors'
-      Pop $2
-      DetailPrint "sc delete vitals-sensors exited: $2"
+    ${If} $0 == "declined"
+      ; Without administrator rights sc.exe and RMDir would fail the same
+      ; way; say what is left and how to remove it.
+      ${If} $LANGUAGE == 1048
+        StrCpy $5 "Serviciul de senzori Vitals este ${U+00EE}nc${U+0103} instalat ${U+0219}i ruleaz${U+0103} ca SYSTEM. Ca s${U+0103}-l elimini, ruleaz${U+0103} ${U+00EE}ntr-un Command Prompt deschis ca administrator:$\r$\n$\r$\n$\"$PROGRAMFILES64\Vitals Sensors\vitals-sensors.exe$\" uninstall$\r$\n$\r$\napoi ${U+0219}terge dosarul $PROGRAMFILES64\Vitals Sensors dac${U+0103} mai exist${U+0103}."
+      ${Else}
+        StrCpy $5 "The Vitals sensors service is still installed and runs as SYSTEM. To remove it, run this from a Command Prompt opened as administrator:$\r$\n$\r$\n$\"$PROGRAMFILES64\Vitals Sensors\vitals-sensors.exe$\" uninstall$\r$\n$\r$\nthen delete the folder $PROGRAMFILES64\Vitals Sensors if it is still there."
+      ${EndIf}
+      DetailPrint "The sensors service was left installed: the administrator prompt was declined or the removal failed."
+      DetailPrint "$5"
+      MessageBox MB_ICONINFORMATION|MB_OK "$5" /SD IDOK
+    ${Else}
+      ; A failed or missing helper must still not leave a SYSTEM service
+      ; pointing at a deleted file. Both calls are no-ops when it never existed.
+      ${If} $0 != 0
+        nsExec::ExecToLog '"$SYSDIR\sc.exe" stop vitals-sensors'
+        Pop $2
+        Sleep 1000
+        nsExec::ExecToLog '"$SYSDIR\sc.exe" delete vitals-sensors'
+        Pop $2
+        DetailPrint "sc delete vitals-sensors exited: $2"
+      ${EndIf}
+      ; /REBOOTOK: if the service image was still mapped (stop timed out), the
+      ; leftover goes at next boot instead of failing the uninstall.
+      RMDir /r /REBOOTOK "$PROGRAMFILES64\Vitals Sensors"
     ${EndIf}
-    ; /REBOOTOK: if the service image was still mapped (stop timed out), the
-    ; leftover goes at next boot instead of failing the uninstall.
-    RMDir /r /REBOOTOK "$PROGRAMFILES64\Vitals Sensors"
   ${EndIf}
 
   ; If the user made Vitals their Task Manager, the registry points every

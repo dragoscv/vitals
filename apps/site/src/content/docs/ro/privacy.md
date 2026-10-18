@@ -39,9 +39,10 @@ Samsung (Tizen). În vigoare din 17 octombrie 2026.
   `PawnIO_setup.exe` de pe [github.com/namazso](https://github.com/namazso/PawnIO.Setup), verificat
   după un hash SHA-256 inclus, care instalează driverul de kernel PawnIO; apoi Vitals adaugă un
   serviciu SYSTEM în `C:\Program Files\Vitals Sensors` care oferă temperatura, puterea și
-  ventilatoarele doar pe acest calculator. Dezinstalarea Vitals elimină serviciul; PawnIO rămâne
-  instalat pentru că îl folosesc și alte instrumente — dezinstalează **PawnIO** din Setări Windows →
-  Aplicații ca să-l elimini.
+  ventilatoarele doar pe acest calculator. Dezinstalarea Vitals elimină serviciul (o copie instalată
+  doar pentru tine cere întâi drepturi de administrator; dacă refuzi, rămâne, cu comanda pentru a-l
+  elimina mai târziu); PawnIO rămâne instalat pentru că îl folosesc și alte instrumente —
+  dezinstalează **PawnIO** din Setări Windows → Aplicații ca să-l elimini.
 - **Datele tale rămân pe calculatorul tău.** Setările, istoricul, jurnalele și detaliile căderilor
   sunt stocate în `%LOCALAPPDATA%\Vitals`, `%APPDATA%\Vitals` și `%APPDATA%\app.vitals.desktop`
   (datele WebView2 sunt în `%LOCALAPPDATA%\app.vitals.desktop`) și nu sunt încărcate nicăieri. Pleacă
