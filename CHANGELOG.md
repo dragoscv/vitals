@@ -9,6 +9,13 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Updates install again on PCs where Vitals lives in the tray.** An update
+  used to install only when you quit, and for most people the only "quit" is a
+  Windows restart, which ended the session under the setup: three releases
+  were downloaded and lost that way on one PC. A downloaded update now also
+  installs after ten minutes away from the PC with no Vitals window open, then
+  Vitals comes back in the tray. It is never started during a restart or
+  sign-out.
 - **Declining the administrator prompt for an update no longer leaves Vitals
   half-stopped.** The tray icon, the window, sampling, the local API and the
   `vitals top` pipe all come back, and the download stays ready for another

@@ -1,5 +1,6 @@
 //! Background updates: check shortly after launch and every twelve hours
-//! after, download quietly, install when the user quits.
+//! after, download quietly, install when the user quits — or while nobody is
+//! at the machine and Vitals is only in the tray.
 //!
 //! Startup is never delayed — the check runs after the window is up and the
 //! sampler is ticking. The signed installer is verified as it downloads
@@ -14,6 +15,15 @@
 //! decides per copy — a per-user copy updates as the invoker, a copy someone
 //! chose to put in Program Files waits for "Restart to update", where the
 //! prompt follows a click.
+//!
+//! Why not on quit alone (2026-10-18): a tray monitor almost never quits.
+//! On the owner's machine the only "quits" in two weeks were Windows
+//! restarts; each started the setup three seconds after the restart began,
+//! the session ended under it, and 1.0.0, 1.0.1 and 1.0.2 were downloaded,
+//! verified and lost while 0.9.0 kept running — with the watchdog fixes those
+//! versions carried. So the setup now runs once the user has been away for
+//! [`IDLE_BEFORE_INSTALL`] with no Vitals window open, relaunches the app
+//! into the tray, and never starts while Windows is ending the session.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -66,6 +76,14 @@ const FIRST_CHECK_DELAY: std::time::Duration = std::time::Duration::from_secs(20
 /// and a security fix still reaches everyone within a day.
 const RECHECK_EVERY: std::time::Duration = std::time::Duration::from_secs(12 * 60 * 60);
 
+/// How often the waiting update looks for a quiet moment to install.
+const IDLE_POLL: std::time::Duration = std::time::Duration::from_secs(5 * 60);
+
+/// How long nobody may have touched keyboard or mouse before the setup runs.
+/// Long enough that a person reading something is not interrupted; short
+/// enough that a lunch break is plenty.
+const IDLE_BEFORE_INSTALL: u64 = 10 * 60;
+
 /// Starts the background check. No-op in debug builds, which have no
 /// installer to replace.
 pub fn spawn(app: &tauri::AppHandle) {
@@ -78,25 +96,31 @@ pub fn spawn(app: &tauri::AppHandle) {
         return;
     }
     let app = app.clone();
-    // A plain thread rather than a task: it sleeps for twelve hours at a
-    // time, which would pin a worker of the blocking pool for as long. A
-    // parked thread costs a stack and nothing else.
+    // A plain thread rather than a task: it sleeps between polls, which would
+    // pin a worker of the blocking pool for as long. A parked thread costs a
+    // stack and nothing else.
     let _ = std::thread::Builder::new()
         .name("vitals-updates".into())
         .stack_size(256 * 1024)
         .spawn(move || {
             std::thread::sleep(FIRST_CHECK_DELAY);
+            let mut last_check: Option<std::time::Instant> = None;
             loop {
                 // With one already downloaded there is nothing newer to
-                // want until it is installed on quit. Skipped rather than
+                // want until it is installed. Skipped rather than
                 // ending the loop: turning the setting off drops the
                 // download, and turning it back on must find it again.
-                if !update_ready(&app)
-                    && let Err(error) = tauri::async_runtime::block_on(fetch(&app))
-                {
-                    tracing::info!(%error, "background update check did not complete");
+                let due = last_check.is_none_or(|t| t.elapsed() >= RECHECK_EVERY);
+                if !update_ready(&app) && due {
+                    last_check = Some(std::time::Instant::now());
+                    if let Err(error) = tauri::async_runtime::block_on(fetch(&app)) {
+                        tracing::info!(%error, "background update check did not complete");
+                    }
                 }
-                std::thread::sleep(RECHECK_EVERY);
+                if update_ready(&app) {
+                    install_if_idle(&app);
+                }
+                std::thread::sleep(IDLE_POLL);
             }
         });
 }
@@ -104,6 +128,123 @@ pub fn spawn(app: &tauri::AppHandle) {
 fn update_ready(app: &tauri::AppHandle) -> bool {
     app.try_state::<PendingInstall>()
         .is_some_and(|p| p.ready.lock().is_some())
+}
+
+/// What the idle install looks at, gathered in one place so the rule is pure.
+#[derive(Debug, Clone, Copy)]
+struct Moment {
+    /// Seconds since the last input; `None` when Windows cannot say.
+    idle_secs: Option<u64>,
+    /// Any Vitals window on screen.
+    window_visible: bool,
+    /// Windows is logging off, restarting or shutting down.
+    session_ending: bool,
+    /// "Install updates automatically" is on and the install needs no
+    /// approval (`QuitInstall::Silent`): the two settings-side conditions,
+    /// one field because neither changes between polls on its own terms.
+    permitted: bool,
+}
+
+/// Whether now is a moment to replace the app under nobody's nose.
+///
+/// An unknown idle time is not an absence, and a visible window means
+/// someone may be reading it even without touching anything.
+fn idle_install_due(m: Moment) -> bool {
+    m.permitted
+        && !m.window_visible
+        && !m.session_ending
+        && m.idle_secs.is_some_and(|s| s >= IDLE_BEFORE_INSTALL)
+}
+
+fn moment(app: &tauri::AppHandle) -> Moment {
+    #[cfg(windows)]
+    let (idle_secs, session_ending) = (
+        vitals_win::input::idle_secs(),
+        vitals_win::input::session_ending(),
+    );
+    #[cfg(not(windows))]
+    let (idle_secs, session_ending) = (None, false);
+    Moment {
+        idle_secs,
+        window_visible: app
+            .webview_windows()
+            .values()
+            .any(|w| w.is_visible().unwrap_or(false)),
+        session_ending,
+        permitted: app
+            .try_state::<PendingInstall>()
+            .is_some_and(|p| p.enabled.load(Ordering::Relaxed))
+            && quit_install() == QuitInstall::Silent,
+    }
+}
+
+/// Installs the waiting update when nobody is there, relaunching into the
+/// tray. On failure everything is put back by [`install_now`] and the next
+/// poll tries again.
+fn install_if_idle(app: &tauri::AppHandle) {
+    let m = moment(app);
+    if !idle_install_due(m) {
+        return;
+    }
+    tracing::info!(idle_secs = ?m.idle_secs, "installing the waiting update while the PC is idle");
+    quiet_relaunch::arm();
+    if let Err(message) = install_now(app) {
+        quiet_relaunch::disarm();
+        tracing::warn!(%message, "idle install did not start; trying again later");
+    }
+}
+
+/// A launch started by the setup after an idle install stays in the tray.
+///
+/// The setup relaunches with the arguments this process had, so a copy the
+/// user opened by hand would come back with its window up — on a screen
+/// nobody asked to change. A marker file left just before the setup starts
+/// tells the next launch to behave as if it had been autostarted; it is read
+/// once and removed, and ignored when older than the install could take.
+pub mod quiet_relaunch {
+    use std::path::PathBuf;
+    use std::sync::OnceLock;
+    use std::time::{Duration, SystemTime};
+
+    /// Long enough for a passive NSIS setup on a slow disk; short enough that
+    /// a marker left by a setup that never ran cannot hide a launch tomorrow.
+    const VALID_FOR: Duration = Duration::from_secs(15 * 60);
+
+    fn path() -> PathBuf {
+        crate::state::data_dir().join("relaunch-quietly")
+    }
+
+    pub(super) fn arm() {
+        let path = path();
+        if let Some(dir) = path.parent() {
+            let _ = std::fs::create_dir_all(dir);
+        }
+        let _ = std::fs::write(path, b"");
+    }
+
+    pub(super) fn disarm() {
+        let _ = std::fs::remove_file(path());
+    }
+
+    /// Pure: whether a marker written at `written` still applies at `now`.
+    #[must_use]
+    pub fn fresh(written: SystemTime, now: SystemTime) -> bool {
+        now.duration_since(written)
+            .is_ok_and(|age| age <= VALID_FOR)
+    }
+
+    /// Whether this launch is the setup's relaunch after an idle install.
+    /// Decided once per process, because the marker is consumed.
+    #[must_use]
+    pub fn requested() -> bool {
+        static ANSWER: OnceLock<bool> = OnceLock::new();
+        *ANSWER.get_or_init(|| {
+            let path = path();
+            let written = std::fs::metadata(&path).and_then(|m| m.modified());
+            let _ = std::fs::remove_file(&path);
+            written.is_ok_and(|w| fresh(w, SystemTime::now()))
+        })
+    }
 }
 
 /// The updater every download in this app goes through.
@@ -430,6 +571,15 @@ pub fn install_on_exit(app: &tauri::AppHandle) {
     if pending.ready.lock().is_none() {
         return;
     }
+    // A restart or logoff ends the session seconds after this runs, and the
+    // setup with it: three updates were lost exactly that way. The download
+    // is only in memory, so it goes too, but the next launch finds it again
+    // within [`FIRST_CHECK_DELAY`] and installs it while idle.
+    #[cfg(windows)]
+    if vitals_win::input::session_ending() {
+        tracing::info!("update waiting; Windows is ending the session, so not starting the setup");
+        return;
+    }
     #[cfg(windows)]
     {
         use vitals_win::install::{UpdatePlan, current_scope, plan};
@@ -594,6 +744,82 @@ pub mod outcome {
                 }
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod idle_install {
+    use super::*;
+    use std::time::{Duration, SystemTime};
+
+    fn away() -> Moment {
+        Moment {
+            idle_secs: Some(IDLE_BEFORE_INSTALL),
+            window_visible: false,
+            session_ending: false,
+            permitted: true,
+        }
+    }
+
+    #[test]
+    fn installs_once_the_user_has_been_away_with_vitals_only_in_the_tray() {
+        assert!(idle_install_due(away()));
+    }
+
+    #[test]
+    fn never_starts_the_setup_while_windows_ends_the_session() {
+        // The 2026-10-14/15 losses: the setup started three seconds into a
+        // restart and died with the session.
+        assert!(!idle_install_due(Moment {
+            session_ending: true,
+            ..away()
+        }));
+    }
+
+    #[test]
+    fn waits_while_a_vitals_window_is_on_screen_even_without_input() {
+        assert!(!idle_install_due(Moment {
+            window_visible: true,
+            ..away()
+        }));
+    }
+
+    #[test]
+    fn a_minute_short_of_the_threshold_is_not_away() {
+        assert!(!idle_install_due(Moment {
+            idle_secs: Some(IDLE_BEFORE_INSTALL - 60),
+            ..away()
+        }));
+    }
+
+    #[test]
+    fn an_unknown_idle_time_is_not_an_absence() {
+        assert!(!idle_install_due(Moment {
+            idle_secs: None,
+            ..away()
+        }));
+    }
+
+    #[test]
+    fn updates_off_or_a_copy_needing_approval_never_installs_unattended() {
+        // Covers both: automatic updates off, and a Program Files copy whose
+        // UAC prompt nobody would see.
+        assert!(!idle_install_due(Moment {
+            permitted: false,
+            ..away()
+        }));
+    }
+
+    #[test]
+    fn a_relaunch_marker_hides_only_the_launch_that_follows_the_setup() {
+        let written = SystemTime::UNIX_EPOCH + Duration::from_secs(1_000_000);
+        let at = |secs: u64| written + Duration::from_secs(secs);
+        assert!(quiet_relaunch::fresh(written, at(90)));
+        // Left by a setup that never ran: must not hide tomorrow's launch.
+        assert!(!quiet_relaunch::fresh(written, at(16 * 60)));
+        // A clock that went backwards is not a fresh marker.
+        let before = written - Duration::from_secs(1);
+        assert!(!quiet_relaunch::fresh(written, before));
     }
 }
 

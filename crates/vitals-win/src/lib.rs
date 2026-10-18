@@ -39,6 +39,7 @@ pub mod hardware;
 pub mod history;
 pub mod host;
 pub mod hostinfo;
+pub mod input;
 pub mod install;
 pub mod memory;
 pub mod modules;

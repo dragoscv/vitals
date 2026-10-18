@@ -214,7 +214,9 @@ it.
 
 **Updates install themselves.** About twenty seconds after launch Vitals asks
 GitHub whether there is a newer version, downloads it in the background,
-verifies its minisign signature, and installs it when you quit. Nothing is
+verifies its minisign signature, and installs it when you quit, or after ten
+minutes away from the PC while Vitals is only in the tray (never during a
+Windows restart or sign-out, which would cut the setup off). Nothing is
 installed while you are using the app. Turn it off in Settings → About.
 
 **Windows will show a SmartScreen warning on first run.** That is expected:

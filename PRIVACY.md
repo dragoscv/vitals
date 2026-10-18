@@ -52,7 +52,9 @@ The controller for the only processing described here (the update check) is:
 | codai account (AI agents page)       | Only after you press "Sign in with codai"; then every 30 s while the AI agents page is open, and once when you sign out    | Your IP address, the app version and a read-only key labelled "Vitals desktop" (not your computer name). codai answers with your connected desktops and cloud sessions | Sign out on the Cloud tab (the key is revoked on codai and deleted from Credential Manager); uninstalling also deletes it |
 
 Updates are verified with a minisign signature before they are installed,
-downloaded in the background, and installed when you quit the app.
+downloaded in the background, and installed when you quit the app or after
+ten minutes without keyboard or mouse input while only the tray icon is open.
+The idle time is read locally from Windows and never leaves the PC.
 
 GitHub is an independent controller for the data it receives. See the
 [GitHub General Privacy Statement](https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement).

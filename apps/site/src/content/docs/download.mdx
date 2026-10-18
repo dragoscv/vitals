@@ -109,7 +109,7 @@ The installer asks one question: install for you only, or for everyone on this P
 ## Updates
 
 The installer build checks for a new version in the background shortly after it starts. When one
-is found it is downloaded, its signature is verified, and it is installed when you quit the app.
+is found it is downloaded, its signature is verified, and it is installed when you quit the app, or after ten minutes away from the PC while Vitals is only in the tray. It is never started while Windows is restarting or signing you out, which would cut the setup off.
 An update with a missing or wrong signature is refused. You can turn the check off in
 **Settings → About**. The Microsoft Store build is updated by the Store instead.
 

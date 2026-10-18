@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const invoke = vi.fn((_command: string) => Promise.resolve());
+const invoke = vi.fn((_command: string): Promise<unknown> => Promise.resolve());
 let host = true;
 
 vi.mock('@tauri-apps/api/core', () => ({
@@ -10,7 +10,8 @@ vi.mock('../shell/host', () => ({
   hasTauriHost: () => host,
 }));
 
-const { resetReadyForTests, signalReady } = await import('./ready');
+const { resetReadyForTests, signalReady, wasAutostarted, wasQuietRelaunch } =
+  await import('./ready');
 
 /** Runs queued animation frames, since jsdom does not paint. */
 async function flushFrames(): Promise<void> {
@@ -88,5 +89,32 @@ describe('signalReady', () => {
     expect(invoke).not.toHaveBeenCalled();
     expect(consoleError).not.toHaveBeenCalled();
     consoleError.mockRestore();
+  });
+});
+
+describe('launch options', () => {
+  beforeEach(() => {
+    invoke.mockReset();
+    host = true;
+    resetReadyForTests();
+  });
+
+  it('reports the setup relaunch after an idle update so the window stays in the tray', async () => {
+    invoke.mockImplementation(() => Promise.resolve({ autostarted: true, quietRelaunch: true }));
+    expect(await wasQuietRelaunch()).toBe(true);
+    expect(await wasAutostarted()).toBe(true);
+    // One IPC call answers both questions.
+    expect(invoke).toHaveBeenCalledTimes(1);
+  });
+
+  it('treats an older backend without the field as a launch a person made', async () => {
+    invoke.mockImplementation(() => Promise.resolve({ autostarted: false }));
+    expect(await wasQuietRelaunch()).toBe(false);
+  });
+
+  it('falls back to a user launch when the backend cannot answer, so the window is never lost', async () => {
+    invoke.mockImplementation(() => Promise.reject(new Error('no backend')));
+    expect(await wasQuietRelaunch()).toBe(false);
+    expect(await wasAutostarted()).toBe(false);
   });
 });

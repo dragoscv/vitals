@@ -24,17 +24,44 @@ let signalled = false;
  * Cached after the first call: the answer cannot change for the lifetime of
  * the process, and the reveal path must not wait on IPC twice.
  */
-let autostarted: Promise<boolean> | null = null;
+interface LaunchOptions {
+  readonly autostarted: boolean;
+  /** Relaunched by the setup after an update installed while the PC was idle. */
+  readonly quietRelaunch: boolean;
+}
+
+/** As older backends answer: `quietRelaunch` may be missing. */
+type LaunchAnswer = Partial<LaunchOptions>;
+
+const userLaunch: LaunchOptions = { autostarted: false, quietRelaunch: false };
+let launch: Promise<LaunchOptions> | null = null;
+
+function launchOptions(): Promise<LaunchOptions> {
+  if (launch === null) {
+    launch = hasTauriHost()
+      ? invoke<LaunchAnswer>('get_launch_options')
+          .then((o) => ({
+            autostarted: o.autostarted === true,
+            quietRelaunch: o.quietRelaunch === true,
+          }))
+          .catch(() => userLaunch)
+      : Promise.resolve(userLaunch);
+  }
+  return launch;
+}
 
 export function wasAutostarted(): Promise<boolean> {
-  if (autostarted === null) {
-    autostarted = hasTauriHost()
-      ? invoke<{ autostarted: boolean }>('get_launch_options')
-          .then((options) => options.autostarted)
-          .catch(() => false)
-      : Promise.resolve(false);
-  }
-  return autostarted;
+  return launchOptions().then((o) => o.autostarted);
+}
+
+/**
+ * Whether the setup started this instance after installing an update while
+ * nobody was at the PC. Such a launch stays in the tray whatever "Start
+ * minimised" says: nobody asked for a window, and one appearing on an idle
+ * screen is how a person learns something changed behind their back.
+ */
+export function wasQuietRelaunch(): Promise<boolean> {
+  return launchOptions().then((o) => o.quietRelaunch);
 }
 
 /**
@@ -66,5 +93,5 @@ export function signalReady(): void {
 /** Test seam: lets a test start from a clean state. */
 export function resetReadyForTests(): void {
   signalled = false;
-  autostarted = null;
+  launch = null;
 }

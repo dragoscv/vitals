@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 
 import { syncAlertPrefs, syncAlertStrings } from './features/alerts/pushPrefs';
 import { DASHBOARD_NS } from './features/dashboard/strings';
-import { signalReady, wasAutostarted } from './lib/ready';
+import { signalReady, wasAutostarted, wasQuietRelaunch } from './lib/ready';
 import { effectiveRate, pushSampleRate } from './lib/sampleRate';
 import {
   pushAutoUpdate,
@@ -301,8 +301,10 @@ export function App() {
   const startMinimised = settings.startMinimised;
   useEffect(() => {
     let live = true;
-    void wasAutostarted().then((auto) => {
+    void Promise.all([wasAutostarted(), wasQuietRelaunch()]).then(([auto, quiet]) => {
       if (!live) return;
+      // The setup's relaunch after an idle update: the tray is enough.
+      if (quiet) return;
       if (!auto) {
         signalReady();
         return;

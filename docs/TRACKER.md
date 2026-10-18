@@ -166,6 +166,35 @@ CSV records the state.
 
 ## Verification log
 
+### 2026-10-18 — S21-05 updates install while idle, never during a restart
+
+**Symptom.** The owner's PC ran Vitals 0.9.0 on 2026-10-18 although 1.0.0,
+1.0.1 and 1.0.2 had each been found, downloaded and verified (vitals.log
+2026-10-14 03:14, 17:44, 2026-10-15 12:58: "update verified; it installs when
+Vitals quits"). The installed watchdog was therefore still the 0.9.0 one,
+which is why it kept proposing `rg.exe`/`turbo.exe` for stalls (206 of 385
+proposals) — the build-tool rule shipped in 1.0.0.
+
+**Root cause.** Install only on `RunEvent::Exit`, and a tray monitor never
+exits except with Windows. `%TEMP%\Vitals-1.0.0-updater-*\...installer.exe` is
+dated 2026-10-14 17:43:22, three seconds after event 1074 (restart started
+17:43:19); `Vitals-1.0.1-updater-*` 15:46:36 after the 15:46:30 restart. The
+setup started inside a dying session and was killed; nothing logged it.
+
+**Fix (owner choice, askQuestions 2026-10-18: install when idle + relaunch).**
+`updates.rs`: the update thread polls every 5 min once a download is
+waiting and installs through `install_now` (same stop / resume-on-failure path
+as Restart to update) when `idle_install_due`: automatic updates on, silent
+plan, no Vitals window visible, Windows not ending the session, and >= 10 min
+without input (`vitals_win::input::idle_secs`, GetLastInputInfo; unknown is
+not idle). `install_on_exit` returns early while `SM_SHUTTINGDOWN` is set.
+The setup relaunches with `/R`; a `relaunch-quietly` marker (valid 15 min,
+read once) makes that launch count as autostarted and `quietRelaunch` keeps
+the window hidden whatever "Start minimised" says. Copy updated EN+RO
+(Settings hint + pending line), PRIVACY, README, site download EN+RO.
+
+**Verification.** ws-vitals-win job 20261018-034405-c11f56: cargo fmt --check 0, clippy -p vitals-win -p vitals-desktop --all-targets -D warnings 0, cargo test vitals-win input:: 2/2, vitals-desktop updates:: 13/13 (7 new idle_install), vitest ready.test 8/8, tsc 0, check-drift 0 failures. Mutation: dropping the session_ending clause -> never_starts_the_setup_while_windows_ends_the_session FAILED, restored byte-exact. Not proven here: a real idle install on hardware (needs a release signed with the updater key and a newer published version).
+
 ### 2026-10-18 — S21-04 AI page: read-only codai sign-in, same-user local API, safe agentq actions
 
 **Ask.** Owner decision 2026-10-18: the optional "Sign in with codai" asks

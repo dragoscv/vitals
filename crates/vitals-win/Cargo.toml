@@ -91,6 +91,8 @@ windows-sys = { version = "0.61.2", features = [
 	"Win32_UI_Shell",
 	"Win32_UI_Shell_Common",
 	"Win32_UI_WindowsAndMessaging",
+	# input.rs: last-input time, so the updater installs while nobody is there.
+	"Win32_UI_Input_KeyboardAndMouse",
 	# Process icons: GetIconInfo/GetDIBits read an HICON's pixels.
 	"Win32_Graphics_Gdi",
 	# App windows (top_windows.rs): DWMWA_CLOAKED hides UWP's parked frames.

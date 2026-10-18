@@ -263,7 +263,10 @@ pub fn show_main_window(window: tauri::Window) -> CommandResult<()> {
 pub fn launched_minimised() -> bool {
     // A Store startup task passes no arguments; its activation kind is the
     // only sign that this launch was Windows, not a person.
-    std::env::args().skip(1).any(|arg| arg == "--minimized") || launched_by_startup_task()
+    // The setup's relaunch after an idle install is not a person either.
+    std::env::args().skip(1).any(|arg| arg == "--minimized")
+        || launched_by_startup_task()
+        || crate::updates::quiet_relaunch::requested()
 }
 
 fn launched_by_startup_task() -> bool {
@@ -283,6 +286,10 @@ fn launched_by_startup_task() -> bool {
 pub struct LaunchOptions {
     /// Started by the autostart entry rather than by the user.
     pub autostarted: bool,
+    /// Started by the setup after an update installed while the PC was idle:
+    /// stays in the tray whatever "Start minimised" says, because nobody
+    /// asked for a window.
+    pub quiet_relaunch: bool,
 }
 
 /// Lets the frontend decide whether to reveal the window at all.
@@ -290,6 +297,7 @@ pub struct LaunchOptions {
 pub fn get_launch_options() -> LaunchOptions {
     LaunchOptions {
         autostarted: launched_minimised(),
+        quiet_relaunch: crate::updates::quiet_relaunch::requested(),
     }
 }
 
