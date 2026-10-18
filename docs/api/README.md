@@ -51,6 +51,11 @@ machine. Two things differ from the LAN server:
   local processes through Windows directly instead. The LAN server never
   grants anything tokenless: the decision is made on the connecting address,
   so a request over the network still needs a token.
+- **The AI page is not part of the tokenless read.** `GET /api/v1/agents`
+  and `POST /api/v1/agents/actions` answer 403 without a token, and a
+  tokenless `/metrics` has no `vitals_agents*` series: the snapshot holds one
+  user's session titles and command lines, and loopback is shared by every
+  account on the PC.
 - **It is not on the network.** The listener is bound to `127.0.0.1` only;
   there is no firewall prompt, no mDNS announcement and nothing in Settings.
 

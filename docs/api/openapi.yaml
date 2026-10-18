@@ -563,6 +563,12 @@ paths:
         Unknown is `null`, as everywhere: a ticket whose holder cannot be
         checked has `liveness: unknown`, a session without token data has
         `tokensIn: null`.
+
+        **Needs a token, also on the local API.** The tokenless loopback
+        read grant does not cover this route (`403`): loopback is shared by
+        every account on the PC, and the snapshot is one user's session
+        titles and command lines. For the same reason a tokenless
+        `/metrics` scrape carries no `vitals_agents*` series.
       operationId: agents
       responses:
         '200':
@@ -573,6 +579,12 @@ paths:
                 $ref: '#/components/schemas/AgentsSnapshot'
         '401':
           $ref: '#/components/responses/Unauthorised'
+        '403':
+          description: No token was presented (the tokenless loopback grant does not cover the AI page).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: This host offers no AI page (the headless CLI server).
           content:

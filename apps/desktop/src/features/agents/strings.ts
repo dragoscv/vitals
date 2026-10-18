@@ -152,6 +152,9 @@ const en = {
     signInBody:
       'Cloud sessions, environments and usage come from your codai account. Nothing is sent until you sign in.',
     signInButton: 'Sign in with codai',
+    readOnly:
+      'Vitals asks for read-only access: it can list your sessions and desktops, never run AI, spend credit or manage keys.',
+    cancel: 'Cancel',
     waiting: 'Waiting for approval in the browser…',
     code: 'Confirm this code in the browser:',
     codeAt: 'at {{address}}',
@@ -159,6 +162,8 @@ const en = {
     hosts: 'Connected desktops',
     noHosts: 'No desktop is connected to codai right now.',
     signOut: 'Sign out',
+    revokeFailed:
+      'Signed out on this PC, but codai could not be reached to switch the key off. Revoke “Vitals desktop” in the codai hub under API keys.',
     sessions_one: '{{count}} cloud session in the last day, listed under Sessions.',
     sessions_other: '{{count}} cloud sessions in the last day, listed under Sessions.',
   },
@@ -356,6 +361,9 @@ const ro = {
     signInBody:
       'Sesiunile, mediile și consumul din cloud vin din contul tău codai. Nu se trimite nimic până nu te conectezi.',
     signInButton: 'Conectează-te cu codai',
+    readOnly:
+      'Vitals cere acces doar pentru citire: îți poate lista sesiunile și desktop-urile, dar nu poate rula AI, cheltui credit sau gestiona chei.',
+    cancel: 'Anulează',
     waiting: 'Se așteaptă aprobarea în browser…',
     code: 'Confirmă acest cod în browser:',
     codeAt: 'la {{address}}',
@@ -363,6 +371,8 @@ const ro = {
     hosts: 'Desktop-uri conectate',
     noHosts: 'Niciun desktop nu e conectat la codai acum.',
     signOut: 'Deconectează-te',
+    revokeFailed:
+      'Te-ai deconectat pe acest PC, dar codai nu a putut fi contactat ca să dezactiveze cheia. Revocă „Vitals desktop” în hub-ul codai, la Chei API.',
     sessions_one: '{{count}} sesiune cloud în ultima zi, listată la Sesiuni.',
     sessions_few: '{{count}} sesiuni cloud în ultima zi, listate la Sesiuni.',
     sessions_other: '{{count}} de sesiuni cloud în ultima zi, listate la Sesiuni.',

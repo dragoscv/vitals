@@ -190,18 +190,32 @@ fn cloud_key() -> Option<String> {
     None
 }
 
-fn http(req: &vitals_agents::cloud::Request) -> Result<vitals_agents::cloud::Response, String> {
+/// One client for every codai call: a connection pool is reused across the
+/// 30 s polls instead of a TLS handshake each time. 3 s to connect and 10 s
+/// overall keep a dead network from holding the agents reader (and a sign-out)
+/// for long.
+fn client() -> Result<&'static reqwest::Client, String> {
+    static CLIENT: std::sync::OnceLock<reqwest::Client> = std::sync::OnceLock::new();
+    if let Some(c) = CLIENT.get() {
+        return Ok(c);
+    }
     if rustls::crypto::CryptoProvider::get_default().is_none() {
         // fails only when another thread installed one first, which is fine
         let _ = rustls::crypto::ring::default_provider().install_default();
     }
+    let built = reqwest::Client::builder()
+        .connect_timeout(Duration::from_secs(3))
+        .timeout(Duration::from_secs(10))
+        .build()
+        .map_err(|e| e.to_string())?;
+    Ok(CLIENT.get_or_init(|| built))
+}
+
+fn http(req: &vitals_agents::cloud::Request) -> Result<vitals_agents::cloud::Response, String> {
+    let client = client()?;
     let rt = tauri::async_runtime::handle();
     let req = req.clone();
     rt.block_on(async move {
-        let client = reqwest::Client::builder()
-            .timeout(Duration::from_secs(15))
-            .build()
-            .map_err(|e| e.to_string())?;
         let mut b = if req.method == "POST" {
             client.post(&req.url)
         } else {
@@ -279,14 +293,19 @@ pub async fn get_cloud_status() -> Result<CloudStatus, String> {
     .map_err(|e| e.to_string())
 }
 
+/// Device flows in progress; the webview only ever holds their handles.
+static SIGN_INS: vitals_agents::cloud::SignIns = vitals_agents::cloud::SignIns::new();
+
 /// Step one of the codai device flow: returns the code to show and the URL
-/// to open. The secret device code never leaves Rust's answer to the
-/// webview except as an opaque handle the next command passes back.
+/// to open. The secret device code stays here; the webview gets an opaque
+/// handle to pass to `finish_cloud_sign_in` / `cancel_cloud_sign_in`.
 #[tauri::command]
-pub async fn start_cloud_sign_in() -> Result<vitals_agents::cloud::DeviceAuth, String> {
+pub async fn start_cloud_sign_in() -> Result<vitals_agents::cloud::SignInPrompt, String> {
     tauri::async_runtime::spawn_blocking(|| {
         use vitals_agents::cloud;
-        cloud::parse_device_auth(&http(&cloud::device_auth_request(cloud::DEFAULT_AUTH))?)
+        let auth =
+            cloud::parse_device_auth(&http(&cloud::device_auth_request(cloud::DEFAULT_AUTH))?)?;
+        Ok(SIGN_INS.begin(auth))
     })
     .await
     .map_err(|e| e.to_string())?
@@ -294,46 +313,97 @@ pub async fn start_cloud_sign_in() -> Result<vitals_agents::cloud::DeviceAuth, S
 
 /// Polls the token endpoint until the user approves (or it expires), then
 /// exchanges the token for a key and stores it in Credential Manager.
+/// `Ok(false)` when the flow was cancelled.
 #[tauri::command]
-pub async fn finish_cloud_sign_in(device_code: String, interval: u64) -> Result<bool, String> {
+pub async fn finish_cloud_sign_in(handle: String) -> Result<bool, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        use vitals_agents::cloud::{self, Poll};
-        let mut wait = interval.clamp(1, 30);
-        let deadline = Instant::now() + Duration::from_secs(15 * 60);
-        loop {
-            if Instant::now() > deadline {
-                return Err("sign-in expired".to_owned());
-            }
-            std::thread::sleep(Duration::from_secs(wait));
-            match cloud::parse_token(&http(&cloud::token_request(
-                cloud::DEFAULT_AUTH,
-                &device_code,
-            ))?) {
-                Poll::Pending => {}
-                Poll::SlowDown => wait += 5,
-                Poll::Failed(e) => return Err(e),
-                Poll::Granted { access_token } => {
-                    let host = std::env::var("COMPUTERNAME").unwrap_or_else(|_| "PC".into());
-                    let key = cloud::parse_key(&http(&cloud::key_request(
-                        cloud::DEFAULT_AUTH,
-                        &access_token,
-                        &format!("vitals · {host}"),
-                    ))?)?;
-                    store_key(&key)?;
-                    return Ok(true);
-                }
-            }
-        }
+        let result = poll_sign_in(&handle);
+        SIGN_INS.finish(&handle);
+        result
     })
     .await
     .map_err(|e| e.to_string())?
 }
 
+fn poll_sign_in(handle: &str) -> Result<bool, String> {
+    use vitals_agents::cloud::{self, Poll};
+    let pending = SIGN_INS
+        .get(handle)
+        .ok_or_else(|| "sign-in expired".to_owned())?;
+    let mut wait = pending.interval.clamp(1, 30);
+    let deadline = Instant::now() + Duration::from_secs(15 * 60);
+    loop {
+        if Instant::now() > deadline {
+            return Err("sign-in expired".to_owned());
+        }
+        // sleep in 250 ms steps so a cancel lands within a quarter second
+        let until = Instant::now() + Duration::from_secs(wait);
+        while Instant::now() < until {
+            if pending.cancelled.load(Ordering::Relaxed) {
+                return Ok(false);
+            }
+            std::thread::sleep(Duration::from_millis(250));
+        }
+        if pending.cancelled.load(Ordering::Relaxed) {
+            return Ok(false);
+        }
+        match cloud::parse_token(&http(&cloud::token_request(
+            cloud::DEFAULT_AUTH,
+            &pending.device_code,
+        ))?) {
+            Poll::Pending => {}
+            Poll::SlowDown => wait += 5,
+            Poll::Failed(e) => return Err(e),
+            Poll::Granted { access_token } => {
+                let key = cloud::parse_key(&http(&cloud::key_request(
+                    cloud::DEFAULT_AUTH,
+                    &access_token,
+                ))?)?;
+                // a cancel that raced the approval must not leave a key behind
+                if pending.cancelled.load(Ordering::Relaxed) {
+                    let _ = http(&cloud::revoke_request(cloud::DEFAULT_GATEWAY, &key));
+                    return Ok(false);
+                }
+                store_key(&key)?;
+                return Ok(true);
+            }
+        }
+    }
+}
+
+/// Stops a sign-in the user abandoned (ENG2-13). Harmless when it already ended.
 #[tauri::command]
-pub async fn cloud_sign_out() -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(clear_key)
-        .await
-        .map_err(|e| e.to_string())?
+pub async fn cancel_cloud_sign_in(handle: String) -> Result<bool, String> {
+    Ok(SIGN_INS.cancel(&handle))
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SignOutResult {
+    /// Whether codai confirmed the key no longer works. `false` (offline,
+    /// codai down) still signs out here; the UI says the key may live on
+    /// until it is revoked in the codai hub.
+    pub revoked: bool,
+}
+
+/// Revokes the key on codai with the key itself, then deletes it here. The
+/// local delete happens whatever the revoke answered: signing out must work
+/// offline.
+#[tauri::command]
+pub async fn cloud_sign_out() -> Result<SignOutResult, String> {
+    tauri::async_runtime::spawn_blocking(|| {
+        use vitals_agents::cloud;
+        let revoked = cloud_key().is_none_or(|key| {
+            http(&cloud::revoke_request(cloud::DEFAULT_GATEWAY, &key))
+                .and_then(|r| cloud::parse_revoke(&r))
+                .inspect_err(|e| tracing::warn!(error = %e, "codai key revoke failed"))
+                .is_ok()
+        });
+        clear_key()?;
+        Ok(SignOutResult { revoked })
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[cfg(windows)]
@@ -419,11 +489,9 @@ pub async fn run_agentq_action(
     app: AppHandle,
     action: AgentqAction,
 ) -> Result<AgentqActionResult, String> {
-    let bin = vitals_agents::actions::default_bin().ok_or("no user profile")?;
-    let out =
-        tauri::async_runtime::spawn_blocking(move || vitals_agents::actions::run(&action, &bin))
-            .await
-            .map_err(|e| e.to_string())??;
+    let out = tauri::async_runtime::spawn_blocking(move || run_action(&action))
+        .await
+        .map_err(|e| e.to_string())??;
     // show the effect at once instead of on the next 2 s tick
     app.state::<Agents>().poke();
     Ok(AgentqActionResult {
@@ -431,6 +499,30 @@ pub async fn run_agentq_action(
         code: out.code,
         output: out.output,
     })
+}
+
+/// Runs `action` behind the guards in `vitals_agents::actions` (ENG2,
+/// S21-04): refused while elevated, script only from the shell's profile
+/// folder and only if owned by this account or administrators, 120 s limit.
+#[cfg(windows)]
+fn run_action(action: &AgentqAction) -> Result<vitals_agents::actions::Outcome, String> {
+    let profile = vitals_win::ownership::user_profile().ok_or("no user profile")?;
+    let bin = vitals_agents::actions::bin_in(&profile);
+    vitals_agents::actions::Runner {
+        bin: &bin,
+        elevated: vitals_win::actions::is_elevated(),
+        trusted: &vitals_win::ownership::owned_by_user_or_admins,
+        shell: "pwsh",
+        timeout: vitals_agents::actions::TIMEOUT,
+    }
+    .run(action)
+}
+
+/// agentq is a Windows tool; elsewhere there is nothing to run.
+#[cfg(not(windows))]
+fn run_action(action: &AgentqAction) -> Result<vitals_agents::actions::Outcome, String> {
+    vitals_agents::actions::plan(action)?;
+    Err("agentq actions need Windows".into())
 }
 
 /// The subscriber id every LAN caller shares. Far above anything
@@ -487,9 +579,7 @@ impl vitals_server::AgentsProvider for LanAgents {
         // Validation first, so a short reason is a 422 and never a "could
         // not start pwsh" that sends the user looking for the wrong problem.
         vitals_agents::actions::plan(&action).map_err(ActionError::Invalid)?;
-        let bin = vitals_agents::actions::default_bin()
-            .ok_or_else(|| ActionError::Unavailable("no user profile".into()))?;
-        let out = vitals_agents::actions::run(&action, &bin).map_err(ActionError::Unavailable)?;
+        let out = run_action(&action).map_err(ActionError::Unavailable)?;
         if let Some(agents) = self.agents() {
             agents.poke();
         }

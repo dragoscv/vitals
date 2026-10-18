@@ -367,6 +367,7 @@ fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
         agents::get_cloud_status,
         agents::start_cloud_sign_in,
         agents::finish_cloud_sign_in,
+        agents::cancel_cloud_sign_in,
         agents::cloud_sign_out,
     ]
 }

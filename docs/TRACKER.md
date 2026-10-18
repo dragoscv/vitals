@@ -166,6 +166,41 @@ CSV records the state.
 
 ## Verification log
 
+### 2026-10-18 — S21-04 AI page: read-only codai sign-in, same-user local API, safe agentq actions
+
+**Ask.** Owner decision 2026-10-18: the optional "Sign in with codai" asks
+for read-only access, revokes its key on sign-out, and the credential is
+deleted on uninstall (LEG2-3 computer name, ENG2-13 cancel).
+
+**Decisions.** Scope `openid agents:read` only; codai (same day) mints a key
+with `api_keys.scopes = {agents:read}` that its gateway refuses outside the
+agent reads and `POST /v1/keys/self/revoke`. The key label is the constant
+`Vitals desktop`. Sign-out revokes first and deletes locally whatever the
+answer (401 = already gone; offline = local delete plus a note to revoke in
+the hub). The device code never reaches the webview: `SignIns` holds it, the
+webview passes back an opaque `handle`, and starting again or
+`cancel_cloud_sign_in` cancels the earlier poll; a cancel that races the
+approval revokes the freshly minted key instead of storing it. One shared
+reqwest client, 3 s connect / 10 s total. Uninstall: `cmdkey /delete` in
+PREUNINSTALL behind `$UpdateMode <> 1`; probed on this PC with a throwaway
+generic credential (listed before, delete exit 0, gone after, second delete
+exit 1, which the hook ignores).
+
+**ENG2 findings in the same area.** (a) `useAgents` follows
+`document.visibilityState` (`useSyncExternalStore`): a hidden window holds no
+subscription, so `lastRoute = agents` on a tray autostart no longer wakes the
+reader. (b) `/api/v1/agents`, `/agents/actions` and the agent series in
+`/metrics` need a presented token; the tokenless loopback grant answers 403
+(and an empty agent section in `/metrics`) without asking the provider, so
+another Windows account on the PC reads nothing. (c) agentq actions go
+through `actions::Runner`: refused while elevated (`ELEVATED_REFUSAL`),
+script folder from `FOLDERID_Profile` (no more `AGENTQ_BIN`/`USERPROFILE`),
+script owner must be this account, Administrators or SYSTEM
+(`vitals_win::ownership`), 120 s deadline with the child killed. PRIVACY's
+local API row also claimed tokenless control; corrected EN+RO.
+
+**Verification.** See the row in `tracker.csv`.
+
 ### 2026-10-18 — S21-02 CI: idle cost gate, real installer round trip, update proof
 
 **Ask.** PERF-1 (no idle CPU/RAM gate), QA2-2 (uninstall checks were vacuous: nothing turned

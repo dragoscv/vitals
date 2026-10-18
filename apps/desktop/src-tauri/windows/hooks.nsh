@@ -170,6 +170,18 @@
     DetailPrint "Restoring Windows Task Manager..."
     DeleteRegValue HKLM "SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\taskmgr.exe" "Debugger"
   ${EndIf}
+
+  ; S21 (owner 2026-10-18): the optional codai sign-in keeps a key in
+  ; Credential Manager (generic credential, target vitals/codai-api-key,
+  ; crates/vitals-agents cloud.rs CREDENTIAL_TARGET). Settings stay on
+  ; uninstall; a credential is not a setting, and a removed app must not leave
+  ; a working key behind. Per-user vault of whoever runs the uninstaller (the
+  ; one who signed in). Kept on /UPDATE so an update does not sign you out.
+  ; cmdkey exits non-zero when there is none, which is fine.
+  ${If} $UpdateMode <> 1
+    nsExec::Exec '"$SYSDIR\cmdkey.exe" /delete:vitals/codai-api-key'
+    Pop $0
+  ${EndIf}
 !macroend
 
 !macro NSIS_HOOK_POSTUNINSTALL

@@ -292,10 +292,25 @@ impl Granted {
             Some(token) => state.tokens.read().scope_for(token).is_some(),
         }
     }
+
+    /// Whether the request presented a token, rather than riding the
+    /// tokenless loopback grant.
+    ///
+    /// The AI page's data needs one (ENG2, S21-04). Loopback TCP is shared
+    /// by every account on the PC, and an `AgentsSnapshot` is this user's
+    /// session titles, working directories and command lines: the tokenless
+    /// grant exists so `vitals ps` works without pairing, and no local tool
+    /// reads agents through it. Another account on the machine would.
+    const fn has_token(&self) -> bool {
+        self.token.is_some()
+    }
 }
 
 /// Rejects anything without a valid bearer token, unless the caller is on the
 /// loopback interface and the host has opted into [`ApiState::loopback_scope`].
+/// A valid token is honoured first, also on loopback, so a paired token's
+/// own scope applies there (the AI page needs one: `Granted::has_token`); a
+/// missing or wrong token falls back to the tokenless grant.
 ///
 /// Accepts the token in `Authorization: Bearer …` or, for `EventSource` and
 /// `WebSocket` — neither of which can set headers in a browser — in a `token`
@@ -312,6 +327,20 @@ async fn authorise(State(state): State<ApiState>, request: Request, next: Next) 
         .extensions()
         .get::<ConnectInfo<SocketAddr>>()
         .map(|ConnectInfo(addr)| *addr);
+    let presented = bearer(&request).or_else(|| query_token(&request));
+    // A valid token wins over the bypass: it can carry what the tokenless
+    // grant does not (control, the AI page), and it stays revocable.
+    let by_token = presented
+        .as_deref()
+        .and_then(|t| state.tokens.read().scope_for(t));
+    if let (Some(scope), Some(token)) = (by_token, presented.clone()) {
+        let mut request = request;
+        request.extensions_mut().insert(Granted {
+            scope,
+            token: Some(token),
+        });
+        return next.run(request).await;
+    }
     if let Some(scope) = loopback_grant(&state, peer).filter(|_| is_local_caller(&request)) {
         let mut request = request;
         request
@@ -320,24 +349,9 @@ async fn authorise(State(state): State<ApiState>, request: Request, next: Next) 
         return next.run(request).await;
     }
 
-    let presented = bearer(&request).or_else(|| query_token(&request));
-
-    let Some(presented) = presented else {
-        return unauthorised("a bearer token is required");
-    };
-
-    let Some(scope) = state.tokens.read().scope_for(&presented) else {
-        // Deliberately identical to the missing-token response: telling a
-        // caller that a token exists but is wrong is a free oracle.
-        return unauthorised("a bearer token is required");
-    };
-
-    let mut request = request;
-    request.extensions_mut().insert(Granted {
-        scope,
-        token: Some(presented),
-    });
-    next.run(request).await
+    // Missing and wrong tokens get deliberately identical answers: telling
+    // a caller that a token exists but is wrong is a free oracle.
+    unauthorised("a bearer token is required")
 }
 
 /// The scope a tokenless caller at `peer` is granted, if any.
@@ -566,7 +580,10 @@ async fn sensors(State(state): State<ApiState>) -> Response {
     }
 }
 
-async fn metrics(State(state): State<ApiState>) -> Response {
+async fn metrics(
+    State(state): State<ApiState>,
+    axum::Extension(granted): axum::Extension<Granted>,
+) -> Response {
     // System-wide numbers from the newest frame (a delta still carries the
     // full `system` tree), but the process list from the last keyframe:
     // ranking "top processes" from a delta would rank whichever happened to
@@ -585,8 +602,10 @@ async fn metrics(State(state): State<ApiState>) -> Response {
     };
     let mut body = prometheus::render(system, processes, PROMETHEUS_TOP_N);
     // A host without an AI page contributes no agent series at all: absent,
-    // not zero (see `prometheus::render_agents`).
-    if let Some(provider) = state.agents.clone() {
+    // not zero (see `prometheus::render_agents`). Nor does a tokenless
+    // loopback scrape: the series carry resource and client names
+    // (`Granted::has_token`).
+    if let Some(provider) = state.agents.clone().filter(|_| granted.has_token()) {
         match tokio::task::spawn_blocking(move || provider.snapshot()).await {
             Ok(snapshot) => body.push_str(&prometheus::render_agents(&snapshot)),
             Err(error) => tracing::warn!(%error, "agents provider panicked"),
@@ -609,7 +628,16 @@ async fn metrics(State(state): State<ApiState>) -> Response {
 ///
 /// `404` when the host offers no AI page, so a client can tell "not here"
 /// from "nothing running", which is an empty snapshot.
-async fn agents(State(state): State<ApiState>) -> Response {
+///
+/// `403` without a token, before the host is asked anything: the tokenless
+/// loopback grant does not cover this route (`Granted::has_token`).
+async fn agents(
+    State(state): State<ApiState>,
+    axum::Extension(granted): axum::Extension<Granted>,
+) -> Response {
+    if !granted.has_token() {
+        return agents_need_a_token();
+    }
     let Some(provider) = state.agents.clone() else {
         return agents_not_offered();
     };
@@ -634,6 +662,9 @@ async fn agents_action(
     axum::Extension(granted): axum::Extension<Granted>,
     body: axum::body::Bytes,
 ) -> Response {
+    if !granted.has_token() {
+        return agents_need_a_token();
+    }
     if !granted.scope.allows_control() {
         return (StatusCode::FORBIDDEN, Json(ControlError::Forbidden)).into_response();
     }
@@ -680,6 +711,16 @@ fn agents_not_offered() -> Response {
         StatusCode::NOT_FOUND,
         Json(ApiError {
             error: "this server does not offer the AI page".to_owned(),
+        }),
+    )
+        .into_response()
+}
+
+fn agents_need_a_token() -> Response {
+    (
+        StatusCode::FORBIDDEN,
+        Json(ApiError {
+            error: "the AI page needs a paired token, also on loopback".to_owned(),
         }),
     )
         .into_response()

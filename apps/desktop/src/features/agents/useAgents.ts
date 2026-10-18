@@ -8,9 +8,16 @@
  * stops a hidden screen's effects — unsubscribes when the user navigates
  * away, and the reader parks. A renewal every 15 s keeps the 30 s lease alive;
  * a crashed webview simply stops renewing.
+ *
+ * `<Activity>` is not enough on its own: with `lastRoute = agents`, an
+ * autostart launch at logon mounts this screen in a window that stays hidden
+ * in the tray, and the reader would poll agentq every 2 s (and codai every
+ * 30 s) for a page nobody can see (ENG2, S21-04). So the subscription also
+ * follows `document.visibilityState`, like the route preload (`whenVisible`):
+ * hidden drops it, visible takes it again.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 
 import type { AgentqAction, AgentsSnapshot } from '@vitals/protocol';
 
@@ -63,9 +70,22 @@ export interface AgentsState {
   run: (action: AgentqAction) => Promise<AgentqActionResult>;
 }
 
-export function useAgents(source?: AgentsSource): AgentsState {
+/** Whether `doc` is visible, re-rendering on `visibilitychange`. */
+function useVisible(doc: Document): boolean {
+  const subscribe = useCallback(
+    (onChange: () => void) => {
+      doc.addEventListener('visibilitychange', onChange);
+      return () => doc.removeEventListener('visibilitychange', onChange);
+    },
+    [doc],
+  );
+  return useSyncExternalStore(subscribe, () => doc.visibilityState === 'visible');
+}
+
+export function useAgents(source?: AgentsSource, doc: Document = document): AgentsState {
   const injected = source !== undefined;
   const src = source ?? tauriSource;
+  const visible = useVisible(doc);
   const [snapshot, setSnapshot] = useState<AgentsSnapshot | null>(null);
   const [pending, setPending] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -79,6 +99,9 @@ export function useAgents(source?: AgentsSource): AgentsState {
       setError(NO_HOST);
       return undefined;
     }
+    // Hidden: hold no subscription, so the reader parks within its lease.
+    // The last snapshot stays on screen for when the window comes back.
+    if (!visible) return undefined;
     let alive = true;
     let id: number | null = null;
     let unlisten: (() => void) | null = null;
@@ -117,7 +140,7 @@ export function useAgents(source?: AgentsSource): AgentsState {
       unlisten?.();
       if (id !== null) void s.unsubscribe(id).catch(() => undefined);
     };
-  }, [injected]);
+  }, [injected, visible]);
 
   const run = useCallback((action: AgentqAction) => srcRef.current.run(action), []);
 

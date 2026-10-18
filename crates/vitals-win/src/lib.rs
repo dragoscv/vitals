@@ -43,6 +43,7 @@ pub mod install;
 pub mod memory;
 pub mod modules;
 pub mod network;
+pub mod ownership;
 pub mod process;
 pub mod sampler;
 pub mod sensors;

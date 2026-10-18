@@ -59,6 +59,28 @@ on the machine showed it.
 5. **Cloud is read-only and opt-in.** Sign-in uses the codai OIDC device flow;
    the resulting key is stored in Windows Credential Manager and never shown
    again. Without it the cloud tab says so; nothing is sent anywhere.
+
+   _Amended 2026-10-18 (S21, owner decision):_ "read-only" is now enforced by
+   codai, not only by what Vitals chooses to call. The device flow requests
+   `openid agents:read` (no `inference`, `keys:manage`, `email`, `profile`);
+   codai mints a key whose gateway allowlist is the agent reads plus
+   `POST /v1/keys/self/revoke`. The key is labelled `Vitals desktop`, never
+   with the computer name. Sign-out revokes the key with itself, then deletes
+   it locally (offline: deleted locally, and the UI says to revoke it in the
+   hub). A full uninstall deletes the credential (`hooks.nsh`); an update
+   keeps it. The device code stays in Rust behind an opaque handle, and
+   `cancel_cloud_sign_in` stops an abandoned poll (ENG2-13).
+
+   _Amended 2026-10-18 (S21-04, ENG2):_ the page subscribes only while the
+   window is visible (an autostart launch with `lastRoute = agents` used to
+   keep the reader polling from the tray). `/api/v1/agents`, its actions and
+   the agent series in `/metrics` need a token even on the local API:
+   loopback is shared by every account on the PC. agentq actions are refused
+   while Vitals is elevated (a user-writable script must never run as
+   administrator), run only `<profile>\.copilot\bin` scripts owned by this
+   account or by administrators (profile from the shell, not `USERPROFILE` /
+   `AGENTQ_BIN`), and are killed after 120 s.
+
 6. **Agent ↔ process attribution** uses command lines read on demand and
    cached per `ProcessKey`, so CPU and memory can be summed per agent tree.
 7. **Privacy.** Prompts are never read past the event type. Paths and titles

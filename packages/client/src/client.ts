@@ -262,6 +262,9 @@ export class VitalsClient {
    * server answers 404). That is a different fact from an empty snapshot,
    * which means nothing is running, so it is not an exception. Paths and
    * anything that looks like a credential arrive already redacted.
+   *
+   * Needs a token even against the local API: the tokenless loopback read
+   * does not cover the AI page (403, `forbidden`).
    */
   async agents(): Promise<AgentsSnapshot | null> {
     try {

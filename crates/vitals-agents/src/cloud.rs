@@ -9,7 +9,17 @@
 //! Endpoints (`apps/gateway` in the codai repo):
 //! - `GET /v1/hosts` — the user's desktops connected right now;
 //! - `GET /v1/sessions?v=2` — conversation sessions with `last_event_at`,
-//!   `executor_device_id` and live `presence_count`.
+//!   `executor_device_id` and live `presence_count`;
+//! - `POST /v1/keys/self/revoke` — the key revokes itself on sign-out.
+//!
+//! The key is minted under the `agents:read` scope (owner decision
+//! 2026-10-18, S21): codai's gateway refuses it everywhere except those
+//! reads and its own revocation, so a copied key can neither run inference,
+//! spend money nor manage other keys. The device name sent at minting is a
+//! fixed label, never the computer name.
+
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 use serde::Deserialize;
 use serde_json::Value;
@@ -20,7 +30,12 @@ use crate::time::parse_iso_ms;
 pub const DEFAULT_GATEWAY: &str = "https://ai.codai.ro";
 pub const DEFAULT_AUTH: &str = "https://auth.codai.ro";
 pub const CLIENT_ID: &str = "codai-cli";
-pub const SCOPE: &str = "openid email profile inference keys:manage";
+/// `agents:read` is the only codai resource scope requested: no `inference`,
+/// no `keys:manage`, no `email`/`profile` (Vitals never shows who you are).
+pub const SCOPE: &str = "openid agents:read";
+/// What the key is called in the codai hub. Deliberately not the computer
+/// name: that would be personal data sent for no feature (LEG2-3).
+pub const KEY_LABEL: &str = "Vitals desktop";
 /// Credential Manager target for the key.
 pub const CREDENTIAL_TARGET: &str = "vitals/codai-api-key";
 
@@ -132,15 +147,16 @@ pub fn parse_token(res: &Response) -> Poll {
     }
 }
 
-/// Exchanges the access token for a long-lived `codai_…` key (returned once).
+/// Exchanges the access token for a long-lived `codai_…` key (returned once),
+/// labelled [`KEY_LABEL`].
 #[must_use]
-pub fn key_request(auth: &str, access_token: &str, device_name: &str) -> Request {
+pub fn key_request(auth: &str, access_token: &str) -> Request {
     Request {
         method: "GET",
         url: format!("{}/connect/key", auth.trim_end_matches('/')),
         form: None,
         bearer: Some(access_token.into()),
-        headers: vec![("X-Codai-Device-Name".into(), device_name.into())],
+        headers: vec![("X-Codai-Device-Name".into(), KEY_LABEL.into())],
     }
 }
 
@@ -157,6 +173,31 @@ pub fn parse_key(res: &Response) -> Result<String, String> {
         .filter(|k| k.starts_with("codai_"))
         .map(str::to_owned)
         .ok_or_else(|| "no codai key in the answer".into())
+}
+
+/// Sign-out: the key revokes itself so a copy stops working too.
+#[must_use]
+pub fn revoke_request(gateway: &str, key: &str) -> Request {
+    Request {
+        method: "POST",
+        url: format!("{}/v1/keys/self/revoke", gateway.trim_end_matches('/')),
+        form: None,
+        bearer: Some(key.into()),
+        headers: client_header(),
+    }
+}
+
+/// Whether the server no longer accepts the key after a revoke call.
+///
+/// A 401 means it was already revoked (or never existed): signed out either way.
+///
+/// # Errors
+/// Any other status, so the caller can say the server copy may still be live.
+pub fn parse_revoke(res: &Response) -> Result<(), String> {
+    match res.0 {
+        200..=299 | 401 => Ok(()),
+        s => Err(format!("codai answered {s}")),
+    }
 }
 
 #[must_use]
@@ -323,6 +364,100 @@ fn check(res: &Response) -> Result<(), String> {
     }
 }
 
+/// What the webview gets from step one of the device flow. The secret
+/// `device_code` is not in it: it stays in [`SignIns`], and the webview holds
+/// only `handle`, which is worthless outside this process.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SignInPrompt {
+    pub handle: String,
+    pub user_code: String,
+    pub verification_uri: String,
+    pub verification_uri_complete: Option<String>,
+}
+
+/// A device flow in progress, owned by Rust.
+#[derive(Debug, Clone)]
+pub struct PendingSignIn {
+    pub device_code: String,
+    pub interval: u64,
+    pub cancelled: Arc<AtomicBool>,
+}
+
+/// At most one device flow at a time; starting another replaces (and
+/// cancels) the previous one so an abandoned poll cannot store a key later.
+#[derive(Debug, Default)]
+pub struct SignIns {
+    next: AtomicU64,
+    current: std::sync::Mutex<Option<(String, PendingSignIn)>>,
+}
+
+impl SignIns {
+    #[must_use]
+    pub const fn new() -> Self {
+        Self {
+            next: AtomicU64::new(1),
+            current: std::sync::Mutex::new(None),
+        }
+    }
+
+    fn slot(&self) -> std::sync::MutexGuard<'_, Option<(String, PendingSignIn)>> {
+        // a panic while holding this lock leaves plain data behind: keep going
+        self.current
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    /// Records `auth` and returns what the webview may see.
+    pub fn begin(&self, auth: DeviceAuth) -> SignInPrompt {
+        let handle = format!("s{}", self.next.fetch_add(1, Ordering::Relaxed));
+        let pending = PendingSignIn {
+            device_code: auth.device_code,
+            interval: auth.interval,
+            cancelled: Arc::new(AtomicBool::new(false)),
+        };
+        if let Some((_, old)) = self.slot().replace((handle.clone(), pending)) {
+            old.cancelled.store(true, Ordering::Relaxed);
+        }
+        SignInPrompt {
+            handle,
+            user_code: auth.user_code,
+            verification_uri: auth.verification_uri,
+            verification_uri_complete: auth.verification_uri_complete,
+        }
+    }
+
+    /// The flow `handle` names, if it is still the current one.
+    #[must_use]
+    pub fn get(&self, handle: &str) -> Option<PendingSignIn> {
+        self.slot()
+            .as_ref()
+            .filter(|(h, _)| h == handle)
+            .map(|(_, p)| p.clone())
+    }
+
+    /// Stops the flow `handle` names; the poller sees it on its next tick.
+    /// Returns whether there was one.
+    pub fn cancel(&self, handle: &str) -> bool {
+        let mut slot = self.slot();
+        if slot.as_ref().is_some_and(|(h, _)| h == handle) {
+            if let Some((_, p)) = slot.take() {
+                p.cancelled.store(true, Ordering::Relaxed);
+            }
+            return true;
+        }
+        false
+    }
+
+    /// Forgets the flow `handle` names once it has finished, either way.
+    pub fn finish(&self, handle: &str) {
+        let mut slot = self.slot();
+        if slot.as_ref().is_some_and(|(h, _)| h == handle) {
+            *slot = None;
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -423,10 +558,94 @@ mod tests {
     fn device_auth_request_is_form_encoded_for_the_public_cli_client() {
         let r = device_auth_request("https://auth.codai.ro/");
         assert_eq!(r.url, "https://auth.codai.ro/device/auth");
-        assert!(
-            r.form
-                .unwrap()
-                .contains(&("client_id".into(), "codai-cli".into()))
+        let form = r.form.unwrap();
+        assert!(form.contains(&("client_id".into(), "codai-cli".into())));
+        assert!(form.contains(&("scope".into(), SCOPE.into())));
+    }
+
+    #[test]
+    fn sign_in_asks_for_read_only_access_and_nothing_that_runs_spends_or_manages_keys() {
+        let scopes: Vec<&str> = SCOPE.split(' ').collect();
+        assert!(scopes.contains(&"agents:read"));
+        for wide in [
+            "inference",
+            "keys:manage",
+            "email",
+            "profile",
+            "offline_access",
+        ] {
+            assert!(
+                !scopes.contains(&wide),
+                "scope {wide} must not be requested"
+            );
+        }
+    }
+
+    #[test]
+    fn the_key_is_labelled_without_the_computer_name() {
+        let r = key_request("https://auth.codai.ro", "at");
+        assert_eq!(
+            r.headers,
+            vec![(
+                "X-Codai-Device-Name".to_owned(),
+                "Vitals desktop".to_owned()
+            )]
         );
+        if let Ok(host) = std::env::var("COMPUTERNAME") {
+            assert!(r.headers.iter().all(|(_, v)| !v.contains(&host)));
+        }
+    }
+
+    #[test]
+    fn sign_out_revokes_the_key_with_itself_and_treats_401_as_already_gone() {
+        let r = revoke_request("https://ai.codai.ro/", "codai_k");
+        assert_eq!(r.method, "POST");
+        assert_eq!(r.url, "https://ai.codai.ro/v1/keys/self/revoke");
+        assert_eq!(r.bearer.as_deref(), Some("codai_k"));
+        assert!(parse_revoke(&(200, r#"{"revoked":true}"#.into())).is_ok());
+        assert!(parse_revoke(&(401, String::new())).is_ok());
+        assert!(parse_revoke(&(503, String::new())).is_err());
+        assert!(parse_revoke(&(403, String::new())).is_err());
+    }
+
+    fn auth(code: &str) -> DeviceAuth {
+        DeviceAuth {
+            device_code: code.into(),
+            user_code: "ABCD-EFGH".into(),
+            verification_uri: "https://auth.codai.ro/device".into(),
+            verification_uri_complete: None,
+            interval: 5,
+            expires_in: Some(600),
+        }
+    }
+
+    #[test]
+    fn the_device_code_never_reaches_the_webview_only_an_opaque_handle_does() {
+        let s = SignIns::new();
+        let p = s.begin(auth("secret-device-code"));
+        let json = serde_json::to_string(&p).unwrap();
+        assert!(!json.contains("secret-device-code"), "{json}");
+        assert!(json.contains("\"handle\""));
+        assert_eq!(s.get(&p.handle).unwrap().device_code, "secret-device-code");
+        assert!(s.get("s999").is_none());
+    }
+
+    #[test]
+    fn cancelling_or_starting_again_stops_the_earlier_poll() {
+        let s = SignIns::new();
+        let first = s.begin(auth("one"));
+        let flag = s.get(&first.handle).unwrap().cancelled;
+        let second = s.begin(auth("two"));
+        assert!(
+            flag.load(Ordering::Relaxed),
+            "a replaced flow must be cancelled"
+        );
+        assert!(s.get(&first.handle).is_none());
+        let flag2 = s.get(&second.handle).unwrap().cancelled;
+        assert!(!s.cancel(&first.handle), "a stale handle cancels nothing");
+        assert!(!flag2.load(Ordering::Relaxed));
+        assert!(s.cancel(&second.handle));
+        assert!(flag2.load(Ordering::Relaxed));
+        assert!(s.get(&second.handle).is_none());
     }
 }

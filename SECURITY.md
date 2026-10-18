@@ -86,6 +86,9 @@ acts on processes on its own machine through Windows directly, which checks
 the caller's own rights. A page in a browser gets nothing tokenless: any
 `Origin` header or a non-loopback `Host` is refused. The decision is made on
 the connecting address; a request from the network still needs a token.
+The AI page (`/api/v1/agents`, and the agent series in `/metrics`) is left
+out of the tokenless read: it is one user's session titles, working
+directories and command lines, which another account must not read.
 
 ### What it does not do
 

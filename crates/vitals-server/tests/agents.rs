@@ -127,6 +127,10 @@ impl Drop for Harness {
 }
 
 async fn start(with_agents: bool) -> Harness {
+    start_with(with_agents, None).await
+}
+
+async fn start_with(with_agents: bool, loopback_scope: Option<Scope>) -> Harness {
     let fake = Arc::new(Fake::default());
     let frames = FrameSource::new();
     let state = ApiState {
@@ -144,7 +148,7 @@ async fn start(with_agents: bool) -> Harness {
         history: Arc::new(|_| Vec::new()),
         sensors: Arc::new(Vec::new),
         version: "0.0.0-test".into(),
-        loopback_scope: None,
+        loopback_scope,
         pairing: None,
         agents: with_agents.then(|| Arc::clone(&fake) as Arc<dyn AgentsProvider>),
     };
@@ -352,4 +356,55 @@ impl Harness {
         self.frames
             .publish(Arc::new(vitals_core::fixtures::keyframe(1, Vec::new())));
     }
+}
+
+// The desktop's 127.0.0.1:7330 listener grants a tokenless *read* to any
+// loopback caller, and loopback is shared by every account on the PC. The
+// AI snapshot is one user's session titles and command lines, so it must not
+// ride that grant (ENG2, S21-04). Every request here comes from 127.0.0.1
+// with a loopback Host and no Origin: exactly what the bypass accepts.
+
+#[tokio::test]
+async fn another_account_on_loopback_without_a_token_gets_no_agents_snapshot() {
+    let h = start_with(true, Some(Scope::Read)).await;
+    let (status, body) = request(&h.base, "GET", "/api/v1/agents", None, None).await;
+    assert_eq!(status, 403, "{body}");
+    assert!(!body.contains("fix the thing"), "{body}");
+    assert_eq!(
+        h.fake.snapshots.load(Ordering::SeqCst),
+        0,
+        "the provider must not even be asked"
+    );
+    // The same listener still serves the rest of the tokenless read scope.
+    h.publish_a_frame();
+    let (status, _) = request(&h.base, "GET", "/api/v1/snapshot", None, None).await;
+    assert_eq!(status, 200);
+}
+
+#[tokio::test]
+async fn a_tokenless_loopback_caller_cannot_act_even_with_a_control_loopback_grant() {
+    let h = start_with(true, Some(Scope::Control)).await;
+    let (status, _) = request(&h.base, "POST", "/api/v1/agents/actions", None, Some(NOTE)).await;
+    assert_eq!(status, 403);
+    assert!(h.fake.acted.lock().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn a_tokenless_loopback_scrape_carries_no_agent_series() {
+    let h = start_with(true, Some(Scope::Read)).await;
+    h.publish_a_frame();
+    let (status, body) = request(&h.base, "GET", "/metrics", None, None).await;
+    assert_eq!(status, 200, "{body}");
+    assert!(body.contains("vitals_cpu_percent"), "{body}");
+    assert!(!body.contains("vitals_agents"), "{body}");
+    assert!(!body.contains("vitals_agentq"), "{body}");
+    assert_eq!(h.fake.snapshots.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
+async fn a_paired_token_still_reads_agents_over_loopback_when_the_bypass_is_on() {
+    let h = start_with(true, Some(Scope::Read)).await;
+    let (status, body) = request(&h.base, "GET", "/api/v1/agents", Some(READ), None).await;
+    assert_eq!(status, 200, "{body}");
+    assert!(body.contains("fix the thing"), "{body}");
 }
