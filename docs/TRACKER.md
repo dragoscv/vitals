@@ -3626,6 +3626,45 @@ check-drift   0 failure(s), 5 warning(s) (cloud_* only, pre-existing)
 check-size    initial 205.9/206.8 KB, all 496.9/498.0, hud 120.6, mobile 147.8
 ```
 
+### 2026-10-19 — S22-08 scheduled tasks show how often they run
+
+**Ask.** On Startup apps, a "Scheduled task" row should also say how often
+the task runs: a second muted line under the Source text, plus a Schedule
+column in the export.
+
+**Why it matters.** Only tasks with a logon or boot trigger reach the list,
+but many of them also repeat: `vmui-service` starts at sign-in and then runs
+every five minutes, a very different cost from a once-per-session task. The
+old reader collapsed every trigger to "startup or not".
+
+**Design.** `vitals-win::startup::schedule` cuts out each `<…Trigger>` block
+(self-closing included) and reads it alone, so one trigger's `Enabled` or
+`Repetition` cannot be attributed to another; disabled triggers are skipped.
+Intervals go through a small ISO 8601 parser (`P[nW][nD]T[nH][nM][nS]`):
+malformed, out-of-order or `PT0S` is `None`, never 0 (0 would read as
+"continuously"). The DTO carries data, not prose; `describeSchedule` words it
+in English and Romanian (one/few/other plurals: 1 minut, 5 minute, 20 de
+minute) and writes nothing for a task with no readable trigger. Startup items
+have no other consumer (vitals-server, CLI, SDK, Android checked with `rg`),
+so nothing else moved.
+
+**Evidence.**
+
+```
+cargo test -p vitals-win --lib startup         124 passed; 0 failed
+cargo clippy -p vitals-win -p vitals-desktop --all-targets -- -D warnings   clean
+vitest run src/features/startup                Test Files 6 passed, Tests 78 passed
+desktop tsc --noEmit                           exit 0
+eslint / prettier (src/features/startup)       0 / clean
+check-drift.ps1                                0 failures (2 locales)
+startup_probe (this machine)                   79 tasks with a schedule
+  vmui-service          at logon · every 300 s    Get-ScheduledTask: Logon + Time PT5M
+  VmuiPruneChatStorage  at logon · every 1800 s   Get-ScheduledTask: Logon + Time PT30M
+  agentq-sync           at logon                  Get-ScheduledTask: Logon only
+  git-autosync          at logon                  Get-ScheduledTask: Logon only
+  Adobe Acrobat Update  at logon · every 12600 s · daily
+```
+
 ## S13 — public beta 0.9.0-beta.1 (2026-09-28)
 
 Decided with the owner (ADR 0031): public repository, beta version, no code

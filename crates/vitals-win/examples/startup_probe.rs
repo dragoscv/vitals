@@ -17,7 +17,8 @@
 //! part — see the notes printed alongside the totals.
 
 use vitals_win::startup::{
-    DisableRisk, StartupSource, StartupState, assess_entry, collect, services::StartType,
+    CalendarKind, DisableRisk, OtherTrigger, StartupSource, StartupState, TaskSchedule,
+    assess_entry, collect, services::StartType,
 };
 
 fn main() {
@@ -72,6 +73,12 @@ fn print_entries(inventory: &vitals_win::startup::StartupInventory) {
             risk,
             truncate(command, 60)
         );
+
+        // A separate line rather than a column: only tasks have one, and a
+        // column would be a wall of dashes for every registry entry.
+        if let Some(schedule) = &entry.schedule {
+            println!("{:<34} schedule: {}", "", describe(schedule));
+        }
     }
 
     let missing: Vec<_> = entries
@@ -178,6 +185,49 @@ fn print_totals(inventory: &vitals_win::startup::StartupInventory) {
          \x20 - Get-ScheduledTask sees tasks whose definitions schtasks cannot\n\
          \x20   export unelevated."
     );
+}
+
+/// A scheduled task's triggers in plain words, for eyeballing against
+/// `Get-ScheduledTask`.
+fn describe(schedule: &TaskSchedule) -> String {
+    let mut parts = Vec::new();
+    if schedule.at_logon {
+        parts.push("at logon".to_owned());
+    }
+    if schedule.at_boot {
+        parts.push("at boot".to_owned());
+    }
+    if let Some(secs) = schedule.repeat_every_secs {
+        parts.push(format!("every {secs} s"));
+    }
+    match schedule.calendar {
+        Some(CalendarKind::Daily { days_interval }) => {
+            parts.push(format!("daily (interval {days_interval:?})"));
+        }
+        Some(CalendarKind::Weekly { weeks_interval }) => {
+            parts.push(format!("weekly (interval {weeks_interval:?})"));
+        }
+        Some(CalendarKind::Monthly) => parts.push("monthly".to_owned()),
+        None => {}
+    }
+    for other in &schedule.other {
+        parts.push(
+            match other {
+                OtherTrigger::Idle => "idle",
+                OtherTrigger::Event => "event",
+                OtherTrigger::Once => "once",
+                OtherTrigger::SessionChange => "session change",
+                OtherTrigger::Registration => "registration",
+            }
+            .to_owned(),
+        );
+    }
+    if parts.is_empty() {
+        // Every trigger disabled: said so, rather than an empty string that
+        // looks like a formatting bug.
+        return "(no enabled trigger)".to_owned();
+    }
+    parts.join(" · ")
 }
 
 /// Shortens a string for column display, marking that it was cut.

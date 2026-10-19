@@ -218,6 +218,68 @@ pub struct StartupEntryDto {
     pub microsoft: bool,
     /// How risky switching this off is. Translation key.
     pub risk: &'static str,
+    /// How often a scheduled task runs. `None` for every other source, and
+    /// the UI then shows nothing rather than a phrase it would have to make up.
+    pub schedule: Option<TaskScheduleDto>,
+}
+
+/// A scheduled task's triggers, as data. Not prose: the webview words it in
+/// the user's language, and the export keeps the same wording.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TaskScheduleDto {
+    pub at_logon: bool,
+    pub at_boot: bool,
+    /// `None` when nothing repeats or the interval could not be read; never 0.
+    pub repeat_every_secs: Option<u64>,
+    pub calendar: Option<CalendarDto>,
+    /// Translation keys: `idle`, `event`, `once`, `sessionChange`, `registration`.
+    pub other: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CalendarDto {
+    /// `daily`, `weekly` or `monthly`.
+    pub kind: &'static str,
+    /// Days for `daily`, weeks for `weekly`, always `None` for `monthly`.
+    pub interval: Option<u32>,
+}
+
+#[cfg(windows)]
+fn task_schedule(schedule: &vitals_win::startup::TaskSchedule) -> TaskScheduleDto {
+    use vitals_win::startup::{CalendarKind, OtherTrigger};
+
+    TaskScheduleDto {
+        at_logon: schedule.at_logon,
+        at_boot: schedule.at_boot,
+        repeat_every_secs: schedule.repeat_every_secs,
+        calendar: schedule.calendar.map(|calendar| match calendar {
+            CalendarKind::Daily { days_interval } => CalendarDto {
+                kind: "daily",
+                interval: days_interval,
+            },
+            CalendarKind::Weekly { weeks_interval } => CalendarDto {
+                kind: "weekly",
+                interval: weeks_interval,
+            },
+            CalendarKind::Monthly => CalendarDto {
+                kind: "monthly",
+                interval: None,
+            },
+        }),
+        other: schedule
+            .other
+            .iter()
+            .map(|other| match other {
+                OtherTrigger::Idle => "idle",
+                OtherTrigger::Event => "event",
+                OtherTrigger::Once => "once",
+                OtherTrigger::SessionChange => "sessionChange",
+                OtherTrigger::Registration => "registration",
+            })
+            .collect(),
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -332,6 +394,7 @@ fn collect_startup(
                     company,
                     microsoft,
                     risk: disable_risk(startup::assess_entry(entry, None)),
+                    schedule: entry.schedule.as_ref().map(task_schedule),
                 }
             })
             .collect(),

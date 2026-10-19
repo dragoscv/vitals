@@ -44,6 +44,7 @@ pub mod entry;
 pub mod impact;
 pub mod registry;
 pub mod run_keys;
+pub mod schedule;
 pub mod services;
 pub mod taskcom;
 pub mod tasks;
@@ -55,6 +56,7 @@ pub use control::{STARTUP_ACTION_ARG, StartupChange, apply, apply_or_elevate};
 pub use entry::{StartupEntry, StartupSource, StartupState};
 pub use impact::{BOOT_WINDOW_SECS, ImpactAccumulator, MeasuredWindow, Observation};
 pub use run_keys::{scan_run_keys, scan_startup_folders};
+pub use schedule::{CalendarKind, OtherTrigger, TaskSchedule, parse_iso_duration};
 pub use services::{
     ServiceControl, ServiceInfo, ServiceState, SettableStartType, StartType, enumerate_services,
 };

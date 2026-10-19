@@ -73,6 +73,7 @@ import {
   type RowMenuModel,
 } from './RowMenu';
 import { tauriStartupActions, type StartupActions } from './startupActions';
+import { describeSchedule } from './schedule';
 import { STARTUP_NS } from './strings';
 import { NO_HOST, useStartup, type StartupReader } from './useStartup';
 
@@ -202,6 +203,13 @@ export function StartupScreen({
       { id: 'name', header: t('column.name'), value: (entry) => labelFor(entry) },
       { id: 'publisher', header: t('column.publisher'), value: (entry) => entry.publisher },
       { id: 'source', header: t('column.source'), value: (entry) => entry.source },
+      // Worded, not raw: the structured triggers would need a legend to be
+      // read, and an empty cell for a non-task is the honest value.
+      {
+        id: 'schedule',
+        header: t('column.schedule'),
+        value: (entry) => describeSchedule(entry.schedule, t, locale),
+      },
       { id: 'state', header: t('column.state'), value: (entry) => entry.state },
       { id: 'command', header: t('column.command'), value: (entry) => entry.command },
       { id: 'imagePath', header: t('column.path'), value: (entry) => entry.imagePath },
@@ -219,7 +227,7 @@ export function StartupScreen({
         value: (entry) => entry.impact?.diskBytes ?? null,
       },
     ],
-    [t],
+    [t, locale],
   );
   const serviceColumns = useMemo(
     (): readonly ExportColumn<ServiceEntry>[] => [
@@ -550,6 +558,7 @@ function StartupTable({
         <tbody>
           {rows.map((entry) => {
             const menu = menuFor(entry);
+            const schedule = describeSchedule(entry.schedule, t, locale);
             return (
               <ContextMenu key={startupKey(entry)} {...rowMenu.rootProps(startupKey(entry))}>
                 <ContextMenuTrigger asChild>
@@ -576,6 +585,14 @@ function StartupTable({
                         <Badge tone="neutral" title={t('allUsersHint')} className="ml-1.5">
                           {t('allUsers')}
                         </Badge>
+                      )}
+                      {schedule !== '' && (
+                        <span
+                          className="block text-2xs text-[var(--color-fg-subtle)]"
+                          data-testid="startup-schedule"
+                        >
+                          {schedule}
+                        </span>
                       )}
                     </td>
                     <td className="px-2.5 py-1.5 text-2xs">

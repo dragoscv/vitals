@@ -36,6 +36,7 @@
 use std::path::PathBuf;
 use std::process::Command;
 
+use super::schedule::{TaskSchedule, parse_schedule};
 use super::{StartupEntry, StartupSource, StartupState};
 
 /// What causes a task to run.
@@ -84,6 +85,12 @@ pub struct TaskInfo {
     pub state: StartupState,
     /// The account it runs as, e.g. `SYSTEM` or a SID.
     pub principal: Option<String>,
+    /// How often it runs, from its enabled triggers.
+    ///
+    /// Kept beside `triggers` rather than replacing them: `triggers` answers
+    /// "is this a startup item", this answers "how much does it run", and the
+    /// second must not be able to change the first.
+    pub schedule: TaskSchedule,
 }
 
 impl TaskInfo {
@@ -326,6 +333,7 @@ pub fn parse_task(xml: &str) -> TaskInfo {
         principal: element(xml, "UserId")
             .or_else(|| element(xml, "GroupId"))
             .filter(|p| !p.trim().is_empty()),
+        schedule: parse_schedule(xml),
     }
 }
 
@@ -397,6 +405,7 @@ pub fn to_entry(task: &TaskInfo) -> StartupEntry {
         image_path,
         publisher: None,
         pid: None,
+        schedule: Some(task.schedule.clone()),
     }
 }
 
@@ -460,6 +469,37 @@ mod tests {
             "&amp; must be resolved or the command shown is not the command run"
         );
         assert_eq!(task.principal.as_deref(), Some("S-1-5-18"));
+    }
+
+    #[test]
+    fn the_multi_trigger_fixture_runs_at_boot_and_daily() {
+        let task = parse_task(MULTI_TRIGGER);
+        assert!(task.schedule.at_boot);
+        assert!(!task.schedule.at_logon);
+        assert_eq!(
+            task.schedule.calendar,
+            Some(super::super::schedule::CalendarKind::Daily {
+                days_interval: Some(1)
+            })
+        );
+        assert_eq!(
+            task.schedule.repeat_every_secs, None,
+            "the boot trigger's PT30S is a Delay, not a repetition"
+        );
+    }
+
+    #[test]
+    fn a_scheduled_task_entry_carries_its_schedule() {
+        let doc = "<Tasks><Task version=\"1.4\"><RegistrationInfo><URI>\\vmui-service</URI>\
+            </RegistrationInfo><Triggers><LogonTrigger><Repetition><Interval>PT5M</Interval>\
+            </Repetition></LogonTrigger></Triggers></Task></Tasks>";
+        let scan = parse_scan(doc);
+        let entry = to_entry(&scan.startup_tasks[0]);
+        let schedule = entry
+            .schedule
+            .expect("a scheduled task always has a schedule");
+        assert!(schedule.at_logon);
+        assert_eq!(schedule.repeat_every_secs, Some(300));
     }
 
     #[test]

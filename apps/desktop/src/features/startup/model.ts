@@ -25,6 +25,10 @@
 
 import type { StartupImpact } from '@vitals/protocol';
 
+import type { TaskSchedule } from './schedule';
+
+export type { TaskSchedule };
+
 export type StartupSourceKey =
   | 'machineRun'
   | 'machineRun32'
@@ -88,6 +92,11 @@ export interface StartupEntry {
    */
   readonly microsoft: boolean;
   readonly risk: DisableRiskKey;
+  /**
+   * How often a scheduled task runs; `null` for every other source. Words
+   * come from `describeSchedule`, never from the backend.
+   */
+  readonly schedule: TaskSchedule | null;
 }
 
 export interface ServiceEntry {

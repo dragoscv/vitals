@@ -28,6 +28,7 @@ function entry(overrides: Partial<StartupEntry> = {}): StartupEntry {
     company: null,
     microsoft: false,
     risk: 'safe',
+    schedule: null,
     ...overrides,
   };
 }

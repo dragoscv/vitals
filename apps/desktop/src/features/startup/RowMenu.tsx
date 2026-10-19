@@ -42,6 +42,7 @@ import {
   type ServiceEntry,
   type StartupEntry,
 } from './model';
+import { describeSchedule } from './schedule';
 import type { ServiceStartType, StartupActions } from './startupActions';
 import { STARTUP_NS } from './strings';
 
@@ -200,7 +201,14 @@ export function useRowMenus(context: RowMenuContext): {
           node.kind === 'item' && busy ? { ...node, disabled: true } : node,
         ),
         { kind: 'separator', id: 'sep-lookup' },
-        ...lookupNodes(label, `${label}\t${entry.source}\t${entry.command ?? '—'}`),
+        ...lookupNodes(
+          label,
+          // The schedule only when there is one: a trailing empty field would
+          // read as "schedule unknown" for every registry entry.
+          [label, entry.source, entry.command ?? '—', describeSchedule(entry.schedule, t)]
+            .filter((field, index) => index < 3 || field !== '')
+            .join('\t'),
+        ),
       ],
     };
   };

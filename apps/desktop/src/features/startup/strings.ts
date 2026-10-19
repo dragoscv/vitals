@@ -106,6 +106,7 @@ const en = {
     path: 'Path',
     serviceName: 'Service name',
     sharedGroup: 'Shared process group',
+    schedule: 'Schedule',
   },
 
   impact: {
@@ -114,6 +115,34 @@ const en = {
     unmeasured:
       'Startup cost has not been measured yet. Vitals needs to be running during the first two minutes after Windows starts; the next boot with Vitals in your startup items will fill this in.',
     notSeen: 'Not seen running during the measured window',
+  },
+
+  // Lower case on purpose: `describeSchedule` joins these and raises only
+  // the first letter of the whole line.
+  schedule: {
+    atLogon: 'at sign-in',
+    atBoot: 'at boot',
+    everySeconds_one: 'every {{count}} s',
+    everySeconds_other: 'every {{count}} s',
+    everyMinutes_one: 'every {{count}} min',
+    everyMinutes_other: 'every {{count}} min',
+    everyHours_one: 'every {{count}} hour',
+    everyHours_other: 'every {{count}} hours',
+    everyDays_one: 'every {{count}} day',
+    everyDays_other: 'every {{count}} days',
+    daily: 'daily',
+    everyNDays_one: 'every {{count}} day',
+    everyNDays_other: 'every {{count}} days',
+    weekly: 'weekly',
+    everyNWeeks_one: 'every {{count}} week',
+    everyNWeeks_other: 'every {{count}} weeks',
+    monthly: 'monthly',
+    idle: 'when idle',
+    event: 'on an event',
+    once: 'once',
+    sessionChange: 'on session change',
+    registration: 'when registered',
+    joiner: ' · ',
   },
 
   allUsers: 'All users',
@@ -294,6 +323,7 @@ const ro = {
     path: 'Cale',
     serviceName: 'Numele serviciului',
     sharedGroup: 'Grup de proces partajat',
+    schedule: 'Program',
   },
 
   impact: {
@@ -302,6 +332,38 @@ const ro = {
     unmeasured:
       'Costul la pornire nu a fost măsurat încă. Vitals trebuie să ruleze în primele două minute după pornirea Windows; următorul boot cu Vitals printre elementele de pornire va completa această coloană.',
     notSeen: 'Nu a fost văzut rulând în fereastra măsurată',
+  },
+
+  schedule: {
+    atLogon: 'la conectare',
+    atBoot: 'la pornire',
+    everySeconds_one: 'la fiecare {{count}} secundă',
+    everySeconds_few: 'la fiecare {{count}} secunde',
+    everySeconds_other: 'la fiecare {{count}} de secunde',
+    everyMinutes_one: 'la fiecare {{count}} minut',
+    everyMinutes_few: 'la fiecare {{count}} minute',
+    everyMinutes_other: 'la fiecare {{count}} de minute',
+    everyHours_one: 'la fiecare {{count}} oră',
+    everyHours_few: 'la fiecare {{count}} ore',
+    everyHours_other: 'la fiecare {{count}} de ore',
+    everyDays_one: 'la fiecare {{count}} zi',
+    everyDays_few: 'la fiecare {{count}} zile',
+    everyDays_other: 'la fiecare {{count}} de zile',
+    daily: 'zilnic',
+    everyNDays_one: 'la fiecare {{count}} zi',
+    everyNDays_few: 'la fiecare {{count}} zile',
+    everyNDays_other: 'la fiecare {{count}} de zile',
+    weekly: 'săptămânal',
+    everyNWeeks_one: 'la fiecare {{count}} săptămână',
+    everyNWeeks_few: 'la fiecare {{count}} săptămâni',
+    everyNWeeks_other: 'la fiecare {{count}} de săptămâni',
+    monthly: 'lunar',
+    idle: 'când e inactiv',
+    event: 'la un eveniment',
+    once: 'o singură dată',
+    sessionChange: 'la schimbarea sesiunii',
+    registration: 'la înregistrare',
+    joiner: ' · ',
   },
 
   allUsers: 'Toți utilizatorii',

@@ -47,6 +47,11 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   previous analysis ("Docker disk file +42 GB since 12 Oct"). It says when
   there are not enough readings or no earlier analysis yet. Kept in
   `drive-history.sqlite` for 180 days (see PRIVACY.md). (S22-06)
+- Startup: scheduled tasks show how often they run. A "Scheduled task" row
+  gets a second line under its source ("At sign-in · every 5 min",
+  "At sign-in · daily"), and the export and "Copy details" gain a Schedule
+  field. A task whose triggers cannot be read shows nothing rather than a
+  guess. (S22-08)
 
 ### Fixed
 

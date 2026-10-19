@@ -127,6 +127,7 @@ fn build_entry(
         image_path,
         publisher: None,
         pid: None,
+        schedule: None,
     }
 }
 
@@ -195,6 +196,7 @@ pub fn scan_startup_folders(approvals: &ApprovalIndex) -> Vec<StartupEntry> {
                 image_path: if is_shortcut { None } else { Some(path) },
                 publisher: None,
                 pid: None,
+                schedule: None,
             });
         }
     }

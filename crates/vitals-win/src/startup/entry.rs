@@ -176,6 +176,10 @@ pub struct StartupEntry {
     pub publisher: Option<String>,
     /// Live PID, for services that are currently running.
     pub pid: Option<u32>,
+    /// How often a scheduled task runs. `Some` for every
+    /// [`StartupSource::ScheduledTask`] entry and `None` for every other
+    /// source, which have no schedule beyond "at sign-in" to report.
+    pub schedule: Option<super::TaskSchedule>,
 }
 
 impl StartupEntry {
@@ -273,6 +277,7 @@ mod tests {
             image_path: None,
             publisher: None,
             pid: None,
+            schedule: None,
         };
         assert_eq!(entry.label(), "Spooler");
         assert_eq!(

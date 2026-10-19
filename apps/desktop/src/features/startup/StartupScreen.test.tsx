@@ -1,12 +1,21 @@
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { i18n, initI18n } from '@vitals/i18n';
 
+import type * as ExportModule from '../../lib/export';
 import type { ServiceEntry, StartupEntry, StartupSnapshot } from './model';
 import type { StartupActions } from './startupActions';
 import { StartupScreen } from './StartupScreen';
 import { registerStartupStrings } from './strings';
+
+// The export writes through a Blob download jsdom cannot perform; capturing
+// what would have been written is the part worth asserting.
+const saved = vi.hoisted(() => vi.fn<(filename: string, contents: string) => void>());
+vi.mock('../../lib/export', async (importOriginal) => ({
+  ...(await importOriginal<typeof ExportModule>()),
+  saveExport: saved,
+}));
 
 beforeAll(async () => {
   await initI18n();
@@ -34,6 +43,7 @@ function entry(overrides: Partial<StartupEntry> = {}): StartupEntry {
     company: null,
     microsoft: false,
     risk: 'safe',
+    schedule: null,
     ...overrides,
   };
 }
@@ -139,6 +149,88 @@ describe('StartupScreen', () => {
     it('marks a machine-wide entry, because changing it needs elevation', async () => {
       await mount('startup', snapshot({ entries: [entry({ source: 'machineRun' })] }));
       expect(screen.getByText('All users')).toBeTruthy();
+    });
+
+    it('shows how often a scheduled task runs under its source, and nothing for a registry entry', async () => {
+      await mount(
+        'startup',
+        snapshot({
+          entries: [
+            entry({
+              name: 'vmui-service',
+              source: 'scheduledTask',
+              schedule: {
+                atLogon: true,
+                atBoot: false,
+                repeatEverySecs: 300,
+                calendar: null,
+                other: [],
+              },
+            }),
+            entry({ name: 'Steam', source: 'userRun' }),
+          ],
+        }),
+      );
+      const lines = screen.getAllByTestId('startup-schedule');
+      expect(lines).toHaveLength(1);
+      expect(lines[0]?.textContent).toBe('At sign-in · every 5 min');
+      expect(lines[0]?.closest('td')?.textContent).toContain('Scheduled task');
+    });
+
+    it('draws no empty schedule line for a task whose triggers could not be described', async () => {
+      await mount(
+        'startup',
+        snapshot({
+          entries: [
+            entry({
+              source: 'scheduledTask',
+              schedule: {
+                atLogon: false,
+                atBoot: false,
+                repeatEverySecs: null,
+                calendar: null,
+                other: [],
+              },
+            }),
+          ],
+        }),
+      );
+      expect(screen.queryByTestId('startup-schedule')).toBeNull();
+    });
+
+    it('exports the schedule as a worded column, empty for entries that have none', async () => {
+      saved.mockClear();
+      await mount(
+        'startup',
+        snapshot({
+          entries: [
+            entry({
+              name: 'Updater',
+              source: 'scheduledTask',
+              schedule: {
+                atLogon: false,
+                atBoot: true,
+                repeatEverySecs: null,
+                calendar: { kind: 'daily', interval: 2 },
+                other: [],
+              },
+            }),
+            entry({ name: 'Steam', source: 'userRun' }),
+          ],
+        }),
+      );
+
+      fireEvent.pointerDown(screen.getByRole('button', { name: 'Export' }));
+      fireEvent.click(await screen.findByRole('menuitem', { name: /JSON/ }));
+      await waitFor(() => {
+        expect(saved).toHaveBeenCalledOnce();
+      });
+
+      const contents = saved.mock.calls[0]?.[1] ?? '';
+      const rows = JSON.parse(contents) as { name: string; schedule: string }[];
+      const byName = new Map(rows.map((row) => [row.name, row.schedule]));
+      expect(byName.get('Updater')).toBe('At boot · every 2 days');
+      expect(byName.get('Steam')).toBe('');
     });
 
     it('says how many states it could not read, rather than guessing', async () => {
