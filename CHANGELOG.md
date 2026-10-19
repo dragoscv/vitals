@@ -23,6 +23,16 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   (a hibernation file Windows will not let go of, say) says why and cannot
   be ticked.
   A "drive nearly full" alert now offers "Clean up this drive". (S22-02)
+- Storage clean-up: on a drive that is low on space, each Linux (WSL) or
+  Docker Desktop disk has **Move to another drive…**. For a Linux
+  distribution Vitals lists every drive and says why the ones that cannot
+  take it are refused (the same drive, removable or network, not NTFS, not
+  enough room), stops only that distribution, has WSL move its disk
+  (`wsl --manage --move`, WSL 2.3.11 or later, no administrator prompt),
+  shows the copy live, checks the result and starts the distribution again.
+  It can be moved back the same way. Docker Desktop moves its own disk, so
+  Vitals shows the exact setting and folder, opens Docker Desktop, and checks
+  afterwards that the disk has left the drive. (S22-07)
 
 ### Fixed
 

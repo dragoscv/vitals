@@ -3447,6 +3447,53 @@ ws-codai
 check-drift  0 failure(s), 5 warning(s) (cloud_* only, pre-existing)
 ```
 
+### 2026-10-19 — S22-07 guided move of WSL and Docker disks
+
+A drive full because a distro or Docker's data disk lives on it now gets
+**Move to another drive…** next to that disk in the clean-up wizard (only
+when the drive is under 15 % or 25 GB free). ADR-0040 has the research: WSL
+moves a distro itself with `wsl --manage <d> --move` (2.3.11+, keeps the
+registration, rolls back on failure, no administrator rights); Docker Desktop
+has no supported way to be moved from outside, so Vitals guides the user to
+its own setting and checks the result. Nothing was moved on this machine —
+its distros hold live databases and two CI runners — so the planning half is
+proven by the prover against the real registry and volumes:
+
+```
+cargo run -p vitals-win --example prove_drive_move -- --dry-run
+WSL [2, 7, 13, 0]  (move needs >= 2.3.11: yes)
+== plan for C: (1799 ms)
+  Ubuntu-24.04 [distro] size=267.1 GB running=true needs=295.9 GB unavailable=-
+      -> C: sameDrive   -> D: ELIGIBLE   -> E: ELIGIBLE   -> H: notFixed
+      stops wslDistro Ubuntu-24.04 (restart=true)
+      stops githubRunner Ubuntu-24.04: actions.runner.brivio-ro-brivio.brivio-linux-wsl-2.service
+      stops githubRunner Ubuntu-24.04: actions.runner.brivio-ro-brivio.brivio-linux-wsl.service
+      stops vscodeServer Ubuntu-24.04 (restart=false)
+      would run: wsl --manage Ubuntu-24.04 --move D:\Vitals\WSL\Ubuntu-24.04
+  Ubuntu [distro] size=28.1 GB running=false needs=33.0 GB
+  docker-desktop [dockerDesktop] size=191.9 GB running=true needs=213.2 GB
+      -> C: sameDrive   -> D: ELIGIBLE   -> E: ELIGIBLE   -> H: notFixed
+Nothing was stopped, started or moved.
+```
+
+```
+local via run-build (ws-vitals-win suspended, stale queue job)
+  cargo fmt --all -- --check                                              RC 0
+  cargo clippy -p vitals-win -p vitals-desktop --all-targets -D warnings  RC 0
+  cargo test -p vitals-win --lib drive_move        12 passed; 0 failed
+  cargo test -p vitals-desktop --lib drivemove      2 passed; 0 failed
+  mutants: SameDrive removed / Removable accepted / < -> <= / no 10 %   RC 101 each
+ws-codai
+  vitest src/features/storage   Test Files 14 passed, Tests 206 passed
+  typecheck 0 · eslint --max-warnings=0 (10 files) 0 · prettier --check 0
+  mutant backup tick ignored -> 1 failed (will not move until the backup box is ticked)
+check-drift  0 failure(s), 5 warning(s) (cloud_* only, pre-existing)
+check-size -SkipInstaller: initial 205.5 of 206.8 KB (unchanged, the dialog is a lazy 7.7 KB gzip chunk); all assets 491.6 KB was 101.6 % of 484.0 KB -> shippedGzipBytes raised deliberately 495647 -> 510000 (98.7 % after; +14 KB = the lazy chunk plus ~3 % head room for the parallel S22 slices); installer budget checked by CI
+```
+
+Untested: a real `wsl --manage --move` and the restart after it — to run on
+the vivobook (`ssh dragos-vivobook`) with a throwaway distro.
+
 ## S13 — public beta 0.9.0-beta.1 (2026-09-28)
 
 Decided with the owner (ADR 0031): public repository, beta version, no code

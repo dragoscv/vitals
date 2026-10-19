@@ -103,6 +103,8 @@ const en = {
     wslVersionUnknown:
       'Vitals could not tell which version of WSL is installed, so it will not try a step that may be refused.',
   },
+  moveDisk: 'Move to another drive…',
+  moveDiskLabel: 'Move {{name}} to another drive',
   dangerAck: 'I understand {{name}} cannot be undone',
   dangerHint: 'Tick it on its own, then confirm below it. Select-all never ticks this.',
 
@@ -423,6 +425,8 @@ const ro = {
     wslVersionUnknown:
       'Vitals nu a putut afla ce versiune de WSL este instalată, așa că nu încearcă un pas care ar putea fi refuzat.',
   },
+  moveDisk: 'Mută pe altă unitate…',
+  moveDiskLabel: 'Mută {{name}} pe altă unitate',
   dangerAck: 'Înțeleg că {{name}} nu poate fi recuperat',
   dangerHint:
     'Bifează-l separat, apoi confirmă dedesubt. Selectarea tuturor nu îl bifează niciodată.',

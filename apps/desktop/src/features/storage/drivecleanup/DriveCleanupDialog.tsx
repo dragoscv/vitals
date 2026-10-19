@@ -71,6 +71,7 @@ import {
   type PlanGroup,
   type PlanItem,
 } from './model';
+import { MoveDiskButton, MoveDiskProvider } from './move/MoveDiskEntry';
 import { useDriveCleanup, type DriveCleanupSource } from './useDriveCleanup';
 
 function useStorageT() {
@@ -360,7 +361,18 @@ export function DriveCleanupDialog({
                 {t('drive.stepOf', { n: stepIndex, name: stepName })}
               </p>
             )}
-            {body}
+            {'plan' in phase ? (
+              <MoveDiskProvider
+                mount={phase.plan.mount}
+                freeBytes={phase.plan.freeBytes}
+                totalBytes={phase.plan.totalBytes}
+                locale={locale}
+              >
+                {body}
+              </MoveDiskProvider>
+            ) : (
+              body
+            )}
           </div>
         </TooltipProvider>
       </DialogContent>
@@ -708,6 +720,9 @@ function Item({
       </div>
       <div className="mt-1 flex flex-wrap gap-1 pl-6">
         <ItemBadges item={item} t={t} />
+      </div>
+      <div className="mt-1 pl-6 empty:hidden">
+        <MoveDiskButton item={item} />
       </div>
       <p className="pl-6 text-2xs text-[var(--color-fg-muted)]">{itemWhat(item, t)}</p>
       {reason !== null && (

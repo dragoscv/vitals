@@ -16,6 +16,8 @@ pub mod devclean;
 pub mod distribution;
 #[cfg(windows)]
 pub mod drivecleanup;
+#[cfg(windows)]
+pub mod drivemove;
 pub mod hardware;
 pub mod history;
 pub mod hud;
@@ -338,6 +340,15 @@ fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
         drivecleanup::cancel_drive_cleanup_analysis,
         #[cfg(windows)]
         drivecleanup::run_drive_cleanup,
+        // Guided disk move (ADR-0040): plan kept here, ids only cross.
+        #[cfg(windows)]
+        drivemove::plan_drive_move,
+        #[cfg(windows)]
+        drivemove::run_drive_move,
+        #[cfg(windows)]
+        drivemove::open_docker_desktop,
+        #[cfg(windows)]
+        drivemove::check_docker_disk,
         // Benchmarks. The extreme case of the on-demand argument above:
         // a suite occupies every core for seconds, so it is only ever
         // started by the user from its own screen.
