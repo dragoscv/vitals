@@ -51,6 +51,27 @@ describe('StatList', () => {
     expect(container.firstChild).toBeNull();
   });
 
+  it('keeps the slot of a row that showed a value once, so the cells after it never shift', () => {
+    const tick = (power: string | null) => (
+      <StatList
+        stats={[
+          { key: 'speed', label: 'Speed', value: '4.2 GHz' },
+          { key: 'power', label: 'Power', value: power },
+          { key: 'threads', label: 'Threads', value: '3,914' },
+        ]}
+        omitNull
+        unavailableLabel="Not available"
+      />
+    );
+    const { rerender } = render(tick('65 W'));
+    const labels = () => Array.from(document.querySelectorAll('dt')).map((dt) => dt.textContent);
+    expect(labels()).toEqual(['Speed', 'Power', 'Threads']);
+
+    rerender(tick(null));
+    expect(labels(), 'the power row must stay in its place').toEqual(['Speed', 'Power', 'Threads']);
+    expect(screen.getByLabelText('Not available').textContent).toBe('—');
+  });
+
   it('pairs each label with its value as a definition term and description', () => {
     render(<StatList stats={stats} />);
 

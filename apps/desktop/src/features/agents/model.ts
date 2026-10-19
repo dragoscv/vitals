@@ -7,10 +7,12 @@ import type {
   AgentClient,
   AgentSession,
   AgentqCaller,
+  AgentqJob,
   AgentqLease,
   AgentqResource,
   AgentqTicket,
   AgentsSnapshot,
+  RepoStat,
   SessionState,
 } from '@vitals/protocol';
 
@@ -79,6 +81,31 @@ export function byClient(
 function live(list: readonly AgentSession[]): number {
   return list.filter((s) => s.state === 'working' || s.state === 'waiting').length;
 }
+
+/*
+ * Keys and coarse ranks for `useStableOrder`. A rank is a category whose
+ * change is news and should move the item at once; it is never a live value
+ * such as last activity or a ticket count, which change every push.
+ */
+
+const STATE_RANK: Record<SessionState, number> = { working: 0, waiting: 1, idle: 2, ended: 3 };
+
+export const sessionKey = (s: AgentSession): string => s.id;
+export const sessionRank = (s: AgentSession): number => STATE_RANK[s.state];
+
+type ClientGroup = ReturnType<typeof byClient>[number];
+export const groupKey = (g: ClientGroup): string => g.client;
+/** Whether a client has anything live: a client waking up moves up at once. */
+export const groupRank = (g: ClientGroup): number => (live(g.sessions) > 0 ? 0 : 1);
+
+export const resourceKey = (r: AgentqResource): string => r.name;
+export const resourceRank = (r: AgentqResource): number => (r.kind === 'machine' ? 0 : 1);
+
+export const jobKey = (j: AgentqJob): string => j.id;
+export const jobRank = (j: AgentqJob): number =>
+  j.state === 'running' ? 0 : j.state === 'suspect' || j.state === 'dead' ? 1 : 2;
+
+export const repoStatKey = (r: RepoStat): string => r.repo;
 
 /**
  * What agentq is doing for a session: its tickets and leases, joined through

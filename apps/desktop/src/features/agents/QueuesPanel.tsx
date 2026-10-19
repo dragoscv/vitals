@@ -18,9 +18,9 @@ import type {
   AgentqTicket,
   AgentsSnapshot,
 } from '@vitals/protocol';
-import { Badge, Button, EmptyState, cn } from '@vitals/ui';
+import { Badge, Button, EmptyState, cn, useHoverHold, useStableOrder } from '@vitals/ui';
 
-import { resourceSlots, since } from './model';
+import { resourceKey, resourceRank, resourceSlots, since } from './model';
 import { LivenessDot, SlotStrip } from './parts';
 import { AGENTS_NS } from './strings';
 
@@ -40,12 +40,22 @@ export function QueuesPanel({
 }) {
   const { t } = useTranslation(AGENTS_NS);
   const marks = new Map(snapshot.marks.map((mk) => [mk.resource, mk]));
-  const busy = snapshot.resources.filter((r) => r.tickets.length > 0 || r.kind === 'machine');
+  // The desktop orders queues by how many tickets each holds, which changes
+  // with every acquire and release; the cards hold their places (S22-10).
+  const { held, bind } = useHoverHold();
+  const busy = useStableOrder(
+    snapshot.resources.filter((r) => r.tickets.length > 0 || r.kind === 'machine'),
+    resourceKey,
+    { rankOf: resourceRank, now, held },
+  );
   return (
     <div className="flex flex-col gap-3">
       <MachineCard snapshot={snapshot} />
       {busy.length === 0 && <EmptyState title={t('queue.empty')} />}
-      <ul className="grid [grid-template-columns:repeat(auto-fill,minmax(24rem,1fr))] gap-2">
+      <ul
+        className="grid [grid-template-columns:repeat(auto-fill,minmax(24rem,1fr))] gap-2"
+        {...bind}
+      >
         <AnimatePresence initial={false}>
           {busy.map((r) => (
             <ResourceCard

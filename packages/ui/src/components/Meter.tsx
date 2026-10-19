@@ -18,7 +18,12 @@ export interface MeterProps {
   readonly label: ReactNode;
   /** Accessible name. Needed separately because `label` may be a node. */
   readonly accessibleLabel: string;
-  readonly value: number;
+  /**
+   * `null` is a reading that dropped out this tick: the track stays, empty,
+   * so the row keeps its place in a list instead of vanishing. Never pass 0
+   * for it — an unmeasured temperature is not 0 °C.
+   */
+  readonly value: number | null;
   readonly max?: number;
   /**
    * The formatted reading shown at the trailing edge, e.g. "43%" or "6.2 GB".
@@ -73,7 +78,7 @@ export const Meter = forwardRef<HTMLDivElement, MeterProps>(function Meter(
   ref,
 ) {
   const reduced = useReducedMotion();
-  const ratio = Math.min(Math.max(value / (max || 1), 0), 1);
+  const ratio = value === null ? 0 : Math.min(Math.max(value / (max || 1), 0), 1);
 
   return (
     <div ref={ref} className={cn('flex flex-col gap-1', className)} {...rest}>
@@ -92,8 +97,8 @@ export const Meter = forwardRef<HTMLDivElement, MeterProps>(function Meter(
         aria-label={accessibleLabel}
         aria-valuemin={0}
         aria-valuemax={max}
-        aria-valuenow={value}
-        aria-valuetext={valueText}
+        // Unmeasured: no current value to announce; `accessibleLabel` says why.
+        {...(value !== null && { 'aria-valuenow': value, 'aria-valuetext': valueText })}
         // No `overflow-hidden`: it sliced the fill's glow flat along the
         // track's edges, which read as a rendering bug. The fill cannot
         // escape — `ratio` is clamped to 0..1 and the fill is itself rounded.

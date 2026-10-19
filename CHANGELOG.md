@@ -7,6 +7,20 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Live lists stay still. On Performance, a reading that comes and goes
+  (CPU power or temperature, GPU power, Wi-Fi signal) keeps its place and
+  shows a dash while it is missing, so the other figures no longer jump from
+  one cell to another every second; the same holds for temperatures and fans
+  on Thermals and on the Dashboard. On the AI page, agent cards, queues, jobs
+  and per-project rows keep their places while the figures update, and still
+  move straight away when an agent starts or stops working (otherwise the
+  list re-sorts every 30 seconds). The Processes table, the Dashboard's top
+  programs, Network and the phone's process list re-sort every few seconds
+  instead of on every update. Nothing moves while the pointer is over a list
+  or the keyboard focus is inside it, so a row never slides away from a click.
+
 ## [1.1.0] — 2026-10-19
 
 A clean-up for each drive, in plain steps. In short:

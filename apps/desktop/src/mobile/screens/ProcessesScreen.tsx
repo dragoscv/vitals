@@ -11,6 +11,8 @@ import {
   Skeleton,
   formatBytes,
   formatPercent,
+  useHoverHold,
+  useStableOrder,
 } from '@vitals/ui';
 
 import { ActionSheet, type ActionOutcome } from '../components/ActionSheet';
@@ -29,6 +31,14 @@ type SortKey = 'cpu' | 'memory';
 /** Tall enough for a 44 px touch target with breathing room. */
 const ROW_HEIGHT = 56;
 
+const processKey = (p: Process): string => `${p.key.pid}:${p.key.startTime}`;
+
+/**
+ * Re-sort at most this often. Sorted fresh every frame, two processes near
+ * the same CPU swapped under the user's thumb as they reached for one.
+ */
+const RESORT_MS = 2500;
+
 /** The process list for one PC, sorted, searchable and virtualised. */
 export function ProcessesScreen({
   pairing,
@@ -43,7 +53,7 @@ export function ProcessesScreen({
   const [selected, setSelected] = useState<Process | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const rows = useMemo(() => {
+  const sorted = useMemo(() => {
     const all = live.snapshot === null ? [] : Array.from(live.snapshot.processes.values());
     const needle = query.trim().toLowerCase();
     const filtered = needle === '' ? all : all.filter((p) => matchesProcessName(p, needle));
@@ -51,6 +61,13 @@ export function ProcessesScreen({
       sort === 'cpu' ? b.cpu - a.cpu : b.memoryPrivate - a.memoryPrivate,
     );
   }, [live.snapshot, query, sort]);
+  // A finger resting on the list (or focus inside it) holds the rows still.
+  const { held, bind } = useHoverHold();
+  const rows = useStableOrder(sorted, processKey, {
+    settleMs: RESORT_MS,
+    resetKey: `${sort}\u0000${query}`,
+    held,
+  });
 
   // Same reasoning as the desktop table: the virtualiser's own output is a
   // handful of numbers per scroll frame and nothing memoised depends on it.
@@ -80,7 +97,7 @@ export function ProcessesScreen({
     },
     getItemKey: (index) => {
       const p = rows[index];
-      return p === undefined ? index : `${p.key.pid}:${p.key.startTime}`;
+      return p === undefined ? index : processKey(p);
     },
   });
 
@@ -126,7 +143,7 @@ export function ProcessesScreen({
         />
       </div>
 
-      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto" aria-busy={loading}>
+      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto" aria-busy={loading} {...bind}>
         {loading ? (
           <ul className="space-y-px px-4">
             {Array.from({ length: 10 }, (_, i) => (

@@ -19,7 +19,19 @@ export interface StableOrderInput {
   /** Positions are held while true; values still update. */
   readonly frozen: boolean;
   readonly locale: string;
+  /**
+   * Re-sort at most this often. Between re-sorts the order is held exactly as
+   * when frozen: values update in place, new rows join at the bottom. With
+   * smoothing and the deadband alone a busy machine still moved a row or two
+   * every second, which read as the whole table twitching (S22-10).
+   */
+  readonly settleMs?: number;
+  /** The clock, injectable for tests. */
+  readonly now?: () => number;
 }
+
+/** Long enough that the table reads as still, short enough to stay current. */
+export const RESORT_INTERVAL_MS = 2500;
 
 /**
  * Returns the rows in a stabilised order.
@@ -30,10 +42,14 @@ export interface StableOrderInput {
  */
 export function useStableOrder(input: StableOrderInput): readonly ProcessRow[] {
   const { rows, column, direction, frozen, locale } = input;
+  const settleMs = input.settleMs ?? RESORT_INTERVAL_MS;
+  const clock = input.now ?? Date.now;
 
   const smoothed = useRef(new Map<string, number>());
   const previousOrder = useRef<readonly string[]>([]);
   const previousColumn = useRef<ColumnId>(column);
+  const previousDirection = useRef(direction);
+  const sortedAt = useRef(Number.NEGATIVE_INFINITY);
 
   return useMemo(() => {
     const def = COLUMN_BY_ID.get(column);
@@ -46,7 +62,16 @@ export function useStableOrder(input: StableOrderInput): readonly ProcessRow[] {
       previousOrder.current = [];
       smoothed.current.clear();
       previousColumn.current = column;
+      sortedAt.current = Number.NEGATIVE_INFINITY;
     }
+    // Reversing the direction is a click too, and must answer at once.
+    if (previousDirection.current !== direction) {
+      previousDirection.current = direction;
+      sortedAt.current = Number.NEGATIVE_INFINITY;
+    }
+    const now = clock();
+    const resort = !frozen && now - sortedAt.current >= settleMs;
+    if (resort) sortedAt.current = now;
 
     let compare: (a: string, b: string) => number;
 
@@ -84,10 +109,10 @@ export function useStableOrder(input: StableOrderInput): readonly ProcessRow[] {
     // Siblings are ordered within their parent, never across the whole list:
     // sorting a tree flat would separate a child from its parent and the
     // indentation would describe a structure the row order contradicts.
-    const ordered = orderTree(rows, compare, previousOrder.current, frozen);
+    const ordered = orderTree(rows, compare, previousOrder.current, !resort);
     previousOrder.current = ordered.map((row) => row.id);
     return ordered;
-  }, [rows, column, direction, frozen, locale]);
+  }, [rows, column, direction, frozen, locale, settleMs, clock]);
 }
 
 /**

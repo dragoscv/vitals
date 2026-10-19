@@ -13,6 +13,20 @@ export {
 } from './lib/format';
 export { useReducedMotion } from './lib/useReducedMotion';
 export {
+  DEFAULT_SETTLE_MS,
+  stableOrderStep,
+  stickyRowsStep,
+  useHoverHold,
+  useSeenKeys,
+  useStableOrder,
+  useStickyRows,
+  type HoverHold,
+  type StickyRow,
+  type StableOrderOptions,
+  type StableOrderState,
+  type StableOrderStep,
+} from './lib/useStableOrder';
+export {
   disabledControl,
   disabledData,
   focusRing,

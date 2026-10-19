@@ -14,7 +14,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import type { AgentSession, AgentsSnapshot } from '@vitals/protocol';
-import { Badge, EmptyState, cn } from '@vitals/ui';
+import { Badge, EmptyState, cn, useHoverHold, useStableOrder } from '@vitals/ui';
 
 import {
   activeShare,
@@ -22,6 +22,10 @@ import {
   formatCount,
   formatDuration,
   formatTokens,
+  groupKey,
+  groupRank,
+  sessionKey,
+  sessionRank,
   since,
   workFor,
 } from './model';
@@ -43,12 +47,19 @@ export function SessionsPanel({
     limit === 'live'
       ? snapshot.sessions.filter((s) => s.state === 'working' || s.state === 'waiting')
       : snapshot.sessions;
+  // The desktop sorts by state, then by last activity, which changes every
+  // second: followed literally, two busy sessions swap places on every push.
+  // Shown order moves only when a state changes or every 30 s (S22-10).
+  // Nothing moves at all while the pointer or focus is on the cards.
+  const { held, bind } = useHoverHold();
+  const ordered = useStableOrder(sessions, sessionKey, { rankOf: sessionRank, now, held });
+  const groups = useStableOrder(byClient(ordered), groupKey, { rankOf: groupRank, now, held });
   if (sessions.length === 0) {
     return <EmptyState title={t('empty.title')} description={t('empty.body')} />;
   }
   return (
-    <div className="flex flex-col gap-4">
-      {byClient(sessions).map(({ client, sessions: list }) => (
+    <div className="flex flex-col gap-4" {...bind}>
+      {groups.map(({ client, sessions: list }) => (
         <section key={client} aria-label={t(`client.${client}`)} className="flex flex-col gap-2">
           <h3 className="flex items-center gap-2 text-sm font-semibold">
             <ClientMark client={client} size="sm" />

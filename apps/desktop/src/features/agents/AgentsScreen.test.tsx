@@ -52,6 +52,77 @@ describe('AgentsScreen', () => {
     expect(await screen.findByText('Ship the release')).toBeTruthy();
   });
 
+  it('session cards keep their places when only last activity reorders the pushed list', async () => {
+    const a = makeSession({ id: 'a', title: 'Alpha task' });
+    const b = makeSession({ id: 'b', title: 'Bravo task' });
+    const src = source(makeSnapshot({ sessions: [a, b] }));
+    render(<AgentsScreen source={src} />);
+    await screen.findByText('Alpha task');
+    const titles = () =>
+      screen.getAllByText(/^(Alpha|Bravo|Charlie) task$/).map((el) => el.textContent);
+    const before = titles();
+    // The desktop re-sorts by last activity: b is now more recent than a.
+    act(() =>
+      src.push(
+        makeSnapshot({
+          sessions: [
+            { ...b, turns: 13 },
+            { ...a, turns: 14 },
+          ],
+        }),
+      ),
+    );
+    await waitFor(() => expect(screen.getAllByText('14').length).toBeGreaterThan(0));
+    expect(titles()).toEqual(before);
+  });
+
+  it('a session that stops working still moves below the working ones at once', async () => {
+    const a = makeSession({ id: 'a', title: 'Alpha task' });
+    const b = makeSession({ id: 'b', title: 'Bravo task' });
+    const src = source(makeSnapshot({ sessions: [a, b] }));
+    render(<AgentsScreen source={src} />);
+    fireEvent.mouseDown(await screen.findByRole('tab', { name: /Sessions/ }));
+    fireEvent.click(screen.getByRole('tab', { name: /Sessions/ }));
+    await screen.findByText('Alpha task');
+    act(() =>
+      src.push(
+        makeSnapshot({
+          sessions: [b, { ...a, state: 'idle', currentTool: null }],
+        }),
+      ),
+    );
+    await waitFor(() =>
+      expect(screen.getAllByText(/^(Alpha|Bravo) task$/).map((el) => el.textContent)).toEqual([
+        'Bravo task',
+        'Alpha task',
+      ]),
+    );
+  });
+
+  it('session cards under the pointer do not move even when a state changes, until it leaves', async () => {
+    const a = makeSession({ id: 'a', title: 'Alpha task' });
+    const b = makeSession({ id: 'b', title: 'Bravo task' });
+    const src = source(makeSnapshot({ sessions: [a, b] }));
+    render(<AgentsScreen source={src} />);
+    fireEvent.mouseDown(await screen.findByRole('tab', { name: /Sessions/ }));
+    fireEvent.click(screen.getByRole('tab', { name: /Sessions/ }));
+    const alpha = await screen.findByText('Alpha task');
+    const titles = () => screen.getAllByText(/^(Alpha|Bravo) task$/).map((el) => el.textContent);
+    fireEvent.pointerEnter(alpha);
+    act(() =>
+      src.push(
+        makeSnapshot({ sessions: [b, { ...a, state: 'idle', currentTool: null, turns: 21 }] }),
+      ),
+    );
+    await waitFor(() => expect(screen.getAllByText('21').length).toBeGreaterThan(0));
+    expect(titles(), 'nothing may slide out from under the pointer').toEqual([
+      'Alpha task',
+      'Bravo task',
+    ]);
+    fireEvent.pointerLeave(alpha);
+    await waitFor(() => expect(titles()).toEqual(['Bravo task', 'Alpha task']));
+  });
+
   it('removing a dead ticket asks for a reason and sends it with the ticket id', async () => {
     const src = source(makeSnapshot());
     render(<AgentsScreen source={src} />);

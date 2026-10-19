@@ -25,7 +25,7 @@
 import { useTranslation } from 'react-i18next';
 
 import type { SystemMetrics } from '@vitals/protocol';
-import { EmptyState, Meter, formatCount, formatTemperature } from '@vitals/ui';
+import { EmptyState, Meter, formatCount, formatTemperature, useStickyRows } from '@vitals/ui';
 import { StatList } from '../StatList';
 
 import { PERFORMANCE_NS } from '../strings';
@@ -41,6 +41,9 @@ export interface Reading {
   readonly celsius: number;
 }
 
+const readingKey = (reading: Reading): string => reading.key;
+const fanKey = (fan: { readonly key: string }): string => fan.key;
+
 export function ThermalsPanel({
   system,
   locale,
@@ -50,8 +53,13 @@ export function ThermalsPanel({
 }): React.JSX.Element {
   const { t } = useTranslation(PERFORMANCE_NS);
 
-  const readings = collectReadings(system, (key, options) => t(key, options ?? {}));
-  const fans = collectFans(system);
+  // Sticky: a sensor that skips a tick keeps its line as an empty track and
+  // a dash, rather than vanishing and pulling every line below it up (S22-10).
+  const readings = useStickyRows(
+    collectReadings(system, (key, options) => t(key, options ?? {})),
+    readingKey,
+  );
+  const fans = useStickyRows(collectFans(system), fanKey);
 
   return (
     <div className="flex flex-col gap-4" data-category="thermals">
@@ -61,23 +69,28 @@ export function ThermalsPanel({
         <EmptyState title={t('unavailable')} description={t('thermals.gapsHint')} />
       ) : (
         <div className="flex flex-col gap-2">
-          {readings.map((reading) => (
-            <Meter
-              key={reading.key}
-              label={reading.label}
-              accessibleLabel={`${reading.label} ${formatTemperature(reading.celsius, locale)}`}
-              value={reading.celsius}
-              max={100}
-              valueText={formatTemperature(reading.celsius, locale)}
-              tone={
-                reading.celsius > CRITICAL_C
-                  ? 'danger'
-                  : reading.celsius > WARM_C
-                    ? 'warn'
-                    : 'accent'
-              }
-            />
-          ))}
+          {readings.map(({ key, row: reading, present }) => {
+            const text = present ? formatTemperature(reading.celsius, locale) : '—';
+            return (
+              <Meter
+                key={key}
+                label={reading.label}
+                accessibleLabel={`${reading.label} ${present ? text : t('unavailable')}`}
+                value={present ? reading.celsius : null}
+                max={100}
+                valueText={text}
+                tone={
+                  !present
+                    ? 'neutral'
+                    : reading.celsius > CRITICAL_C
+                      ? 'danger'
+                      : reading.celsius > WARM_C
+                        ? 'warn'
+                        : 'accent'
+                }
+              />
+            );
+          })}
         </div>
       )}
 
@@ -86,10 +99,14 @@ export function ThermalsPanel({
           <p className="mb-1.5 text-2xs text-[var(--color-fg-muted)]">{t('thermals.fanSpeed')}</p>
           <StatList
             columns={3}
-            stats={fans.map((fan) => ({
-              key: fan.key,
+            stats={fans.map(({ key, row: fan, present }) => ({
+              key,
               label: fan.label,
-              value: fan.rpm !== null ? `${formatCount(fan.rpm, locale)} RPM` : `${fan.percent}%`,
+              value: !present
+                ? null
+                : fan.rpm !== null
+                  ? `${formatCount(fan.rpm, locale)} RPM`
+                  : `${fan.percent}%`,
             }))}
           />
         </div>

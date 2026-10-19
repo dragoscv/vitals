@@ -31,6 +31,7 @@ import {
   cn,
   formatPercent,
   formatTemperature,
+  useSeenKeys,
 } from '@vitals/ui';
 import { Copy, Eye, EyeOff, PlugZap } from 'lucide-react';
 
@@ -50,6 +51,7 @@ import { MemoryPanel } from './panels/MemoryPanel';
 import { ThermalsPanel } from './panels/ThermalsPanel';
 import {
   buildResourceList,
+  hasThermalReadings,
   resolveSelection,
   setResourceHidden,
   visibleResources,
@@ -92,9 +94,12 @@ export function PerformanceScreen({
   // different device the moment one above it was unplugged.
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
+  const keepThermals = useSeenKeys(hasThermalReadings(snapshot.system) ? ['thermals'] : []).has(
+    'thermals',
+  );
   const all = useMemo(
-    () => buildResourceList(snapshot.system, { visibility }),
-    [snapshot.system, visibility],
+    () => buildResourceList(snapshot.system, { visibility, keepThermals }),
+    [snapshot.system, visibility, keepThermals],
   );
   const entries = useMemo(() => visibleResources(all, showHidden), [all, showHidden]);
   const hiddenCount = useMemo(() => all.filter((entry) => entry.hidden).length, [all]);

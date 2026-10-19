@@ -10,9 +10,18 @@ import { useTranslation } from 'react-i18next';
 import { useVirtualizer } from '@tanstack/react-virtual';
 
 import type { AgentqJob, AgentsSnapshot, JournalEvent } from '@vitals/protocol';
-import { Badge, Button, EmptyState, Input, SegmentedControl, cn } from '@vitals/ui';
+import {
+  Badge,
+  Button,
+  EmptyState,
+  Input,
+  SegmentedControl,
+  cn,
+  useHoverHold,
+  useStableOrder,
+} from '@vitals/ui';
 
-import { eventTone, formatDuration, since } from './model';
+import { eventTone, formatDuration, jobKey, jobRank, repoStatKey, since } from './model';
 import { HourBars, Kpi } from './parts';
 import type { RequestAction } from './QueuesPanel';
 import { AGENTS_NS } from './strings';
@@ -36,15 +45,19 @@ export function JobsPanel({
   readonly onAction: RequestAction;
 }) {
   const { t } = useTranslation(AGENTS_NS);
+  // Ordered by when each job file was last written, which a running job does
+  // constantly; rows move only when a job starts, stops or turns suspect.
+  const { held, bind } = useHoverHold();
+  const jobs = useStableOrder(snapshot.jobs, jobKey, { rankOf: jobRank, now, held });
   return (
     <div className="flex flex-col gap-4">
       <section aria-label={t('tab.jobs')} className="flex flex-col gap-2">
-        {snapshot.jobs.length === 0 ? (
+        {jobs.length === 0 ? (
           <EmptyState title={t('job.empty')} />
         ) : (
-          <ul className="flex flex-col gap-1.5">
+          <ul className="flex flex-col gap-1.5" {...bind}>
             <AnimatePresence initial={false}>
-              {snapshot.jobs.map((j) => (
+              {jobs.map((j) => (
                 <JobRow key={j.id} job={j} now={now} onAction={onAction} />
               ))}
             </AnimatePresence>
@@ -316,6 +329,10 @@ export function CloudPanel({
 export function InsightsPanel({ snapshot }: { readonly snapshot: AgentsSnapshot }) {
   const { t } = useTranslation(AGENTS_NS);
   const s = snapshot.stats;
+  // Two repos with similar hold totals would trade places as the 24 h window
+  // slides; the rows re-sort every 30 s instead of on every push.
+  const { held, bind } = useHoverHold();
+  const byRepo = useStableOrder(s.byRepo, repoStatKey, { held });
   const sec = (v: number | null) => (v === null ? '—' : formatDuration(v * 1000));
   return (
     <div className="flex flex-col gap-4">
@@ -344,9 +361,9 @@ export function InsightsPanel({ snapshot }: { readonly snapshot: AgentsSnapshot 
         <h3 className="text-sm font-semibold">{t('insights.perHour')}</h3>
         <HourBars values={s.runsPerHour} label={t('insights.perHour')} />
       </section>
-      <section aria-label={t('insights.byRepo')} className="flex flex-col gap-1.5">
+      <section aria-label={t('insights.byRepo')} className="flex flex-col gap-1.5" {...bind}>
         <h3 className="text-sm font-semibold">{t('insights.byRepo')}</h3>
-        {s.byRepo.map((r) => {
+        {byRepo.map((r) => {
           const max = Math.max(1, ...s.byRepo.map((x) => x.holdTotalSec + x.waitTotalSec));
           return (
             <div key={r.repo} className="flex flex-col gap-0.5 text-2xs">

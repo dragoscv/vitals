@@ -38,6 +38,8 @@ import {
   SegmentedControl,
   Skeleton,
   cn,
+  useHoverHold,
+  useStableOrder,
 } from '@vitals/ui';
 
 import { ExportButton } from '../../components/ExportButton';
@@ -62,6 +64,9 @@ import {
 } from './model';
 import { CONNECTIONS_NS } from './strings';
 import { NO_HOST, useConnections, type ConnectionsReader } from './useConnections';
+
+const groupName = (group: ConnectionGroup): string => group.name;
+const GROUP_SETTLE_MS = 10_000;
 
 export interface ConnectionsScreenProps {
   /** Injectable so tests and the sampler-less preview need no Tauri host. */
@@ -119,7 +124,15 @@ export function ConnectionsScreen({
     });
   }, [state.snapshot, namesByPid, t]);
 
-  const visible = useMemo(() => applySearch(groups, filter, query), [groups, filter, query]);
+  const searched = useMemo(() => applySearch(groups, filter, query), [groups, filter, query]);
+  // Busiest first, but two apps with similar socket counts traded places on
+  // every 2 s poll; the rows re-sort every 10 s, or at once on a new search.
+  const { held, bind } = useHoverHold();
+  const visible = useStableOrder(searched, groupName, {
+    settleMs: GROUP_SETTLE_MS,
+    resetKey: `${filter}\u0000${query}`,
+    held,
+  });
 
   // The export is the flat socket list, one row per socket with its owning
   // application in the first column. The grouping is a reading aid; a CSV
@@ -198,7 +211,7 @@ export function ConnectionsScreen({
       ) : (
         // A bounded box, like the tables elsewhere: the list scrolls inside
         // it, and the search and filter above never scroll away (S12-26).
-        <div className="list-scroll" onKeyDown={menu.onKeyDown}>
+        <div className="list-scroll" onKeyDown={menu.onKeyDown} {...bind}>
           <ul className="flex flex-col gap-1.5">
             {visible.map((group) => (
               <GroupRow

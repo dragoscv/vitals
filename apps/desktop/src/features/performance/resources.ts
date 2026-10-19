@@ -89,6 +89,12 @@ export type ResourceVisibility = Readonly<Record<string, 'hidden' | 'shown'>>;
 
 export interface ResourceListOptions {
   readonly visibility?: ResourceVisibility;
+  /**
+   * Keep the Thermals entry even when no sensor reported this tick, because
+   * one did earlier. A temperature that skips a frame otherwise removed the
+   * entry — and, if it was open, sent the user back to CPU (S22-10).
+   */
+  readonly keepThermals?: boolean;
 }
 
 /**
@@ -231,7 +237,7 @@ export function buildResourceList(
     });
   }
 
-  if (hasThermalReadings(system)) {
+  if (options.keepThermals === true || hasThermalReadings(system)) {
     entries.push({
       id: 'thermals',
       key: null,

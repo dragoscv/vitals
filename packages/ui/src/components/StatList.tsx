@@ -1,5 +1,6 @@
 import { type ReactNode } from 'react';
 import { cn } from '../lib/cn';
+import { useSeenKeys } from '../lib/useStableOrder';
 
 export interface Stat {
   readonly key: string;
@@ -41,6 +42,12 @@ export interface StatListProps {
    * that looks like the panel failed to load. Off by default because on a
    * short list the dash is the honest answer: the field exists, the reading
    * does not.
+   *
+   * A row that has shown a value once keeps its slot for as long as the list
+   * is mounted, and shows the dash when the reading drops out again. Readings
+   * such as CPU power or Wi-Fi signal flicker between a value and `null`;
+   * dropping the row each time moved every cell after it to another place in
+   * the grid once a second (S22-10).
    */
   readonly omitNull?: boolean;
   /**
@@ -78,8 +85,11 @@ export function StatList({
   unavailableLabel,
   className,
 }: StatListProps): React.JSX.Element | null {
+  const seen = useSeenKeys(stats.filter((stat) => stat.value !== null).map((stat) => stat.key));
   const visible = omitNull
-    ? stats.filter((stat) => stat.value !== null || stat.unavailable !== undefined)
+    ? stats.filter(
+        (stat) => stat.value !== null || stat.unavailable !== undefined || seen.has(stat.key),
+      )
     : stats;
   if (visible.length === 0) return null;
 

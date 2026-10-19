@@ -376,6 +376,15 @@ function tableData() {
 
 export interface FakeHostOptions {
   readonly locale: 'en' | 'ro';
+  /**
+   * Make the optional readings flicker: every other frame reports CPU power,
+   * temperature and GPU power as `null`, the way real sensors skip a tick.
+   * The S22-10 defect — rows vanishing and every cell after them moving —
+   * only shows with this on.
+   */
+  readonly flicker?: boolean;
+  /** The first AI-page snapshot; later ones are pushed with `pushAgents`. */
+  readonly agents?: unknown;
 }
 
 /** Installs the fake host before the app's first script runs. */
@@ -385,6 +394,8 @@ export async function installFakeHost(page: Page, options: FakeHostOptions): Pro
     storage: storageData(),
     keyframe: frameData(),
     tables: tableData(),
+    flicker: options.flicker === true,
+    agents: options.agents ?? null,
   };
   await page.addInitScript((d) => {
     type Handler = (event: { event: string; id: number; payload: unknown }) => void;
@@ -397,7 +408,17 @@ export async function installFakeHost(page: Page, options: FakeHostOptions): Pro
     };
     const sendFrame = () => {
       seq += 1;
-      emit('vitals://frame', { ...d.keyframe, seq, timestampMs: Date.now() });
+      let frame: typeof d.keyframe = d.keyframe;
+      if (d.flicker && seq % 2 === 1) {
+        frame = JSON.parse(JSON.stringify(d.keyframe)) as typeof d.keyframe;
+        const system = (frame.payload as unknown as Record<string, Record<string, unknown>>)[
+          'system'
+        ] as { cpu: Record<string, unknown>; gpus: Record<string, unknown>[] };
+        system.cpu['power'] = null;
+        system.cpu['temperature'] = null;
+        for (const gpu of system.gpus) gpu['power'] = null;
+      }
+      emit('vitals://frame', { ...frame, seq, timestampMs: Date.now() });
     };
     // An Error carrying `kind`, so `isCommandError` reads it as the shape
     // Tauri commands reject with and the screen shows its own failure state.
@@ -418,6 +439,9 @@ export async function installFakeHost(page: Page, options: FakeHostOptions): Pro
       get_launch_options: { autostarted: false, quietRelaunch: false },
       get_alerts: [],
       list_benchmarks: [],
+      ...(d.agents === null
+        ? {}
+        : { subscribe_agents: { id: 1, snapshot: d.agents }, unsubscribe_agents: null }),
       ...d.tables,
     };
 
@@ -463,6 +487,18 @@ export async function installFakeHost(page: Page, options: FakeHostOptions): Pro
       convertFileSrc: (path: string) => path,
     };
     w['__TAURI_EVENT_PLUGIN_INTERNALS__'] = { unregisterListener: () => undefined };
+    // For tests that drive a sequence of snapshots themselves.
+    w['__fakeEmit'] = emit;
     setInterval(sendFrame, 1000);
   }, data);
+}
+
+/** Pushes an AI-page snapshot through the fake host, as the desktop does every ~2 s. */
+export async function pushAgents(page: Page, snapshot: unknown): Promise<void> {
+  await page.evaluate((s) => {
+    const emit = (window as unknown as Record<string, (e: string, p: unknown) => void>)[
+      '__fakeEmit'
+    ];
+    emit?.('vitals://agents', s);
+  }, snapshot);
 }

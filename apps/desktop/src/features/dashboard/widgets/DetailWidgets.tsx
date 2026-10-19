@@ -27,6 +27,10 @@ import {
   formatTemperature,
   formatUptime,
   formatWatts,
+  useSeenKeys,
+  useHoverHold,
+  useStableOrder,
+  useStickyRows,
 } from '@vitals/ui';
 
 import { DASHBOARD_NS } from '../strings';
@@ -95,43 +99,75 @@ export function GpuWidget({ system, locale }: DetailWidgetProps): React.JSX.Elem
 export function ThermalsWidget({ system, locale }: DetailWidgetProps): React.JSX.Element {
   const { t } = useTranslation(DASHBOARD_NS);
 
-  const readings: { key: string; label: string; celsius: number }[] = [];
+  const measured: ThermalLine[] = [];
   if (system.cpu.temperature !== null) {
-    readings.push({ key: 'cpu', label: t('cpu.total'), celsius: system.cpu.temperature });
+    measured.push({ key: 'cpu', label: t('cpu.total'), celsius: system.cpu.temperature });
   }
   for (const gpu of system.gpus) {
     if (gpu.temperature !== null) {
       // Prefixed rather than the bare id: gpu ids are numbers and would
       // collide with a future numeric key from another source in the same list.
-      readings.push({ key: `gpu:${gpu.id}`, label: gpu.name, celsius: gpu.temperature });
+      measured.push({ key: `gpu:${gpu.id}`, label: gpu.name, celsius: gpu.temperature });
     }
   }
+  // A sensor that skips a tick keeps its line (empty track, dash) instead of
+  // vanishing and moving the line below it up (S22-10).
+  const readings = useStickyRows(measured, thermalKey);
 
   if (readings.length === 0) return <Unavailable />;
 
   return (
     <div className="flex flex-col gap-2">
-      {readings.map((reading) => (
+      {readings.map(({ key, row: reading, present }) => (
         <Meter
-          key={reading.key}
+          key={key}
           label={reading.label}
-          accessibleLabel={`${reading.label} ${formatTemperature(reading.celsius, locale)}`}
-          value={reading.celsius}
+          accessibleLabel={`${reading.label} ${
+            present ? formatTemperature(reading.celsius, locale) : t('unavailable')
+          }`}
+          value={present ? reading.celsius : null}
           // 100°C rather than autoscaling: a temperature bar means nothing
           // without a reference, and every consumer CPU and GPU throttles at
           // or below this, so the bar reaching the end is meaningful.
           max={100}
-          valueText={formatTemperature(reading.celsius, locale)}
-          tone={reading.celsius > 90 ? 'danger' : reading.celsius > 75 ? 'warn' : 'accent'}
+          valueText={present ? formatTemperature(reading.celsius, locale) : '—'}
+          tone={
+            !present
+              ? 'neutral'
+              : reading.celsius > 90
+                ? 'danger'
+                : reading.celsius > 75
+                  ? 'warn'
+                  : 'accent'
+          }
         />
       ))}
     </div>
   );
 }
 
+interface ThermalLine {
+  readonly key: string;
+  readonly label: string;
+  readonly celsius: number;
+}
+
+const thermalKey = (line: ThermalLine): string => line.key;
+
 export function BatteryWidget({ system, locale }: DetailWidgetProps): React.JSX.Element {
   const { t } = useTranslation(DASHBOARD_NS);
   const battery = system.battery;
+  // Power draw in particular comes and goes with the charger's reporting; a
+  // cell that has shown a figure keeps its place and shows a dash meanwhile.
+  const seen = useSeenKeys(
+    battery === null
+      ? []
+      : [
+          ...(battery.health !== null ? ['health'] : []),
+          ...(battery.cycleCount !== null ? ['cycles'] : []),
+          ...(battery.power !== null ? ['power'] : []),
+        ],
+  );
   if (battery === null) return <Unavailable />;
 
   const status = battery.charging
@@ -152,19 +188,31 @@ export function BatteryWidget({ system, locale }: DetailWidgetProps): React.JSX.
         tone={battery.charge < 10 && !battery.charging ? 'danger' : 'accent'}
       />
       <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5">
-        {battery.health !== null && (
+        {seen.has('health') && (
           <div>
             <dt className="text-2xs text-[var(--color-fg-muted)]">{t('battery.health')}</dt>
-            <dd className="tnum font-mono text-sm">{formatPercent(battery.health, locale, 0)}</dd>
+            <dd className="tnum font-mono text-sm">
+              {battery.health === null ? (
+                <Dash label={t('unavailable')} />
+              ) : (
+                formatPercent(battery.health, locale, 0)
+              )}
+            </dd>
           </div>
         )}
-        {battery.cycleCount !== null && (
+        {seen.has('cycles') && (
           <div>
             <dt className="text-2xs text-[var(--color-fg-muted)]">{t('battery.cycles')}</dt>
-            <dd className="tnum font-mono text-sm">{formatCount(battery.cycleCount, locale)}</dd>
+            <dd className="tnum font-mono text-sm">
+              {battery.cycleCount === null ? (
+                <Dash label={t('unavailable')} />
+              ) : (
+                formatCount(battery.cycleCount, locale)
+              )}
+            </dd>
           </div>
         )}
-        {battery.power !== null && (
+        {seen.has('power') && (
           <div>
             <dt className="text-2xs text-[var(--color-fg-muted)]">
               {t('metric.power', { ns: 'translation' })}
@@ -172,12 +220,25 @@ export function BatteryWidget({ system, locale }: DetailWidgetProps): React.JSX.
             {/* Absolute value: the sign encodes direction, which the status
                 line already says in words, and "-14 W" reads as an error. */}
             <dd className="tnum font-mono text-sm">
-              {formatWatts(Math.abs(battery.power), locale)}
+              {battery.power === null ? (
+                <Dash label={t('unavailable')} />
+              ) : (
+                formatWatts(Math.abs(battery.power), locale)
+              )}
             </dd>
           </div>
         )}
       </dl>
     </div>
+  );
+}
+
+/** A reading that dropped out after being shown: a named dash, never a 0. */
+function Dash({ label }: { readonly label: string }) {
+  return (
+    <span className="text-[var(--color-fg-subtle)]" aria-label={label} title={label}>
+      —
+    </span>
   );
 }
 
@@ -187,24 +248,35 @@ export interface TopWidgetProps {
   readonly onSelect: () => void;
 }
 
+const topKey = (entry: TopEntry): string => entry.name;
+
+/**
+ * How often the five rows may trade places. Two apps near the same figure
+ * crossed every second; the bars still move every tick, the rows every few.
+ */
+const TOP_SETTLE_MS = 5000;
+
 function TopList({
-  entries,
+  entries: incoming,
   format,
-  max,
   onSelect,
 }: {
   readonly entries: readonly TopEntry[];
   readonly format: (value: number) => string;
-  readonly max: number;
   readonly onSelect: () => void;
 }) {
   const { t } = useTranslation(DASHBOARD_NS);
+  const { held, bind } = useHoverHold();
+  const entries = useStableOrder(incoming, topKey, { settleMs: TOP_SETTLE_MS, held });
+  // The largest of the five, wherever it is shown: between settles the top row
+  // is not necessarily the biggest any more.
+  const max = Math.max(0, ...entries.map((entry) => entry.value));
   if (entries.length === 0) {
     return <p className="text-2xs text-[var(--color-fg-muted)]">{t('top.idle')}</p>;
   }
 
   return (
-    <ol className="flex flex-col gap-1">
+    <ol className="flex flex-col gap-1" {...bind}>
       {entries.map((entry) => (
         <li key={entry.name} className="flex flex-col gap-0.5">
           <div className="flex items-baseline justify-between gap-2">
@@ -244,11 +316,9 @@ function TopList({
 }
 
 export function TopCpuWidget({ processes, locale, onSelect }: TopWidgetProps): React.JSX.Element {
-  const entries = topByCpu(processes);
   return (
     <TopList
-      entries={entries}
-      max={entries[0]?.value ?? 0}
+      entries={topByCpu(processes)}
       format={(value) => formatPercent(value, locale)}
       onSelect={onSelect}
     />
@@ -260,11 +330,9 @@ export function TopMemoryWidget({
   locale,
   onSelect,
 }: TopWidgetProps): React.JSX.Element {
-  const entries = topByMemory(processes);
   return (
     <TopList
-      entries={entries}
-      max={entries[0]?.value ?? 0}
+      entries={topByMemory(processes)}
       format={(value) => formatBytes(value, locale)}
       onSelect={onSelect}
     />

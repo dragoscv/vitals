@@ -3697,6 +3697,46 @@ Play production / wear / tv            status draft, changesNotSentForReview tru
 MS Store submission 5                  MSIX 1.1.0.0 (ws-vitals-win), in certification
 ```
 
+### 2026-10-20 — S22-10 live lists keep their places between ticks
+
+**What.** The owner: values "move from a row to another" on Performance and
+the AI page's cards "move too much"; keep the sort, stop the per-second
+movement. Two causes. (1) Lists built only from what was measured this tick
+(`StatList omitNull`, Thermals meters, fans, Dashboard thermals/battery):
+a reading that skipped a frame dropped its row and every later cell moved up.
+Now a key that has shown a value keeps its slot and shows a named dash
+(`useSeenKeys`, `useStickyRows`; `Meter value: null` is an empty track, never
+0 °C). (2) Lists re-sorted by a live value every push (agent sessions by last
+activity, queues by ticket count, jobs, per-repo stats, Connections, Dashboard
+top 5, phone processes). Now `useStableOrder` in `@vitals/ui` holds the shown
+order: values update in place, new items join where the source puts them,
+gone items leave, a coarse rank change (session working -> idle, job running
+-> done) moves at once, and the whole list adopts the source order every
+30 s (AI page), 10 s (Network), 5 s (Dashboard top 5) or 2.5 s (Processes
+table and phone list). `useHoverHold`: nothing moves while the pointer is
+over a list or focus is inside it; what was due happens on release. The sort
+in Rust is unchanged and remains the definition of correct.
+
+```
+check-drift.ps1 (slot)          drift: 0 failure(s), 5 warning(s) (pre-existing)
+ws-codai gates                  prettier, typecheck, typecheck-e2e, typecheck-ui,
+                                eslint: RC=0
+vitest desktop                  127 files, 1345 tests passed
+vitest ui                       16 files, 134 tests passed
+playwright e2e                  165 passed (incl. live-order x4)
+live-order --repeat-each=5      20 passed
+mutants (15/15 RED)             sticky-statlist, hold-off, rank-ignored,
+                                insert-at-end, never-settle, sticky-drop,
+                                proc-settle, agents-hold, agents-rank,
+                                held-ignored, held-rank, hover-unbound,
+                                e2e-hover, e2e-statlist, e2e-agents
+visual (1280 px, fake host)     Performance at 0/5/10 s with flickering power and
+                                temperature: same cells, dash <-> value in place;
+                                AI Sessions at 0/5/10 s with the list pushed in a
+                                random order every second: six cards unmoved,
+                                turns 12 -> 30 and tool calls 40 -> 70 in place
+```
+
 ## S13 — public beta 0.9.0-beta.1 (2026-09-28)
 
 Decided with the owner (ADR 0031): public repository, beta version, no code
