@@ -428,93 +428,93 @@ below and is also installed as `sensors\PawnIO-Modules-COPYING.txt`.
 | [@floating-ui/react-dom](https://floating-ui.com/docs/react-dom) | 2.1.9 | MIT |
 | [@floating-ui/utils](https://floating-ui.com) | 0.2.12 | MIT |
 | [@radix-ui/number](https://radix-ui.com/primitives) | 1.1.3 | MIT |
-| [@radix-ui/primitive](https://radix-ui.com/primitives) | 1.1.7 | MIT |
-| [@radix-ui/react-accessible-icon](https://radix-ui.com/primitives) | 1.1.15 | MIT |
-| [@radix-ui/react-accordion](https://radix-ui.com/primitives) | 1.2.20 | MIT |
-| [@radix-ui/react-alert-dialog](https://radix-ui.com/primitives) | 1.1.23 | MIT |
-| [@radix-ui/react-arrow](https://radix-ui.com/primitives) | 1.1.15 | MIT |
-| [@radix-ui/react-aspect-ratio](https://radix-ui.com/primitives) | 1.1.15 | MIT |
-| [@radix-ui/react-avatar](https://radix-ui.com/primitives) | 1.2.6 | MIT |
-| [@radix-ui/react-checkbox](https://radix-ui.com/primitives) | 1.3.11 | MIT |
-| [@radix-ui/react-collapsible](https://radix-ui.com/primitives) | 1.1.20 | MIT |
-| [@radix-ui/react-collection](https://radix-ui.com/primitives) | 1.1.15 | MIT |
+| [@radix-ui/primitive](https://radix-ui.com/primitives) | 1.2.0 | MIT |
+| [@radix-ui/react-accessible-icon](https://radix-ui.com/primitives) | 1.2.0 | MIT |
+| [@radix-ui/react-accordion](https://radix-ui.com/primitives) | 1.3.1 | MIT |
+| [@radix-ui/react-alert-dialog](https://radix-ui.com/primitives) | 1.2.1 | MIT |
+| [@radix-ui/react-arrow](https://radix-ui.com/primitives) | 1.1.17 | MIT |
+| [@radix-ui/react-aspect-ratio](https://radix-ui.com/primitives) | 1.2.0 | MIT |
+| [@radix-ui/react-avatar](https://radix-ui.com/primitives) | 1.3.1 | MIT |
+| [@radix-ui/react-checkbox](https://radix-ui.com/primitives) | 1.4.1 | MIT |
+| [@radix-ui/react-collapsible](https://radix-ui.com/primitives) | 1.2.1 | MIT |
+| [@radix-ui/react-collection](https://radix-ui.com/primitives) | 1.2.0 | MIT |
 | [@radix-ui/react-compose-refs](https://radix-ui.com/primitives) | 1.1.5 | MIT |
-| [@radix-ui/react-context](https://radix-ui.com/primitives) | 1.2.2 | MIT |
-| [@radix-ui/react-context-menu](https://radix-ui.com/primitives) | 2.3.7 | MIT |
-| [@radix-ui/react-dialog](https://radix-ui.com/primitives) | 1.1.23 | MIT |
-| [@radix-ui/react-direction](https://radix-ui.com/primitives) | 1.1.4 | MIT |
-| [@radix-ui/react-dismissable-layer](https://radix-ui.com/primitives) | 1.1.19 | MIT |
-| [@radix-ui/react-dropdown-menu](https://radix-ui.com/primitives) | 2.1.24 | MIT |
-| [@radix-ui/react-focus-guards](https://radix-ui.com/primitives) | 1.1.6 | MIT |
-| [@radix-ui/react-focus-scope](https://radix-ui.com/primitives) | 1.1.16 | MIT |
-| [@radix-ui/react-form](https://radix-ui.com/primitives) | 0.1.16 | MIT |
-| [@radix-ui/react-hover-card](https://radix-ui.com/primitives) | 1.1.23 | MIT |
+| [@radix-ui/react-context](https://radix-ui.com/primitives) | 1.3.0 | MIT |
+| [@radix-ui/react-context-menu](https://radix-ui.com/primitives) | 2.4.1 | MIT |
+| [@radix-ui/react-dialog](https://radix-ui.com/primitives) | 1.3.1 | MIT |
+| [@radix-ui/react-direction](https://radix-ui.com/primitives) | 1.2.0 | MIT |
+| [@radix-ui/react-dismissable-layer](https://radix-ui.com/primitives) | 1.2.1 | MIT |
+| [@radix-ui/react-dropdown-menu](https://radix-ui.com/primitives) | 2.2.1 | MIT |
+| [@radix-ui/react-focus-guards](https://radix-ui.com/primitives) | 1.2.0 | MIT |
+| [@radix-ui/react-focus-scope](https://radix-ui.com/primitives) | 1.3.1 | MIT |
+| [@radix-ui/react-form](https://radix-ui.com/primitives) | 0.3.0 | MIT |
+| [@radix-ui/react-hover-card](https://radix-ui.com/primitives) | 1.2.1 | MIT |
 | [@radix-ui/react-id](https://radix-ui.com/primitives) | 1.1.4 | MIT |
-| [@radix-ui/react-label](https://radix-ui.com/primitives) | 2.1.15 | MIT |
-| [@radix-ui/react-menu](https://radix-ui.com/primitives) | 2.1.24 | MIT |
-| [@radix-ui/react-menubar](https://radix-ui.com/primitives) | 1.1.24 | MIT |
-| [@radix-ui/react-navigation-menu](https://radix-ui.com/primitives) | 1.2.22 | MIT |
-| [@radix-ui/react-one-time-password-field](https://radix-ui.com/primitives) | 0.1.16 | MIT |
-| [@radix-ui/react-password-toggle-field](https://radix-ui.com/primitives) | 0.1.11 | MIT |
-| [@radix-ui/react-popover](https://radix-ui.com/primitives) | 1.1.23 | MIT |
-| [@radix-ui/react-popper](https://radix-ui.com/primitives) | 1.3.7 | MIT |
-| [@radix-ui/react-portal](https://radix-ui.com/primitives) | 1.1.17 | MIT |
-| [@radix-ui/react-presence](https://radix-ui.com/primitives) | 1.1.10 | MIT |
-| [@radix-ui/react-primitive](https://radix-ui.com/primitives) | 2.1.10 | MIT |
-| [@radix-ui/react-progress](https://radix-ui.com/primitives) | 1.1.16 | MIT |
-| [@radix-ui/react-radio-group](https://radix-ui.com/primitives) | 1.4.7 | MIT |
-| [@radix-ui/react-roving-focus](https://radix-ui.com/primitives) | 1.1.19 | MIT |
-| [@radix-ui/react-scroll-area](https://radix-ui.com/primitives) | 1.2.18 | MIT |
-| [@radix-ui/react-select](https://radix-ui.com/primitives) | 2.3.7 | MIT |
-| [@radix-ui/react-separator](https://radix-ui.com/primitives) | 1.1.15 | MIT |
-| [@radix-ui/react-slider](https://radix-ui.com/primitives) | 1.4.7 | MIT |
-| [@radix-ui/react-slot](https://radix-ui.com/primitives) | 1.3.3 | MIT |
-| [@radix-ui/react-switch](https://radix-ui.com/primitives) | 1.3.7 | MIT |
-| [@radix-ui/react-tabs](https://radix-ui.com/primitives) | 1.1.21 | MIT |
-| [@radix-ui/react-toast](https://radix-ui.com/primitives) | 1.2.23 | MIT |
-| [@radix-ui/react-toggle](https://radix-ui.com/primitives) | 1.1.18 | MIT |
-| [@radix-ui/react-toggle-group](https://radix-ui.com/primitives) | 1.1.19 | MIT |
-| [@radix-ui/react-toolbar](https://radix-ui.com/primitives) | 1.1.19 | MIT |
-| [@radix-ui/react-tooltip](https://radix-ui.com/primitives) | 1.2.16 | MIT |
-| [@radix-ui/react-use-callback-ref](https://radix-ui.com/primitives) | 1.1.4 | MIT |
-| [@radix-ui/react-use-controllable-state](https://radix-ui.com/primitives) | 1.2.6 | MIT |
+| [@radix-ui/react-label](https://radix-ui.com/primitives) | 2.1.17 | MIT |
+| [@radix-ui/react-menu](https://radix-ui.com/primitives) | 2.2.1 | MIT |
+| [@radix-ui/react-menubar](https://radix-ui.com/primitives) | 1.2.1 | MIT |
+| [@radix-ui/react-navigation-menu](https://radix-ui.com/primitives) | 1.4.1 | MIT |
+| [@radix-ui/react-one-time-password-field](https://radix-ui.com/primitives) | 0.2.1 | MIT |
+| [@radix-ui/react-password-toggle-field](https://radix-ui.com/primitives) | 0.2.1 | MIT |
+| [@radix-ui/react-popover](https://radix-ui.com/primitives) | 1.3.1 | MIT |
+| [@radix-ui/react-popper](https://radix-ui.com/primitives) | 1.4.0 | MIT |
+| [@radix-ui/react-portal](https://radix-ui.com/primitives) | 1.2.0 | MIT |
+| [@radix-ui/react-presence](https://radix-ui.com/primitives) | 1.1.11 | MIT |
+| [@radix-ui/react-primitive](https://radix-ui.com/primitives) | 2.2.0 | MIT |
+| [@radix-ui/react-progress](https://radix-ui.com/primitives) | 1.2.1 | MIT |
+| [@radix-ui/react-radio-group](https://radix-ui.com/primitives) | 1.5.1 | MIT |
+| [@radix-ui/react-roving-focus](https://radix-ui.com/primitives) | 1.2.1 | MIT |
+| [@radix-ui/react-scroll-area](https://radix-ui.com/primitives) | 1.4.0 | MIT |
+| [@radix-ui/react-select](https://radix-ui.com/primitives) | 2.4.1 | MIT |
+| [@radix-ui/react-separator](https://radix-ui.com/primitives) | 1.2.0 | MIT |
+| [@radix-ui/react-slider](https://radix-ui.com/primitives) | 1.6.1 | MIT |
+| [@radix-ui/react-slot](https://radix-ui.com/primitives) | 1.5.0 | MIT |
+| [@radix-ui/react-switch](https://radix-ui.com/primitives) | 1.4.1 | MIT |
+| [@radix-ui/react-tabs](https://radix-ui.com/primitives) | 1.2.1 | MIT |
+| [@radix-ui/react-toast](https://radix-ui.com/primitives) | 1.3.1 | MIT |
+| [@radix-ui/react-toggle](https://radix-ui.com/primitives) | 1.2.1 | MIT |
+| [@radix-ui/react-toggle-group](https://radix-ui.com/primitives) | 1.2.1 | MIT |
+| [@radix-ui/react-toolbar](https://radix-ui.com/primitives) | 1.2.1 | MIT |
+| [@radix-ui/react-tooltip](https://radix-ui.com/primitives) | 1.4.1 | MIT |
+| [@radix-ui/react-use-callback-ref](https://radix-ui.com/primitives) | 1.1.5 | MIT |
+| [@radix-ui/react-use-controllable-state](https://radix-ui.com/primitives) | 1.3.0 | MIT |
 | [@radix-ui/react-use-effect-event](https://radix-ui.com/primitives) | 0.0.5 | MIT |
-| [@radix-ui/react-use-escape-keydown](https://radix-ui.com/primitives) | 1.1.5 | MIT |
+| [@radix-ui/react-use-escape-keydown](https://radix-ui.com/primitives) | 1.1.6 | MIT |
 | [@radix-ui/react-use-is-hydrated](https://radix-ui.com/primitives) | 0.1.3 | MIT |
 | [@radix-ui/react-use-layout-effect](https://radix-ui.com/primitives) | 1.1.4 | MIT |
 | [@radix-ui/react-use-previous](https://radix-ui.com/primitives) | 1.1.4 | MIT |
 | [@radix-ui/react-use-rect](https://radix-ui.com/primitives) | 1.1.4 | MIT |
-| [@radix-ui/react-use-size](https://radix-ui.com/primitives) | 1.1.4 | MIT |
-| [@radix-ui/react-visually-hidden](https://radix-ui.com/primitives) | 1.2.11 | MIT |
+| [@radix-ui/react-use-size](https://radix-ui.com/primitives) | 1.1.5 | MIT |
+| [@radix-ui/react-visually-hidden](https://radix-ui.com/primitives) | 1.2.13 | MIT |
 | [@radix-ui/rect](https://radix-ui.com/primitives) | 1.1.3 | MIT |
-| [@tanstack/react-virtual](https://tanstack.com/virtual) | 3.14.13 | MIT |
-| [@tanstack/virtual-core](https://tanstack.com/virtual) | 3.17.11 | MIT |
-| [@tauri-apps/api](https://github.com/tauri-apps/tauri#readme) | 2.12.0 | Apache-2.0 OR MIT |
-| [@tauri-apps/plugin-dialog](https://github.com/tauri-apps/plugins-workspace#readme) | 2.8.0 | MIT OR Apache-2.0 |
-| [@tauri-apps/plugin-global-shortcut](https://github.com/tauri-apps/plugins-workspace#readme) | 2.4.0 | MIT OR Apache-2.0 |
-| [@tauri-apps/plugin-notification](https://github.com/tauri-apps/plugins-workspace#readme) | 2.5.0 | MIT OR Apache-2.0 |
-| [@tauri-apps/plugin-opener](https://github.com/tauri-apps/plugins-workspace#readme) | 2.6.0 | MIT OR Apache-2.0 |
+| [@tanstack/react-virtual](https://tanstack.com/virtual) | 3.14.19 | MIT |
+| [@tanstack/virtual-core](https://tanstack.com/virtual) | 3.19.4 | MIT |
+| [@tauri-apps/api](https://github.com/tauri-apps/tauri#readme) | 2.12.4 | Apache-2.0 OR MIT |
+| [@tauri-apps/plugin-dialog](https://github.com/tauri-apps/plugins-workspace#readme) | 2.8.3 | MIT OR Apache-2.0 |
+| [@tauri-apps/plugin-global-shortcut](https://github.com/tauri-apps/plugins-workspace#readme) | 2.4.1 | MIT OR Apache-2.0 |
+| [@tauri-apps/plugin-notification](https://github.com/tauri-apps/plugins-workspace#readme) | 2.7.0 | MIT OR Apache-2.0 |
+| [@tauri-apps/plugin-opener](https://github.com/tauri-apps/plugins-workspace#readme) | 2.7.2 | MIT OR Apache-2.0 |
 | [@tauri-apps/plugin-os](https://github.com/tauri-apps/plugins-workspace#readme) | 2.4.0 | MIT OR Apache-2.0 |
 | [@tauri-apps/plugin-process](https://github.com/tauri-apps/plugins-workspace#readme) | 2.4.0 | MIT OR Apache-2.0 |
 | [@tauri-apps/plugin-store](https://github.com/tauri-apps/plugins-workspace#readme) | 2.5.0 | MIT OR Apache-2.0 |
-| [@tauri-apps/plugin-updater](https://github.com/tauri-apps/plugins-workspace#readme) | 2.13.0 | MIT OR Apache-2.0 |
+| [@tauri-apps/plugin-updater](https://github.com/tauri-apps/plugins-workspace#readme) | 2.14.0 | MIT OR Apache-2.0 |
 | [aria-hidden](https://github.com/theKashey/aria-hidden#readme) | 1.2.6 | MIT |
 | [class-variance-authority](https://github.com/joe-bell/cva#readme) | 0.7.1 | Apache-2.0 |
 | [clsx](https://github.com/lukeed/clsx#readme) | 2.1.1 | MIT |
 | [detect-node-es](https://github.com/thekashey/detect-node) | 1.1.0 | MIT |
-| [framer-motion](https://www.npmjs.com/package/framer-motion) | 13.4.6 | MIT |
+| [framer-motion](https://www.npmjs.com/package/framer-motion) | 14.2.0 | MIT |
 | [get-nonce](https://github.com/theKashey/get-nonce) | 1.0.1 | MIT |
 | [html-parse-stringify](https://github.com/i18next/html-parse-stringify) | 4.0.1 | MIT |
-| [i18next](https://www.i18next.com) | 26.4.2 | MIT |
-| [lucide-react](https://lucide.dev) | 1.48.0 | ISC |
-| [motion](https://github.com/motiondivision/motion#readme) | 13.4.6 | MIT |
-| [motion-dom](https://github.com/motiondivision/motion#readme) | 13.4.5 | MIT |
-| [motion-utils](https://github.com/motiondivision/motion#readme) | 13.3.0 | MIT |
+| [i18next](https://www.i18next.com) | 26.4.5 | MIT |
+| [lucide-react](https://lucide.dev) | 1.57.0 | ISC |
+| [motion](https://github.com/motiondivision/motion#readme) | 14.2.0 | MIT |
+| [motion-dom](https://github.com/motiondivision/motion#readme) | 14.2.0 | MIT |
+| [motion-utils](https://github.com/motiondivision/motion#readme) | 14.1.1 | MIT |
 | [qrcode.react](http://zpao.github.io/qrcode.react) | 4.2.0 | ISC |
-| [radix-ui](https://radix-ui.com/primitives) | 1.6.7 | MIT |
-| [react](https://react.dev/) | 19.3.0 | MIT |
-| [react-dom](https://react.dev/) | 19.3.0 | MIT |
-| [react-i18next](https://github.com/i18next/react-i18next) | 17.0.15 | MIT |
+| [radix-ui](https://radix-ui.com/primitives) | 1.8.1 | MIT |
+| [react](https://react.dev/) | 19.3.1 | MIT |
+| [react-dom](https://react.dev/) | 19.3.1 | MIT |
+| [react-i18next](https://github.com/i18next/react-i18next) | 17.0.16 | MIT |
 | [react-remove-scroll](https://github.com/theKashey/react-remove-scroll#readme) | 2.7.2 | MIT |
 | [react-remove-scroll-bar](https://github.com/theKashey/react-remove-scroll-bar#readme) | 2.3.8 | MIT |
 | [react-style-singleton](https://github.com/theKashey/react-style-singleton#readme) | 2.2.3 | MIT |
