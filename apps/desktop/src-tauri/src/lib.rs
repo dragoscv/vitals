@@ -14,6 +14,8 @@ pub mod crashlog;
 #[cfg(windows)]
 pub mod devclean;
 pub mod distribution;
+#[cfg(windows)]
+pub mod drivecleanup;
 pub mod hardware;
 pub mod history;
 pub mod hud;
@@ -329,6 +331,13 @@ fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
         devclean::cancel_dev_cleanup_scan,
         #[cfg(windows)]
         devclean::run_dev_cleanup,
+        // Per-drive clean-up wizard: analysis kept here, ids only cross.
+        #[cfg(windows)]
+        drivecleanup::analyse_drive_cleanup,
+        #[cfg(windows)]
+        drivecleanup::cancel_drive_cleanup_analysis,
+        #[cfg(windows)]
+        drivecleanup::run_drive_cleanup,
         // Benchmarks. The extreme case of the on-demand argument above:
         // a suite occupies every core for seconds, so it is only ever
         // started by the user from its own screen.

@@ -299,6 +299,7 @@ $syncAllowed = @(
     'pairing_code_status', 'revoke_pairing', 'revoke_all_pairings',
     # Flip a cancellation flag the worker polls.
     'cancel_dev_cleanup_scan', 'cancel_storage_scan', 'cancel_cleanup_search',
+    'cancel_drive_cleanup_analysis',
     # Read an already-finished scan held in memory.
     'get_storage_children', 'get_storage_map',
     # Window management on the main thread is where it must run anyway.

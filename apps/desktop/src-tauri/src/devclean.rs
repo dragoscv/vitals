@@ -57,11 +57,13 @@ struct Kept {
 
 static KEPT: Mutex<Option<Kept>> = Mutex::new(None);
 
-/// Claims the one-at-a-time slot for a scan or a run.
-struct Busy;
+/// Claims the one-at-a-time slot for a scan or a run. Shared with the
+/// per-drive clean-up: both delete from the same folders and stop the same
+/// WSL, so neither may run beside the other.
+pub(crate) struct Busy;
 
 impl Busy {
-    fn claim(what: &str) -> CommandResult<Self> {
+    pub(crate) fn claim(what: &str) -> CommandResult<Self> {
         if BUSY
             .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
             .is_err()
@@ -227,54 +229,11 @@ pub struct DevCleanReportDto {
 // Roots
 // ---------------------------------------------------------------------------
 
-/// Folder names that hold projects on a developer's machine.
-const PROJECT_DIRS: &[&str] = &[
-    "gh",
-    "GitHub",
-    "git",
-    "src",
-    "code",
-    "dev",
-    "projects",
-    "Projects",
-    "repos",
-    "source\\repos",
-    "work",
-];
-
-/// The usual project roots on every fixed drive and in the profile, that exist.
+/// The usual project roots; shared with the per-drive clean-up, which uses
+/// them to tell a developer drive from a data drive.
 #[must_use]
 pub fn default_roots() -> Vec<PathBuf> {
-    let mut out = Vec::new();
-    let mut push = |p: PathBuf| {
-        if p.is_dir()
-            && !out
-                .iter()
-                .any(|o: &PathBuf| o.as_os_str().eq_ignore_ascii_case(p.as_os_str()))
-        {
-            out.push(p);
-        }
-    };
-    for volume in vitals_win::disk::enumerate_volumes() {
-        if !matches!(
-            volume.kind,
-            vitals_core::metrics::DiskKind::Hdd
-                | vitals_core::metrics::DiskKind::Ssd
-                | vitals_core::metrics::DiskKind::Nvme
-                | vitals_core::metrics::DiskKind::Unknown
-        ) {
-            continue;
-        }
-        for dir in PROJECT_DIRS {
-            push(PathBuf::from(format!("{}\\{dir}", volume.mount)));
-        }
-    }
-    if let Some(home) = std::env::var_os("USERPROFILE").map(PathBuf::from) {
-        for dir in PROJECT_DIRS {
-            push(home.join(dir));
-        }
-    }
-    out
+    dc::default_roots()
 }
 
 /// Off the main thread: [`default_roots`] enumerates volumes and probes

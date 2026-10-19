@@ -1486,7 +1486,7 @@ impl Operation {
 
 /// Releases the operation when the command ends, however it ends.
 #[cfg(windows)]
-struct OperationGuard(&'static Operation);
+pub(crate) struct OperationGuard(&'static Operation);
 
 #[cfg(windows)]
 impl Drop for OperationGuard {
@@ -2440,6 +2440,13 @@ pub struct WindowsCleanupReportDto {
 
 #[cfg(windows)]
 static MANAGED: Operation = Operation::new();
+
+/// Claims the Windows-cleanup slot for the per-drive clean-up, whose
+/// elevated pass runs the same tools: two DISM runs at once fail each other.
+#[cfg(windows)]
+pub(crate) fn claim_managed(what: &str) -> CommandResult<OperationGuard> {
+    MANAGED.begin(what)
+}
 
 /// Frees one Windows-managed location with Windows' own tool.
 ///

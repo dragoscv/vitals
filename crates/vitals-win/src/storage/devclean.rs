@@ -343,8 +343,58 @@ fn git(repo: &Path, args: &[&str]) -> Option<String> {
         .then(|| String::from_utf8_lossy(&out.stdout).into_owned())
 }
 
+/// Folder names that hold projects on a developer's machine.
+const PROJECT_DIRS: &[&str] = &[
+    "gh",
+    "GitHub",
+    "git",
+    "src",
+    "code",
+    "dev",
+    "projects",
+    "Projects",
+    "repos",
+    "source\\repos",
+    "work",
+];
+
+/// The usual project roots on every fixed drive and in the profile, that exist.
+#[must_use]
+pub fn default_roots() -> Vec<PathBuf> {
+    let mut out = Vec::new();
+    let mut push = |p: PathBuf| {
+        if p.is_dir()
+            && !out
+                .iter()
+                .any(|o: &PathBuf| o.as_os_str().eq_ignore_ascii_case(p.as_os_str()))
+        {
+            out.push(p);
+        }
+    };
+    for volume in crate::disk::enumerate_volumes() {
+        if !matches!(
+            volume.kind,
+            vitals_core::metrics::DiskKind::Hdd
+                | vitals_core::metrics::DiskKind::Ssd
+                | vitals_core::metrics::DiskKind::Nvme
+                | vitals_core::metrics::DiskKind::Unknown
+        ) {
+            continue;
+        }
+        for dir in PROJECT_DIRS {
+            push(PathBuf::from(format!("{}\\{dir}", volume.mount)));
+        }
+    }
+    if let Some(home) = std::env::var_os("USERPROFILE").map(PathBuf::from) {
+        for dir in PROJECT_DIRS {
+            push(home.join(dir));
+        }
+    }
+    out
+}
+
 /// A command that never flashes a console window.
-fn hidden(program: PathBuf) -> std::process::Command {
+pub(crate) fn hidden(program: PathBuf) -> std::process::Command {
     use std::os::windows::process::CommandExt as _;
     const CREATE_NO_WINDOW: u32 = 0x0800_0000;
     let mut command = std::process::Command::new(program);
@@ -755,7 +805,7 @@ fn is_store_version(name: &str) -> bool {
 }
 
 /// The roots of every fixed drive (`C:\`, `E:\`...).
-fn fixed_drive_roots() -> Vec<PathBuf> {
+pub(crate) fn fixed_drive_roots() -> Vec<PathBuf> {
     use windows::Win32::Storage::FileSystem::GetDriveTypeW;
     use windows::core::PCWSTR;
     const DRIVE_FIXED: u32 = 3;
@@ -960,7 +1010,7 @@ fn push_disk(out: &mut Vec<VirtualDisk>, path: PathBuf, docker: bool, distro: Op
     }
 }
 
-fn wsl_distros() -> Vec<(String, PathBuf)> {
+pub(crate) fn wsl_distros() -> Vec<(String, PathBuf)> {
     // `reg query` keeps this free of another windows-sys feature and is
     // read-only; the output is stable across Windows 10 and 11.
     let Ok(out) = hidden(system32("reg.exe"))
@@ -1011,7 +1061,7 @@ pub fn parse_lxss(text: &str) -> Vec<(String, PathBuf)> {
     out
 }
 
-fn system32(name: &str) -> PathBuf {
+pub(crate) fn system32(name: &str) -> PathBuf {
     // From the kernel, not `%SystemRoot%`: the cleanup runs elevated, and an
     // inherited environment variable must not choose which `reg.exe` or
     // `powershell.exe` it starts.
@@ -1224,10 +1274,13 @@ where
     I: IntoIterator<Item = S>,
     S: AsRef<str>,
 {
-    let paths: Vec<PathBuf> = rest
-        .into_iter()
-        .map(|s| PathBuf::from(s.as_ref()))
-        .collect();
+    let args: Vec<String> = rest.into_iter().map(|s| s.as_ref().to_owned()).collect();
+    // The drive clean-up's form (`--progress ...`): the same elevated entry
+    // point, so a run still costs one UAC prompt and one place re-validates.
+    if super::drive_cleanup::elevated::is_options_form(args.first()) {
+        return super::drive_cleanup::elevated::perform(args);
+    }
+    let paths: Vec<PathBuf> = args.iter().map(PathBuf::from).collect();
     if paths.is_empty() || paths.len() > COMPACT_MAX {
         return exit::BAD_ARGS;
     }
@@ -1423,7 +1476,7 @@ pub fn compact_disks(disks: &[PathBuf]) -> Result<(), String> {
 }
 
 /// IDs of the running containers, or none when Docker is not answering.
-fn running_containers(docker: &Path) -> Vec<String> {
+pub(crate) fn running_containers(docker: &Path) -> Vec<String> {
     let (ok, text) = run_tool(docker, &["ps", "--quiet", "--no-trunc"], None);
     if !ok {
         return Vec::new();
@@ -1438,7 +1491,7 @@ fn running_containers(docker: &Path) -> Vec<String> {
 /// Waits up to three minutes for Docker to answer again, then starts every
 /// container in `ids`. Starting one its restart policy already brought back
 /// is a no-op.
-fn restart_containers(docker: &Path, ids: &[String]) {
+pub(crate) fn restart_containers(docker: &Path, ids: &[String]) {
     for _ in 0..60 {
         if run_tool(docker, &["info", "--format", "{{.ServerVersion}}"], None).0 {
             let mut args = vec!["start"];
@@ -1451,7 +1504,7 @@ fn restart_containers(docker: &Path, ids: &[String]) {
 }
 
 /// The running Docker Desktop's executable, if it is open.
-fn docker_desktop_exe() -> Option<PathBuf> {
+pub(crate) fn docker_desktop_exe() -> Option<PathBuf> {
     let (ok, text) = run_tool(
         &system32("WindowsPowerShell\\v1.0\\powershell.exe"),
         &[

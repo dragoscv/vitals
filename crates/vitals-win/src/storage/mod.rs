@@ -32,6 +32,8 @@
 
 pub mod cleanup;
 pub mod devclean;
+pub mod drive_cleanup;
+pub mod drive_role;
 mod ffi;
 pub mod layout;
 pub mod managed;
