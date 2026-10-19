@@ -3405,6 +3405,11 @@ local      (ws-vitals-win: resume ZONE_RESOURCE_POOL_EXHAUSTED, europe-west4-a)
 S22-01's own verification (prover on C:, unit tests) is in its tracker row;
 with the wizard wired to the three commands it is done.
 
+CI on ede77a9 (run 39244831689) was green except the installer budget:
+5,472.9 KB against 5,472.5 KB — the wizard and the drive clean-up backend
+together. Raised to measured + 5 % (5,884,463 bytes), the same rule
+`check-size.ps1 -Update` applies; the web bundles stayed under theirs.
+
 ## S13 — public beta 0.9.0-beta.1 (2026-09-28)
 
 Decided with the owner (ADR 0031): public repository, beta version, no code
