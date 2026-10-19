@@ -3677,7 +3677,25 @@ what's new; tizen config.xml, docs/api examples and script usage examples.
 The Android apps did not change since 1.0.6 and their notes say so. Play
 stays a draft (`PLAY_DRAFT_APP`) while 1.0.4 is in its first review.
 
-Evidence: filled in below once the release run finishes.
+```
+scripts/version.ps1 -Check v1.1.0      every manifest says 1.1.0
+check-drift.ps1                        0 failure(s), 5 warning(s) (pre-existing)
+Play notes EN 198 / RO 229 chars (limit 500, both name 1.1.0)
+Store what's new EN 952 / RO 1098 chars (limit 1500)
+commit 553a706   CI 39319866787        success
+tag v1.1.0 b2a1fef -> 553a706 (deploy-clean, clean release slot)
+release run 39323186661                plan, verify, android, 4 desktop legs, sbom,
+                                       publish, winget, Play, Scoop, Chocolatey, npm: success
+releases/latest                        v1.1.0, 16 assets
+latest.json                            1.1.0; x64 + arm64 signatures key id
+                                       D0B1CA754CF27B0C = tauri.conf pubkey, version:1.1.0
+Scoop bucket/vitals.json               1.1.0
+npm @vitals-app/client                 latest 1.1.0
+winget                                 microsoft/winget-pkgs#456271 (open)
+Chocolatey                             403, 1.0.0 still in moderation (warning, green)
+Play production / wear / tv            status draft, changesNotSentForReview true
+MS Store submission 5                  MSIX 1.1.0.0 (ws-vitals-win), in certification
+```
 
 ## S13 — public beta 0.9.0-beta.1 (2026-09-28)
 
