@@ -16,7 +16,7 @@
     so a Komac format change fails the job instead of submitting nonsense.
 
 .EXAMPLE
-    pwsh -NoProfile -File scripts/ci/winget-user-scope.ps1 -Path out/manifests/v/Vitals/Vitals/1.0.6/Vitals.Vitals.installer.yaml
+    pwsh -NoProfile -File scripts/ci/winget-user-scope.ps1 -Path out/manifests/v/Vitals/Vitals/1.1.0/Vitals.Vitals.installer.yaml
 #>
 [CmdletBinding()]
 param([Parameter(Mandatory)][string]$Path)

@@ -6,7 +6,7 @@
   CORS headers: proven on an Odyssey G8, Tizen 9, 2026-09-29.
   The package id must be exactly ten alphanumeric characters.
 -->
-<widget xmlns="http://www.w3.org/ns/widgets" xmlns:tizen="http://tizen.org/ns/widgets" id="https://vitals.dragoscatalin.ro/tv" version="1.0.6" viewmodes="maximized">
+<widget xmlns="http://www.w3.org/ns/widgets" xmlns:tizen="http://tizen.org/ns/widgets" id="https://vitals.dragoscatalin.ro/tv" version="1.1.0" viewmodes="maximized">
   <tizen:application id="VitalsTv01.Vitals" package="VitalsTv01" required_version="6.0"/>
   <tizen:profile name="tv-samsung"/>
   <content src="index.html"/>

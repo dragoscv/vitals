@@ -3665,6 +3665,20 @@ startup_probe (this machine)                   79 tasks with a schedule
   Adobe Acrobat Update  at logon · every 12600 s · daily
 ```
 
+### 2026-10-19 — S22-09 release 1.1.0
+
+**What.** S22-01 to S22-08 (per-drive clean-up wizard, sparse VHD gated by
+the WSL version, scroll and overflow fixes on every page, weekly safe
+clean-up, drive growth history, guided WSL/Docker disk move, scheduled task
+schedules) shipped as 1.1.0: minor, because it adds features and breaks
+nothing. `scripts/version.ps1 -Set 1.1.0` + `cargo update --workspace`;
+CHANGELOG [1.1.0] with a short summary above the S22 entries; Store and Play
+what's new; tizen config.xml, docs/api examples and script usage examples.
+The Android apps did not change since 1.0.6 and their notes say so. Play
+stays a draft (`PLAY_DRAFT_APP`) while 1.0.4 is in its first review.
+
+Evidence: filled in below once the release run finishes.
+
 ## S13 — public beta 0.9.0-beta.1 (2026-09-28)
 
 Decided with the owner (ADR 0031): public repository, beta version, no code

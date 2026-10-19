@@ -7,6 +7,19 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.1.0] — 2026-10-19
+
+A clean-up for each drive, in plain steps. In short:
+
+- Every drive has a **Clean up** button: Vitals measures what can go, shows
+  which programs it will stop and start again, and reports what it freed.
+- An optional weekly clean-up per drive does the safe part on its own.
+- "Why is this drive growing?" shows how fast each drive fills up.
+- Linux (WSL) and Docker disks can be moved to a drive with more room.
+- Scheduled tasks on Startup apps say how often they run.
+- The mouse wheel scrolls the page again over cards and lists, and text
+  stays inside its box on every page.
+
 ### Added
 
 - Storage: every drive card (except network and optical drives) has a

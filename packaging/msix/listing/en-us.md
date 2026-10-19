@@ -57,21 +57,15 @@ Free and open source (MIT). Available in English and Romanian.
 
 ## What's new in this version (≤ 1500 characters)
 
-What's new in 1.0.6
+What's new in 1.1.0
 
-1.0.6 is the first published build of the 1.0.5 changes, plus a fix to release signing.
-
-• Updates install while you are away: after ten minutes with no Vitals window open, a downloaded update installs and Vitals comes back in the tray. Never during a Windows restart or sign-out
-• Declining an update prompt no longer leaves Vitals half-stopped
-• AI page: the codai sign-in is read-only and is revoked when you sign out; other accounts on this PC cannot read your agent sessions
-• Remote access binds to the network adapter you pick
-• Fixed: a rare crash in the startup apps readers; crash dumps keep working after WebView2 or a graphics driver adds its own handler
-
-Also new in 1.0.4:
-• AI agents page: see which AI coding agents (VS Code Copilot, Copilot CLI, Codai, Codex, Claude Code) are working on this PC, what each is doing now, and their build queues, worktrees and background jobs. Costs nothing while the page is closed
-• Fixed: the links in About open in your browser again
-
-New in 1.0: program icons and totals in the process list, power usage per program, temperatures for the CPU, NVIDIA graphics cards and every drive, and SSD health.
+• Clean up a single drive: every drive card has a Clean up button. Vitals measures what can go, lets you tick it by group with the space each gives back, lists the programs it will stop and start again (Linux, Docker, scheduled tasks, virtual machines) before you confirm, shows each step live and reports what it freed
+• Remember your choices for a drive and run your usual clean-up in one click; a "drive nearly full" alert opens it
+• Optional weekly clean-up per drive: only the safe part, when the PC is idle and plugged in, with a notification saying what it freed
+• "Why is this drive growing?": growth per day over 24 hours, 7 days and 30 days, and what grew since the last check
+• Move a Linux (WSL) or Docker disk to a drive with more room, step by step
+• Startup apps: scheduled tasks say how often they run
+• Fixed: the mouse wheel scrolls the page again over cards and lists, and text stays inside its box on every page
 
 ## Features (up to 20, ≤ 200 characters each)
 

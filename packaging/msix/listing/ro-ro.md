@@ -57,21 +57,15 @@ Gratuit și open source (MIT). Disponibil în română și engleză.
 
 ## Ce e nou în această versiune (≤ 1500 caractere)
 
-Ce e nou în 1.0.6
+Ce e nou în 1.1.0
 
-1.0.6 este prima versiune publicată cu schimbările din 1.0.5, plus o reparație la semnarea versiunilor.
-
-• Actualizările se instalează cât ești plecat: după zece minute fără nicio fereastră Vitals deschisă, actualizarea descărcată se instalează și Vitals revine în zona de notificare. Niciodată în timpul unei reporniri sau deconectări Windows
-• Dacă refuzi solicitarea de actualizare, Vitals nu mai rămâne pe jumătate oprit
-• Pagina AI: conectarea la codai e doar pentru citire și e revocată când te deconectezi; alte conturi de pe acest PC nu-ți pot citi sesiunile agenților
-• Accesul de la distanță ascultă doar pe adaptorul de rețea ales
-• Reparat: o cădere rară la citirea aplicațiilor de pornire; fișierele de diagnostic merg și după ce WebView2 sau un driver video își adaugă propriul handler
-
-Nou și în 1.0.4:
-• Pagină nouă pentru agenții AI: vezi ce agenți AI de programare (VS Code Copilot, Copilot CLI, Codai, Codex, Claude Code) lucrează pe acest PC, ce face fiecare acum, plus cozile de compilare, worktree-urile și lucrările din fundal. Nu consumă nimic cât pagina e închisă
-• Reparat: linkurile din Despre se deschid din nou
-
-Nou în 1.0: pictograme și totaluri în lista de procese, consumul de energie pe program, temperaturi pentru procesor, plăci video NVIDIA și fiecare unitate de stocare, plus starea SSD-urilor.
+• Curățare pentru o singură unitate: fiecare card de unitate are butonul Curăță. Vitals măsoară ce se poate șterge, te lasă să bifezi pe grupuri cu spațiul eliberat de fiecare, arată programele pe care le oprește și le pornește la loc (Linux, Docker, activități programate, mașini virtuale) înainte să confirmi, afișează fiecare pas pe viu și spune ce a eliberat
+• Alegerile pentru o unitate pot fi ținute minte, iar curățarea obișnuită pornește dintr-un clic; alerta „unitate aproape plină” o deschide
+• Curățare săptămânală opțională pentru fiecare unitate: doar partea sigură, când PC-ul stă și e în priză, cu o notificare despre ce a eliberat
+• „De ce crește această unitate?”: creșterea pe zi în ultimele 24 de ore, 7 și 30 de zile și ce a crescut de la ultima verificare
+• Mută pas cu pas discul unei distribuții Linux (WSL) sau al Docker pe o unitate cu mai mult loc
+• Aplicații la pornire: activitățile programate arată cât de des rulează
+• Reparat: rotița mouse-ului derulează din nou pagina deasupra cardurilor și listelor, iar textul rămâne în chenar pe fiecare pagină
 
 ## Funcții (până la 20, ≤ 200 caractere fiecare)
 
