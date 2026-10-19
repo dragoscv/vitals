@@ -61,6 +61,12 @@ export interface AppSettings {
    * every launch is nagging, not onboarding.
    */
   readonly firstRunDismissed: boolean;
+  /**
+   * "Remember my choices for this drive" in the drive clean-up wizard: the
+   * item KINDS last chosen, keyed by mount (`C:`). Kinds rather than ids,
+   * because ids belong to one analysis and mean nothing the next time.
+   */
+  readonly driveCleanupProfiles: Readonly<Record<string, readonly string[]>>;
 }
 
 /**
@@ -108,6 +114,7 @@ export const defaultSettings: AppSettings = {
   resourceVisibility: {},
   showHiddenResources: false,
   firstRunDismissed: false,
+  driveCleanupProfiles: {},
 };
 
 function bool(value: unknown, fallback: boolean): boolean {
@@ -135,6 +142,21 @@ function parseVisibility(value: unknown): Readonly<Record<string, 'hidden' | 'sh
   const out: Record<string, 'hidden' | 'shown'> = {};
   for (const [key, choice] of Object.entries(value as Record<string, unknown>)) {
     if (choice === 'hidden' || choice === 'shown') out[key] = choice;
+  }
+  return out;
+}
+
+/**
+ * Keeps only well-formed profiles: a hand-edited entry that is not a list of
+ * strings costs that one drive its profile, not every drive's.
+ */
+function parseProfiles(value: unknown): Readonly<Record<string, readonly string[]>> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return {};
+  const out: Record<string, readonly string[]> = {};
+  for (const [mount, kinds] of Object.entries(value as Record<string, unknown>)) {
+    if (Array.isArray(kinds) && kinds.every((kind) => typeof kind === 'string')) {
+      out[mount] = kinds;
+    }
   }
   return out;
 }
@@ -207,5 +229,6 @@ export function parseSettings(raw: unknown): AppSettings {
     resourceVisibility: parseVisibility(record['resourceVisibility']),
     showHiddenResources: bool(record['showHiddenResources'], defaultSettings.showHiddenResources),
     firstRunDismissed: bool(record['firstRunDismissed'], defaultSettings.firstRunDismissed),
+    driveCleanupProfiles: parseProfiles(record['driveCleanupProfiles']),
   };
 }

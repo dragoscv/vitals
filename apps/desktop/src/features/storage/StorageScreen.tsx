@@ -26,7 +26,7 @@
  */
 
 import { Check, HardDrive, Plus, RefreshCw, Sparkles, X } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import {
@@ -52,8 +52,12 @@ import { AnimatedValue } from '@vitals/ui';
 import { ExportButton } from '../../components/ExportButton';
 import type { ExportColumn } from '../../lib/export';
 import { oneOf, useUrlState } from '../../lib/useUrlState';
+import { OPEN_DRIVE_CLEANUP_EVENT, takeDriveCleanup } from '../../shell/navigation';
 import { BasketBar, BasketDialog } from './Basket';
 import { DevClean } from './devclean/DevClean';
+import { DriveCleanupDialog } from './drivecleanup/DriveCleanupDialog';
+import { isCleanableKind, mountKey } from './drivecleanup/model';
+import type { DriveCleanupSource } from './drivecleanup/useDriveCleanup';
 import { Explorer, exploreViews, type ExploreView } from './Explorer';
 import { STORAGE_NS } from './strings';
 import { WindowsCleanupDialog } from './WindowsCleanup';
@@ -83,9 +87,11 @@ import { NO_HOST, tauriSource, useStorage, type StorageSource } from './useStora
 export interface StorageScreenProps {
   /** Injectable so tests and the sampler-less preview need no Tauri host. */
   readonly source?: StorageSource;
+  /** The drive clean-up wizard's backend; injectable for the same reason. */
+  readonly driveSource?: DriveCleanupSource;
 }
 
-export function StorageScreen({ source }: StorageScreenProps = {}): React.JSX.Element {
+export function StorageScreen({ source, driveSource }: StorageScreenProps = {}): React.JSX.Element {
   const { t, i18n } = useTranslation(STORAGE_NS);
   const locale = i18n.language;
 
@@ -93,6 +99,19 @@ export function StorageScreen({ source }: StorageScreenProps = {}): React.JSX.El
   const [selected, setSelected] = useState<string | null>(null);
   const [reviewing, setReviewing] = useState(false);
   const [freeing, setFreeing] = useState<CleanupCandidate | null>(null);
+  // A low-space alert's "Clean up this drive" leaves its mount in a slot and
+  // navigates here: read on mount, or heard as an event when already mounted.
+  const [cleaning, setCleaning] = useState<string | null>(takeDriveCleanup);
+  useEffect(() => {
+    const take = (): void => {
+      const mount = takeDriveCleanup();
+      if (mount !== null) setCleaning(mount);
+    };
+    window.addEventListener(OPEN_DRIVE_CLEANUP_EVENT, take);
+    return () => {
+      window.removeEventListener(OPEN_DRIVE_CLEANUP_EVENT, take);
+    };
+  }, []);
   // Only the result table's view goes in the URL. The chosen volume is a scan
   // parameter, not view state: restoring it from a link would imply the scan
   // itself was restored, and it is not.
@@ -167,6 +186,7 @@ export function StorageScreen({ source }: StorageScreenProps = {}): React.JSX.El
             activeMount={activeMount}
             locale={locale}
             onSelect={setSelected}
+            onClean={setCleaning}
             disabled={state.scanning}
           />
 
@@ -268,6 +288,20 @@ export function StorageScreen({ source }: StorageScreenProps = {}): React.JSX.El
           <DevClean locale={locale} />
         </div>
       </div>
+
+      {cleaning !== null && (
+        <DriveCleanupDialog
+          // The alert names a drive `C:`; prefer the listed form (`C:\`) so
+          // the wizard and the cards agree on how it is written.
+          mount={volumes.find((v) => mountKey(v.mount) === mountKey(cleaning))?.mount ?? cleaning}
+          locale={locale}
+          onClose={() => {
+            setCleaning(null);
+            state.refreshVolumes();
+          }}
+          {...(driveSource !== undefined && { source: driveSource })}
+        />
+      )}
 
       <WindowsCleanupDialog
         candidate={freeing}
@@ -375,12 +409,14 @@ function Volumes({
   activeMount,
   locale,
   onSelect,
+  onClean,
   disabled,
 }: {
   readonly volumes: readonly Volume[];
   readonly activeMount: string | null;
   readonly locale: string;
   readonly onSelect: (mount: string) => void;
+  readonly onClean: (mount: string) => void;
   /** While a scan runs: changing the selection would detach it from the scan. */
   readonly disabled: boolean;
 }) {
@@ -399,61 +435,83 @@ function Volumes({
           const active = volume.mount === activeMount;
 
           return (
-            <button
-              key={volume.mount}
-              type="button"
-              aria-pressed={active}
-              disabled={disabled}
-              onClick={() => {
-                onSelect(volume.mount);
-              }}
-              className={`rounded-md border p-2.5 text-left ${
-                active
-                  ? 'border-[var(--color-accent-border)] bg-[var(--color-accent-subtle)]'
-                  : 'border-[var(--color-border-subtle)]'
-              }`}
-            >
-              <div className="flex items-baseline justify-between gap-2">
-                <span className="truncate text-sm font-medium">
-                  {volume.label === null
-                    ? volume.mount
-                    : t('volumes.label', { mount: volume.mount, label: volume.label })}
-                </span>
-                <span className="text-2xs text-[var(--color-fg-subtle)]">
-                  {t(`kind.${volume.kind}`)}
-                </span>
-              </div>
+            // The card and its Clean up button are siblings, not nested: a
+            // button inside a button is invalid and a screen reader announces
+            // only the outer one.
+            <div key={volume.mount} className="relative flex flex-col">
+              <button
+                type="button"
+                aria-pressed={active}
+                disabled={disabled}
+                onClick={() => {
+                  onSelect(volume.mount);
+                }}
+                className={`grow rounded-md border p-2.5 text-left ${
+                  isCleanableKind(volume.kind) ? 'pb-10' : ''
+                } ${
+                  active
+                    ? 'border-[var(--color-accent-border)] bg-[var(--color-accent-subtle)]'
+                    : 'border-[var(--color-border-subtle)]'
+                }`}
+              >
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="truncate text-sm font-medium">
+                    {volume.label === null
+                      ? volume.mount
+                      : t('volumes.label', { mount: volume.mount, label: volume.label })}
+                  </span>
+                  <span className="text-2xs text-[var(--color-fg-subtle)]">
+                    {t(`kind.${volume.kind}`)}
+                  </span>
+                </div>
 
-              {/* Not a meter at 0%: an unreported capacity and a genuinely
+                {/* Not a meter at 0%: an unreported capacity and a genuinely
                   empty drive are different facts, and a full-looking or
                   empty-looking bar asserts one of them without evidence. */}
-              {percent === null ? (
-                <p className="mt-1 text-2xs text-[var(--color-fg-muted)]">
-                  {t('volumes.unknownCapacity')}
-                </p>
-              ) : (
-                <Meter
-                  className="mt-1.5"
-                  label={t('volumes.free', { free: formatBytes(volume.available, locale) })}
-                  accessibleLabel={t('volumes.used', {
-                    used: formatBytes(usedBytes(volume), locale),
-                    total: formatBytes(volume.total, locale),
-                  })}
-                  value={percent}
-                  valueText={t('volumes.used', {
-                    used: formatBytes(usedBytes(volume), locale),
-                    total: formatBytes(volume.total, locale),
-                  })}
-                  tone={percent >= 90 ? 'danger' : percent >= 75 ? 'warn' : 'accent'}
-                />
-              )}
+                {percent === null ? (
+                  <p className="mt-1 text-2xs text-[var(--color-fg-muted)]">
+                    {t('volumes.unknownCapacity')}
+                  </p>
+                ) : (
+                  <Meter
+                    className="mt-1.5"
+                    label={t('volumes.free', { free: formatBytes(volume.available, locale) })}
+                    accessibleLabel={t('volumes.used', {
+                      used: formatBytes(usedBytes(volume), locale),
+                      total: formatBytes(volume.total, locale),
+                    })}
+                    value={percent}
+                    valueText={t('volumes.used', {
+                      used: formatBytes(usedBytes(volume), locale),
+                      total: formatBytes(volume.total, locale),
+                    })}
+                    tone={percent >= 90 ? 'danger' : percent >= 75 ? 'warn' : 'accent'}
+                  />
+                )}
 
-              {volume.strategy === 'mftAssisted' && (
-                <Badge tone="info" className="mt-1.5" title={t('volumes.fastHint')}>
-                  {t('volumes.fast')}
-                </Badge>
+                {volume.strategy === 'mftAssisted' && (
+                  <Badge tone="info" className="mt-1.5" title={t('volumes.fastHint')}>
+                    {t('volumes.fast')}
+                  </Badge>
+                )}
+              </button>
+              {/* Not on network or optical drives: nothing the wizard does
+                applies to a share or a disc. */}
+              {isCleanableKind(volume.kind) && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="absolute right-2.5 bottom-2.5"
+                  aria-label={t('drive.openLabel', { mount: volume.mount })}
+                  onClick={() => {
+                    onClean(volume.mount);
+                  }}
+                >
+                  <Sparkles aria-hidden className="size-4" />
+                  {t('drive.open')}
+                </Button>
               )}
-            </button>
+            </div>
           );
         })}
       </div>

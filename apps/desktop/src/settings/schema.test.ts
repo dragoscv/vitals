@@ -48,6 +48,14 @@ describe('parseSettings', () => {
     expect(parseSettings({ resourceVisibility: ['disk:H:'] }).resourceVisibility).toEqual({});
   });
 
+  it('keeps well-formed drive clean-up profiles and drops a malformed one alone', () => {
+    expect(parseSettings({}).driveCleanupProfiles).toEqual({});
+    const parsed = parseSettings({
+      driveCleanupProfiles: { 'C:': ['tempOld', 'npmCache'], 'E:': 'tempOld', 'F:': [1] },
+    });
+    expect(parsed.driveCleanupProfiles).toEqual({ 'C:': ['tempOld', 'npmCache'] });
+  });
+
   it('ships every data-emitting option off by default', () => {
     // A system monitor that opts you in to telemetry is not one to trust with
     // process-level visibility. This is a product promise, so it is asserted.

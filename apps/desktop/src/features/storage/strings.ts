@@ -9,6 +9,7 @@
 import { i18n } from '@vitals/i18n';
 
 import { devBundles } from './devclean/strings';
+import { driveBundles } from './drivecleanup/strings';
 
 export const STORAGE_NS = 'storage';
 
@@ -798,8 +799,20 @@ export function registerStorageStrings(): void {
     );
   }
 
-  i18n.addResourceBundle('en', STORAGE_NS, { ...en, dev: devBundles.en }, true, false);
-  i18n.addResourceBundle('ro', STORAGE_NS, { ...ro, dev: devBundles.ro }, true, false);
+  i18n.addResourceBundle(
+    'en',
+    STORAGE_NS,
+    { ...en, dev: devBundles.en, drive: driveBundles.en },
+    true,
+    false,
+  );
+  i18n.addResourceBundle(
+    'ro',
+    STORAGE_NS,
+    { ...ro, dev: devBundles.ro, drive: driveBundles.ro },
+    true,
+    false,
+  );
 }
 
 /** Exported for the parity test. */

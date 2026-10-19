@@ -22,7 +22,7 @@ import { useTranslation } from 'react-i18next';
 import type { Alert, Severity } from '@vitals/protocol';
 import { Button, cn } from '@vitals/ui';
 
-import type { RouteId } from '../../../shell/navigation';
+import { requestDriveCleanup, type RouteId } from '../../../shell/navigation';
 import { alertCause, alertTitle } from '../../alerts/alertText';
 import { DASHBOARD_NS } from '../strings';
 
@@ -79,16 +79,32 @@ export function AlertsWidget({ alerts, onNavigate }: AlertsWidgetProps): React.J
                   the sentence that makes the alert actionable. */}
               <p className="text-2xs text-[var(--color-fg-muted)]">{alertCause(alert, t)}</p>
             </div>
-            {alert.route !== null && (
+            {/* A full drive's fix is the clean-up wizard for that drive, so
+                that is the action rather than a general "Investigate". The
+                subject is the mount the engine measured (`C:`). */}
+            {alert.kind === 'diskSpace' && alert.subject !== '' ? (
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => {
-                  onNavigate(alert.route as RouteId);
+                  requestDriveCleanup(alert.subject);
+                  onNavigate('storage');
                 }}
               >
-                {t('alert.investigate')}
+                {t('alert.cleanDrive')}
               </Button>
+            ) : (
+              alert.route !== null && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    onNavigate(alert.route as RouteId);
+                  }}
+                >
+                  {t('alert.investigate')}
+                </Button>
+              )
             )}
           </li>
         );

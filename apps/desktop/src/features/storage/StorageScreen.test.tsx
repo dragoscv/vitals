@@ -3,6 +3,8 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { i18n, initI18n } from '@vitals/i18n';
 
+import { requestDriveCleanup } from '../../shell/navigation';
+import type { DriveCleanupSource } from './drivecleanup/useDriveCleanup';
 import { StorageScreen } from './StorageScreen';
 import type {
   CleanupCandidate,
@@ -1165,5 +1167,67 @@ describe('StorageScreen', () => {
     expect(screen.getByText('Unități')).toBeTruthy();
     // A missing key renders as its own path, which is the failure this guards.
     expect(document.body.textContent).not.toMatch(/storage\.|cleanup\.|kindLabel\./);
+  });
+
+  describe('per-drive clean-up', () => {
+    function driveSource(): DriveCleanupSource {
+      return {
+        analyse: vi.fn<DriveCleanupSource['analyse']>((mount) =>
+          Promise.resolve({
+            scanId: 1,
+            mount,
+            role: 'data',
+            roleReasons: [],
+            freeBytes: GB,
+            totalBytes: 10 * GB,
+            groups: [],
+            blockers: [],
+          }),
+        ),
+        cancelAnalysis: vi.fn<DriveCleanupSource['cancelAnalysis']>().mockResolvedValue(undefined),
+        run: vi.fn<DriveCleanupSource['run']>(),
+        onAnalyseProgress: () => Promise.resolve(() => undefined),
+        onCleanProgress: () => Promise.resolve(() => undefined),
+      };
+    }
+
+    it('offers Clean up on every drive card except network and optical, outside the card button', async () => {
+      const source = makeSource({
+        volumes: [
+          volume(),
+          volume({ mount: 'E:\\', label: null, kind: 'hdd' }),
+          volume({ mount: 'Z:\\', label: null, kind: 'network' }),
+          volume({ mount: 'D:\\', label: null, kind: 'optical' }),
+        ],
+      });
+      render(<StorageScreen source={source} driveSource={driveSource()} />);
+      await screen.findByRole('heading', { name: 'Storage' });
+
+      const buttons = screen.getAllByRole('button', { name: /^Clean up drive/ });
+      expect(buttons.map((b) => b.getAttribute('aria-label')).sort()).toEqual([
+        'Clean up drive C:\\',
+        'Clean up drive E:\\',
+      ]);
+      // Never nested inside the selectable card: no interactive inside interactive.
+      for (const button of buttons) expect(button.parentElement?.closest('button')).toBeNull();
+    });
+
+    it('opens the wizard for that drive', async () => {
+      const drives = driveSource();
+      render(<StorageScreen source={makeSource()} driveSource={drives} />);
+      await screen.findByRole('heading', { name: 'Storage' });
+      fireEvent.click(screen.getByRole('button', { name: 'Clean up drive C:\\' }));
+
+      expect(await screen.findByRole('dialog', { name: 'Clean up C:\\' })).toBeTruthy();
+      expect(drives.analyse).toHaveBeenCalledWith('C:\\');
+    });
+
+    it('opens the wizard when a low-space alert asked for it before navigating here', async () => {
+      const drives = driveSource();
+      requestDriveCleanup('C:');
+      render(<StorageScreen source={makeSource()} driveSource={drives} />);
+      expect(await screen.findByRole('dialog', { name: 'Clean up C:\\' })).toBeTruthy();
+      expect(drives.analyse).toHaveBeenCalledWith('C:\\');
+    });
   });
 });

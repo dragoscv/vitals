@@ -3367,6 +3367,44 @@ Not proven here: an elevated `both` install on a fresh machine choosing
 "everyone" (the stock MultiUser page), and a 1.0.3 → 1.0.4 jump — 1.0.3 runs
 the old updater, which cannot take the per-user path; ADR 0038 says so.
 
+### 2026-10-19 — S22-01 / S22-02 per-drive clean-up, backend and wizard
+
+The wizard was written against the contract in `model.ts` while the backend
+was still being built, then rebased onto bd7f352 and checked against what
+the Rust really sends. Four differences, all fixed at the source rather than
+papered over in the client:
+
+- `PlanItemDto` had no `available` field, so an item the backend refuses
+  (`hiberfilOrphan` on a Guarded Host, 82 GB on this machine) would have been
+  offered as a tick box. The DTO now carries it; the UI disables the item and
+  shows the reason from `detail`.
+- The analysis reports its own stages (`role`, `artefacts`, `blockers`, …),
+  not the group keys; the run adds `cleaning` before any elevated step.
+- `diskIndex` is already 1-based (the elevated script says `$k + 1`); the UI
+  added one more and would have said "disk 2 of 1".
+- `hibernateOff` existed only in Rust, and a non-administrator gets a single
+  Hyper-V blocker named `unknown`, which read as "Virtual machine unknown".
+
+`contract.test.ts` now reads the non-test part of `drive_cleanup/mod.rs`,
+`run.rs` and `drive_role.rs` and fails on any kind, stage, group, blocker,
+role, reason or status that differs in either direction; removing
+`hibernateOff` from the TS list turns it red.
+
+```
+ws-codai   desktop vitest 120/120 files, typecheck 0, eslint --max-warnings=0 (18 files) 0, prettier 0
+           contract.test.ts 4/4; mutant without hibernateOff -> 1 failed | 3 passed
+local      (ws-vitals-win: resume ZONE_RESOURCE_POOL_EXHAUSTED, europe-west4-a)
+  check-drift            0 failure(s), 5 warning(s) (cloud_* only; drive-cleanup warnings gone)
+  cargo test -p vitals-desktop --lib drivecleanup   4 passed (plan carries `available`)
+  verify.ps1             clippy, rust tests 736 s, bindings, formats, notices, deps, size budgets PASS
+                         ts lane: inline-default guard caught `defaultValue: ''` -> fixed, suite re-run green
+                         perf budget FAIL at 100 % machine CPU (sample 44 ms / 30, enum 29 ms / 20);
+                         no vitals-win code in this change, CI runs it on an idle runner
+```
+
+S22-01's own verification (prover on C:, unit tests) is in its tracker row;
+with the wizard wired to the three commands it is done.
+
 ## S13 — public beta 0.9.0-beta.1 (2026-09-28)
 
 Decided with the owner (ADR 0031): public repository, beta version, no code

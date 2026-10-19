@@ -61,6 +61,10 @@ pub struct PlanItemDto {
     stops_wsl: bool,
     stops_docker: bool,
     detail: Option<String>,
+    /// False for an item shown for its size that cannot be done from here
+    /// (the reason is in `detail`). Without it the webview would offer a
+    /// tick box that `resolve` then refuses.
+    available: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -173,6 +177,7 @@ fn to_dto(scan_id: u64, plan: &Plan) -> (DriveCleanupPlanDto, HashMap<String, Ac
                         stops_wsl: item.stops_wsl,
                         stops_docker: item.stops_docker,
                         detail: item.detail.clone(),
+                        available: item.available,
                     }
                 })
                 .collect(),
@@ -485,9 +490,12 @@ mod tests {
             "stopsWsl",
             "stopsDocker",
             "detail",
+            "available",
         ] {
             assert!(item.get(key).is_some(), "{key}");
         }
+        assert_eq!(json["groups"][0]["items"][0]["available"], false);
+        assert_eq!(json["groups"][1]["items"][0]["available"], true);
         // Unmeasured travels as null, never as 0.
         assert!(item["size"].is_null());
     }

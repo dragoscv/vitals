@@ -129,3 +129,26 @@ export function takeProcessSelection(): number | null {
   pendingProcessPid = null;
   return pid;
 }
+
+/**
+ * Asks the Storage screen to open the drive clean-up wizard for one mount.
+ *
+ * Set by the "Clean up this drive" action on a low-space alert immediately
+ * before navigating to Storage; same slot-plus-event shape as
+ * `requestProcessSelection`, for the same reason.
+ */
+export const OPEN_DRIVE_CLEANUP_EVENT = 'vitals:open-drive-cleanup';
+
+let pendingDriveCleanup: string | null = null;
+
+export function requestDriveCleanup(mount: string): void {
+  pendingDriveCleanup = mount;
+  window.dispatchEvent(new Event(OPEN_DRIVE_CLEANUP_EVENT));
+}
+
+/** Returns and clears the pending request, so it is honoured exactly once. */
+export function takeDriveCleanup(): string | null {
+  const mount = pendingDriveCleanup;
+  pendingDriveCleanup = null;
+  return mount;
+}

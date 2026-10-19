@@ -7,6 +7,23 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Storage: every drive card (except network and optical drives) has a
+  **Clean up** button that opens a three-step wizard: it measures what could
+  be cleaned on that drive, lets you choose by group with the space each
+  would give back, lists the programs that will be stopped and started again
+  (Linux distributions, Docker Desktop, containers, scheduled tasks, runners,
+  virtual machines) before you confirm, shows each stage live, and ends with
+  a report that says what was freed and what could not be restarted. Items
+  that cannot be undone need their own tick; "select all" never ticks them.
+  "Remember my choices for this drive" saves the kinds of item for a
+  one-click "Run my usual clean-up" that still stops at the confirmation.
+  Something that is listed for its size but cannot be removed from here
+  (a hibernation file Windows will not let go of, say) says why and cannot
+  be ticked.
+  A "drive nearly full" alert now offers "Clean up this drive". (S22-02)
+
 ## [1.0.6] — 2026-10-18
 
 The first published build of the 1.0.5 changes: 1.0.5 was tagged but never
