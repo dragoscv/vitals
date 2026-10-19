@@ -56,6 +56,21 @@ describe('parseSettings', () => {
     expect(parsed.driveCleanupProfiles).toEqual({ 'C:': ['tempOld', 'npmCache'] });
   });
 
+  it('keeps well-formed weekly schedules, off by default, and drops a malformed one alone', () => {
+    expect(defaultSettings.driveCleanupSchedules).toEqual({});
+    const good = { mount: 'C:', weekday: 6, minute: 180, enabledAt: 1 };
+    const parsed = parseSettings({
+      driveCleanupSchedules: {
+        'vol-a': good,
+        'vol-b': { ...good, weekday: 7 },
+        'vol-c': { ...good, minute: 1440 },
+        'vol-d': { ...good, enabledAt: -1 },
+        'vol-e': 'weekly',
+      },
+    });
+    expect(parsed.driveCleanupSchedules).toEqual({ 'vol-a': good });
+  });
+
   it('ships every data-emitting option off by default', () => {
     // A system monitor that opts you in to telemetry is not one to trust with
     // process-level visibility. This is a product promise, so it is asserted.

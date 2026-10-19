@@ -33,6 +33,20 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   It can be moved back the same way. Docker Desktop moves its own disk, so
   Vitals shows the exact setting and folder, opens Docker Desktop, and checks
   afterwards that the disk has left the drive. (S22-07)
+- Storage: a **weekly clean-up** per drive, off until you turn it on in the
+  clean-up wizard. Pick a day and time; it runs the safe part of your saved
+  choices (old temporary files, download caches, Docker build cache and old
+  images, Linux package caches) and never anything that needs administrator
+  approval, stops WSL or Docker, compacts a disk or cannot be undone. It
+  waits for the PC to be idle and plugged in (or runs within a day if it
+  never is), catches up at the next start if Vitals was closed, says what it
+  freed in a notification, and the wizard lists recent clean-ups. (S22-05)
+- Storage: **"Why is this drive growing?"** in the clean-up wizard. Vitals
+  reads how full each drive is once an hour and shows growth per day over
+  24 hours, 7 days and 30 days with a small chart, and what grew since the
+  previous analysis ("Docker disk file +42 GB since 12 Oct"). It says when
+  there are not enough readings or no earlier analysis yet. Kept in
+  `drive-history.sqlite` for 180 days (see PRIVACY.md). (S22-06)
 
 ### Fixed
 

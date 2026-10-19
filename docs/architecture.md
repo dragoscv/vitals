@@ -108,6 +108,19 @@ packages/
 All under `%LOCALAPPDATA%\Vitals`. [PRIVACY.md](../PRIVACY.md) is the
 user-facing version of this table; change both together.
 
+`drive-history.sqlite` (vitals-store `drive_history`) is separate from
+`history.sqlite` and always on: hourly used/free bytes per local volume
+(keyed by the volume GUID path, so a changed drive letter keeps its
+history), the item sizes of each per-drive clean-up analysis and the
+result of each run. Hourly rows for 30 days, then the last reading of each
+day, everything dropped after 180 days. The `vitals-drive-schedule` thread
+(`apps/desktop/src-tauri/src/drive_schedule.rs`) writes it and runs the
+weekly safe clean-up: the slot rule and the item whitelist are pure
+functions in `vitals_win::storage::drive_cleanup::schedule` (idle 10 min
+and on mains, or on mains after a day of waiting; never battery; a missed
+slot runs once at the next start within a week; never an elevated,
+compacting, WSL- or Docker-stopping or danger item).
+
 ## Updates
 
 `src-tauri/src/updates.rs`. About twenty seconds after launch — never before

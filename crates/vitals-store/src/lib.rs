@@ -22,6 +22,7 @@
 #![allow(clippy::missing_const_for_fn)]
 
 pub mod db;
+pub mod drive_history;
 pub mod flight;
 pub mod recorder;
 pub mod retention;

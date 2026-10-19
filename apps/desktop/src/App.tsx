@@ -151,6 +151,35 @@ function useSettingsSync(
 }
 
 /**
+ * Hands the weekly clean-up thread its schedules and toast text.
+ *
+ * After hydration, like the other pushes: the defaults have no schedules,
+ * and pushing them would cancel a due clean-up for as long as the settings
+ * file takes to read. Re-pushed when a drive's choices change, because the
+ * schedule runs the drive's saved choices.
+ */
+function useDriveScheduleSync(
+  settings: ReturnType<typeof useSettings.getState>['settings'],
+  hydrated: boolean,
+): void {
+  const { driveCleanupSchedules, driveCleanupProfiles, locale } = settings;
+
+  useEffect(() => {
+    if (!hydrated) return;
+    // Lazy: the clean-up module stays out of the first paint.
+    void import('./features/storage/drivecleanup/schedule').then((m) =>
+      m.pushDriveSchedules(driveCleanupSchedules, driveCleanupProfiles),
+    );
+  }, [hydrated, driveCleanupSchedules, driveCleanupProfiles]);
+
+  useEffect(() => {
+    void import('./features/storage/drivecleanup/schedule').then((m) =>
+      m.pushScheduleStrings(m.toastFor(locale), locale),
+    );
+  }, [locale]);
+}
+
+/**
  * Keeps the Rust alert engine's notification switches in step with settings.
  *
  * Waits for hydration for the same reason as `useSettingsSync`: before it the
@@ -281,6 +310,7 @@ export function App() {
   useSampleRate(settings);
   useSettingsSync(settings, hydrated);
   useAlertPrefsSync(settings, hydrated);
+  useDriveScheduleSync(settings, hydrated);
   useAlertStringsSync();
   useTrayStringsSync();
   useUpdateOutcome();

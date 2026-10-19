@@ -10,6 +10,7 @@ import { i18n } from '@vitals/i18n';
 
 import { devBundles } from './devclean/strings';
 import { driveBundles } from './drivecleanup/strings';
+import { insightBundles } from './drivecleanup/insightStrings';
 
 export const STORAGE_NS = 'storage';
 
@@ -802,14 +803,14 @@ export function registerStorageStrings(): void {
   i18n.addResourceBundle(
     'en',
     STORAGE_NS,
-    { ...en, dev: devBundles.en, drive: driveBundles.en },
+    { ...en, dev: devBundles.en, drive: driveBundles.en, insight: insightBundles.en },
     true,
     false,
   );
   i18n.addResourceBundle(
     'ro',
     STORAGE_NS,
-    { ...ro, dev: devBundles.ro, drive: driveBundles.ro },
+    { ...ro, dev: devBundles.ro, drive: driveBundles.ro, insight: insightBundles.ro },
     true,
     false,
   );

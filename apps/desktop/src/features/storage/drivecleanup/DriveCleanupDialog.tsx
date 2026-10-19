@@ -45,6 +45,7 @@ import {
 } from '@vitals/ui';
 
 import { useSettings } from '../../../settings/store';
+import { hasTauriHost } from '../../../shell/host';
 import { STORAGE_NS } from '../strings';
 import {
   analyseStages,
@@ -73,6 +74,8 @@ import {
 } from './model';
 import { MoveDiskButton, MoveDiskProvider } from './move/MoveDiskEntry';
 import { useDriveCleanup, type DriveCleanupSource } from './useDriveCleanup';
+import { DriveInsights } from './DriveInsights';
+import { tauriHistorySource, type DriveHistorySource } from './history';
 
 function useStorageT() {
   return useTranslation(STORAGE_NS).t;
@@ -85,6 +88,8 @@ export interface DriveCleanupDialogProps {
   readonly onClose: () => void;
   /** Injectable so tests need no Tauri host. */
   readonly source?: DriveCleanupSource;
+  /** Injectable for the same reason. */
+  readonly historySource?: DriveHistorySource;
 }
 
 export function itemName(item: PlanItem, t: T): string {
@@ -127,6 +132,7 @@ export function DriveCleanupDialog({
   locale,
   onClose,
   source,
+  historySource,
 }: DriveCleanupDialogProps): React.JSX.Element {
   const t = useStorageT();
   const state = useDriveCleanup(mount, source);
@@ -134,6 +140,8 @@ export function DriveCleanupDialog({
   const profile = useSettings((s) => s.settings.driveCleanupProfiles[key]);
   const patch = useSettings((s) => s.patch);
   const profiles = useSettings((s) => s.settings.driveCleanupProfiles);
+  // Without a host (tests, `vite preview`) there is no history to read.
+  const insights = historySource ?? (hasTauriHost() ? tauriHistorySource : null);
 
   const [view, setView] = useState<'choose' | 'confirm'>('choose');
   const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set());
@@ -373,6 +381,15 @@ export function DriveCleanupDialog({
             ) : (
               body
             )}
+            {insights !== null &&
+              ((phase.step === 'plan' && view === 'choose') || phase.step === 'report') && (
+                <DriveInsights
+                  mount={mount}
+                  locale={locale}
+                  source={insights}
+                  reloadKey={phase.step}
+                />
+              )}
           </div>
         </TooltipProvider>
       </DialogContent>

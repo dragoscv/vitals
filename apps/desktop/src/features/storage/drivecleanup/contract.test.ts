@@ -25,6 +25,8 @@ import {
   roleReasonKeys,
   unavailableReasons,
 } from './model';
+import { historyOnlyKinds } from './history';
+import { schedulableKinds } from './schedule';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const storage = resolve(here, '../../../../../../crates/vitals-win/src/storage');
@@ -61,6 +63,8 @@ const sorted = (values: Iterable<string>) => [...new Set(values)].sort();
 const mod = source('drive_cleanup/mod.rs');
 const run = source('drive_cleanup/run.rs');
 const role = source('drive_role.rs');
+const schedule = source('drive_cleanup/schedule.rs');
+const history = source('drive_cleanup/history.rs');
 
 describe('drive clean-up contract with the Rust backend', () => {
   it('knows exactly the item kinds the analysis can emit', () => {
@@ -102,5 +106,20 @@ describe('drive clean-up contract with the Rust backend', () => {
     expect(sorted(unavailableReasons)).toEqual(
       sorted(all(block(mod, 'impl UnavailableReason'), /=> "(\w+)"/g)),
     );
+  });
+
+  it('knows exactly the kinds the weekly clean-up may run, all of them real kinds', () => {
+    const at = schedule.indexOf('pub const SCHEDULABLE_KINDS');
+    const list = schedule.slice(schedule.indexOf('= [', at), schedule.indexOf('];', at));
+    const rust = all(list, /"(\w+)"/g);
+    expect(rust.length).toBeGreaterThan(0);
+    expect(sorted(schedulableKinds)).toEqual(sorted(rust));
+    for (const kind of schedulableKinds) expect(planItemKinds as readonly string[]).toContain(kind);
+  });
+
+  it('knows exactly the extra kinds the drive history records', () => {
+    const at = history.indexOf('pub const DISK_KINDS');
+    const list = history.slice(history.indexOf('= [', at), history.indexOf('];', at));
+    expect(sorted(historyOnlyKinds)).toEqual(sorted(all(list, /"(\w+)"/g)));
   });
 });

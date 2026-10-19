@@ -12,6 +12,8 @@ import {
   unavailableReasons,
 } from './model';
 import { driveBundles } from './strings';
+import { historyOnlyKinds } from './history';
+import { insightBundles } from './insightStrings';
 
 function keyPaths(value: unknown, prefix = ''): string[] {
   if (typeof value !== 'object' || value === null) return [prefix];
@@ -62,5 +64,14 @@ describe('drive clean-up translations', () => {
     const text = JSON.stringify(driveBundles.ro);
     expect(text).not.toMatch(/[şţŞŢ]/);
     expect(text).toMatch(/[șț]/);
+  });
+
+  it('defines the history and weekly strings in both languages, naming every disk kind', () => {
+    expect(strip(keyPaths(insightBundles.ro))).toEqual(strip(keyPaths(insightBundles.en)));
+    for (const locale of ['en', 'ro'] as const) {
+      const paths = new Set(keyPaths(insightBundles[locale]));
+      for (const kind of historyOnlyKinds) expect(paths).toContain(`growth.item.${kind}`);
+    }
+    expect(JSON.stringify(insightBundles.ro)).not.toMatch(/[şţŞŢ]/);
   });
 });

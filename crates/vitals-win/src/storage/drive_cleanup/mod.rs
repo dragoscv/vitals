@@ -11,9 +11,11 @@
 //! zero there would tell the user a 300 GB disk has nothing to give.
 
 pub mod elevated;
+pub mod history;
 pub mod parse;
 pub mod probe;
 pub mod run;
+pub mod schedule;
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};

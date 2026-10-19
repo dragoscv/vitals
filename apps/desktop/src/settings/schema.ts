@@ -16,6 +16,24 @@ export const samplingIntervalMs: Readonly<Record<SamplingRate, number>> = {
 
 export const retentionDayOptions = [1, 7, 30, 90] as const;
 
+/**
+ * One drive's weekly clean-up (`features/storage/drivecleanup/schedule.ts`).
+ * Declared here so the settings module, which loads with the first paint,
+ * does not pull the clean-up code in with it.
+ */
+export interface DriveSchedule {
+  /** The drive letter last seen, `C:`. */
+  readonly mount: string;
+  /** 0 = Monday … 6 = Sunday. */
+  readonly weekday: number;
+  /** Minute of the local day, 0–1439. */
+  readonly minute: number;
+  /** When it was turned on, in unix seconds: an earlier slot is not due. */
+  readonly enabledAt: number;
+}
+
+export type DriveSchedules = Readonly<Record<string, DriveSchedule>>;
+
 export interface AppSettings {
   readonly theme: ThemeSettings;
   readonly locale: Locale;
@@ -67,6 +85,11 @@ export interface AppSettings {
    * because ids belong to one analysis and mean nothing the next time.
    */
   readonly driveCleanupProfiles: Readonly<Record<string, readonly string[]>>;
+  /**
+   * The weekly safe clean-up, per drive, keyed by the volume's GUID path so a
+   * changed drive letter keeps it. Absent = off, the default.
+   */
+  readonly driveCleanupSchedules: DriveSchedules;
 }
 
 /**
@@ -115,6 +138,8 @@ export const defaultSettings: AppSettings = {
   showHiddenResources: false,
   firstRunDismissed: false,
   driveCleanupProfiles: {},
+  // Off for every drive: deleting on a timer is something the user asks for.
+  driveCleanupSchedules: {},
 };
 
 function bool(value: unknown, fallback: boolean): boolean {
@@ -150,6 +175,38 @@ function parseVisibility(value: unknown): Readonly<Record<string, 'hidden' | 'sh
  * Keeps only well-formed profiles: a hand-edited entry that is not a list of
  * strings costs that one drive its profile, not every drive's.
  */
+function isInt(value: unknown, min: number, max: number): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= min && value <= max;
+}
+
+/**
+ * Keeps only well-formed schedules: a hand-edited entry costs that one
+ * drive its schedule, not every drive's.
+ */
+export function parseSchedules(value: unknown): DriveSchedules {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return {};
+  const out: Record<string, DriveSchedule> = {};
+  for (const [volume, raw] of Object.entries(value as Record<string, unknown>)) {
+    if (typeof raw !== 'object' || raw === null) continue;
+    const entry = raw as Record<string, unknown>;
+    if (
+      volume !== '' &&
+      typeof entry['mount'] === 'string' &&
+      isInt(entry['weekday'], 0, 6) &&
+      isInt(entry['minute'], 0, 1439) &&
+      isInt(entry['enabledAt'], 0, Number.MAX_SAFE_INTEGER)
+    ) {
+      out[volume] = {
+        mount: entry['mount'],
+        weekday: entry['weekday'],
+        minute: entry['minute'],
+        enabledAt: entry['enabledAt'],
+      };
+    }
+  }
+  return out;
+}
+
 function parseProfiles(value: unknown): Readonly<Record<string, readonly string[]>> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return {};
   const out: Record<string, readonly string[]> = {};
@@ -230,5 +287,6 @@ export function parseSettings(raw: unknown): AppSettings {
     showHiddenResources: bool(record['showHiddenResources'], defaultSettings.showHiddenResources),
     firstRunDismissed: bool(record['firstRunDismissed'], defaultSettings.firstRunDismissed),
     driveCleanupProfiles: parseProfiles(record['driveCleanupProfiles']),
+    driveCleanupSchedules: parseSchedules(record['driveCleanupSchedules']),
   };
 }

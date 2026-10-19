@@ -202,7 +202,7 @@ fn to_dto(scan_id: u64, plan: &Plan) -> (DriveCleanupPlanDto, HashMap<String, Ac
 
 /// `C:` from `C:`, `c:\` or `C:/`; anything that is not one drive letter
 /// is refused before a volume is looked at.
-fn vet_mount(mount: &str) -> CommandResult<String> {
+pub(crate) fn vet_mount(mount: &str) -> CommandResult<String> {
     let m = mount.trim().trim_end_matches(['\\', '/']);
     let mut chars = m.chars();
     match (chars.next(), chars.next(), chars.next()) {
@@ -237,6 +237,8 @@ pub async fn analyse_drive_cleanup(
                 message: format!("{mount} is not a mounted drive"),
             });
         };
+        // What it measured, so the next analysis can say what grew.
+        crate::drive_schedule::remember_analysis(&plan);
         let scan_id = NEXT_SCAN.fetch_add(1, Ordering::Relaxed);
         let (dto, items) = to_dto(scan_id, &plan);
         if let Ok(mut kept) = KEPT.lock() {
@@ -343,6 +345,7 @@ pub async fn run_drive_cleanup(
         if let Ok(mut kept) = KEPT.lock() {
             kept.take();
         }
+        crate::drive_schedule::remember_run(&mount, &report, false);
         DriveCleanupReportDto {
             items: report
                 .items

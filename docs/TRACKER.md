@@ -3561,6 +3561,71 @@ local (slot task-3, rebased)
                (CSS + Card change: initial +0.3 KB gzip measured before rebase)
 ```
 
+### 2026-10-19 — S22-05 weekly safe clean-up, S22-06 drive growth history
+
+Two owner-approved follow-ups to the per-drive wizard. Decisions taken with
+the owner during the slice: the drive history lives in its own always-on
+`drive-history.sqlite` (it records how full each drive is, not what the
+machine does, so it is not gated on History, which is off by default —
+PRIVACY.md lists it in both languages); a weekly clean-up that never finds
+the PC idle runs on mains after waiting a day.
+
+**Where it runs.** One `vitals-drive-schedule` thread, the same plain-thread
+pattern as the S21-05 idle updater: a volume reading a minute after launch
+and hourly, a daily prune, and a schedule check every five minutes. The
+rules are pure functions in `vitals_win::storage::drive_cleanup::schedule`:
+`decide` (idle ≥ 10 min and mains, or mains after 24 h of waiting; never on
+battery or an unknown line with a battery; never while Windows ends the
+session; once per slot, a slot missed by less than a week runs at the next
+start) and `schedulable` (available, safe, preselected, not elevated, stops
+neither WSL nor Docker, kind in `SCHEDULABLE_KINDS`, and an exhaustive action
+whitelist with no catch-all arm — so a hand-edited profile naming
+`compactVhd` still never compacts, and nothing can raise a UAC prompt).
+
+**Store.** `drive_history`: `volume_samples (volume, ts, used, free)`,
+`analysis_items (volume, ts, kind, label, size NULL = unmeasured)`,
+`cleanup_runs`; user_version 1, a newer file is refused. Keyed by the volume
+GUID path so a changed letter keeps its history and schedule. Hourly rows for
+30 days, then the last reading of each day, all gone after 180 days. Rates
+are bytes/day from the oldest to the newest reading in the window and `null`
+when those span less than half of it; analysis deltas compare only items
+measured both times.
+
+**Bundle.** The storage chunk grew 3.4 KB gzip (45.8 → 49.2; inline SVG
+sparkline, no chart library). The settings type and parser live in
+`settings/schema.ts` and the shell loads `schedule.ts` with a dynamic
+import, so the first paint grew 0.4 KB (205.1 → 205.5 KB measured on
+4744e00). Measured alone on f021430 the shipped total went past its old
+484.0 KB budget (488.0); S22-07 and S22-04 raised the budget in parallel,
+and on 10c808b everything fits: initial 205.9 / 206.8 KB, shipped
+496.9 / 498.0 KB. No budget change in this commit — the shipped margin is
+now 1.1 KB, so the next storage feature should expect to raise it.
+
+```
+rebased on 10c808b (S22-04), local via run-build
+  cargo fmt --all -- --check                                         RC 0
+  cargo clippy -p vitals-store -p vitals-win -p vitals-desktop
+               --all-targets -- -D warnings                          RC 0
+  cargo test -p vitals-store                       37 passed
+  cargo test -p vitals-win --lib drive_cleanup     54 passed (18 schedule, 3 history)
+  cargo test -p vitals-desktop --lib drive         green
+  prove_drive_history  C: D: E: H: as \\?\Volume{...}\, growth/day 1073741824 each,
+                       analysis delta dockerDisk +45097156608, file 20480 B
+mutants (all caught, exit 101 / vitest 1)
+  drop `safety == Safe`                    -> schedule tests red
+  drop SCHEDULABLE_KINDS check             -> red
+  whitelist DockerNamedVolume              -> red
+  drop elevation/WSL/Docker + allow Compact/Sparse -> red
+  prune window +2 days                     -> "day 220 lost its reading"
+      (passed at first: the test had no per-day assertion; added)
+  compactVhd in schedulableKinds (TS)      -> contract + schedule tests 3 failed
+ws-codai
+  pnpm --filter @vitals/desktop test  125 files / 1327 tests
+  typecheck 0 · eslint --max-warnings=0 0 · prettier --check 0
+check-drift   0 failure(s), 5 warning(s) (cloud_* only, pre-existing)
+check-size    initial 205.9/206.8 KB, all 496.9/498.0, hud 120.6, mobile 147.8
+```
+
 ## S13 — public beta 0.9.0-beta.1 (2026-09-28)
 
 Decided with the owner (ADR 0031): public repository, beta version, no code

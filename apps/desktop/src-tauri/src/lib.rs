@@ -18,6 +18,9 @@ pub mod distribution;
 pub mod drivecleanup;
 #[cfg(windows)]
 pub mod drivemove;
+// The weekly safe clean-up and the per-volume drive history.
+#[cfg(windows)]
+pub mod drive_schedule;
 pub mod hardware;
 pub mod history;
 pub mod hud;
@@ -349,6 +352,14 @@ fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
         drivemove::open_docker_desktop,
         #[cfg(windows)]
         drivemove::check_docker_disk,
+        // The weekly safe clean-up and the drive history. Desktop-only like
+        // the wizard: a phone must not schedule deletions on this PC.
+        #[cfg(windows)]
+        drive_schedule::set_drive_schedules,
+        #[cfg(windows)]
+        drive_schedule::set_drive_schedule_strings,
+        #[cfg(windows)]
+        drive_schedule::get_drive_history,
         // Benchmarks. The extreme case of the on-demand argument above:
         // a suite occupies every core for seconds, so it is only ever
         // started by the user from its own screen.
@@ -432,6 +443,13 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     app.state::<agents::Agents>().spawn(app.handle().clone());
     arm_reveal_safety_net(app.handle().clone());
     updates::spawn(app.handle());
+    // Hourly volume readings and the weekly clean-up check.
+    #[cfg(windows)]
+    {
+        // Schedules pushed by the webview; read by the drive-schedule thread.
+        app.manage(drive_schedule::DriveSchedules::default());
+        drive_schedule::spawn(app.handle());
+    }
     // A dead renderer otherwise leaves a blank window until a relaunch.
     #[cfg(windows)]
     crashlog::reload_on_renderer_exit(app.handle());
