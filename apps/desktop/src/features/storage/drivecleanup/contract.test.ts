@@ -23,6 +23,7 @@ import {
   planGroupKeys,
   planItemKinds,
   roleReasonKeys,
+  unavailableReasons,
 } from './model';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -95,5 +96,11 @@ describe('drive clean-up contract with the Rust backend', () => {
   it('knows exactly the drive roles and the reasons given for them', () => {
     expect(sorted(driveRoles)).toEqual(sorted(all(block(role, 'impl DriveRole'), /=> "(\w+)"/g)));
     expect(sorted(roleReasonKeys)).toEqual(sorted(all(role, /"role\.reason\.(\w+)"/g)));
+  });
+
+  it('knows exactly the reasons an item is shown but not offered', () => {
+    expect(sorted(unavailableReasons)).toEqual(
+      sorted(all(block(mod, 'impl UnavailableReason'), /=> "(\w+)"/g)),
+    );
   });
 });

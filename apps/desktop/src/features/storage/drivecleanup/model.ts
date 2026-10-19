@@ -154,6 +154,30 @@ export interface PlanItem {
    * sends it; absent (an older backend) means available.
    */
   readonly available?: boolean;
+  /**
+   * One of `unavailableReasons` when `available` is false and the backend
+   * knows why; typed loosely so a newer backend's reason cannot crash the list.
+   */
+  readonly unavailableReason?: string | null;
+}
+
+/** Every reason the backend gives for an item it shows but cannot do. */
+export const unavailableReasons = [
+  'hibernationRefused',
+  'sparseDisabledByWsl',
+  'sparseNeedsNewerWsl',
+  'wslVersionUnknown',
+] as const;
+
+export type UnavailableReason = (typeof unavailableReasons)[number];
+
+/** The item's known reason for being unavailable, or null. */
+export function unavailableReason(item: PlanItem): UnavailableReason | null {
+  const reason = item.unavailableReason;
+  if (isAvailable(item) || reason === undefined || reason === null) return null;
+  return (unavailableReasons as readonly string[]).includes(reason)
+    ? (reason as UnavailableReason)
+    : null;
 }
 
 /** Whether an item can be ticked at all. */

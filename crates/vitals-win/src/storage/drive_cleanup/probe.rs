@@ -26,6 +26,13 @@ pub(crate) fn wsl(args: &[&str]) -> Option<Vec<u8>> {
     out.status.success().then_some(out.stdout)
 }
 
+/// The installed WSL's version, or `None` when `wsl --version` fails or
+/// prints none. Read-only: it does not start the WSL VM.
+#[must_use]
+pub fn wsl_version() -> Option<parse::WslVersion> {
+    wsl(&["--version"]).and_then(|raw| parse::parse_wsl_version(&raw))
+}
+
 /// Names of the running distros (`docker-desktop` included).
 ///
 /// `--running -q` rather than the `STATE` column of `-l -v`, which is

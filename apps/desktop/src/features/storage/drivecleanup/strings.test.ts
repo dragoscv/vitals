@@ -9,6 +9,7 @@ import {
   planGroupKeys,
   planItemKinds,
   roleReasonKeys,
+  unavailableReasons,
 } from './model';
 import { driveBundles } from './strings';
 
@@ -34,6 +35,7 @@ describe('drive clean-up translations', () => {
       ...analyseStages.map((stage) => `analyse.stage.${stage}`),
       ...driveRoles.map((role) => `role.${role}`),
       ...roleReasonKeys.map((key) => `role.reason.${key}`),
+      ...unavailableReasons.map((reason) => `unavailableReason.${reason}`),
       ...blockerKinds.flatMap((kind) => [`blockers.kind.${kind}`, `blockers.advice.${kind}`]),
       'blockers.unknownHyperV',
       'blockers.unknownHyperVAdvice',

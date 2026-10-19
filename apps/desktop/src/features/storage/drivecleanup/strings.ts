@@ -93,6 +93,16 @@ const en = {
     elevation: 'Needs administrator',
     unavailable: 'Not possible here',
   },
+  unavailableReason: {
+    hibernationRefused:
+      'Windows will not turn hibernation on here, which is the only way to remove this file. The next restart without that protection removes it.',
+    sparseDisabledByWsl:
+      'Your version of WSL no longer lets disks shrink by themselves, because it was found to damage them. Use "Shrink a virtual disk" instead.',
+    sparseNeedsNewerWsl:
+      'Your version of WSL is too old for this. Use "Shrink a virtual disk" instead.',
+    wslVersionUnknown:
+      'Vitals could not tell which version of WSL is installed, so it will not try a step that may be refused.',
+  },
   dangerAck: 'I understand {{name}} cannot be undone',
   dangerHint: 'Tick it on its own, then confirm below it. Select-all never ticks this.',
 
@@ -402,6 +412,16 @@ const ro = {
     irreversible: 'Definitiv',
     elevation: 'Necesită administrator',
     unavailable: 'Nu se poate de aici',
+  },
+  unavailableReason: {
+    hibernationRefused:
+      'Windows nu pornește hibernarea aici, singura cale de a șterge acest fișier. Următoarea repornire fără această protecție îl șterge.',
+    sparseDisabledByWsl:
+      'Versiunea ta de WSL nu mai lasă discurile să se micșoreze singure, pentru că s-a descoperit că le strică. Folosește în schimb „Micșorează un disc virtual”.',
+    sparseNeedsNewerWsl:
+      'Versiunea ta de WSL este prea veche pentru asta. Folosește în schimb „Micșorează un disc virtual”.',
+    wslVersionUnknown:
+      'Vitals nu a putut afla ce versiune de WSL este instalată, așa că nu încearcă un pas care ar putea fi refuzat.',
   },
   dangerAck: 'Înțeleg că {{name}} nu poate fi recuperat',
   dangerHint:

@@ -32,6 +32,37 @@ pub fn decode_wsl(raw: &[u8]) -> String {
     text.replace('\0', "")
 }
 
+/// A WSL release, `major.minor.patch.build`, ordered numerically (so
+/// 2.10 sorts after 2.9, which a string comparison would get wrong).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct WslVersion(pub [u32; 4]);
+
+/// Reads the WSL version from `wsl --version`.
+///
+/// The first line is `WSL version: 2.7.13.0` in English but localised
+/// elsewhere ("Version WSL : 2.7.13.0"), so the label is ignored and the
+/// first dotted number on that line is taken. The inbox `wsl.exe` that
+/// predates the Store package has no `--version` and prints its usage text,
+/// which carries no such number: `None`, not a guessed version.
+#[must_use]
+pub fn parse_wsl_version(raw: &[u8]) -> Option<WslVersion> {
+    let text = decode_wsl(raw);
+    let line = text.lines().find(|l| !l.trim().is_empty())?;
+    line.split(|c: char| !(c.is_ascii_digit() || c == '.'))
+        .filter(|t| t.contains('.'))
+        .find_map(|token| {
+            let parts: Vec<&str> = token.trim_matches('.').split('.').collect();
+            if !(2..=4).contains(&parts.len()) {
+                return None;
+            }
+            let mut v = [0_u32; 4];
+            for (slot, part) in v.iter_mut().zip(&parts) {
+                *slot = part.parse().ok()?;
+            }
+            Some(WslVersion(v))
+        })
+}
+
 /// One row of `wsl -l -v`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WslDistro {
@@ -538,6 +569,25 @@ mod tests {
 
     fn utf16(text: &str) -> Vec<u8> {
         text.encode_utf16().flat_map(u16::to_le_bytes).collect()
+    }
+
+    #[test]
+    fn wsl_version_is_read_from_the_real_utf16_output_whatever_the_label_language() {
+        // Byte for byte what WSL 2.7.13.0 printed on 2026-10-19.
+        let real = utf16(
+            "WSL version: 2.7.13.0\r\nKernel version: 6.18.33.2-2\r\nWSLg version: 1.0.71\r\n",
+        );
+        assert_eq!(parse_wsl_version(&real), Some(WslVersion([2, 7, 13, 0])));
+        let french = utf16("Version WSL : 2.5.6.0\r\nVersion du noyau : 6.6.84.1-1\r\n");
+        assert_eq!(parse_wsl_version(&french), Some(WslVersion([2, 5, 6, 0])));
+        assert!(WslVersion([2, 10, 0, 0]) > WslVersion([2, 9, 9, 0]));
+    }
+
+    #[test]
+    fn a_wsl_without_a_version_line_is_unknown_rather_than_guessed() {
+        let usage = utf16("Usage: wsl.exe [Argument] [Options...] [CommandLine]\r\n");
+        assert_eq!(parse_wsl_version(&usage), None);
+        assert_eq!(parse_wsl_version(&[]), None);
     }
 
     #[test]

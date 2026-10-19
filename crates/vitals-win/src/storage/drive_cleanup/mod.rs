@@ -24,7 +24,7 @@ use super::cleanup::{CleanupKind, candidate_locations};
 use super::devclean::{self as dc, ArtefactKind, CacheKind};
 use super::drive_role::{self, DriveRole, is_on};
 use super::managed::{Handler, ManagedTool};
-use parse::{Hiberfil, removable_containers, unused_volumes};
+use parse::{Hiberfil, WslVersion, removable_containers, unused_volumes};
 
 /// Artefacts smaller than this are not worth a row in a per-drive plan;
 /// the developer clean-up lists them all.
@@ -39,6 +39,15 @@ pub const IMAGE_MIN_AGE_HOURS: u64 = 24;
 pub const TEMP_MIN_AGE_DAYS: u64 = 2;
 /// The journal is vacuumed down to this, not emptied.
 pub const JOURNAL_KEEP: u64 = 100 * 1024 * 1024;
+/// The first WSL with `wsl --manage <distro> --set-sparse`
+/// (<https://github.com/microsoft/WSL/releases/tag/2.0.0>).
+pub const SPARSE_FIRST_WSL: WslVersion = WslVersion([2, 0, 0, 0]);
+/// From this WSL on, `--set-sparse true` is refused ("Sparse VHD support is
+/// currently disabled due to potential data corruption") unless
+/// `--allow-unsafe` is added, which Vitals never does: the flag exists
+/// because sparse disks were corrupting distros (microsoft/WSL#10609).
+/// <https://github.com/microsoft/WSL/releases/tag/2.5.6>
+pub const SPARSE_DISABLED_WSL: WslVersion = WslVersion([2, 5, 6, 0]);
 
 /// The wizard's groups.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -87,6 +96,48 @@ impl Safety {
             Self::Review => "review",
             Self::Danger => "danger",
         }
+    }
+}
+
+/// Why an item is shown for its size but cannot be done from here. The
+/// webview names each one in both languages; `detail` stays the technical
+/// line.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UnavailableReason {
+    /// Windows refuses `powercfg /h on` (Guarded Host / virtualisation-based
+    /// security), so a leftover `hiberfil.sys` cannot be removed that way.
+    HibernationRefused,
+    /// This WSL refuses sparse disks without `--allow-unsafe`.
+    SparseDisabledByWsl,
+    /// This WSL predates `--set-sparse`.
+    SparseNeedsNewerWsl,
+    /// `wsl --version` could not be read, so whether the step would be
+    /// refused is unknown — and a step that may fail is not offered.
+    WslVersionUnknown,
+}
+
+impl UnavailableReason {
+    #[must_use]
+    pub const fn key(self) -> &'static str {
+        match self {
+            Self::HibernationRefused => "hibernationRefused",
+            Self::SparseDisabledByWsl => "sparseDisabledByWsl",
+            Self::SparseNeedsNewerWsl => "sparseNeedsNewerWsl",
+            Self::WslVersionUnknown => "wslVersionUnknown",
+        }
+    }
+}
+
+/// Whether this WSL would refuse `--set-sparse true`, and why. An unread
+/// version is not taken as "allowed": the step would then fail mid-pass,
+/// after WSL and Docker had already been stopped for it.
+#[must_use]
+pub fn sparse_refusal(version: Option<WslVersion>) -> Option<UnavailableReason> {
+    match version {
+        None => Some(UnavailableReason::WslVersionUnknown),
+        Some(v) if v >= SPARSE_DISABLED_WSL => Some(UnavailableReason::SparseDisabledByWsl),
+        Some(v) if v < SPARSE_FIRST_WSL => Some(UnavailableReason::SparseNeedsNewerWsl),
+        Some(_) => None,
     }
 }
 
@@ -265,6 +316,8 @@ pub struct PlannedItem {
     pub detail: Option<String>,
     /// False when it is shown for its size but cannot be done here.
     pub available: bool,
+    /// Why it cannot, when it cannot and the reason is known.
+    pub unavailable_reason: Option<UnavailableReason>,
     pub action: Action,
 }
 
@@ -284,8 +337,17 @@ impl PlannedItem {
                 || action.stops_wsl(),
             detail: None,
             available: !matches!(action, Action::Unavailable),
+            unavailable_reason: None,
             action,
         }
+    }
+
+    /// Shown, never offered, with the reason the webview names.
+    fn because(mut self, reason: UnavailableReason) -> Self {
+        self.available = false;
+        self.default_selected = false;
+        self.unavailable_reason = Some(reason);
+        self
     }
 
     fn safe_default(mut self) -> Self {
@@ -555,6 +617,7 @@ fn hibernation_item() -> Option<PlannedItem> {
             removable: false,
         } => PlannedItem::new(Group::Windows, "hiberfilOrphan", Action::Unavailable)
             .size(size)
+            .because(UnavailableReason::HibernationRefused)
             .detail(
                 "Hibernation is off but the file stayed, and Windows refuses to turn \
                  hibernation on here (Guarded Host / virtualisation-based security), \
@@ -772,6 +835,8 @@ fn docker_items() -> Vec<PlannedItem> {
 fn wsl_items(on_drive: &[&dc::VirtualDisk], running: &[String]) -> Vec<PlannedItem> {
     let mut out = Vec::new();
     let mut compactions = Vec::new();
+    // Asked once, and only when a sparse item is about to be planned.
+    let refusal = std::cell::OnceCell::new();
     for disk in on_drive {
         let file = std::fs::metadata(&disk.path).ok().map(|m| m.len());
         let distro = disk.distro.clone();
@@ -810,25 +875,35 @@ fn wsl_items(on_drive: &[&dc::VirtualDisk], running: &[String]) -> Vec<PlannedIt
             .filter(|d| !d.starts_with("docker-desktop"))
             .filter(|_| !probe::is_sparse(&disk.path))
         {
-            let mut sparse = PlannedItem::new(
-                Group::Sparse,
-                "sparseVhd",
-                Action::Sparse {
-                    distro: d.clone(),
-                    path: disk.path.clone(),
-                },
-            )
-            .label(d)
-            .detail(format!(
-                "wsl --manage <distro> --set-sparse true — {}",
-                disk.path.display()
-            ));
-            sparse.irreversible = false;
-            out.push(sparse);
+            let refused = *refusal.get_or_init(|| sparse_refusal(probe::wsl_version()));
+            out.push(sparse_item(d, &disk.path, refused));
         }
     }
     out.extend(compactions);
     out
+}
+
+/// The sparse row for one distro: offered, or shown with why it is not.
+fn sparse_item(distro: String, path: &Path, refused: Option<UnavailableReason>) -> PlannedItem {
+    let item = match refused {
+        None => PlannedItem::new(
+            Group::Sparse,
+            "sparseVhd",
+            Action::Sparse {
+                distro: distro.clone(),
+                path: path.to_path_buf(),
+            },
+        ),
+        Some(reason) => {
+            PlannedItem::new(Group::Sparse, "sparseVhd", Action::Unavailable).because(reason)
+        }
+    };
+    let mut item = item.label(distro).detail(format!(
+        "wsl --manage <distro> --set-sparse true — {}",
+        path.display()
+    ));
+    item.irreversible = false;
+    item
 }
 
 fn distro_items(distro: &str, m: &parse::DistroMeasure) -> Vec<PlannedItem> {
@@ -959,6 +1034,48 @@ mod tests {
         assert!(!item.available);
         assert!(!item.default_selected);
         assert_eq!(item.size, Some(76_700_000_000));
+    }
+
+    #[test]
+    fn a_wsl_from_2_5_6_on_gets_the_sparse_item_shown_but_never_offered() {
+        let path = Path::new(r"C:\wsl\ext4.vhdx");
+        let plan =
+            |v: [u32; 4]| sparse_item("Ubuntu".into(), path, sparse_refusal(Some(WslVersion(v))));
+        for refusing in [[2, 5, 6, 0], [2, 5, 7, 0], [2, 7, 13, 0], [3, 0, 0, 0]] {
+            let item = plan(refusing);
+            assert!(!item.available, "{refusing:?}");
+            assert_eq!(
+                item.unavailable_reason,
+                Some(UnavailableReason::SparseDisabledByWsl)
+            );
+            assert_eq!(item.action, Action::Unavailable);
+            assert!(!item.stops_wsl && !item.needs_elevation && !item.default_selected);
+        }
+        for allowing in [[2, 0, 0, 0], [2, 4, 13, 0], [2, 5, 5, 0]] {
+            let item = plan(allowing);
+            assert!(item.available, "{allowing:?}");
+            assert_eq!(item.unavailable_reason, None);
+            assert!(matches!(item.action, Action::Sparse { .. }));
+            assert!(item.stops_wsl && item.needs_elevation);
+        }
+    }
+
+    #[test]
+    fn an_unreadable_or_too_old_wsl_version_is_never_taken_as_allowing_sparse() {
+        assert_eq!(
+            sparse_refusal(None),
+            Some(UnavailableReason::WslVersionUnknown)
+        );
+        assert_eq!(
+            sparse_refusal(Some(WslVersion([1, 2, 5, 0]))),
+            Some(UnavailableReason::SparseNeedsNewerWsl)
+        );
+        let item = sparse_item(
+            "Ubuntu".into(),
+            Path::new(r"C:\x.vhdx"),
+            sparse_refusal(None),
+        );
+        assert!(!item.available);
     }
 
     #[test]

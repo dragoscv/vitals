@@ -42,6 +42,11 @@ pub mod exit {
 
 /// The script's own code when WSL would not stop.
 const SCRIPT_WSL_RUNNING: i32 = 32;
+/// A sparse step's `result` code when WSL refused it for wanting
+/// `--allow-unsafe` (WSL 2.5.6 and later), as opposed to any other failure.
+/// The planner already withholds the step there; this covers a WSL updated
+/// between the analysis and the run.
+pub const SCRIPT_SPARSE_REFUSED: i64 = 33;
 const MAX_DISKS: usize = 8;
 const MAX_DISTROS: usize = 16;
 const MAX_TOOLS: usize = 16;
@@ -419,8 +424,10 @@ try {{
     }}
     foreach ($d in $sparse) {{
         Say 'compacting' "sparse:$d"
-        & wsl.exe --manage $d --set-sparse true 2>$null | Out-Null
+        $env:WSL_UTF8 = '1'
+        $o = (& wsl.exe --manage $d --set-sparse true 2>&1 | Out-String) -replace "`0", ''
         $c = $LASTEXITCODE
+        if ($c -ne 0 -and $o -match 'allow-unsafe') {{ $c = {SCRIPT_SPARSE_REFUSED} }}
         & wsl.exe --shutdown 2>$null | Out-Null
         if ($c -ne 0) {{ $fail++ }}
         Say 'result' "sparse:$d" $null $null $c
@@ -560,5 +567,12 @@ mod tests {
         assert!(s.contains("'Ubuntu-24.04'"));
         assert!(s.contains("Say 'result' $p ($k + 1) $n"));
         assert!(s.contains("AppendAllText"));
+    }
+
+    #[test]
+    fn the_script_reports_a_wsl_refusal_of_sparse_apart_and_never_forces_it() {
+        let s = script(&pass());
+        assert!(s.contains("-match 'allow-unsafe') { $c = 33 }"));
+        assert!(!s.contains("--allow-unsafe"));
     }
 }

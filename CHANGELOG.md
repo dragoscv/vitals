@@ -24,6 +24,16 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   be ticked.
   A "drive nearly full" alert now offers "Clean up this drive". (S22-02)
 
+### Fixed
+
+- Storage clean-up: "Let a virtual disk shrink by itself" is no longer
+  offered on WSL 2.5.6 or later, which refuses sparse disks because they
+  were found to damage distributions — the step always failed there. It is
+  still listed, with that reason, and cannot be ticked; it is also withheld
+  when the WSL version cannot be read. Vitals never forces it with
+  `--allow-unsafe`; if WSL refuses it anyway the report says so instead of
+  showing a bare error code. (S22-03)
+
 ## [1.0.6] — 2026-10-18
 
 The first published build of the 1.0.5 changes: 1.0.5 was tagged but never

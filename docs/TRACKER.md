@@ -3410,6 +3410,43 @@ CI on ede77a9 (run 39244831689) was green except the installer budget:
 together. Raised to measured + 5 % (5,884,463 bytes), the same rule
 `check-size.ps1 -Update` applies; the web bundles stayed under theirs.
 
+### 2026-10-19 — S22-03 sparse WSL disks only where WSL allows them
+
+On this machine (WSL 2.7.13.0) the wizard's "Let a virtual disk shrink by
+itself" always failed:
+
+```
+wsl.exe --manage Ubuntu --set-sparse true
+Sparse VHD support is currently disabled due to potential data corruption. ...
+Error code: Wsl/Service/E_INVALIDARG          (exit -1)
+```
+
+WSL 2.5.6 put sparse disks behind `--allow-unsafe`
+(<https://github.com/microsoft/WSL/releases/tag/2.5.6>) after they were found
+to corrupt distributions (microsoft/WSL#10609). Vitals will not pass that
+flag, so the planner now reads `wsl --version` (read-only; UTF-16LE, label
+localised, so only the first dotted number on the first line counts) and
+withholds the step from 2.5.6 on, before 2.0.0, and when the version cannot
+be read — an unknown is not taken as "allowed", because the step runs only
+after WSL and Docker have been stopped. The item stays visible with its
+reason (`unavailableReason`, new on the DTO; the Guarded Host hibernation
+file got its own key too). If WSL is updated between analysis and run, the
+elevated script reports code 33 and the report says WSL refused it.
+
+```
+local (ws-vitals-win suspended, stuck queue job) via run-build
+  cargo fmt --all -- --check                                        RC 0
+  cargo clippy -p vitals-win -p vitals-desktop --all-targets -D warnings  RC 0
+  cargo test -p vitals-win drive_cleanup        36 passed; 0 failed
+  cargo test -p vitals-desktop --lib drivecleanup  4 passed; 0 failed
+  mutant >= -> > on SPARSE_DISABLED_WSL  -> 1 failed (a_wsl_from_2_5_6_on_...)
+ws-codai
+  vitest src/features/storage   Test Files 11 passed, Tests 188 passed
+  typecheck 0 · eslint --max-warnings=0 (6 files) 0 · prettier --check 0
+  mutant without sparseDisabledByWsl -> contract.test.ts 1 failed | 8 passed
+check-drift  0 failure(s), 5 warning(s) (cloud_* only, pre-existing)
+```
+
 ## S13 — public beta 0.9.0-beta.1 (2026-09-28)
 
 Decided with the owner (ADR 0031): public repository, beta version, no code

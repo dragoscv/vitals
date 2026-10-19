@@ -63,6 +63,7 @@ import {
   selectedItems,
   sizeTotal,
   unacknowledged,
+  unavailableReason,
   type Blocker,
   type DriveCleanProgress,
   type DriveCleanupPlan,
@@ -685,6 +686,7 @@ function Item({
   readonly onAcknowledge: (item: PlanItem, on: boolean) => void;
 }) {
   const name = itemName(item, t);
+  const reason = unavailableReason(item);
   return (
     <li
       className={`rounded-md border p-2 ${
@@ -708,6 +710,11 @@ function Item({
         <ItemBadges item={item} t={t} />
       </div>
       <p className="pl-6 text-2xs text-[var(--color-fg-muted)]">{itemWhat(item, t)}</p>
+      {reason !== null && (
+        <p className="pl-6 text-2xs text-[var(--color-fg-muted)]">
+          {t(`drive.unavailableReason.${reason}`)}
+        </p>
+      )}
       {item.detail !== null && (
         <p className="pl-6 font-mono text-2xs break-all text-[var(--color-fg-subtle)]">
           {item.detail}

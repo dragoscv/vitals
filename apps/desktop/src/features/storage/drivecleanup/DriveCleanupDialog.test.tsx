@@ -304,6 +304,31 @@ describe('drive clean-up wizard', () => {
     );
   });
 
+  it('says why WSL will not let a disk shrink by itself and never lets it be ticked', async () => {
+    const sparse = item({
+      id: 's1',
+      kind: 'sparseVhd',
+      label: 'Ubuntu',
+      size: null,
+      defaultSelected: false,
+      available: false,
+      unavailableReason: 'sparseDisabledByWsl',
+    });
+    await opened({
+      analyse: vi
+        .fn<DriveCleanupSource['analyse']>()
+        .mockResolvedValue(
+          plan({ groups: [...plan().groups, { key: 'sparse', items: [sparse] }] }),
+        ),
+    });
+    const group = screen.getByRole('region', { name: 'Keep virtual disks small' });
+    expect(within(group).getByText(/no longer lets disks shrink by themselves/)).toBeTruthy();
+    const tick = box('Let a virtual disk shrink by itself (Ubuntu)');
+    expect(tick.hasAttribute('disabled') || tick.getAttribute('aria-disabled') === 'true').toBe(
+      true,
+    );
+  });
+
   it('shows each stage live and cannot be closed while it runs', async () => {
     const onClose = vi.fn();
     const harness = await opened(

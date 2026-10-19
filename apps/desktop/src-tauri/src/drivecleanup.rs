@@ -17,7 +17,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 use serde::Serialize;
 use tauri::Emitter as _;
-use vitals_win::storage::drive_cleanup::{self as dcw, Action, Blocker, Plan};
+use vitals_win::storage::drive_cleanup::{self as dcw, Action, Blocker, Plan, UnavailableReason};
 
 use crate::commands::CommandError;
 
@@ -65,6 +65,9 @@ pub struct PlanItemDto {
     /// (the reason is in `detail`). Without it the webview would offer a
     /// tick box that `resolve` then refuses.
     available: bool,
+    /// Why it is not available, as a key the webview names in both
+    /// languages; `None` when it is available (or the reason is unknown).
+    unavailable_reason: Option<&'static str>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -178,6 +181,7 @@ fn to_dto(scan_id: u64, plan: &Plan) -> (DriveCleanupPlanDto, HashMap<String, Ac
                         stops_docker: item.stops_docker,
                         detail: item.detail.clone(),
                         available: item.available,
+                        unavailable_reason: item.unavailable_reason.map(UnavailableReason::key),
                     }
                 })
                 .collect(),
@@ -384,6 +388,7 @@ mod tests {
             stops_docker: false,
             detail: None,
             available,
+            unavailable_reason: (!available).then_some(UnavailableReason::HibernationRefused),
             action,
         }
     }
@@ -491,11 +496,17 @@ mod tests {
             "stopsDocker",
             "detail",
             "available",
+            "unavailableReason",
         ] {
             assert!(item.get(key).is_some(), "{key}");
         }
         assert_eq!(json["groups"][0]["items"][0]["available"], false);
         assert_eq!(json["groups"][1]["items"][0]["available"], true);
+        assert_eq!(
+            json["groups"][0]["items"][0]["unavailableReason"],
+            "hibernationRefused"
+        );
+        assert!(json["groups"][1]["items"][0]["unavailableReason"].is_null());
         // Unmeasured travels as null, never as 0.
         assert!(item["size"].is_null());
     }

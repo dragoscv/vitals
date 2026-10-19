@@ -698,6 +698,16 @@ pub fn elevated_result(
             Some("WSL did not stop, so no disk was touched".into()),
         ),
         (_, Some(0 | 3010)) => ItemResult::new(id, Status::Done, freed, None),
+        (_, Some(elevated::SCRIPT_SPARSE_REFUSED)) => ItemResult::new(
+            id,
+            Status::Failed,
+            None,
+            Some(
+                "WSL refuses sparse disks on this version; Vitals never forces it \
+                 (--allow-unsafe), because sparse disks were corrupting distros"
+                    .into(),
+            ),
+        ),
         (_, Some(c)) => ItemResult::new(
             id,
             Status::Failed,
@@ -1081,6 +1091,25 @@ mod tests {
             elevated_result("f", true, Some(0), Some(0), Some(9)).freed,
             Some(9)
         );
+    }
+
+    #[test]
+    fn a_sparse_step_wsl_refused_says_so_instead_of_a_bare_code() {
+        let r = elevated_result(
+            "s",
+            true,
+            Some(elevated::exit::SOME_FAILED),
+            Some(elevated::SCRIPT_SPARSE_REFUSED),
+            None,
+        );
+        assert_eq!(r.status, Status::Failed);
+        assert!(
+            r.message
+                .as_deref()
+                .is_some_and(|m| m.contains("refuses sparse"))
+        );
+        let other = elevated_result("t", true, Some(0), Some(1), None);
+        assert_eq!(other.message.as_deref(), Some("code 0x1"));
     }
 
     #[test]
