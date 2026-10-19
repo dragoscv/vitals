@@ -126,7 +126,7 @@ export function AgentsScreen({ source }: AgentsScreenProps): React.JSX.Element {
 
   return (
     <div className="screen">
-      <header className="flex flex-wrap items-start justify-between gap-2">
+      <header className="screen-header">
         <div className="min-w-0">
           <h2 className="flex items-center gap-2 text-lg font-semibold">
             <Bot aria-hidden className="size-5 text-[var(--color-accent)]" />

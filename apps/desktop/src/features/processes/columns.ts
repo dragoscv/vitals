@@ -105,7 +105,9 @@ export const COLUMNS: readonly ColumnDef[] = [
   {
     id: 'cpu',
     labelKey: 'process.column.cpu',
-    width: 76,
+    // 84, not 76: sorted by CPU (the default) the header carries an arrow,
+    // and "Procesor" plus the arrow was cut to "Proce…" (S22-04).
+    width: 84,
     minWidth: 60,
     align: 'end',
     numeric: true,

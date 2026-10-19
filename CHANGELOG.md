@@ -43,6 +43,19 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   when the WSL version cannot be read. Vitals never forces it with
   `--allow-unsafe`; if WSL refuses it anyway the report says so instead of
   showing a bare error code. (S22-03)
+- The mouse wheel scrolls the page again when the pointer is over a card or
+  list that has nothing left to scroll. On Storage the page stopped dead
+  over the clean-up cards, the empty project clean-up card and the folder
+  list once it reached its end; every page with cards or tables did the
+  same. Lists still scroll themselves first when they have more to show.
+- Text stays inside its box on every page, in English and Romanian, from
+  900 px wide to full HD: App history keeps a readable name column and
+  scrolls the table sideways instead of letting the header spill over the
+  next column; a card title is no longer cut to a few letters when its badge
+  is wide (Devices → thermal zones); the CPU column header of Processes fits
+  "Procesor" with its sort arrow. Every page's title row now has the same
+  layout, so Refresh stays in the top-right corner instead of dropping under
+  a long subtitle on some pages. (S22-04)
 
 ## [1.0.6] — 2026-10-18
 

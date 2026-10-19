@@ -189,7 +189,7 @@ export function DashboardScreen({
 
   return (
     <div className="screen">
-      <header className="flex flex-wrap items-center justify-between gap-2">
+      <header className="screen-header">
         <div className="min-w-0">
           <h2 className="text-lg font-semibold">{t('title')}</h2>
           <p className="text-2xs text-[var(--color-fg-muted)]">{t('subtitle')}</p>

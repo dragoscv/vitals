@@ -59,13 +59,22 @@ export const CardHeader = forwardRef<HTMLDivElement, CardHeaderProps>(function C
   ref,
 ) {
   return (
+    // `flex-wrap` + a 6rem floor on the title: when the actions (a badge,
+    // two buttons) need more than the card has left, they move to a second
+    // line, right-aligned, rather than squeezing the title to "ZON…" — seen
+    // on Devices' thermal card in Romanian at 900 px (S22-04).
     <div
       ref={ref}
-      className={cn('flex min-h-10 items-center justify-between gap-2 px-4 pt-3 pb-1', className)}
+      className={cn(
+        'flex min-h-10 flex-wrap items-center justify-between gap-x-2 gap-y-1 px-4 pt-3 pb-1',
+        className,
+      )}
       {...rest}
     >
-      <div className="min-w-0 flex-1">{children}</div>
-      {actions !== undefined && <div className="flex shrink-0 items-center gap-1">{actions}</div>}
+      <div className="min-w-24 flex-1">{children}</div>
+      {actions !== undefined && (
+        <div className="ml-auto flex shrink-0 items-center gap-1">{actions}</div>
+      )}
     </div>
   );
 });

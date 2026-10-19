@@ -3494,6 +3494,73 @@ check-size -SkipInstaller: initial 205.5 of 206.8 KB (unchanged, the dialog is a
 Untested: a real `wsl --manage --move` and the restart after it — to run on
 the vivobook (`ssh dragos-vivobook`) with a throwaway distro.
 
+### 2026-10-19 — S22-04 scroll chaining, overflow and spacing on every page
+
+Owner report: over Storage the wheel "stops over empty sections", and text
+overflows on other pages. Root cause of the scroll trap: `styles.css` put
+`overscroll-behavior: contain` on `.screen-scroll`, `.table-scroll`,
+`.screen-body`, `.pane-stack`, `.pane-scroll` and `.list-scroll`. Since S16-17
+cards are content-sized, but their bodies are still `overflow: auto`, so each
+is a scroll container with nothing to scroll — and `contain` ends the scroll
+chain there. Removed from all six; `body` keeps `overscroll-behavior: none`
+(theme.css) and Radix locks the page under dialogs, so nothing needs it.
+
+The no-host e2e fallback renders every page empty, which is why neither
+defect was ever caught. New `e2e/fakeHost.ts` installs a stand-in
+`__TAURI_INTERNALS__` from Playwright (nothing in the app bundle): the
+Rust-written contract keyframe plus long en/ro data for Storage, Startup,
+Services, Installed apps, App history, Network, Users and Devices.
+`e2e/content-layout.spec.ts` visits all 13 routes (dashboard, performance,
+processes, agents, startup, services, appHistory, users, network, storage,
+installedApps, devices, benchmarks) at 900/1280/1920 px in en and ro and
+fails on text wider than its box without an ellipsis, text outside its
+container, or an ellipsis squeezed under 5 em; plus two wheel tests on
+Storage (idle clean-up card; folder list at its end).
+
+Probe (pointer over a panel, wheel 300 px, `.screen-body.scrollTop`):
+
+```
+old rule  cleanupIdle 750->750  devCleanIdle 856->856  folderListAtEnd 262->262  (map 124->424)
+new       cleanupIdle 750->1050 devCleanIdle 850->1056 folderListAtEnd 262->562  (map 124->424)
+```
+
+Overflow detector, 78 page/width/locale cases: first run 45 failing (138
+hits were `sr-only` — detector fixed to skip visually hidden text); real
+findings and fixes:
+
+- App history, 900 px en+ro: `th.cell-fill` "Application" +60 px /
+  "Aplicație" +49 px — `.cell-fill` (width 100 %, max-width 0) collapsed to
+  zero once seven short columns filled the box. `min-width: 10rem`; the
+  table scrolls sideways inside `.table-scroll`.
+- Devices, ro 900 px: thermal card title cut to "ZON…" by its badge.
+  `CardHeader` (packages/ui) now wraps its actions under the title with a
+  6rem title floor.
+- Processes, ro all widths: "Procesor" + sort arrow cut by 3 px. CPU column
+  default 76 → 84 px.
+- Spacing: ten screens had hand-written title rows (`items-start` vs
+  `items-center`); Refresh dropped under a long ro subtitle on Storage,
+  Network and Benchmarks. One `.screen-header` rule; styles.test.ts pins it.
+
+```
+ws-codai (Linux, chromium headless, user-space libnss/libnspr/libasound)
+  before rebase: e2e full suite 161 passed (23.4s) (content-layout.spec: 78 pages + 2 wheel)
+  rebased on 4744e00 (S22-07), all RC 0:
+  e2e full suite                RC 0
+  vitest @vitals/desktop        Test Files 123 passed, Tests 1307 passed
+  vitest @vitals/ui             Test Files 15 passed, Tests 122 passed
+  typecheck desktop / e2e / ui  0 / 0 / 0
+  eslint --max-warnings=0       0   prettier --check  0
+  mutant: `.pane-scroll { overscroll-behavior: contain }`
+    styles.test.ts 1 failed · content-layout 'the wheel' 2 failed
+  mutant: CardHeader at HEAD -> 'ro at 900px devices' failed
+    "squeezed | Zone termice | +58px"
+local (slot task-3, rebased)
+  check-drift  0 failure(s), 5 warning(s) (cloud_* only, pre-existing)
+  check-size   initial 205.5/206.8 KB (99.4%) · all 491.6/498.0 KB (98.7%)
+               hud 120.6/122.4 · mobile 147.8/149.5 — within budget, not raised
+               (CSS + Card change: initial +0.3 KB gzip measured before rebase)
+```
+
 ## S13 — public beta 0.9.0-beta.1 (2026-09-28)
 
 Decided with the owner (ADR 0031): public repository, beta version, no code

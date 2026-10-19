@@ -272,6 +272,45 @@ describe('screens made of panes', () => {
     expect(css).toMatch(/--section-max:\s*min\(\d+rem,\s*\d+vh\)/);
   });
 
+  it('lets the wheel pass from an inner scroller to the page when it has nothing left to scroll', async () => {
+    // S22-04: `overscroll-behavior: contain` on .pane-scroll / .screen-body
+    // stopped the wheel at every content-sized card on Storage, empty or not.
+    // Containment belongs to modal surfaces only, which lock the page anyway.
+    const css = await build([]);
+    for (const selector of [
+      '.screen-scroll',
+      '.table-scroll',
+      '.screen-body',
+      '.pane-stack',
+      '.pane-scroll',
+      '.list-scroll',
+    ]) {
+      expect(rule(css, selector), selector).not.toMatch(/overscroll-behavior:\s*(contain|none)/);
+    }
+  });
+
+  it('gives every screen the same title row, so actions sit in the same place on every page', async () => {
+    // S22-04: ten hand-written copies had drifted (items-start vs center) and
+    // let the Refresh button drop under a long Romanian subtitle.
+    for (const file of [
+      'features/users/UsersScreen.tsx',
+      'features/connections/ConnectionsScreen.tsx',
+      'features/benchmarks/BenchmarksScreen.tsx',
+      'features/storage/StorageScreen.tsx',
+      'features/agents/AgentsScreen.tsx',
+      'features/devices/DevicesScreen.tsx',
+      'features/apps/AppsScreen.tsx',
+      'features/history/AppHistoryScreen.tsx',
+      'features/startup/StartupScreen.tsx',
+      'features/dashboard/DashboardScreen.tsx',
+    ]) {
+      const tsx = await readFile(resolve(here, file), 'utf8');
+      expect(tsx, file).toContain('<header className="screen-header">');
+    }
+    const css = await build([]);
+    expect(rule(css, '.screen-header')).toMatch(/justify-content:\s*space-between/);
+  });
+
   it('lets no screen hand its cards a share of the height', async () => {
     const source = await readFile(resolve(here, 'styles.css'), 'utf8');
     expect(source).not.toMatch(/\.devices-body\s*\{[^}]*grid-template-rows/);

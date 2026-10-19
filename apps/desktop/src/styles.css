@@ -108,6 +108,16 @@
  * `.screen-scroll` pads itself by `--scroll-gutter-*` and cancels the padding
  * with a negative margin, so the content column keeps its alignment while
  * shadows have somewhere to paint. See the token for why.
+ *
+ * No `overscroll-behavior: contain` on any of these scrollers (S22-04). It
+ * stops the wheel at a scroll container even when that container has
+ * nothing to scroll: a content-sized card is still `overflow: auto`, so on
+ * Storage the pointer over an empty clean-up card or a list at its end froze
+ * the page. The default chains to the next scroller, which is what a reader
+ * expects. The document cannot rubber-band or swipe back regardless — `body`
+ * sets `overscroll-behavior: none` (theme.css) — and modal dialogs and
+ * popovers lock the page behind them themselves (Radix's scroll lock), so
+ * containment is never needed in-page.
  */
 @layer components {
   .screen {
@@ -118,12 +128,36 @@
     min-height: 0;
   }
 
+  /*
+   * A screen's title row: title and subtitle on the left, its actions
+   * (Refresh, Edit layout) on the right. One rule for every screen (S22-04);
+   * ten copies of `flex flex-wrap justify-between` had drifted, and with
+   * `flex-wrap` alone a long Romanian subtitle pushed the whole action row
+   * under it at 900 px, left-aligned, so Refresh moved around per page. The
+   * title block shrinks and wraps its own text first; only below 16rem do
+   * the actions wrap, and then they stay right-aligned.
+   */
+  .screen-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.5rem 1rem;
+  }
+  .screen-header > :first-child {
+    flex: 1 1 16rem;
+    min-width: 0;
+  }
+  .screen-header > :not(:first-child) {
+    flex: none;
+    margin-inline-start: auto;
+  }
+
   .screen-scroll,
   .table-scroll {
     flex: 1 1 0%;
     min-height: 0;
     overflow: auto;
-    overscroll-behavior: contain;
   }
 
   .screen-scroll {
@@ -171,6 +205,12 @@
   .cell-fill {
     width: 100%;
     max-width: 0;
+    /* `min-width` beats `max-width`: when the short columns alone are wider
+       than the box (App history at 900 px, seven columns, Romanian headers),
+       the name column used to shrink to zero and its header spilled over the
+       next one. It keeps room for a readable name; the table then scrolls
+       sideways inside `.table-scroll` instead (S22-04). */
+    min-width: 10rem;
   }
 
   /*
@@ -202,7 +242,6 @@
     align-content: start;
     align-items: start;
     overflow-y: auto;
-    overscroll-behavior: contain;
     /* Room for card shadows inside the scroller's clip, cancelled by the
        margin. No extra end gutter: it made a page that fits scroll by a
        few pixels (Users, 574/580 at 1185×768). */
@@ -225,7 +264,6 @@
     min-height: 0;
     min-width: 0;
     overflow-y: auto;
-    overscroll-behavior: contain;
     /* Room for the cards' shadows inside the scroller's clip. */
     margin: calc(-1 * var(--scroll-gutter-y)) calc(-1 * var(--scroll-gutter-x));
     padding: var(--scroll-gutter-y) var(--scroll-gutter-x);
@@ -235,7 +273,6 @@
     min-height: 0;
     min-width: 0;
     overflow: auto;
-    overscroll-behavior: contain;
   }
 
   /*
@@ -277,7 +314,6 @@
     flex: 1 1 0%;
     min-height: 0;
     overflow: auto;
-    overscroll-behavior: contain;
     padding: 0.375rem;
     border: 1px solid var(--color-border-subtle);
     border-radius: var(--radius-widget);
