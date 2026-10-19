@@ -56,7 +56,6 @@ jobs:
   plan:
     name: Plan
     runs-on: ubuntu-latest
-    timeout-minutes: 10
     outputs:
       should_build: ${{ steps.plan.outputs.should_build }}
       is_release: ${{ steps.plan.outputs.is_release }}
@@ -121,7 +120,6 @@ jobs:
     needs: plan
     if: needs.plan.outputs.is_release == 'true'
     runs-on: windows-latest
-    timeout-minutes: 60
     # Identical to ci.yml's top-level env. rust-cache hashes every CARGO_* and
     # RUST* variable into its key, so any difference here and the tag would
     # miss the warm `windows-test` cache main keeps and compile cold.
@@ -268,7 +266,6 @@ jobs:
             bundles: appimage,deb,rpm
 
     runs-on: ${{ matrix.platform.runner }}
-    timeout-minutes: 90
     # An unpublished platform must not hold back a Windows release: a leg
     # that fails there shows red, but the run carries on. Once a platform is
     # published it becomes a hard gate, because latest.json would otherwise
@@ -491,7 +488,6 @@ jobs:
       needs.plan.outputs.should_build == 'true' &&
       (needs.verify.result == 'success' || needs.verify.result == 'skipped')
     runs-on: windows-latest
-    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -565,7 +561,6 @@ jobs:
     needs: plan
     if: needs.plan.outputs.should_build == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 45
     permissions:
       contents: read
     defaults:
@@ -649,7 +644,6 @@ jobs:
       needs.sbom.result == 'success' &&
       needs.android.result == 'success'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
     # The owner approves every tag in the `release` environment; nothing
     # reaches installed copies' updater without it, and the updater key and
     # the Android upload key are only read after that approval. Only tags
@@ -719,7 +713,7 @@ jobs:
           set -euo pipefail
           for name in KEYSTORE_B64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
             if [ -z "${!name}" ]; then
-              echo "::error::the secret behind $name is not set; refusing to publish unsigned Android builds"; exit 1
+              echo "::error::secret for $name is not set; refusing to publish unsigned Android builds"; exit 1
             fi
           done
           export SIGN_KEYSTORE="$RUNNER_TEMP/android-upload.jks"
@@ -911,7 +905,6 @@ jobs:
     needs: [plan, publish]
     if: needs.plan.outputs.is_release == 'true' && vars.PUBLISH_NPM == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
     permissions:
       contents: read
       # npm trusted publishing: the registry trusts this workflow by OIDC,
@@ -948,7 +941,6 @@ jobs:
     needs: [plan, publish]
     if: needs.plan.outputs.is_release == 'true' && vars.PUBLISH_PLAY == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
     env:
       PRODUCTION: ${{ !contains(needs.plan.outputs.version, '-') }}
     permissions:
@@ -1151,7 +1143,6 @@ jobs:
     needs: [plan, publish]
     if: needs.plan.outputs.is_release == 'true' && vars.PUBLISH_WINGET == 'true'
     runs-on: windows-latest
-    timeout-minutes: 20
     steps:
       - id: gate
         shell: pwsh
@@ -1216,7 +1207,6 @@ jobs:
     needs: [plan, publish]
     if: needs.plan.outputs.is_release == 'true' && vars.PUBLISH_SCOOP == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
     env:
       VERSION: ${{ needs.plan.outputs.version }}
       TAG: ${{ needs.plan.outputs.tag }}
@@ -1286,7 +1276,6 @@ jobs:
     needs: [plan, publish]
     if: needs.plan.outputs.is_release == 'true' && vars.PUBLISH_CHOCO == 'true'
     runs-on: windows-latest
-    timeout-minutes: 20
     env:
       VERSION: ${{ needs.plan.outputs.version }}
       TAG: ${{ needs.plan.outputs.tag }}
