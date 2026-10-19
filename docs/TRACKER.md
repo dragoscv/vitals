@@ -3735,6 +3735,10 @@ visual (1280 px, fake host)     Performance at 0/5/10 s with flickering power an
                                 AI Sessions at 0/5/10 s with the list pushed in a
                                 random order every second: six cards unmoved,
                                 turns 12 -> 30 and tool calls 40 -> 70 in place
+CI 39341788915 (ea1f0b2)        all green except Size budget: initial 206.8 of
+                                206.8 KB, shipped 499.3 of 498.0 KB (the shared
+                                hook sits in the initial chunk via StatList);
+                                budgets raised to 216000 / 520000 bytes
 ```
 
 ## S13 — public beta 0.9.0-beta.1 (2026-09-28)
