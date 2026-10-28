@@ -7,7 +7,8 @@ struct DetailView: View {
     @Environment(PairingStore.self) private var store
     @Environment(LiveHub.self) private var hub
     @Environment(SampleMode.self) private var sample
-    @State private var tab = 0
+    @State private var tab = ScreenshotRoute.tab
+    @State private var showProcesses = ScreenshotRoute.processes
 
     private var isSample: Bool { pairingId == SampleMode.id }
     private var pairing: Pairing? { isSample ? sample.pairing : store.pairing(pairingId) }
@@ -59,6 +60,7 @@ struct DetailView: View {
                 }
             }
         }
+        .navigationDestination(isPresented: $showProcesses) { ProcessesView(pairingId: pairing.id) }
         .onAppear { if let stream { stream.attach(pairing) } else { sample.start() } }
         .onDisappear { stream?.detach() }
     }

@@ -7,6 +7,7 @@
 #   scripts/build.sh test     swift test VitalsCore (no Simulator needed)
 #   scripts/build.sh build    generate + compile for iphoneos, unsigned
 #   scripts/build.sh upload   archive, sign (automatic, API key) and upload to App Store Connect
+#   scripts/build.sh screenshots   App Store screenshots from the Simulator (Sample PC, EN + RO)
 #
 # Env for `upload` (scripts/ios-build.ps1 sets these from Secret Manager and
 # deletes the key afterwards): DEVELOPMENT_TEAM, ASC_KEY_ID, ASC_ISSUER_ID,
@@ -109,8 +110,12 @@ PLIST
       -exportOptionsPlist "$OUT/ExportOptions.plist" -exportPath "$OUT/export" "${AUTH[@]}"
     log "UPLOADED build $BUILD_NUMBER"
     ;;
+  screenshots)
+    generate
+    bash "$HERE/scripts/screenshots.sh"
+    ;;
   *)
-    echo "usage: $0 test|build|upload" >&2
+    echo "usage: $0 test|build|upload|screenshots" >&2
     exit 2
     ;;
 esac

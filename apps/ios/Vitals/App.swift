@@ -30,12 +30,23 @@ struct VitalsApp: App {
 
 enum Tab: Hashable { case pcs, settings }
 
+/// Screenshot routes, passed only as launch arguments (`-vitalsRoute sample
+/// -vitalsTab 1`) by `simctl launch` in apps/ios/scripts/screenshots.sh, so
+/// the App Store images are real captures of the Sample PC, reproducible on
+/// every release. Nothing in the app writes these keys.
+enum ScreenshotRoute {
+    static var opensSample: Bool { UserDefaults.standard.string(forKey: "vitalsRoute") != nil }
+    static var tab: Int { UserDefaults.standard.integer(forKey: "vitalsTab") }
+    static var processes: Bool { UserDefaults.standard.string(forKey: "vitalsRoute") == "processes" }
+}
+
 struct RootView: View {
     @State private var tab: Tab = .pcs
+    @State private var path: [String] = ScreenshotRoute.opensSample ? [SampleMode.id] : []
 
     var body: some View {
         TabView(selection: $tab) {
-            NavigationStack { MachinesView() }
+            NavigationStack(path: $path) { MachinesView() }
                 .tabItem { Label(L("nav_machines"), systemImage: "desktopcomputer") }
                 .tag(Tab.pcs)
             NavigationStack { SettingsView() }
