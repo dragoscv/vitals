@@ -10,16 +10,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
-import androidx.wear.compose.foundation.lazy.TransformingLazyColumn
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.wear.compose.foundation.lazy.items
-import androidx.wear.compose.foundation.lazy.rememberTransformingLazyColumnState
-import androidx.wear.compose.material3.ListHeader
 import androidx.wear.compose.material3.MaterialTheme
-import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.SurfaceTransformation
 import androidx.wear.compose.material3.Text
 import androidx.wear.compose.material3.TitleCard
-import androidx.wear.compose.material3.lazy.rememberTransformationSpec
 import androidx.wear.compose.material3.lazy.transformedHeight
 import app.vitals.wear.R
 import com.mikepenz.aboutlibraries.Libs
@@ -37,8 +33,6 @@ import kotlinx.coroutines.withContext
 @Composable
 fun LicencesScreen() {
     val resources = LocalResources.current
-    val listState = rememberTransformingLazyColumnState()
-    val spec = rememberTransformationSpec()
     // A few hundred KB of JSON: parsed off the main thread, once per visit.
     val libraries by produceState<List<Library>?>(null) {
         value = withContext(Dispatchers.IO) {
@@ -49,32 +43,24 @@ fun LicencesScreen() {
         }
     }
     var open by rememberSaveable { mutableStateOf<String?>(null) }
+    LicencesList(libraries, open) { id -> open = if (open == id) null else id }
+}
 
-    ScreenScaffold(scrollState = listState) { padding ->
-        TransformingLazyColumn(state = listState, contentPadding = padding) {
-            item {
-                ListHeader(modifier = Modifier.transformedHeight(this, spec), transformation = SurfaceTransformation(spec)) {
-                    Text(stringResource(R.string.licences_title))
-                }
-            }
-            item {
-                Text(
-                    stringResource(R.string.licences_body),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.fillMaxWidth().transformedHeight(this, spec),
-                )
-            }
+@Composable
+internal fun LicencesList(libraries: List<Library>?, open: String?, onToggle: (String) -> Unit) {
+    VitalsList { spec ->
+            item { ScreenHeader(spec, stringResource(R.string.licences_title)) }
+            item { Note(spec, stringResource(R.string.licences_body)) }
             val list = libraries
             if (list == null) {
                 item { Message(stringResource(R.string.loading), "", Modifier.transformedHeight(this, spec)) }
-                return@TransformingLazyColumn
+                return@VitalsList
             }
             items(list, key = { it.uniqueId }) { lib ->
                 val expanded = open == lib.uniqueId
                 TitleCard(
-                    onClick = { open = if (expanded) null else lib.uniqueId },
-                    title = { Text(lib.name, maxLines = 2) },
+                    onClick = { onToggle(lib.uniqueId) },
+                    title = { Text(lib.name, maxLines = 2, overflow = TextOverflow.Ellipsis) },
                     subtitle = {
                         Text(
                             listOfNotNull(lib.artifactVersion, lib.licenses.joinToString { it.spdxId ?: it.name })
@@ -82,6 +68,8 @@ fun LicencesScreen() {
                                 .joinToString(" · "),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
                         )
                     },
                     modifier = Modifier.fillMaxWidth().transformedHeight(this, spec),
@@ -94,6 +82,5 @@ fun LicencesScreen() {
                     }
                 }
             }
-        }
     }
 }

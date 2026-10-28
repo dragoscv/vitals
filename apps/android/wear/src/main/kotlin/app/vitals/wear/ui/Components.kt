@@ -5,7 +5,6 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -26,7 +25,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -147,23 +145,5 @@ fun relativeAge(fetchedMs: Long): String {
         secs < 3_600 -> stringResource(R.string.age_minutes, secs / 60)
         secs < 86_400 -> stringResource(R.string.age_hours, secs / 3_600)
         else -> stringResource(R.string.age_days, secs / 86_400)
-    }
-}
-
-/** A centred message for an empty or failed screen. */
-@Composable
-fun Message(title: String, body: String, modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier.fillMaxWidth().padding(horizontal = 8.dp).semantics { contentDescription = "$title. $body" },
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(title, style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
-        Spacer(Modifier.height(4.dp))
-        Text(
-            body,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-        )
     }
 }

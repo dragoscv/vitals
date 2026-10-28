@@ -17,19 +17,14 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.wear.compose.foundation.lazy.TransformingLazyColumn
 import androidx.wear.compose.foundation.lazy.items
-import androidx.wear.compose.foundation.lazy.rememberTransformingLazyColumnState
 import androidx.wear.compose.material3.Button
 import androidx.wear.compose.material3.Card
 import androidx.wear.compose.material3.EdgeButton
 import androidx.wear.compose.material3.EdgeButtonSize
-import androidx.wear.compose.material3.ListHeader
 import androidx.wear.compose.material3.MaterialTheme
-import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.SurfaceTransformation
 import androidx.wear.compose.material3.Text
-import androidx.wear.compose.material3.lazy.rememberTransformationSpec
 import androidx.wear.compose.material3.lazy.transformedHeight
 import app.vitals.core.model.Severity
 import app.vitals.core.wear.PcState
@@ -46,24 +41,16 @@ fun PcDetailScreen(
     onSensors: () -> Unit,
     onProcesses: () -> Unit,
 ) {
-    val listState = rememberTransformingLazyColumnState()
     val resources = LocalResources.current
-    val spec = rememberTransformationSpec()
     val system = state?.summary?.system
-    ScreenScaffold(
-        scrollState = listState,
+    VitalsList(
         edgeButton = {
             EdgeButton(onClick = onSensors, buttonSize = EdgeButtonSize.Medium) {
-                Text(stringResource(R.string.sensors))
+                Text(stringResource(R.string.sensors), maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         },
-    ) { padding ->
-        TransformingLazyColumn(state = listState, contentPadding = padding) {
-            item {
-                ListHeader(modifier = Modifier.transformedHeight(this, spec), transformation = SurfaceTransformation(spec)) {
-                    Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
-            }
+    ) { spec ->
+            item { ScreenHeader(spec, label) }
             item {
                 Hero(state, modifier = Modifier.transformedHeight(this, spec))
             }
@@ -90,67 +77,60 @@ fun PcDetailScreen(
                             modifier = Modifier.padding(start = 6.dp),
                             style = MaterialTheme.typography.labelMedium,
                             maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
                         )
                     }
-                    text.body?.let { Text(it, style = MaterialTheme.typography.bodySmall, maxLines = 3) }
+                    text.body?.let { Text(it, style = MaterialTheme.typography.bodySmall, maxLines = 3, overflow = TextOverflow.Ellipsis) }
                 }
             }
             if (system != null) {
                 val gpu = Readings.primaryGpu(system)
+                item { SectionHeader(spec, stringResource(R.string.section_cpu)) }
+                item { ValueCard(spec, stringResource(R.string.usage), Format.percent(system.cpu.total)) }
+                item { ValueCard(spec, stringResource(R.string.clock), Format.ghz(system.cpu.effectiveClock)) }
+                item { ValueCard(spec, stringResource(R.string.power), Format.watts(system.cpu.power)) }
+                item { SectionHeader(spec, stringResource(R.string.section_memory)) }
                 item {
-                    Section(stringResource(R.string.section_cpu), Modifier.transformedHeight(this, spec), SurfaceTransformation(spec)) {
-                        ValueRow(stringResource(R.string.usage), Format.percent(system.cpu.total))
-                        ValueRow(stringResource(R.string.clock), Format.ghz(system.cpu.effectiveClock))
-                        ValueRow(stringResource(R.string.power), Format.watts(system.cpu.power))
-                    }
-                }
-                item {
-                    Section(stringResource(R.string.section_memory), Modifier.transformedHeight(this, spec), SurfaceTransformation(spec)) {
-                        ValueRow(
-                            stringResource(R.string.in_use),
-                            stringResource(R.string.of_total, Format.bytes(system.memory.used), Format.bytes(system.memory.total)),
-                        )
-                        Gauge(Readings.memoryPercent(system)?.div(100f), Palette.Memory, Modifier.padding(horizontal = 4.dp, vertical = 2.dp))
-                    }
+                    ValueCard(
+                        spec,
+                        stringResource(R.string.in_use),
+                        stringResource(R.string.of_total, Format.bytes(system.memory.used), Format.bytes(system.memory.total)),
+                        gauge = Readings.memoryPercent(system)?.div(100f),
+                        gaugeColor = Palette.Memory,
+                    )
                 }
                 if (gpu != null) {
+                    item { SectionHeader(spec, gpu.name) }
+                    item { ValueCard(spec, stringResource(R.string.usage), Format.percent(gpu.utilization)) }
                     item {
-                        Section(gpu.name, Modifier.transformedHeight(this, spec), SurfaceTransformation(spec)) {
-                            ValueRow(stringResource(R.string.usage), Format.percent(gpu.utilization))
-                            ValueRow(
-                                stringResource(R.string.temperature),
-                                Format.celsius(gpu.temperature),
-                                valueColor = temperatureColor(Thresholds.gpuTemp(gpu.temperature)),
-                            )
-                            ValueRow(stringResource(R.string.power), Format.watts(gpu.power))
-                        }
+                        ValueCard(
+                            spec,
+                            stringResource(R.string.temperature),
+                            Format.celsius(gpu.temperature),
+                            valueColor = temperatureColor(Thresholds.gpuTemp(gpu.temperature)),
+                        )
                     }
+                    item { ValueCard(spec, stringResource(R.string.power), Format.watts(gpu.power)) }
                 }
-                item {
-                    Section(stringResource(R.string.section_io), Modifier.transformedHeight(this, spec), SurfaceTransformation(spec)) {
-                        // A PC with no disks reported has no rate to sum; zero would claim idle.
-                        val read = system.disks.takeIf { it.isNotEmpty() }?.sumOf { it.read }
-                        val write = system.disks.takeIf { it.isNotEmpty() }?.sumOf { it.write }
-                        val connected = system.networks.any { it.connected }
-                        ValueRow(stringResource(R.string.disk_read), Format.rate(read))
-                        ValueRow(stringResource(R.string.disk_write), Format.rate(write))
-                        ValueRow(stringResource(R.string.net_down), Format.rate(Readings.networkRx(system).takeIf { connected }))
-                        ValueRow(stringResource(R.string.net_up), Format.rate(Readings.networkTx(system).takeIf { connected }))
-                    }
-                }
+                // A PC with no disks reported has no rate to sum; zero would claim idle.
+                val read = system.disks.takeIf { it.isNotEmpty() }?.sumOf { it.read }
+                val write = system.disks.takeIf { it.isNotEmpty() }?.sumOf { it.write }
+                val connected = system.networks.any { it.connected }
+                item { SectionHeader(spec, stringResource(R.string.section_io)) }
+                item { ValueCard(spec, stringResource(R.string.disk_read), Format.rate(read)) }
+                item { ValueCard(spec, stringResource(R.string.disk_write), Format.rate(write)) }
+                item { ValueCard(spec, stringResource(R.string.net_down), Format.rate(Readings.networkRx(system).takeIf { connected })) }
+                item { ValueCard(spec, stringResource(R.string.net_up), Format.rate(Readings.networkTx(system).takeIf { connected })) }
                 if (system.fans.isNotEmpty()) {
-                    item {
-                        Section(stringResource(R.string.section_fans), Modifier.transformedHeight(this, spec), SurfaceTransformation(spec)) {
-                            system.fans.forEach { ValueRow(it.name, Format.rpm(it.rpm)) }
-                        }
-                    }
+                    item { SectionHeader(spec, stringResource(R.string.section_fans)) }
+                    items(system.fans, key = { "fan|${it.name}" }) { fan -> ValueCard(spec, fan.name, Format.rpm(fan.rpm)) }
                 }
                 item {
                     Button(
                         onClick = onProcesses,
                         modifier = Modifier.fillMaxWidth().transformedHeight(this, spec),
                         transformation = SurfaceTransformation(spec),
-                        label = { Text(stringResource(R.string.top_processes)) },
+                        label = { Text(stringResource(R.string.top_processes), maxLines = 2, overflow = TextOverflow.Ellipsis) },
                         secondaryLabel = {
                             val count = state.summary?.processCount ?: 0
                             // Wear M3 dims a secondary label on a filled button;
@@ -158,12 +138,13 @@ fun PcDetailScreen(
                             Text(
                                 pluralStringResource(R.plurals.process_count, count, count),
                                 color = MaterialTheme.colorScheme.onPrimary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
                             )
                         },
                     )
                 }
             }
-        }
     }
 }
 
@@ -203,31 +184,6 @@ private fun Hero(state: PcState?, modifier: Modifier = Modifier) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-    }
-}
-
-@Composable
-internal fun Section(
-    title: String,
-    modifier: Modifier,
-    transformation: SurfaceTransformation,
-    content: @Composable () -> Unit,
-) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        transformation = transformation,
-    ) {
-        Text(
-            title,
-            style = MaterialTheme.typography.titleSmall,
-            // The card's default title colour comes from the watch face's
-            // dynamic palette and measured 2.2:1 on the Galaxy Watch 7.
-            color = readable(MaterialTheme.colorScheme.primary),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(start = 4.dp, bottom = 2.dp),
-        )
-        content()
     }
 }
 

@@ -582,7 +582,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5
 
       - name: Contract and unit tests
-        run: ./gradlew :core:testDebugUnitTest :device:testDebugUnitTest :shared-ui:testDebugUnitTest :tv:lintPlayDebug --console=plain
+        run: ./gradlew :core:testDebugUnitTest :device:testDebugUnitTest :shared-ui:testDebugUnitTest :wear:verifyRoborazziDebug :tv:lintPlayDebug --console=plain
 
       # No ANDROID_KEYSTORE_PATH, so the build files leave the release
       # variants unsigned (apps/android/*/build.gradle.kts).

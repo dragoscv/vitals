@@ -527,16 +527,16 @@ jobs:
           java-version: '21'
       - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5
       - name: Unit tests
-        run: ./gradlew :core:testDebugUnitTest :device:testDebugUnitTest :shared-ui:testDebugUnitTest --console=plain
+        run: ./gradlew :core:testDebugUnitTest :device:testDebugUnitTest :shared-ui:testDebugUnitTest :wear:verifyRoborazziDebug --console=plain
 
   # The phone, TV and watch apps themselves, compiled on every change to
   # apps/android (QA-8). Until this job they were first compiled by
   # release.yml, i.e. on a tag, after the owner had already decided to ship.
   # Debug, unsigned by our key: this proves the code, resources and both
   # store flavours (`github`, `play`) build; `assembleDebug` on a flavoured
-  # module builds every flavour. The libraries' unit tests run in
-  # `android` above; :app, :tv and :wear have no unit tests of their own,
-  # so their test tasks would be no-ops.
+  # module builds every flavour. The libraries' unit tests and the
+  # watch-shape tests (:wear:verifyRoborazziDebug, S22-12) run in `android`
+  # above; :app and :tv have no unit tests of their own.
   android-apps:
     name: Android (apps)
     needs: changes

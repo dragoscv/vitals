@@ -5,6 +5,9 @@ plugins {
     // res/raw/aboutlibraries.json for the licences screen (LEG2-11): the watch
     // APK is its own binary and carries its own notices.
     alias(libs.plugins.aboutlibraries)
+    // Watch-shape screenshots (S22-12): every screen rendered on round and
+    // square watches on the JVM, baselines in src/test/snapshots.
+    alias(libs.plugins.roborazzi)
 }
 
 android {
@@ -49,6 +52,9 @@ android {
 
     buildFeatures { compose = true }
 
+    // Robolectric needs the merged resources to inflate the Compose screens.
+    testOptions.unitTests.isIncludeAndroidResources = true
+
     // A string missing from values-ro ships English to a Romanian wrist;
     // fail the build instead (AND-46).
     lint {
@@ -63,6 +69,16 @@ android {
 
 kotlin {
     compilerOptions { allWarningsAsErrors.set(true) }
+}
+
+roborazzi { outputDir.set(layout.projectDirectory.dir("src/test/snapshots")) }
+
+tasks.withType<Test>().configureEach {
+    systemProperty("robolectric.graphicsMode", "NATIVE")
+    systemProperty("robolectric.pixelCopyRenderMode", "hardware")
+    // Native graphics for a dozen watch-sized renders; the default 512 MB
+    // ran out on the largest font scale.
+    maxHeapSize = "2g"
 }
 
 dependencies {
@@ -94,6 +110,13 @@ dependencies {
     implementation(libs.aboutlibraries.core)
 
     debugImplementation(libs.compose.ui.tooling)
+    debugImplementation(libs.compose.ui.test.manifest)
 
     testImplementation(libs.junit)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.roborazzi)
+    testImplementation(libs.roborazzi.compose)
+    testImplementation(libs.compose.ui.test.junit4)
+    testImplementation(libs.androidx.test.core)
+    testImplementation(libs.androidx.test.junit)
 }

@@ -11,23 +11,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.wear.compose.foundation.lazy.TransformingLazyColumn
 import androidx.wear.compose.foundation.lazy.items
-import androidx.wear.compose.foundation.lazy.rememberTransformingLazyColumnState
 import androidx.wear.compose.material3.AlertDialog
 import androidx.wear.compose.material3.AlertDialogDefaults
 import androidx.wear.compose.material3.Button
 import androidx.wear.compose.material3.ButtonDefaults
 import androidx.wear.compose.material3.CircularProgressIndicator
 import androidx.wear.compose.material3.FailureConfirmationDialog
-import androidx.wear.compose.material3.ListHeader
-import androidx.wear.compose.material3.MaterialTheme
-import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.SuccessConfirmationDialog
 import androidx.wear.compose.material3.SurfaceTransformation
 import androidx.wear.compose.material3.Text
 import androidx.wear.compose.material3.curvedText
-import androidx.wear.compose.material3.lazy.rememberTransformationSpec
 import androidx.wear.compose.material3.lazy.transformedHeight
 import app.vitals.core.model.Process
 import app.vitals.ui.Format
@@ -48,18 +42,11 @@ fun ProcessesScreen(
     canControl: Boolean,
     onEndTask: suspend (Process) -> ControlOutcome,
 ) {
-    val listState = rememberTransformingLazyColumnState()
-    val spec = rememberTransformationSpec()
     val scope = rememberCoroutineScope()
     var ui by remember { mutableStateOf<EndTaskUi>(EndTaskUi.Idle) }
 
-    ScreenScaffold(scrollState = listState) { padding ->
-        TransformingLazyColumn(state = listState, contentPadding = padding) {
-            item {
-                ListHeader(modifier = Modifier.transformedHeight(this, spec), transformation = SurfaceTransformation(spec)) {
-                    Text(stringResource(R.string.top_processes))
-                }
-            }
+    VitalsList { spec ->
+            item { ScreenHeader(spec, stringResource(R.string.top_processes)) }
             if (processes.isEmpty()) {
                 item {
                     Message(
@@ -87,22 +74,15 @@ fun ProcessesScreen(
                                 Format.percent(process.cpu),
                                 Format.bytes(process.memoryPrivate),
                             ),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
                     },
                 )
             }
             if (!canControl && processes.isNotEmpty()) {
-                item {
-                    Text(
-                        stringResource(R.string.read_only_note),
-                        modifier = Modifier.fillMaxWidth().transformedHeight(this, spec),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center,
-                    )
-                }
+                item { Note(spec, stringResource(R.string.read_only_note)) }
             }
-        }
     }
 
     val confirm = ui as? EndTaskUi.Confirm

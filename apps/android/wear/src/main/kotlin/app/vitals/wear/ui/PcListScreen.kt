@@ -11,21 +11,18 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.wear.compose.foundation.lazy.TransformingLazyColumn
 import androidx.wear.compose.foundation.lazy.items
-import androidx.wear.compose.foundation.lazy.rememberTransformingLazyColumnState
 import androidx.wear.compose.material3.Button
 import androidx.wear.compose.material3.ButtonDefaults
-import androidx.wear.compose.material3.ListHeader
 import androidx.wear.compose.material3.MaterialTheme
-import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.SurfaceTransformation
 import androidx.wear.compose.material3.Text
 import androidx.wear.compose.material3.TitleCard
-import androidx.wear.compose.material3.lazy.rememberTransformationSpec
 import androidx.wear.compose.material3.lazy.transformedHeight
 import app.vitals.core.model.Severity
 import app.vitals.core.pairing.Pairing
@@ -46,15 +43,8 @@ fun PcListScreen(
     onOpenSelf: () -> Unit,
     onOpenLicences: () -> Unit,
 ) {
-    val listState = rememberTransformingLazyColumnState()
-    val spec = rememberTransformationSpec()
-    ScreenScaffold(scrollState = listState) { padding ->
-        TransformingLazyColumn(state = listState, contentPadding = padding) {
-            item {
-                ListHeader(modifier = Modifier.transformedHeight(this, spec), transformation = SurfaceTransformation(spec)) {
-                    Text(stringResource(R.string.app_name))
-                }
-            }
+    VitalsList { spec ->
+            item { ScreenHeader(spec, stringResource(R.string.app_name)) }
             item(key = "self") {
                 WatchSelfCard(
                     monitor = device,
@@ -91,10 +81,17 @@ fun PcListScreen(
                     modifier = Modifier.fillMaxWidth().transformedHeight(this, spec),
                     transformation = SurfaceTransformation(spec),
                     colors = ButtonDefaults.filledTonalButtonColors(),
-                    label = { Text(stringResource(R.string.licences_title), maxLines = 2) },
+                    label = {
+                        Text(
+                            stringResource(R.string.licences_title),
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    },
                 )
             }
-        }
     }
 }
 
@@ -131,29 +128,52 @@ private fun PcCard(
         },
         transformation = transformation,
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) {
-                MetricRing(fraction = headline?.cpu?.div(100f), color = Palette.Cpu, modifier = Modifier.size(40.dp), strokeWidth = 4.dp)
-                Text(Format.percentCompact(headline?.cpu), style = MaterialTheme.typography.labelSmall)
-            }
-            Spacer(Modifier.width(10.dp))
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        RingAndLines(fraction = headline?.cpu?.div(100f), ringColor = Palette.Cpu, ringText = Format.percentCompact(headline?.cpu)) {
                 Text(
                     stringResource(R.string.ram_value, Format.percent(headline?.memory)),
                     style = MaterialTheme.typography.bodySmall,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
                     color = readable(levelColor(Thresholds.memory(headline?.memory))).takeIf { headline?.memory != null }
                         ?: MaterialTheme.colorScheme.onSurface,
                 )
                 Text(
                     stringResource(R.string.temp_value, Format.celsius(headline?.cpuTemp)),
                     style = MaterialTheme.typography.bodySmall,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
                     color = readable(levelColor(Thresholds.cpuTemp(headline?.cpuTemp))).takeIf { headline?.cpuTemp != null }
                         ?: MaterialTheme.colorScheme.onSurface,
                 )
-            }
         }
+    }
+}
+
+/**
+ * A small ring beside two short lines, centred in the card. Centred rather
+ * than start-aligned so the ring sits towards the middle of the display,
+ * where a round watch is widest: start-aligned, it rested against the left
+ * curve and Play's reviewer saw it cut (S22-12).
+ */
+@Composable
+internal fun RingAndLines(fraction: Float?, ringColor: androidx.compose.ui.graphics.Color, ringText: String, lines: @Composable () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) {
+            MetricRing(fraction = fraction, color = ringColor, modifier = Modifier.size(40.dp), strokeWidth = 4.dp)
+            // Sized in dp, not sp: the ring is a fixed 40 dp graphic, and at
+            // the largest font "100 %" no longer fit inside it.
+            Text(
+                ringText,
+                style = MaterialTheme.typography.labelSmall,
+                fontSize = with(LocalDensity.current) { 11.dp.toSp() },
+                maxLines = 1,
+            )
+        }
+        Spacer(Modifier.width(8.dp))
+        Column(Modifier.weight(1f, fill = false), verticalArrangement = Arrangement.spacedBy(2.dp)) { lines() }
     }
 }

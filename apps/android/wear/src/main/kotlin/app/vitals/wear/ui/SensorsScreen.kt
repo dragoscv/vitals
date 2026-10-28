@@ -17,16 +17,11 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.wear.compose.foundation.lazy.TransformingLazyColumn
 import androidx.wear.compose.foundation.lazy.items
-import androidx.wear.compose.foundation.lazy.rememberTransformingLazyColumnState
 import androidx.wear.compose.material3.Card
-import androidx.wear.compose.material3.ListHeader
 import androidx.wear.compose.material3.MaterialTheme
-import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.SurfaceTransformation
 import androidx.wear.compose.material3.Text
-import androidx.wear.compose.material3.lazy.rememberTransformationSpec
 import androidx.wear.compose.material3.lazy.transformedHeight
 import app.vitals.core.model.SensorLine
 import app.vitals.ui.Format
@@ -58,8 +53,6 @@ private enum class SensorGroup(val title: Int, val color: Color) {
 /** Every sensor the PC reports, grouped by what it measures. */
 @Composable
 fun SensorsScreen(sensors: List<SensorLine>, reachable: Boolean) {
-    val listState = rememberTransformingLazyColumnState()
-    val spec = rememberTransformationSpec()
     val groups = remember(sensors) {
         sensors.groupBy { SensorGroup.of(it.unit) }
             .mapValues { (group, lines) ->
@@ -68,13 +61,8 @@ fun SensorsScreen(sensors: List<SensorLine>, reachable: Boolean) {
             }
             .toSortedMap()
     }
-    ScreenScaffold(scrollState = listState) { padding ->
-        TransformingLazyColumn(state = listState, contentPadding = padding) {
-            item {
-                ListHeader(modifier = Modifier.transformedHeight(this, spec), transformation = SurfaceTransformation(spec)) {
-                    Text(stringResource(R.string.sensors))
-                }
-            }
+    VitalsList { spec ->
+            item { ScreenHeader(spec, stringResource(R.string.sensors)) }
             if (sensors.isEmpty()) {
                 item {
                     Message(
@@ -86,12 +74,7 @@ fun SensorsScreen(sensors: List<SensorLine>, reachable: Boolean) {
             }
             groups.forEach { (group, lines) ->
                 item(key = "header-${group.name}") {
-                    ListHeader(modifier = Modifier.transformedHeight(this, spec), transformation = SurfaceTransformation(spec)) {
-                        Text(
-                            stringResource(R.string.group_count, stringResource(group.title), lines.size),
-                            color = readable(group.color),
-                        )
-                    }
+                    ScreenHeader(spec, stringResource(R.string.group_count, stringResource(group.title), lines.size), color = readable(group.color))
                 }
                 items(lines, key = { it.key }) { line ->
                     SensorCard(
@@ -102,7 +85,6 @@ fun SensorsScreen(sensors: List<SensorLine>, reachable: Boolean) {
                     )
                 }
             }
-        }
     }
 }
 
