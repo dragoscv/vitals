@@ -43,7 +43,10 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.vitals.ios
-        PRODUCT_NAME: Vitals
+        # The bundle name (CFBundleName = PRODUCT_NAME) must be unique on the
+        # App Store too; INFOPLIST_KEY_CFBundleName does not override it.
+        PRODUCT_NAME: VitalsMonitor
+        PRODUCT_MODULE_NAME: Vitals
         # iPhone only until iPad screenshots and an iPad test exist.
         TARGETED_DEVICE_FAMILY: '1'
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
@@ -51,7 +54,6 @@ targets:
         # "Vitals" alone is taken on the App Store (ITMS-90129, build 251, 2026-10-28):
         # both the bundle name and the display name must be unique.
         INFOPLIST_KEY_CFBundleDisplayName: Vitals Monitor
-        INFOPLIST_KEY_CFBundleName: Vitals Monitor
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.utilities
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES

@@ -75,7 +75,7 @@ case "$MODE" in
     xcodebuild -project Vitals.xcodeproj -scheme Vitals -configuration Release \
       -destination 'generic/platform=iOS' -derivedDataPath "$OUT/dd" \
       CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build -quiet
-    log "OK: $OUT/dd/Build/Products/Release-iphoneos/Vitals.app"
+    log "OK: $OUT/dd/Build/Products/Release-iphoneos/VitalsMonitor.app"
     ;;
   upload)
     : "${DEVELOPMENT_TEAM:?}" "${ASC_KEY_ID:?}" "${ASC_ISSUER_ID:?}" "${ASC_KEY_PATH:?}" "${BUILD_NUMBER:?}"

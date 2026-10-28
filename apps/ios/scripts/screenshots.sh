@@ -25,7 +25,7 @@ log "build for the Simulator"
 xcodebuild -project Vitals.xcodeproj -scheme Vitals -configuration Release \
   -destination 'generic/platform=iOS Simulator' -derivedDataPath "$DERIVED" \
   CODE_SIGNING_ALLOWED=NO build -quiet
-APP="$(find "$DERIVED/Build/Products" -maxdepth 2 -name 'Vitals.app' -path '*iphonesimulator*' | head -1)"
+APP="$(find "$DERIVED/Build/Products" -maxdepth 2 -name 'VitalsMonitor.app' -path '*iphonesimulator*' | head -1)"
 [ -n "$APP" ] || { echo "no simulator .app" >&2; exit 1; }
 
 RUNTIME="$(xcrun simctl list runtimes -j | /usr/bin/python3 -c 'import json,sys; r=[x for x in json.load(sys.stdin)["runtimes"] if x["platform"]=="iOS" and x["isAvailable"]]; print(r[-1]["identifier"])')"

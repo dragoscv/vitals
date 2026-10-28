@@ -190,8 +190,10 @@ if (existing.status === 200 && existing.json.data) {
 log('review details set');
 
 // Free, every territory.
-const prices = await raw('GET', `/v1/apps/${APP}/appPriceSchedule`);
-if (prices.status !== 200 || !prices.json.data) {
+// The schedule object always exists; whether a price is set shows only in
+// its manualPrices, which answer 404 until one is.
+const prices = await raw('GET', `/v1/appPriceSchedules/${APP}/manualPrices?limit=1`);
+if (prices.status !== 200 || !prices.json.data?.length) {
   const points = await asc('GET', `/v1/apps/${APP}/appPricePoints?filter[territory]=USA&limit=200`);
   const free = points.data.find(
     (p) => p.attributes.customerPrice === '0.0' || p.attributes.customerPrice === '0',
