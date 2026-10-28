@@ -23,10 +23,18 @@ strictDepBuilds: true
 #   source-map-js  GHSA-68fv-2mgg-jv7q (high)   via @vitest/coverage-v8 > magicast
 #   postcss-selector-parser  (moderate)        via tailwind / postcss plugins
 #   esbuild  dev-server file read on Windows (low)  via vitest > vite, tsup
+#   zod  memory exhaustion on constrained collections (high, <4.6.6)  via zod-validation-error
+#   undici  4 highs incl. TLS validation bypass (<8.12.2)  via astro > unifont
+#   happy-dom  import alias host code execution (high, <21.0.4)  vitest optional peer
+#   vite  launch-editor existence bypass on Windows (high, 8.2.0-8.2.3)  via astro
 overrides:
   source-map-js: '>=1.2.2'
   postcss-selector-parser: '>=7.1.6'
   esbuild: '>=0.28.1'
+  zod: '>=4.6.6'
+  undici: '>=8.12.2'
+  happy-dom: '>=21.0.4'
+  vite: '>=8.2.4'
 
 catalog:
   # React
@@ -36,7 +44,7 @@ catalog:
   '@types/react-dom': 19.3.0
 
   # Build
-  vite: 8.3.1
+  vite: 8.3.5
   '@vitejs/plugin-react': 6.1.1
   typescript: 7.0.2
 
@@ -79,7 +87,7 @@ catalog:
   vitest: 5.0.2
   '@vitest/coverage-v8': 5.0.2
   '@testing-library/react': 16.3.3
-  happy-dom: 20.14.5
+  happy-dom: 21.0.4
 
   # Lint
   eslint: 10.11.0
