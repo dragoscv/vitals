@@ -7,6 +7,13 @@ name: iOS screenshots
 # submission, download the artefact, upload to App Store Connect.
 on:
   workflow_dispatch:
+  # Also when the iPhone UI changes, so a reviewer sees the screens the
+  # change produced (free on a public repository).
+  pull_request:
+    paths:
+      - 'apps/ios/Vitals/**'
+      - 'apps/ios/scripts/screenshots.sh'
+      - '.github/workflows/ios-screenshots.yml'
 
 permissions:
   contents: read
