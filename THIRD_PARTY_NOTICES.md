@@ -26,7 +26,7 @@ The signed `IntelMSR`, `AMDFamily17` and `LpcIO` module binaries are embedded
 unmodified. Their complete source is at the link above; the licence text is
 below and is also installed as `sensors\PawnIO-Modules-COPYING.txt`.
 
-## Rust crates (387)
+## Rust crates (383)
 
 | Component | Version | Licence |
 | --- | --- | --- |
@@ -41,7 +41,7 @@ below and is also installed as `sensors\PawnIO-Modules-COPYING.txt`.
 | [anstyle-wincon](https://github.com/rust-cli/anstyle.git) | 3.0.11 | MIT OR Apache-2.0 |
 | [anyhow](https://github.com/dtolnay/anyhow) | 1.0.104 | MIT OR Apache-2.0 |
 | [atomic-waker](https://github.com/smol-rs/atomic-waker) | 1.1.2 | Apache-2.0 OR MIT |
-| [auto-launch](https://github.com/zzzgydi/auto-launch.git) | 0.5.0 | MIT |
+| [auto-launch](https://github.com/zzzgydi/auto-launch.git) | 0.6.0 | MIT |
 | [axum](https://github.com/tokio-rs/axum) | 0.8.9 | MIT |
 | [axum-core](https://github.com/tokio-rs/axum) | 0.5.6 | MIT |
 | [base64](https://github.com/marshallpierce/rust-base64) | 0.22.1 | MIT OR Apache-2.0 |
@@ -63,7 +63,6 @@ below and is also installed as `sensors\PawnIO-Modules-COPYING.txt`.
 | [cargo_metadata](https://github.com/oli-obk/cargo_metadata) | 0.19.2 | MIT |
 | [cargo-platform](https://github.com/rust-lang/cargo) | 0.1.9 | MIT OR Apache-2.0 |
 | [cfb](https://github.com/mdsteele/rust-cfb) | 0.14.0 | MIT |
-| [cfb](https://github.com/mdsteele/rust-cfb) | 0.7.3 | MIT |
 | [cfg-if](https://github.com/rust-lang/cfg-if) | 1.0.4 | MIT OR Apache-2.0 |
 | [chrono](https://github.com/chronotope/chrono) | 0.4.45 | MIT OR Apache-2.0 |
 | [clap](https://github.com/clap-rs/clap) | 4.6.7 | MIT OR Apache-2.0 |
@@ -165,9 +164,8 @@ below and is also installed as `sensors\PawnIO-Modules-COPYING.txt`.
 | [image](https://github.com/image-rs/image) | 0.25.10 | MIT OR Apache-2.0 |
 | [indexmap](https://github.com/bluss/indexmap) | 1.9.3 | Apache-2.0 OR MIT |
 | [indexmap](https://github.com/indexmap-rs/indexmap) | 2.14.2 | Apache-2.0 OR MIT |
-| [infer](https://github.com/bojand/infer) | 0.19.0 | MIT |
 | [infer](https://github.com/bojand/infer) | 0.22.0 | MIT |
-| [interprocess](https://github.com/kotauskas/interprocess) | 2.4.4 | 0BSD OR Apache-2.0 |
+| [interprocess](https://github.com/kotauskas/interprocess) | 2.4.6 | 0BSD OR Apache-2.0 |
 | [ipnet](https://github.com/krisprice/ipnet) | 2.12.2 | MIT OR Apache-2.0 |
 | [is_terminal_polyfill](https://github.com/polyfill-rs/is_terminal_polyfill) | 1.70.2 | MIT OR Apache-2.0 |
 | [itoa](https://github.com/dtolnay/itoa) | 1.0.18 | MIT OR Apache-2.0 |
@@ -189,10 +187,10 @@ below and is also installed as `sensors\PawnIO-Modules-COPYING.txt`.
 | [markup5ever](https://github.com/servo/html5ever) | 0.39.0 | MIT OR Apache-2.0 |
 | [matchers](https://github.com/hawkw/matchers) | 0.2.0 | MIT |
 | [matchit](https://github.com/ibraheemdev/matchit) | 0.8.4 | MIT AND BSD-3-Clause |
-| [mdns-sd](https://github.com/keepsimple1/mdns-sd) | 0.21.4 | Apache-2.0 OR MIT |
+| [mdns-sd](https://github.com/keepsimple1/mdns-sd) | 0.21.5 | Apache-2.0 OR MIT |
 | [memchr](https://github.com/BurntSushi/memchr) | 2.8.3 | Unlicense OR MIT |
 | [mime](https://github.com/hyperium/mime) | 0.3.17 | MIT OR Apache-2.0 |
-| [minisign-verify](https://github.com/jedisct1/rust-minisign-verify) | 0.2.5 | MIT |
+| [minisign-verify](https://github.com/jedisct1/rust-minisign-verify) | 0.3.0 | MIT |
 | [miniz_oxide](https://github.com/Frommi/miniz_oxide/tree/master/miniz_oxide) | 0.8.9 | MIT OR Zlib OR Apache-2.0 |
 | [miniz_oxide](https://github.com/Frommi/miniz_oxide/tree/master/miniz_oxide) | 0.9.1 | MIT OR Zlib OR Apache-2.0 |
 | [mio](https://github.com/tokio-rs/mio) | 1.2.3 | MIT |
@@ -230,6 +228,7 @@ below and is also installed as `sensors\PawnIO-Modules-COPYING.txt`.
 | [quote](https://github.com/dtolnay/quote) | 1.0.47 | MIT OR Apache-2.0 |
 | [rand](https://github.com/rust-random/rand) | 0.9.5 | MIT OR Apache-2.0 |
 | [rand_chacha](https://github.com/rust-random/rand) | 0.9.0 | MIT OR Apache-2.0 |
+| [rand_core](https://github.com/rust-random/rand_core) | 0.10.1 | MIT OR Apache-2.0 |
 | [rand_core](https://github.com/rust-random/rand) | 0.9.5 | MIT OR Apache-2.0 |
 | [raw-window-handle](https://github.com/rust-windowing/raw-window-handle) | 0.6.2 | MIT OR Apache-2.0 OR Zlib |
 | [recvmsg](https://crates.io/crates/recvmsg) | 1.0.0 | 0BSD |
@@ -260,7 +259,7 @@ below and is also installed as `sensors\PawnIO-Modules-COPYING.txt`.
 | [serde_core](https://github.com/serde-rs/serde) | 1.0.229 | MIT OR Apache-2.0 |
 | [serde_derive](https://github.com/serde-rs/serde) | 1.0.229 | MIT OR Apache-2.0 |
 | [serde_derive_internals](https://github.com/serde-rs/serde) | 0.29.1 | MIT OR Apache-2.0 |
-| [serde_json](https://github.com/serde-rs/json) | 1.0.151 | MIT OR Apache-2.0 |
+| [serde_json](https://github.com/serde-rs/json) | 1.0.154 | MIT OR Apache-2.0 |
 | [serde_path_to_error](https://github.com/dtolnay/path-to-error) | 0.1.20 | MIT OR Apache-2.0 |
 | [serde_repr](https://github.com/dtolnay/serde-repr) | 0.1.21 | MIT OR Apache-2.0 |
 | [serde_spanned](https://github.com/toml-rs/toml) | 1.1.1 | MIT OR Apache-2.0 |
@@ -273,7 +272,7 @@ below and is also installed as `sensors\PawnIO-Modules-COPYING.txt`.
 | [servo_arc](https://github.com/servo/stylo) | 0.4.3 | MIT OR Apache-2.0 |
 | [sha1](https://github.com/RustCrypto/hashes) | 0.10.7 | MIT OR Apache-2.0 |
 | [sha2](https://github.com/RustCrypto/hashes) | 0.10.9 | MIT OR Apache-2.0 |
-| [sha2](https://github.com/RustCrypto/hashes) | 0.11.0 | MIT OR Apache-2.0 |
+| [sha2](https://github.com/RustCrypto/hashes) | 0.11.1 | MIT OR Apache-2.0 |
 | [sharded-slab](https://github.com/hawkw/sharded-slab) | 0.1.7 | MIT |
 | [simd-adler32](https://github.com/mcountryman/simd-adler32) | 0.3.10 | MIT |
 | [siphasher](https://github.com/jedisct1/rust-siphash) | 1.0.3 | MIT OR Apache-2.0 |
@@ -296,27 +295,25 @@ below and is also installed as `sensors\PawnIO-Modules-COPYING.txt`.
 | [tauri](https://github.com/tauri-apps/tauri) | 2.12.0 | Apache-2.0 OR MIT |
 | [tauri-codegen](https://github.com/tauri-apps/tauri) | 2.7.0 | Apache-2.0 OR MIT |
 | [tauri-macros](https://github.com/tauri-apps/tauri) | 2.7.0 | Apache-2.0 OR MIT |
-| [tauri-plugin-autostart](https://github.com/tauri-apps/plugins-workspace) | 2.6.0 | Apache-2.0 OR MIT |
+| [tauri-plugin-autostart](https://github.com/tauri-apps/plugins-workspace) | 2.7.0 | Apache-2.0 OR MIT |
 | [tauri-plugin-dialog](https://github.com/tauri-apps/plugins-workspace) | 2.8.0 | Apache-2.0 OR MIT |
 | [tauri-plugin-fs](https://github.com/tauri-apps/plugins-workspace) | 2.6.0 | Apache-2.0 OR MIT |
-| [tauri-plugin-notification](https://github.com/tauri-apps/plugins-workspace) | 2.5.0 | Apache-2.0 OR MIT |
-| [tauri-plugin-opener](https://github.com/tauri-apps/plugins-workspace) | 2.6.0 | Apache-2.0 OR MIT |
+| [tauri-plugin-notification](https://github.com/tauri-apps/plugins-workspace) | 2.7.0 | Apache-2.0 OR MIT |
+| [tauri-plugin-opener](https://github.com/tauri-apps/plugins-workspace) | 2.7.0 | Apache-2.0 OR MIT |
 | [tauri-plugin-os](https://github.com/tauri-apps/plugins-workspace) | 2.4.0 | Apache-2.0 OR MIT |
 | [tauri-plugin-process](https://github.com/tauri-apps/plugins-workspace) | 2.4.0 | Apache-2.0 OR MIT |
-| [tauri-plugin-single-instance](https://github.com/tauri-apps/plugins-workspace) | 2.5.0 | Apache-2.0 OR MIT |
+| [tauri-plugin-single-instance](https://github.com/tauri-apps/plugins-workspace) | 2.5.4 | Apache-2.0 OR MIT |
 | [tauri-plugin-store](https://github.com/tauri-apps/plugins-workspace) | 2.5.0 | Apache-2.0 OR MIT |
-| [tauri-plugin-updater](https://github.com/tauri-apps/plugins-workspace) | 2.13.0 | Apache-2.0 OR MIT |
+| [tauri-plugin-updater](https://github.com/tauri-apps/plugins-workspace) | 2.14.0 | Apache-2.0 OR MIT |
 | [tauri-runtime](https://github.com/tauri-apps/tauri) | 2.12.0 | Apache-2.0 OR MIT |
 | [tauri-runtime-wry](https://github.com/tauri-apps/tauri) | 2.12.0 | Apache-2.0 OR MIT |
-| [tauri-utils](https://github.com/tauri-apps/tauri) | 2.10.0 | Apache-2.0 OR MIT |
+| [tauri-utils](https://github.com/tauri-apps/tauri) | 2.10.2 | Apache-2.0 OR MIT |
 | [tauri-winrt-notification](https://github.com/tauri-apps/winrt-notification) | 0.7.3 | MIT OR Apache-2.0 |
 | [tauri-winrt-notification](https://github.com/tauri-apps/winrt-notification) | 0.8.1 | MIT OR Apache-2.0 |
 | [tempfile](https://github.com/Stebalien/tempfile) | 3.27.0 | MIT OR Apache-2.0 |
 | [tendril](https://github.com/servo/html5ever) | 0.5.1 | MIT OR Apache-2.0 |
 | [termcolor](https://github.com/BurntSushi/termcolor) | 1.4.1 | Unlicense OR MIT |
-| [thiserror](https://github.com/dtolnay/thiserror) | 1.0.69 | MIT OR Apache-2.0 |
 | [thiserror](https://github.com/dtolnay/thiserror) | 2.0.21 | MIT OR Apache-2.0 |
-| [thiserror-impl](https://github.com/dtolnay/thiserror) | 1.0.69 | MIT OR Apache-2.0 |
 | [thiserror-impl](https://github.com/dtolnay/thiserror) | 2.0.21 | MIT OR Apache-2.0 |
 | [thread_local](https://github.com/Amanieu/thread_local-rs) | 1.1.10 | MIT OR Apache-2.0 |
 | [time](https://github.com/time-rs/time) | 0.3.55 | MIT OR Apache-2.0 |
@@ -325,7 +322,7 @@ below and is also installed as `sensors\PawnIO-Modules-COPYING.txt`.
 | [tinystr](https://github.com/unicode-org/icu4x) | 0.8.4 | Unicode-3.0 |
 | [tinyvec](https://github.com/Lokathor/tinyvec) | 1.13.2 | Zlib OR Apache-2.0 OR MIT |
 | [tinyvec_macros](https://github.com/Soveu/tinyvec_macros) | 0.1.1 | MIT OR Apache-2.0 OR Zlib |
-| [tokio](https://github.com/tokio-rs/tokio) | 1.53.1 | MIT |
+| [tokio](https://github.com/tokio-rs/tokio) | 1.53.3 | MIT |
 | [tokio-macros](https://github.com/tokio-rs/tokio) | 2.7.2 | MIT |
 | [tokio-rustls](https://github.com/rustls/tokio-rustls) | 0.26.5 | MIT OR Apache-2.0 |
 | [tokio-stream](https://github.com/tokio-rs/tokio) | 0.1.19 | MIT |
@@ -403,7 +400,6 @@ below and is also installed as `sensors\PawnIO-Modules-COPYING.txt`.
 | [windows-threading](https://github.com/microsoft/windows-rs) | 0.2.1 | MIT OR Apache-2.0 |
 | [windows-version](https://github.com/microsoft/windows-rs) | 0.1.7 | MIT OR Apache-2.0 |
 | [winnow](https://github.com/winnow-rs/winnow) | 1.0.4 | MIT |
-| [winreg](https://github.com/gentoo90/winreg-rs) | 0.10.1 | MIT |
 | [writeable](https://github.com/unicode-org/icu4x) | 0.6.4 | Unicode-3.0 |
 | [wry](https://github.com/tauri-apps/wry) | 0.57.0 | Apache-2.0 OR MIT |
 | [yoke](https://github.com/unicode-org/icu4x) | 0.8.3 | Unicode-3.0 |
