@@ -266,6 +266,32 @@ It contains no analytics, advertising, accounts or third-party SDKs, and its
 App Store privacy label is "Data Not Collected". Apple may collect data about
 app installs under its own privacy policy.
 
+## Health page (vmui, optional)
+
+The Health page shows your own health readings (steps, heart rate, sleep,
+weight, nutrition totals) from **vmui**, a server you run yourself. It is
+hidden until you connect it in Settings, on any of the desktop, iPhone and
+Android apps.
+
+- **What it reads:** only `GET /api/v1/me/health` on the vmui address you
+  enter, about once a minute while the page is open, never when it is closed.
+  vmui returns readings only to devices paired with its owner.
+- **Where it goes:** straight from your device to your vmui server. Nothing
+  passes through the developer or any third party.
+- **What is stored:** the pairing token, in the system's secret store
+  (Windows Credential Manager, the macOS or iPhone Keychain, an Android
+  Keystore-encrypted file), and the vmui address. **The health readings are
+  never written to disk, logs or caches**; they are held in memory only and
+  disappear when the app closes. Your vmui password, if you sign in with it,
+  is sent once to your vmui and never stored.
+- **How to stop:** Disconnect in Settings deletes the token (revoke the device
+  in vmui too). Uninstalling the app deletes it as well.
+
+Health data is a special category of personal data (Article 9 GDPR). Vitals
+processes it only on your own devices and your own server, at your request.
+The developer receives none of it. Vitals is not a medical device and its
+readings and estimates are not medical advice.
+
 ## Legal basis
 
 The update check is based on legitimate interest (Article 6(1)(f) GDPR):
@@ -616,6 +642,33 @@ Nu conține instrumente de analiză, publicitate, conturi sau SDK-uri terțe, ia
 eticheta de confidențialitate din App Store este „Data Not Collected”. Apple
 poate colecta date despre instalări conform propriei politici de
 confidențialitate.
+
+## Pagina Sănătate (vmui, opțională)
+
+Pagina Sănătate arată propriile dvs. date de sănătate (pași, puls, somn,
+greutate, totaluri de nutriție) din **vmui**, un server pe care îl rulați dvs.
+Este ascunsă până o conectați din Setări, în aplicația desktop, pe iPhone sau
+pe Android.
+
+- **Ce citește:** doar `GET /api/v1/me/health` la adresa vmui pe care o
+  introduceți, cam o dată pe minut cât pagina e deschisă, niciodată când e
+  închisă. vmui răspunde doar dispozitivelor asociate cu proprietarul său.
+- **Unde ajung datele:** direct de pe dispozitivul dvs. la serverul dvs. vmui.
+  Nimic nu trece prin dezvoltator sau printr-un terț.
+- **Ce se stochează:** tokenul de asociere, în depozitul de secrete al
+  sistemului (Windows Credential Manager, Keychain-ul macOS sau iPhone, un
+  fișier criptat cu Android Keystore), și adresa vmui. **Datele de sănătate nu
+  sunt scrise niciodată pe disc, în jurnale sau în cache**; stau doar în
+  memorie și dispar când închideți aplicația. Parola vmui, dacă vă conectați
+  cu ea, este trimisă o singură dată către vmui-ul dvs. și nu este păstrată.
+- **Cum opriți:** Deconectare din Setări șterge tokenul (revocați și
+  dispozitivul în vmui). Dezinstalarea aplicației îl șterge și ea.
+
+Datele de sănătate sunt o categorie specială de date cu caracter personal
+(articolul 9 din GDPR). Vitals le prelucrează doar pe dispozitivele și pe
+serverul dvs., la cererea dvs. Dezvoltatorul nu primește nimic din ele. Vitals
+nu este un dispozitiv medical, iar citirile și estimările sale nu sunt sfaturi
+medicale.
 
 ## Temeiul juridic
 

@@ -22,6 +22,7 @@ pub mod drivemove;
 #[cfg(windows)]
 pub mod drive_schedule;
 pub mod hardware;
+pub mod health;
 pub mod history;
 pub mod hud;
 pub mod inventory;
@@ -424,6 +425,14 @@ fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
         agents::finish_cloud_sign_in,
         agents::cancel_cloud_sign_in,
         agents::cloud_sign_out,
+        // The Health page (docs/api/vmui-health.md). The token stays in the
+        // OS secret store; the webview sees only its first eight characters.
+        health::health_status,
+        health::health_pair_start,
+        health::health_pair_poll,
+        health::health_sign_in,
+        health::health_disconnect,
+        health::health_fetch,
     ]
 }
 

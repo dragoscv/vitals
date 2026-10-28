@@ -69,6 +69,13 @@ and Google TV apps, the iPhone app, and the Samsung (Tizen) TV app. Effective 28
 It keeps the PCs you pair and your language choice in its own storage on the TV, talks only to those
 PCs on your local network, and has no analytics or ads. Uninstalling it deletes everything.
 
+## Health page (optional)
+
+If you connect your own vmui server, the Health page shows your health readings from it. They go
+straight from your device to your server, are held in memory only (never written to disk) and reach
+no one else. The pairing token sits in the system's secret store; Disconnect deletes it. Not medical
+advice.
+
 ## macOS and iPhone
 
 The macOS app behaves like the Windows one: everything stays on the Mac and the only automatic

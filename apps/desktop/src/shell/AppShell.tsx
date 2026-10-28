@@ -9,8 +9,9 @@ import { RouteView } from '../routes';
 import { useSettings } from '../settings/store';
 import { Content } from './Content';
 import { ErrorBoundary } from './ErrorBoundary';
-import { navItems, OPEN_SETTINGS_EVENT } from './navigation';
+import { defaultRoute, navItems, OPEN_SETTINGS_EVENT, useNavVisibility } from './navigation';
 import type { RouteId } from './navigation';
+import { useHealthVisibility } from '../features/health/visibility';
 import { RouteError } from './RouteError';
 import { Sidebar } from './Sidebar';
 import type { ShortcutActions } from './shortcuts';
@@ -77,9 +78,23 @@ export interface AppShellProps {
 
 export function AppShell({ version }: AppShellProps) {
   const { t } = useTranslation();
-  const route = useSettings((state) => state.route);
+  const savedRoute = useSettings((state) => state.route);
   const commitRoute = useSettings((state) => state.navigate);
   const reduced = useReducedMotion();
+  useHealthVisibility();
+  const healthVisible = useNavVisibility((state) => state.health);
+  // A restored or current route that is hidden — Health with no vmui
+  // connection — shows the dashboard instead of a page the sidebar cannot
+  // reach. While visibility is still unknown the dashboard shows too, so a
+  // launch never paints a page and then yanks it away.
+  const route: RouteId =
+    savedRoute === 'health' && healthVisible !== true ? defaultRoute : savedRoute;
+
+  // Once it is KNOWN to be hidden (disconnected), the saved route moves too,
+  // so the next launch does not restore it.
+  useEffect(() => {
+    if (savedRoute === 'health' && healthVisible === false) commitRoute(defaultRoute);
+  }, [savedRoute, healthVisible, commitRoute]);
 
   /**
    * Navigation as a View Transition.

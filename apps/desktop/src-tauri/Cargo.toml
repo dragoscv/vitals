@@ -70,6 +70,9 @@ vitals-linux = { workspace = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 vitals-macos = { workspace = true }
+# The Health page's vmui token in the Keychain (health.rs). Already in the
+# lock through the TLS stack; no default features, so nothing new is built.
+security-framework = { version = "3.7.0", default-features = false }
 
 [dependencies.tauri-plugin-updater]
 version = "2.13.0"

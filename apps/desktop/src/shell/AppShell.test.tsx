@@ -56,6 +56,10 @@ beforeAll(async () => {
   // failed the full suite at 1146 s of machine-wide load (2026-09-28) while
   // the file alone passed — the lazy chunk was still transforming.
   await import('./CommandPalette');
+  // And the shortcut sheet: `? opens the help sheet` timed out at the 1 s
+  // findBy default in a parallel shell+settings+health run (2026-10-28)
+  // while the file alone passed — the same cold-transform race.
+  await import('./ShortcutsHelp');
 });
 
 beforeEach(async () => {

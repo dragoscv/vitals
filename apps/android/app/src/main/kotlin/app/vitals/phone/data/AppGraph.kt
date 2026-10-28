@@ -2,6 +2,7 @@ package app.vitals.phone.data
 
 import android.app.Application
 import app.vitals.core.loggingHandler
+import app.vitals.core.health.HealthTokenStore
 import app.vitals.core.net.VitalsClient
 import app.vitals.core.pairing.Pairing
 import app.vitals.core.pairing.PairingStore
@@ -27,6 +28,9 @@ import java.util.concurrent.ConcurrentHashMap
 class AppGraph(private val app: Application) {
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default + loggingHandler("VitalsApp"))
     val pairings = PairingStore(app)
+
+    /** The vmui health token (docs/api/vmui-health.md). Health readings themselves are never stored. */
+    val health = HealthTokenStore(app)
     val settings = SettingsStore(app)
     val widgetCache = WidgetCache(app)
     val wear = WearBridge(app)
@@ -44,6 +48,7 @@ class AppGraph(private val app: Application) {
     fun client(p: Pairing): VitalsClient = clients.getOrPut(clientKey(p)) { VitalsClient(p.baseUrl, p.token) }
 
     fun start() {
+        scope.launch { health.load() }
         scope.launch {
             pairings.load()
             readyState.value = true

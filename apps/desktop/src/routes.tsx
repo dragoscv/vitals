@@ -13,7 +13,7 @@ import { Skeleton, useReducedMotion } from '@vitals/ui';
 
 import { DashboardScreen } from './features/dashboard';
 import { hasTauriHost } from './shell/host';
-import { routeIds, type RouteId } from './shell/navigation';
+import { isRouteVisible, routeIds, type RouteId } from './shell/navigation';
 
 // Dashboard is eager: it is what the window opens on, so deferring it would
 // only add a flash of skeleton to the one screen whose load time is the
@@ -101,6 +101,11 @@ const loadAgents = once(async () => {
   m.registerAgentsStrings();
   return m;
 });
+const loadHealth = once(async () => {
+  const m = await import('./features/health');
+  m.registerHealthStrings();
+  return m;
+});
 
 const ConnectionsScreen = lazy(async () => ({
   default: (await loadConnections()).ConnectionsScreen,
@@ -117,6 +122,7 @@ const StartupScreen = lazy(async () => ({ default: (await loadStartup()).Startup
 const StorageScreen = lazy(async () => ({ default: (await loadStorage()).StorageScreen }));
 const UsersScreen = lazy(async () => ({ default: (await loadUsers()).UsersScreen }));
 const AgentsScreen = lazy(async () => ({ default: (await loadAgents()).AgentsScreen }));
+const HealthScreen = lazy(async () => ({ default: (await loadHealth()).HealthScreen }));
 
 /**
  * What each section needs before its first paint: its chunk, then a
@@ -361,10 +367,13 @@ export function RouteView({
       void preloadRoutes().then(() => {
         if (!live) return;
         // A transition, so React may split the work and a click interrupts it.
+        // Hidden routes (Health with no vmui connection) are not mounted:
+        // a hidden page must not poll, even invisibly.
         startTransition(() => {
-          setVisited((current) =>
-            current.size === routeIds.length ? current : new Set([...current, ...routeIds]),
-          );
+          setVisited((current) => {
+            const shown = routeIds.filter((id) => isRouteVisible(id));
+            return shown.every((id) => current.has(id)) ? current : new Set([...current, ...shown]);
+          });
         });
       });
     });
@@ -448,6 +457,10 @@ function RouteContent({
       return <AppHistoryScreen />;
     case 'users':
       return <UsersScreen />;
+    case 'health':
+      // Chunk not preloaded: most installs never connect vmui, and the
+      // page polls only while it is the visible route.
+      return <HealthScreen />;
     default: {
       const exhaustive: never = route;
       return exhaustive;

@@ -2,8 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
   Vitals collects nothing and tracks nothing. It talks only to PCs the user
-  pairs on their own network. Required-reason API: UserDefaults (CA92.1,
-  the app's own settings: whether the sample PC is shown).
+  pairs on their own network and, if the user pairs it, to the user's own
+  vmui server; nothing reaches the developer. Required-reason API:
+  UserDefaults (CA92.1, the app's own settings: whether the sample PC is
+  shown, the vmui address).
 -->
 <plist version="1.0">
 <dict>

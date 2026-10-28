@@ -74,5 +74,22 @@
   "common_done": { "en": "Done", "ro": "Gata" },
   "common_retry": { "en": "Try again", "ro": "Încearcă din nou" },
   "common_save": { "en": "Save", "ro": "Salvează" },
-  "unit_rpm": { "en": "RPM", "ro": "RPM" }
+  "unit_rpm": { "en": "RPM", "ro": "RPM" },
+  "health_hr_24h": { "en": "Heart rate, last 24 hours", "ro": "Puls, ultimele 24 de ore" },
+  "health_time": { "en": "Time", "ro": "Ora" },
+  "health_unit_breaths": { "en": "breaths/min", "ro": "respirații/min" },
+  "health_calories_eaten": { "en": "Calories eaten", "ro": "Calorii consumate" },
+  "health_calories_target": { "en": "Calorie target", "ro": "Ținta de calorii" },
+  "health_calories_remaining": { "en": "Calories left", "ro": "Calorii rămase" },
+  "health_base_url_hint": { "en": "https://vmui.example.com", "ro": "https://vmui.exemplu.ro" },
+  "health_code_title": { "en": "Pairing code", "ro": "Cod de asociere" },
+  "health_waiting": { "en": "Waiting for approval…", "ro": "Se așteaptă aprobarea…" },
+  "health_error_timed_out": {
+    "en": "No approval within 10 minutes. Try again.",
+    "ro": "Nicio aprobare în 10 minute. Încearcă din nou."
+  },
+  "health_error_slow_down": {
+    "en": "Too many attempts. Wait a moment and try again.",
+    "ro": "Prea multe încercări. Așteaptă puțin și încearcă din nou."
+  }
 }

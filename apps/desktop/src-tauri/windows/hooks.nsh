@@ -242,6 +242,12 @@
   ${If} $UpdateMode <> 1
     nsExec::Exec '"$SYSDIR\cmdkey.exe" /delete:vitals/codai-api-key'
     Pop $0
+    ; The Health page's vmui device token and its address (health.rs), for
+    ; the same reason: a removed app must not leave a working token behind.
+    nsExec::Exec '"$SYSDIR\cmdkey.exe" /delete:vitals/vmui-health-token'
+    Pop $0
+    nsExec::Exec '"$SYSDIR\cmdkey.exe" /delete:vitals/vmui-health-base'
+    Pop $0
   ${EndIf}
 !macroend
 

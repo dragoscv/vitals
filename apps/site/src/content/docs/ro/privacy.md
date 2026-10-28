@@ -70,6 +70,13 @@ aplicația pentru televizoare Samsung (Tizen). În vigoare din 28 octombrie 2026
 Păstrează PC-urile asociate și limba aleasă în stocarea proprie de pe televizor, comunică doar cu
 acele PC-uri în rețeaua locală și nu are statistici sau reclame. Dezinstalarea ei șterge tot.
 
+## Pagina Sănătate (opțională)
+
+Dacă conectați propriul server vmui, pagina Sănătate arată datele dvs. de sănătate din el. Ajung direct
+de pe dispozitiv la serverul dvs., stau doar în memorie (niciodată pe disc) și nu ajung la nimeni
+altcineva. Tokenul de asociere stă în depozitul de secrete al sistemului; Deconectare îl șterge. Nu
+sunt sfaturi medicale.
+
 ## macOS și iPhone
 
 Aplicația pentru macOS se poartă ca cea pentru Windows: totul rămâne pe Mac, iar singura cerere

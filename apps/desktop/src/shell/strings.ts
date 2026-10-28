@@ -128,6 +128,9 @@ const en = {
       noData: 'Nothing recorded',
       clearHint: 'Deletes both the per-app totals and the recorded charts.',
     },
+    health: {
+      title: 'Health',
+    },
     remote: {
       title: 'Remote access',
       explainer:
@@ -346,6 +349,9 @@ const ro = {
       diskUsageHint: 'Înregistrat doar pe acest calculator. Ștergerea este imediată.',
       noData: 'Nimic înregistrat',
       clearHint: 'Șterge atât totalurile per aplicație, cât și graficele înregistrate.',
+    },
+    health: {
+      title: 'Sănătate',
     },
     remote: {
       title: 'Acces de la distanță',

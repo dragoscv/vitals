@@ -1,10 +1,11 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
-import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { act } from 'react';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { initI18n } from '@vitals/i18n';
 import { TooltipProvider } from '@vitals/ui';
 
-import { navItems } from './navigation';
+import { navItems as allNavItems, useNavVisibility, visibleNavItems } from './navigation';
 import { Sidebar } from './Sidebar';
 import { registerShellStrings } from './strings';
 
@@ -12,6 +13,15 @@ beforeAll(async () => {
   await initI18n();
   registerShellStrings();
 });
+
+afterEach(() => {
+  act(() => {
+    useNavVisibility.setState({ health: null });
+  });
+});
+
+/** What the sidebar shows by default: everything except unconfigured Health. */
+const navItems = visibleNavItems({ health: false });
 
 function renderSidebar(overrides: Partial<Parameters<typeof Sidebar>[0]> = {}) {
   const onNavigate = vi.fn();
@@ -97,6 +107,26 @@ describe('Sidebar', () => {
     // Document order across groups is the flat order, so arrows and
     // Ctrl+1…9 agree with what the eye sees.
     expect(navButtons().map((b) => b.dataset['navItem'])).toEqual(navItems.map((i) => i.id));
+  });
+
+  it('hides Health until a vmui connection exists, then shows it last under More', () => {
+    renderSidebar();
+    expect(document.querySelector('[data-nav-item="health"]')).toBeNull();
+
+    act(() => {
+      useNavVisibility.getState().setHealth(true);
+    });
+    expect(document.querySelector('[data-nav-item="health"]')).not.toBeNull();
+    expect(navButtons()).toHaveLength(allNavItems.length);
+    const more = within(screen.getByRole('group', { name: 'More' }))
+      .getAllByRole('button')
+      .map((b) => b.dataset['navItem']);
+    expect(more).toEqual(['appHistory', 'users', 'benchmarks', 'health']);
+
+    act(() => {
+      useNavVisibility.getState().setHealth(false);
+    });
+    expect(document.querySelector('[data-nav-item="health"]')).toBeNull();
   });
 
   it('marks only the active destination with aria-current', () => {
