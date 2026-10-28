@@ -443,20 +443,25 @@ describe('status colours used as text', () => {
     const { readdir } = await import('node:fs/promises');
     const fill = /text-\[var\(--color-status-(?:warn|danger|ok)\)\]/;
     const hits: string[] = [];
+    // Concurrent per directory: ~400 serial reads timed out at 15 s on the
+    // loaded release Verify runner (v1.2.0, run 40700651708).
     const walk = async (dir: string): Promise<void> => {
-      for (const entry of await readdir(dir, { withFileTypes: true })) {
-        const path = resolve(dir, entry.name);
-        if (entry.isDirectory()) {
-          if (entry.name !== 'node_modules') await walk(path);
-        } else if (/\.tsx?$/.test(entry.name) && !/\.test\.tsx?$/.test(entry.name)) {
-          if (fill.test(await readFile(path, 'utf8'))) hits.push(path);
-        }
-      }
+      const entries = await readdir(dir, { withFileTypes: true });
+      await Promise.all(
+        entries.map(async (entry) => {
+          const path = resolve(dir, entry.name);
+          if (entry.isDirectory()) {
+            if (entry.name !== 'node_modules') await walk(path);
+          } else if (/\.tsx?$/.test(entry.name) && !/\.test\.tsx?$/.test(entry.name)) {
+            if (fill.test(await readFile(path, 'utf8'))) hits.push(path);
+          }
+        }),
+      );
     };
     await walk(here);
     await walk(resolve(here, '../../../packages/ui/src'));
     expect(hits).toEqual([]);
-  });
+  }, 60_000);
 
   it('references no colour token the theme does not define', async () => {
     const theme = await readFile(themePath, 'utf8');
