@@ -1,0 +1,29 @@
+{
+  "_comment": "App Store Connect copy for the iPhone app (app 6827931747). Applied by scripts/ios-store.mjs. EN and RO move together. Limits: subtitle 30, promotional 170, keywords 100 bytes, description 4000.",
+  "supportUrl": "https://vitals.dragoscatalin.ro/guides/remote-access/",
+  "marketingUrl": "https://vitals.dragoscatalin.ro/",
+  "privacyUrl": "https://vitals.dragoscatalin.ro/privacy/",
+  "copyright": "2026 Dragos-Catalin Vladulescu",
+  "locales": {
+    "en-GB": {
+      "subtitle": "Watch your PC from your phone",
+      "promotionalText": "See what your Windows PC or Mac is really doing — processor, memory, temperatures and every program — live on your iPhone, over your own network.",
+      "keywords": "system monitor,task manager,pc,cpu,gpu,temperature,ram,processes,windows,mac,remote,lan",
+      "description": "Vitals shows what your PC is really doing, in words a person can read, and never invents a number it could not measure.\n\nPair a Windows PC or a Mac running Vitals by scanning the code it shows, finding it nearby, or typing a six-digit code. Then, from your iPhone:\n\n• Processor load per core, clock speed, temperature and power\n• Graphics load, memory and temperature where the PC reports them\n• Memory in use, and how close the PC is to running out\n• Disks, network and every sensor the PC can read\n• A history of the last hours and days\n• Every running program, searchable and sorted by processor or memory\n• Alerts when something runs hot, low or full\n• With a control pairing: end, pause or reprioritise a program that has stopped responding\n\nKeep several PCs in one list. Everything stays on your local network: your iPhone talks only to the PCs you pair, and refuses public addresses.\n\nNo PC yet? Try the labelled Sample PC to see every screen first.\n\nVitals for Windows and macOS is free at vitals.dragoscatalin.ro. Remote access is off on the PC until you turn it on.\n\nHONEST BY DESIGN\n• If a reading cannot be measured, Vitals shows a dash, never a made-up zero\n• No ads, no account, no tracking, no analytics\n• Free and open source (MIT): github.com/dragoscv/vitals",
+      "whatsNew": "First release on iPhone."
+    },
+    "ro": {
+      "subtitle": "Urmărește PC-ul de pe telefon",
+      "promotionalText": "Vezi ce face cu adevărat PC-ul cu Windows sau Mac-ul tău — procesor, memorie, temperaturi și fiecare program — în timp real pe iPhone, în rețeaua ta.",
+      "keywords": "monitor sistem,task manager,pc,procesor,placa video,temperatura,memorie,procese,windows,mac",
+      "description": "Vitals arată ce face cu adevărat PC-ul tău, în cuvinte pe care le înțelege oricine, și nu inventează niciodată un număr pe care nu l-a putut măsura.\n\nAsociază un PC cu Windows sau un Mac pe care rulează Vitals scanând codul afișat, găsindu-l în apropiere sau tastând un cod din șase cifre. Apoi, de pe iPhone:\n\n• Încărcarea procesorului pe nuclee, frecvența, temperatura și puterea\n• Încărcarea, memoria și temperatura plăcii video, unde PC-ul le raportează\n• Memoria folosită și cât de aproape e PC-ul de a rămâne fără\n• Discurile, rețeaua și fiecare senzor pe care îl poate citi PC-ul\n• Istoricul ultimelor ore și zile\n• Fiecare program pornit, cu căutare și ordonare după procesor sau memorie\n• Alerte când ceva se încinge, scade sau se umple\n• Cu o asociere de control: oprește, întrerupe sau reprioritizează un program care nu mai răspunde\n\nPăstrează mai multe PC-uri într-o singură listă. Totul rămâne în rețeaua ta locală: iPhone-ul vorbește doar cu PC-urile asociate și refuză adresele publice.\n\nNu ai încă un PC? Încearcă PC-ul de probă, marcat ca atare, ca să vezi mai întâi fiecare ecran.\n\nVitals pentru Windows și macOS este gratuit pe vitals.dragoscatalin.ro. Accesul la distanță este oprit pe PC până îl pornești.\n\nONEST DIN CONSTRUCȚIE\n• Dacă o valoare nu poate fi măsurată, Vitals arată o liniuță, niciodată un zero inventat\n• Fără reclame, fără cont, fără urmărire, fără statistici\n• Gratuit și open source (MIT): github.com/dragoscv/vitals",
+      "whatsNew": "Prima versiune pentru iPhone."
+    }
+  },
+  "review": {
+    "notes": "Vitals for iPhone monitors a PC (Windows or Mac) running the free Vitals desktop app on the same local network; it cannot reach a PC over the internet by design (it refuses public addresses).\n\nTo see every screen without a PC: on first launch tap \"Try with sample data\". The Sample PC is clearly labelled \"Sample data, not a real PC\" on every screen; open it for Now, Sensors and History, and the list icon (top right) for Programs.\n\nTo pair a real PC: install Vitals from https://vitals.dragoscatalin.ro/download/ on Windows 10/11 or macOS 13+, open Settings > Remote access, turn it on, and scan the QR code with this app (or type the six-digit code). Local network permission is requested only then.\n\nNo account, no login, no in-app purchases, no tracking. Camera is used only to read the pairing QR code on the device.",
+    "contactFirstName": "Dragos-Catalin",
+    "contactLastName": "Vladulescu",
+    "demoAccountRequired": false
+  }
+}
