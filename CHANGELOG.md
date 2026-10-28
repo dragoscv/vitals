@@ -7,8 +7,27 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.1.1] — 2026-10-28
+
+The watch app fits round watches. In short:
+
+- Wear OS: every screen fits a round watch, small or large, with nothing cut
+  at the edge — the reason Google Play turned the watch app down.
+- Live lists stay still between updates.
+
 ### Fixed
 
+- Wear OS: no text or button is cut by the edge of a round watch any more.
+  Google Play's review turned the watch app down on 2026-10-19 because the
+  first card, the "No PCs yet" text and the sensor rows touched the bezel.
+  Each reading is now its own row, so rows narrow as they reach the top and
+  bottom of the screen instead of one tall card riding the curve; lists start
+  and end where Material 3 recommends for a round screen; explanations and
+  empty-state text are centred and kept to the middle of the display; the
+  small ring on the home cards sits in the middle; long names end in "…".
+  Checked on small round (192 dp), large round (227 dp) and square watches,
+  at the largest font and in Romanian, by a test that fails when any line of
+  text or any button crosses the display.
 - Live lists stay still. On Performance, a reading that comes and goes
   (CPU power or temperature, GPU power, Wi-Fi signal) keeps its place and
   shows a dash while it is missing, so the other figures no longer jump from

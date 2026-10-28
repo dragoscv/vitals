@@ -77,7 +77,7 @@
     helper install fails; `register` skips the download.
 
 .EXAMPLE
-    pwsh -NoProfile -File scripts/ci/installer-roundtrip.ps1 -Setup target/release/bundle/nsis/Vitals_1.1.0_x64-setup.exe -Previous prev/Vitals_1.0.6_x64-setup.exe
+    pwsh -NoProfile -File scripts/ci/installer-roundtrip.ps1 -Setup target/release/bundle/nsis/Vitals_1.1.1_x64-setup.exe -Previous prev/Vitals_1.1.0_x64-setup.exe
 #>
 [CmdletBinding()]
 param(

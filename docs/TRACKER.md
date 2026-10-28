@@ -3741,6 +3741,46 @@ CI 39341788915 (ea1f0b2)        all green except Size budget: initial 206.8 of
                                 budgets raised to 216000 / 520000 bytes
 ```
 
+### 2026-10-28 — S22-12 the watch app fits round watches (Play "Watch shapes"), release 1.1.1
+
+**What.** Play's review of 1.0.4 rejected the Wear OS app on 2026-10-19
+under _Wear App Quality: Watch shapes_ ("Fits within the physical display
+area; no text or controls are cut off by the screen edges"). The reviewer's
+round watch showed the home card's edges and ring cut, the "No PCs yet" text
+touching the bezel, and sensor rows whose label and value ran into the
+circle. Three causes: the scaffold's default vertical padding let the first
+and last items rest where the circle is narrower than they are; PC detail
+and _This watch_ put up to thirteen rows inside one card, so a card taller
+than the visible circle always had rows at its narrowest part (the list's
+edge morph narrows whole items, never part of one); and plain text items
+used the full width. `VitalsList` (wear/ui/WearList.kt) now holds every
+scrolling screen: Material 3 minimum list paddings for the item types the
+lists start and end with, one list item per reading (`ValueCard`), centred
+headers, centred text at 80 % width, ellipsis on every name. The home cards
+centre their ring.
+
+**Why not only padding.** Padding alone moves the first and last items in,
+but the thirteen-row card still crossed the circle in the middle of a
+scroll; splitting rows is what lets the list narrow each one at the edge.
+
+**Proof.** `WatchShapeTest` renders nine screen states on five
+configurations and fails when a text line or a control crosses the display.
+A mutant that restores the scaffold padding and full-width text goes red on
+the small round watch with the exact lines the reviewer saw cut.
+
+```
+:wear:recordRoborazziDebug         90 baselines (9 states x top/end x 5 configs)
+:wear:verifyRoborazziDebug         LargeRound 9, SmallRound 9, Square 9,
+                                   SmallRoundLargestFont 9, SmallRoundRomanian 9,
+                                   HeadlineTest 2, AlertWordsTest 2: 49 passed
+mutant (padding + width reverted)  SmallRoundTest 3 of 9 FAILED:
+                                   watch_self/end '76 sensors on this watch'
+                                   licences/end '1.7.5 · Apache-2.0'
+                                   sensors/end 'Battery · fixed value'
+:wear:lintDebug                    0 issues
+:wear:assembleRelease, :wear:bundleRelease   BUILD SUCCESSFUL (unsigned, local)
+```
+
 ## S13 — public beta 0.9.0-beta.1 (2026-09-28)
 
 Decided with the owner (ADR 0031): public repository, beta version, no code

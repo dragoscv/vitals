@@ -1,3 +1,4 @@
-Vitals 1.1.0
-• Ține versiunea la pas cu aplicația pentru Windows, care are acum curățare pentru fiecare unitate de stocare
-• Arată PC-urile cu Windows pe 1.1.0 ca înainte; aplicația de pe telefon, ceas sau TV funcționează la fel
+Vitals 1.1.1
+• Wear OS: fiecare ecran încape pe ceasurile rotunde, mici sau mari, fără text sau buton tăiat de marginea ecranului
+• Numele lungi de senzori și aplicații se termină cu „…” în loc să iasă din ecran
+• Ține versiunea la pas cu aplicația pentru Windows

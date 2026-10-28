@@ -57,8 +57,12 @@ Gratuit și open source (MIT). Disponibil în română și engleză.
 
 ## Ce e nou în această versiune (≤ 1500 caractere)
 
-Ce e nou în 1.1.0
+Ce e nou în 1.1.1
 
+• Listele pe viu stau pe loc: pe Performanță, Temperaturi, Panou și pagina AI o citire care apare și dispare își păstrează locul și arată o liniuță cât lipsește, iar cardurile și rândurile se reordonează la câteva secunde, nu la fiecare actualizare
+• Ține versiunea la pas cu aplicațiile de telefon, ceas și TV (aplicația de ceas încape acum pe ceasurile rotunde)
+
+Nou în 1.1.0:
 • Curățare pentru o singură unitate: fiecare card de unitate are butonul Curăță. Vitals măsoară ce se poate șterge, te lasă să bifezi pe grupuri cu spațiul eliberat de fiecare, arată programele pe care le oprește și le pornește la loc (Linux, Docker, activități programate, mașini virtuale) înainte să confirmi, afișează fiecare pas pe viu și spune ce a eliberat
 • Alegerile pentru o unitate pot fi ținute minte, iar curățarea obișnuită pornește dintr-un clic; alerta „unitate aproape plină” o deschide
 • Curățare săptămânală opțională pentru fiecare unitate: doar partea sigură, când PC-ul stă și e în priză, cu o notificare despre ce a eliberat
