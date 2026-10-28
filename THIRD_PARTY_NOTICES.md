@@ -246,7 +246,7 @@ below and is also installed as `sensors\PawnIO-Modules-COPYING.txt`.
 | [rustls](https://github.com/rustls/rustls) | 0.23.46 | Apache-2.0 OR ISC OR MIT |
 | [rustls-pki-types](https://github.com/rustls/pki-types) | 1.15.1 | MIT OR Apache-2.0 |
 | [rustls-platform-verifier](https://github.com/rustls/rustls-platform-verifier) | 0.7.0 | MIT OR Apache-2.0 |
-| [rustls-webpki](https://github.com/rustls/webpki) | 0.103.15 | ISC |
+| [rustls-webpki](https://github.com/rustls/webpki) | 0.103.16 | ISC |
 | [ryu](https://github.com/dtolnay/ryu) | 1.0.23 | Apache-2.0 OR BSL-1.0 |
 | [same-file](https://github.com/BurntSushi/same-file) | 1.0.6 | Unlicense OR MIT |
 | [schemars](https://github.com/GREsau/schemars) | 0.8.22 | MIT |
