@@ -43,7 +43,7 @@ log "signing as: $IDENTITY"
 
 notarise() {
   xcrun notarytool submit "$1" --key "$APPLE_API_KEY_PATH" --key-id "$APPLE_API_KEY" \
-    --issuer "$APPLE_API_ISSUER" --wait --timeout 30m --output-format json > "$OUT/notary.json"
+    --issuer "$APPLE_API_ISSUER" --wait --timeout 90m --output-format json > "$OUT/notary.json"
   local status
   status="$(sed -n 's/.*"status" *: *"\([^"]*\)".*/\1/p' "$OUT/notary.json" | head -1)"
   log "notarisation of $(basename "$1"): $status"

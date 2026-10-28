@@ -650,7 +650,9 @@ jobs:
       needs.build.result == 'success' &&
       vars.PUBLISH_MACOS == 'true'
     runs-on: macos-latest
-    timeout-minutes: 60
+    # Apple's first notarisation for a team took 32 min (2026-10-28); two
+    # submissions (app, then DMG) need headroom beyond the usual few minutes.
+    timeout-minutes: 150
     environment: release
     permissions:
       contents: read
