@@ -7,6 +7,17 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Health: connect Vitals to your vmui account and see your own health and
+  nutrition summary on the desktop, iPhone and Android. Held in memory only,
+  never written to disk; the page stays hidden until you connect.
+- Apple Watch: a companion inside the iPhone app shows the PC you are
+  watching on your wrist, fed by the phone.
+- Mac App Store edition ("Vitals Monitor"): sandboxed and built without the
+  self-updater, so updates come from the App Store. It cannot see other
+  apps' processes or the temperature sensors, and says so.
+
 ## [1.2.0] — 2026-10-28
 
 Vitals comes to Apple. In short:

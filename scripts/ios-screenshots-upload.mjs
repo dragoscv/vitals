@@ -5,6 +5,10 @@
 // 1242x2688 -> APP_IPHONE_65.
 //
 //   node scripts/ios-screenshots-upload.mjs <dir>
+//   node scripts/ios-screenshots-upload.mjs <dir> --platform macos
+// The second form uploads the Mac App Store shots from
+// .github/workflows/macos-screenshots.yml (folders en/ and ro/) to the Mac
+// app; every accepted 16:10 Mac size maps to the single APP_DESKTOP slot.
 import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -23,8 +27,11 @@ const asc = async (method, path, body) => {
   return r.json;
 };
 
-const APP = '6827931747';
-const LOCALES = { 'en-GB': 'en-GB', ro: 'ro' }; // artefact folder -> ASC locale
+const mac = process.argv.includes('macos');
+const APP = mac ? '6827932703' : '6827931747';
+const PLATFORM = mac ? 'MAC_OS' : 'IOS';
+// artefact folder -> ASC locale
+const LOCALES = mac ? { en: 'en-GB', ro: 'ro' } : { 'en-GB': 'en-GB', ro: 'ro' };
 const dir = process.argv[2];
 if (!dir) throw new Error('usage: ios-screenshots-upload.mjs <dir>');
 
@@ -33,6 +40,16 @@ function pngSize(buf) {
   return { w: buf.readUInt32BE(16), h: buf.readUInt32BE(20) };
 }
 function displayType({ w, h }) {
+  if (mac) {
+    const ok = [
+      [1280, 800],
+      [1440, 900],
+      [2560, 1600],
+      [2880, 1800],
+    ].some(([a, b]) => a === w && b === h);
+    if (ok) return 'APP_DESKTOP';
+    throw new Error(`no Mac App Store slot for ${w}x${h}`);
+  }
   if (w === 1320 && h === 2868) return 'APP_IPHONE_67';
   if (w === 1290 && h === 2796) return 'APP_IPHONE_67';
   if (w === 1242 && h === 2688) return 'APP_IPHONE_65';
@@ -40,7 +57,7 @@ function displayType({ w, h }) {
 }
 
 const version = (
-  await asc('GET', `/v1/apps/${APP}/appStoreVersions?filter[platform]=IOS&limit=5`)
+  await asc('GET', `/v1/apps/${APP}/appStoreVersions?filter[platform]=${PLATFORM}&limit=5`)
 ).data.find((v) => v.attributes.appStoreState === 'PREPARE_FOR_SUBMISSION');
 if (!version) throw new Error('no version in PREPARE_FOR_SUBMISSION');
 const locs = (await asc('GET', `/v1/appStoreVersions/${version.id}/appStoreVersionLocalizations`))
