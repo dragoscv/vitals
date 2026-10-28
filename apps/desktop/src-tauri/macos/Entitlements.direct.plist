@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Developer ID (direct download) build. Not sandboxed: Vitals reads and
+  signals the user's other processes and opens the SMC/HID sensor clients,
+  none of which a sandbox allows. Hardened runtime is on (notarisation needs
+  it); nothing here relaxes it. Network entitlements are sandbox-only keys and
+  are therefore absent.
+-->
+<plist version="1.0">
+<dict>
+</dict>
+</plist>

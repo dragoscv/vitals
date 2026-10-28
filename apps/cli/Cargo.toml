@@ -30,6 +30,9 @@ tokio = { workspace = true, features = ["signal"] }
 [target.'cfg(windows)'.dependencies]
 vitals-win = { workspace = true }
 
+[target.'cfg(target_os = "macos")'.dependencies]
+vitals-macos = { workspace = true }
+
 [dev-dependencies]
 vitals-core = { workspace = true, features = ["fixtures"] }
 

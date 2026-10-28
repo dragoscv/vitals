@@ -48,6 +48,7 @@ D-numbers refer to the decision table in [`../TRACKER.md`](../TRACKER.md).
 | [0038](0038-nsis-both-scopes-and-unprompted-updates.md)    | NSIS `both`, and updates nobody has to approve          | DEV-3   |
 | [0039](0039-ai-agents-page-and-agentq.md)                  | An AI page that watches agentq and every AI client      | S18-01  |
 | [0040](0040-guided-disk-move.md)                           | Guided move of WSL and Docker Desktop disks             | S22-07  |
+| [0041](0041-apple-platforms.md)                            | Apple platforms: real macOS sampler, native iPhone app  | S23     |
 
 ## Writing a new one
 

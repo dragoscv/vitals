@@ -1,9 +1,10 @@
 # Privacy Policy
 
-**Effective date:** 17 October 2026 · **Applies to:** Vitals 1.0.x and later:
-the Windows desktop app, the `vitals` command-line tool (including
+**Effective date:** 28 October 2026 · **Applies to:** Vitals 1.0.x and later:
+the Windows and macOS desktop apps, the `vitals` command-line tool (including
 `vitals serve`), the optional sensors service and lag watchdog, the Android
-phone, Wear OS and Google TV apps, and the Samsung (Tizen) TV app ·
+phone, Wear OS and Google TV apps, the iPhone app, and the Samsung (Tizen) TV
+app ·
 [Politica de confidențialitate în limba română](#politica-de-confidențialitate)
 
 **For app store reviewers:** Vitals collects no personal data, has no
@@ -243,6 +244,28 @@ you pair, over plain HTTP on your local network, sending the pairing code and
 then the token; it contains no analytics or advertising. Samsung may collect
 data about the TV and app installs under its own privacy policy.
 
+## macOS and iPhone
+
+The macOS app works like the Windows one: everything stays on the Mac, the
+only automatic request is the update check to GitHub (none in the Mac App
+Store edition, which the App Store updates), and remote access is off until
+you turn it on. macOS asks once for permission to use the local network when
+you do.
+
+The iPhone app shows PCs and Macs you pair with it. It keeps the paired
+machines (address, name and token) in the iPhone Keychain, only on that
+device and never in iCloud, and your language choice in its own storage; both
+are deleted when you uninstall it. It connects only to the machines you pair,
+on your local network, and refuses public addresses. iOS asks for:
+
+- **Local network**, to reach and discover (Bonjour `_vitals._tcp`) your PCs.
+- **Camera**, only while you scan a pairing QR code. The code is read on the
+  iPhone by Apple's own framework; the image goes nowhere.
+
+It contains no analytics, advertising, accounts or third-party SDKs, and its
+App Store privacy label is "Data Not Collected". Apple may collect data about
+app installs under its own privacy policy.
+
 ## Legal basis
 
 The update check is based on legitimate interest (Article 6(1)(f) GDPR):
@@ -313,11 +336,12 @@ ships.
 
 # Politica de confidențialitate
 
-**Data intrării în vigoare:** 17 octombrie 2026 · **Se aplică:** Vitals 1.0.x
-și versiunile ulterioare: aplicația desktop pentru Windows, instrumentul în
-linie de comandă `vitals` (inclusiv `vitals serve`), serviciul opțional de
-senzori și watchdogul pentru blocaje, aplicațiile Android pentru telefon,
-Wear OS și Google TV, și aplicația pentru televizoare Samsung (Tizen)
+**Data intrării în vigoare:** 28 octombrie 2026 · **Se aplică:** Vitals 1.0.x
+și versiunile ulterioare: aplicațiile desktop pentru Windows și macOS,
+instrumentul în linie de comandă `vitals` (inclusiv `vitals serve`), serviciul
+opțional de senzori și watchdogul pentru blocaje, aplicațiile Android pentru
+telefon, Wear OS și Google TV, aplicația pentru iPhone și aplicația pentru
+televizoare Samsung (Tizen)
 
 **Pentru evaluatorii magazinelor de aplicații:** Vitals nu colectează date
 personale, nu are telemetrie, analiză, conturi sau raportare a erorilor, iar
@@ -567,6 +591,31 @@ conectează doar la PC-urile asociate, prin HTTP simplu în rețeaua locală,
 trimițând codul de asociere și apoi tokenul; nu conține instrumente de
 analiză sau publicitate. Samsung poate colecta date despre televizor și
 instalări conform propriei politici de confidențialitate.
+
+## macOS și iPhone
+
+Aplicația pentru macOS funcționează ca cea pentru Windows: totul rămâne pe
+Mac, singura cerere automată este verificarea actualizărilor pe GitHub (niciuna
+în ediția din Mac App Store, pe care o actualizează App Store), iar accesul la
+distanță este oprit până îl porniți. macOS cere o singură dată permisiunea de a
+folosi rețeaua locală, atunci când îl porniți.
+
+Aplicația pentru iPhone afișează PC-urile și Mac-urile pe care le asociați cu
+ea. Păstrează calculatoarele asociate (adresa, numele și tokenul) în Keychain-ul
+iPhone-ului, doar pe acel dispozitiv și niciodată în iCloud, iar limba aleasă în
+stocarea proprie; ambele se șterg la dezinstalare. Se conectează doar la
+calculatoarele asociate, în rețeaua locală, și refuză adresele publice. iOS
+cere:
+
+- **Rețea locală**, pentru a găsi (Bonjour `_vitals._tcp`) și a contacta
+  PC-urile dvs.
+- **Cameră**, doar cât scanați un cod QR de asociere. Codul este citit pe
+  iPhone de framework-ul Apple; imaginea nu pleacă nicăieri.
+
+Nu conține instrumente de analiză, publicitate, conturi sau SDK-uri terțe, iar
+eticheta de confidențialitate din App Store este „Data Not Collected”. Apple
+poate colecta date despre instalări conform propriei politici de
+confidențialitate.
 
 ## Temeiul juridic
 

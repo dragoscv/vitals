@@ -3,4 +3,4 @@
 /**
  * Why a capability is unavailable, so the UI can say something useful.
  */
-export type Unavailable = "notSupportedOnPlatform" | "noSuchHardware" | "needsElevation" | "needsHelper" | "needsPlugin" | "disabledByUser" | "notImplemented";
+export type Unavailable = "notSupportedOnPlatform" | "noSuchHardware" | "needsElevation" | "needsHelper" | "needsPlugin" | "disabledByUser" | "appSandbox" | "notImplemented";

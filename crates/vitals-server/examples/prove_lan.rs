@@ -10,7 +10,7 @@
 #![allow(clippy::expect_used, clippy::print_stdout, clippy::unwrap_used)]
 
 use std::sync::Arc;
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 use std::time::Duration;
 
 use vitals_core::agents::{AgentqAction, AgentsSnapshot};
@@ -39,7 +39,12 @@ fn start_ms(pid: u32) -> Option<u64> {
     vitals_win::actions::process_start_ms(pid)
 }
 
-#[cfg(not(windows))]
+#[cfg(target_os = "macos")]
+fn start_ms(pid: u32) -> Option<u64> {
+    vitals_macos::process_start_ms(pid)
+}
+
+#[cfg(not(any(windows, target_os = "macos")))]
 fn start_ms(_pid: u32) -> Option<u64> {
     None
 }
@@ -86,7 +91,22 @@ async fn main() {
         });
         tokio::time::sleep(Duration::from_millis(2500)).await;
     }
-    #[cfg(not(windows))]
+    #[cfg(target_os = "macos")]
+    {
+        let published = frames.clone();
+        std::thread::spawn(move || {
+            let mut sampler = vitals_macos::SystemSampler::new();
+            let mut builder = vitals_macos::FrameBuilder::new();
+            for _ in 0..5 {
+                if let Ok(sample) = sampler.sample() {
+                    published.publish(Arc::new(builder.build(sample)));
+                }
+                std::thread::sleep(Duration::from_millis(300));
+            }
+        });
+        tokio::time::sleep(Duration::from_millis(2500)).await;
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
     let _ = &frames;
 
     let base = format!("127.0.0.1:{port}");

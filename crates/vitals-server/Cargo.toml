@@ -37,5 +37,8 @@ vitals-agents = { workspace = true }
 [target.'cfg(windows)'.dev-dependencies]
 vitals-win = { workspace = true }
 
+[target.'cfg(target_os = "macos")'.dev-dependencies]
+vitals-macos = { workspace = true }
+
 [lints]
 workspace = true

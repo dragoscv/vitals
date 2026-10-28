@@ -7,6 +7,36 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.2.0] — 2026-10-28
+
+Vitals comes to Apple. In short:
+
+- macOS: a real, signed and notarised Mac app, published beside the Windows installer.
+- iPhone: a native app that watches your PCs and Macs on your network.
+
+### Added
+
+- macOS: Vitals measures a Mac for real — processor per core, memory the
+  way Activity Monitor counts it, swap, disks, network, temperatures and
+  every process with its disk activity — and can end, pause, resume or
+  reprioritise a process, with the same recycled-process guard as Windows.
+  The app is signed with a Developer ID and notarised by Apple, so it opens
+  without a warning (ADR 0041).
+- iPhone: a native app, "Vitals: System Monitor", that pairs with a PC by
+  QR code, nearby discovery, a six-digit code or an address, and shows the
+  same live readings, sensors, history and processes as the Android app, in
+  English and Romanian. A labelled Sample PC shows what it does before you
+  pair.
+- `vitals` command line and LAN server work on macOS.
+
+### Changed
+
+- Memory figures that only Windows has (committed memory, the commit limit,
+  paged and non-paged pool, hardware reserved) are now absent rather than
+  zero where a system does not report them. Windows no longer sends a
+  made-up zero for hardware-reserved memory; the commit alert and the
+  memory panels skip what is not measured.
+
 ## [1.1.1] — 2026-10-28
 
 The watch app fits round watches. In short:

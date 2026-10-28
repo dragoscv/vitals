@@ -1,4 +1,4 @@
-Vitals 1.1.1
-• Wear OS: fiecare ecran încape pe ceasurile rotunde, mici sau mari, fără text sau buton tăiat de marginea ecranului
-• Numele lungi de senzori și aplicații se termină cu „…” în loc să iasă din ecran
-• Ține versiunea la pas cu aplicația pentru Windows
+Vitals 1.2.0
+• Urmărește și un Mac, nu doar un PC cu Windows: a apărut Vitals pentru macOS
+• Valorile pe care un calculator nu le raportează apar ca liniuță, niciodată ca zero
+• Ține versiunea la pas cu aplicația desktop

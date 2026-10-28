@@ -247,16 +247,18 @@ jobs:
             rust_targets: aarch64-pc-windows-msvc
             bundles: nsis
             arch: arm64
-          # macOS and Linux are built and checked on every run so the port
-          # never silently rots, but their samplers are still honest stubs
-          # (ADR 0007). They are published only when the matching repo
-          # variable says so; otherwise they stay workflow artefacts.
+          # macOS (real sampler since S23, ADR 0041) and Linux are built on
+          # every run so the ports never rot. Published only when the matching
+          # repo variable says so. macOS builds the bare .app here, unsigned:
+          # Developer ID signing, notarisation and the DMG happen in
+          # `macos-sign`, after the owner's approval, because this job runs
+          # every dependency's build script and must hold no Apple secret.
           - name: macos-universal
             os: macos
             runner: macos-latest
             target: universal-apple-darwin
             rust_targets: aarch64-apple-darwin,x86_64-apple-darwin
-            bundles: app,dmg
+            bundles: app
           # 22.04 rather than latest: an AppImage links against the build
           # machine's glibc, so the oldest supported base runs on the most
           # distributions.
@@ -441,20 +443,17 @@ jobs:
               $updater | Copy-Item -Destination $out
             }
             'macos' {
-              Get-ChildItem "$bundles/dmg" -Filter '*.dmg' -File | Copy-Item -Destination $out
-              # The updater archive Tauri would write with
-              # createUpdaterArtifacts: a gzipped tar of the .app bundle,
-              # which the updater unpacks over the installed app. Packed here
-              # because this leg builds without the key; `publish` signs it.
-              # Versioned so it cannot collide in the flat asset list.
+              # The unsigned .app, zipped with ditto so symlinks and extended
+              # attributes survive the artefact round trip. `macos-sign`
+              # turns it into the notarised DMG and the updater tarball;
+              # nothing from this leg is published as is.
               $app = Get-ChildItem "$bundles/macos" -Filter '*.app' -Directory | Select-Object -First 1
               if ($null -ne $app) {
-                $dest = Join-Path (Resolve-Path $out) "Vitals_$($env:VERSION)_universal.app.tar.gz"
-                tar -czf $dest -C $app.Parent.FullName $app.Name
-                if ($LASTEXITCODE -ne 0) { throw "tar exited $LASTEXITCODE" }
+                $dest = Join-Path (Resolve-Path $out) "Vitals_$($env:VERSION)_universal.app.zip"
+                ditto -c -k --keepParent $app.FullName $dest
+                if ($LASTEXITCODE -ne 0) { throw "ditto exited $LASTEXITCODE" }
                 $updater += Get-Item $dest
               }
-              if ($updater.Count -eq 0) { $updater = @(Get-ChildItem $out -Filter '*.dmg' -File) }
             }
             'linux' {
               $updater = @(Get-ChildItem "$bundles/appimage" -Filter '*.AppImage' -File)
@@ -636,9 +635,68 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+  # Developer ID signing + notarisation of the macOS app (ADR 0041). A tag
+  # job in the `release` environment, so the Apple certificate and the App
+  # Store Connect key exist only after the owner approves — the same rule the
+  # updater and Android keys follow (SEC-5, SEC2-4). Skips with a notice when
+  # PUBLISH_MACOS is off; scripts/macos/sign-notarise.sh is the whole job and
+  # runs identically by hand on vmui-mac.
+  macos-sign:
+    name: Sign + notarise macOS
+    needs: [plan, build]
+    if: >-
+      !cancelled() &&
+      needs.plan.outputs.publish == 'true' &&
+      needs.build.result == 'success' &&
+      vars.PUBLISH_MACOS == 'true'
+    runs-on: macos-latest
+    # Apple's first notarisation for a team took 32 min (2026-10-28); two
+    # submissions (app, then DMG) need headroom beyond the usual few minutes.
+    timeout-minutes: 150
+    environment: release
+    permissions:
+      contents: read
+    env:
+      VERSION: ${{ needs.plan.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: vitals-macos-universal
+          path: unsigned
+
+      - name: Sign, notarise, staple, DMG
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+        run: |
+          set -euo pipefail
+          for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_API_KEY APPLE_API_ISSUER APPLE_API_KEY_P8; do
+            if [ -z "${!name}" ]; then echo "::error::secret $name is not set in the release environment"; exit 1; fi
+          done
+          export APPLE_API_KEY_PATH="$RUNNER_TEMP/AuthKey.p8"
+          trap 'rm -f "$APPLE_API_KEY_PATH"' EXIT
+          umask 077
+          printf '%s' "$APPLE_API_KEY_P8" > "$APPLE_API_KEY_PATH"
+          mkdir -p app
+          ditto -x -k "unsigned/Vitals_${VERSION}_universal.app.zip" app
+          bash scripts/macos/sign-notarise.sh app/Vitals.app "$VERSION" signed
+          rm -f signed/notary.json
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: vitals-macos-signed
+          path: signed/*
+          if-no-files-found: error
+          retention-days: 30
+
   publish:
     name: Publish
-    needs: [plan, build, sbom, android]
+    needs: [plan, build, sbom, android, macos-sign]
     # `build` reports success even when an unpublished platform's leg failed
     # (continue-on-error), so this gate is exactly "everything we publish
     # built". The assemble step then refuses a missing published artefact.
@@ -647,7 +705,8 @@ jobs:
       needs.plan.outputs.publish == 'true' &&
       needs.build.result == 'success' &&
       needs.sbom.result == 'success' &&
-      needs.android.result == 'success'
+      needs.android.result == 'success' &&
+      (needs.macos-sign.result == 'success' || (needs.macos-sign.result == 'skipped' && vars.PUBLISH_MACOS != 'true'))
     runs-on: ubuntu-latest
     timeout-minutes: 30
     # The owner approves every tag in the `release` environment; nothing
@@ -685,7 +744,8 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path publish | Out-Null
           $legs = @('vitals-windows-x64', 'vitals-windows-arm64', 'vitals-sbom')
-          if ($env:PUBLISH_MACOS -eq 'true') { $legs += 'vitals-macos-universal' }
+          # The signed, notarised macOS files; the unsigned .app.zip is never published.
+          if ($env:PUBLISH_MACOS -eq 'true') { $legs += 'vitals-macos-signed' }
           if ($env:PUBLISH_LINUX -eq 'true') { $legs += 'vitals-linux-x64' }
           foreach ($leg in $legs) {
             if (-not (Test-Path "artefacts/$leg")) { throw "artefact $leg is missing; refusing to publish a partial release" }
@@ -694,7 +754,7 @@ jobs:
           foreach ($arch in 'x64', 'arm64') {
             if (-not (Test-Path "publish/vitals-cli_$($env:VERSION)_$arch.zip")) { throw "vitals-cli_$($env:VERSION)_$arch.zip is missing; refusing to publish a partial release" }
           }
-          foreach ($held in @('vitals-macos-universal', 'vitals-linux-x64') | Where-Object { $_ -notin $legs }) {
+          foreach ($held in @('vitals-macos-signed', 'vitals-linux-x64') | Where-Object { $_ -notin $legs }) {
             $state = if (Test-Path "artefacts/$held") { 'built, kept as a workflow artefact' } else { 'did not build' }
             "- ``$held``: $state; not attached to the release." | Add-Content $env:GITHUB_STEP_SUMMARY
           }
@@ -832,7 +892,10 @@ jobs:
       - name: Stable download names
         if: needs.plan.outputs.is_release == 'true'
         shell: pwsh
-        run: pwsh -NoProfile -File scripts/stable-assets.ps1 -Directory publish -Version $env:VERSION
+        run: |
+          $stableArgs = @('-Directory', 'publish', '-Version', $env:VERSION)
+          if ($env:PUBLISH_MACOS -eq 'true') { $stableArgs += '-MacOS' }
+          pwsh -NoProfile -File scripts/stable-assets.ps1 @stableArgs
 
       - name: Checksums
         shell: pwsh

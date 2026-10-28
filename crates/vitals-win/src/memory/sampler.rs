@@ -91,17 +91,17 @@ impl MemorySampler {
             used,
             available,
             cached,
-            paged_pool,
-            non_paged_pool,
-            committed: commit_used,
-            commit_limit,
+            paged_pool: Some(paged_pool),
+            non_paged_pool: Some(non_paged_pool),
+            committed: Some(commit_used),
+            commit_limit: Some(commit_limit),
             swap_total,
             swap_used,
             // Hardware-reserved memory is the gap between what the firmware
             // reports and what the OS can address. Not exposed by these APIs;
-            // it needs a firmware table read, so it stays honestly zero
-            // rather than being guessed at.
-            hardware_reserved: Bytes::ZERO,
+            // it needs a firmware table read, so it is honestly unknown
+            // (it used to be a zero, which the Memory panel showed as "0 B").
+            hardware_reserved: None,
             page_faults_per_sec,
             // Module speed, slot counts and form factor come from SMBIOS,
             // which is a separate slow query cached elsewhere. `None` here
@@ -204,11 +204,13 @@ mod tests {
     fn commit_does_not_exceed_its_limit() {
         let mut sampler = MemorySampler::new();
         let m = sampler.sample(0).expect("sample");
+        let committed = m.committed.expect("Windows always reports commit");
+        let limit = m
+            .commit_limit
+            .expect("Windows always reports the commit limit");
         assert!(
-            m.committed.get() <= m.commit_limit.get(),
-            "committed {} exceeded limit {}",
-            m.committed,
-            m.commit_limit
+            committed.get() <= limit.get(),
+            "committed {committed} exceeded limit {limit}"
         );
     }
 
@@ -218,8 +220,8 @@ mod tests {
         // value here would mean the page-size multiplication is wrong.
         let mut sampler = MemorySampler::new();
         let m = sampler.sample(0).expect("sample");
-        assert!(m.paged_pool.get() < m.total.get());
-        assert!(m.non_paged_pool.get() < m.total.get());
+        assert!(m.paged_pool.expect("paged pool").get() < m.total.get());
+        assert!(m.non_paged_pool.expect("non-paged pool").get() < m.total.get());
     }
 
     #[test]

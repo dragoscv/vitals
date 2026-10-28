@@ -244,11 +244,22 @@ export function MemoryWidget({ system, history, locale }: WidgetBodyProps): Reac
           // that explains why "used" looks high on a healthy machine, and
           // Task Manager burying it is why people panic about their RAM.
           { key: 'cached', label: t('memory.cached'), value: formatBytes(memory.cached, locale) },
-          {
-            key: 'committed',
-            label: t('memory.committed'),
-            value: `${formatBytes(memory.committed, locale)} / ${formatBytes(memory.commitLimit, locale)}`,
-          },
+          // Commit is a Windows quantity. Where the platform has none (macOS)
+          // the fourth cell shows swap instead of a permanent dash.
+          memory.committed !== null && memory.commitLimit !== null
+            ? {
+                key: 'committed',
+                label: t('memory.committed'),
+                value: `${formatBytes(memory.committed, locale)} / ${formatBytes(memory.commitLimit, locale)}`,
+              }
+            : {
+                key: 'swap',
+                label: t('memory.swap'),
+                value:
+                  memory.swapUsed !== null
+                    ? `${formatBytes(memory.swapUsed, locale)} / ${formatBytes(memory.swapTotal, locale)}`
+                    : null,
+              },
         ]}
       />
     </>

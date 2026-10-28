@@ -114,7 +114,8 @@ $invoked = Get-Rg @('-o', '--no-filename', "invoke(<[^>]*>)?\('([a-z_]+)'", 'app
 $handlerBlock = (Get-Rg @('-U', '--no-filename', 'generate_handler!\[[\s\S]*?\n\s*\]', 'apps/desktop/src-tauri/src/lib.rs')) -join "`n"
 # Strip comments first: the block is heavily commented, and prose ending in a
 # comma would otherwise be read as a command name ("seconds,", "changing,").
-$handlerCode = ($handlerBlock -split "`n" | ForEach-Object { ($_ -replace '//.*$', '') }) -join "`n"
+# Attributes too: `#[cfg(any(windows, target_os = "macos"))]` holds a comma.
+$handlerCode = ($handlerBlock -split "`n" | ForEach-Object { ($_ -replace '//.*$', '' -replace '#\[[^\]]*\]', '') }) -join "`n"
 $registered = @([regex]::Matches($handlerCode, '(?:(\w+)::)?(\w+)\s*,') |
     ForEach-Object { $_.Groups[2].Value }) |
     Where-Object { $_ -ne 'generate_handler' } |
@@ -147,7 +148,9 @@ for ($i = 0; $i -lt $handlerLines.Count; $i++) {
     if ($line -notmatch '^(?:(\w+)::)?(\w+)\s*,$') { continue }
     $module = $Matches[1]; $fn = $Matches[2]
     $prev = if ($i -gt 0) { ($handlerLines[$i - 1] -replace '//.*$', '').Trim() } else { '' }
-    if ($prev -match '^#\[cfg\(windows\)\]$') { continue }
+    # Gated to platforms that each define it (windows, or windows + macOS
+    # with a macOS body re-exported into the same module) - not portable.
+    if ($prev -match '^#\[cfg\((windows|any\(windows, target_os = "macos"\))\)\]$') { continue }
     $file = if ($module) { Join-Path $srcRoot "$module.rs" } else { Join-Path $srcRoot 'lib.rs' }
     if (-not (Test-Path $file)) { $file = Join-Path $srcRoot "$module/mod.rs" }
     if (-not (Test-Path $file)) { continue }
@@ -245,17 +248,26 @@ if (Test-Path $shell) {
 # a fixture the Kotlin test never opens. With -Regenerate the Rust test runs
 # first and any byte it changed fails the gate — that is the drift itself.
 $contractTest = 'crates/vitals-server/tests/android_contract.rs'
-$contractDir = 'apps/android/core/src/test/resources/contract'
-$kotlinTest = 'apps/android/core/src/test/kotlin/app/vitals/core/ContractTest.kt'
+# One Rust writer, one copy per native client, one decoding test each.
+$contractClients = @(
+    @{ Name = 'android'; Dir = 'apps/android/core/src/test/resources/contract'; Test = 'apps/android/core/src/test/kotlin/app/vitals/core/ContractTest.kt' },
+    @{ Name = 'ios'; Dir = 'apps/ios/VitalsCore/Tests/VitalsCoreTests/Contract'; Test = 'apps/ios/VitalsCore/Tests/VitalsCoreTests/VitalsCoreTests.swift' }
+)
+if ($Regenerate -and (Test-Path $contractTest)) {
+    & cargo test -p vitals-server --test android_contract --quiet
+    if ($LASTEXITCODE -ne 0) {
+        $failures.Add("cargo test android_contract exited $LASTEXITCODE; the fixtures were not regenerated")
+    }
+}
+foreach ($client in $contractClients) {
+$contractDir = $client.Dir
+$kotlinTest = $client.Test
+$who = $client.Name
 if ((Test-Path $contractTest) -and (Test-Path $contractDir)) {
     if ($Regenerate) {
-        & cargo test -p vitals-server --test android_contract --quiet
-        if ($LASTEXITCODE -ne 0) {
-            $failures.Add("cargo test android_contract exited $LASTEXITCODE; the fixtures were not regenerated")
-        }
         $changed = @(& git status --porcelain -- $contractDir)
         foreach ($line in $changed) {
-            $failures.Add("android contract fixture changed when regenerated (commit it, and check ContractTest.kt still decodes it): $line")
+            $failures.Add("$who contract fixture changed when regenerated (commit it, and check $kotlinTest still decodes it): $line")
         }
     }
 
@@ -271,12 +283,13 @@ if ((Test-Path $contractTest) -and (Test-Path $contractDir)) {
         $failures.Add("$contractTest writes no fixture this check can see — the write(`"name.json`") pattern changed")
     }
     foreach ($name in $written) {
-        if ($committed -notcontains $name) { $failures.Add("android contract: $contractTest writes $name but $contractDir has no committed copy") }
-        if ($decoded -notcontains $name) { $failures.Add("android contract: $name is written by Rust but ContractTest.kt never decodes it") }
+        if ($committed -notcontains $name) { $failures.Add("$who contract: $contractTest writes $name but $contractDir has no committed copy") }
+        if ($decoded -notcontains $name) { $failures.Add("$who contract: $name is written by Rust but $kotlinTest never decodes it") }
     }
     foreach ($name in $committed) {
-        if ($written -notcontains $name) { $failures.Add("android contract: $contractDir/$name is committed but no longer written by $contractTest (stale shape)") }
+        if ($written -notcontains $name) { $failures.Add("$who contract: $contractDir/$name is committed but no longer written by $contractTest (stale shape)") }
     }
+}
 }
 
 # ── 7. synchronous Tauri commands must be known-cheap ──────────────────
@@ -361,6 +374,23 @@ if (Test-Path $toolchainFile) {
                 $failures.Add("$($wf.Name):$($i+1) toolchain $($m.Groups[1].Value) differs from rust-toolchain.toml ($pinned)")
             }
         }
+    }
+}
+
+# ── iPhone strings: generated catalog current, every key resolvable ────
+# apps/ios/Vitals/Localizable.xcstrings is generated from the Android
+# strings.xml (EN+RO) plus apps/ios/strings-ios.json, so the phone apps say
+# the same thing. A stale catalog, or an L("key") the catalog lacks, renders
+# the raw key on screen and no compiler notices.
+
+$iosCatalog = Join-Path $root 'apps/ios/Vitals/Localizable.xcstrings'
+if (Test-Path $iosCatalog) {
+    $out = & node (Join-Path $root 'scripts/ios-strings.mjs') --check 2>&1
+    if ($LASTEXITCODE -ne 0) { $failures.Add("ios: $out") }
+    $keys = (Get-Content $iosCatalog -Raw | ConvertFrom-Json -AsHashtable).strings.Keys
+    $used = rg -o --no-filename -r '$1' 'L\("([A-Za-z0-9_.]+)"' (Join-Path $root 'apps/ios/Vitals') | Sort-Object -Unique
+    foreach ($k in $used) {
+        if ($keys -notcontains $k) { $failures.Add("ios: L(`"$k`") has no entry in Localizable.xcstrings (add it to apps/ios/strings-ios.json)") }
     }
 }
 

@@ -1,0 +1,27 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "CFBundleDisplayName" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Vitals Monitor" } },
+        "ro" : { "stringUnit" : { "state" : "translated", "value" : "Vitals Monitor" } }
+      }
+    },
+    "NSCameraUsageDescription" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Vitals uses the camera only to scan the pairing code shown on your PC." } },
+        "ro" : { "stringUnit" : { "state" : "translated", "value" : "Vitals folosește camera doar pentru a scana codul de asociere afișat pe PC." } }
+      }
+    },
+    "NSLocalNetworkUsageDescription" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Vitals connects to the PCs you pair on your home network to show their readings." } },
+        "ro" : { "stringUnit" : { "state" : "translated", "value" : "Vitals se conectează la PC-urile pe care le asociezi în rețeaua de acasă ca să le arate citirile." } }
+      }
+    }
+  },
+  "version" : "1.0"
+}

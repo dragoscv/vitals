@@ -70,9 +70,10 @@ while the window is visible. When the window is hidden it samples only every 20 
 
 ## Does it work on Windows 10, ARM or macOS?
 
-Windows 10 (version 1809 or later) and Windows 11, on x64. An ARM64 build is in preview. There are
-no dated plans for macOS or Linux; the Android phone, Wear OS and TV apps can watch a Windows PC on
-your network.
+Windows 10 (version 1809 or later) and Windows 11, on x64. An ARM64 build is in preview. macOS 13
+or later is in preview, as a notarised disk image for Apple silicon and Intel. There are no dated
+plans for Linux. The Android phone, Wear OS and TV apps, and the iPhone app, can watch a PC or Mac
+on your network.
 
 ## How do I uninstall it?
 

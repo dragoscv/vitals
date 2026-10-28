@@ -24,14 +24,17 @@ from a terminal.
 | Windows 10/11 x64          | [Microsoft Store](https://apps.microsoft.com/detail/9P95RK5VMGPJ) or [Vitals_x64-setup.exe](https://github.com/dragoscv/vitals/releases/latest/download/Vitals_x64-setup.exe) | Stable         |
 | Windows 11 ARM64           | [Vitals_arm64-setup.exe](https://github.com/dragoscv/vitals/releases/latest/download/Vitals_arm64-setup.exe)                                                                  | Preview        |
 | Android phone, Wear OS, TV | APKs on each [release](https://github.com/dragoscv/vitals/releases/latest)                                                                                                    | Stable         |
-| macOS, Linux               | —                                                                                                                                                                             | No dated plans |
+| macOS 13+ (universal)      | [Vitals_universal.dmg](https://github.com/dragoscv/vitals/releases/latest/download/Vitals_universal.dmg), Developer ID signed and notarised                                   | Preview        |
+| iPhone (iOS 18+)           | "Vitals: System Monitor" on the App Store (in review)                                                                                                                         | Preview        |
+| Linux                      | —                                                                                                                                                                             | No dated plans |
 
 > **Status: 1.0, stable on Windows.** Every section works against live data on
 > Windows — there are no placeholder screens left. The Windows sampler was
 > cross-checked against Windows' own counters during development and stays
-> inside a 30 ms-per-sample budget that CI enforces. macOS and Linux builds are
-> compiled and checked in CI but not published, because their samplers do not
-> exist yet ([ADR 0007](docs/adr/0007-windows-only-honest-stubs.md)).
+> inside a 30 ms-per-sample budget that CI enforces. macOS has a real sampler
+> and a notarised build in preview ([ADR 0041](docs/adr/0041-apple-platforms.md)).
+> Linux is compiled and checked in CI but not published, because its sampler
+> does not exist yet ([ADR 0007](docs/adr/0007-windows-only-honest-stubs.md)).
 
 **Privacy in one line:** no telemetry, no analytics, no accounts. The only
 request Vitals makes by itself is an update check to GitHub, which you can
@@ -180,7 +183,8 @@ readings that need `SeDebugPrivilege` (per-process disk I/O is one).
 clocks and fan, which need a vendor SDK (NVML, ADL) rather than anything
 Windows exposes.
 
-**Platforms** — Windows only today. There are no dated plans for macOS or
+**Platforms** — Windows, plus macOS in preview
+([ADR 0041](docs/adr/0041-apple-platforms.md)). There are no dated plans for
 Linux; the trait boundary exists so a backend could be added, and
 [ADR 0007](docs/adr/0007-windows-only-honest-stubs.md) explains why nothing
 is published until one does.
@@ -322,7 +326,7 @@ apps/
 crates/
   vitals-core  OS-agnostic domain model and provider traits
   vitals-win   Windows backend (NT native API, PDH, WMI, ETW, IPHLPAPI)
-  vitals-macos empty backend stub — the trait boundary, no implementation
+  vitals-macos macOS backend (sysinfo, Mach, libproc)
   vitals-linux empty backend stub — the trait boundary, no implementation
   vitals-ipc   frame ring buffer and the helper command protocol
   vitals-store SQLite time-series history, retention, flight recorder

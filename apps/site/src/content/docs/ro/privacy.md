@@ -7,10 +7,10 @@ Această pagină este un rezumat. Textul complet, cel care face fapt, este
 [politica de confidențialitate din depozit](https://github.com/dragoscv/vitals/blob/main/PRIVACY.md);
 dacă cele două diferă vreodată, se aplică aceea.
 
-Acoperă Vitals 1.0.x și versiunile ulterioare: aplicația pentru Windows, instrumentul în linie de
-comandă `vitals` (inclusiv `vitals serve`), serviciul opțional de senzori și watchdog-ul pentru
-blocaje, aplicațiile Android pentru telefon, Wear OS și Google TV, și aplicația pentru televizoare
-Samsung (Tizen). În vigoare din 17 octombrie 2026.
+Acoperă Vitals 1.0.x și versiunile ulterioare: aplicațiile pentru Windows și macOS, instrumentul în
+linie de comandă `vitals` (inclusiv `vitals serve`), serviciul opțional de senzori și watchdog-ul
+pentru blocaje, aplicațiile Android pentru telefon, Wear OS și Google TV, aplicația pentru iPhone și
+aplicația pentru televizoare Samsung (Tizen). În vigoare din 28 octombrie 2026.
 
 ## Aplicația
 
@@ -69,6 +69,14 @@ Samsung (Tizen). În vigoare din 17 octombrie 2026.
 
 Păstrează PC-urile asociate și limba aleasă în stocarea proprie de pe televizor, comunică doar cu
 acele PC-uri în rețeaua locală și nu are statistici sau reclame. Dezinstalarea ei șterge tot.
+
+## macOS și iPhone
+
+Aplicația pentru macOS se poartă ca cea pentru Windows: totul rămâne pe Mac, iar singura cerere
+automată este verificarea actualizărilor. Aplicația pentru iPhone păstrează calculatoarele asociate în
+Keychain-ul iPhone-ului (doar pe acel dispozitiv, niciodată în iCloud), comunică doar cu ele în rețeaua
+locală și folosește camera doar pentru a citi pe dispozitiv codul QR de asociere. Fără statistici,
+reclame sau SDK-uri terțe; eticheta din App Store este „Data Not Collected”.
 
 ## Acest site
 

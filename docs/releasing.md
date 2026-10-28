@@ -72,7 +72,7 @@ after the owner has approved the `release` environment. The build legs run
 repository code and every dependency's build script before anyone has
 looked at the run, so they build with `createUpdaterArtifacts: false` and no
 key; `publish` then signs each installer (and the macOS `.app.tar.gz`, which
-the macOS leg packs itself) with
+`macos-sign` writes from the notarised app) with
 `tauri signer sign --app-version <version> <file>` — the same `<file>.sig`
 `tauri build` would have written. That step installs dependencies with
 `--ignore-scripts`, so no package script runs while the key is present.
@@ -153,12 +153,12 @@ Pushing a `v*` tag runs `.github/workflows/release.yml`:
    tag can point at a commit CI never saw, so it is re-proved.
 3. **build**, in parallel:
 
-   | Leg               | Runner           | Output                                                   | Attached to the release |
-   | ----------------- | ---------------- | -------------------------------------------------------- | ----------------------- |
-   | `windows-x64`     | `windows-latest` | `Vitals_<v>_x64-setup.exe`, `vitals-cli_<v>_x64.zip`     | always                  |
-   | `windows-arm64`   | `windows-11-arm` | `Vitals_<v>_arm64-setup.exe`, `vitals-cli_<v>_arm64.zip` | always                  |
-   | `macos-universal` | `macos-latest`   | `.dmg`, `Vitals_<v>_universal.app.tar.gz`                | only if `PUBLISH_MACOS` |
-   | `linux-x64`       | `ubuntu-22.04`   | `.AppImage`, `.deb`, `.rpm`                              | only if `PUBLISH_LINUX` |
+   | Leg               | Runner           | Output                                                    | Attached to the release |
+   | ----------------- | ---------------- | --------------------------------------------------------- | ----------------------- |
+   | `windows-x64`     | `windows-latest` | `Vitals_<v>_x64-setup.exe`, `vitals-cli_<v>_x64.zip`      | always                  |
+   | `windows-arm64`   | `windows-11-arm` | `Vitals_<v>_arm64-setup.exe`, `vitals-cli_<v>_arm64.zip`  | always                  |
+   | `macos-universal` | `macos-latest`   | `Vitals_<v>_universal.app.zip` (unsigned, never attached) | via `macos-sign`        |
+   | `linux-x64`       | `ubuntu-22.04`   | `.AppImage`, `.deb`, `.rpm`                               | only if `PUBLISH_LINUX` |
 
    No leg holds the updater key or writes a `.sig`; `publish` signs (see
    _GitHub secrets_). The Android leg (phone, Wear OS and TV, `github` APKs
@@ -168,11 +168,21 @@ Pushing a `v*` tag runs `.github/workflows/release.yml`:
    command-line tool (`apps/cli`) with `LICENSE` and
    `THIRD_PARTY_NOTICES.md`; it is not bundled into the installer yet.
 
-   macOS and Linux build on every run so the port cannot rot, but their
-   samplers are honest stubs (ADR 0007), so by default they stay workflow
-   artefacts (downloadable from the run page for 30 days) and are not
-   attached to the release. While unpublished, a failure there shows red
-   without blocking the Windows release.
+   macOS and Linux build on every run so the port cannot rot. Linux's
+   sampler is still an honest stub (ADR 0007); macOS has a real one since
+   S23 (ADR 0041). Unpublished legs stay workflow artefacts (downloadable
+   from the run page for 30 days); while unpublished, a failure there shows
+   red without blocking the Windows release.
+
+   **macos-sign** (tags only, `release` environment, after approval, only
+   with `PUBLISH_MACOS`): unzips the bare `.app` and runs
+   `scripts/macos/sign-notarise.sh` — Developer ID signature with the
+   hardened runtime, notarisation, staple, then the signed, notarised and
+   stapled `Vitals_<v>_universal.dmg` and the updater
+   `Vitals_<v>_universal.app.tar.gz`. The Apple certificate and the App
+   Store Connect key exist only in this job; the build leg never sees them
+   for the same reason it never sees the updater key. The script is the
+   whole job and runs unchanged by hand on vmui-mac.
 
    Every leg passes `--target <triple>`, so bundles land in
    `target/<triple>/release/bundle`. Per-run configuration (Authenticode,
@@ -312,29 +322,31 @@ notices script.
 never printed; variables are plain switches. None of these are needed for
 CI, only for releases.
 
-| Secret                                                                                            | Needed for               | What it is and where to get it                                                                                                                                                                                     |
-| ------------------------------------------------------------------------------------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `TAURI_SIGNING_PRIVATE_KEY`                                                                       | every tag (**required**) | The updater minisign key; see _The key_ above.                                                                                                                                                                     |
-| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`                                                              | every tag (**required**) | Its password.                                                                                                                                                                                                      |
-| `WINDOWS_CERTIFICATE`                                                                             | Authenticode (optional)  | The code-signing certificate as a base64 PFX (`[Convert]::ToBase64String([IO.File]::ReadAllBytes('vitals.pfx'))`), from the certificate vendor (docs/distribution.md). Absent: unsigned, with a notice in the log. |
-| `WINDOWS_CERTIFICATE_PASSWORD`                                                                    | Authenticode (optional)  | The PFX password.                                                                                                                                                                                                  |
-| `NPM_TOKEN`                                                                                       | npm                      | npmjs.com → avatar → _Access Tokens_ → _Generate New Token_ → **Granular**, read and write on the `@vitals` scope (create the `vitals` organisation first).                                                        |
-| `WINGET_TOKEN`                                                                                    | winget                   | A **classic** GitHub token with `public_repo`, from an account that has a fork of `microsoft/winget-pkgs`; the action pushes to the fork and opens the pull request from it.                                       |
-| `SCOOP_DEPLOY_KEY`                                                                                | Scoop                    | Private half of an ed25519 deploy key with write access on `dragoscv/scoop-vitals` only (the public half is registered there).                                                                                     |
-| `CHOCO_API_KEY`                                                                                   | Chocolatey               | community.chocolatey.org → _Account_ → API key.                                                                                                                                                                    |
-| `ANDROID_KEYSTORE_B64` + `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD` | every tag (**required**) | The Play upload key (base64 of the `.jks`) and its passwords. Read only by **Sign Android APKs and bundles** in `publish`, after approval.                                                                         |
+| Secret                                                                                            | Needed for               | What it is and where to get it                                                                                                                                                                                         |
+| ------------------------------------------------------------------------------------------------- | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `TAURI_SIGNING_PRIVATE_KEY`                                                                       | every tag (**required**) | The updater minisign key; see _The key_ above.                                                                                                                                                                         |
+| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`                                                              | every tag (**required**) | Its password.                                                                                                                                                                                                          |
+| `WINDOWS_CERTIFICATE`                                                                             | Authenticode (optional)  | The code-signing certificate as a base64 PFX (`[Convert]::ToBase64String([IO.File]::ReadAllBytes('vitals.pfx'))`), from the certificate vendor (docs/distribution.md). Absent: unsigned, with a notice in the log.     |
+| `WINDOWS_CERTIFICATE_PASSWORD`                                                                    | Authenticode (optional)  | The PFX password.                                                                                                                                                                                                      |
+| `NPM_TOKEN`                                                                                       | npm                      | npmjs.com → avatar → _Access Tokens_ → _Generate New Token_ → **Granular**, read and write on the `@vitals` scope (create the `vitals` organisation first).                                                            |
+| `WINGET_TOKEN`                                                                                    | winget                   | A **classic** GitHub token with `public_repo`, from an account that has a fork of `microsoft/winget-pkgs`; the action pushes to the fork and opens the pull request from it.                                           |
+| `SCOOP_DEPLOY_KEY`                                                                                | Scoop                    | Private half of an ed25519 deploy key with write access on `dragoscv/scoop-vitals` only (the public half is registered there).                                                                                         |
+| `CHOCO_API_KEY`                                                                                   | Chocolatey               | community.chocolatey.org → _Account_ → API key.                                                                                                                                                                        |
+| `ANDROID_KEYSTORE_B64` + `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD` | every tag (**required**) | The Play upload key (base64 of the `.jks`) and its passwords. Read only by **Sign Android APKs and bundles** in `publish`, after approval.                                                                             |
+| `APPLE_CERTIFICATE` + `APPLE_CERTIFICATE_PASSWORD`                                                | macOS (`PUBLISH_MACOS`)  | Developer ID Application certificate as a base64 `.p12` and its password. Source of truth: dragos-devcloud Secret Manager `apple-developer-id-app-p12` / `apple-signing-p12-password`. **Environment `release` only.** |
+| `APPLE_API_KEY`, `APPLE_API_ISSUER`, `APPLE_API_KEY_P8`                                           | macOS (`PUBLISH_MACOS`)  | App Store Connect API key id, issuer id and the `.p8` contents, for `notarytool`. Secret Manager `apple-asc-key-id` / `apple-asc-issuer` / `apple-asc-key-p8`. **Environment `release` only.**                         |
 
-| Variable         | Effect when `true`                                                                                                                          |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `PUBLISH_MACOS`  | Attach the macOS `.dmg` and updater archive to the release and add the `darwin-*` keys to `latest.json`.                                    |
-| `PUBLISH_LINUX`  | Attach the AppImage, `.deb` and `.rpm` and add `linux-x86_64` to `latest.json`.                                                             |
-| `PUBLISH_NPM`    | Publish `packages/client` as `@vitals/client`, with npm provenance.                                                                         |
-| `PUBLISH_WINGET` | Open a winget-pkgs pull request for `Vitals.Vitals`.                                                                                        |
-| `PUBLISH_SCOOP`  | Push `bucket/vitals.json` to `dragoscv/scoop-vitals`.                                                                                       |
-| `PUBLISH_CHOCO`  | Pack and push the `vitals` Chocolatey package.                                                                                              |
-| `PUBLISH_PLAY`   | Upload the phone, Wear OS and TV bundles to Google Play (track rules below).                                                                |
-| `PLAY_ROLLOUT`   | Production rollout fraction for a stable tag, e.g. `0.2` (the default) or `1` for everyone.                                                 |
-| `PLAY_DRAFT_APP` | `true` while the Play app has never passed review: production drafts, committed without sending for review (send from Publishing overview). |
+| Variable         | Effect when `true`                                                                                                                                |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PUBLISH_MACOS`  | Run `macos-sign`, attach the notarised `.dmg` (plus stable `Vitals_universal.dmg`) and updater archive, add the `darwin-*` keys to `latest.json`. |
+| `PUBLISH_LINUX`  | Attach the AppImage, `.deb` and `.rpm` and add `linux-x86_64` to `latest.json`.                                                                   |
+| `PUBLISH_NPM`    | Publish `packages/client` as `@vitals/client`, with npm provenance.                                                                               |
+| `PUBLISH_WINGET` | Open a winget-pkgs pull request for `Vitals.Vitals`.                                                                                              |
+| `PUBLISH_SCOOP`  | Push `bucket/vitals.json` to `dragoscv/scoop-vitals`.                                                                                             |
+| `PUBLISH_CHOCO`  | Pack and push the `vitals` Chocolatey package.                                                                                                    |
+| `PUBLISH_PLAY`   | Upload the phone, Wear OS and TV bundles to Google Play (track rules below).                                                                      |
+| `PLAY_ROLLOUT`   | Production rollout fraction for a stable tag, e.g. `0.2` (the default) or `1` for everyone.                                                       |
+| `PLAY_DRAFT_APP` | `true` while the Play app has never passed review: production drafts, committed without sending for review (send from Publishing overview).       |
 
 Publishing macOS or Linux turns that leg from advisory into a hard gate:
 `latest.json` would otherwise name a file that does not exist. Do it only

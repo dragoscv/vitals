@@ -1414,7 +1414,9 @@ const fn capability_key(capability: vitals_core::capability::Capability) -> &'st
 const fn unavailable_key(reason: vitals_core::capability::Unavailable) -> &'static str {
     use vitals_core::capability::Unavailable as U;
     match reason {
-        U::NotSupportedOnPlatform => "notSupportedOnPlatform",
+        // AppSandbox: only the Mac App Store build reports it, and this table
+        // is Windows-only; listed so a new reason still fails to build.
+        U::NotSupportedOnPlatform | U::AppSandbox => "notSupportedOnPlatform",
         U::NoSuchHardware => "noSuchHardware",
         U::NeedsElevation => "needsElevation",
         U::NeedsHelper => "needsHelper",

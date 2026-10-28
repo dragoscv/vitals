@@ -1023,15 +1023,27 @@ components:
           description: Cached file data. Counted as available, because it is.
           $ref: '#/components/schemas/Bytes'
         pagedPool:
-          description: Kernel memory that can be paged out.
-          $ref: '#/components/schemas/Bytes'
+          description: |
+            Kernel memory that can be paged out. This and nonPagedPool,
+            committed, commitLimit and hardwareReserved are Windows
+            quantities: null on macOS, which has no commit charge or pool
+            split, and null wherever they were not measured.
+          oneOf:
+            - $ref: '#/components/schemas/Bytes'
+            - type: 'null'
         nonPagedPool:
           description: Kernel memory that cannot.
-          $ref: '#/components/schemas/Bytes'
+          oneOf:
+            - $ref: '#/components/schemas/Bytes'
+            - type: 'null'
         committed:
-          $ref: '#/components/schemas/Bytes'
+          oneOf:
+            - $ref: '#/components/schemas/Bytes'
+            - type: 'null'
         commitLimit:
-          $ref: '#/components/schemas/Bytes'
+          oneOf:
+            - $ref: '#/components/schemas/Bytes'
+            - type: 'null'
         swapTotal:
           $ref: '#/components/schemas/Bytes'
         swapUsed:
@@ -1044,8 +1056,10 @@ components:
             - $ref: '#/components/schemas/Bytes'
             - type: 'null'
         hardwareReserved:
-          description: Hardware-reserved, invisible to the OS.
-          $ref: '#/components/schemas/Bytes'
+          description: Hardware-reserved, invisible to the OS. Null until measured.
+          oneOf:
+            - $ref: '#/components/schemas/Bytes'
+            - type: 'null'
         pageFaultsPerSec:
           type: [number, 'null']
           description: |

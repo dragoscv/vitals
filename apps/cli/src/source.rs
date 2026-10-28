@@ -481,12 +481,109 @@ fn parse_priority(value: &str) -> Option<vitals_win::Priority> {
     })
 }
 
-#[cfg(not(windows))]
+/// macOS: the same shape as the Windows sampler, over `vitals-macos`.
+#[cfg(target_os = "macos")]
+pub struct Direct {
+    sampler: vitals_macos::SystemSampler,
+    frames: vitals_macos::FrameBuilder,
+    engine: vitals_core::alerts::Engine,
+    view: View,
+}
+
+#[cfg(target_os = "macos")]
+impl Direct {
+    /// # Errors
+    /// Never; the signature matches the other platforms.
+    #[allow(clippy::unnecessary_wraps)]
+    pub fn new() -> Result<Self> {
+        Ok(Self {
+            sampler: vitals_macos::SystemSampler::new(),
+            frames: vitals_macos::FrameBuilder::new(),
+            engine: vitals_core::alerts::Engine::new(),
+            view: View::default(),
+        })
+    }
+
+    /// # Errors
+    /// The platform sampler failed.
+    pub fn tick(&mut self) -> Result<Frame> {
+        let sample = self.sampler.sample().context("sampling the system")?;
+        let frame = self.frames.build(sample);
+        self.engine.poll(frame.system());
+        self.view.apply(&frame);
+        Ok(frame)
+    }
+
+    fn snapshot(&mut self) -> Result<View> {
+        self.tick()?;
+        std::thread::sleep(Duration::from_millis(500));
+        self.tick()?;
+        Ok(self.view.clone())
+    }
+
+    #[allow(clippy::unnecessary_wraps, clippy::unused_self)]
+    fn host(&self) -> Option<HostInfo> {
+        Self::local_host()
+    }
+
+    #[allow(clippy::unnecessary_wraps)]
+    fn local_host() -> Option<HostInfo> {
+        Some(vitals_macos::host_info())
+    }
+
+    /// Alerts the engine currently holds raised.
+    #[must_use]
+    pub fn active_alerts(&self) -> Vec<Alert> {
+        self.engine.active()
+    }
+
+    fn alerts(&self) -> Vec<Alert> {
+        self.active_alerts()
+    }
+
+    fn local_control(request: ControlRequest) -> Result<()> {
+        use vitals_core::provider::Priority as P;
+        let outcome = match request {
+            ControlRequest::Terminate { key } => vitals_macos::terminate(key),
+            ControlRequest::Suspend { key } => vitals_macos::suspend(key),
+            ControlRequest::Resume { key } => vitals_macos::resume(key),
+            ControlRequest::SetPriority { key, priority } => {
+                let level = match priority.as_str() {
+                    "idle" => P::Idle,
+                    "below-normal" => P::BelowNormal,
+                    "normal" => P::Normal,
+                    "above-normal" => P::AboveNormal,
+                    "high" => P::High,
+                    "realtime" => P::Realtime,
+                    other => anyhow::bail!("unknown priority {other:?}"),
+                };
+                vitals_macos::set_priority(key, level)
+            }
+            ControlRequest::SetEfficiencyMode { .. } => {
+                anyhow::bail!("efficiency mode is a Windows feature")
+            }
+        };
+        outcome.map_err(|error| match error {
+            vitals_core::Error::Refused(reason) => anyhow::anyhow!("refused: {reason}"),
+            vitals_core::Error::AccessDenied { .. } => anyhow::anyhow!(
+                "access denied: the process belongs to another user; try again with sudo"
+            ),
+            other => other.into(),
+        })
+    }
+
+    #[allow(clippy::unnecessary_wraps)]
+    fn efficiency_mode(_key: ProcessKey) -> Result<Option<bool>> {
+        Ok(None)
+    }
+}
+
+#[cfg(not(any(windows, target_os = "macos")))]
 pub struct Direct {
     view: View,
 }
 
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "macos")))]
 impl Direct {
     /// # Errors
     /// Always: there is no sampler on this platform yet.

@@ -1,0 +1,78 @@
+{
+  "_comment": "iOS-only strings. Everything else comes from the Android phone app's strings.xml (EN + RO) via scripts/ios-strings.mjs, so both phones say the same thing.",
+  "add_code": { "en": "Code", "ro": "Cod" },
+  "add_code_hint": {
+    "en": "On your PC, open Vitals, go to Settings, Remote access and choose “Pair with a code”. Type the address and the six digits it shows.",
+    "ro": "Pe PC, deschide Vitals, mergi la Setări, Acces la distanță și alege „Asociază cu un cod”. Introdu adresa și cele șase cifre afișate."
+  },
+  "add_address": { "en": "Address", "ro": "Adresă" },
+  "add_address_hint": { "en": "192.168.1.20 or pc.local", "ro": "192.168.1.20 sau pc.local" },
+  "add_token": { "en": "Token", "ro": "Token" },
+  "add_name": { "en": "Name (optional)", "ro": "Nume (opțional)" },
+  "add_code_digits": { "en": "Six-digit code", "ro": "Codul din șase cifre" },
+  "add_pair": { "en": "Pair", "ro": "Asociază" },
+  "add_confirm_title": { "en": "Pair with this PC?", "ro": "Asociezi acest PC?" },
+  "add_nearby_empty": {
+    "en": "Looking for PCs with Remote access turned on…",
+    "ro": "Se caută PC-uri cu Accesul la distanță pornit…"
+  },
+  "add_nearby_token": {
+    "en": "Paste the token from the PC, or use the code tab.",
+    "ro": "Lipește tokenul de pe PC sau folosește fila Cod."
+  },
+  "add_camera_denied": {
+    "en": "Vitals cannot use the camera. Allow it in Settings, or type the address instead.",
+    "ro": "Vitals nu poate folosi camera. Permite-o în Setări sau introdu adresa manual."
+  },
+  "add_open_settings": { "en": "Open Settings", "ro": "Deschide Setările" },
+  "add_camera_unavailable": {
+    "en": "This device has no camera Vitals can use.",
+    "ro": "Acest dispozitiv nu are o cameră pe care Vitals o poate folosi."
+  },
+  "pairing_bad_code": {
+    "en": "That code was not accepted. Codes last five minutes and work once; ask the PC for a new one.",
+    "ro": "Codul nu a fost acceptat. Codurile durează cinci minute și merg o singură dată; cere PC-ului unul nou."
+  },
+  "pairing_off_lan": {
+    "en": "Connect to Wi-Fi first: Vitals pairs only on your home network.",
+    "ro": "Conectează-te mai întâi la Wi-Fi: Vitals se asociază doar în rețeaua de acasă."
+  },
+  "pairing_no_route": {
+    "en": "This PC cannot pair with a code. Update Vitals on the PC, or scan its QR code.",
+    "ro": "Acest PC nu se poate asocia cu un cod. Actualizează Vitals pe PC sau scanează codul QR."
+  },
+  "sample_title": { "en": "Sample PC", "ro": "PC de probă" },
+  "sample_try": { "en": "Try with sample data", "ro": "Încearcă cu date de probă" },
+  "sample_banner": {
+    "en": "Sample data, not a real PC. Pair your own PC to see its real readings.",
+    "ro": "Date de probă, nu un PC real. Asociază PC-ul tău ca să vezi citirile reale."
+  },
+  "sample_remove": { "en": "Hide sample PC", "ro": "Ascunde PC-ul de probă" },
+  "local_network_title": {
+    "en": "Allow local network access",
+    "ro": "Permite accesul la rețeaua locală"
+  },
+  "local_network_body": {
+    "en": "iPhone asks once whether Vitals may reach devices on your network. Without it, Vitals cannot see your PCs. You can change it in Settings, Vitals, Local Network.",
+    "ro": "iPhone-ul întreabă o dată dacă Vitals poate accesa dispozitive din rețea. Fără acest acord, Vitals nu vede PC-urile tale. Poți schimba asta în Setări, Vitals, Rețea locală."
+  },
+  "state_last_seen": { "en": "Last seen %@", "ro": "Văzut ultima dată %@" },
+  "process_sort_cpu": { "en": "CPU", "ro": "Procesor" },
+  "process_sort_memory": { "en": "Memory", "ro": "Memorie" },
+  "process_sort_name": { "en": "Name", "ro": "Nume" },
+  "process_memory": { "en": "Memory", "ro": "Memorie" },
+  "process_gpu": { "en": "Graphics", "ro": "Placă video" },
+  "settings_about_body_ios": {
+    "en": "Vitals shows the readings of PCs you pair on your home network. No ads, no account, no analytics: nothing is sent to the developer, and nothing leaves your network.",
+    "ro": "Vitals arată citirile PC-urilor pe care le asociezi în rețeaua de acasă. Fără reclame, fără cont, fără analiză: dezvoltatorul nu primește nimic și nimic nu iese din rețeaua ta."
+  },
+  "settings_licences_body_ios": {
+    "en": "Vitals is MIT-licensed and uses only Apple's frameworks on iPhone.",
+    "ro": "Vitals are licență MIT și folosește pe iPhone doar framework-urile Apple."
+  },
+  "common_cancel": { "en": "Cancel", "ro": "Anulează" },
+  "common_done": { "en": "Done", "ro": "Gata" },
+  "common_retry": { "en": "Try again", "ro": "Încearcă din nou" },
+  "common_save": { "en": "Save", "ro": "Salvează" },
+  "unit_rpm": { "en": "RPM", "ro": "RPM" }
+}

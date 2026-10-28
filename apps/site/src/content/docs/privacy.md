@@ -7,9 +7,9 @@ This page is a summary. The full, authoritative text is the
 [privacy policy in the repository](https://github.com/dragoscv/vitals/blob/main/PRIVACY.md); if the
 two ever differ, that one applies.
 
-It covers Vitals 1.0.x and later: the Windows app, the `vitals` command-line tool (including
-`vitals serve`), the optional sensors service and lag watchdog, the Android phone, Wear OS and
-Google TV apps, and the Samsung (Tizen) TV app. Effective 17 October 2026.
+It covers Vitals 1.0.x and later: the Windows and macOS apps, the `vitals` command-line tool
+(including `vitals serve`), the optional sensors service and lag watchdog, the Android phone, Wear OS
+and Google TV apps, the iPhone app, and the Samsung (Tizen) TV app. Effective 28 October 2026.
 
 ## The app
 
@@ -69,7 +69,13 @@ Google TV apps, and the Samsung (Tizen) TV app. Effective 17 October 2026.
 It keeps the PCs you pair and your language choice in its own storage on the TV, talks only to those
 PCs on your local network, and has no analytics or ads. Uninstalling it deletes everything.
 
-## This website
+## macOS and iPhone
+
+The macOS app behaves like the Windows one: everything stays on the Mac and the only automatic
+request is the update check. The iPhone app keeps paired machines in the iPhone Keychain (that device
+only, never iCloud), talks only to them on your local network, and uses the camera only to read a
+pairing QR code on the device. No analytics, ads or third-party SDKs; its App Store label is "Data
+Not Collected".
 
 The site is hosted on GitHub Pages. It sets **no cookies** and uses **no analytics**. GitHub, as the
 host, processes the technical data any web server receives, such as your IP address, under

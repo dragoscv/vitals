@@ -1,6 +1,6 @@
 ---
 title: Descărcare
-description: Descarcă Vitals pentru Windows, verifică programul de instalare și află despre actualizări, instalarea silențioasă și dezinstalare.
+description: Descarcă Vitals pentru Windows și macOS, verifică programul de instalare și află despre actualizări, instalarea silențioasă și dezinstalare.
 ---
 
 import { Aside, LinkButton } from '@astrojs/starlight/components';
@@ -17,7 +17,7 @@ import { Aside, LinkButton } from '@astrojs/starlight/components';
 </LinkButton>
 
 <Aside type="note" title="Vitals 1.0">
-  Windows 10 și 11. Pe desktop doar Windows; nu există planuri datate pentru macOS sau Linux.
+  Windows 10 și 11, precum și macOS 13 sau mai nou. Nu există planuri datate pentru Linux.
 </Aside>
 
 ## Variante de instalare
@@ -43,6 +43,7 @@ winget și Scoop se actualizează automat la fiecare versiune.
 | -------------------------------------------------------------------------------------------------------------- | -------------------------------------- | -------------- |
 | [`Vitals_x64-setup.exe`](https://github.com/dragoscv/vitals/releases/latest/download/Vitals_x64-setup.exe)     | Windows, x64                           | Stabilă        |
 | [`Vitals_arm64-setup.exe`](https://github.com/dragoscv/vitals/releases/latest/download/Vitals_arm64-setup.exe) | Windows, ARM64                         | Previzualizare |
+| [`Vitals_universal.dmg`](https://github.com/dragoscv/vitals/releases/latest/download/Vitals_universal.dmg)     | macOS 13+, Apple silicon și Intel      | Previzualizare |
 | [`SHA256SUMS.txt`](https://github.com/dragoscv/vitals/releases/latest/download/SHA256SUMS.txt)                 | Sume de control pentru toate fișierele | —              |
 
 </div>
@@ -57,6 +58,17 @@ APK pentru Android: `Vitals_<versiune>_android.apk` pentru telefoane, `_wear.apk
 `_tv.apk` pentru Android TV și Google TV. Fiecare monitorizează dispozitivul pe care rulează și poate
 urmări PC-urile Windows asociate din rețeaua locală. Prima dată, Android îți cere să permiți
 instalarea din browser sau din managerul de fișiere. Listările din Google Play urmează mai târziu.
+
+Aplicația pentru iPhone, **Vitals: System Monitor**, urmărește PC-urile și Mac-urile asociate din
+rețeaua locală. Este în evaluare la Apple; linkul din App Store apare aici după aprobare.
+
+## macOS
+
+Imaginea de disc este semnată cu un Developer ID și notarizată de Apple, deci se deschide fără
+avertisment. Trage Vitals în Applications. Citește procesorul, memoria, swap-ul, discurile, rețeaua,
+temperaturile și toate procesele utilizatorului tău, pe care le poate opri, întrerupe sau
+reprioritiza. Valorile pe care un Mac nu le raportează — memoria alocată, folosirea plăcii grafice
+pe proces — apar ca o liniuță, niciodată ca zero.
 
 ## Cerințe de sistem
 

@@ -12,6 +12,11 @@ build/
 out/
 target/
 *.tsbuildinfo
+# iPhone app: XcodeGen regenerates the project from apps/ios/project.yml on
+# every build, and SwiftPM keeps its work under .build.
+apps/ios/*.xcodeproj/
+.build/
+DerivedData/
 
 # Turborepo
 .turbo/

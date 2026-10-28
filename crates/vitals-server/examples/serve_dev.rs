@@ -31,7 +31,9 @@ impl AgentsProvider for RealAgents {
     fn snapshot(&self) -> vitals_core::agents::AgentsSnapshot {
         #[cfg(windows)]
         let probe = |pid| vitals_win::actions::process_start_ms(pid);
-        #[cfg(not(windows))]
+        #[cfg(target_os = "macos")]
+        let probe = |pid| vitals_macos::process_start_ms(pid);
+        #[cfg(not(any(windows, target_os = "macos")))]
         let probe = |_| None;
         vitals_agents::Reader::detect().read(&probe)
     }
@@ -44,6 +46,19 @@ impl AgentsProvider for RealAgents {
             "serve_dev does not run agentq actions".into(),
         ))
     }
+}
+
+/// The real host so an iOS/Android client under development gets a name.
+// Always `Some` on Windows and macOS, `None` on Linux: the `Option` is the
+// cross-platform contract `ApiState::host` expects.
+#[allow(clippy::unnecessary_wraps)]
+fn host_info() -> Option<vitals_core::provider::HostInfo> {
+    #[cfg(windows)]
+    return Some(vitals_win::hostinfo::read());
+    #[cfg(target_os = "macos")]
+    return Some(vitals_macos::host_info());
+    #[cfg(not(any(windows, target_os = "macos")))]
+    None
 }
 
 #[tokio::main]
@@ -69,7 +84,7 @@ async fn main() {
                 .ok()
                 .map(|bytes| (bytes, vitals_server::router::mime_for(path)))
         })),
-        host: Arc::new(|| None),
+        host: Arc::new(host_info),
         alerts: Arc::new(Vec::new),
         history: Arc::new(|_| Vec::new()),
         // Real readings on Windows so the phone and watch sensor screens can
@@ -131,7 +146,20 @@ async fn main() {
             }
         });
     }
-    #[cfg(not(windows))]
+    #[cfg(target_os = "macos")]
+    {
+        std::thread::spawn(move || {
+            let mut sampler = vitals_macos::SystemSampler::new();
+            let mut builder = vitals_macos::FrameBuilder::new();
+            loop {
+                if let Ok(sample) = sampler.sample() {
+                    frames.publish(Arc::new(builder.build(sample)));
+                }
+                std::thread::sleep(Duration::from_millis(1000));
+            }
+        });
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
     let _ = frames;
 
     // CORS is deliberately absent from the server: on a phone the page is

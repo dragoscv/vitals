@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Merged into the macOS bundle's Info.plist by the Tauri bundler.
+  - Local network: the LAN server (off by default) advertises _vitals._tcp over
+    Bonjour so a phone can find this Mac; macOS asks the user the first time.
+  - Encryption: only the OS's TLS and rustls for HTTPS, which is exempt from
+    export compliance, so App Store Connect never asks per build.
+-->
+<plist version="1.0">
+<dict>
+  <key>NSLocalNetworkUsageDescription</key>
+  <string>Vitals shares this Mac's readings with phones you pair on your network, only when you turn on remote access.</string>
+  <key>NSBonjourServices</key>
+  <array>
+    <string>_vitals._tcp</string>
+  </array>
+  <key>ITSAppUsesNonExemptEncryption</key>
+  <false/>
+  <key>LSApplicationCategoryType</key>
+  <string>public.app-category.utilities</string>
+</dict>
+</plist>

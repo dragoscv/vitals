@@ -27,6 +27,8 @@ pub mod hud;
 pub mod inventory;
 pub mod ipc;
 pub mod launch;
+#[cfg(target_os = "macos")]
+pub mod macos_actions;
 pub mod sampling;
 pub mod server;
 // Measures the boot window through vitals-win's accumulator; there is no
@@ -219,18 +221,20 @@ fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
         // Webview errors into the capped log file. No `cfg`: every build has
         // a webview that can throw, and every window may report its own.
         webview_log::log_webview,
-        #[cfg(windows)]
+        // Process actions: Windows bodies in `commands`, macOS bodies in
+        // `macos_actions` re-exported into `commands` under the same names.
+        #[cfg(any(windows, target_os = "macos"))]
         commands::plan_terminate_process,
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "macos"))]
         commands::plan_suspend_process,
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "macos"))]
         commands::terminate_process,
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "macos"))]
         commands::suspend_process,
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "macos"))]
         commands::resume_process,
         commands::process_action_as_admin,
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "macos"))]
         commands::set_process_priority,
         #[cfg(windows)]
         commands::set_process_affinity,

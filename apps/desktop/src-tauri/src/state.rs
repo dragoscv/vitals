@@ -272,7 +272,12 @@ fn platform_capabilities() -> Capabilities {
         vitals_win::WindowsHost::detect().capabilities()
     }
 
-    #[cfg(not(windows))]
+    #[cfg(target_os = "macos")]
+    {
+        vitals_macos::capabilities()
+    }
+
+    #[cfg(not(any(windows, target_os = "macos")))]
     {
         // Other platforms report nothing until their backend lands, which is
         // honest: the UI will grey everything out rather than offering

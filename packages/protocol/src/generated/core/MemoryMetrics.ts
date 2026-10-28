@@ -13,12 +13,17 @@ used: Bytes, available: Bytes,
 cached: Bytes, 
 /**
  * Kernel memory that can be paged out.
+ *
+ * This and the next four fields are Windows concepts. macOS has no
+ * commit charge and no paged/non-paged pool split, and a `0` there would
+ * read as "nothing committed" — so they are `None` where the platform
+ * has no such quantity, never a fabricated zero.
  */
-pagedPool: Bytes, 
+pagedPool: Bytes | null, 
 /**
  * Kernel memory that cannot.
  */
-nonPagedPool: Bytes, committed: Bytes, commitLimit: Bytes, swapTotal: Bytes, 
+nonPagedPool: Bytes | null, committed: Bytes | null, commitLimit: Bytes | null, swapTotal: Bytes, 
 /**
  * Page file / swap actually occupied.
  *
@@ -30,9 +35,10 @@ nonPagedPool: Bytes, committed: Bytes, commitLimit: Bytes, swapTotal: Bytes,
  */
 swapUsed: Bytes | null, 
 /**
- * Hardware-reserved, invisible to the OS.
+ * Hardware-reserved, invisible to the OS. `None` until something
+ * actually reads the firmware tables.
  */
-hardwareReserved: Bytes, 
+hardwareReserved: Bytes | null, 
 /**
  * Page faults per second — the real indicator of memory pressure.
  * A machine at 90% RAM with no faulting is fine; one at 60% that is

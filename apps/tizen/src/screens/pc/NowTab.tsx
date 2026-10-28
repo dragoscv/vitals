@@ -92,13 +92,15 @@ export function NowTab({ state }: { state: LiveState }) {
         />
         <InfoRow label={t('memory.available')} value={bytes(memory.available, lang)} />
         <InfoRow label={t('memory.cached')} value={bytes(memory.cached, lang)} />
-        <InfoRow
-          label={t('memory.committed')}
-          value={t('memory.usedOf', {
-            used: bytes(memory.committed, lang),
-            total: bytes(memory.commitLimit, lang),
-          })}
-        />
+        {memory.committed !== null && memory.commitLimit !== null && (
+          <InfoRow
+            label={t('memory.committed')}
+            value={t('memory.usedOf', {
+              used: bytes(memory.committed, lang),
+              total: bytes(memory.commitLimit, lang),
+            })}
+          />
+        )}
       </Panel>
 
       {system.gpus.map((g) => (

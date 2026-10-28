@@ -73,8 +73,9 @@ cât fereastra e vizibilă. Când fereastra e ascunsă, eșantionează doar o da
 ## Merge pe Windows 10, ARM sau macOS?
 
 Windows 10 (versiunea 1809 sau mai nouă) și Windows 11, pe x64. O versiune ARM64 este în
-previzualizare. Nu există planuri datate pentru macOS sau Linux; aplicațiile pentru telefon Android,
-Wear OS și televizor pot urmări un calculator cu Windows din rețeaua ta.
+previzualizare. macOS 13 sau mai nou este în previzualizare, ca imagine de disc notarizată pentru
+Apple silicon și Intel. Nu există planuri datate pentru Linux. Aplicațiile pentru telefon Android,
+Wear OS și televizor, precum și aplicația pentru iPhone, pot urmări un PC sau un Mac din rețeaua ta.
 
 ## Cum îl dezinstalez?
 
