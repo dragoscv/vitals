@@ -4,8 +4,8 @@
     "CFBundleDisplayName" : {
       "extractionState" : "manual",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Vitals" } },
-        "ro" : { "stringUnit" : { "state" : "translated", "value" : "Vitals" } }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Vitals Monitor" } },
+        "ro" : { "stringUnit" : { "state" : "translated", "value" : "Vitals Monitor" } }
       }
     },
     "NSCameraUsageDescription" : {
