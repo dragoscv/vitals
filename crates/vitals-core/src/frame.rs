@@ -32,6 +32,10 @@ pub struct FrameEncoder {
     seq: u64,
     /// Last state sent per process, for change detection.
     previous: HashMap<ProcessKey, Process>,
+    /// Whether the client holds a keyframe to apply deltas to. Not
+    /// `previous.is_empty()`: a host that can see no processes (the
+    /// sandboxed Mac App Store build) would then send a keyframe every tick.
+    has_baseline: bool,
 }
 
 impl FrameEncoder {
@@ -40,6 +44,7 @@ impl FrameEncoder {
         Self {
             seq: 0,
             previous: HashMap::with_capacity(512),
+            has_baseline: false,
         }
     }
 
@@ -49,6 +54,7 @@ impl FrameEncoder {
     /// the client does not have is worse than useless.
     pub fn request_keyframe(&mut self) {
         self.previous.clear();
+        self.has_baseline = false;
     }
 
     /// Encodes one tick.
@@ -62,9 +68,10 @@ impl FrameEncoder {
 
         // Keyframe when the client has no baseline, or on the periodic
         // refresh. `seq == 1` covers the first frame after a reset.
-        let force_keyframe = self.previous.is_empty() || self.seq.is_multiple_of(KEYFRAME_INTERVAL);
+        let force_keyframe = !self.has_baseline || self.seq.is_multiple_of(KEYFRAME_INTERVAL);
 
         let payload = if force_keyframe {
+            self.has_baseline = true;
             self.previous = processes.iter().map(|p| (p.key, p.clone())).collect();
             FramePayload::Keyframe { system, processes }
         } else {
@@ -295,6 +302,15 @@ mod tests {
             keyframes >= 2,
             "expected a periodic keyframe, saw {keyframes}"
         );
+    }
+
+    #[test]
+    fn a_host_that_sees_no_processes_still_sends_deltas() {
+        let mut enc = FrameEncoder::new();
+        assert!(enc.encode(system(), vec![], 0).is_keyframe());
+        assert!(!enc.encode(system(), vec![], 0).is_keyframe());
+        enc.request_keyframe();
+        assert!(enc.encode(system(), vec![], 0).is_keyframe());
     }
 
     #[test]

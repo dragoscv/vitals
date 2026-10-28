@@ -510,8 +510,14 @@ mod tests {
         assert!(sys.cpu.total.get() >= 0.0 && sys.cpu.total.get() <= 100.0);
         assert!(sys.memory.total.get() > 0);
         assert!(sys.memory.used.get() <= sys.memory.total.get());
-        assert!(sample.processes.len() > 10, "{}", sample.processes.len());
         assert_eq!(sys.cpu.process_count as usize, sample.processes.len());
+        if crate::APP_STORE {
+            // sysinfo's apple-app-store feature never enumerates other
+            // processes: the sandbox build must not invent any.
+            assert!(sample.processes.is_empty(), "{}", sample.processes.len());
+        } else {
+            assert!(sample.processes.len() > 10, "{}", sample.processes.len());
+        }
     }
 
     #[test]
@@ -526,6 +532,9 @@ mod tests {
 
     #[test]
     fn process_cpu_is_a_share_of_the_machine_not_of_one_core() {
+        if crate::APP_STORE {
+            return; // no process list in the sandbox build
+        }
         // One thread spinning flat out is one core: 100 / cores of the
         // machine. Reported per core (sysinfo's raw figure) it would read
         // ~100 %, which is the bug this guards against.
@@ -562,6 +571,9 @@ mod tests {
 
     #[test]
     fn this_process_is_listed_with_its_own_start_time() {
+        if crate::APP_STORE {
+            return; // no process list in the sandbox build
+        }
         let sample = two_samples();
         let me = std::process::id();
         let mine = sample

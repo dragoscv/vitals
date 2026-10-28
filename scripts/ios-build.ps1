@@ -58,7 +58,7 @@ $skew = [math]::Abs($guestEpoch - [DateTimeOffset]::UtcNow.ToUnixTimeSeconds())
 if ($skew -gt 120) { throw "guest clock is off by $skew s - run 'sudo sntp -sS time.apple.com' on the Mac" }
 
 $tar = Join-Path $tmp 'ios.tar'
-git -C $repo archive --format=tar -o $tar "${sha}:apps/ios"
+git -C $repo -c core.autocrlf=false -c core.eol=lf archive --format=tar -o $tar "${sha}:apps/ios"
 $remote = "vitals-ios/$sha"
 Invoke-Guest "rm -rf ~/$remote && mkdir -p ~/$remote"
 & scp -q -o BatchMode=yes -i $Key -P $GuestPort $tar "${target}:$remote/ios.tar"

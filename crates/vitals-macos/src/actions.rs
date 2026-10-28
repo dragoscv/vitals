@@ -160,7 +160,11 @@ mod tests {
     fn a_stale_key_is_refused_rather_than_signalling_whatever_has_the_number() {
         let (mut child, key) = spawn_sleeper();
         let stale = ProcessKey::new(key.pid, 1);
-        assert!(matches!(terminate(stale), Err(Error::NotFound(_))));
+        if crate::APP_STORE {
+            assert!(matches!(terminate(stale), Err(Error::Unsupported(_))));
+        } else {
+            assert!(matches!(terminate(stale), Err(Error::NotFound(_))));
+        }
         // The real process is untouched.
         assert!(child.try_wait().expect("wait").is_none());
         let _ = child.kill();

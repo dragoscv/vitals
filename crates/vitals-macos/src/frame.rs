@@ -47,6 +47,9 @@ mod tests {
         let delta = frames.build(sampler.sample().expect("sample"));
         assert!(key.is_keyframe());
         assert!(!delta.is_keyframe());
+        if crate::APP_STORE {
+            return; // no process list, so nothing for a delta to save
+        }
         let k = serde_json::to_string(&key).expect("json").len();
         let d = serde_json::to_string(&delta).expect("json").len();
         assert!(d * 2 < k, "delta {d} vs keyframe {k}");
