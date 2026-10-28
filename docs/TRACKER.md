@@ -3781,6 +3781,28 @@ mutant (padding + width reverted)  SmallRoundTest 3 of 9 FAILED:
 :wear:assembleRelease, :wear:bundleRelease   BUILD SUCCESSFUL (unsigned, local)
 ```
 
+**Release.** New RustSec and npm advisories had landed since main was last
+green, so the push also bumps rustls-webpki 0.103.16, webpki-root-certs
+1.0.11, tokio 1.54.1, vite 8.3.5, happy-dom 21.0.4 and overrides zod and
+undici (Supply chain runs `cargo audit --deny warnings` and `pnpm audit
+--audit-level high`). The Play drafts carried the stale name "1.0.6" and
+are renamed 1.1.1; each holds only its 1.1.1 bundle, and the rejected
+1000037 is listed as "not included".
+
+```
+commits ecbe7ec (wear), 1fc729a (1.1.1), 0d542dd c27d5fc 864ad15 (deps), eebabd6 (notices)
+devcloud ws-codai               vitest 7 tasks 0 cached (desktop 127 files), typecheck,
+                                site build, pnpm audit high: JS_GATES_OK
+CI 40638268417 (864ad15)        every job success except Supply chain (notices stale)
+CI 40639071887 (eebabd6)        success
+tag v1.1.1 -> eebabd6           deploy-clean, clean release slot
+release run 40640574907         plan, verify, android, sbom, 4 desktop legs, publish,
+                                Scoop, Chocolatey, npm, Google Play, winget: success
+latest.json 1.1.1, npm @vitals-app/client 1.1.1, Scoop 1.1.1
+MSIX 1.1.1.0                    gs://dragos-devcloud-devcloud-jobs/shots/20261028T055946/
+Play production / wear / tv     41 / 1000041 / 2000041 only; 14 changes sent for review
+```
+
 ## S13 — public beta 0.9.0-beta.1 (2026-09-28)
 
 Decided with the owner (ADR 0031): public repository, beta version, no code
