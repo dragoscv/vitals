@@ -27,7 +27,7 @@ import { useSettings } from './store';
 import { useHostInfo } from './useHostInfo';
 import { useHistoryUsage } from './useHistoryUsage';
 import { useTaskManagerReplacement } from './useTaskManagerReplacement';
-import { useIsStoreBuild } from './useDistribution';
+import { useIsStoreBuild, useStore } from './useDistribution';
 import { UpdateSection } from './UpdatePanel';
 
 /** The public documents. One place, so the app and the site cannot disagree. */
@@ -570,7 +570,7 @@ export function NotificationsPanel() {
 
 export function PrivacyPanel() {
   const { t } = useTranslation();
-  const storeBuild = useIsStoreBuild();
+  const store = useStore();
 
   // No switches here. Vitals has no telemetry, no crash reporting and no
   // online reputation lookups, so there is nothing to opt out of. The one
@@ -584,7 +584,15 @@ export function PrivacyPanel() {
           <li>{t('settings.privacy.localOnly')}</li>
           <li>{t('settings.privacy.noCrashReports')}</li>
           <li>{t('settings.privacy.noLookups')}</li>
-          <li>{t(storeBuild ? 'settings.privacy.updatesStore' : 'settings.privacy.updates')}</li>
+          <li>
+            {t(
+              store === 'macAppStore'
+                ? 'settings.privacy.updatesMacAppStore'
+                : store === 'microsoft'
+                  ? 'settings.privacy.updatesStore'
+                  : 'settings.privacy.updates',
+            )}
+          </li>
           <li>{t('settings.privacy.lanServer')}</li>
         </ul>
         <Button
@@ -605,7 +613,7 @@ export function AboutPanel({ version }: { readonly version: string }) {
   const { info, pending } = useHostInfo();
   const autoUpdate = useSettings((state) => state.settings.autoUpdate);
   const patch = useSettings((state) => state.patch);
-  const storeBuild = useIsStoreBuild();
+  const store = useStore();
 
   return (
     <SettingsSection title={t('settings.about.title')}>
@@ -622,9 +630,13 @@ export function AboutPanel({ version }: { readonly version: string }) {
           info !== null && <HostFacts info={info} />
         )}
 
-        {storeBuild ? (
+        {store !== null ? (
           <p className="text-2xs text-[var(--color-fg-muted)]">
-            {t('settings.about.update.store')}
+            {t(
+              store === 'macAppStore'
+                ? 'settings.about.update.macAppStore'
+                : 'settings.about.update.store',
+            )}
           </p>
         ) : (
           <>

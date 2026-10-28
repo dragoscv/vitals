@@ -25,6 +25,13 @@
 //! [`IDLE_BEFORE_INSTALL`] with no Vitals window open, relaunches the app
 //! into the tray, and never starts while Windows is ending the session.
 
+// The Mac App Store build compiles without `self-update`: the commands stay
+// registered (the webview calls them and gets a store refusal) but the
+// scheduling, idle and install helpers have no caller. Gating each of twenty
+// items separately would scatter `cfg` across the file for no runtime gain;
+// the direct build, which does use them, still lints them in full.
+#![cfg_attr(not(feature = "self-update"), allow(dead_code))]
+
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use parking_lot::Mutex;
@@ -37,7 +44,10 @@ use tauri::Manager;
 /// check fires ([`FIRST_CHECK_DELAY`]); a user who turned it off is never
 /// checked for.
 pub struct PendingInstall {
+    #[cfg(feature = "self-update")]
     ready: Mutex<Option<(tauri_plugin_updater::Update, Vec<u8>)>>,
+    #[cfg(not(feature = "self-update"))]
+    ready: Mutex<Option<((), Vec<u8>)>>,
     enabled: AtomicBool,
     /// Labels of the windows the pre-install hook hid, so a setup that did
     /// not start can put back exactly what the user was looking at.
@@ -87,42 +97,47 @@ const IDLE_BEFORE_INSTALL: u64 = 10 * 60;
 /// Starts the background check. No-op in debug builds, which have no
 /// installer to replace.
 pub fn spawn(app: &tauri::AppHandle) {
-    // The Store build is updated by the Store; replacing our own files there
-    // is forbidden and would fail against the read-only package directory.
-    if cfg!(debug_assertions)
-        || crate::distribution::packaged()
-        || std::env::var_os("VITALS_NO_AUTO_UPDATE").is_some()
+    #[cfg(not(feature = "self-update"))]
+    let _ = app;
+    #[cfg(feature = "self-update")]
     {
-        return;
-    }
-    let app = app.clone();
-    // A plain thread rather than a task: it sleeps between polls, which would
-    // pin a worker of the blocking pool for as long. A parked thread costs a
-    // stack and nothing else.
-    let _ = std::thread::Builder::new()
-        .name("vitals-updates".into())
-        .stack_size(256 * 1024)
-        .spawn(move || {
-            std::thread::sleep(FIRST_CHECK_DELAY);
-            let mut last_check: Option<std::time::Instant> = None;
-            loop {
-                // With one already downloaded there is nothing newer to
-                // want until it is installed. Skipped rather than
-                // ending the loop: turning the setting off drops the
-                // download, and turning it back on must find it again.
-                let due = last_check.is_none_or(|t| t.elapsed() >= RECHECK_EVERY);
-                if !update_ready(&app) && due {
-                    last_check = Some(std::time::Instant::now());
-                    if let Err(error) = tauri::async_runtime::block_on(fetch(&app)) {
-                        tracing::info!(%error, "background update check did not complete");
+        // The Store build is updated by the Store; replacing our own files there
+        // is forbidden and would fail against the read-only package directory.
+        if cfg!(debug_assertions)
+            || crate::distribution::packaged()
+            || std::env::var_os("VITALS_NO_AUTO_UPDATE").is_some()
+        {
+            return;
+        }
+        let app = app.clone();
+        // A plain thread rather than a task: it sleeps between polls, which would
+        // pin a worker of the blocking pool for as long. A parked thread costs a
+        // stack and nothing else.
+        let _ = std::thread::Builder::new()
+            .name("vitals-updates".into())
+            .stack_size(256 * 1024)
+            .spawn(move || {
+                std::thread::sleep(FIRST_CHECK_DELAY);
+                let mut last_check: Option<std::time::Instant> = None;
+                loop {
+                    // With one already downloaded there is nothing newer to
+                    // want until it is installed. Skipped rather than
+                    // ending the loop: turning the setting off drops the
+                    // download, and turning it back on must find it again.
+                    let due = last_check.is_none_or(|t| t.elapsed() >= RECHECK_EVERY);
+                    if !update_ready(&app) && due {
+                        last_check = Some(std::time::Instant::now());
+                        if let Err(error) = tauri::async_runtime::block_on(fetch(&app)) {
+                            tracing::info!(%error, "background update check did not complete");
+                        }
                     }
+                    if update_ready(&app) {
+                        install_if_idle(&app);
+                    }
+                    std::thread::sleep(IDLE_POLL);
                 }
-                if update_ready(&app) {
-                    install_if_idle(&app);
-                }
-                std::thread::sleep(IDLE_POLL);
-            }
-        });
+            });
+    }
 }
 
 fn update_ready(app: &tauri::AppHandle) -> bool {
@@ -178,6 +193,7 @@ fn moment(app: &tauri::AppHandle) -> Moment {
     }
 }
 
+#[cfg(feature = "self-update")]
 /// Installs the waiting update when nobody is there, relaunching into the
 /// tray. On failure everything is put back by [`install_now`] and the next
 /// poll tries again.
@@ -247,6 +263,7 @@ pub mod quiet_relaunch {
     }
 }
 
+#[cfg(feature = "self-update")]
 /// The updater every download in this app goes through.
 ///
 /// With our own pre-exit hook rather than the plugin's default, which runs
@@ -280,6 +297,7 @@ fn hide_for_install(app: &tauri::AppHandle) {
     crate::tray::set_visible(app, false);
 }
 
+#[cfg(feature = "self-update")]
 async fn fetch(app: &tauri::AppHandle) -> Result<(), tauri_plugin_updater::Error> {
     let enabled = || {
         app.try_state::<PendingInstall>()
@@ -313,6 +331,7 @@ pub enum DownloadEvent {
     Finished,
 }
 
+#[cfg(feature = "self-update")]
 /// The Settings panel's "Download update": downloads into the same slot the
 /// background check fills, so installing it is [`install_now`] with its
 /// teardown and its restart on failure — never the plugin's own `install`,
@@ -373,11 +392,19 @@ pub async fn download_update(
 #[tauri::command]
 #[allow(clippy::needless_pass_by_value)]
 pub fn get_pending_update(pending: tauri::State<'_, PendingInstall>) -> Option<String> {
-    pending
-        .ready
-        .lock()
-        .as_ref()
-        .map(|(u, _)| u.version.clone())
+    #[cfg(feature = "self-update")]
+    {
+        pending
+            .ready
+            .lock()
+            .as_ref()
+            .map(|(u, _)| u.version.clone())
+    }
+    #[cfg(not(feature = "self-update"))]
+    {
+        let _ = pending;
+        None
+    }
 }
 
 /// Pushed from the webview on hydration and whenever the setting changes.
@@ -496,6 +523,7 @@ pub async fn install_update_now(
         .map_err(|message| crate::commands::CommandError::Refused { message })
 }
 
+#[cfg(feature = "self-update")]
 /// "Restart to update", from the Settings panel or the tray. Returns only on
 /// failure: on success the plugin exits the process and the setup restarts
 /// it. A declined prompt keeps the download, so the offer stays — and puts
@@ -557,6 +585,7 @@ fn resume_after_failed_install(app: &tauri::AppHandle) {
     crate::tray::set_visible(app, true);
 }
 
+#[cfg(feature = "self-update")]
 /// Called on `Exit`. Installs the verified update, if one is waiting.
 pub fn install_on_exit(app: &tauri::AppHandle) {
     if crate::distribution::packaged() {
@@ -618,6 +647,34 @@ pub fn install_on_exit(app: &tauri::AppHandle) {
         outcome::failed(&version, &error.to_string());
     }
 }
+
+#[cfg(not(feature = "self-update"))]
+fn not_in_store() -> crate::commands::CommandError {
+    crate::commands::CommandError::Unsupported {
+        message: "updates come from the Mac App Store in this version".into(),
+    }
+}
+
+/// Store build: the store installs updates.
+#[cfg(not(feature = "self-update"))]
+#[tauri::command]
+pub async fn download_update(
+    version: String,
+    on_event: tauri::ipc::Channel<DownloadEvent>,
+) -> Result<String, crate::commands::CommandError> {
+    let _ = (version, on_event);
+    Err(not_in_store())
+}
+
+/// Store build: there is never a download to install.
+#[cfg(not(feature = "self-update"))]
+pub fn install_now(_app: &tauri::AppHandle) -> Result<(), String> {
+    Err("updates come from the Mac App Store in this version".into())
+}
+
+/// Store build: nothing to install on exit.
+#[cfg(not(feature = "self-update"))]
+pub fn install_on_exit(_app: &tauri::AppHandle) {}
 
 /// What became of the last install attempt, read once at the next launch.
 ///

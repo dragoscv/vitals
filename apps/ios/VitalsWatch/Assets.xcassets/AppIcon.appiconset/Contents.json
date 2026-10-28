@@ -1,0 +1,14 @@
+{
+  "images": [
+    {
+      "filename": "AppIcon-1024.png",
+      "idiom": "universal",
+      "platform": "watchos",
+      "size": "1024x1024"
+    }
+  ],
+  "info": {
+    "author": "copy of apps/ios/Vitals/Assets.xcassets/AppIcon.appiconset (brand/scripts/build.mjs)",
+    "version": 1
+  }
+}

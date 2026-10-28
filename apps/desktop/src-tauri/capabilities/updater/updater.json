@@ -1,0 +1,7 @@
+{
+  "$schema": "../../gen/schemas/desktop-schema.json",
+  "identifier": "updater",
+  "description": "Lets the Settings panel ask the updater for a newer release. Separate from default so the Mac App Store build, which compiles no updater and builds with the capabilities/*.json glob (build.rs), does not reference a plugin it does not contain.",
+  "windows": ["main"],
+  "permissions": ["updater:allow-check"]
+}

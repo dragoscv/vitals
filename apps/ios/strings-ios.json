@@ -91,5 +91,22 @@
   "health_error_slow_down": {
     "en": "Too many attempts. Wait a moment and try again.",
     "ro": "Prea multe încercări. Așteaptă puțin și încearcă din nou."
-  }
+  },
+  "watch_waiting": { "en": "Waiting for your iPhone…", "ro": "Se așteaptă iPhone-ul…" },
+  "watch_empty_title": { "en": "No PCs yet", "ro": "Niciun PC încă" },
+  "watch_empty_body": {
+    "en": "Open Vitals on iPhone to pair a PC.",
+    "ro": "Deschide Vitals pe iPhone ca să asociezi un PC."
+  },
+  "watch_sample": { "en": "Sample data", "ro": "Date de probă" },
+  "watch_updated": { "en": "Updated %@", "ro": "Actualizat %@" },
+  "watch_stale": { "en": "Out of date", "ro": "Neactualizat" },
+  "watch_no_alerts": { "en": "No warnings", "ro": "Niciun avertisment" },
+  "watch_state_live": { "en": "Live", "ro": "În direct" },
+  "watch_state_connecting": { "en": "Connecting…", "ro": "Se conectează…" },
+  "watch_state_offline": { "en": "Can’t reach this PC", "ro": "PC-ul nu răspunde" },
+  "watch_state_off_lan": { "en": "iPhone not on Wi-Fi", "ro": "iPhone-ul nu e pe Wi-Fi" },
+  "watch_state_unauthorised": { "en": "Pair again on iPhone", "ro": "Asociază din nou pe iPhone" },
+  "watch_state_incompatible": { "en": "Update Vitals", "ro": "Actualizează Vitals" },
+  "watch_state_unknown": { "en": "Unknown state", "ro": "Stare necunoscută" }
 }

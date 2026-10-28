@@ -27,7 +27,6 @@
         { "url": "https://auth.codai.ro/device*" }
       ]
     },
-    "updater:allow-check",
     "notification:default"
   ]
 }

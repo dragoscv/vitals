@@ -1,0 +1,24 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Vitals Monitor",
+  "app": {
+    "security": {
+      "capabilities": ["default", "hud"]
+    }
+  },
+  "bundle": {
+    "targets": ["app"],
+    "createUpdaterArtifacts": false,
+    "macOS": {
+      "minimumSystemVersion": "13.0",
+      "hardenedRuntime": true,
+      "entitlements": "macos/Entitlements.appstore.resolved.plist",
+      "files": {
+        "embedded.provisionprofile": "macos/embedded.provisionprofile"
+      }
+    }
+  },
+  "plugins": {
+    "updater": null
+  }
+}

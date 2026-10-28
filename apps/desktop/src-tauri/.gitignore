@@ -5,3 +5,7 @@ sensors/*
 # Staged by scripts/bundle-watchdog.ps1, same reason.
 watchdog/*
 !watchdog/.gitkeep
+# Mac App Store build inputs written by scripts/macos/build-appstore.sh: the
+# profile is per-team and expires; the entitlements carry the team id.
+macos/embedded.provisionprofile
+macos/Entitlements.appstore.resolved.plist

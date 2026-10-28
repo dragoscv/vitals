@@ -15,6 +15,7 @@ struct VitalsApp: App {
     @State private var lan = LanMonitor()
     @State private var sample = SampleMode()
     @State private var health = HealthStore()
+    @State private var watch: WatchBridge?
     @Environment(\.scenePhase) private var phase
 
     var body: some Scene {
@@ -26,6 +27,12 @@ struct VitalsApp: App {
                 .environment(sample)
                 .environment(health)
                 .tint(Palette.accent)
+                .task {
+                    guard watch == nil else { return }
+                    let bridge = WatchBridge(store: store, hub: hub, sample: sample)
+                    bridge.start()
+                    watch = bridge
+                }
         }
     }
 }

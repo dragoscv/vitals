@@ -1,8 +1,10 @@
-//! How this copy of Vitals was installed: the direct installer, or the
-//! Microsoft Store (MSIX).
+//! How this copy of Vitals was installed: the direct installer, the
+//! Microsoft Store (MSIX) or the Mac App Store.
 //!
-//! One binary serves both, so Store policy is applied at run time. Inside a
-//! package three features are switched off, each for a concrete reason:
+//! On Windows one binary serves both, so Store policy is applied at run time.
+//! The Mac App Store build is a separate, sandboxed build (Cargo feature
+//! `app-store`, ADR 0041), so there it is decided at compile time. Inside a
+//! store three features are switched off, each for a concrete reason:
 //!
 //! * **self-update** — the Store updates packaged apps itself, and Store
 //!   policy (10.2.5) forbids an app updating its own code;
@@ -15,17 +17,40 @@ use crate::commands::CommandError;
 
 type CommandResult<T> = std::result::Result<T, CommandError>;
 
-/// Whether this process runs inside an MSIX package. Cached: package identity
-/// cannot change for the life of a process.
+/// Whether this process runs inside a store package: an MSIX package on
+/// Windows (cached: package identity cannot change for the life of a
+/// process), or the sandboxed Mac App Store build.
 pub fn packaged() -> bool {
     #[cfg(windows)]
     {
         static PACKAGED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
         *PACKAGED.get_or_init(vitals_win::host::is_packaged)
     }
-    #[cfg(not(windows))]
+    #[cfg(target_os = "macos")]
+    {
+        cfg!(feature = "app-store")
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
     {
         false
+    }
+}
+
+/// Which store a packaged copy came from, for the words the UI shows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Store {
+    Microsoft,
+    MacAppStore,
+}
+
+pub fn store() -> Option<Store> {
+    if !packaged() {
+        None
+    } else if cfg!(target_os = "macos") {
+        Some(Store::MacAppStore)
+    } else {
+        Some(Store::Microsoft)
     }
 }
 
@@ -33,9 +58,11 @@ pub fn packaged() -> bool {
 #[derive(Debug, Clone, Copy, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Distribution {
-    /// Installed from the Microsoft Store: updates come from the Store, and
-    /// the Task Manager hook and sensors service are unavailable.
+    /// Installed from a store: updates come from the store, and the Task
+    /// Manager hook, sensors service and watchdog are unavailable.
     pub packaged: bool,
+    /// Which store, when packaged.
+    pub store: Option<Store>,
 }
 
 /// How this copy was installed. Desktop-only: a LAN client has no use for it.
@@ -45,6 +72,7 @@ pub struct Distribution {
 pub fn get_distribution() -> CommandResult<Distribution> {
     Ok(Distribution {
         packaged: packaged(),
+        store: store(),
     })
 }
 
@@ -52,6 +80,11 @@ pub fn get_distribution() -> CommandResult<Distribution> {
 /// UI states a reason instead of a UAC prompt that leads nowhere.
 pub fn store_refusal(feature: &str) -> CommandError {
     CommandError::Unsupported {
-        message: format!("{feature} is not available in the Microsoft Store version"),
+        message: match store() {
+            Some(Store::MacAppStore) => {
+                format!("{feature} is not available in the Mac App Store version")
+            }
+            _ => format!("{feature} is not available in the Microsoft Store version"),
+        },
     }
 }

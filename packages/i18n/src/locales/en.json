@@ -244,6 +244,7 @@
       "lanServer": "The LAN server for your phone and other tools is off until you turn it on, and only answers devices on your own network. A local-only connection on 127.0.0.1 is always open so the vitals command-line tool can reach the app.",
       "updates": "The only request Vitals makes by itself is an update check to GitHub, about 20 seconds after launch. GitHub sees your IP address and the app version, as with any download. Turn it off under About.",
       "updatesStore": "Vitals makes no requests by itself. Updates come from the Microsoft Store.",
+      "updatesMacAppStore": "Vitals makes no requests by itself. Updates come from the Mac App Store.",
       "policy": "Read the privacy policy"
     },
     "about": {
@@ -288,6 +289,7 @@
         "auto": "Install updates automatically",
         "autoHint": "Checks GitHub shortly after launch and installs a signed update when you quit, or once you have been away for ten minutes with Vitals only in the tray. Nothing is installed while you are using Vitals.",
         "store": "Updates come from the Microsoft Store.",
+        "macAppStore": "Updates come from the Mac App Store.",
         "pending": "Version {{version}} is downloaded. It installs when you quit Vitals, or the next time you step away for ten minutes.",
         "pendingApproval": "Version {{version}} is downloaded. Vitals is installed for everyone on this PC, so Windows asks an administrator to approve the update. Restart to update when you are ready.",
         "installedToast": "Vitals updated to {{version}}",

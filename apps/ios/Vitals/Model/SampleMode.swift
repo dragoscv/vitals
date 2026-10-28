@@ -12,10 +12,17 @@ import VitalsCore
 final class SampleMode {
     static let id = "sample"
     var enabled: Bool {
-        didSet { UserDefaults.standard.set(enabled, forKey: "sampleEnabled") }
+        didSet {
+            UserDefaults.standard.set(enabled, forKey: "sampleEnabled")
+            onChange?()
+        }
     }
 
-    private(set) var view: MachineView?
+    private(set) var view: MachineView? {
+        didSet { onChange?() }
+    }
+    /// Told of every sample tick and toggle (the watch bridge).
+    @ObservationIgnored var onChange: (@MainActor () -> Void)?
     private(set) var cpuHistory: [Double] = []
     private(set) var memHistory: [Double] = []
     private var ticker: Task<Void, Never>?
