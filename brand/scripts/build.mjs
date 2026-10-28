@@ -6,6 +6,8 @@
 //   brand/icons/msix/*                 MSIX AppList targetsize + unplated + lightunplated, tiles, StoreLogo
 //   brand/icons/play-512.png           Google Play listing icon
 //   apps/desktop/src-tauri/icons/*          Tauri bundle icons + icon.ico (16–256, 32 first)
+//   apps/desktop/src-tauri/icons/icon.icns  macOS bundle icon (PNG-in-ICNS, 16–1024)
+//   apps/ios/Vitals/Assets.xcassets/AppIcon.appiconset/*  iOS 1024 opaque full-bleed (iOS masks it)
 //   apps/site/public/*                      favicon.svg/.ico, apple-touch, manifest icons, og.svg/.png, logo
 //   apps/android/**/res/drawable/*.xml      adaptive fg/mono, status icon, TV banner, Wear fg/bg
 //   apps/tizen/public/icon.png              Tizen launcher icon
@@ -117,6 +119,24 @@ function ico(entries) {
     offset += data.length;
   });
   return Buffer.concat([head, ...entries.map((e) => e.data)]);
+}
+
+/**
+ * PNG-in-ICNS (macOS 10.7+). Each OSType holds a PNG at its pixel size; the
+ * @2x types reuse the next size up. Tauri copies the file into the bundle as is.
+ */
+function icns(entries) {
+  const chunks = entries.map(({ type, data }) => {
+    const h = Buffer.alloc(8);
+    h.write(type, 0, 'ascii');
+    h.writeUInt32BE(data.length + 8, 4);
+    return Buffer.concat([h, data]);
+  });
+  const body = Buffer.concat(chunks);
+  const head = Buffer.alloc(8);
+  head.write('icns', 0, 'ascii');
+  head.writeUInt32BE(body.length + 8, 4);
+  return Buffer.concat([head, body]);
 }
 
 // ---------- Android vectors ----------
@@ -364,6 +384,57 @@ for (const s of [30, 44, 71, 89, 107, 142, 150, 284, 310])
   pngTo(tauri(`Square${s}x${s}Logo.png`), iconSvg(s), s);
 pngTo(tauri('StoreLogo.png'), iconSvg(50), 50);
 const icoSizes = [32, 16, 20, 24, 30, 36, 40, 48, 60, 64, 72, 80, 96, 256];
+// macOS: the plate already has Big Sur-style rounded corners and margin.
+const icnsTypes = [
+  ['icp4', 16],
+  ['icp5', 32],
+  ['ic11', 32],
+  ['icp6', 64],
+  ['ic12', 64],
+  ['ic07', 128],
+  ['ic08', 256],
+  ['ic13', 256],
+  ['ic09', 512],
+  ['ic14', 512],
+  ['ic10', 1024],
+];
+tasks.push(
+  Promise.all(
+    icnsTypes.map(async ([type, px]) => ({ type, data: await png(iconSvg(px), px) })),
+  ).then((entries) => write(tauri('icon.icns'), icns(entries))),
+);
+// iOS: one 1024 opaque square; the OS draws the squircle. Alpha is rejected
+// by App Store Connect ("The app icon ... can't be transparent").
+tasks.push(
+  sharp(Buffer.from(bleedSvg(1024, 0.62)), { density: 288 })
+    .resize(1024, 1024)
+    .flatten({ background: colour.tileTop.hex })
+    .removeAlpha()
+    .png()
+    .toBuffer()
+    .then((b) => {
+      const dir = 'apps/ios/Vitals/Assets.xcassets/AppIcon.appiconset';
+      write(at(dir, 'AppIcon-1024.png'), b);
+      write(
+        at(dir, 'Contents.json'),
+        JSON.stringify(
+          {
+            images: [
+              {
+                filename: 'AppIcon-1024.png',
+                idiom: 'universal',
+                platform: 'ios',
+                size: '1024x1024',
+              },
+            ],
+            info: { author: 'brand/scripts/build.mjs', version: 1 },
+          },
+          null,
+          2,
+        ) + '\n',
+      );
+    }),
+);
 tasks.push(
   Promise.all(icoSizes.map(async (px) => ({ px, data: await png(iconSvg(px), px) }))).then(
     (entries) => {

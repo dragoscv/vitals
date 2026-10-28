@@ -12,5 +12,20 @@ description = "macOS platform backend."
 [dependencies]
 vitals-core = { workspace = true }
 
+[target.'cfg(target_os = "macos")'.dependencies]
+sysinfo = { workspace = true }
+libc = { workspace = true }
+tracing = { workspace = true }
+
+[features]
+# The Mac App Store build. The sandbox forbids reading other processes,
+# signalling them and opening the SMC/HID sensor clients, so this feature
+# switches sysinfo to its sandbox mode and makes the capability report say so
+# instead of letting those readings come back empty and look like zeroes.
+app-store = ["sysinfo/apple-app-store"]
+
+[dev-dependencies]
+serde_json = { workspace = true }
+
 [lints]
 workspace = true

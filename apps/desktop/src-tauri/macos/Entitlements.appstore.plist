@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Mac App Store build (guideline 2.4.5(i): sandboxed). The application and
+  team identifiers are filled in by scripts/macos/build-appstore.sh from the
+  team id, so no id is committed here twice.
+  - network.server: the LAN server (off until the user turns it on).
+  - network.client: Bonjour browse + the agents page's local requests.
+  No file, camera, microphone or hardware entitlements: Vitals reads none.
+-->
+<plist version="1.0">
+<dict>
+  <key>com.apple.security.app-sandbox</key>
+  <true/>
+  <key>com.apple.security.network.server</key>
+  <true/>
+  <key>com.apple.security.network.client</key>
+  <true/>
+  <key>com.apple.application-identifier</key>
+  <string>TEAM_ID.app.vitals.desktop</string>
+  <key>com.apple.developer.team-identifier</key>
+  <string>TEAM_ID</string>
+</dict>
+</plist>

@@ -1,6 +1,6 @@
 ---
 title: Download
-description: Download Vitals for Windows, verify the installer, and learn about updates, silent installs and uninstalling.
+description: Download Vitals for Windows and macOS, verify the installer, and learn about updates, silent installs and uninstalling.
 ---
 
 import { Aside, LinkButton } from '@astrojs/starlight/components';
@@ -17,7 +17,7 @@ import { Aside, LinkButton } from '@astrojs/starlight/components';
 </LinkButton>
 
 <Aside type="note" title="Vitals 1.0">
-  Windows 10 and 11. Windows only on the desktop; there are no dated plans for macOS or Linux.
+  Windows 10 and 11, and macOS 13 or later. There are no dated plans for Linux.
 </Aside>
 
 ## Ways to install
@@ -38,11 +38,12 @@ winget and Scoop update with every release automatically.
 
 <div class="downloads">
 
-| File                                                                                                           | Platform                | Status  |
-| -------------------------------------------------------------------------------------------------------------- | ----------------------- | ------- |
-| [`Vitals_x64-setup.exe`](https://github.com/dragoscv/vitals/releases/latest/download/Vitals_x64-setup.exe)     | Windows, x64            | Stable  |
-| [`Vitals_arm64-setup.exe`](https://github.com/dragoscv/vitals/releases/latest/download/Vitals_arm64-setup.exe) | Windows, ARM64          | Preview |
-| [`SHA256SUMS.txt`](https://github.com/dragoscv/vitals/releases/latest/download/SHA256SUMS.txt)                 | Checksums for all files | —       |
+| File                                                                                                           | Platform                           | Status  |
+| -------------------------------------------------------------------------------------------------------------- | ---------------------------------- | ------- |
+| [`Vitals_x64-setup.exe`](https://github.com/dragoscv/vitals/releases/latest/download/Vitals_x64-setup.exe)     | Windows, x64                       | Stable  |
+| [`Vitals_arm64-setup.exe`](https://github.com/dragoscv/vitals/releases/latest/download/Vitals_arm64-setup.exe) | Windows, ARM64                     | Preview |
+| [`Vitals_universal.dmg`](https://github.com/dragoscv/vitals/releases/latest/download/Vitals_universal.dmg)     | macOS 13+, Apple silicon and Intel | Preview |
+| [`SHA256SUMS.txt`](https://github.com/dragoscv/vitals/releases/latest/download/SHA256SUMS.txt)                 | Checksums for all files            | —       |
 
 </div>
 
@@ -56,6 +57,16 @@ APKs: `Vitals_<version>_android.apk` for phones, `_wear.apk` for Wear OS and `_t
 and Google TV. Each monitors the device it runs on and can watch paired Windows PCs on your local
 network. Android asks you to allow installs from your browser or file manager the first time.
 Google Play listings are coming later.
+
+The iPhone app, **Vitals: System Monitor**, watches paired PCs and Macs on your local network. It
+is in Apple's review; the App Store link appears here once it is approved.
+
+## macOS
+
+The disk image is signed with a Developer ID and notarised by Apple, so it opens without a warning.
+Drag Vitals to Applications. It reads processor, memory, swap, disks, network, temperatures and
+every process of your user, and can end, pause or reprioritise them. Readings a Mac does not report
+— committed memory, per-process graphics use — show as a dash, never as zero.
 
 ## System requirements
 

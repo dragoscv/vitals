@@ -640,15 +640,43 @@ fn keyframe_wanted(app: &AppHandle) -> bool {
     pipe || webview
 }
 
-/// Placeholder until the other platform backends land.
+/// The macOS backend: same shape as the Windows one minus the Windows-only
+/// extras (per-session roll-up, startup impact), which the loop gates on
+/// `cfg(windows)` itself.
+#[cfg(target_os = "macos")]
+struct Backend {
+    sampler: vitals_macos::SystemSampler,
+    frames: vitals_macos::FrameBuilder,
+}
+
+#[cfg(target_os = "macos")]
+impl Backend {
+    fn new() -> Self {
+        Self {
+            sampler: vitals_macos::SystemSampler::new(),
+            frames: vitals_macos::FrameBuilder::new(),
+        }
+    }
+
+    fn next_frame(&mut self) -> vitals_core::error::Result<vitals_core::sample::Frame> {
+        let sample = self.sampler.sample()?;
+        Ok(self.frames.build(sample))
+    }
+
+    fn request_keyframe(&mut self) {
+        self.frames.request_keyframe();
+    }
+}
+
+/// Placeholder until the Linux backend lands.
 ///
 /// Fails rather than returning fabricated data: an empty dashboard is
 /// obviously unfinished, whereas plausible zeroes look like a working app
 /// reporting a suspiciously idle machine.
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "macos")))]
 struct Backend;
 
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "macos")))]
 // Same method set as the Windows backend so the sampling loop is written
 // once; this one has no state to read, which clippy calls an unused `self`.
 #[allow(clippy::unused_self)]

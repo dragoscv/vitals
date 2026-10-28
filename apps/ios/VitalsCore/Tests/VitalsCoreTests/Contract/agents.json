@@ -1,0 +1,104 @@
+{
+  "agentqInstalled": true,
+  "cloudDown": [],
+  "jobs": [],
+  "journal": [],
+  "leases": [],
+  "machine": null,
+  "marks": [],
+  "registry": [],
+  "releases": [],
+  "resources": [
+    {
+      "capacity": 1,
+      "kind": "build",
+      "name": "build:codai",
+      "tickets": [
+        {
+          "acquiredMs": 1700000001000,
+          "beatMs": 1700000002000,
+          "cmd": "pnpm test",
+          "createdMs": 1700000000000,
+          "held": true,
+          "id": "t1",
+          "lane": "gate",
+          "liveness": "alive",
+          "pid": 4242,
+          "priority": 0,
+          "purpose": "vitest gate",
+          "repo": "codai",
+          "resource": "build:codai",
+          "seq": 1,
+          "session": "sess-1",
+          "wedged": false,
+          "yielded": false
+        },
+        {
+          "acquiredMs": null,
+          "beatMs": 1700000002000,
+          "cmd": "pnpm test",
+          "createdMs": 1700000000000,
+          "held": false,
+          "id": "t2",
+          "lane": "gate",
+          "liveness": "alive",
+          "pid": 4242,
+          "priority": 0,
+          "purpose": "vitest gate",
+          "repo": "codai",
+          "resource": "build:codai",
+          "seq": 1,
+          "session": "sess-1",
+          "wedged": false,
+          "yielded": false
+        }
+      ]
+    }
+  ],
+  "sessions": [
+    {
+      "activeMs": 2500,
+      "branch": "main",
+      "client": "vscodeCopilot",
+      "currentTool": "run_in_terminal",
+      "host": "local",
+      "id": "sess-1",
+      "lastActivityMs": 1700000002500,
+      "model": null,
+      "pid": null,
+      "repo": "vitals",
+      "startedMs": 1700000000000,
+      "state": "working",
+      "title": "expose the AI page on the LAN",
+      "tokensIn": null,
+      "tokensOut": null,
+      "toolCalls": 3,
+      "toolFailures": 0,
+      "topTools": [
+        {
+          "count": 2,
+          "name": "read_file"
+        }
+      ],
+      "turns": 1,
+      "userMessages": 1,
+      "workspace": null
+    }
+  ],
+  "stats": {
+    "byRepo": [],
+    "cloudRuns": 0,
+    "commits": 0,
+    "failures": 0,
+    "holdP50Sec": null,
+    "holdP90Sec": null,
+    "holdTotalSec": 0.0,
+    "runs": 0,
+    "runsPerHour": [],
+    "waitP50Sec": null,
+    "waitP90Sec": null,
+    "waitTotalSec": 0.0,
+    "windowHours": 0
+  },
+  "takenAtMs": 1700000003000
+}

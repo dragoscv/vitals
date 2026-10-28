@@ -181,6 +181,7 @@
     "notSupported": "Not available on this system",
     "disabledByUser": "Turned off in settings",
     "notImplemented": "Not built yet",
+    "appSandbox": "Not allowed in the App Store version. The download from the website can do this.",
     "enable": "Enable",
     "learnMore": "Learn more"
   },

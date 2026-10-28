@@ -525,10 +525,11 @@ fn evaluate(s: &SystemMetrics) -> Vec<Alert> {
         }
     }
 
-    if s.memory.commit_limit.get() > 0 {
+    if let (Some(committed), Some(limit)) = (s.memory.committed, s.memory.commit_limit)
+        && limit.get() > 0
+    {
         #[allow(clippy::cast_precision_loss)]
-        let commit_percent =
-            s.memory.committed.get() as f64 / s.memory.commit_limit.get() as f64 * 100.0;
+        let commit_percent = committed.get() as f64 / limit.get() as f64 * 100.0;
         if commit_percent > thresholds::COMMIT_PERCENT {
             out.push(alert(
                 AlertKind::MemoryCommit,

@@ -125,11 +125,16 @@ pub struct MemoryMetrics {
     /// Cached file data. Counted as available, because it is.
     pub cached: Bytes,
     /// Kernel memory that can be paged out.
-    pub paged_pool: Bytes,
+    ///
+    /// This and the next four fields are Windows concepts. macOS has no
+    /// commit charge and no paged/non-paged pool split, and a `0` there would
+    /// read as "nothing committed" — so they are `None` where the platform
+    /// has no such quantity, never a fabricated zero.
+    pub paged_pool: Option<Bytes>,
     /// Kernel memory that cannot.
-    pub non_paged_pool: Bytes,
-    pub committed: Bytes,
-    pub commit_limit: Bytes,
+    pub non_paged_pool: Option<Bytes>,
+    pub committed: Option<Bytes>,
+    pub commit_limit: Option<Bytes>,
     pub swap_total: Bytes,
     /// Page file / swap actually occupied.
     ///
@@ -139,8 +144,9 @@ pub struct MemoryMetrics {
     /// Zero would be a lie — an idle page file and an unmeasured one are
     /// different facts.
     pub swap_used: Option<Bytes>,
-    /// Hardware-reserved, invisible to the OS.
-    pub hardware_reserved: Bytes,
+    /// Hardware-reserved, invisible to the OS. `None` until something
+    /// actually reads the firmware tables.
+    pub hardware_reserved: Option<Bytes>,
     /// Page faults per second — the real indicator of memory pressure.
     /// A machine at 90% RAM with no faulting is fine; one at 60% that is
     /// thrashing is not, and only this number distinguishes them.
@@ -162,10 +168,14 @@ impl MemoryMetrics {
     ///
     /// High utilisation alone is not pressure — unused RAM is wasted RAM.
     /// Pressure is utilisation *plus* commit approaching its limit, which is
-    /// when allocations start failing and the machine falls over.
+    /// when allocations start failing and the machine falls over. Without a
+    /// commit figure (macOS) this cannot be judged and answers `false`.
     #[must_use]
     pub fn is_under_pressure(&self) -> bool {
-        let commit_ratio = Percent::ratio(self.committed.get(), self.commit_limit.get());
+        let (Some(committed), Some(limit)) = (self.committed, self.commit_limit) else {
+            return false;
+        };
+        let commit_ratio = Percent::ratio(committed.get(), limit.get());
         self.used_percent().get() > 85.0 && commit_ratio.get() > 90.0
     }
 }
@@ -382,10 +392,20 @@ mod tests {
         MemoryMetrics {
             total: Bytes(total),
             used: Bytes(used),
-            committed: Bytes(committed),
-            commit_limit: Bytes(limit),
+            committed: Some(Bytes(committed)),
+            commit_limit: Some(Bytes(limit)),
             ..Default::default()
         }
+    }
+
+    #[test]
+    fn no_commit_figure_is_never_judged_as_pressure() {
+        let m = MemoryMetrics {
+            total: Bytes(100),
+            used: Bytes(99),
+            ..Default::default()
+        };
+        assert!(!m.is_under_pressure());
     }
 
     #[test]

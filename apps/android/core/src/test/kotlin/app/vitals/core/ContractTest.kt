@@ -76,6 +76,16 @@ class ContractTest {
     }
 
     @Test
+    fun a_mac_frame_keeps_the_windows_only_memory_figures_null() {
+        val m = roundTrip("keyframe_macos.json", Frame.serializer()).payload.system.memory
+        assertNull(m.committed)
+        assertNull(m.commitLimit)
+        assertNull(m.pagedPool)
+        assertNull(m.nonPagedPool)
+        assertNull(m.hardwareReserved)
+    }
+
+    @Test
     fun a_delta_carries_exits_and_changes() {
         val frame = roundTrip("delta.json", Frame.serializer())
         val d = frame.payload as FramePayload.Delta

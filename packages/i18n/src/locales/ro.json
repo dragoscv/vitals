@@ -182,6 +182,7 @@
     "noSuchHardware": "Componentele tale nu raportează această valoare",
     "notSupported": "Indisponibil pe acest sistem",
     "notImplemented": "Nu este construită încă",
+    "appSandbox": "Nu este permisă în versiunea din App Store. Versiunea descărcată de pe site poate face asta.",
     "disabledByUser": "Dezactivat în setări",
     "enable": "Activează",
     "learnMore": "Află mai multe"

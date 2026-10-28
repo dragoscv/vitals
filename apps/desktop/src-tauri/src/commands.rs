@@ -56,6 +56,12 @@ impl From<vitals_core::Error> for CommandError {
 
 type CommandResult<T> = std::result::Result<T, CommandError>;
 
+// Tauri's `generate_handler!` resolves `commands::x` to the hidden
+// `__cmd__x` macro beside `x`, so a glob re-export keeps one handler entry per
+// command for both platforms.
+#[cfg(target_os = "macos")]
+pub use crate::macos_actions::*;
+
 /// Static machine facts, fetched once at startup.
 ///
 /// Read on demand rather than cached in state: it is a few milliseconds, it
@@ -69,10 +75,15 @@ pub fn get_host_info() -> CommandResult<HostInfo> {
         Ok(vitals_win::hostinfo::read())
     }
 
-    #[cfg(not(windows))]
+    #[cfg(target_os = "macos")]
+    {
+        Ok(vitals_macos::host_info())
+    }
+
+    #[cfg(not(any(windows, target_os = "macos")))]
     {
         Err(CommandError::Unsupported {
-            message: "host info needs a platform backend, and only Windows has one".into(),
+            message: "host info needs a platform backend, and this platform has none yet".into(),
         })
     }
 }

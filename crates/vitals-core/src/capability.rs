@@ -119,6 +119,11 @@ pub enum Unavailable {
     NeedsPlugin,
     /// The user has explicitly disabled it in settings.
     DisabledByUser,
+    /// The store build runs in an app sandbox that forbids it (Mac App
+    /// Store: other processes, signals, hardware sensors). The direct
+    /// download of the same app can do it, so the UI says which build to get
+    /// rather than calling the feature unsupported.
+    AppSandbox,
     /// Vitals has not built it yet. The platform could do it; we cannot.
     ///
     /// Distinct from the other reasons because none of them are the user's

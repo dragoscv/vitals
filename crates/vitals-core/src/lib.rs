@@ -25,8 +25,9 @@ pub mod alerts;
 pub mod capability;
 pub mod diagnosis;
 pub mod error;
-#[cfg(feature = "fixtures")]
+#[cfg(any(test, feature = "fixtures"))]
 pub mod fixtures;
+pub mod frame;
 pub mod history;
 pub mod ids;
 #[macro_use]
@@ -42,6 +43,7 @@ pub mod units;
 
 pub use capability::{Capabilities, Capability};
 pub use error::{Error, Result};
+pub use frame::FrameEncoder;
 pub use history::MachineSample;
 pub use ids::{DiskId, GpuId, NicId, Pid, SensorId, Tid};
 pub use process::{

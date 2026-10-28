@@ -202,18 +202,22 @@ fn host_info() -> Option<vitals_core::provider::HostInfo> {
     {
         Some(vitals_win::hostinfo::read())
     }
-    #[cfg(not(windows))]
+    #[cfg(target_os = "macos")]
+    {
+        Some(vitals_macos::host_info())
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
     {
         None
     }
 }
 
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 fn direct_alerts(direct: &Direct) -> Vec<Alert> {
     direct.active_alerts()
 }
 
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "macos")))]
 fn direct_alerts(_direct: &Direct) -> Vec<Alert> {
     Vec::new()
 }

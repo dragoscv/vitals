@@ -59,6 +59,15 @@ tracing-subscriber = { version = "0.3.23", features = ["env-filter", "fmt"] }
 tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "sync", "time", "io-util"] }
 parking_lot = "0.12.5"
 
+# macOS backend (vitals-macos). sysinfo carries the bulk of the readings
+# (CPU, memory, swap, volumes, interfaces, processes, SMC/HID temperatures);
+# default features off so the Windows build never compiles it and so the
+# Mac App Store build can add `apple-sandbox` honestly. Exact pin: its MSRV
+# (1.95) is above the workspace rust-version, and resolver 3 would otherwise
+# fall back to an older release silently.
+sysinfo = { version = "=0.39.6", default-features = false, features = ["system", "disk", "network", "component", "user"] }
+libc = "0.2"
+
 # Data
 rusqlite = { version = "0.40.2", features = ["bundled"] }
 

@@ -93,7 +93,12 @@ export function MemoryPanel({
           {
             key: 'committed',
             label: t('memory.committed'),
-            value: `${formatBytes(memory.committed, locale)} / ${formatBytes(memory.commitLimit, locale)}`,
+            // Commit, pools and hardware-reserved are Windows concepts; on
+            // macOS they are null and the row is omitted rather than dashed.
+            value:
+              memory.committed !== null && memory.commitLimit !== null
+                ? `${formatBytes(memory.committed, locale)} / ${formatBytes(memory.commitLimit, locale)}`
+                : null,
             hint: t('memory.commitHint'),
           },
           {
@@ -109,12 +114,12 @@ export function MemoryPanel({
           {
             key: 'paged',
             label: t('memory.pagedPool'),
-            value: formatBytes(memory.pagedPool, locale),
+            value: memory.pagedPool !== null ? formatBytes(memory.pagedPool, locale) : null,
           },
           {
             key: 'nonPaged',
             label: t('memory.nonPagedPool'),
-            value: formatBytes(memory.nonPagedPool, locale),
+            value: memory.nonPagedPool !== null ? formatBytes(memory.nonPagedPool, locale) : null,
           },
           {
             key: 'swap',
@@ -132,7 +137,10 @@ export function MemoryPanel({
           {
             key: 'reserved',
             label: t('memory.hardwareReserved'),
-            value: formatBytes(memory.hardwareReserved, locale),
+            value:
+              memory.hardwareReserved !== null
+                ? formatBytes(memory.hardwareReserved, locale)
+                : null,
           },
           {
             key: 'speed',

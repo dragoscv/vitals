@@ -24,12 +24,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  cached      {:8.2} GiB", gib(m.cached.get()));
     println!();
     println!("commit");
-    println!("  charged     {:8.2} GiB", gib(m.committed.get()));
-    println!("  limit       {:8.2} GiB", gib(m.commit_limit.get()));
+    let opt = |b: Option<vitals_core::units::Bytes>| b.map_or(0.0, |b| gib(b.get()));
+    println!("  charged     {:8.2} GiB", opt(m.committed));
+    println!("  limit       {:8.2} GiB", opt(m.commit_limit));
     println!();
     println!("kernel pools");
-    println!("  paged       {:8.2} GiB", gib(m.paged_pool.get()));
-    println!("  non-paged   {:8.2} GiB", gib(m.non_paged_pool.get()));
+    println!("  paged       {:8.2} GiB", opt(m.paged_pool));
+    println!("  non-paged   {:8.2} GiB", opt(m.non_paged_pool));
     println!();
     println!("page file");
     println!("  size        {:8.2} GiB", gib(m.swap_total.get()));
@@ -44,8 +45,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let pressure = classify_pressure(PressureInputs {
         physical_total: m.total,
         physical_available: m.available,
-        commit_used: m.committed,
-        commit_limit: m.commit_limit,
+        commit_used: m.committed.unwrap_or_default(),
+        commit_limit: m.commit_limit.unwrap_or_default(),
         hard_faults_per_sec: m.page_faults_per_sec,
     });
     println!("pressure: {pressure:?}");

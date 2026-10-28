@@ -1,0 +1,30 @@
+[
+  {
+    "ts": 1700000000,
+    "cpuPercent": 33.5,
+    "cpuKernelPercent": 4.25,
+    "memoryUsed": 9663676416,
+    "memoryTotal": 17179869184,
+    "diskReadBps": 1048576,
+    "diskWriteBps": 524288,
+    "netRxBps": 131072,
+    "netTxBps": 65536,
+    "gpuPercent": 16.0,
+    "cpuTempC": 81.5,
+    "powerDrawW": 320.0
+  },
+  {
+    "ts": 1700000060,
+    "cpuPercent": 33.5,
+    "cpuKernelPercent": 4.25,
+    "memoryUsed": 9663676416,
+    "memoryTotal": 17179869184,
+    "diskReadBps": 1048576,
+    "diskWriteBps": 524288,
+    "netRxBps": 131072,
+    "netTxBps": 65536,
+    "gpuPercent": null,
+    "cpuTempC": null,
+    "powerDrawW": null
+  }
+]

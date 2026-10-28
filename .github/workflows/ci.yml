@@ -255,6 +255,54 @@ jobs:
       - name: Fail if bindings drifted
         run: git diff --exit-code -- packages/protocol/src/generated
 
+  # The Apple platforms (ADR 0041): the macOS sampler is real code against
+  # Mach and IOKit, and the iPhone app shares its wire types with the Rust
+  # side through the contract fixtures. Free on a public repository; skipped
+  # with the rest of the Rust legs when only prose changed.
+  apple:
+    name: Apple (macOS + iOS)
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # rust-toolchain.toml
+        with:
+          toolchain: 1.99.0
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          shared-key: macos
+          cache-on-failure: true
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      # The crates a macOS build ships, plus both sampler flavours: the Mac
+      # App Store build turns off what the sandbox forbids, and it must
+      # still compile and pass.
+      - name: Clippy (macOS crates)
+        run: cargo clippy -p vitals-core -p vitals-macos -p vitals-server -p vitals-cli --all-targets -- -D warnings
+
+      - name: Test (macOS sampler, real machine)
+        run: cargo test -p vitals-macos -p vitals-core
+
+      - name: Test (Mac App Store flavour)
+        run: cargo test -p vitals-macos --features app-store
+
+      # Regenerates the iOS contract fixtures from Rust, then the Swift tests
+      # decode them: a field renamed on one side goes red here.
+      - name: Contract fixtures
+        run: |
+          cargo test -p vitals-server --test android_contract
+          git diff --exit-code -- apps/ios/VitalsCore/Tests apps/android/core/src/test
+
+      - name: Swift tests (VitalsCore)
+        run: bash apps/ios/scripts/build.sh test
+
+      - name: iPhone app compiles (unsigned)
+        run: bash apps/ios/scripts/build.sh build
+
   frontend:
     name: Frontend
     runs-on: ubuntu-latest

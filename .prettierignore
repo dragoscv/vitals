@@ -22,6 +22,9 @@ THIRD_PARTY_NOTICES.md
 apps/site/.astro/
 # Written by crates/vitals-server/tests/android_contract.rs from real frames
 apps/android/core/src/test/resources/contract/
+apps/ios/VitalsCore/Tests/VitalsCoreTests/Contract/
+# Written by scripts/ios-sample.mjs for the iPhone app's Sample PC
+apps/ios/Vitals/Resources/sample-*.json
 
 # Lockfiles
 pnpm-lock.yaml

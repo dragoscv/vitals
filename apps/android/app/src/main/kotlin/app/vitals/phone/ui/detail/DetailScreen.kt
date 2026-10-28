@@ -249,10 +249,13 @@ private fun LazyListScope.memory(system: SystemMetrics) = item(key = "memory") {
         Text(stringResource(R.string.memory_used_of, Format.bytes(m.used), Format.bytes(m.total)))
         InfoRow(stringResource(R.string.memory_available), Format.bytes(m.available))
         InfoRow(stringResource(R.string.memory_cached), Format.bytes(m.cached))
-        InfoRow(
-            stringResource(R.string.memory_committed),
-            stringResource(R.string.memory_used_of, Format.bytes(m.committed), Format.bytes(m.commitLimit)),
-        )
+        // Commit is a Windows quantity; a Mac sends null and the row is left out.
+        if (m.committed != null && m.commitLimit != null) {
+            InfoRow(
+                stringResource(R.string.memory_committed),
+                stringResource(R.string.memory_used_of, Format.bytes(m.committed), Format.bytes(m.commitLimit)),
+            )
+        }
     }
 }
 

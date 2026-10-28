@@ -391,7 +391,53 @@ impl Controller for DesktopController {
         })
     }
 
-    #[cfg(not(windows))]
+    #[cfg(target_os = "macos")]
+    fn apply(&self, request: ControlRequest) -> Result<(), ControlError> {
+        use vitals_core::provider::Priority;
+
+        let outcome = match request {
+            ControlRequest::Terminate { key } => vitals_macos::terminate(key),
+            ControlRequest::Suspend { key } => vitals_macos::suspend(key),
+            ControlRequest::Resume { key } => vitals_macos::resume(key),
+            ControlRequest::SetPriority { key, priority } => {
+                let priority = match priority.as_str() {
+                    "idle" => Priority::Idle,
+                    "below-normal" => Priority::BelowNormal,
+                    "normal" => Priority::Normal,
+                    "above-normal" => Priority::AboveNormal,
+                    "high" => Priority::High,
+                    // Same reasoning as Windows: a phone gets no warning
+                    // dialog, so it does not get the option.
+                    "realtime" => return Err(ControlError::AccessDenied),
+                    other => {
+                        return Err(ControlError::Unsupported {
+                            message: format!("unknown priority {other:?}"),
+                        });
+                    }
+                };
+                vitals_macos::set_priority(key, priority)
+            }
+            ControlRequest::SetEfficiencyMode { .. } => {
+                return Err(ControlError::Unsupported {
+                    message: "efficiency mode is a Windows feature".into(),
+                });
+            }
+        };
+        outcome.map_err(|error| match error {
+            vitals_core::Error::AccessDenied { .. } | vitals_core::Error::Refused(_) => {
+                ControlError::AccessDenied
+            }
+            vitals_core::Error::NotFound(_) => ControlError::NotFound,
+            vitals_core::Error::Unsupported(capability) => ControlError::Unsupported {
+                message: format!("{capability:?} is not available"),
+            },
+            other => ControlError::Internal {
+                message: other.to_string(),
+            },
+        })
+    }
+
+    #[cfg(not(any(windows, target_os = "macos")))]
     fn apply(&self, _request: ControlRequest) -> Result<(), ControlError> {
         Err(ControlError::Unsupported {
             message: "no process backend on this platform".into(),

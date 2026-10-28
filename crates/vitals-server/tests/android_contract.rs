@@ -1,4 +1,8 @@
-//! Writes the JSON the Android apps must decode (ADR-0033).
+//! Writes the JSON the Android and iOS apps must decode (ADR-0033, ADR-0041).
+//!
+//! Every file goes to both native clients' test resources, so the Kotlin
+//! `ContractTest` and the Swift `VitalsCoreTests.Contract` decode the same
+//! bytes and neither copy can drift from what Rust serialises.
 //!
 //! The Kotlin models are hand-written, so nothing generates them from Rust.
 //! This test serialises real values — every optional field populated, and a
@@ -24,19 +28,23 @@ use vitals_core::remote::{SensorLine, Summary};
 use vitals_core::sample::{Frame, FramePayload, FrameSeq};
 use vitals_core::units::{Bytes, Celsius, Hertz, Percent, Watts};
 
-fn out_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../apps/android/core/src/test/resources/contract")
+fn out_dirs() -> [PathBuf; 2] {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    [
+        root.join("apps/android/core/src/test/resources/contract"),
+        root.join("apps/ios/VitalsCore/Tests/VitalsCoreTests/Contract"),
+    ]
 }
 
 fn write(name: &str, value: &impl serde::Serialize) {
-    let dir = out_dir();
-    std::fs::create_dir_all(&dir).unwrap();
     let mut text = serde_json::to_string_pretty(value).unwrap();
     text.push('\n');
-    let path = dir.join(name);
-    if std::fs::read_to_string(&path).ok().as_deref() != Some(text.as_str()) {
-        std::fs::write(path, text).unwrap();
+    for dir in out_dirs() {
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join(name);
+        if std::fs::read_to_string(&path).ok().as_deref() != Some(text.as_str()) {
+            std::fs::write(path, &text).unwrap();
+        }
     }
 }
 
@@ -124,6 +132,26 @@ fn full_process() -> vitals_core::process::Process {
     p
 }
 
+/// What a Mac sends: no commit charge, no pool split, no hardware-reserved
+/// figure. Every native client must decode it and keep those null.
+fn mac_frame() -> Frame {
+    let mut mac_system = fixtures::system();
+    mac_system.memory.paged_pool = None;
+    mac_system.memory.non_paged_pool = None;
+    mac_system.memory.committed = None;
+    mac_system.memory.commit_limit = None;
+    mac_system.memory.hardware_reserved = None;
+    Frame {
+        seq: FrameSeq(4),
+        timestamp_ms: 1_700_000_003_000,
+        elapsed_ms: 1_000,
+        payload: FramePayload::Keyframe {
+            system: mac_system,
+            processes: vec![fixtures::process("Finder", 412, 0.4)],
+        },
+    }
+}
+
 #[test]
 fn writes_the_android_contract_fixtures() {
     let sparse = fixtures::keyframe(1, vec![fixtures::process("idle.exe", 7, 0.0)]);
@@ -139,6 +167,8 @@ fn writes_the_android_contract_fixtures() {
         },
     };
     write("keyframe_full.json", &full);
+
+    write("keyframe_macos.json", &mac_frame());
 
     let delta = Frame {
         seq: FrameSeq(3),

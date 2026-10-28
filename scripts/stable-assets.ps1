@@ -23,7 +23,10 @@
 [CmdletBinding()]
 param(
   [Parameter(Mandatory)][string]$Directory,
-  [Parameter(Mandatory)][string]$Version
+  [Parameter(Mandatory)][string]$Version,
+  # The notarised macOS DMG joins the fixed names once macOS is published
+  # (PUBLISH_MACOS, ADR 0041); before that it is not in the directory.
+  [switch]$MacOS
 )
 $ErrorActionPreference = 'Stop'
 
@@ -32,6 +35,7 @@ $pairs = [ordered]@{
   "Vitals_${Version}_x64-setup.exe"   = 'Vitals_x64-setup.exe'
   "Vitals_${Version}_arm64-setup.exe" = 'Vitals_arm64-setup.exe'
 }
+if ($MacOS) { $pairs["Vitals_${Version}_universal.dmg"] = 'Vitals_universal.dmg' }
 
 # Missing is fatal: a release without one of these makes the "latest" link
 # for that architecture fall back to an older release, silently serving an
