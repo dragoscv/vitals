@@ -57,7 +57,9 @@ security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KCPW" "$
 # shellcheck disable=SC2086
 security list-keychains -d user -s "$KC" $OLD_KCS
 APP_ID="$(security find-identity -v -p codesigning "$KC" | sed -n 's/.*"\(Apple Distribution:[^"]*\)".*/\1/p' | head -1)"
-PKG_ID="$(security find-identity -v "$KC" | sed -n 's/.*"\(\(3rd Party Mac Developer Installer\|Mac Installer Distribution\):[^"]*\)".*/\1/p' | head -1)"
+# BSD sed has no `\|`, so the installer name is matched with grep -E. No
+# `-p` policy: installer identities are not code-signing ones.
+PKG_ID="$(security find-identity "$KC" | grep -oE '(3rd Party Mac Developer Installer|Mac Installer Distribution): [^"]+' | head -1 || true)"
 [ -n "$APP_ID" ] || { echo "no Apple Distribution identity in DIST_P12" >&2; exit 1; }
 [ -n "$PKG_ID" ] || { echo "no Mac Installer Distribution identity in INSTALLER_P12" >&2; exit 1; }
 log "app identity: $APP_ID"
