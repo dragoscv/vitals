@@ -7,6 +7,13 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.2.0] — 2026-10-28
+
+Vitals comes to Apple. In short:
+
+- macOS: a real, signed and notarised Mac app, published beside the Windows installer.
+- iPhone: a native app that watches your PCs and Macs on your network.
+
 ### Added
 
 - macOS: Vitals measures a Mac for real — processor per core, memory the

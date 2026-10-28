@@ -1,4 +1,4 @@
-Vitals 1.1.1
-• Wear OS: every screen fits round watches, small or large, with no text or button cut by the edge of the display
-• Long sensor and app names end in "…" instead of running off the screen
-• Keeps the version in step with the Windows app
+Vitals 1.2.0
+• Watch a Mac as well as a Windows PC: Vitals for macOS is out
+• Readings a computer does not report show a dash, never a zero
+• Keeps the version in step with the desktop app

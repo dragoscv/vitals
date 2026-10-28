@@ -57,19 +57,14 @@ Gratuit și open source (MIT). Disponibil în română și engleză.
 
 ## Ce e nou în această versiune (≤ 1500 caractere)
 
-Ce e nou în 1.1.1
+Ce e nou în 1.2.0
 
+• Vitals pentru Mac: aplicația desktop rulează acum pe macOS 13 sau mai nou (Apple silicon și Intel), semnată și notarizată de Apple, iar o aplicație pentru iPhone urmărește PC-urile și Mac-urile din rețeaua ta
+• Valorile de memorie pe care le are doar Windows apar ca liniuță pe alte sisteme, nu ca zero
+
+Nou în 1.1.1:
 • Listele pe viu stau pe loc: pe Performanță, Temperaturi, Panou și pagina AI o citire care apare și dispare își păstrează locul și arată o liniuță cât lipsește, iar cardurile și rândurile se reordonează la câteva secunde, nu la fiecare actualizare
 • Ține versiunea la pas cu aplicațiile de telefon, ceas și TV (aplicația de ceas încape acum pe ceasurile rotunde)
-
-Nou în 1.1.0:
-• Curățare pentru o singură unitate: fiecare card de unitate are butonul Curăță. Vitals măsoară ce se poate șterge, te lasă să bifezi pe grupuri cu spațiul eliberat de fiecare, arată programele pe care le oprește și le pornește la loc (Linux, Docker, activități programate, mașini virtuale) înainte să confirmi, afișează fiecare pas pe viu și spune ce a eliberat
-• Alegerile pentru o unitate pot fi ținute minte, iar curățarea obișnuită pornește dintr-un clic; alerta „unitate aproape plină” o deschide
-• Curățare săptămânală opțională pentru fiecare unitate: doar partea sigură, când PC-ul stă și e în priză, cu o notificare despre ce a eliberat
-• „De ce crește această unitate?”: creșterea pe zi în ultimele 24 de ore, 7 și 30 de zile și ce a crescut de la ultima verificare
-• Mută pas cu pas discul unei distribuții Linux (WSL) sau al Docker pe o unitate cu mai mult loc
-• Aplicații la pornire: activitățile programate arată cât de des rulează
-• Reparat: rotița mouse-ului derulează din nou pagina deasupra cardurilor și listelor, iar textul rămâne în chenar pe fiecare pagină
 
 ## Funcții (până la 20, ≤ 200 caractere fiecare)
 

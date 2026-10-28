@@ -57,19 +57,14 @@ Free and open source (MIT). Available in English and Romanian.
 
 ## What's new in this version (≤ 1500 characters)
 
-What's new in 1.1.1
+What's new in 1.2.0
 
+• Vitals for Mac: the desktop app now runs on macOS 13 or later (Apple silicon and Intel), signed and notarised by Apple, and an iPhone app watches your PCs and Macs on your network
+• Memory figures only Windows has show a dash on other systems instead of a zero
+
+New in 1.1.1:
 • Live lists stay still: on Performance, Thermals, the Dashboard and the AI page a reading that comes and goes keeps its place and shows a dash while missing, and cards and rows re-sort every few seconds instead of every update. Nothing moves under the pointer
 • Keeps the version in step with the phone, watch and TV apps (the watch app now fits round watches)
-
-New in 1.1.0:
-• Clean up a single drive: every drive card has a Clean up button. Vitals measures what can go, lets you tick it by group with the space each gives back, lists the programs it will stop and start again (Linux, Docker, scheduled tasks, virtual machines) before you confirm, shows each step live and reports what it freed
-• Remember your choices for a drive and run your usual clean-up in one click; a "drive nearly full" alert opens it
-• Optional weekly clean-up per drive: only the safe part, when the PC is idle and plugged in, with a notification saying what it freed
-• "Why is this drive growing?": growth per day over 24 hours, 7 days and 30 days, and what grew since the last check
-• Move a Linux (WSL) or Docker disk to a drive with more room, step by step
-• Startup apps: scheduled tasks say how often they run
-• Fixed: the mouse wheel scrolls the page again over cards and lists, and text stays inside its box on every page
 
 ## Features (up to 20, ≤ 200 characters each)
 
