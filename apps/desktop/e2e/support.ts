@@ -47,6 +47,15 @@ export const routes = [
   { id: 'benchmarks', label: 'Benchmarks', landmark: heading('Benchmarks') },
 ] as const;
 
+/**
+ * Routes the sidebar hides until something is configured, so a browser
+ * session with no Tauri host never reaches them. `health` appears once a
+ * vmui connection is stored (navigation.ts `routeVisible`), which needs the
+ * backend's keyring. Its own screen is covered by the component tests in
+ * src/features/health; listing it here keeps the parity test below honest.
+ */
+export const hiddenWithoutHost = ['health'] as const;
+
 function heading(name: string): (scope: Locator) => Locator {
   // Level 2 and exact: several screens carry card headings that contain
   // the section's name ("Performance" vs a card called "CPU performance").

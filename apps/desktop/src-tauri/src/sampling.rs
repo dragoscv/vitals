@@ -806,8 +806,11 @@ mod tests {
         let elapsed = started.elapsed();
 
         assert!(woken, "reported a timeout");
+        // 400 ms, not 160: a hosted macOS runner oversleeps the signaller's
+        // 60 ms `thread::sleep` and failed at 161.8 ms (PR #32). A broken
+        // wake waits out the full two seconds, so the bound still catches it.
         assert!(
-            elapsed < Duration::from_millis(160),
+            elapsed < Duration::from_millis(400),
             "the signal took {elapsed:?} to land"
         );
     }
