@@ -15,6 +15,25 @@ export const DIAGNOSE_EVENT = 'vitals:diagnose';
  * plumbing than the event it replaces.
  */
 export const OPEN_SETTINGS_EVENT = 'vitals:open-settings';
+
+let pendingSettingsTab: string | null = null;
+
+/**
+ * Opens Settings on a given tab — the Health page's "Pair again" lands on
+ * the Health section rather than on General. Same slot-plus-event shape as
+ * the process selection below; the dialog reads the slot when it mounts.
+ */
+export function openSettingsAt(tab: string): void {
+  pendingSettingsTab = tab;
+  window.dispatchEvent(new Event(OPEN_SETTINGS_EVENT));
+}
+
+/** Returns and clears the requested tab, so it is honoured exactly once. */
+export function takeSettingsTab(): string | null {
+  const tab = pendingSettingsTab;
+  pendingSettingsTab = null;
+  return tab;
+}
 import {
   Activity,
   Bot,
@@ -23,6 +42,7 @@ import {
   Cpu,
   Gauge,
   HardDrive,
+  HeartPulse,
   LayoutDashboard,
   ListTree,
   Network,
@@ -31,6 +51,7 @@ import {
   Users,
   type LucideIcon,
 } from 'lucide-react';
+import { create } from 'zustand';
 
 /**
  * Every destination in the application.
@@ -54,6 +75,7 @@ export const routeIds = [
   'installedApps',
   'devices',
   'benchmarks',
+  'health',
 ] as const;
 
 export type RouteId = (typeof routeIds)[number];
@@ -103,7 +125,55 @@ export const navItems: readonly NavItem[] = [
   { id: 'appHistory', labelKey: 'nav.appHistory', icon: Gauge, group: 'more' },
   { id: 'users', labelKey: 'nav.users', icon: Users, group: 'more' },
   { id: 'benchmarks', labelKey: 'nav.benchmarks', icon: Cpu, group: 'more' },
+  // Last, after the first nine, so Ctrl+1…9 never shifts when it appears.
+  // Hidden until a vmui connection exists — see `useNavVisibility`.
+  { id: 'health', labelKey: 'nav.health', icon: HeartPulse, group: 'more' },
 ];
+
+/**
+ * Which optional destinations are shown.
+ *
+ * The single source of truth for "is this route reachable": the sidebar, the
+ * palette, the shortcuts, route restore and the hidden-mount preload all read
+ * it, so a page cannot be hidden in one place and reachable from another.
+ * `null` means not yet known — treated as hidden, so a launch never flashes
+ * an entry that then disappears.
+ */
+interface NavVisibility {
+  /** A vmui connection is stored (health_status `configured`). */
+  readonly health: boolean | null;
+  readonly setHealth: (configured: boolean) => void;
+}
+
+export const useNavVisibility = create<NavVisibility>((set) => ({
+  health: null,
+  setHealth: (configured) => {
+    set({ health: configured });
+  },
+}));
+
+/** Whether a route is shown, given the visibility state. */
+export function isRouteVisible(
+  id: RouteId,
+  state: Pick<NavVisibility, 'health'> = useNavVisibility.getState(),
+): boolean {
+  return id === 'health' ? state.health === true : true;
+}
+
+/** The nav items currently shown, in sidebar order. */
+export function visibleNavItems(
+  state: Pick<NavVisibility, 'health'> = useNavVisibility.getState(),
+): readonly NavItem[] {
+  return navItems.filter((item) => isRouteVisible(item.id, state));
+}
+
+const withoutHealth: readonly NavItem[] = navItems.filter((item) => item.id !== 'health');
+
+/** React binding for `visibleNavItems`; re-renders when visibility changes. */
+export function useVisibleNavItems(): readonly NavItem[] {
+  const health = useNavVisibility((state) => state.health);
+  return health === true ? navItems : withoutHealth;
+}
 
 /**
  * Asks the Processes screen to select one process, by PID.

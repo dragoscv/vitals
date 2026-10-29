@@ -5,6 +5,7 @@ import { expect, test } from '@playwright/test';
 
 import {
   expectNoProblems,
+  hiddenWithoutHost,
   openRoute,
   routes,
   settle,
@@ -23,7 +24,11 @@ test('the e2e route list names exactly the routes the app declares', () => {
   const block = /export const routeIds = \[([\s\S]*?)\] as const/.exec(source)?.[1];
   expect(block, 'routeIds declaration not found in navigation.ts').toBeDefined();
   const declared = [...(block ?? '').matchAll(/'([A-Za-z]+)'/g)].map((m) => m[1]);
-  expect(routes.map((r) => r.id)).toEqual(declared);
+  const hidden: readonly string[] = hiddenWithoutHost;
+  expect(routes.map((r) => r.id)).toEqual(declared.filter((id) => !hidden.includes(id ?? '')));
+  // Every hidden route must still be a declared one, so a rename cannot
+  // leave a stale exemption behind.
+  for (const id of hidden) expect(declared).toContain(id);
 });
 
 for (const route of routes) {

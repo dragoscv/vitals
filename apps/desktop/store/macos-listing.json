@@ -1,0 +1,34 @@
+{
+  "_comment": "App Store Connect copy for the Mac App Store edition (app 6827932703, bundle app.vitals.desktop). Applied by scripts/ios-store.mjs --platform macos. EN and RO move together. The store build is sandboxed: it cannot list or control other apps' processes or read temperature sensors, so the copy promises only what that build shows; the free direct download from the website does the rest. Limits: subtitle 30, promotional 170, keywords 100 bytes, description 4000.",
+  "versionString": "1.2.0",
+  "supportUrl": "https://vitals.dragoscatalin.ro/guides/",
+  "marketingUrl": "https://vitals.dragoscatalin.ro/",
+  "privacyUrl": "https://vitals.dragoscatalin.ro/privacy/",
+  "copyright": "2026 Dragos-Catalin Vladulescu",
+  "names": {
+    "en-GB": "Vitals: Mac System Monitor",
+    "ro": "Vitals: Monitor de sistem Mac"
+  },
+  "locales": {
+    "en-GB": {
+      "subtitle": "Honest numbers for your Mac",
+      "promotionalText": "Processor, memory, disks and network on one calm dashboard — with a history of the last days, and your Mac's readings on your iPhone over your own network.",
+      "keywords": "system monitor,activity,cpu,memory,ram,disk,network,menu bar,dashboard,performance,history",
+      "description": "Vitals shows what your Mac is really doing, in words a person can read, and never invents a number it could not measure.\n\n• Processor load per core and clock speed\n• Memory in use, compressed and swapped, and how close the Mac is to running out\n• Every disk: space, read and write speed\n• Network: download and upload per interface\n• A history of the last hours and days, kept only on this Mac\n• A configurable dashboard and an always-on-top overlay\n• Alerts when something runs high, low or full\n• Benchmarks you can repeat and compare\n\nSee it from your iPhone: turn on remote access and pair Vitals for iPhone over your own network. It is off until you turn it on, and nothing leaves your network.\n\nWHAT THIS EDITION DOES NOT DO\nThe Mac App Store edition runs in Apple's sandbox, which keeps it from seeing other apps' processes and the temperature sensors. Where a reading is unavailable Vitals says so instead of showing a zero. The free direct download at vitals.dragoscatalin.ro has the full process list, process control and temperatures.\n\nHONEST BY DESIGN\n• If a reading cannot be measured, Vitals shows a dash, never a made-up zero\n• No ads, no account, no tracking, no analytics\n• Free and open source (MIT): github.com/dragoscv/vitals",
+      "whatsNew": "First release on the Mac App Store."
+    },
+    "ro": {
+      "subtitle": "Cifre oneste pentru Mac",
+      "promotionalText": "Procesor, memorie, discuri și rețea pe un singur ecran liniștit — cu istoricul ultimelor zile și valorile Mac-ului pe iPhone, în rețeaua ta.",
+      "keywords": "monitor sistem,activitate,procesor,memorie,ram,disc,retea,bara meniu,performanta,istoric",
+      "description": "Vitals arată ce face cu adevărat Mac-ul tău, în cuvinte pe care le înțelege oricine, și nu inventează niciodată un număr pe care nu l-a putut măsura.\n\n• Încărcarea procesorului pe nuclee și frecvența\n• Memoria folosită, comprimată și mutată pe disc, și cât de aproape e Mac-ul de a rămâne fără\n• Fiecare disc: spațiu, viteză de citire și scriere\n• Rețeaua: descărcare și încărcare pe fiecare interfață\n• Istoricul ultimelor ore și zile, păstrat doar pe acest Mac\n• Un panou configurabil și un overlay mereu deasupra\n• Alerte când ceva crește, scade sau se umple\n• Teste de performanță pe care le poți repeta și compara\n\nVezi-l de pe iPhone: pornește accesul la distanță și asociază Vitals pentru iPhone în rețeaua ta. Este oprit până îl pornești și nimic nu iese din rețeaua ta.\n\nCE NU FACE ACEASTĂ EDIȚIE\nEdiția din Mac App Store rulează în sandbox-ul Apple, care o împiedică să vadă procesele altor aplicații și senzorii de temperatură. Unde o valoare nu e disponibilă, Vitals spune asta în loc să arate un zero. Descărcarea directă gratuită de pe vitals.dragoscatalin.ro are lista completă de procese, controlul lor și temperaturile.\n\nONEST DIN CONSTRUCȚIE\n• Dacă o valoare nu poate fi măsurată, Vitals arată o liniuță, niciodată un zero inventat\n• Fără reclame, fără cont, fără urmărire, fără statistici\n• Gratuit și open source (MIT): github.com/dragoscv/vitals",
+      "whatsNew": "Prima versiune în Mac App Store."
+    }
+  },
+  "review": {
+    "notes": "Vitals is a system monitor for the Mac it runs on. Open it and the dashboard shows this Mac's processor, memory, disks and network immediately; no account, login or setup is needed.\n\nThe app is sandboxed, so it cannot see other apps' processes or the temperature sensors: the process list is empty and temperatures are marked unavailable, with the reason shown, rather than filled with zeros.\n\nOptional: Settings > Remote access turns on a local-network server so the companion Vitals for iPhone app (app 6827931747) can show this Mac's readings. It is off by default; macOS asks for local network permission only when it is turned on. Nothing is sent to the internet.\n\nThe app does not update itself; updates come from the Mac App Store. No in-app purchases, no tracking.",
+    "contactFirstName": "Dragos-Catalin",
+    "contactLastName": "Vladulescu",
+    "demoAccountRequired": false
+  }
+}

@@ -74,5 +74,39 @@
   "common_done": { "en": "Done", "ro": "Gata" },
   "common_retry": { "en": "Try again", "ro": "Încearcă din nou" },
   "common_save": { "en": "Save", "ro": "Salvează" },
-  "unit_rpm": { "en": "RPM", "ro": "RPM" }
+  "unit_rpm": { "en": "RPM", "ro": "RPM" },
+  "health_hr_24h": { "en": "Heart rate, last 24 hours", "ro": "Puls, ultimele 24 de ore" },
+  "health_time": { "en": "Time", "ro": "Ora" },
+  "health_unit_breaths": { "en": "breaths/min", "ro": "respirații/min" },
+  "health_calories_eaten": { "en": "Calories eaten", "ro": "Calorii consumate" },
+  "health_calories_target": { "en": "Calorie target", "ro": "Ținta de calorii" },
+  "health_calories_remaining": { "en": "Calories left", "ro": "Calorii rămase" },
+  "health_base_url_hint": { "en": "https://vmui.example.com", "ro": "https://vmui.exemplu.ro" },
+  "health_code_title": { "en": "Pairing code", "ro": "Cod de asociere" },
+  "health_waiting": { "en": "Waiting for approval…", "ro": "Se așteaptă aprobarea…" },
+  "health_error_timed_out": {
+    "en": "No approval within 10 minutes. Try again.",
+    "ro": "Nicio aprobare în 10 minute. Încearcă din nou."
+  },
+  "health_error_slow_down": {
+    "en": "Too many attempts. Wait a moment and try again.",
+    "ro": "Prea multe încercări. Așteaptă puțin și încearcă din nou."
+  },
+  "watch_waiting": { "en": "Waiting for your iPhone…", "ro": "Se așteaptă iPhone-ul…" },
+  "watch_empty_title": { "en": "No PCs yet", "ro": "Niciun PC încă" },
+  "watch_empty_body": {
+    "en": "Open Vitals on iPhone to pair a PC.",
+    "ro": "Deschide Vitals pe iPhone ca să asociezi un PC."
+  },
+  "watch_sample": { "en": "Sample data", "ro": "Date de probă" },
+  "watch_updated": { "en": "Updated %@", "ro": "Actualizat %@" },
+  "watch_stale": { "en": "Out of date", "ro": "Neactualizat" },
+  "watch_no_alerts": { "en": "No warnings", "ro": "Niciun avertisment" },
+  "watch_state_live": { "en": "Live", "ro": "În direct" },
+  "watch_state_connecting": { "en": "Connecting…", "ro": "Se conectează…" },
+  "watch_state_offline": { "en": "Can’t reach this PC", "ro": "PC-ul nu răspunde" },
+  "watch_state_off_lan": { "en": "iPhone not on Wi-Fi", "ro": "iPhone-ul nu e pe Wi-Fi" },
+  "watch_state_unauthorised": { "en": "Pair again on iPhone", "ro": "Asociază din nou pe iPhone" },
+  "watch_state_incompatible": { "en": "Update Vitals", "ro": "Actualizează Vitals" },
+  "watch_state_unknown": { "en": "Unknown state", "ro": "Stare necunoscută" }
 }

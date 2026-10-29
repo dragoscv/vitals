@@ -5,9 +5,10 @@
 # Store Connect API key, a dedicated build keychain for headless SSH.
 #
 #   scripts/build.sh test     swift test VitalsCore (no Simulator needed)
-#   scripts/build.sh build    generate + compile for iphoneos, unsigned
+#   scripts/build.sh build    generate + compile for iphoneos, unsigned (the
+#                             Apple Watch app is embedded and built with it)
 #   scripts/build.sh upload   archive, sign (automatic, API key) and upload to App Store Connect
-#   scripts/build.sh screenshots   App Store screenshots from the Simulator (Sample PC, EN + RO)
+#   scripts/build.sh screenshots   App Store screenshots from the Simulator (Sample PC, EN + RO, iPhone + Watch)
 #
 # Env for `upload` (scripts/ios-build.ps1 sets these from Secret Manager and
 # deletes the key afterwards): DEVELOPMENT_TEAM, ASC_KEY_ID, ASC_ISSUER_ID,
@@ -75,7 +76,11 @@ case "$MODE" in
     xcodebuild -project Vitals.xcodeproj -scheme Vitals -configuration Release \
       -destination 'generic/platform=iOS' -derivedDataPath "$OUT/dd" \
       CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build -quiet
-    log "OK: $OUT/dd/Build/Products/Release-iphoneos/VitalsMonitor.app"
+    APP="$OUT/dd/Build/Products/Release-iphoneos/VitalsMonitor.app"
+    # The watch app rides inside the phone app ("Embed Watch Content"); an
+    # iPhone build without it would ship a phone app whose watch half is gone.
+    [ -d "$APP/Watch/VitalsMonitorWatch.app" ] || { echo "watch app not embedded in $APP/Watch" >&2; exit 1; }
+    log "OK: $APP (+ Watch/VitalsMonitorWatch.app)"
     ;;
   upload)
     : "${DEVELOPMENT_TEAM:?}" "${ASC_KEY_ID:?}" "${ASC_ISSUER_ID:?}" "${ASC_KEY_PATH:?}" "${BUILD_NUMBER:?}"

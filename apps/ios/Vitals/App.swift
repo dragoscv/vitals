@@ -14,6 +14,8 @@ struct VitalsApp: App {
     @State private var hub = LiveHub()
     @State private var lan = LanMonitor()
     @State private var sample = SampleMode()
+    @State private var health = HealthStore()
+    @State private var watch: WatchBridge?
     @Environment(\.scenePhase) private var phase
 
     var body: some Scene {
@@ -23,12 +25,19 @@ struct VitalsApp: App {
                 .environment(hub)
                 .environment(lan)
                 .environment(sample)
+                .environment(health)
                 .tint(Palette.accent)
+                .task {
+                    guard watch == nil else { return }
+                    let bridge = WatchBridge(store: store, hub: hub, sample: sample)
+                    bridge.start()
+                    watch = bridge
+                }
         }
     }
 }
 
-enum Tab: Hashable { case pcs, settings }
+enum Tab: Hashable { case pcs, settings, health }
 
 /// Screenshot routes, passed only as launch arguments (`-vitalsRoute sample
 /// -vitalsTab 1`) by `simctl launch` in apps/ios/scripts/screenshots.sh, so
@@ -41,6 +50,8 @@ enum ScreenshotRoute {
 }
 
 struct RootView: View {
+    @Environment(HealthStore.self) private var health
+    @Environment(\.scenePhase) private var phase
     @State private var tab: Tab = .pcs
     @State private var path: [String] = ScreenshotRoute.opensSample ? [SampleMode.id] : []
 
@@ -52,6 +63,18 @@ struct RootView: View {
             NavigationStack { SettingsView() }
                 .tabItem { Label(L("nav_settings"), systemImage: "gearshape") }
                 .tag(Tab.settings)
+            // Last, so the screenshot script's tab indices stay valid.
+            if health.isConnected {
+                NavigationStack { HealthView(onPairAgain: { tab = .settings }) }
+                    .tabItem { Label(L("health_title"), systemImage: "heart.text.square") }
+                    .tag(Tab.health)
+            }
         }
+        .onChange(of: health.isConnected, initial: true) { _, connected in
+            if !connected, tab == .health { tab = .pcs }
+            health.setActive(connected && phase == .active && tab == .health)
+        }
+        .onChange(of: phase) { _, p in health.setActive(p == .active && tab == .health) }
+        .onChange(of: tab) { _, t in health.setActive(phase == .active && t == .health) }
     }
 }

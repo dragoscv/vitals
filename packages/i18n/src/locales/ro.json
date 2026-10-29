@@ -17,6 +17,7 @@
     "installedApps": "Aplicații instalate",
     "devices": "Dispozitive și senzori",
     "benchmarks": "Teste de performanță",
+    "health": "Sănătate",
     "settings": "Setări"
   },
   "metric": {
@@ -245,6 +246,7 @@
       "lanServer": "Serverul LAN pentru telefon și alte aplicații este oprit până îl pornești și răspunde doar dispozitivelor din rețeaua ta. O conexiune strict locală pe 127.0.0.1 este mereu deschisă, ca utilitarul în linie de comandă vitals să poată ajunge la aplicație.",
       "updates": "Singura cerere pe care Vitals o face singur este verificarea actualizărilor pe GitHub, la circa 20 de secunde după pornire. GitHub vede adresa ta IP și versiunea aplicației, ca la orice descărcare. O poți opri din secțiunea Despre.",
       "updatesStore": "Vitals nu face nicio cerere de unul singur. Actualizările vin din Microsoft Store.",
+      "updatesMacAppStore": "Vitals nu face nicio cerere de unul singur. Actualizările vin din Mac App Store.",
       "policy": "Citește politica de confidențialitate"
     },
     "about": {
@@ -290,6 +292,7 @@
         "auto": "Instalează actualizările automat",
         "autoHint": "Verifică pe GitHub la scurt timp după pornire și instalează o actualizare semnată când închizi aplicația sau după zece minute în care nu folosești PC-ul și Vitals e doar în zona de notificare. Nimic nu se instalează cât timp folosești Vitals.",
         "store": "Actualizările vin din Microsoft Store.",
+        "macAppStore": "Actualizările vin din Mac App Store.",
         "pending": "Versiunea {{version}} este descărcată. Se instalează când închizi Vitals sau data viitoare când lipsești zece minute de la PC.",
         "pendingApproval": "Versiunea {{version}} este descărcată. Vitals este instalat pentru toți utilizatorii acestui PC, așa că Windows cere aprobarea unui administrator pentru actualizare. Repornește pentru actualizare când ești gata.",
         "installedToast": "Vitals a fost actualizat la {{version}}",

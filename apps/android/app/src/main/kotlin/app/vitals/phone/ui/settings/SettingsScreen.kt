@@ -150,6 +150,7 @@ fun SettingsScreen() {
                     }
                 }
             }
+            item(key = "health") { HealthSettingsCard() }
             item(key = "language") { LanguageCard() }
             item(key = "glass") {
                 SectionCard(stringResource(R.string.settings_glass)) {

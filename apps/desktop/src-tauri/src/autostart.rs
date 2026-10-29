@@ -22,7 +22,17 @@ fn startup_task(on: Option<bool>) -> CommandResult<bool> {
     }
 }
 
-#[cfg(not(windows))]
+// The Mac App Store build is sandboxed: the plugin's LaunchAgent cannot be
+// written there, and its AppleScript route needs Apple Events access the
+// review refuses. Saying so beats a switch that silently does nothing.
+#[cfg(target_os = "macos")]
+fn startup_task(_on: Option<bool>) -> CommandResult<bool> {
+    Err(CommandError::Unsupported {
+        message: "starting at login is not available in the Mac App Store version".into(),
+    })
+}
+
+#[cfg(not(any(windows, target_os = "macos")))]
 fn startup_task(_on: Option<bool>) -> CommandResult<bool> {
     Err(CommandError::Unsupported {
         message: "startup tasks exist only on Windows".into(),

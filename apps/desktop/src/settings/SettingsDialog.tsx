@@ -1,6 +1,7 @@
 import {
   Activity,
   Bell,
+  HeartPulse,
   Info,
   Palette,
   ShieldCheck,
@@ -9,7 +10,7 @@ import {
   Timer,
   type LucideIcon,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import {
@@ -23,7 +24,9 @@ import {
   cn,
 } from '@vitals/ui';
 
+import { OPEN_SETTINGS_EVENT, takeSettingsTab } from '../shell/navigation';
 import { SHELL_NS } from '../shell/strings';
+import { HealthPanel } from './health/HealthPanel';
 import {
   AboutPanel,
   AppearancePanel,
@@ -42,6 +45,7 @@ const tabIds = [
   'notifications',
   'watchdog',
   'remote',
+  'health',
   'privacy',
   'about',
 ] as const;
@@ -55,6 +59,7 @@ const tabIcons: Readonly<Record<TabId, LucideIcon>> = {
   notifications: Bell,
   watchdog: Activity,
   remote: Smartphone,
+  health: HeartPulse,
   privacy: ShieldCheck,
   about: Info,
 };
@@ -70,7 +75,20 @@ export function SettingsDialog({ open, onOpenChange, version }: SettingsDialogPr
   const { t: ts } = useTranslation(SHELL_NS);
   // Kept across open/close on purpose. Someone who closes the dialog to try a
   // theme change and reopens it wants the tab they were on, not General.
-  const [tab, setTab] = useState<TabId>('general');
+  const [tab, setTab] = useState<TabId>(() => requestedTab() ?? 'general');
+
+  // Opened again while already mounted ("Pair again" with the dialog open):
+  // honour a tab request that arrives with the event.
+  useEffect(() => {
+    const onOpen = (): void => {
+      const requested = requestedTab();
+      if (requested !== null) setTab(requested);
+    };
+    window.addEventListener(OPEN_SETTINGS_EVENT, onOpen);
+    return () => {
+      window.removeEventListener(OPEN_SETTINGS_EVENT, onOpen);
+    };
+  }, []);
 
   const labels: Readonly<Record<TabId, string>> = {
     general: ts('settings.general.title'),
@@ -79,6 +97,7 @@ export function SettingsDialog({ open, onOpenChange, version }: SettingsDialogPr
     notifications: ts('settings.notifications.title'),
     watchdog: ts('settings.watchdog.title'),
     remote: ts('settings.remote.title'),
+    health: ts('settings.health.title'),
     privacy: t('settings.privacy.title'),
     about: t('settings.about.title'),
   };
@@ -143,6 +162,9 @@ export function SettingsDialog({ open, onOpenChange, version }: SettingsDialogPr
               <TabsContent value="remote">
                 <RemoteAccessPanel />
               </TabsContent>
+              <TabsContent value="health">
+                <HealthPanel />
+              </TabsContent>
               <TabsContent value="privacy">
                 <PrivacyPanel />
               </TabsContent>
@@ -155,4 +177,9 @@ export function SettingsDialog({ open, onOpenChange, version }: SettingsDialogPr
       </DialogContent>
     </DialogRoot>
   );
+}
+
+function requestedTab(): TabId | null {
+  const tab = takeSettingsTab();
+  return tab !== null && (tabIds as readonly string[]).includes(tab) ? (tab as TabId) : null;
 }

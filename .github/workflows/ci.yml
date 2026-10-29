@@ -290,6 +290,15 @@ jobs:
       - name: Test (Mac App Store flavour)
         run: cargo test -p vitals-macos --features app-store
 
+      # The desktop crate in its store flavour: no self-updater compiled in,
+      # and the updater capability left out by build.rs. A regression here
+      # is an App Review rejection (guideline 2.4.5), so it fails CI first.
+      - name: Clippy + test (desktop, Mac App Store flavour)
+        run: |
+          mkdir -p apps/desktop/dist
+          cargo clippy -p vitals-desktop --no-default-features --features app-store --lib --tests -- -D warnings
+          cargo test -p vitals-desktop --no-default-features --features app-store --lib
+
       # Regenerates the iOS contract fixtures from Rust, then the Swift tests
       # decode them: a field renamed on one side goes red here.
       - name: Contract fixtures

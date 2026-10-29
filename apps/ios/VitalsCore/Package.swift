@@ -3,12 +3,14 @@
 // model mirrored from crates/vitals-core, the keyframe/delta merge, pairing
 // checks, the LAN client and formatting. Pure Swift + Foundation so
 // `swift test` runs on any Mac without a Simulator (vmui-mac has none).
+// watchOS: the Apple Watch app uses the snapshot model and formatting; the
+// LAN client compiles there too but the watch never calls it.
 import PackageDescription
 
 let package = Package(
     name: "VitalsCore",
     defaultLocalization: "en",
-    platforms: [.iOS(.v18), .macOS(.v14)],
+    platforms: [.iOS(.v18), .macOS(.v14), .watchOS(.v11)],
     products: [
         .library(name: "VitalsCore", targets: ["VitalsCore"])
     ],

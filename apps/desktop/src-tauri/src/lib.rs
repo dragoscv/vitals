@@ -22,6 +22,7 @@ pub mod drivemove;
 #[cfg(windows)]
 pub mod drive_schedule;
 pub mod hardware;
+pub mod health;
 pub mod history;
 pub mod hud;
 pub mod inventory;
@@ -136,13 +137,6 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
-        // The scope switch rides on every setup the plugin starts, from the
-        // background download and from the Settings panel alike (DEV-3).
-        .plugin(
-            tauri_plugin_updater::Builder::new()
-                .installer_args(updates::scope_args())
-                .build(),
-        )
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_notification::init())
         // `--minimized` is what the Run-key entry passes back to us; the
@@ -158,6 +152,7 @@ pub fn run() {
         .manage(alerts::Alerts::new())
         .manage(agents::Agents::new())
         .manage(updates::PendingInstall::default())
+        .plugin(updater_plugin())
         // The sampler starts with the app and stops when the handle drops at
         // shutdown. Managed so it stays alive for the process lifetime —
         // dropping the handle would silently stop all sampling.
@@ -167,6 +162,23 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("failed to start the Vitals application")
         .run(on_run_event);
+}
+
+/// The scope switch rides on every setup the plugin starts, from the
+/// background download and from the Settings panel alike (DEV-3).
+#[cfg(feature = "self-update")]
+fn updater_plugin() -> impl tauri::plugin::Plugin<tauri::Wry> {
+    tauri_plugin_updater::Builder::new()
+        .installer_args(updates::scope_args())
+        .build()
+}
+
+/// A store build is updated by the store: App Review rejects an app that
+/// downloads and replaces its own code (guideline 2.4.5), so the updater
+/// is not compiled in at all and an empty plugin keeps the chain uniform.
+#[cfg(not(feature = "self-update"))]
+fn updater_plugin() -> impl tauri::plugin::Plugin<tauri::Wry> {
+    tauri::plugin::Builder::<tauri::Wry>::new("vitals-store-updates").build()
 }
 
 /// stderr for a developer, plus a capped file for everyone else — a release
@@ -424,6 +436,14 @@ fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
         agents::finish_cloud_sign_in,
         agents::cancel_cloud_sign_in,
         agents::cloud_sign_out,
+        // The Health page (docs/api/vmui-health.md). The token stays in the
+        // OS secret store; the webview sees only its first eight characters.
+        health::health_status,
+        health::health_pair_start,
+        health::health_pair_poll,
+        health::health_sign_in,
+        health::health_disconnect,
+        health::health_fetch,
     ]
 }
 

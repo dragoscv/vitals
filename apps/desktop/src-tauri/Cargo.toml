@@ -22,6 +22,15 @@ description = "Vitals — a modern, fast, native system monitor and task manager
 name = "vitals_desktop_lib"
 crate-type = ["rlib"]
 
+[features]
+default = ["self-update"]
+# The GitHub-release updater. Every build has it except the Mac App Store one.
+self-update = ["dep:tauri-plugin-updater"]
+# The sandboxed Mac App Store build (ADR 0041): built with
+# `--no-default-features --features app-store`, so the self-updater is not even
+# linked, and the macOS sampler drops what the sandbox forbids.
+app-store = ["vitals-macos/app-store"]
+
 [build-dependencies]
 tauri-build = { version = "2.7.0", features = [] }
 
@@ -70,9 +79,15 @@ vitals-linux = { workspace = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 vitals-macos = { workspace = true }
+# The Health page's vmui token in the Keychain (health.rs). Already in the
+# lock through the TLS stack; no default features, so nothing new is built.
+security-framework = { version = "3.7.0", default-features = false }
 
 [dependencies.tauri-plugin-updater]
 version = "2.13.0"
+# Optional: the Mac App Store build leaves the self-updater out entirely
+# (guideline 2.4.5(vii)); the store updates it. See [features] below.
+optional = true
 # Without the default `zip` feature. It only unpacks `.zip` (Windows) and
 # gzipped AppImage update archives, and Vitals publishes neither: the Windows
 # update is the raw `-setup.exe`, Linux the raw `.AppImage`, and the macOS

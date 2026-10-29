@@ -30,9 +30,11 @@ import app.vitals.phone.graph
 import app.vitals.phone.ui.add.AddPcScreen
 import app.vitals.phone.ui.detail.DetailScreen
 import app.vitals.phone.ui.device.DeviceScreen
+import app.vitals.phone.ui.health.HealthScreen
 import app.vitals.phone.ui.machines.MachinesScreen
 import app.vitals.phone.ui.nav.AddPc
 import app.vitals.phone.ui.nav.Detail
+import app.vitals.phone.ui.nav.Health
 import app.vitals.phone.ui.nav.Launch
 import app.vitals.phone.ui.nav.Machines
 import app.vitals.phone.ui.nav.Processes
@@ -128,6 +130,7 @@ fun VitalsRoot(launch: Launch, launchSerial: Int) {
                         }
                         entry<AddPc> { key -> AddPcScreen(startWithScan = key.startWithScan) }
                         entry<Settings> { SettingsScreen() }
+                        entry<Health> { HealthScreen() }
                     },
                 )
             }

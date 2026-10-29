@@ -1,7 +1,8 @@
 name: iOS screenshots
 
 # App Store screenshots of the iPhone app: real Simulator captures of the
-# labelled Sample PC, EN + RO, 6.9". On a hosted Apple-silicon runner because
+# labelled Sample PC, EN + RO, 6.9", plus the Apple Watch app (artefact
+# ios-watch-screenshots). On a hosted Apple-silicon runner because
 # the devcloud Mac has no GPU and iOS 26 then draws the glass tab bar with
 # only its selected item (ADR 0041). Manual: run it before a store
 # submission, download the artefact, upload to App Store Connect.
@@ -12,6 +13,7 @@ on:
   pull_request:
     paths:
       - 'apps/ios/Vitals/**'
+      - 'apps/ios/VitalsWatch/**'
       - 'apps/ios/scripts/screenshots.sh'
       - '.github/workflows/ios-screenshots.yml'
 
@@ -34,4 +36,13 @@ jobs:
           name: ios-screenshots
           path: apps/ios/build/screenshots/**
           if-no-files-found: error
+          retention-days: 30
+
+      # Apple Watch images (screenshots.sh warns and skips them when the
+      # runner has no watchOS Simulator runtime).
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: ios-watch-screenshots
+          path: apps/ios/build/screenshots-watch/**
+          if-no-files-found: warn
           retention-days: 30

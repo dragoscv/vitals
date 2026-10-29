@@ -166,6 +166,14 @@ CSV records the state.
 
 ## Verification log
 
+### 2026-10-28 — S23-14 bundle budget for the Health page
+
+PR #32 CI run 40788713091, Frontend: shipped assets 508.3 KB of the
+507.8 KB budget (100.1 %), every other budget under. The growth is the new
+lazy Health route and its settings section (S23-14), which is intended, so
+`shippedGzipBytes` goes 520000 -> 524000. The initial load (208.1 of
+210.9 KB) is unchanged: the route is lazy and hidden until connected.
+
 <!-- S21-10 begin -->
 
 ### 2026-10-18 — S21-10 Android signing step reports every failure; 1.0.6

@@ -8,7 +8,7 @@
  * sheet.
  */
 
-import { navItems, type RouteId } from './navigation';
+import { visibleNavItems, type RouteId } from './navigation';
 
 /** What a shortcut can ask the shell to do. */
 export interface ShortcutActions {
@@ -43,8 +43,6 @@ export type ShortcutEvent = Pick<
 function ctrlOnly(event: ShortcutEvent): boolean {
   return (event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey;
 }
-
-const numberedRoutes = navItems.slice(0, 9);
 
 /**
  * Every shortcut the webview handles, in the order the help sheet lists them.
@@ -136,7 +134,9 @@ export function runShortcut(event: ShortcutEvent, actions: ShortcutActions): boo
 
     if (shortcut.id === 'sections') {
       const index = Number(event.key) - 1;
-      const item = numberedRoutes[index];
+      // Read at press time, from the visibility store: a hidden page must
+      // never be one keystroke away.
+      const item = visibleNavItems().slice(0, 9)[index];
       if (item === undefined) return false;
       actions.navigate(item.id);
       return true;

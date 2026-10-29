@@ -70,6 +70,20 @@ the kernel and Vitals itself are refused.
   says so, rather than hiding them. Apple refuses a duplicate app name within
   one account, so this listing is called "Vitals: Mac System Monitor".
 
+  Amended 2026-10-28 (S23-07): the store build is also compiled **without
+  the self-updater** (`--no-default-features --features app-store`), not
+  merely configured off. Guideline 2.4.5(vii) forbids an app that can replace
+  its own code, and a disabled-at-runtime updater still ships the endpoint
+  and the install path. `build-appstore.sh` fails the build if the updater
+  URL is found in the binary. The updater's capability lives in
+  `capabilities/updater/`, which `build.rs` includes only with
+  `self-update`, because tauri-build rejects a permission for a plugin that
+  is not a dependency. The bundle name is "Vitals Monitor" (the iPhone
+  ITMS-90129 lesson), signed with Apple Distribution and packaged with the
+  Mac Installer Distribution identity through `scripts/macos-appstore.ps1`
+  on vmui-mac; the profile is fetched from the API at build time, never
+  committed.
+
 ### Signing runs after approval, never in the build leg
 
 The build leg runs every dependency's build script before anyone has looked
@@ -124,5 +138,11 @@ requested from Apple.
   - clippy and tests for the macOS crates, in both sampler flavours;
   - the contract fixtures;
   - the Swift tests and the unsigned iPhone compile.
-- watchOS is deferred. The owner has no Apple Watch, and vmui-mac has no
-  Simulator, so nothing could be verified.
+- watchOS (amended 2026-10-28, S23-13): a companion inside the iPhone
+  bundle (`VitalsWatch`, embedded as Watch content), fed by the phone over
+  WatchConnectivity with a small `WatchSnapshot` rather than pairing the
+  watch with PCs itself — the watch then needs no local-network permission,
+  Keychain token or discovery. Verified by the Swift tests and an iPhone
+  build that embeds the watch app on vmui-mac (watchOS 26.5 platform
+  installed); screenshots come from the hosted runner like the iPhone ones.
+  The owner has no Apple Watch, so on-wrist testing is out of reach.

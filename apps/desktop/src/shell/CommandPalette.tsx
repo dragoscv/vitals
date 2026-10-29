@@ -22,7 +22,7 @@ import { useTranslation } from 'react-i18next';
 
 import { DialogContent, DialogRoot, Input, cn } from '@vitals/ui';
 
-import { DIAGNOSE_EVENT, navItems, type RouteId } from './navigation';
+import { DIAGNOSE_EVENT, useVisibleNavItems, type RouteId } from './navigation';
 import { SHELL_NS } from './strings';
 
 // The "Why is my PC slow?" entry navigates to the dashboard and fires
@@ -64,6 +64,7 @@ export function CommandPalette({
 }: CommandPaletteProps) {
   const { t } = useTranslation();
   const { t: ts } = useTranslation(SHELL_NS);
+  const navItems = useVisibleNavItems();
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
   const listId = useId();
@@ -121,7 +122,7 @@ export function CommandPalette({
     ];
 
     return [...routes, ...actions];
-  }, [t, ts, onNavigate, onOpenSettings, onToggleHud]);
+  }, [navItems, t, ts, onNavigate, onOpenSettings, onToggleHud]);
 
   const results = useMemo(() => {
     const needle = fold(query.trim());

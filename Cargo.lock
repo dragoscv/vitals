@@ -5829,6 +5829,7 @@ dependencies = [
  "parking_lot",
  "reqwest",
  "rustls",
+ "security-framework",
  "serde",
  "serde_json",
  "tauri",

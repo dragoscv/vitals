@@ -22,9 +22,15 @@ enum PcState: Equatable {
 @MainActor @Observable
 final class PcStream {
     let pairingId: String
-    private(set) var state: PcState = .connecting
+    private(set) var state: PcState = .connecting {
+        didSet { onChange?() }
+    }
     private(set) var view: MachineView?
-    private(set) var alerts: [VitalsCore.Alert] = []
+    private(set) var alerts: [VitalsCore.Alert] = [] {
+        didSet { onChange?() }
+    }
+    /// Told of every new frame, state and alert list (the watch bridge).
+    @ObservationIgnored var onChange: (@MainActor () -> Void)?
     private(set) var cpuHistory: [Double] = []
     private(set) var memHistory: [Double] = []
     private(set) var lastSeenMs: Int64?
@@ -131,19 +137,28 @@ final class PcStream {
         lastSeenMs = Int64(Date().timeIntervalSince1970 * 1000)
         cpuHistory = Array((cpuHistory + [next.system.cpu.total]).suffix(60))
         memHistory = Array((memHistory + [next.system.memory.usedPercent ?? 0]).suffix(60))
+        // After lastSeenMs and the view are both new (the state's didSet ran
+        // before them).
+        onChange?()
     }
 }
 
 @MainActor @Observable
 final class LiveHub {
     private var streams: [String: PcStream] = [:]
+    /// Called whenever any stream has news; set once by WatchBridge.
+    @ObservationIgnored var onChange: (@MainActor () -> Void)?
 
     func stream(for id: String) -> PcStream {
         if let s = streams[id] { return s }
         let s = PcStream(pairingId: id)
+        s.onChange = { [weak self] in self?.onChange?() }
         streams[id] = s
         return s
     }
+
+    /// The stream if one was ever opened, without opening one.
+    func existing(_ id: String) -> PcStream? { streams[id] }
 
     func forget(_ id: String) { streams[id] = nil }
 }

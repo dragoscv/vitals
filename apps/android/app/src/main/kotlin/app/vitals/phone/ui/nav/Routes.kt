@@ -24,5 +24,9 @@ data class AddPc(val startWithScan: Boolean = false) : NavKey
 @Serializable
 data object Settings : NavKey
 
+/** The owner's health, read from vmui (docs/api/vmui-health.md). A tab only while a vmui is connected. */
+@Serializable
+data object Health : NavKey
+
 /** Where a launcher shortcut, the tile or a notification asks to land. */
 enum class Launch { Home, Processes, Scan }

@@ -1,11 +1,14 @@
-// Applies apps/ios/store/listing.json to the App Store Connect record of the
-// iPhone app: version and app-info localisations (EN + RO), URLs, copyright,
-// category, content rights, age rating, review details and free pricing.
+// Applies a store listing to an App Store Connect record: version and
+// app-info localisations (EN + RO), URLs, copyright, category, content
+// rights, age rating, review details and free pricing. iPhone by default
+// (apps/ios/store/listing.json); `--platform macos` applies
+// apps/desktop/store/macos-listing.json to the Mac App Store record.
 // Credentials: the team's ASC key via ~/.copilot/bin/apple-asc.mjs (Secret
 // Manager, dragos-devcloud). Nothing secret is printed.
 //
 //   node scripts/ios-store.mjs            apply and print what changed
 //   node scripts/ios-store.mjs --check    print the current state only
+//   node scripts/ios-store.mjs --platform macos
 import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -23,30 +26,45 @@ const asc = async (method, path, body) => {
   return r.json;
 };
 
-const APP = '6827931747';
+const mac = process.argv.includes('--platform') && process.argv.includes('macos');
+const APP = mac ? '6827932703' : '6827931747';
+const PLATFORM = mac ? 'MAC_OS' : 'IOS';
 const listing = JSON.parse(
-  readFileSync(new URL('../apps/ios/store/listing.json', import.meta.url), 'utf8'),
+  readFileSync(
+    new URL(
+      mac ? '../apps/desktop/store/macos-listing.json' : '../apps/ios/store/listing.json',
+      import.meta.url,
+    ),
+    'utf8',
+  ),
 );
 const check = process.argv.includes('--check');
 const log = (...a) => console.log(...a);
 
 const version = (
-  await asc('GET', `/v1/apps/${APP}/appStoreVersions?filter[platform]=IOS&limit=5`)
+  await asc('GET', `/v1/apps/${APP}/appStoreVersions?filter[platform]=${PLATFORM}&limit=5`)
 ).data.find((v) =>
   ['PREPARE_FOR_SUBMISSION', 'DEVELOPER_REJECTED', 'REJECTED', 'METADATA_REJECTED'].includes(
     v.attributes.appStoreState,
   ),
 );
-if (!version) throw new Error('no editable iOS version');
+if (!version) throw new Error(`no editable ${PLATFORM} version`);
 const info = (await asc('GET', `/v1/apps/${APP}/appInfos`)).data.find(
   (i) => i.attributes.appStoreState !== 'READY_FOR_SALE',
 );
 log('version', version.attributes.versionString, version.attributes.appStoreState);
 if (check) process.exit(0);
 
-// Version: copyright.
+// Version: copyright, and the version string the build carries.
 await asc('PATCH', `/v1/appStoreVersions/${version.id}`, {
-  data: { type: 'appStoreVersions', id: version.id, attributes: { copyright: listing.copyright } },
+  data: {
+    type: 'appStoreVersions',
+    id: version.id,
+    attributes: {
+      copyright: listing.copyright,
+      ...(listing.versionString !== undefined && { versionString: listing.versionString }),
+    },
+  },
 });
 
 // Localisations, created when missing.

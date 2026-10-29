@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 
 import { cn, focusRing, Tooltip, useReducedMotion } from '@vitals/ui';
 
-import { navGroupIds, navItems, type RouteId } from './navigation';
+import { navGroupIds, useVisibleNavItems, type NavItem, type RouteId } from './navigation';
 import { SHELL_NS } from './strings';
 
 export interface SidebarProps {
@@ -78,6 +78,7 @@ export function Sidebar({
 }: SidebarProps) {
   const { t } = useTranslation();
   const { t: ts } = useTranslation(SHELL_NS);
+  const items = useVisibleNavItems();
   const listRef = useRef<HTMLDivElement>(null);
   const indicator = useIndicator(listRef, active, collapsed);
   const reduced = useReducedMotion();
@@ -214,7 +215,7 @@ export function Sidebar({
                 {ts(`sidebar.group.${group}`)}
               </div>
               <ul className={cn('flex flex-col gap-0.5', collapsed && groupIndex > 0 && 'pt-2')}>
-                {navItems.filter((item) => item.group === group).map((item) => renderItem(item))}
+                {items.filter((item) => item.group === group).map((item) => renderItem(item))}
               </ul>
             </div>
           );
@@ -246,7 +247,7 @@ export function Sidebar({
     </nav>
   );
 
-  function renderItem(item: (typeof navItems)[number]): React.JSX.Element {
+  function renderItem(item: NavItem): React.JSX.Element {
     const label = t(item.labelKey);
     const isActive = item.id === active;
     const Icon = item.icon;

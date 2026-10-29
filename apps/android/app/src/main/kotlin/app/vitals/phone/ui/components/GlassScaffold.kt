@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -22,21 +23,26 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.vitals.phone.R
+import app.vitals.phone.graph
 import app.vitals.phone.ui.LocalNavigator
 import app.vitals.phone.ui.LocalSnackbar
+import app.vitals.phone.ui.nav.Health
 import app.vitals.phone.ui.nav.Machines
 import app.vitals.phone.ui.nav.Settings
 import app.vitals.phone.ui.nav.ThisPhone
 import app.vitals.phone.ui.theme.glassSource
 import app.vitals.phone.ui.theme.glassSurface
 
-enum class Tab { Phone, Machines, Settings }
+enum class Tab { Phone, Machines, Health, Settings }
 
 /**
  * Every screen's frame. Content scrolls under a glass top bar (and, on the
@@ -90,6 +96,9 @@ fun GlassScaffold(
         },
         bottomBar = {
             if (tab != null) {
+                // Health is a tab only while a vmui is connected: most people
+                // never run vmui, and an empty tab would be a dead end.
+                val health by LocalContext.current.graph.health.credentials.collectAsStateWithLifecycle()
                 NavigationBar(modifier = Modifier.glassSurface(), containerColor = Color.Transparent, contentColor = onSurface) {
                     NavigationBarItem(
                         selected = tab == Tab.Phone,
@@ -103,6 +112,14 @@ fun GlassScaffold(
                         icon = { Icon(Icons.Filled.Build, null) },
                         label = { Text(stringResource(R.string.nav_machines)) },
                     )
+                    if (health != null || tab == Tab.Health) {
+                        NavigationBarItem(
+                            selected = tab == Tab.Health,
+                            onClick = { navigator.root(Health) },
+                            icon = { Icon(Icons.Filled.Favorite, null) },
+                            label = { Text(stringResource(R.string.health_nav)) },
+                        )
+                    }
                     NavigationBarItem(
                         selected = tab == Tab.Settings,
                         onClick = { navigator.root(Settings) },

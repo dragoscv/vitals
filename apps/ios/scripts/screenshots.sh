@@ -7,7 +7,10 @@
 # Apple-silicon runner. By hand:
 #
 #   bash scripts/build.sh screenshots   -> build/screenshots/<lang>/NN-name.png
+#                                         build/screenshots-watch/<lang>/NN-name.png
 # (build.sh generates the Xcode project first.)
+# The watch images sit in their own folder so scripts/ios-screenshots-upload.mjs,
+# which reads build/screenshots/<lang>, keeps uploading only iPhone sizes.
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$HERE"
@@ -62,3 +65,47 @@ for pair in "en_GB en-GB" "ro_RO ro"; do
   shot "$locale" "$lang" 05-machines
 done
 ls -la "$OUT"/*
+
+# Apple Watch: the watch app opens on the labelled Sample PC by itself with
+# -vitalsRoute sample (no paired iPhone in a Simulator); one image of the list.
+WOUT="$HERE/build/screenshots-watch"
+WBUNDLE="app.vitals.ios.watchkitapp"
+log "build the watch app for the Simulator"
+xcodebuild -project Vitals.xcodeproj -scheme VitalsWatch -configuration Release \
+  -destination 'generic/platform=watchOS Simulator' -derivedDataPath "$DERIVED" \
+  CODE_SIGNING_ALLOWED=NO build -quiet
+WAPP="$(find "$DERIVED/Build/Products" -maxdepth 2 -name 'VitalsMonitorWatch.app' -path '*watchsimulator*' | head -1)"
+[ -n "$WAPP" ] || { echo "no watch simulator .app" >&2; exit 1; }
+WRUNTIME="$(xcrun simctl list runtimes -j | /usr/bin/python3 -c 'import json,sys; r=[x for x in json.load(sys.stdin)["runtimes"] if x["platform"]=="watchOS" and x["isAvailable"]]; print(r[-1]["identifier"] if r else "")')"
+# The newest Ultra, else the newest Series: either size is accepted by App Store Connect.
+WTYPE="$(xcrun simctl list devicetypes -j | /usr/bin/python3 -c 'import json,sys; d=[x for x in json.load(sys.stdin)["devicetypes"] if x["name"].startswith("Apple Watch")]; u=[x["identifier"] for x in d if "Ultra" in x["name"]]; s=[x["identifier"] for x in d if "Series" in x["name"]]; print((u or s or [""])[-1])')"
+if [ -z "$WRUNTIME" ] || [ -z "$WTYPE" ]; then
+  # The iPhone images above are still good; say so loudly and stop here.
+  echo "WARNING: no watchOS Simulator runtime or device type, no watch screenshots" >&2
+  exit 0
+fi
+log "watch $WTYPE on $WRUNTIME"
+WUDID="$(xcrun simctl create vitals-watch-shots "$WTYPE" "$WRUNTIME")"
+trap 'for u in "$UDID" "$WUDID"; do xcrun simctl shutdown "$u" >/dev/null 2>&1 || true; xcrun simctl delete "$u" >/dev/null 2>&1 || true; done' EXIT
+xcrun simctl boot "$WUDID"
+xcrun simctl bootstatus "$WUDID" -b >/dev/null
+xcrun simctl status_bar "$WUDID" override --time 9:41 >/dev/null 2>&1 || true
+xcrun simctl install "$WUDID" "$WAPP"
+
+wshot() { # locale lang name
+  local locale="$1" lang="$2" name="$3"
+  sleep 3
+  mkdir -p "$WOUT/$lang"
+  xcrun simctl io "$WUDID" screenshot --type=png "$WOUT/$lang/$name.png" >/dev/null
+  log "watch $lang/$name.png"
+}
+
+for pair in "en_GB en-GB" "ro_RO ro"; do
+  set -- $pair
+  locale="$1"; lang="$2"
+  xcrun simctl terminate "$WUDID" "$WBUNDLE" >/dev/null 2>&1 || true
+  xcrun simctl launch "$WUDID" "$WBUNDLE" -AppleLanguages "($lang)" -AppleLocale "$locale" \
+    -vitalsRoute sample >/dev/null
+  wshot "$locale" "$lang" 01-pcs
+done
+ls -la "$WOUT"/*
