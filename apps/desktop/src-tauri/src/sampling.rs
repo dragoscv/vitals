@@ -796,22 +796,26 @@ mod tests {
         let wake = Arc::new(Wake::new());
         let signaller = Arc::clone(&wake);
         let stop = AtomicBool::new(false);
+        let (sent_tx, sent_rx) = std::sync::mpsc::channel();
         thread::spawn(move || {
             thread::sleep(Duration::from_millis(60));
+            let _ = sent_tx.send(Instant::now());
             signaller.notify();
         });
 
-        let started = Instant::now();
         let woken = wake.wait(Duration::from_secs(2), &stop);
-        let elapsed = started.elapsed();
+        let returned = Instant::now();
 
         assert!(woken, "reported a timeout");
-        // 400 ms, not 160: a hosted macOS runner oversleeps the signaller's
-        // 60 ms `thread::sleep` and failed at 161.8 ms (PR #32). A broken
-        // wake waits out the full two seconds, so the bound still catches it.
+        // Measured from the notify, not from the start: how long the
+        // signaller's own 60 ms sleep takes depends on the machine (161 ms
+        // on a hosted macOS runner, 1.4 s here under build load), and that
+        // is not what this guards. A broken wake waits out the two seconds.
+        let sent = sent_rx.recv().unwrap_or(returned);
+        let latency = returned.saturating_duration_since(sent);
         assert!(
-            elapsed < Duration::from_millis(400),
-            "the signal took {elapsed:?} to land"
+            latency < Duration::from_millis(100),
+            "the signal took {latency:?} to land"
         );
     }
 
