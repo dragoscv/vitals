@@ -85,7 +85,9 @@ export function ActionSheet({ process, control, onClose, onSettled, readOnly }: 
         onClick={onClose}
         className="sheet-backdrop absolute inset-0 bg-black/40"
       />
-      <div className="sheet-panel safe-bottom relative rounded-t-[var(--radius-widget)] border-t border-[var(--color-border-subtle)] bg-[var(--color-bg-raised)] p-4">
+      {/* Capped to the viewport and scrolled inside: on a short phone held sideways the sheet
+          otherwise ran off the top and its Cancel button could not be reached. */}
+      <div className="sheet-panel safe-bottom relative max-h-[calc(100dvh-1rem)] overflow-y-auto overscroll-contain rounded-t-[var(--radius-widget)] border-t border-[var(--color-border-subtle)] bg-[var(--color-bg-raised)] p-4">
         <h2 className="truncate text-base font-semibold">
           {t('mobile.action.title', { name: displayName(process) })}
         </h2>

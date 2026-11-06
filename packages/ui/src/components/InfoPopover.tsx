@@ -52,7 +52,9 @@ export function InfoPopover({
           className={cn(
             overlaySurface,
             overlayMotion,
-            'max-w-72 px-3 py-2 text-xs leading-relaxed',
+            // Radix exposes the space left before the window edge; a long explanation scrolls
+            // instead of being clipped by the window.
+            'max-h-(--radix-popover-content-available-height) max-w-72 overflow-y-auto px-3 py-2 text-xs leading-relaxed',
             className,
           )}
         >

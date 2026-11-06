@@ -71,7 +71,10 @@ export const DialogContent = forwardRef<ElementRef<typeof RadixDialog.Content>, 
         <RadixDialog.Content
           ref={ref}
           className={cn(
-            'fixed top-1/2 left-1/2 z-50 flex w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col',
+            // Height is capped to the window (dvh: the webview's real viewport) and the body is the
+            // only part that scrolls. Without the cap a long dialog (drive clean-up, settings) grew
+            // past the window edge and its header/footer - the Close and Next buttons - were cut off.
+            'fixed top-1/2 left-1/2 z-50 flex max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden',
             'rounded-[var(--radius-widget)] border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] text-[var(--color-fg-default)] shadow-[var(--shadow-overlay)]',
             'transition-opacity duration-(--duration-fast) data-[state=closed]:opacity-0 data-[state=open]:opacity-100',
             SIZES[size],
@@ -79,7 +82,7 @@ export const DialogContent = forwardRef<ElementRef<typeof RadixDialog.Content>, 
           )}
           {...rest}
         >
-          <div className="flex items-start gap-3 border-b border-[var(--color-border-subtle)] px-4 py-3">
+          <div className="flex shrink-0 items-start gap-3 border-b border-[var(--color-border-subtle)] px-4 py-3">
             <div className="min-w-0 flex-1">
               <RadixDialog.Title
                 className={cn(
@@ -115,10 +118,15 @@ export const DialogContent = forwardRef<ElementRef<typeof RadixDialog.Content>, 
             </RadixDialog.Close>
           </div>
 
-          <div className="min-h-0 overflow-auto px-4 py-3 text-sm">{children}</div>
+          <div
+            className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3 text-sm"
+            data-dialog-body=""
+          >
+            {children}
+          </div>
 
           {footer !== undefined && (
-            <div className="flex items-center justify-end gap-2 border-t border-[var(--color-border-subtle)] px-4 py-3">
+            <div className="flex shrink-0 items-center justify-end gap-2 border-t border-[var(--color-border-subtle)] px-4 py-3">
               {footer}
             </div>
           )}

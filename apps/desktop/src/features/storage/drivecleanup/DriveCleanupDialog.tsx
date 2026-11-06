@@ -581,7 +581,9 @@ function Choose({
       {groups.length === 0 ? (
         <p>{t('drive.nothingFound')}</p>
       ) : (
-        <div className="flex max-h-[50vh] flex-col gap-3 overflow-auto pr-1">
+        /* No height cap of its own: the dialog body scrolls (Dialog caps itself to the window), and a
+           second scroller inside it trapped the wheel and hid the selection summary below it. */
+        <div className="flex flex-col gap-3">
           {groups.map((group) => (
             <Group
               key={group.key}

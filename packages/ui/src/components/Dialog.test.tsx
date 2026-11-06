@@ -23,6 +23,34 @@ function Fixture() {
 }
 
 describe('Dialog', () => {
+  it('caps its height to the window and scrolls only the body, so the close button and footer never leave the screen', () => {
+    render(
+      <DialogRoot open>
+        <DialogContent title="Long" closeLabel="Close" footer={<Button>Next</Button>}>
+          <p>body</p>
+        </DialogContent>
+      </DialogRoot>,
+    );
+    const dialog = screen.getByRole('dialog', { name: 'Long' });
+    // jsdom has no layout, so the guarantee is asserted on the classes that produce it.
+    expect(
+      dialog.className,
+      'no window-height cap: a long dialog grows past the window edge',
+    ).toMatch(/max-h-\[calc\(100dvh-2rem\)\]/);
+    expect(dialog.className, 'the dialog itself must not scroll or overflow').toMatch(
+      /\boverflow-hidden\b/,
+    );
+    const body = dialog.querySelector('[data-dialog-body]');
+    expect(body, 'body wrapper missing').not.toBeNull();
+    expect(body?.className, 'the body is not the scroll area').toMatch(/\boverflow-y-auto\b/);
+    expect(
+      body?.className,
+      'the body cannot shrink below its content, so flex will not cap it',
+    ).toMatch(/\bmin-h-0\b/);
+    const footer = screen.getByRole('button', { name: 'Next' }).parentElement;
+    expect(footer?.className, 'the footer shrinks and scrolls away').toMatch(/\bshrink-0\b/);
+  });
+
   it('is named and described, so it is not announced as an anonymous "dialog"', () => {
     render(<Fixture />);
     fireEvent.click(screen.getByRole('button', { name: 'Open' }));
