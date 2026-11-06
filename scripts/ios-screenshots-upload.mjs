@@ -2,7 +2,9 @@
 // (artefact `ios-screenshots`, unpacked as <dir>/<lang>/NN-name.png) to the
 // editable App Store version, replacing whatever set is there. The display
 // type follows the image size: 1320x2868 -> APP_IPHONE_67 (the 6.9" slot),
-// 1242x2688 -> APP_IPHONE_65.
+// 1242x2688 -> APP_IPHONE_65. The watch artefact (`ios-watch-screenshots`,
+// 410x502) goes to APP_WATCH_ULTRA on the same iPhone version; only sets of
+// the uploaded type are replaced, so the iPhone shots survive a watch upload.
 //
 //   node scripts/ios-screenshots-upload.mjs <dir>
 //   node scripts/ios-screenshots-upload.mjs <dir> --platform macos
@@ -53,6 +55,9 @@ function displayType({ w, h }) {
   if (w === 1320 && h === 2868) return 'APP_IPHONE_67';
   if (w === 1290 && h === 2796) return 'APP_IPHONE_67';
   if (w === 1242 && h === 2688) return 'APP_IPHONE_65';
+  if ((w === 410 && h === 502) || (w === 422 && h === 514)) return 'APP_WATCH_ULTRA';
+  if (w === 416 && h === 496) return 'APP_WATCH_SERIES_10';
+  if (w === 396 && h === 484) return 'APP_WATCH_SERIES_7';
   throw new Error(`no App Store slot for ${w}x${h}`);
 }
 

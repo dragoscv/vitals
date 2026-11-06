@@ -166,6 +166,20 @@ CSV records the state.
 
 ## Verification log
 
+### 2026-11-06 — S23-13 iPhone 1.2.0 (with the Apple Watch app) submitted
+
+`apple-asc.mjs GET /v1/apps/6827931747/appStoreVersions`: 1.1.1 (257)
+READY_FOR_SALE. Build 252 (8373c753) VALID, APP_STORE_ELIGIBLE, expires
+2027-01-26. Version 1.2.0 created (498abbea, AFTER_APPROVAL) with build 252;
+what's new set and read back for en-GB and ro. Watch shots from
+ios-screenshots.yml run 40795900656 (artefact ios-watch-screenshots, 410x502)
+uploaded with `scripts/ios-screenshots-upload.mjs`, which now maps watch
+sizes to their slots (APP_WATCH_ULTRA): en-GB and ro states
+COMPLETE x6 (5 iPhone carried over + 1 watch). Submission 9a7667de:
+`submission state WAITING_FOR_REVIEW`, `version 1.2.0 WAITING_FOR_REVIEW`.
+S23-15: Multicast Networking request shows Declined on developer.apple.com,
+so no entitlement and no new build.
+
 ### 2026-10-28 — S23-14 bundle budget for the Health page
 
 PR #32 CI run 40788713091, Frontend: shipped assets 508.3 KB of the
