@@ -166,6 +166,45 @@ CSV records the state.
 
 ## Verification log
 
+### 2026-11-11 — S23-16 Mac App Store review of 1.2.0 (254)
+
+**What happened.** Apple has rejected the Mac build twice and has not
+accepted it yet. On 2026-10-30 an automated check flagged 2.4.5 for
+`com.apple.security.network.server`; the reply of 2026-11-03 explained the
+LAN server (off by default, it is what the iPhone app reads) and Apple did
+not raise it again, so the entitlement stays. On 2026-11-09 the build was
+rejected under "Guidelines 4.3 - Spam and 4.2.6 - App Generation Services"
+with nine questions. The same message reached three other apps of the
+account in the same minute (codai for iPhone, MixAI TV for Mac, MixAI Music
+for Mac), which says the trigger is the account — nine new records
+submitted in twelve days — rather than anything in Vitals.
+
+**Why a reply and not a new build.** The message asks for answers and says
+not to resubmit. Guideline 4.3(b) warns that repeated submissions of this
+kind can end in removal from the developer programme, so a fifth rejection
+is the real risk. No build goes up until Apple answers.
+
+**What was sent.** Answers to the nine questions, sent in App Store Connect
+on 2026-11-11 at 12:28 local time with the owner's approval. Every claim
+was checked against the repository first, and one was corrected: the draft
+said the `sysinfo` crate provides "part of the measurements", while
+`Cargo.toml:62` says it "carries the bulk of the readings", so the reply
+says "most of the readings". The reply states plainly that nobody but the
+owner tested the Mac edition (a Mac virtual machine and CI on macOS).
+
+```
+App Store Connect API, 2026-11-11 12:06Z
+app.vitals.desktop  macOS 1.2.0  REJECTED
+                    submission 5116029f  UNRESOLVED_ISSUES  (sent 2026-11-03 07:09Z)
+                    build 254 attached
+app.vitals.ios      iOS 1.2.0    READY_FOR_SALE  submission 9a7667de  COMPLETE
+anonymous GET api.github.com/repos/dragoscv/vitals  -> 200 (public, MIT)
+```
+
+Not done: nothing was resubmitted and nothing in the app changed. The full
+inventory of the account, the text of the rejection and the fact-check are
+in the codai repository, `docs/status/store-reviews-reality-check-2026-11-11.md`.
+
 ### 2026-10-28 — S23-14 bundle budget for the Health page
 
 PR #32 CI run 40788713091, Frontend: shipped assets 508.3 KB of the
