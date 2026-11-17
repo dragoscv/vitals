@@ -37,6 +37,9 @@ async fn start() -> Harness {
         alerts: Arc::new(Vec::new),
         history: Arc::new(|_| Vec::new()),
         sensors: Arc::new(Vec::new),
+        connectivity: Arc::new(|| {
+            vitals_core::connectivity::ConnectivityReport::from_parts(None, Vec::new(), None)
+        }),
         version: "test".into(),
         // The desktop's loopback listener grants read without a token; the
         // guard must not depend on that setting.

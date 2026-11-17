@@ -188,7 +188,7 @@ pub async fn run_connectivity_probe() -> CommandResult<vitals_core::connectivity
 
 /// The platform probe. A machine with no ICMP backend still answers, with a
 /// report whose verdict is `unknown` rather than a fabricated "healthy".
-fn probe_connectivity() -> vitals_core::connectivity::ConnectivityReport {
+pub(crate) fn probe_connectivity() -> vitals_core::connectivity::ConnectivityReport {
     #[cfg(windows)]
     {
         vitals_win::connectivity::run()

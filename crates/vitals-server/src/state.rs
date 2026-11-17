@@ -235,6 +235,10 @@ pub struct ApiState {
     /// Every sensor reading the host can make now. The host is responsible
     /// for caching: on Windows a read is a WMI round trip.
     pub sensors: Arc<dyn Fn() -> Vec<vitals_core::remote::SensorLine> + Send + Sync>,
+    /// The connectivity probe, run only when a client asks for it. A closure
+    /// for the same reason `sensors` is one: this crate is platform-agnostic
+    /// and the host owns the ICMP implementation.
+    pub connectivity: Arc<dyn Fn() -> vitals_core::connectivity::ConnectivityReport + Send + Sync>,
     /// Shown at `/api/v1/health` so a client can tell which build it is
     /// talking to before trusting the shape of anything else.
     pub version: String,

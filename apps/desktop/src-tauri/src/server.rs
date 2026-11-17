@@ -187,6 +187,7 @@ impl LanServer {
                 })
             }),
             sensors: Arc::new(crate::inventory::lan_sensor_lines),
+            connectivity: Arc::new(crate::commands::probe_connectivity),
             version: app.package_info().version.to_string(),
             loopback_scope,
             pairing: Some(Arc::clone(&self.pairing)),
@@ -893,6 +894,7 @@ mod tests {
                 alerts: Arc::new(Vec::new),
                 history: Arc::new(|_| Vec::new()),
                 sensors: Arc::new(Vec::new),
+                connectivity: Arc::new(crate::commands::probe_connectivity),
                 version: "test".into(),
                 loopback_scope: Some(Scope::Control),
                 pairing: None,

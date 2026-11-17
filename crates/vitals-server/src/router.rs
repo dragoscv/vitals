@@ -149,6 +149,7 @@ fn router_with_closing(state: ApiState, closing: watch::Receiver<bool>) -> Route
         .route("/api/v1/summary", get(summary))
         .route("/api/v1/history", get(history))
         .route("/api/v1/sensors", get(sensors))
+        .route("/api/v1/connectivity", get(connectivity))
         .route("/api/v1/stream", get(stream))
         .route("/api/v1/ws", get(websocket))
         .route("/api/v1/host", get(host))
@@ -561,6 +562,25 @@ async fn history(State(state): State<ApiState>, Query(q): Query<HistoryQuery>) -
         Ok(rows) => Json(rows).into_response(),
         Err(error) => {
             tracing::warn!(%error, "history provider panicked");
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+    }
+}
+
+/// "Is it the PC, the router or the internet?" — run when a client asks.
+///
+/// Read scope, not control: it measures this machine's own link and changes
+/// nothing, and a phone that can see the numbers is exactly the point. Read
+/// scope also means it is subject to the same token rules as everything else
+/// on this router. Off the reactor, because on a dead network the probe waits
+/// out four timeouts per target.
+async fn connectivity(State(state): State<ApiState>) -> Response {
+    state.frames.touch();
+    let probe = Arc::clone(&state.connectivity);
+    match tokio::task::spawn_blocking(move || probe()).await {
+        Ok(report) => Json(report).into_response(),
+        Err(error) => {
+            tracing::warn!(%error, "the connectivity probe panicked");
             StatusCode::INTERNAL_SERVER_ERROR.into_response()
         }
     }
@@ -1107,6 +1127,9 @@ mod tests {
             alerts: Arc::new(Vec::new),
             history: Arc::new(|_| Vec::new()),
             sensors: Arc::new(Vec::new),
+            connectivity: Arc::new(|| {
+                vitals_core::connectivity::ConnectivityReport::from_parts(None, Vec::new(), None)
+            }),
             version: "test".into(),
             loopback_scope,
             pairing: None,

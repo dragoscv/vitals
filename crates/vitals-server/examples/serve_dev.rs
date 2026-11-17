@@ -103,6 +103,18 @@ async fn main() {
                 Vec::new()
             }
         }),
+        // Real probe on Windows, so the phone's card can be developed against
+        // this machine rather than a fixture.
+        connectivity: Arc::new(|| {
+            #[cfg(windows)]
+            {
+                vitals_win::connectivity::run()
+            }
+            #[cfg(not(windows))]
+            {
+                vitals_core::connectivity::ConnectivityReport::from_parts(None, Vec::new(), None)
+            }
+        }),
         version: "dev".into(),
         loopback_scope: None,
         // Nothing persists: a TV paired against this example is forgotten

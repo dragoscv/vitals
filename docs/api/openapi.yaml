@@ -313,6 +313,27 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorised'
 
+  /api/v1/connectivity:
+    get:
+      tags: [metrics]
+      summary: Whether the PC, its router or the internet is at fault.
+      description: |
+        Sends four echo requests to the default gateway and to two public
+        addresses, then times a name lookup. Run only when asked: it is real
+        network traffic and it never runs on a timer. A verdict of `unknown`
+        means the question could not be answered (no default route), never that
+        the link is fine.
+      operationId: connectivity
+      responses:
+        '200':
+          description: The measurements and the verdict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConnectivityReport'
+        '401':
+          $ref: '#/components/responses/Unauthorised'
+
   /api/v1/host:
     get:
       tags: [metrics]
@@ -2144,3 +2165,49 @@ components:
         output:
           type: string
           description: agentq's stdout and stderr, the last 4 KB, redacted.
+
+    Connectivity:
+      type: string
+      description: |
+        Which of the three is at fault. `unknown` means the question could not
+        be answered — never that the connection is fine.
+      enum: [healthy, internet, localLink, unknown]
+
+    TargetProbe:
+      type: object
+      required: [target, sent, received]
+      properties:
+        target:
+          type: string
+          description: The address as the user would recognise it.
+        sent:
+          type: integer
+          description: Round trips attempted.
+        received:
+          type: integer
+          description: Round trips that came back.
+        rttMs:
+          type: [number, 'null']
+          description: |
+            Mean round trip of the replies that returned, in milliseconds.
+            `null` when none did — never 0, which would read as an impossibly
+            fast reply.
+
+    ConnectivityReport:
+      type: object
+      required: [internet, verdict]
+      properties:
+        gateway:
+          oneOf:
+            - $ref: '#/components/schemas/TargetProbe'
+            - type: 'null'
+          description: The default gateway, when the machine has one.
+        internet:
+          type: array
+          items:
+            $ref: '#/components/schemas/TargetProbe'
+        dnsMs:
+          type: [number, 'null']
+          description: How long a name lookup took; `null` when not measured.
+        verdict:
+          $ref: '#/components/schemas/Connectivity'

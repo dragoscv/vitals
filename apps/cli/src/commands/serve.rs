@@ -73,6 +73,22 @@ fn unix_now() -> i64 {
         .map_or(0, |d| i64::try_from(d.as_secs()).unwrap_or(i64::MAX))
 }
 
+/// The connectivity probe, for `/api/v1/connectivity`.
+///
+/// The CLI samples this machine directly, so it probes it directly too; a
+/// platform without an ICMP backend answers `unknown` rather than inventing a
+/// healthy verdict.
+fn probe_connectivity() -> vitals_core::connectivity::ConnectivityReport {
+    #[cfg(windows)]
+    {
+        vitals_win::connectivity::run()
+    }
+    #[cfg(not(windows))]
+    {
+        vitals_core::connectivity::ConnectivityReport::from_parts(None, Vec::new(), None)
+    }
+}
+
 /// The machine's host name, for the MQTT node id and the Home Assistant device
 /// name. The environment variable is the cheap path on both Windows
 /// (`COMPUTERNAME`) and Unix (`HOSTNAME`); a machine with neither falls back
@@ -127,6 +143,7 @@ pub fn run(options: &Options) -> Result<()> {
         // answer with an empty list, which clients render as "not recorded".
         history: Arc::new(|_| Vec::new()),
         sensors: Arc::new(Vec::new),
+        connectivity: Arc::new(probe_connectivity),
         version: env!("CARGO_PKG_VERSION").to_owned(),
         loopback_scope: None,
         pairing: Some(desk),

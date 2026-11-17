@@ -71,6 +71,9 @@ async fn start() -> Harness {
         alerts: Arc::new(Vec::new),
         history: Arc::new(|_| Vec::new()),
         sensors: Arc::new(Vec::new),
+        connectivity: Arc::new(|| {
+            vitals_core::connectivity::ConnectivityReport::from_parts(None, Vec::new(), None)
+        }),
         version: "0.0.0-test".into(),
         loopback_scope: None,
         pairing: None,

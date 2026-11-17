@@ -104,6 +104,9 @@ fn state_with(
                 quality: "measured".into(),
             }]
         }),
+        connectivity: Arc::new(|| {
+            vitals_core::connectivity::ConnectivityReport::from_parts(None, Vec::new(), None)
+        }),
         version: "0.0.0-test".into(),
         loopback_scope,
         pairing: None,
@@ -209,6 +212,7 @@ const GUARDED_ROUTES: &[(&str, &str)] = &[
     ("GET", "/api/v1/summary"),
     ("GET", "/api/v1/history"),
     ("GET", "/api/v1/sensors"),
+    ("GET", "/api/v1/connectivity"),
     ("GET", "/api/v1/stream"),
     ("GET", "/api/v1/ws"),
     ("GET", "/api/v1/host"),
