@@ -22,11 +22,17 @@ import {
   ListTree,
   XCircle,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { TimeSeriesChart } from '@vitals/charts';
-import type { Diagnosis, Process, Severity, SystemMetrics } from '@vitals/protocol';
+import type {
+  ConnectivityReport,
+  Diagnosis,
+  Process,
+  Severity,
+  SystemMetrics,
+} from '@vitals/protocol';
 import { Button, DialogContent, DialogRoot, formatPercent, Spinner } from '@vitals/ui';
 
 import { useSettings } from '../../settings/store';
@@ -235,8 +241,123 @@ function Body({
           onShowProcess={showProcess}
         />
       )}
+      <ConnectivityCard />
     </DialogContent>
   );
+}
+
+/// "Is it my PC or my internet?" — the on-demand network probe.
+///
+/// A button rather than something that runs on open: four echo requests per
+/// target is real traffic, and a dialog that probed the network every time it
+/// was opened would be measuring the user's connection without being asked.
+function ConnectivityCard() {
+  const { t } = useTranslation(DASHBOARD_NS);
+  const [state, setState] = useState<
+    | { readonly kind: 'idle' }
+    | { readonly kind: 'running' }
+    | { readonly kind: 'done'; readonly report: ConnectivityReport }
+    | { readonly kind: 'failed' }
+  >({ kind: 'idle' });
+
+  const run = async () => {
+    setState({ kind: 'running' });
+    try {
+      const core = await import('@tauri-apps/api/core');
+      const report = await core.invoke<ConnectivityReport>('run_connectivity_probe');
+      setState({ kind: 'done', report });
+    } catch {
+      setState({ kind: 'failed' });
+    }
+  };
+
+  // The wire enum is camelCase; the sentence each value maps to is the whole
+  // point of the feature, so a missing branch would be a blank answer.
+  const verdictKey =
+    state.kind === 'done'
+      ? {
+          healthy: 'diagnosis.connectivity.healthy',
+          internet: 'diagnosis.connectivity.internet',
+          localLink: 'diagnosis.connectivity.localLink',
+          unknown: 'diagnosis.connectivity.unknown',
+        }[state.report.verdict]
+      : null;
+
+  const rows =
+    state.kind === 'done'
+      ? [
+          ...(state.report.gateway
+            ? [{ label: t('diagnosis.connectivity.gateway'), probe: state.report.gateway }]
+            : []),
+          ...state.report.internet.map((probe) => ({
+            label: t('diagnosis.connectivity.targets'),
+            probe,
+          })),
+        ]
+      : [];
+
+  return (
+    <section className="mt-6 border-t border-[var(--color-border-subtle)] pt-4">
+      <h3 className="text-sm font-medium">{t('diagnosis.connectivity.title')}</h3>
+      <p className="mt-1 text-xs text-[var(--color-fg-muted)]">
+        {t('diagnosis.connectivity.hint')}
+      </p>
+      <div className="mt-3 flex items-center gap-3">
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => void run()}
+          disabled={state.kind === 'running'}
+        >
+          {state.kind === 'running'
+            ? t('diagnosis.connectivity.running')
+            : t('diagnosis.connectivity.run')}
+        </Button>
+        {state.kind === 'failed' && (
+          <span role="alert" className="text-xs">
+            {t('diagnosis.failed')}
+          </span>
+        )}
+      </div>
+      {verdictKey !== null && (
+        <p aria-live="polite" className="mt-3 text-sm">
+          {t(verdictKey)}
+        </p>
+      )}
+      {rows.length > 0 && (
+        <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
+          {rows.map(({ label, probe }) => (
+            <Fragment key={probe.target}>
+              <dt className="text-[var(--color-fg-muted)]">{label}</dt>
+              <dd>
+                {probe.target}
+                {' · '}
+                {probe.rttMs === null
+                  ? t('diagnosis.connectivity.noReply')
+                  : `${Math.round(probe.rttMs)} ms`}
+                {' · '}
+                {t('diagnosis.connectivity.loss', {
+                  percent: Math.round(lossPercent(probe)),
+                })}
+              </dd>
+            </Fragment>
+          ))}
+          {state.kind === 'done' && state.report.dnsMs !== null && (
+            <>
+              <dt className="text-[var(--color-fg-muted)]">{t('diagnosis.connectivity.dns')}</dt>
+              <dd>{t('diagnosis.connectivity.dnsMs', { ms: Math.round(state.report.dnsMs) })}</dd>
+            </>
+          )}
+        </dl>
+      )}
+    </section>
+  );
+}
+
+/// The share of probes that did not come back, mirroring the Rust side.
+function lossPercent(probe: ConnectivityReport['internet'][number]): number {
+  if (probe.sent === 0) return 0;
+  return ((probe.sent - probe.received) / probe.sent) * 100;
 }
 
 function Verdict({

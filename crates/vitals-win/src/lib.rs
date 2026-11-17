@@ -27,6 +27,7 @@
 pub mod actions;
 pub mod apps;
 pub mod connections;
+pub mod connectivity;
 pub mod cpu;
 pub mod crash;
 pub mod credentials;

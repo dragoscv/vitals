@@ -49,6 +49,11 @@ windows = { version = "0.62.2", features = [
 	# Drive temperature (hardware/drive_temp): IOCTL_STORAGE_QUERY_PROPERTY.
 	"Win32_System_IO",
 	"Win32_System_Ioctl",
+	# Connectivity probe (connectivity.rs): GetIpForwardTable2 for the
+	# default gateway and IcmpSendEcho for the round trips.
+	"Win32_NetworkManagement_IpHelper",
+	"Win32_NetworkManagement_Ndis",
+	"Win32_Networking_WinSock",
 	# Adapter names and dedicated VRAM for devices the D3DKMT registry query
 	# does not name (virtual displays, render-only adapters).
 	"Win32_Graphics_Dxgi",

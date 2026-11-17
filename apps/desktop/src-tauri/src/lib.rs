@@ -408,6 +408,7 @@ fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
         commands::set_alert_prefs,
         commands::set_alert_strings,
         commands::diagnose,
+        commands::run_connectivity_probe,
         commands::set_close_to_tray,
         commands::set_taskbar_load,
         updates::set_auto_update,

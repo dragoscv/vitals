@@ -23,6 +23,7 @@
 pub mod agents;
 pub mod alerts;
 pub mod capability;
+pub mod connectivity;
 pub mod diagnosis;
 pub mod error;
 #[cfg(any(test, feature = "fixtures"))]

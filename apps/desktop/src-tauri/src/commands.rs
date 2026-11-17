@@ -169,6 +169,36 @@ pub fn diagnose(
     vitals_core::diagnosis::diagnose(&alerts.active(), &system, &processes)
 }
 
+/// "Is it my PC, my Wi-Fi or my internet?" — run on demand, never on a timer.
+///
+/// Async and on the blocking pool: on a network that is actually down the
+/// probe waits out four timeouts per target, and freezing the window while
+/// answering "is the network down?" would be a poor joke. It takes no state
+/// and sends nothing but echo requests; nothing is published anywhere.
+#[tauri::command]
+pub async fn run_connectivity_probe() -> CommandResult<vitals_core::connectivity::ConnectivityReport>
+{
+    let report = tauri::async_runtime::spawn_blocking(probe_connectivity)
+        .await
+        .map_err(|error| CommandError::Internal {
+            message: error.to_string(),
+        })?;
+    Ok(report)
+}
+
+/// The platform probe. A machine with no ICMP backend still answers, with a
+/// report whose verdict is `unknown` rather than a fabricated "healthy".
+fn probe_connectivity() -> vitals_core::connectivity::ConnectivityReport {
+    #[cfg(windows)]
+    {
+        vitals_win::connectivity::run()
+    }
+    #[cfg(not(windows))]
+    {
+        vitals_core::connectivity::ConnectivityReport::from_parts(None, Vec::new(), None)
+    }
+}
+
 /// Localised toast titles, pushed at start and on a language change.
 ///
 /// Toasts render in Rust because they must fire while the window is hidden;
