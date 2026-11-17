@@ -18,7 +18,7 @@ describe('agents translations', () => {
 
   it('names every client, session state and liveness the backend can emit', () => {
     const paths = new Set(keyPaths(bundles.en));
-    for (const c of ['vscodeCopilot', 'copilotCli', 'codai', 'codex', 'claudeCode', 'other']) {
+    for (const c of ['vscodeCopilot', 'copilotCli', 'kodwen', 'codex', 'claudeCode', 'other']) {
       expect(paths).toContain(`client.${c}`);
     }
     for (const s of ['working', 'waiting', 'idle', 'ended']) expect(paths).toContain(`state.${s}`);

@@ -362,7 +362,9 @@ pub struct RepoStat {
 pub enum AgentClient {
     VscodeCopilot,
     CopilotCli,
-    Codai,
+    /// The author's AI gateway. Renamed from `Codai` on 2026-11-17 when the
+    /// service was rebranded to Kodwen; the wire value is `kodwen`.
+    Kodwen,
     Codex,
     ClaudeCode,
     Other,
@@ -410,7 +412,7 @@ pub struct AgentSession {
     /// Sum of turn durations: time the agent was actually working.
     ///
     /// The counters below are `None` where the source does not report them
-    /// (a codai cloud session lists only its title and timestamps), never `0`:
+    /// (a Kodwen cloud session lists only its title and timestamps), never `0`:
     /// "0 turns" next to a session that has run for hours is a false fact.
     #[cfg_attr(feature = "ts", ts(type = "number | null"))]
     pub active_ms: Option<u64>,
@@ -426,6 +428,31 @@ pub struct AgentSession {
     pub tokens_in: Option<u64>,
     #[cfg_attr(feature = "ts", ts(type = "number | null"))]
     pub tokens_out: Option<u64>,
+    /// Prompt tokens served from the provider cache (cheaper, and the reason
+    /// `tokens_in` alone is not what the bill is computed from).
+    #[cfg_attr(feature = "ts", ts(type = "number | null"))]
+    pub tokens_cached: Option<u64>,
+    /// Reasoning tokens the model produced but did not return as text.
+    #[cfg_attr(feature = "ts", ts(type = "number | null"))]
+    pub tokens_reasoning: Option<u64>,
+    /// What the source says the session cost, in US dollars, when it reports a
+    /// price. `None` for a subscriber plan that bills flat or does not price
+    /// per request — never `0` for "unknown".
+    pub cost_usd: Option<f64>,
+    /// Requests the source recorded; `None` where it records none.
+    pub requests: Option<u32>,
+    /// Sum of the requests' durations in milliseconds: time the model was
+    /// generating, which is the denominator of `tokens_per_sec`.
+    #[cfg_attr(feature = "ts", ts(type = "number | null"))]
+    pub output_ms: Option<u64>,
+    /// Average time to the first token of a request, milliseconds.
+    #[cfg_attr(feature = "ts", ts(type = "number | null"))]
+    pub ttft_ms: Option<u64>,
+    /// Output tokens per second over `output_ms`.
+    ///
+    /// Defined once, here, so the desktop, the phone and the watch print the
+    /// same number instead of each inventing a formula.
+    pub tokens_per_sec: Option<f64>,
     /// The process that hosts the agent, when it can be attributed.
     pub pid: Option<u32>,
 }

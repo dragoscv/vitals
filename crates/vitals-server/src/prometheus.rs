@@ -735,6 +735,13 @@ mod tests {
                 top_tools: Vec::new(),
                 tokens_in: None,
                 tokens_out: None,
+                tokens_cached: None,
+                tokens_reasoning: None,
+                cost_usd: None,
+                requests: None,
+                output_ms: None,
+                ttft_ms: None,
+                tokens_per_sec: None,
                 pid: None,
             }
         }

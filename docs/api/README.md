@@ -240,7 +240,7 @@ action needs (`id`, `leaseId`, `runId`, `session`, `sha`, `resource`, `slot`)
 are passed through untouched.
 
 A session's `activeMs`, `turns`, `userMessages`, `toolCalls` and `toolFailures`
-are `null` when the source does not report them — codai cloud sessions and
+are `null` when the source does not report them — Kodwen cloud sessions and
 Codex — and a measured number (possibly `0`) for sessions read from this PC.
 A cloud copy of a conversation that is also on this PC is listed once, as the
 local session.

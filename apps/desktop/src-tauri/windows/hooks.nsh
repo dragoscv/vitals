@@ -232,14 +232,19 @@
     DeleteRegValue HKLM "SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\taskmgr.exe" "Debugger"
   ${EndIf}
 
-  ; S21 (owner 2026-10-18): the optional codai sign-in keeps a key in
-  ; Credential Manager (generic credential, target vitals/codai-api-key,
+  ; S21 (owner 2026-10-18): the optional Kodwen sign-in keeps a key in
+  ; Credential Manager (generic credential, target vitals/kodwen-api-key,
   ; crates/vitals-agents cloud.rs CREDENTIAL_TARGET). Settings stay on
   ; uninstall; a credential is not a setting, and a removed app must not leave
   ; a working key behind. Per-user vault of whoever runs the uninstaller (the
   ; one who signed in). Kept on /UPDATE so an update does not sign you out.
-  ; cmdkey exits non-zero when there is none, which is fine.
+  ; cmdkey exits non-zero when there is none, which is fine. Both the current
+  ; and the pre-rebrand target are removed: a copy that signed in as codai
+  ; before 2026-11 migrated its key, but an install that only ever ran the old
+  ; one may still have the old entry.
   ${If} $UpdateMode <> 1
+    nsExec::Exec '"$SYSDIR\cmdkey.exe" /delete:vitals/kodwen-api-key'
+    Pop $0
     nsExec::Exec '"$SYSDIR\cmdkey.exe" /delete:vitals/codai-api-key'
     Pop $0
     ; The Health page's vmui device token and its address (health.rs), for

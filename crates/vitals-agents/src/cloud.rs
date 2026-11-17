@@ -1,22 +1,30 @@
-//! Agents running in the cloud, from the codai account (ADR-0039).
+//! Agents running in the cloud, from the Kodwen account (ADR-0039).
 //!
 //! Read-only and opt-in: nothing is sent until the user signs in with the
-//! codai OIDC device flow (RFC 8628, public client `codai-cli`, the same one
-//! `codaid` uses). The resulting `codai_…` key is stored by the desktop in
+//! Kodwen OIDC device flow (RFC 8628, public client `codai-cli`, the same one
+//! `codaid` uses). The resulting key is stored by the desktop in
 //! Credential Manager; this module only builds requests and parses answers,
 //! with the HTTP transport passed in so it stays OS- and runtime-agnostic.
 //!
-//! Endpoints (`apps/gateway` in the codai repo):
+//! Endpoints (`apps/gateway` in the Kodwen repo):
 //! - `GET /v1/hosts` — the user's desktops connected right now;
 //! - `GET /v1/sessions?v=2` — conversation sessions with `last_event_at`,
 //!   `executor_device_id` and live `presence_count`;
 //! - `POST /v1/keys/self/revoke` — the key revokes itself on sign-out.
 //!
 //! The key is minted under the `agents:read` scope (owner decision
-//! 2026-10-18, S21): codai's gateway refuses it everywhere except those
+//! 2026-10-18, S21): the gateway refuses it everywhere except those
 //! reads and its own revocation, so a copied key can neither run inference,
 //! spend money nor manage other keys. The device name sent at minting is a
 //! fixed label, never the computer name.
+//!
+//! # Names that did not change
+//!
+//! The service rebranded from codai to Kodwen on 2026-11 (domain, product
+//! name, UI). The wire-level identifiers stayed as the service itself still
+//! issues them: the OIDC client is `codai-cli`, a minted key still starts
+//! with `codai_`, and the device-name header is `X-Codai-Device-Name`. Only
+//! the hosts and the human-facing name moved.
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -27,17 +35,23 @@ use vitals_core::agents::{AgentClient, AgentSession, SessionState};
 
 use crate::time::parse_iso_ms;
 
-pub const DEFAULT_GATEWAY: &str = "https://ai.codai.ro";
-pub const DEFAULT_AUTH: &str = "https://auth.codai.ro";
+pub const DEFAULT_GATEWAY: &str = "https://ai.kodwen.com";
+pub const DEFAULT_AUTH: &str = "https://auth.kodwen.com";
+/// The service's own OIDC client id. Unchanged by the rebrand: it is what
+/// the auth service is configured with, not a choice this app makes.
 pub const CLIENT_ID: &str = "codai-cli";
-/// `agents:read` is the only codai resource scope requested: no `inference`,
+/// `agents:read` is the only resource scope requested: no `inference`,
 /// no `keys:manage`, no `email`/`profile` (Vitals never shows who you are).
 pub const SCOPE: &str = "openid agents:read";
-/// What the key is called in the codai hub. Deliberately not the computer
+/// What the key is called in the Kodwen hub. Deliberately not the computer
 /// name: that would be personal data sent for no feature (LEG2-3).
 pub const KEY_LABEL: &str = "Vitals desktop";
 /// Credential Manager target for the key.
-pub const CREDENTIAL_TARGET: &str = "vitals/codai-api-key";
+pub const CREDENTIAL_TARGET: &str = "vitals/kodwen-api-key";
+/// The target used before the 2026-11 rebrand. Read once to migrate a copy
+/// that signed in while the app was still called codai; the uninstaller
+/// removes both so no orphaned key is left in Credential Manager.
+pub const LEGACY_CREDENTIAL_TARGET: &str = "vitals/codai-api-key";
 
 /// A request the transport must perform.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -147,7 +161,7 @@ pub fn parse_token(res: &Response) -> Poll {
     }
 }
 
-/// Exchanges the access token for a long-lived `codai_…` key (returned once),
+/// Exchanges the access token for a long-lived API key (returned once),
 /// labelled [`KEY_LABEL`].
 #[must_use]
 pub fn key_request(auth: &str, access_token: &str) -> Request {
@@ -170,9 +184,11 @@ pub fn parse_key(res: &Response) -> Result<String, String> {
     ["key", "api_key", "plaintext"]
         .iter()
         .find_map(|k| v.get(*k).and_then(Value::as_str))
-        .filter(|k| k.starts_with("codai_"))
+        // `codai_` before the rebrand, `kodwen_` after: accept either so a
+        // brown-out on one side of the rename cannot break sign-in.
+        .filter(|k| k.starts_with("codai_") || k.starts_with("kodwen_"))
         .map(str::to_owned)
-        .ok_or_else(|| "no codai key in the answer".into())
+        .ok_or_else(|| "no API key in the answer".into())
 }
 
 /// Sign-out: the key revokes itself so a copy stops working too.
@@ -196,7 +212,7 @@ pub fn revoke_request(gateway: &str, key: &str) -> Request {
 pub fn parse_revoke(res: &Response) -> Result<(), String> {
     match res.0 {
         200..=299 | 401 => Ok(()),
-        s => Err(format!("codai answered {s}")),
+        s => Err(format!("Kodwen answered {s}")),
     }
 }
 
@@ -227,12 +243,13 @@ pub fn sessions_request(gateway: &str, key: &str) -> Request {
 
 fn client_header() -> Vec<(String, String)> {
     vec![(
+        // The header name is fixed by the service, not by this app.
         "x-codai-client".into(),
         format!("vitals/{}", env!("CARGO_PKG_VERSION")),
     )]
 }
 
-/// A codai host (a desktop connected to the account).
+/// A Kodwen host (a desktop connected to the account).
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, serde::Serialize)]
 pub struct Host {
     pub device_id: String,
@@ -262,7 +279,7 @@ pub fn parse_hosts(res: &Response) -> Result<Vec<Host>, String> {
 /// Cloud sessions active in the last `window_ms`, as [`AgentSession`]s whose
 /// `host` names the device that executes them (or `cloud`).
 ///
-/// codai mirrors local conversations to the cloud: `session_key` is the local
+/// Kodwen mirrors local conversations to the cloud: `session_key` is the local
 /// session id (Copilot CLI) or `vscode:<workspace>:<id>` (VS Code). A row
 /// whose key ends in an id `is_local` accepts is the same conversation the local
 /// reader already lists with real counts, so it is dropped rather than shown
@@ -324,7 +341,7 @@ pub fn parse_sessions(
             };
             Some(AgentSession {
                 id: s.get("id")?.as_str()?.to_owned(),
-                client: AgentClient::Codai,
+                client: AgentClient::Kodwen,
                 host,
                 title: s
                     .get("title")
@@ -350,6 +367,14 @@ pub fn parse_sessions(
                 top_tools: Vec::new(),
                 tokens_in: None,
                 tokens_out: None,
+                // the cloud session list carries no usage of any kind
+                tokens_cached: None,
+                tokens_reasoning: None,
+                cost_usd: None,
+                requests: None,
+                output_ms: None,
+                ttft_ms: None,
+                tokens_per_sec: None,
                 pid: None,
             })
         })
@@ -360,7 +385,7 @@ fn check(res: &Response) -> Result<(), String> {
     match res.0 {
         200..=299 => Ok(()),
         401 | 403 => Err("signed-out".into()),
-        s => Err(format!("codai answered {s}")),
+        s => Err(format!("Kodwen answered {s}")),
     }
 }
 
@@ -485,12 +510,17 @@ mod tests {
     }
 
     #[test]
-    fn only_a_codai_key_is_accepted_from_the_exchange() {
+    fn only_a_service_key_is_accepted_from_the_exchange() {
         // apps/auth/src/connect.ts answers { api_key, api_key_id, ... }; api_key is
         // null on a repeat call because the plaintext is returned once
         assert_eq!(
             parse_key(&(200, r#"{"api_key":"codai_abc","api_key_id":"k1"}"#.into())).unwrap(),
             "codai_abc"
+        );
+        // the rebrand mints kodwen_ keys; a pre-rebrand key still parses
+        assert_eq!(
+            parse_key(&(200, r#"{"api_key":"kodwen_abc","api_key_id":"k1"}"#.into())).unwrap(),
+            "kodwen_abc"
         );
         assert!(parse_key(&(200, r#"{"api_key":null,"api_key_id":"k1"}"#.into())).is_err());
         assert!(parse_key(&(200, r#"{"api_key":"sk-other"}"#.into())).is_err());
@@ -523,7 +553,7 @@ mod tests {
         assert_eq!(s.len(), 1);
         assert_eq!(s[0].host, "DRAGOS");
         assert_eq!(s[0].state, SessionState::Working);
-        assert_eq!(s[0].client, AgentClient::Codai);
+        assert_eq!(s[0].client, AgentClient::Kodwen);
     }
 
     #[test]
@@ -556,8 +586,8 @@ mod tests {
 
     #[test]
     fn device_auth_request_is_form_encoded_for_the_public_cli_client() {
-        let r = device_auth_request("https://auth.codai.ro/");
-        assert_eq!(r.url, "https://auth.codai.ro/device/auth");
+        let r = device_auth_request("https://auth.kodwen.com/");
+        assert_eq!(r.url, "https://auth.kodwen.com/device/auth");
         let form = r.form.unwrap();
         assert!(form.contains(&("client_id".into(), "codai-cli".into())));
         assert!(form.contains(&("scope".into(), SCOPE.into())));
@@ -583,7 +613,7 @@ mod tests {
 
     #[test]
     fn the_key_is_labelled_without_the_computer_name() {
-        let r = key_request("https://auth.codai.ro", "at");
+        let r = key_request("https://auth.kodwen.com", "at");
         assert_eq!(
             r.headers,
             vec![(
@@ -598,9 +628,9 @@ mod tests {
 
     #[test]
     fn sign_out_revokes_the_key_with_itself_and_treats_401_as_already_gone() {
-        let r = revoke_request("https://ai.codai.ro/", "codai_k");
+        let r = revoke_request("https://ai.kodwen.com/", "codai_k");
         assert_eq!(r.method, "POST");
-        assert_eq!(r.url, "https://ai.codai.ro/v1/keys/self/revoke");
+        assert_eq!(r.url, "https://ai.kodwen.com/v1/keys/self/revoke");
         assert_eq!(r.bearer.as_deref(), Some("codai_k"));
         assert!(parse_revoke(&(200, r#"{"revoked":true}"#.into())).is_ok());
         assert!(parse_revoke(&(401, String::new())).is_ok());

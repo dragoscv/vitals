@@ -20,7 +20,7 @@ import { AGENTS_NS } from './strings';
 export const CLIENT_ICON: Record<AgentClient, LucideIcon> = {
   vscodeCopilot: Code2,
   copilotCli: Terminal,
-  codai: Sparkles,
+  kodwen: Sparkles,
   codex: Cpu,
   claudeCode: Bot,
   other: Bot,
@@ -30,7 +30,7 @@ export const CLIENT_ICON: Record<AgentClient, LucideIcon> = {
 export const CLIENT_HUE: Record<AgentClient, string> = {
   vscodeCopilot: 'oklch(0.68 0.15 245)',
   copilotCli: 'oklch(0.70 0.14 300)',
-  codai: 'oklch(0.72 0.16 160)',
+  kodwen: 'oklch(0.72 0.16 160)',
   codex: 'oklch(0.72 0.13 80)',
   claudeCode: 'oklch(0.70 0.14 40)',
   other: 'oklch(0.65 0.02 260)',

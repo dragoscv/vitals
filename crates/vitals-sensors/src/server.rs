@@ -2,7 +2,7 @@
 //!
 //! # A refresher thread, not a read per client
 //!
-//! codai's service reads the registers when a client asks and caches for a
+//! Kodwen's service reads the registers when a client asks and caches for a
 //! second. Package power changes that: it is energy over an interval, and a
 //! lazily-read counter would average over whatever gap the clients happened
 //! to leave — one second for the sampler, five for the Devices screen, an

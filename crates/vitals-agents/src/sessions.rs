@@ -71,6 +71,28 @@ struct EventData {
     tool_call_id: Option<String>,
     success: Option<bool>,
     context: Option<EventContext>,
+    /// Present on a `session.usage_record`: one request's token accounting.
+    usage: Option<UsageRecord>,
+}
+
+/// The `usage` object Copilot writes once per model request.
+///
+/// Measured on this machine 2026-11-17 (`~/.copilot/session-state/*/events.jsonl`).
+/// Only the fields the page can honestly show are read; the rest of the
+/// object (latencies, byte counts, cache metadata) is skipped by serde.
+#[derive(Deserialize, Default)]
+#[serde(rename_all = "camelCase", default)]
+struct UsageRecord {
+    input_tokens: Option<u64>,
+    output_tokens: Option<u64>,
+    cache_read_tokens: Option<u64>,
+    cache_write_tokens: Option<u64>,
+    reasoning_tokens: Option<u64>,
+    cost: Option<f64>,
+    /// Wall time of the request, milliseconds.
+    duration: Option<u64>,
+    time_to_first_token_ms: Option<f64>,
+    model_display_name: Option<String>,
 }
 
 #[derive(Deserialize, Default)]
@@ -120,6 +142,24 @@ struct Acc {
     shutdown: bool,
     tokens_in: Option<u64>,
     tokens_out: Option<u64>,
+    usage: Usage,
+}
+
+/// Sums every `session.usage_record` in a session.
+///
+/// `seen` separates "no request was ever accounted" from "a request used
+/// zero tokens": the page prints an em dash for the first and `0` for the
+/// second, exactly as `tokens_in`/`tokens_out` do.
+#[derive(Debug, Default, Clone, Copy)]
+struct Usage {
+    seen: bool,
+    cached: u64,
+    reasoning: u64,
+    cost_usd: f64,
+    requests: u32,
+    output_ms: u64,
+    ttft_sum_ms: f64,
+    ttft_n: u32,
 }
 
 impl Acc {
@@ -138,6 +178,33 @@ impl Acc {
             }
         }
         self.last = Some(self.last.map_or(ts, |l| l.max(ts)));
+    }
+
+    /// Folds one `session.usage_record` into the session totals.
+    fn usage_record(&mut self, u: UsageRecord) {
+        self.usage.seen = true;
+        if let Some(i) = u.input_tokens {
+            self.tokens_in = Some(self.tokens_in.unwrap_or(0) + i);
+        }
+        if let Some(o) = u.output_tokens {
+            self.tokens_out = Some(self.tokens_out.unwrap_or(0) + o);
+        }
+        self.usage.cached += u.cache_read_tokens.unwrap_or(0) + u.cache_write_tokens.unwrap_or(0);
+        self.usage.reasoning += u.reasoning_tokens.unwrap_or(0);
+        self.usage.cost_usd += u.cost.unwrap_or(0.0);
+        self.usage.requests += 1;
+        self.usage.output_ms += u.duration.unwrap_or(0);
+        if let Some(t) = u.time_to_first_token_ms {
+            if t.is_finite() && t >= 0.0 {
+                self.usage.ttft_sum_ms += t;
+                self.usage.ttft_n += 1;
+            }
+        }
+        if self.model.is_none() {
+            if let Some(m) = u.model_display_name.filter(|m| !m.is_empty()) {
+                self.model = Some(m);
+            }
+        }
     }
 
     fn copilot(&mut self, e: Event<'_>) {
@@ -194,6 +261,11 @@ impl Acc {
                 self.shutdown = true;
                 self.turn_open_at = None;
                 self.open_tools.clear();
+            }
+            "session.usage_record" => {
+                if let Some(u) = d.usage {
+                    self.usage_record(u);
+                }
             }
             _ => {}
         }
@@ -412,7 +484,10 @@ impl SessionTracker {
                 let client = match yaml.get("client_name").map(String::as_str) {
                     Some("cli") | None => AgentClient::CopilotCli,
                     Some(c) if c.starts_with("vscode") => AgentClient::VscodeCopilot,
-                    Some(c) if c.contains("codai") => AgentClient::Codai,
+                    // The gateway was renamed Kodwen in 2026-11; a machine may
+                    // still run a CLI that identifies as codai, so both names
+                    // map to the same client rather than showing as "other".
+                    Some(c) if c.contains("kodwen") || c.contains("codai") => AgentClient::Kodwen,
                     Some(_) => AgentClient::Other,
                 };
                 found.push(Source {
@@ -573,7 +648,7 @@ fn build(src: &Source, acc: &Acc, probe: ProcStart<'_>, now: u64) -> AgentSessio
             .or_else(|| workspace.as_deref().map(leaf)),
         workspace,
         branch: yaml.get("branch").cloned().or_else(|| acc.branch.clone()),
-        model: acc.model.clone(),
+        model: acc.model.clone().map(normalise_model),
         state,
         started_ms: acc
             .started
@@ -593,7 +668,41 @@ fn build(src: &Source, acc: &Acc, probe: ProcStart<'_>, now: u64) -> AgentSessio
         top_tools: top,
         tokens_in: acc.tokens_in,
         tokens_out: acc.tokens_out,
+        tokens_cached: acc.usage.seen.then_some(acc.usage.cached),
+        tokens_reasoning: acc.usage.seen.then_some(acc.usage.reasoning),
+        cost_usd: acc.usage.seen.then_some(acc.usage.cost_usd),
+        requests: acc.usage.seen.then_some(acc.usage.requests),
+        output_ms: acc.usage.seen.then_some(acc.usage.output_ms),
+        ttft_ms: (acc.usage.ttft_n > 0)
+            .then(|| (acc.usage.ttft_sum_ms / f64::from(acc.usage.ttft_n)).round() as u64),
+        tokens_per_sec: output_rate(acc.tokens_out, acc.usage.output_ms),
         pid,
+    }
+}
+
+/// Output tokens per second over the summed request durations.
+///
+/// `None` unless there is both an output count and a measured duration: a
+/// rate computed from a missing denominator is a made-up number, and this
+/// page does not print made-up numbers. A zero-length window is also `None`
+/// rather than infinity.
+fn output_rate(out: Option<u64>, output_ms: u64) -> Option<f64> {
+    let out = out?;
+    if output_ms == 0 {
+        return None;
+    }
+    Some(out as f64 * 1000.0 / output_ms as f64)
+}
+
+/// The gateway used to report its model as `codai`; the page shows `Kodwen`
+/// after the 2026-11 rebrand so a session does not name a product that no
+/// longer exists. Any other model string is the provider's own word for the
+/// model and is left untouched.
+fn normalise_model(name: String) -> String {
+    if name.trim().eq_ignore_ascii_case("codai") {
+        "Kodwen".to_owned()
+    } else {
+        name
     }
 }
 
@@ -656,6 +765,13 @@ fn codex_sessions(home: &Path, now: u64) -> Vec<AgentSession> {
                 top_tools: Vec::new(),
                 tokens_in: None,
                 tokens_out: None,
+                tokens_cached: None,
+                tokens_reasoning: None,
+                cost_usd: None,
+                requests: None,
+                output_ms: None,
+                ttft_ms: None,
+                tokens_per_sec: None,
                 pid: None,
             })
         })
@@ -871,6 +987,53 @@ mod tests {
         // a blank title stays absent so the UI says "Untitled", not ""
         assert!(!titles.contains_key("b2"));
         assert!(vscode_titles(&t.0.join("missing.vscdb")).is_empty());
+    }
+
+    #[test]
+    fn a_usage_record_sums_tokens_cost_and_yields_an_output_rate() {
+        let mut a = Acc::default();
+        for line in [
+            ev(
+                "2026-10-17T01:00:00Z",
+                "session.start",
+                r#"{"sessionId":"s","startTime":"2026-10-17T01:00:00Z"}"#,
+            ),
+            ev(
+                "2026-10-17T01:00:10Z",
+                "session.usage_record",
+                r#"{"usage":{"inputTokens":1000,"outputTokens":200,"cacheReadTokens":300,"cacheWriteTokens":0,"reasoningTokens":40,"cost":0.01,"duration":2000,"timeToFirstTokenMs":500,"modelDisplayName":"codai"}}"#,
+            ),
+            ev(
+                "2026-10-17T01:00:20Z",
+                "session.usage_record",
+                r#"{"usage":{"inputTokens":500,"outputTokens":300,"cost":0.02,"duration":3000,"timeToFirstTokenMs":700}}"#,
+            ),
+        ] {
+            a.copilot(serde_json::from_str(line.trim()).unwrap());
+        }
+        assert_eq!(a.tokens_in, Some(1500));
+        assert_eq!(a.tokens_out, Some(500));
+        assert!(a.usage.seen);
+        assert_eq!(a.usage.cached, 300);
+        assert_eq!(a.usage.reasoning, 50);
+        assert_eq!(a.usage.requests, 2);
+        assert_eq!(a.usage.output_ms, 5000);
+        assert_eq!(a.usage.ttft_n, 2);
+        // a source model of "codai" is shown as Kodwen after the rebrand
+        assert_eq!(
+            a.model.as_deref().map(normalise_model),
+            Some("Kodwen".into())
+        );
+        // 500 output tokens over 5 s of generation
+        assert!((output_rate(a.tokens_out, a.usage.output_ms).unwrap() - 100.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn a_rate_needs_a_measured_duration_and_an_unknown_stays_unknown() {
+        // no denominator, no number: never infinity, never a guess
+        assert_eq!(output_rate(Some(10), 0), None);
+        assert_eq!(output_rate(None, 1000), None);
+        assert_eq!(output_rate(Some(50), 1000), Some(50.0));
     }
 
     #[test]

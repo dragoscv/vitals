@@ -2009,7 +2009,7 @@ components:
           type: string
         client:
           type: string
-          enum: [vscodeCopilot, copilotCli, codai, codex, claudeCode, other]
+          enum: [vscodeCopilot, copilotCli, kodwen, codex, claudeCode, other]
         host:
           type: string
           description: '`local`, or a cloud host name.'
@@ -2037,7 +2037,7 @@ components:
           description: >-
             Sum of turn durations — time the agent was actually working. This
             and the four counts below are `null` when the source does not report
-            them (codai cloud sessions, Codex), never `0`.
+            them (Kodwen cloud sessions, Codex), never `0`.
         turns:
           type: [integer, 'null']
         userMessages:
@@ -2058,8 +2058,35 @@ components:
               count: { type: integer }
         tokensIn:
           type: [integer, 'null']
+          description: Prompt tokens the source counted, including cached ones.
         tokensOut:
           type: [integer, 'null']
+        tokensCached:
+          type: [integer, 'null']
+          description: Prompt tokens served from the provider cache.
+        tokensReasoning:
+          type: [integer, 'null']
+          description: Reasoning tokens the model produced but did not return as text.
+        costUsd:
+          type: [number, 'null']
+          description: >-
+            What the source says the session cost in US dollars. `0` is a real
+            zero (a flat-rate plan that reports no per-request price); `null`
+            means the source reported no price at all.
+        requests:
+          type: [integer, 'null']
+          description: The number of model requests the source recorded.
+        outputMs:
+          type: [integer, 'null']
+          description: Sum of the requests' durations in milliseconds.
+        ttftMs:
+          type: [integer, 'null']
+          description: Average time to the first token of a request, in milliseconds.
+        tokensPerSec:
+          type: [number, 'null']
+          description: >-
+            Output tokens per second over `outputMs`. `null` unless there is
+            both an output count and a measured duration.
         pid:
           type: [integer, 'null']
 

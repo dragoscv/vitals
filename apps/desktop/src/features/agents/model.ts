@@ -192,6 +192,87 @@ export function formatTokens(n: number | null): string {
   return String(n);
 }
 
+/**
+ * A money amount, or an em dash when the source prices nothing.
+ *
+ * A subscriber plan bills a flat fee and reports `0`, which is a real zero;
+ * a source that reports no price at all gives `null`, which is not. The two
+ * are never collapsed, exactly as with the token counts.
+ */
+export function formatCost(usd: number | null): string {
+  if (usd === null || !Number.isFinite(usd)) return '—';
+  if (usd === 0) return '$0';
+  if (usd < 0.01) return `$${usd.toFixed(4)}`;
+  if (usd < 1) return `$${usd.toFixed(3)}`;
+  return `$${usd.toFixed(2)}`;
+}
+
+/** Output tokens per second, one decimal below 10 and none above. */
+export function formatRate(perSec: number | null): string {
+  if (perSec === null || !Number.isFinite(perSec)) return '—';
+  return perSec >= 10 ? perSec.toFixed(0) : perSec.toFixed(1);
+}
+
+/** Everything a session reported about its own consumption. */
+export interface UsageTotals {
+  /** Sessions that reported at least one request. */
+  readonly meters: number;
+  readonly requests: number;
+  readonly tokensIn: number;
+  readonly tokensOut: number;
+  readonly tokensCached: number;
+  readonly tokensReasoning: number;
+  readonly costUsd: number;
+  readonly outputMs: number;
+  /** Output tokens per second over every metered session, or null. */
+  readonly tokensPerSec: number | null;
+}
+
+/**
+ * Sums what the sessions reported, skipping the ones that reported nothing.
+ *
+ * A session with no usage is not a zero: adding it would drag a real average
+ * down with a number nobody measured. The rate is recomputed from the summed
+ * output and duration rather than averaging per-session rates, so one long
+ * burst does not weigh the same as one short request.
+ */
+export function usageTotals(sessions: readonly AgentSession[]): UsageTotals {
+  let meters = 0;
+  let requests = 0;
+  let tokensIn = 0;
+  let tokensOut = 0;
+  let tokensCached = 0;
+  let tokensReasoning = 0;
+  let costUsd = 0;
+  let outputMs = 0;
+  let anyCost = false;
+  for (const s of sessions) {
+    if (s.requests === null) continue;
+    meters += 1;
+    requests += s.requests;
+    tokensIn += s.tokensIn ?? 0;
+    tokensOut += s.tokensOut ?? 0;
+    tokensCached += s.tokensCached ?? 0;
+    tokensReasoning += s.tokensReasoning ?? 0;
+    outputMs += s.outputMs ?? 0;
+    if (s.costUsd !== null) {
+      costUsd += s.costUsd;
+      anyCost = true;
+    }
+  }
+  return {
+    meters,
+    requests,
+    tokensIn,
+    tokensOut,
+    tokensCached,
+    tokensReasoning,
+    costUsd: anyCost ? costUsd : 0,
+    outputMs,
+    tokensPerSec: outputMs > 0 ? (tokensOut * 1000) / outputMs : null,
+  };
+}
+
 /** Journal event → visual family, for colour and icon. */
 export type EventTone = 'ok' | 'warn' | 'danger' | 'info' | 'neutral';
 

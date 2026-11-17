@@ -1,7 +1,7 @@
 /**
- * The codai sign-in (S21): the webview passes only an opaque handle back to
+ * The Kodwen sign-in (S21): the webview passes only an opaque handle back to
  * Rust (the device code never reaches it), a sign-in can be cancelled, and a
- * sign-out that could not reach codai says so instead of pretending the key
+ * sign-out that could not reach Kodwen says so instead of pretending the key
  * was switched off.
  */
 
@@ -55,7 +55,7 @@ beforeEach(async () => {
     start_cloud_sign_in: {
       handle: 's1',
       userCode: 'ABCD-EFGH',
-      verificationUri: 'https://auth.codai.ro/device',
+      verificationUri: 'https://auth.kodwen.com/device',
       verificationUriComplete: null,
     },
   };
@@ -65,7 +65,7 @@ describe('CloudAccount', () => {
   it('says the access is read-only, sends only the handle back and can be cancelled', async () => {
     render(<CloudAccount />);
     expect(await screen.findByText(/read-only access/)).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Sign in with codai' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in with Kodwen' }));
     expect(await screen.findByText('ABCD-EFGH')).toBeTruthy();
     await waitFor(() =>
       expect(backend.calls.find((c) => c.cmd === 'finish_cloud_sign_in')?.args).toEqual({
@@ -79,7 +79,7 @@ describe('CloudAccount', () => {
     });
   });
 
-  it('a sign-out codai did not confirm still signs out here and tells the user to revoke the key', async () => {
+  it('a sign-out Kodwen did not confirm still signs out here and tells the user to revoke the key', async () => {
     backend.answers.get_cloud_status = signedIn;
     backend.answers.cloud_sign_out = { revoked: false };
     render(<CloudAccount />);
@@ -96,7 +96,7 @@ describe('CloudAccount', () => {
     const out = await screen.findByRole('button', { name: 'Sign out' });
     backend.answers.get_cloud_status = signedOut;
     fireEvent.click(out);
-    await screen.findByRole('button', { name: 'Sign in with codai' });
+    await screen.findByRole('button', { name: 'Sign in with Kodwen' });
     expect(screen.queryByText(/could not be reached/)).toBeNull();
   });
 });

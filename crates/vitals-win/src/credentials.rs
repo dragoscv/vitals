@@ -1,6 +1,6 @@
 //! Per-user secrets in Windows Credential Manager (generic credentials).
 //!
-//! Used for the codai API key the AI page signs in with (ADR-0039). Credential
+//! Used for the Kodwen API key the AI page signs in with (ADR-0039). Credential
 //! Manager encrypts with the user's logon secret and is what Windows itself
 //! offers for this; a file under `%APPDATA%` would be readable by anything
 //! that can read the profile and would end up in backups.

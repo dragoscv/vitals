@@ -9,6 +9,13 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- AI page: a session now shows what it actually used — input, output, cached
+  and reasoning tokens, the number of requests, the output speed in tokens per
+  second, the time to the first token and the cost — wherever the client
+  records them. Copilot CLI sessions stop reading as an em dash; VS Code
+  Copilot Chat sessions say the client records no usage instead. The Insights
+  tab gains the same numbers as a page total (ADR 0043).
+
 - Health: connect Vitals to your vmui account and see your own health and
   nutrition summary on the desktop, iPhone and Android. Held in memory only,
   never written to disk; the page stays hidden until you connect.
@@ -17,6 +24,15 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Mac App Store edition ("Vitals Monitor"): sandboxed and built without the
   self-updater, so updates come from the App Store. It cannot see other
   apps' processes or the temperature sensors, and says so.
+
+### Changed
+
+- The AI agents page now names the service **Kodwen**, its new name after the
+  November 2026 rebrand, and speaks to `ai.kodwen.com` and `auth.kodwen.com`
+  instead of `ai.codai.ro` and `auth.codai.ro`. A key stored by an earlier
+  version is moved to the new Credential Manager entry on first use, so
+  nobody is signed out by the update. The old hosts still work, so an
+  un-updated build keeps signing in during the changeover (ADR 0042).
 
 ## [1.2.0] — 2026-10-28
 

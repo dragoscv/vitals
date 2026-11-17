@@ -72,7 +72,7 @@ data class AgentSession(
 enum class AgentClient(override val wire: String) : WireEnum {
     VscodeCopilot("vscodeCopilot"),
     CopilotCli("copilotCli"),
-    Codai("codai"),
+    Kodwen("kodwen"),
     Codex("codex"),
     ClaudeCode("claudeCode"),
     Other("other"),

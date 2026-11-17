@@ -21,7 +21,18 @@ import {
   useStableOrder,
 } from '@vitals/ui';
 
-import { eventTone, formatDuration, jobKey, jobRank, repoStatKey, since } from './model';
+import {
+  eventTone,
+  formatCost,
+  formatDuration,
+  formatRate,
+  formatTokens,
+  jobKey,
+  jobRank,
+  repoStatKey,
+  since,
+  usageTotals,
+} from './model';
 import { HourBars, Kpi } from './parts';
 import type { RequestAction } from './QueuesPanel';
 import { AGENTS_NS } from './strings';
@@ -329,6 +340,7 @@ export function CloudPanel({
 export function InsightsPanel({ snapshot }: { readonly snapshot: AgentsSnapshot }) {
   const { t } = useTranslation(AGENTS_NS);
   const s = snapshot.stats;
+  const usage = usageTotals(snapshot.sessions);
   // Two repos with similar hold totals would trade places as the 24 h window
   // slides; the rows re-sort every 30 s instead of on every push.
   const { held, bind } = useHoverHold();
@@ -339,6 +351,24 @@ export function InsightsPanel({ snapshot }: { readonly snapshot: AgentsSnapshot 
       <p className="text-2xs text-[var(--color-fg-muted)]">
         {t('insights.window', { hours: s.windowHours })}
       </p>
+      <section aria-label={t('insights.usageTitle')} className="flex flex-col gap-1">
+        <h3 className="text-sm font-semibold">{t('insights.usageTitle')}</h3>
+        {usage.meters === 0 ? (
+          <p className="text-2xs text-[var(--color-fg-subtle)]">{t('insights.usageNone')}</p>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            <Kpi label={t('insights.usageMeters')} value={usage.meters} />
+            <Kpi label={t('insights.usageRequests')} value={usage.requests} />
+            <Kpi label={t('insights.usageIn')} value={formatTokens(usage.tokensIn)} />
+            <Kpi label={t('insights.usageOut')} value={formatTokens(usage.tokensOut)} />
+            <Kpi
+              label={t('insights.usageRate')}
+              value={t('session.rateValue', { rate: formatRate(usage.tokensPerSec) })}
+            />
+            <Kpi label={t('insights.usageCost')} value={formatCost(usage.costUsd)} />
+          </div>
+        )}
+      </section>
       <div className="flex flex-wrap gap-2">
         <Kpi label={t('insights.runs')} value={s.runs} />
         <Kpi

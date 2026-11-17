@@ -28,6 +28,41 @@ currentTool: string | null,
  */
 topTools: Array<ToolCount>, tokensIn: number | null, tokensOut: number | null, 
 /**
+ * Prompt tokens served from the provider cache (cheaper, and the reason
+ * `tokens_in` alone is not what the bill is computed from).
+ */
+tokensCached: number | null, 
+/**
+ * Reasoning tokens the model produced but did not return as text.
+ */
+tokensReasoning: number | null, 
+/**
+ * What the source says the session cost, in US dollars, when it reports a
+ * price. `None` for a subscriber plan that bills flat or does not price
+ * per request — never `0` for "unknown".
+ */
+costUsd: number | null, 
+/**
+ * Requests the source recorded; `None` where it records none.
+ */
+requests: number | null, 
+/**
+ * Sum of the requests' durations in milliseconds: time the model was
+ * generating, which is the denominator of `tokens_per_sec`.
+ */
+outputMs: number | null, 
+/**
+ * Average time to the first token of a request, milliseconds.
+ */
+ttftMs: number | null, 
+/**
+ * Output tokens per second over `output_ms`.
+ *
+ * Defined once, here, so the desktop, the phone and the watch print the
+ * same number instead of each inventing a formula.
+ */
+tokensPerSec: number | null, 
+/**
  * The process that hosts the agent, when it can be attributed.
  */
 pid: number | null, };

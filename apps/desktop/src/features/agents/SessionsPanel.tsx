@@ -19,8 +19,10 @@ import { Badge, EmptyState, cn, useHoverHold, useStableOrder } from '@vitals/ui'
 import {
   activeShare,
   byClient,
+  formatCost,
   formatCount,
   formatDuration,
+  formatRate,
   formatTokens,
   groupKey,
   groupRank,
@@ -190,6 +192,27 @@ function SessionCard({
                 />
                 <Stat label="PID" value={s.pid === null ? '—' : String(s.pid)} />
               </dl>
+              {s.requests === null ? (
+                <p className="text-[var(--color-fg-subtle)]">{t('session.noUsage')}</p>
+              ) : (
+                <div>
+                  <p className="mb-1 text-[var(--color-fg-muted)]">{t('session.usage')}</p>
+                  <dl className="grid grid-cols-3 gap-2">
+                    <Stat label={t('session.requests')} value={String(s.requests)} />
+                    <Stat label={t('session.tokensCached')} value={formatTokens(s.tokensCached)} />
+                    <Stat
+                      label={t('session.tokensReasoning')}
+                      value={formatTokens(s.tokensReasoning)}
+                    />
+                    <Stat
+                      label={t('session.rate')}
+                      value={t('session.rateValue', { rate: formatRate(s.tokensPerSec) })}
+                    />
+                    <Stat label={t('session.ttft')} value={formatDuration(s.ttftMs)} />
+                    <Stat label={t('session.cost')} value={formatCost(s.costUsd)} />
+                  </dl>
+                </div>
+              )}
               {s.topTools.length > 0 && (
                 <div>
                   <p className="mb-1 text-[var(--color-fg-muted)]">{t('session.topTools')}</p>
