@@ -62,6 +62,7 @@ export type * from './core/NetworkMetrics';
 export type * from './core/NicId';
 export type * from './core/Percent';
 export type * from './core/Pid';
+export type * from './core/Platform';
 export type * from './core/PowerPlan';
 export type * from './core/Priority';
 export type * from './core/Process';

@@ -148,6 +148,54 @@ impl Unavailable {
 ///
 /// Re-queried when privilege changes (helper connects, app elevates) so the
 /// UI can light up newly available features without a restart.
+/// The platform a build runs on.
+///
+/// Compile-time rather than reported by the backend: every consumer asks the
+/// same question — "can this build show a Windows-only page?" — and a value
+/// taken from `cfg!` cannot disagree with what was actually compiled. The
+/// default is the host, so `Capabilities::default()`, which tests and pure
+/// policy code use, is right on every platform instead of claiming Windows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(
+    feature = "ts",
+    ts(export, export_to = "core/", rename_all = "camelCase")
+)]
+#[serde(rename_all = "camelCase")]
+pub enum Platform {
+    Windows,
+    Macos,
+    Linux,
+}
+
+impl Default for Platform {
+    fn default() -> Self {
+        Self::host()
+    }
+}
+
+impl Platform {
+    /// The platform this binary was compiled for.
+    #[must_use]
+    pub const fn host() -> Self {
+        if cfg!(windows) {
+            Self::Windows
+        } else if cfg!(target_os = "macos") {
+            Self::Macos
+        } else {
+            Self::Linux
+        }
+    }
+
+    /// Whether the Windows-only surfaces exist in this build: connections,
+    /// startup, services, installed apps, storage, devices, benchmarks, app
+    /// history, users, and the Task Manager replacement.
+    #[must_use]
+    pub const fn is_windows(self) -> bool {
+        matches!(self, Self::Windows)
+    }
+}
+
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[cfg_attr(
@@ -156,6 +204,8 @@ impl Unavailable {
 )]
 #[serde(rename_all = "camelCase")]
 pub struct Capabilities {
+    /// The platform this build runs on.
+    pub platform: Platform,
     /// Capabilities currently usable.
     pub available: Vec<Capability>,
     /// Capabilities that are not, each with a reason.
@@ -165,7 +215,10 @@ pub struct Capabilities {
 impl Capabilities {
     #[must_use]
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            platform: Platform::host(),
+            ..Self::default()
+        }
     }
 
     #[must_use]
