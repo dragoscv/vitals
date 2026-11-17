@@ -93,6 +93,24 @@ export async function pushTaskbarLoad(enabled: boolean): Promise<void> {
 }
 
 /**
+ * Hands the user's alert rules to the engine, with the interval the sampler
+ * is using.
+ *
+ * The interval travels with them because the windows the user writes are in
+ * seconds and the engine counts samples: a rule that said "for 30 seconds"
+ * would otherwise mean something different at 1 Hz and at 0.25 Hz.
+ */
+export async function pushAlertRules(rules: readonly unknown[], sampleMs: number): Promise<void> {
+  if (!hasTauriHost()) return;
+  try {
+    const { invoke } = await import('@tauri-apps/api/core');
+    await invoke('set_alert_rules', { rules, sampleMs });
+  } catch {
+    // Intentionally ignored; see module doc.
+  }
+}
+
+/**
  * Tells the backend which reading the tray icon carries.
  *
  * Rust because the tray is redrawn on the sampler thread while the window may

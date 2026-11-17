@@ -1,4 +1,10 @@
 import { defaultLocale, isSupportedLocale, type Locale } from '@vitals/i18n';
+import type {
+  Comparator,
+  Rule as AlertRule,
+  RuleMetric,
+  Severity as RuleSeverity,
+} from '@vitals/protocol';
 
 import { defaultRoute, isRouteId, type RouteId } from '../shell/navigation';
 import { defaultTheme, isAccent, isDensity, isThemeMode } from '../theme/types';
@@ -74,6 +80,13 @@ export interface AppSettings {
   readonly notifyHighCpu: boolean;
   readonly notifyHighMemory: boolean;
   readonly notifyThermal: boolean;
+  /**
+   * Rules the user wrote, evaluated by the Rust engine at the sampling rate
+   * and shown in Settings > Alerts. The type is the wire type on purpose: the
+   * engine consumes exactly what the screen stores, so there is nothing to
+   * keep in step.
+   */
+  readonly alertRules: readonly AlertRule[];
 
   readonly historyEnabled: boolean;
   readonly retentionDays: number;
@@ -140,6 +153,9 @@ export const defaultSettings: AppSettings = {
   notifyHighCpu: false,
   notifyHighMemory: false,
   notifyThermal: false,
+  // No rules by default: a monitor that invents conditions for you is not
+  // one you should trust with process-level visibility.
+  alertRules: [],
 
   historyEnabled: false,
   retentionDays: 7,
@@ -227,6 +243,65 @@ export function parseSchedules(value: unknown): DriveSchedules {
   return out;
 }
 
+/** The values the engine accepts, spelled out so a hand-edited rule does not
+ * reach Rust as something it would silently ignore. */
+const ruleMetrics: readonly RuleMetric[] = [
+  'cpuPercent',
+  'cpuTemperature',
+  'memoryPercent',
+  'diskActivePercent',
+  'batteryPercent',
+  'networkErrorsPerSec',
+];
+const comparators: readonly Comparator[] = ['above', 'below'];
+const ruleSeverities: readonly RuleSeverity[] = ['info', 'warning', 'critical'];
+
+/** The longest a window may be, matching `MAX_RULE_WINDOW_SECS` in Rust. */
+const MAX_RULE_WINDOW_SECS = 86_400;
+
+/**
+ * Keeps only well-formed rules.
+ *
+ * Deliberately total, like the rest of this file: the settings live in plain
+ * JSON a user can edit, and one broken rule must cost that rule, not every
+ * other one.
+ */
+function parseRules(value: unknown): readonly AlertRule[] {
+  if (!Array.isArray(value)) return [];
+  const out: AlertRule[] = [];
+  for (const raw of value) {
+    if (typeof raw !== 'object' || raw === null) continue;
+    const entry = raw as Record<string, unknown>;
+    const metric = ruleMetrics.find((candidate) => candidate === entry['metric']);
+    const comparator = comparators.find((candidate) => candidate === entry['comparator']);
+    const severity = ruleSeverities.find((candidate) => candidate === entry['severity']);
+    if (
+      typeof entry['id'] !== 'string' ||
+      typeof entry['name'] !== 'string' ||
+      metric === undefined ||
+      comparator === undefined ||
+      severity === undefined ||
+      typeof entry['threshold'] !== 'number' ||
+      !Number.isFinite(entry['threshold'])
+    ) {
+      continue;
+    }
+    out.push({
+      id: entry['id'],
+      name: entry['name'],
+      metric,
+      comparator,
+      threshold: entry['threshold'],
+      sustainSecs: isInt(entry['sustainSecs'], 0, MAX_RULE_WINDOW_SECS) ? entry['sustainSecs'] : 0,
+      cooldownSecs: isInt(entry['cooldownSecs'], 0, MAX_RULE_WINDOW_SECS)
+        ? entry['cooldownSecs']
+        : 0,
+      severity,
+    });
+  }
+  return out;
+}
+
 function parseProfiles(value: unknown): Readonly<Record<string, readonly string[]>> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return {};
   const out: Record<string, readonly string[]> = {};
@@ -275,6 +350,7 @@ export function parseSettings(raw: unknown): AppSettings {
     startMinimised: bool(record['startMinimised'], defaultSettings.startMinimised),
     closeToTray: bool(record['closeToTray'], defaultSettings.closeToTray),
     trayMetric: pick(record['trayMetric'], isTrayMetric, defaultSettings.trayMetric),
+    alertRules: parseRules(record['alertRules']),
     taskbarLoad: bool(record['taskbarLoad'], defaultSettings.taskbarLoad),
     confirmEndTask: bool(record['confirmEndTask'], defaultSettings.confirmEndTask),
     hudVisible: bool(record['hudVisible'], defaultSettings.hudVisible),

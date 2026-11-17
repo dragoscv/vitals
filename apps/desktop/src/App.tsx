@@ -5,10 +5,12 @@ import { syncAlertPrefs, syncAlertStrings } from './features/alerts/pushPrefs';
 import { DASHBOARD_NS } from './features/dashboard/strings';
 import { signalReady, wasAutostarted, wasQuietRelaunch } from './lib/ready';
 import { effectiveRate, pushSampleRate } from './lib/sampleRate';
+import { samplingIntervalMs } from './settings/schema';
 import {
   pushAutoUpdate,
   pushCloseToTray,
   pushTaskbarLoad,
+  pushAlertRules,
   pushTrayMetric,
   pushHistoryEnabled,
   pushRetentionDays,
@@ -112,6 +114,7 @@ function useSettingsSync(
   const { historyEnabled, retentionDays, startWithWindows, closeToTray, autoUpdate, taskbarLoad } =
     settings;
   const trayMetric = settings.trayMetric;
+  const alertRules = settings.alertRules;
   const patch = useSettings((state) => state.patch);
 
   useEffect(() => {
@@ -138,6 +141,11 @@ function useSettingsSync(
     if (!hydrated) return;
     void pushTrayMetric(trayMetric);
   }, [hydrated, trayMetric]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    void pushAlertRules(alertRules, samplingIntervalMs[settings.samplingRate]);
+  }, [hydrated, alertRules, settings.samplingRate]);
 
   useEffect(() => {
     if (!hydrated) return;

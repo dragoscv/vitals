@@ -153,6 +153,23 @@ pub fn set_alert_prefs(alerts: State<'_, crate::alerts::Alerts>, prefs: crate::a
     alerts.set_prefs(prefs);
 }
 
+/// Replaces the user's alert rules.
+///
+/// `sample_ms` comes from the webview because it is the same interval the
+/// sampler is configured with (`samplingIntervalMs` in the settings schema),
+/// and the engine needs it to turn the windows the user wrote — in seconds —
+/// into the samples it counts. It is clamped rather than trusted: a wrong
+/// interval would silently change every rule's meaning.
+#[tauri::command]
+#[allow(clippy::needless_pass_by_value)]
+pub fn set_alert_rules(
+    alerts: State<'_, crate::alerts::Alerts>,
+    rules: Vec<vitals_core::alerts::Rule>,
+    sample_ms: u32,
+) {
+    alerts.set_rules(rules, sample_ms.clamp(50, 60_000));
+}
+
 /// "Why is my PC slow?" — the current alerts joined against the process list.
 ///
 /// Request/response, and the webview supplies the processes it already

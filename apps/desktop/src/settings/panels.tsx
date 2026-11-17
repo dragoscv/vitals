@@ -3,8 +3,15 @@ import { useTranslation } from 'react-i18next';
 
 import { locales, type Locale } from '@vitals/i18n';
 import type { HostInfo } from '@vitals/protocol';
+import type {
+  Comparator,
+  Rule as AlertRule,
+  RuleMetric,
+  Severity as RuleSeverity,
+} from '@vitals/protocol';
 import {
   Button,
+  Input,
   SegmentedControl,
   Select,
   Skeleton,
@@ -13,6 +20,7 @@ import {
   focusRing,
   formatBytes,
 } from '@vitals/ui';
+import { Trash2 } from 'lucide-react';
 
 import { SHELL_NS } from '../shell/strings';
 import { hasTauriHost } from '../shell/host';
@@ -616,9 +624,184 @@ export function NotificationsPanel() {
           )}
         </SettingsRow>
       ))}
+
+      <AlertRulesSection />
     </SettingsSection>
   );
 }
+
+/**
+ * The user's own rules: a reading, a side of a threshold, and how long it has
+ * to hold.
+ *
+ * Edited in place rather than in a dialog because a rule is three short
+ * decisions and a dialog for that is more ceremony than the thing it edits.
+ * The engine receives these exactly as they are stored — the settings type is
+ * the wire type — so there is no translation step that could drift.
+ */
+function AlertRulesSection() {
+  const { t } = useTranslation(SHELL_NS);
+  const rules = useSettings((state) => state.settings.alertRules);
+  const patch = useSettings((state) => state.patch);
+
+  const update = (index: number, next: Partial<AlertRule>) => {
+    patch({ alertRules: rules.map((rule, i) => (i === index ? { ...rule, ...next } : rule)) });
+  };
+
+  return (
+    <>
+      <div className="flex items-center justify-between pt-4">
+        <div>
+          <p className="text-sm font-medium">{t('settings.notifications.rules')}</p>
+          <p className="text-xs text-[var(--color-fg-muted)]">
+            {t('settings.notifications.rulesHint')}
+          </p>
+        </div>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() =>
+            patch({
+              alertRules: [
+                ...rules,
+                {
+                  // Unique without a clock: a counter over what is already
+                  // there cannot repeat, and `Date.now()` in a render path is
+                  // what the compiler rejects anyway.
+                  id: `rule-${rules.length}-${rules.reduce((n, r) => n + r.id.length, 0)}`,
+                  name: t('settings.notifications.newRule'),
+                  metric: 'cpuPercent',
+                  comparator: 'above',
+                  threshold: 90,
+                  sustainSecs: 30,
+                  cooldownSecs: 300,
+                  severity: 'warning',
+                },
+              ],
+            })
+          }
+        >
+          {t('settings.notifications.addRule')}
+        </Button>
+      </div>
+
+      {rules.map((rule, index) => (
+        <div key={rule.id} className="grid gap-2 border-t border-[var(--color-border-subtle)] pt-3">
+          <div className="flex items-center gap-2">
+            <Input
+              ariaLabel={t('settings.notifications.ruleName')}
+              value={rule.name}
+              onChange={(event) => update(index, { name: event.target.value })}
+            />
+            <Button
+              variant="secondary"
+              size="sm"
+              aria-label={t('settings.notifications.removeRule')}
+              onClick={() => patch({ alertRules: rules.filter((_, i) => i !== index) })}
+            >
+              <Trash2 aria-hidden className="size-4" />
+            </Button>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Select
+              ariaLabel={t('settings.notifications.ruleMetric')}
+              value={rule.metric}
+              onValueChange={(value) => {
+                const metric = ruleMetricValues.find((candidate) => candidate === value);
+                if (metric) update(index, { metric });
+              }}
+              options={ruleMetricValues.map((metric) => ({
+                value: metric,
+                label: t(ruleMetricLabels[metric]),
+              }))}
+            />
+            <Select
+              ariaLabel={t('settings.notifications.ruleComparator')}
+              value={rule.comparator}
+              onValueChange={(value) => {
+                const comparator = comparatorValues.find((candidate) => candidate === value);
+                if (comparator) update(index, { comparator });
+              }}
+              options={comparatorValues.map((comparator) => ({
+                value: comparator,
+                label: t(comparatorLabels[comparator]),
+              }))}
+            />
+            <Input
+              type="number"
+              ariaLabel={t('settings.notifications.ruleThreshold')}
+              value={String(rule.threshold)}
+              onChange={(event) => {
+                const next = Number(event.target.value);
+                // Ignore a half-typed value rather than storing NaN, which
+                // Rust drops and the user would never see why.
+                if (Number.isFinite(next)) update(index, { threshold: next });
+              }}
+            />
+            <Input
+              type="number"
+              ariaLabel={t('settings.notifications.ruleSustain')}
+              value={String(rule.sustainSecs)}
+              onChange={(event) => {
+                const next = Number(event.target.value);
+                if (Number.isFinite(next)) update(index, { sustainSecs: Math.max(0, next) });
+              }}
+            />
+            <Select
+              ariaLabel={t('settings.notifications.ruleSeverity')}
+              value={rule.severity}
+              onValueChange={(value) => {
+                const severity = ruleSeverityValues.find((candidate) => candidate === value);
+                if (severity) update(index, { severity });
+              }}
+              options={ruleSeverityValues.map((severity) => ({
+                value: severity,
+                label: t(ruleSeverityLabels[severity]),
+              }))}
+            />
+          </div>
+        </div>
+      ))}
+    </>
+  );
+}
+
+const ruleMetricValues = [
+  'cpuPercent',
+  'cpuTemperature',
+  'memoryPercent',
+  'diskActivePercent',
+  'batteryPercent',
+  'networkErrorsPerSec',
+] as const satisfies readonly RuleMetric[];
+
+/** Spelled out rather than assembled: a built key renders its own name the
+ * day a value is renamed. */
+const ruleMetricLabels = {
+  cpuPercent: 'settings.notifications.metricCpuPercent',
+  cpuTemperature: 'settings.notifications.metricCpuTemperature',
+  memoryPercent: 'settings.notifications.metricMemoryPercent',
+  diskActivePercent: 'settings.notifications.metricDiskActivePercent',
+  batteryPercent: 'settings.notifications.metricBatteryPercent',
+  networkErrorsPerSec: 'settings.notifications.metricNetworkErrorsPerSec',
+} as const;
+
+const comparatorValues = ['above', 'below'] as const satisfies readonly Comparator[];
+const comparatorLabels = {
+  above: 'settings.notifications.comparatorAbove',
+  below: 'settings.notifications.comparatorBelow',
+} as const;
+
+const ruleSeverityValues = [
+  'info',
+  'warning',
+  'critical',
+] as const satisfies readonly RuleSeverity[];
+const ruleSeverityLabels = {
+  info: 'settings.notifications.severityInfo',
+  warning: 'settings.notifications.severityWarning',
+  critical: 'settings.notifications.severityCritical',
+} as const;
 
 export function PrivacyPanel() {
   const { t } = useTranslation();

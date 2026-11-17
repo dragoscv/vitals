@@ -406,6 +406,7 @@ fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
         users::get_users,
         commands::get_alerts,
         commands::set_alert_prefs,
+        commands::set_alert_rules,
         commands::set_alert_strings,
         commands::diagnose,
         commands::run_connectivity_probe,

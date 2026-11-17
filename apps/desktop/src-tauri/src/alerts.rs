@@ -74,6 +74,9 @@ impl AlertPrefs {
             | AlertKind::NetworkErrors
             | AlertKind::BatteryLow
             | AlertKind::BatteryHealth => true,
+            // The user wrote the rule and chose its severity, so there is
+            // nothing to second-guess: if notifications are on, it notifies.
+            AlertKind::Custom => true,
         }
     }
 }
@@ -123,6 +126,21 @@ impl Alerts {
 
     pub fn set_prefs(&self, prefs: AlertPrefs) {
         *self.prefs.lock() = prefs;
+    }
+
+    /// Replaces the user's rules and re-evaluates immediately.
+    ///
+    /// `sample_ms` is the sampler's current interval, because the windows the
+    /// user writes are in seconds while the engine counts samples, and the
+    /// rate changes with the window state.
+    pub fn set_rules(&self, rules: Vec<vitals_core::alerts::Rule>, sample_ms: u32) {
+        let mut engine = self.engine.lock();
+        engine.set_rules(rules, sample_ms);
+        // A rule that was deleted must disappear from the list at once, not
+        // at the next transition — which for a steady condition never comes.
+        let active = engine.active();
+        drop(engine);
+        self.active.lock().clone_from(&active);
     }
 
     pub fn set_strings(&self, strings: NotificationStrings) {
