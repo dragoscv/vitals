@@ -1340,6 +1340,210 @@
         }
       }
     },
+    "connectivity_dns": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Name lookup %1$lld ms"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Căutare nume %1$lld ms"
+          }
+        }
+      }
+    },
+    "connectivity_failed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The PC did not answer."
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Calculatorul nu a răspuns."
+          }
+        }
+      }
+    },
+    "connectivity_gateway": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Router"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Router"
+          }
+        }
+      }
+    },
+    "connectivity_healthy": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Everything answers — the connection is fine."
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toate răspund — conexiunea e în regulă."
+          }
+        }
+      }
+    },
+    "connectivity_hint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Asks the PC to check its router and two public addresses. Nothing is sent anywhere else."
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cere calculatorului să verifice routerul și două adrese publice. Nimic nu pleacă în altă parte."
+          }
+        }
+      }
+    },
+    "connectivity_internet": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This PC and its router are fine; the internet beyond them is not answering."
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Calculatorul și routerul sunt în regulă; internetul de dincolo de ele nu răspunde."
+          }
+        }
+      }
+    },
+    "connectivity_local_link": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This PC cannot reach its router. The Wi-Fi or the cable is the problem."
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Calculatorul nu poate ajunge la router. Problema e la Wi-Fi sau la cablu."
+          }
+        }
+      }
+    },
+    "connectivity_run": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Test the connection"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Testează conexiunea"
+          }
+        }
+      }
+    },
+    "connectivity_running": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Testing…"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se testează…"
+          }
+        }
+      }
+    },
+    "connectivity_targets": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Internet"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Internet"
+          }
+        }
+      }
+    },
+    "connectivity_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Is it my PC or my internet?"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "E de la calculatorul meu sau de la internet?"
+          }
+        }
+      }
+    },
+    "connectivity_unknown": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The test could not tell."
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Testul nu a putut decide."
+          }
+        }
+      }
+    },
     "control_access_denied": {
       "extractionState": "manual",
       "localizations": {

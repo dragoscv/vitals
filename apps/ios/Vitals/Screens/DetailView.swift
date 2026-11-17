@@ -105,6 +105,7 @@ struct NowTab: View {
                 }
                 if let b = s.battery { BatterySection(battery: b) }
                 if !isSample { AgentsCard(pairing: pairing) }
+                if !isSample { ConnectivityCard(pairing: pairing) }
             }
         }
         .refreshable { if !isSample { hub.stream(for: pairing.id).retry(pairing) } }
@@ -262,6 +263,78 @@ struct AgentsCard: View {
         case .ended: L("agents_state_ended")
         case .unknown: L("agents_state_unknown")
         }
+    }
+}
+
+/// "Is it my PC or my internet?" — the PC's own probe, on request.
+///
+/// A button, not something the tab does on appear: the PC sends four echo
+/// requests per target when asked, and a phone that probed the network every
+/// time a detail view opened would be spending someone's data on a question
+/// they did not ask. Nothing here polls.
+struct ConnectivityCard: View {
+    let pairing: Pairing
+    @State private var report: ConnectivityReport?
+    @State private var running = false
+    @State private var failed = false
+
+    var body: some View {
+        Section(L("connectivity_title")) {
+            Text(L("connectivity_hint"))
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+            Button {
+                running = true
+                failed = false
+                Task {
+                    let client = VitalsClient(baseUrl: pairing.baseUrl, token: pairing.token)
+                    switch await client.connectivity() {
+                    case let .success(r):
+                        report = r
+                    case .failure:
+                        report = nil
+                        failed = true
+                    }
+                    running = false
+                }
+            } label: {
+                Text(L(running ? "connectivity_running" : "connectivity_run"))
+            }
+            .disabled(running)
+
+            if failed {
+                Text(L("connectivity_failed")).foregroundStyle(Palette.danger)
+            }
+            if let r = report {
+                Text(verdictText(r.verdict))
+                if let gateway = r.gateway {
+                    InfoRow(L("connectivity_gateway"), describe(gateway))
+                }
+                ForEach(r.internet) { probe in
+                    InfoRow(L("connectivity_targets"), describe(probe))
+                }
+                if let dns = r.dnsMs {
+                    InfoRow(L("connectivity_dns"), "\(Int(dns)) ms")
+                }
+            }
+        }
+    }
+
+    /// The sentence for a verdict, with "could not tell" as the fallback: a PC
+    /// newer than this build must render something rather than an empty card.
+    private func verdictText(_ verdict: String) -> String {
+        switch verdict {
+        case "healthy": L("connectivity_healthy")
+        case "internet": L("connectivity_internet")
+        case "localLink": L("connectivity_local_link")
+        default: L("connectivity_unknown")
+        }
+    }
+
+    /// `192.168.1.1 · 12 ms · 0% lost`, with an em dash where nothing returned.
+    private func describe(_ probe: TargetProbe) -> String {
+        let rtt = probe.rttMs.map { "\(Int($0)) ms" } ?? "—"
+        return "\(probe.target) · \(rtt) · \(Int(probe.lossPercent))%"
     }
 }
 

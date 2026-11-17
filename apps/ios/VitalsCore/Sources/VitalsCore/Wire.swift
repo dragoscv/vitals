@@ -337,6 +337,33 @@ public struct SensorLine: Decodable, Sendable, Identifiable {
     public var id: String { key }
 }
 
+/// One target's round trips in `GET /api/v1/connectivity`.
+public struct TargetProbe: Decodable, Sendable, Identifiable {
+    public let target: String
+    public let sent: Int
+    public let received: Int
+    /// Mean of the replies that returned. `nil` when none did — never 0, which
+    /// would read as an impossibly fast reply.
+    public let rttMs: Double?
+    public var id: String { target }
+
+    /// The share of probes that did not come back, as a percentage.
+    public var lossPercent: Double {
+        sent == 0 ? 0 : Double(sent - received) / Double(sent) * 100
+    }
+}
+
+/// What `GET /api/v1/connectivity` answers.
+public struct ConnectivityReport: Decodable, Sendable {
+    public let gateway: TargetProbe?
+    public let internet: [TargetProbe]
+    public let dnsMs: Double?
+    /// A plain string on purpose: an unrecognised verdict renders the "could
+    /// not tell" sentence, which is what a PC newer than this build should
+    /// look like rather than an empty card.
+    public let verdict: String
+}
+
 public enum CoreClass: String, TolerantEnum {
     case performance, efficiency, lowPower, standard, unknown
     public static let unknownCase = Self.unknown

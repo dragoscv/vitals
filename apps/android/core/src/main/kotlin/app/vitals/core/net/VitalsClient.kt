@@ -4,6 +4,7 @@ import app.vitals.core.WireJson
 import app.vitals.core.model.Alert
 import app.vitals.core.model.ControlError
 import app.vitals.core.model.ControlRequest
+import app.vitals.core.model.ConnectivityReport
 import app.vitals.core.model.Frame
 import app.vitals.core.model.Health
 import app.vitals.core.model.HostInfo
@@ -110,6 +111,14 @@ class VitalsClient(
 
     suspend fun sensors(): ApiResult<List<SensorLine>> =
         get("/api/v1/sensors", ListSerializer(SensorLine.serializer()))
+
+    /**
+     * `GET /api/v1/connectivity` — the PC's answer to "is it me or the
+     * internet?". The PC runs a real probe when asked, so a screen calls this
+     * from a button and never from a polling loop.
+     */
+    suspend fun connectivity(): ApiResult<ConnectivityReport> =
+        get("/api/v1/connectivity", ConnectivityReport.serializer())
 
     suspend fun history(seconds: Int): ApiResult<List<MachineSample>> =
         get("/api/v1/history?seconds=$seconds", ListSerializer(MachineSample.serializer()))

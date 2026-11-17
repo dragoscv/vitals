@@ -104,6 +104,13 @@ public struct VitalsClient: Sendable {
     public func alerts() async -> Result<[Alert], ApiFailure> { await get("/api/v1/alerts") }
     public func sensors() async -> Result<[SensorLine], ApiFailure> { await get("/api/v1/sensors") }
 
+    /// `GET /api/v1/connectivity` — the PC's answer to "is it me or the
+    /// internet?". The PC runs a real probe when asked, so a screen calls this
+    /// from a button and never from a polling loop.
+    public func connectivity() async -> Result<ConnectivityReport, ApiFailure> {
+        await get("/api/v1/connectivity")
+    }
+
     public func history(seconds: Int) async -> Result<[MachineSample], ApiFailure> {
         await get("/api/v1/history?seconds=\(seconds)")
     }

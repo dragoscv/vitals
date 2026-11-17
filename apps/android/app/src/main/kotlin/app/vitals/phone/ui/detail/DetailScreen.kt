@@ -176,6 +176,7 @@ private fun NowTab(pairing: Pairing, state: LiveState, padding: PaddingValues) {
         networks(system)
         extras(system)
         item(key = "agents") { AgentsCard(pairing, Modifier.animateItem()) }
+        item(key = "connectivity") { ConnectivityCard(pairing, Modifier.animateItem()) }
     }
 }
 

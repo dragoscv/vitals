@@ -475,4 +475,16 @@
     <string name="health_connected">Conectat la %1$s · token %2$s…</string>
     <string name="health_disconnect">Deconectează</string>
     <string name="health_disconnect_confirm">Ștergi tokenul vmui de pe acest telefon? Fila Sănătate dispare până asociezi din nou.</string>
+    <string name="connectivity_title">E de la calculatorul meu sau de la internet?</string>
+    <string name="connectivity_hint">Cere calculatorului să verifice routerul și două adrese publice. Nimic nu pleacă în altă parte.</string>
+    <string name="connectivity_run">Testează conexiunea</string>
+    <string name="connectivity_running">Se testează…</string>
+    <string name="connectivity_failed">Calculatorul nu a răspuns.</string>
+    <string name="connectivity_healthy">Toate răspund — conexiunea e în regulă.</string>
+    <string name="connectivity_internet">Calculatorul și routerul sunt în regulă; internetul de dincolo de ele nu răspunde.</string>
+    <string name="connectivity_local_link">Calculatorul nu poate ajunge la router. Problema e la Wi-Fi sau la cablu.</string>
+    <string name="connectivity_unknown">Testul nu a putut decide.</string>
+    <string name="connectivity_gateway">Router</string>
+    <string name="connectivity_targets">Internet</string>
+    <string name="connectivity_dns">Căutare nume %1$d ms</string>
 </resources>

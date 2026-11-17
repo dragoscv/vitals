@@ -486,4 +486,16 @@
     <string name="health_connected">Connected to %1$s · token %2$s…</string>
     <string name="health_disconnect">Disconnect</string>
     <string name="health_disconnect_confirm">Remove the vmui token from this phone? The Health tab disappears until you pair again.</string>
+    <string name="connectivity_title">Is it my PC or my internet?</string>
+    <string name="connectivity_hint">Asks the PC to check its router and two public addresses. Nothing is sent anywhere else.</string>
+    <string name="connectivity_run">Test the connection</string>
+    <string name="connectivity_running">Testing…</string>
+    <string name="connectivity_failed">The PC did not answer.</string>
+    <string name="connectivity_healthy">Everything answers — the connection is fine.</string>
+    <string name="connectivity_internet">This PC and its router are fine; the internet beyond them is not answering.</string>
+    <string name="connectivity_local_link">This PC cannot reach its router. The Wi-Fi or the cable is the problem.</string>
+    <string name="connectivity_unknown">The test could not tell.</string>
+    <string name="connectivity_gateway">Router</string>
+    <string name="connectivity_targets">Internet</string>
+    <string name="connectivity_dns">Name lookup %1$d ms</string>
 </resources>

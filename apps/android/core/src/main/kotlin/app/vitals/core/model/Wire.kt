@@ -370,6 +370,38 @@ data class SensorLine(
     val quality: String,
 )
 
+/** One target's round trips in `GET /api/v1/connectivity`. */
+@Serializable
+data class TargetProbe(
+    val target: String,
+    val sent: Int,
+    val received: Int,
+    /**
+     * Mean of the replies that came back. Null when none did — never 0, which
+     * would read as an impossibly fast reply.
+     */
+    val rttMs: Double? = null,
+) {
+    /** The share of probes that did not come back, as a percentage. */
+    val lossPercent: Float
+        get() = if (sent == 0) 0f else (sent - received) * 100f / sent
+}
+
+/**
+ * What `GET /api/v1/connectivity` answers.
+ *
+ * `verdict` is a plain string rather than a tolerant enum on purpose: an
+ * unrecognised value renders the "could not tell" sentence, which is exactly
+ * what a PC reporting something this build does not know should look like.
+ */
+@Serializable
+data class ConnectivityReport(
+    val gateway: TargetProbe? = null,
+    val internet: List<TargetProbe> = emptyList(),
+    val dnsMs: Double? = null,
+    val verdict: String,
+)
+
 @Serializable
 data class HostInfo(
     val hostname: String,
