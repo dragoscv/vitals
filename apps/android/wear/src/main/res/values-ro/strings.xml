@@ -26,6 +26,8 @@
     <string name="waiting_for_data">Se așteaptă prima citire</string>
     <string name="last_seen">Văzut ultima dată %1$s</string>
     <string name="unreachable_title">PC-ul nu poate fi contactat</string>
+    <string name="unauthorised_short">Asociere respinsă</string>
+    <string name="unauthorised_body">PC-ul nu mai acceptă acest ceas, așa că Vitals a încetat să încerce. Asociază-l din nou în aplicația Vitals de pe telefon.</string>
 
     <string name="age_now">chiar acum</string>
     <string name="age_seconds">acum %1$d s</string>

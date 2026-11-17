@@ -50,11 +50,18 @@ private enum class SensorGroup(val title: Int, val color: Color) {
     }
 }
 
-/** Every sensor the PC reports, grouped by what it measures. */
+/**
+ * Every sensor the PC reports, grouped by what it measures.
+ *
+ * `null` is a PC that has not reported sensors yet (the phone's relay sends
+ * metrics only, and a failed call is not a PC without sensors), which is a
+ * different fact from an empty list — the first is "waiting", the second is
+ * "this machine has none".
+ */
 @Composable
-fun SensorsScreen(sensors: List<SensorLine>, reachable: Boolean) {
+fun SensorsScreen(sensors: List<SensorLine>?, reachable: Boolean) {
     val groups = remember(sensors) {
-        sensors.groupBy { SensorGroup.of(it.unit) }
+        sensors.orEmpty().groupBy { SensorGroup.of(it.unit) }
             .mapValues { (group, lines) ->
                 // Hottest first: the reading someone opened this screen to find.
                 if (group == SensorGroup.Temperatures) lines.sortedByDescending { it.value } else lines.sortedBy { it.label }
@@ -63,7 +70,15 @@ fun SensorsScreen(sensors: List<SensorLine>, reachable: Boolean) {
     }
     VitalsList { spec ->
             item { ScreenHeader(spec, stringResource(R.string.sensors)) }
-            if (sensors.isEmpty()) {
+            if (sensors == null) {
+                item {
+                    Message(
+                        title = stringResource(R.string.waiting_for_data),
+                        body = "",
+                        modifier = Modifier.transformedHeight(this, spec),
+                    )
+                }
+            } else if (sensors.isEmpty()) {
                 item {
                     Message(
                         title = stringResource(R.string.no_sensors_title),

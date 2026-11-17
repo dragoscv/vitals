@@ -53,7 +53,16 @@ object Notifications {
     /** The stable id of an alert, so the same condition updates one notification rather than stacking. */
     fun alertId(pairingId: String, alert: Alert): Int = "$pairingId|${alert.kind}|${alert.subject}".hashCode()
 
-    fun alert(context: Context, pcLabel: String, alert: Alert): Notification {
+    /**
+     * A PC alert on the phone.
+     *
+     * [localOnly] is true when the watch has already been given this alert as
+     * its own notification: without it Wear OS bridges this card as well and
+     * the wearer feels the one alert twice (S24-09). With no watch app to take
+     * it, bridging is the only way it reaches the wrist, so the card stays
+     * bridgeable.
+     */
+    fun alert(context: Context, pcLabel: String, alert: Alert, localOnly: Boolean): Notification {
         val colour = if (alert.severity == Severity.Critical) Palette.Danger else Palette.Warn
         return Notification.Builder(context, CHANNEL_ALERTS)
             .setSmallIcon(R.drawable.ic_stat_vitals)
@@ -63,6 +72,7 @@ object Notifications {
             .setCategory(Notification.CATEGORY_STATUS)
             .setContentIntent(openApp(context))
             .setAutoCancel(true)
+                .setLocalOnly(localOnly)
             .build()
     }
 
@@ -82,6 +92,8 @@ object Notifications {
             .setCategory(Notification.CATEGORY_STATUS)
             .setContentIntent(openApp(context))
             .setAutoCancel(true)
+                // Bridged on purpose: this phone's own alerts have no watch-side
+                // twin, so mirroring one is the only way the wearer sees it.
             .build()
     }
 

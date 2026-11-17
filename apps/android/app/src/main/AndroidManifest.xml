@@ -15,6 +15,10 @@
         <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+        <!-- The watch loop polls every five seconds and must keep its cadence
+            while the screen is off; the lock is held only while the foreground
+            service that shows a Stop action is running (S24-09). -->
+        <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <!-- This phone's special access (usage stats, all files) and package
          visibility are declared by :device and merged in (ADR-0035). -->

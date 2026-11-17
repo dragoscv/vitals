@@ -56,9 +56,14 @@ fun PcDetailScreen(
             }
             if (state != null && system == null) {
                 item {
+                    val refused = state.unauthorised
                     Message(
-                        title = stringResource(R.string.unreachable_title),
-                        body = stringResource(R.string.last_seen, relativeAge(state.lastSeenMs)),
+                        title = stringResource(if (refused) R.string.unauthorised_short else R.string.unreachable_title),
+                        body = if (refused) {
+                            stringResource(R.string.unauthorised_body)
+                        } else {
+                            stringResource(R.string.last_seen, relativeAge(state.lastSeenMs))
+                        },
                         modifier = Modifier.transformedHeight(this, spec),
                     )
                 }

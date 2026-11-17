@@ -84,6 +84,11 @@ android {
         error += "MissingTranslation"
     }
 
+    // The rules this module owns — which alert is announced, which token may
+    // reach the watch — are plain Kotlin on purpose, so they can be tested on
+    // the JVM instead of on a device.
+    testOptions { unitTests.isReturnDefaultValues = true }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -137,4 +142,6 @@ dependencies {
     implementation(libs.coroutines.play.services)
     implementation(libs.profileinstaller)
     implementation(libs.aboutlibraries.core)
+
+    testImplementation(libs.junit)
 }

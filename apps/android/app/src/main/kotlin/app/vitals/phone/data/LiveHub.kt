@@ -81,7 +81,19 @@ class LiveHub(private val graph: AppGraph) {
         )
         val current = graph.pairings.pairings.value.firstOrNull { it.id == p.id } ?: p
         graph.wear.putState(
-            PcState(p.id, current.label, now, summary, emptyList(), s.alerts, current.scope != Scope.Read),
+            PcState(
+                pairingId = p.id,
+                label = current.label,
+                fetchedMs = now,
+                summary = summary,
+                // The stream carries metrics, not sensors: `null` keeps the
+                // list the watch was last sent instead of clearing it here
+                // every fifteen seconds (S24-09).
+                sensors = null,
+                alerts = s.alerts,
+                canControl = current.scope != Scope.Read,
+                unauthorised = s.unauthorised,
+            ),
             urgent = false,
         )
         graph.widgetCache.put(p.id, current.label, summary.copy(top = summary.top.take(3)))

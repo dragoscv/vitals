@@ -67,6 +67,7 @@ fun PcListScreen(
                     PcCard(
                         label = pairing.label,
                         headline = state?.let(Headline::of),
+                        refused = state?.unauthorised == true,
                         onClick = { onOpen(pairing.id) },
                         modifier = Modifier.transformedHeight(this, spec),
                         transformation = SurfaceTransformation(spec),
@@ -99,6 +100,7 @@ fun PcListScreen(
 private fun PcCard(
     label: String,
     headline: Headline?,
+    refused: Boolean,
     onClick: () -> Unit,
     modifier: Modifier,
     transformation: SurfaceTransformation,
@@ -118,6 +120,9 @@ private fun PcCard(
         subtitle = {
             Text(
                 text = when {
+                    // A revoked pairing is not "waiting": nothing will arrive
+                    // until the PC is paired again from the phone (S24-09).
+                    refused -> stringResource(R.string.unauthorised_short)
                     headline == null -> stringResource(R.string.waiting_for_data)
                     !headline.reachable -> stringResource(R.string.last_seen, relativeAge(headline.fetchedMs))
                     else -> relativeAge(headline.fetchedMs)

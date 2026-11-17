@@ -17,9 +17,9 @@ TELEVIZORUL TĂU
 Aplicația Android TV e gândită pentru telecomandă: monitorizează televizorul însuși și îți arată PC-urile pe ecranul mare. Asociezi un PC tastând codul de șase cifre pe care îl afișează, fără cameră.
 
 PC-UL TĂU (opțional)
-Asociază un PC cu Windows care rulează Vitals scanând codul QR. Vezi procesorul, placa grafică, memoria, temperaturile și procesele, primești alerte, îl trezești din somn și, cu o asociere de control, închizi sau suspenzi un proces care nu mai răspunde. Două widgeturi pe ecranul de pornire țin un PC la vedere. Poți ține mai multe PC-uri într-o singură listă. Totul rămâne în rețeaua ta locală.
+Asociază un PC cu Windows sau macOS care rulează Vitals scanând codul QR. Vezi procesorul, placa grafică, memoria, temperaturile și procesele, primești alerte, îl trezești din somn și, cu o asociere de control, închizi sau suspenzi un proces care nu mai răspunde. Două widgeturi pe ecranul de pornire țin un PC la vedere. Poți ține mai multe PC-uri într-o singură listă. Totul rămâne în rețeaua ta locală.
 
-Vitals pentru Windows este gratuit pe vitals.dragoscatalin.ro. Accesul la distanță rămâne oprit pe PC până îl pornești tu.
+Vitals pentru Windows și macOS este gratuit pe vitals.dragoscatalin.ro. Accesul la distanță rămâne oprit pe PC până îl pornești tu.
 
 ONEST DIN CONSTRUCȚIE
 • Dacă o valoare nu poate fi măsurată, Vitals arată o liniuță, nu un zero inventat

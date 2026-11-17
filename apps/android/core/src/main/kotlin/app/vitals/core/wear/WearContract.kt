@@ -53,7 +53,14 @@ data class PcState(
     val fetchedMs: Long,
     /** `null` while the PC cannot be reached; the watch then shows [lastSeenMs] as "last seen". */
     val summary: Summary?,
-    val sensors: List<SensorLine>,
+    /**
+     * `null` when the producer did not ask for the sensors this round. That is
+     * not the same fact as an empty list, which means a PC that reported
+     * none: the phone's relay sends metrics only, and treating its silence as
+     * "no sensors" blanked the watch's Sensors screen every fifteen seconds
+     * (S24-09). [after] keeps the last list that was actually measured.
+     */
+    val sensors: List<SensorLine>? = null,
     val alerts: List<Alert>,
     /** From the pairing: `false` hides end-task on the watch. */
     val canControl: Boolean,
@@ -63,16 +70,38 @@ data class PcState(
      * now; stamping that as "last seen" put "just now" beside a row of dashes.
      */
     val seenMs: Long? = null,
+    /**
+     * The PC refused this device's token (401/403): the pairing was revoked
+     * on the PC, and no amount of retrying will fix it. Distinct from an
+     * unreachable PC, which is what "waiting" and "last seen" describe.
+     */
+    val unauthorised: Boolean = false,
 ) {
     /** When the PC last answered; 0 when it never has. */
     val lastSeenMs: Long get() = if (summary != null) fetchedMs else seenMs ?: 0L
 
     /**
      * This state as the receiver should keep it, given what it held before:
-     * an unreachable reading inherits the time the PC was last seen.
+     * an unreachable reading inherits the time the PC was last seen, a round
+     * that did not measure the sensors keeps the ones already held, and a
+     * refusal stays until the PC actually answers again.
      */
-    fun after(previous: PcState?): PcState =
-        if (summary != null || previous == null) this else copy(seenMs = previous.lastSeenMs.takeIf { it > 0L })
+    fun after(previous: PcState?): PcState {
+        // Resolved rather than left null: the next round's merge has to see
+        // the list, and the watch's UI reads a state, not a history of them.
+        val measured = sensors ?: previous?.sensors
+        // A round that could not reach the PC says nothing about the token, so
+        // it must not clear a refusal; one that was answered does clear it.
+        val refused = unauthorised || (summary == null && previous?.unauthorised == true)
+        return when {
+            summary != null || previous == null -> copy(sensors = measured, unauthorised = refused)
+            else -> copy(
+                sensors = measured,
+                unauthorised = refused,
+                seenMs = previous.lastSeenMs.takeIf { it > 0L },
+            )
+        }
+    }
 }
 
 @Serializable

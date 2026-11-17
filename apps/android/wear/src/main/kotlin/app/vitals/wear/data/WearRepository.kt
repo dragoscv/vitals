@@ -5,6 +5,8 @@ import app.vitals.core.WireJson
 import app.vitals.core.model.Alert
 import app.vitals.core.model.ProcessKey
 import app.vitals.core.net.LanAddress
+import app.vitals.core.net.ApiFailure
+import app.vitals.core.net.ApiResult
 import app.vitals.core.net.VitalsClient
 import app.vitals.core.net.getOrNull
 import app.vitals.core.pairing.Pairing
@@ -236,7 +238,13 @@ class WearRepository(private val context: Context, private val scope: CoroutineS
             val a = async { client.alerts() }
             Triple(s.await(), n.await(), a.await())
         }
-        val fresh = summary.getOrNull() ?: return
+        val fresh = summary.getOrNull()
+        // A refused token is worth recording even though nothing was read: it
+        // is the one failure the wearer can act on, and without it the screens
+        // keep saying "waiting for the first reading" forever (S24-09). Every
+        // other failure leaves the last state in place.
+        val refusedNow = refused(summary, sensors, alerts)
+        if (fresh == null && !refusedNow) return
         val previous = _states.value[p.id]
         val newAlerts = alerts.getOrNull().orEmpty()
         val state = PcState(
@@ -244,11 +252,12 @@ class WearRepository(private val context: Context, private val scope: CoroutineS
             label = p.label,
             fetchedMs = System.currentTimeMillis(),
             summary = fresh,
-            // A sensors or alerts failure keeps the last list rather than
-            // pretending the PC suddenly has no sensors and nothing wrong.
-            sensors = sensors.getOrNull() ?: previous?.sensors.orEmpty(),
+            // `null` on failure, not an empty list: `after` then keeps the last
+            // list rather than pretending the PC suddenly has no sensors.
+            sensors = sensors.getOrNull(),
             alerts = alerts.getOrNull() ?: previous?.alerts.orEmpty(),
             canControl = p.scope != Scope.Read,
+            unauthorised = refusedNow,
         )
         putState(state, notifySurfaces = true)
         // The phone buzzes the watch for alerts it sees; when the watch is
@@ -256,6 +265,10 @@ class WearRepository(private val context: Context, private val scope: CoroutineS
         val seen = previous?.alerts.orEmpty().map { it.kind to it.subject }.toSet()
         newAlerts.filter { (it.kind to it.subject) !in seen }.forEach { Alerter.notify(context, it, p.label) }
     }
+
+    /** The PC refused this device's token (401/403) on any call this round. */
+    private fun refused(vararg results: ApiResult<*>): Boolean =
+        results.any { (it as? ApiResult.Err)?.failure == ApiFailure.Unauthorised }
 
     // ---- Control ----------------------------------------------------------------
 

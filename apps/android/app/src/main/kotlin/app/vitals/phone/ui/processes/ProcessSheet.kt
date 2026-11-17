@@ -61,12 +61,45 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProcessSheet(pairing: Pairing, process: Process, onDismiss: () -> Unit) {
+    val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheet,
+        containerColor = Color.Transparent,
+        // Stated, not derived: a transparent container yields black text,
+        // unreadable on the dark glass behind it.
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        dragHandle = null,
+    ) {
+        ProcessDetail(
+            pairing = pairing,
+            process = process,
+            onDismiss = onDismiss,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
+                .glassSurface()
+                .verticalScroll(rememberScrollState())
+                .padding(20.dp),
+        )
+    }
+}
+
+/**
+ * One program's readings and the actions the PC allows, with no sheet around
+ * them: the bottom sheet on a phone and the right-hand pane on a tablet are
+ * the same panel, so what the two offer cannot drift apart.
+ *
+ * [onDismiss] is what the phone calls to close the sheet after a successful
+ * end-task; on a tablet it clears the selection.
+ */
+@Composable
+fun ProcessDetail(pairing: Pairing, process: Process, onDismiss: () -> Unit, modifier: Modifier) {
     val graph = LocalContext.current.graph
     val resources = LocalResources.current
     val snackbar = LocalSnackbar.current
     val haptics = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
-    val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var busy by remember { mutableStateOf(false) }
     var armed by remember(process.key) { mutableStateOf(false) }
     // The answer is shown inside the sheet: a modal sheet sits in its own
@@ -110,58 +143,40 @@ fun ProcessSheet(pairing: Pairing, process: Process, onDismiss: () -> Unit) {
         }
     }
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheet,
-        containerColor = Color.Transparent,
-        // Stated, not derived: a transparent container yields black text,
-        // unreadable on the dark glass behind it.
-        contentColor = MaterialTheme.colorScheme.onSurface,
-        dragHandle = null,
-    ) {
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
-                .glassSurface()
-                .verticalScroll(rememberScrollState())
-                .padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Text(process.displayName, style = MaterialTheme.typography.headlineSmall)
-            InfoRow(stringResource(R.string.sort_cpu), Format.percent(process.cpu))
-            InfoRow(stringResource(R.string.metric_memory), Format.bytes(process.memoryPrivate))
-            InfoRow(
-                stringResource(R.string.process_disk),
-                stringResource(R.string.disk_read_write, Format.rate(process.diskRead), Format.rate(process.diskWrite)),
-            )
-            InfoRow(stringResource(R.string.metric_gpu), Format.percent(process.gpu))
-            InfoRow(stringResource(R.string.process_threads), process.threadCount.toString())
-            InfoRow(stringResource(R.string.process_uptime), Format.duration(process.uptimeSecs))
-            InfoRow(stringResource(R.string.process_user), process.user ?: Format.DASH)
-            InfoRow(stringResource(R.string.process_pid), process.key.pid.toString())
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(process.displayName, style = MaterialTheme.typography.headlineSmall)
+        InfoRow(stringResource(R.string.sort_cpu), Format.percent(process.cpu))
+        InfoRow(stringResource(R.string.metric_memory), Format.bytes(process.memoryPrivate))
+        InfoRow(
+            stringResource(R.string.process_disk),
+            stringResource(R.string.disk_read_write, Format.rate(process.diskRead), Format.rate(process.diskWrite)),
+        )
+        InfoRow(stringResource(R.string.metric_gpu), Format.percent(process.gpu))
+        InfoRow(stringResource(R.string.process_threads), process.threadCount.toString())
+        InfoRow(stringResource(R.string.process_uptime), Format.duration(process.uptimeSecs))
+        InfoRow(stringResource(R.string.process_user), process.user ?: Format.DASH)
+        InfoRow(stringResource(R.string.process_pid), process.key.pid.toString())
 
-            when {
-                !pairing.canControl() -> Text(
-                    stringResource(R.string.process_read_only),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                !process.isSafelyTerminable -> Text(
-                    stringResource(R.string.process_protected),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                else -> Actions(process, busy, armed, onArm = {
-                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                    armed = true
-                }, run = ::run)
-            }
-            outcome?.let { (ok, text) ->
-                Text(
-                    text,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = if (ok) readable(Palette.Ok) else MaterialTheme.colorScheme.error,
-                )
-            }
+        when {
+            !pairing.canControl() -> Text(
+                stringResource(R.string.process_read_only),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            !process.isSafelyTerminable -> Text(
+                stringResource(R.string.process_protected),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            else -> Actions(process, busy, armed, onArm = {
+                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                armed = true
+            }, run = ::run)
+        }
+        outcome?.let { (ok, text) ->
+            Text(
+                text,
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (ok) readable(Palette.Ok) else MaterialTheme.colorScheme.error,
+            )
         }
     }
 }

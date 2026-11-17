@@ -96,7 +96,9 @@ private fun VitalsNav(controller: WearController, device: app.vitals.device.Devi
             composable(Routes.SENSORS) { entry ->
                 val id = remember(entry) { entry.arguments?.getString("id").orEmpty() }
                 val state = states[id]
-                SensorsScreen(sensors = state?.sensors.orEmpty(), reachable = state?.summary != null)
+                // Null while no round has measured them: the screen says it is
+                // waiting rather than "this PC has no sensors".
+                SensorsScreen(sensors = state?.sensors, reachable = state?.summary != null)
             }
             composable(Routes.PROCESSES) { entry ->
                 val id = remember(entry) { entry.arguments?.getString("id").orEmpty() }

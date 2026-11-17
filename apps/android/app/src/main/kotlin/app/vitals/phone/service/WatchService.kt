@@ -6,14 +6,15 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
+import android.os.PowerManager
 import android.util.Log
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
 import app.vitals.core.model.Alert
-import app.vitals.core.model.Severity
-import app.vitals.core.net.LanNetwork
+import app.vitals.core.net.ApiFailure
 import app.vitals.core.net.ApiResult
+import app.vitals.core.net.LanNetwork
 import app.vitals.core.net.getOrNull
 import app.vitals.core.pairing.Pairing
 import app.vitals.core.wear.PcState
@@ -39,6 +40,7 @@ import kotlinx.coroutines.launch
  */
 class WatchService : LifecycleService() {
     private var loop: Job? = null
+    private var wakeLock: PowerManager.WakeLock? = null
 
     /** What was already notified, so the same alert does not buzz every five seconds. */
     private val notified = HashMap<String, Set<Int>>()
@@ -61,6 +63,7 @@ class WatchService : LifecycleService() {
             stopSelf()
             return START_NOT_STICKY
         }
+        holdWakeLock()
         // A loop that ended (nothing watched, then a toggle turned back on)
         // is not null but is finished; restarting only on null left the
         // service foreground with nothing polling.
@@ -70,6 +73,43 @@ class WatchService : LifecycleService() {
         // ForegroundServiceStartNotAllowedException. The user's toggle and the
         // app's own start are the only legitimate ways in.
         return START_NOT_STICKY
+    }
+
+    /**
+     * Held for exactly as long as the service runs. Without it the platform
+     * is free to suspend the process between the loop's delays and a
+     * five-second cadence becomes minutes or nothing while the screen is off
+     * — the reading the user turned watching on for silently stops.
+     *
+     * Released in [onDestroy], which every way out of here passes through
+     * (the loop's own `stopSelf`, the Stop action, the system stopping the
+     * service), so the lock can never outlive the notification that tells the
+     * user it is being held. Reference-counted is off because one lock is
+     * taken once per service, not once per `onStartCommand`.
+     */
+    // Lint asks for a timeout so a lock cannot outlive its use; this one is
+    // bounded by the foreground service instead, which the user can see and
+    // stop, and which releases it in onDestroy.
+    @Suppress("WakelockTimeout")
+    private fun holdWakeLock() {
+        if (wakeLock?.isHeld == true) return
+        val manager = getSystemService(PowerManager::class.java) ?: return
+        wakeLock = try {
+            manager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "vitals:watch").apply {
+                setReferenceCounted(false)
+                acquire()
+            }
+        } catch (e: SecurityException) {
+            Log.w(TAG, "wake lock refused", e)
+            null
+        }
+    }
+
+    override fun onDestroy() {
+        // Before super, so the lock is gone even if the superclass throws.
+        wakeLock?.let { if (it.isHeld) it.release() }
+        wakeLock = null
+        super.onDestroy()
     }
 
     private suspend fun run() {
@@ -113,7 +153,20 @@ class WatchService : LifecycleService() {
         val changed = notifyNew(p, list)
         val value = summary.getOrNull()
         graph.wear.putState(
-            PcState(p.id, p.label, System.currentTimeMillis(), value, emptyList(), list, p.canControl()),
+            PcState(
+                pairingId = p.id,
+                label = p.label,
+                fetchedMs = System.currentTimeMillis(),
+                summary = value,
+                // This poll asks for the summary and the alerts only, so it
+                // has nothing to say about the sensors: `null` keeps the last
+                // list the watch was sent instead of blanking it every five
+                // seconds (S24-09).
+                sensors = null,
+                alerts = list,
+                canControl = p.canControl(),
+                unauthorised = refused(summary, alerts),
+            ),
             urgent = changed,
         )
         return Notifications.Watched(p.label, value)
@@ -121,19 +174,28 @@ class WatchService : LifecycleService() {
 
     /** Posts warnings and critical alerts that were not there last round; returns whether the set changed. */
     private suspend fun notifyNew(p: Pairing, alerts: List<Alert>): Boolean {
-        val serious = alerts.filter { it.severity != Severity.Info }
-        val ids = serious.associateBy { Notifications.alertId(p.id, it) }
         val before = notified[p.id].orEmpty()
-        notified[p.id] = ids.keys
+        val (fresh, ids) = AlertDedupe.fresh(before, alerts) { Notifications.alertId(p.id, it) }
+        notified[p.id] = ids
+        // The watch is offered the alert first, so the phone's card can be
+        // decided from whether anyone took it: given away, this card must not
+        // also be bridged (the wrist would show the alert twice); with no
+        // watch app installed nothing takes it, and bridging is then the only
+        // way the wearer sees it at all.
+        var onWatch = 0
+        fresh.forEach { (_, alert) -> onWatch += graph.wear.sendAlert(alert) }
         val nm = getSystemService(NotificationManager::class.java)
         if (nm.areNotificationsEnabled()) {
-            ids.filterKeys { it !in before }.forEach { (id, alert) ->
-                nm.notify(id, Notifications.alert(this, p.label, alert))
+            fresh.forEach { (id, alert) ->
+                nm.notify(id, Notifications.alert(this, p.label, alert, localOnly = onWatch > 0))
             }
         }
-        (ids.keys - before).forEach { id -> ids[id]?.let { graph.wear.sendAlert(it) } }
-        return ids.keys != before
+        return ids != before
     }
+
+    /** A round in which the PC refused the token (401/403): not "waiting", and never retried blindly. */
+    private fun refused(vararg results: ApiResult<*>): Boolean =
+        results.any { (it as? ApiResult.Err)?.failure == ApiFailure.Unauthorised }
 
     /** False when the system refused foreground (background start, missing permission); the caller stops. */
     private fun goForeground(watched: List<Notifications.Watched>, offLan: Boolean = false): Boolean {

@@ -50,14 +50,20 @@ class PhoneListenerService : WearableListenerService() {
                     val summary = async { client.summary(top = 5) }
                     val sensors = async { client.sensors() }
                     val alerts = async { client.alerts() }
+                    val (summaryResult, sensorsResult, alertsResult) =
+                        Triple(summary.await(), sensors.await(), alerts.await())
                     val state = PcState(
                         pairingId = p.id,
                         label = p.label,
                         fetchedMs = System.currentTimeMillis(),
-                        summary = summary.await().getOrNull(),
-                        sensors = sensors.await().getOrNull().orEmpty(),
-                        alerts = alerts.await().getOrNull().orEmpty(),
+                        summary = summaryResult.getOrNull(),
+                        // `null`, not an empty list, when the call failed: an
+                        // unanswered call is not a PC with no sensors, and
+                        // saying so blanked the watch's screen (S24-09).
+                        sensors = sensorsResult.getOrNull(),
+                        alerts = alertsResult.getOrNull().orEmpty(),
                         canControl = p.canControl(),
+                        unauthorised = refused(summaryResult, sensorsResult, alertsResult),
                     )
                     // Urgent: the watch asked because it is on screen right now.
                     graph.wear.putState(state, urgent = true)
@@ -65,6 +71,10 @@ class PhoneListenerService : WearableListenerService() {
             }.awaitAll()
         }
     }
+
+    /** The PC refused the token this round: the watch shows signed-out, not "waiting". */
+    private fun refused(vararg results: ApiResult<*>): Boolean =
+        results.any { (it as? ApiResult.Err)?.failure == ApiFailure.Unauthorised }
 
     private suspend fun control(nodeId: String, data: ByteArray) {
         val graph = applicationContext.graph

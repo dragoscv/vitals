@@ -89,6 +89,10 @@ internal fun ProgramsTab(pairing: Pairing, state: LiveState) {
                 Sort.entries.forEach { s -> Choice(stringResource(s.label), selected = sort == s, onClick = { sort = s }) }
             }
             when {
+                // The same defect the phone's list had (S24-09): a revoked
+                // pairing kept saying "Waiting for the PC…" on this tab, while
+                // the header above it showed the one thing that fixes it.
+                state.unauthorised -> Hint(stringResource(R.string.state_unauthorised))
                 list == null -> Hint(stringResource(if (state.unreachable) R.string.state_unreachable else R.string.processes_waiting))
                 list.isEmpty() -> Hint(stringResource(R.string.processes_none))
                 else -> {

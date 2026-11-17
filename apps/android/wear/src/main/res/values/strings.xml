@@ -26,6 +26,8 @@
     <string name="waiting_for_data">Waiting for the first reading</string>
     <string name="last_seen">Last seen %1$s</string>
     <string name="unreachable_title">Cannot reach this PC</string>
+    <string name="unauthorised_short">No longer paired</string>
+    <string name="unauthorised_body">The PC stopped accepting this watch, so Vitals has stopped trying. Pair it again in the Vitals app on your phone.</string>
 
     <string name="age_now">just now</string>
     <string name="age_seconds">%1$d s ago</string>

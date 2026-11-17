@@ -40,12 +40,20 @@ class WearBridge(context: Context) {
         put(WearContract.PATH_STATE_PREFIX + state.pairingId, json, urgent)
     }
 
-    /** The payload is the [Alert] itself, so the watch can word it without a second round trip. */
-    suspend fun sendAlert(alert: Alert) {
+    /**
+     * The payload is the [Alert] itself, so the watch can word it without a
+     * second round trip. Returns how many watches took it: that is what tells
+     * the caller whether the phone's own card is the only one left, and so
+     * whether it may be marked local-only.
+     */
+    suspend fun sendAlert(alert: Alert): Int {
         val bytes = WireJson.Lenient.encodeToString(Alert.serializer(), alert).encodeToByteArray()
-        watchNodes().forEach { node ->
-            runCatching { messages.sendMessage(node, WearContract.PATH_ALERT, bytes).await() }
+        var delivered = 0
+        for (node in watchNodes()) {
+            val taken = runCatching { messages.sendMessage(node, WearContract.PATH_ALERT, bytes).await() }.isSuccess
+            if (taken) delivered++
         }
+        return delivered
     }
 
     suspend fun reply(nodeId: String, path: String, payload: ByteArray) {
