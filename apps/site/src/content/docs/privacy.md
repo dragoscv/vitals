@@ -9,7 +9,7 @@ two ever differ, that one applies.
 
 It covers Vitals 1.0.x and later: the Windows and macOS apps, the `vitals` command-line tool
 (including `vitals serve`), the optional sensors service and lag watchdog, the Android phone, Wear OS
-and Google TV apps, the iPhone app, and the Samsung (Tizen) TV app. Effective 28 October 2026.
+and Google TV apps, the iPhone app, and the Samsung (Tizen) TV app. Effective 17 November 2026.
 
 ## The app
 
@@ -19,6 +19,11 @@ and Google TV apps, the iPhone app, and the Samsung (Tizen) TV app. Effective 28
   version exists. GitHub sees your IP address and the app version, as with any download. You can
   turn this off in **Settings → About**. The Microsoft Store version makes no such request: the
   Store updates it.
+- **Two connections are opt-in and off until you turn them on.** The AI agents page can sign in to
+  your **Kodwen** account, after which it reads your sessions from Kodwen while the page is open
+  (once every 30 seconds) until you sign out. The Health page reads your own readings from a
+  **vmui** server you run yourself. Neither connects unless you enable it, and neither is part of
+  the automatic behaviour above.
 - **Remote access is off by default.** Nothing listens on your network until you turn it on in
   **Settings → Remote access**. Then it listens on the adapter you chose, or on every network if
   you chose none (`vitals serve` always listens on every network). Only `/api/v1/health` and the

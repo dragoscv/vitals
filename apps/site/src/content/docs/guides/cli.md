@@ -7,8 +7,11 @@ The `vitals` command reads the same numbers the window shows.
 
 ## Install
 
-The CLI is **not** bundled with the installer, the Microsoft Store build or the package managers
-yet. Until a release carries it, build it from source with [Rust](https://rustup.rs) installed:
+The CLI is **not** inside the installer, the Microsoft Store build or the package managers, but
+every [GitHub release](https://github.com/dragoscv/vitals/releases/latest) ships it as a separate
+zip beside the installer — `vitals-cli_<version>_x64.zip` and `_arm64.zip`, each holding
+`vitals.exe`, the licence and the third-party notices. Download that, or build it from source with
+[Rust](https://rustup.rs) installed:
 
 ```powershell
 cargo install --git https://github.com/dragoscv/vitals vitals-cli

@@ -7,9 +7,11 @@ Comanda `vitals` citește aceleași cifre pe care le arată fereastra.
 
 ## Instalare
 
-Linia de comandă **nu** este inclusă încă în programul de instalare, în versiunea din Microsoft Store
-sau în managerii de pachete. Până când o versiune o va include, o construiești din sursă, cu
-[Rust](https://rustup.rs) instalat:
+Linia de comandă **nu** este inclusă în programul de instalare, în versiunea din Microsoft Store sau
+în managerii de pachete, dar fiecare [versiune de pe GitHub](https://github.com/dragoscv/vitals/releases/latest)
+o livrează ca un zip separat, lângă programul de instalare — `vitals-cli_<versiune>_x64.zip` și
+`_arm64.zip`, fiecare cu `vitals.exe`, licența și notele despre componentele terțe. Descarcă acel
+zip sau construiește-o din sursă, cu [Rust](https://rustup.rs) instalat:
 
 ```powershell
 cargo install --git https://github.com/dragoscv/vitals vitals-cli

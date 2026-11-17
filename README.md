@@ -25,10 +25,10 @@ from a terminal.
 | Windows 11 ARM64           | [Vitals_arm64-setup.exe](https://github.com/dragoscv/vitals/releases/latest/download/Vitals_arm64-setup.exe)                                                                  | Preview        |
 | Android phone, Wear OS, TV | APKs on each [release](https://github.com/dragoscv/vitals/releases/latest)                                                                                                    | Stable         |
 | macOS 13+ (universal)      | [Vitals_universal.dmg](https://github.com/dragoscv/vitals/releases/latest/download/Vitals_universal.dmg), Developer ID signed and notarised                                   | Preview        |
-| iPhone (iOS 18+)           | "Vitals: System Monitor" on the App Store (in review)                                                                                                                         | Preview        |
+| iPhone (iOS 18+)           | "Vitals Monitor" — App Store listing not live yet                                                                                                                             | Preview        |
 | Linux                      | —                                                                                                                                                                             | No dated plans |
 
-> **Status: 1.0, stable on Windows.** Every section works against live data on
+> **Status: 1.2.0, stable on Windows.** Every section works against live data on
 > Windows — there are no placeholder screens left. The Windows sampler was
 > cross-checked against Windows' own counters during development and stays
 > inside a 30 ms-per-sample budget that CI enforces. macOS has a real sampler
@@ -36,9 +36,11 @@ from a terminal.
 > Linux is compiled and checked in CI but not published, because its sampler
 > does not exist yet ([ADR 0007](docs/adr/0007-windows-only-honest-stubs.md)).
 
-**Privacy in one line:** no telemetry, no analytics, no accounts. The only
-request Vitals makes by itself is an update check to GitHub, which you can
-turn off. Details in [PRIVACY.md](PRIVACY.md).
+**Privacy in one line:** no telemetry, no analytics, no Vitals account. The
+only request Vitals makes by itself is an update check to GitHub, which you
+can turn off. The two opt-in extras — the Kodwen sign-in on the AI agents
+page and the Health page reading your own vmui server — are off until you
+turn them on. Details in [PRIVACY.md](PRIVACY.md).
 
 ---
 
@@ -54,10 +56,14 @@ Vitals is an attempt at all of it in one place, fast, and readable.
 ## What makes it different
 
 - **It measures itself.** The Windows sampler has a 30 ms-per-sample budget
-  that CI enforces — at most about 3 % of one core at the one-second rate
-  while the window is visible, and sampling drops to once every 20 seconds
-  when it is hidden. A monitoring tool that shows up in its own process list
-  as a top consumer has failed at its job.
+  that CI enforces — a 3 %-of-one-core ceiling at the one-second rate, not
+  the typical cost. What the whole app costs is larger and is measured, not
+  estimated: `idle-budget.json` records a median of 10.7 % of one core while
+  Vitals sits hidden in the tray (the desktop process and its WebView2
+  renderer together, three 40-second windows after a 60-second settle on a
+  16-core machine). Sampling drops to once every 20 seconds when the window
+  is hidden. A monitoring tool that shows up in its own process list as a
+  top consumer has failed at its job.
 - **It tells the truth.** A metric the hardware cannot report is shown as
   unknown, never as zero. A feature your privileges do not allow is greyed out
   with the reason, never a button that throws when clicked.
@@ -65,9 +71,11 @@ Vitals is an attempt at all of it in one place, fast, and readable.
   network and thermal throttling, then names the cause in plain language —
   a verdict, the culprits, and a minute of chart, with a Copy button for
   pasting into a bug report.
-- **It catches what vanishes.** Processes that live for under a second, and
-  windows that flash and disappear, are recorded rather than missed between
-  samples.
+- **It is honest about what it misses.** Sampling runs once a second (once
+  every 20 seconds while the window is hidden), so a process that starts and
+  exits between two samples is not listed, and neither is a window that
+  flashes and disappears. The elevated helper that would capture both is
+  planned and not shipped ([ADR 0012](docs/adr/0012-helper-stays-stubbed.md)).
 - **It is not only a window.** The same readings reach a tray icon, an
   always-on-top HUD, your phone over the LAN, Prometheus, Home Assistant, a
   TypeScript SDK and a CLI — all from one sampler, so they always agree.
@@ -118,13 +126,14 @@ Vitals is an attempt at all of it in one place, fast, and readable.
   Manager" entry so the built-in one is always a click away.
 - **HUD** — an always-on-top, transparent, click-through overlay for CPU,
   memory and GPU. `Ctrl+Shift+H`.
-- **Lag watchdog** — a small background program, installed and on by
-  default, that notices when a window you are using stops responding or
-  programs cannot get the processor, names the one responsible (never the
-  terminal or editor it was started from) and offers End, Lower its
-  priority or Ignore from a notification. A busy build alone never triggers
-  it. Settings → Watchdog chooses how sensitive it is and its sound, which
-  can be your own audio file.
+- **Lag watchdog** — a small background program, off until you turn it on
+  (on the welcome card or in Settings → Watchdog), that notices when a
+  window you are using stops responding or programs cannot get the
+  processor, names the one responsible (never the terminal or editor it was
+  started from) and offers End, Lower its priority or Ignore from a
+  notification. A busy build alone never triggers it. Settings → Watchdog
+  chooses how sensitive it is and its sound, which can be your own audio
+  file.
 - **Updater** — checks a minisign signature before installing anything; an
   unsigned update is refused.
 
@@ -154,8 +163,12 @@ The phone talks to a small HTTP server inside the app, and so can you:
 
 ### From a terminal
 
-The `vitals` command is not bundled with any installer yet. Until a release
-carries it, build it from source with Rust installed:
+The `vitals` command is not inside the installer or the Microsoft Store
+build, but every [GitHub release](https://github.com/dragoscv/vitals/releases/latest)
+ships it as a zip beside the installer — `vitals-cli_<version>_x64.zip` and
+`vitals-cli_<version>_arm64.zip`, each holding `vitals.exe`, the licence and
+the third-party notices. Unzip that, or build it from source with Rust
+installed:
 
 ```powershell
 cargo install --git https://github.com/dragoscv/vitals vitals-cli
@@ -221,7 +234,10 @@ GitHub whether there is a newer version, downloads it in the background,
 verifies its minisign signature, and installs it when you quit, or after ten
 minutes away from the PC while Vitals is only in the tray (never during a
 Windows restart or sign-out, which would cut the setup off). Nothing is
-installed while you are using the app. Turn it off in Settings → About.
+installed while you are using the app. Turn it off in Settings → About. A
+per-user install updates silently; one installed for everyone asks an
+administrator to approve each update, so use **Settings → About → Restart to
+update** there.
 
 **Windows will show a SmartScreen warning on first run.** That is expected:
 the builds are not yet signed with a commercial code-signing certificate.
@@ -248,7 +264,8 @@ Every [GitHub release](https://github.com/dragoscv/vitals/releases/latest)
 carries three Android APKs: `Vitals_<version>_android.apk` for phones,
 `_wear.apk` for Wear OS and `_tv.apk` for Android and Google TV. Each monitors
 the device it runs on and can watch paired Windows PCs on your local network.
-Google Play listings are coming later.
+The same three form factors are on Google Play as a single listing,
+[Vitals: system monitor](https://play.google.com/store/apps/details?id=app.vitals).
 
 ## Building
 

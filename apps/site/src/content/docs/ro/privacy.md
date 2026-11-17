@@ -10,7 +10,7 @@ dacă cele două diferă vreodată, se aplică aceea.
 Acoperă Vitals 1.0.x și versiunile ulterioare: aplicațiile pentru Windows și macOS, instrumentul în
 linie de comandă `vitals` (inclusiv `vitals serve`), serviciul opțional de senzori și watchdog-ul
 pentru blocaje, aplicațiile Android pentru telefon, Wear OS și Google TV, aplicația pentru iPhone și
-aplicația pentru televizoare Samsung (Tizen). În vigoare din 28 octombrie 2026.
+aplicația pentru televizoare Samsung (Tizen). În vigoare din 17 noiembrie 2026.
 
 ## Aplicația
 
@@ -20,6 +20,11 @@ aplicația pentru televizoare Samsung (Tizen). În vigoare din 28 octombrie 2026
   există o versiune mai nouă. GitHub vede adresa ta IP și versiunea aplicației, ca la orice
   descărcare. Poți dezactiva asta din **Setări → Despre**. Versiunea din Microsoft Store nu face
   această cerere: o actualizează Store-ul.
+- **Două conexiuni sunt opționale și oprite până le pornești.** Pagina Agenți AI se poate conecta la
+  contul tău **Kodwen**, după care citește sesiunile de la Kodwen cât timp pagina e deschisă (o dată
+  la 30 de secunde) până te deconectezi. Pagina Sănătate citește valorile tale de la un server
+  **vmui** pe care îl rulezi tu. Niciuna nu se conectează dacă nu o pornești și niciuna nu face
+  parte din comportamentul automat de mai sus.
 - **Accesul la distanță este oprit implicit.** Nimic nu ascultă în rețeaua ta până nu îl pornești din
   **Setări → Acces la distanță**. Atunci ascultă pe adaptorul ales sau, dacă n-ai ales unul, pe toate
   rețelele (`vitals serve` ascultă mereu pe toate rețelele). Doar `/api/v1/health` și schimbul de

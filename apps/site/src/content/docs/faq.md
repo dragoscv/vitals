@@ -24,9 +24,12 @@ in more detail.
 
 ## Does Vitals send data anywhere?
 
-No telemetry, no analytics, no crash reporting and no account. The only connection Vitals makes by
-itself is an update check to GitHub in the installer version, which you can turn off in **Settings
-→ About**. The Store version does not even do that, because the Store updates it.
+No telemetry, no analytics, no crash reporting and no Vitals account. The only connection Vitals
+makes by itself is an update check to GitHub in the installer version, which you can turn off in
+**Settings → About**. The Store version does not even do that, because the Store updates it.
+
+Two connections are off until you turn them on: the Kodwen sign-in on the AI agents page, and the
+Health page, which reads from a vmui server you run yourself.
 
 Remote access (viewing your PC from a phone or TV) stays on your own network and is off until you
 turn it on. The [privacy policy](/privacy/) lists every connection and every file Vitals writes.
@@ -65,8 +68,10 @@ identical. You can switch between them at any time; uninstall one before install
 ## Will it slow my computer down?
 
 It is built not to. The Windows sampler has a budget of 30 milliseconds per sample that the build
-checks on every change — at most about 3 % of one processor core at the default one-second rate
-while the window is visible. When the window is hidden it samples only every 20 seconds.
+checks on every change, and the whole app's idle cost is checked separately against
+`idle-budget.json`: a median of 10.7 % of one processor core while it sits hidden in the tray,
+WebView2 renderer included. Sampling is one a second while the window is visible, and one every 20
+seconds when it is hidden.
 
 ## Does it work on Windows 10, ARM or macOS?
 

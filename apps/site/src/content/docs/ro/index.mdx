@@ -31,7 +31,7 @@ hero:
 
 import { Aside, Card, CardGrid, Tabs, TabItem, LinkCard } from '@astrojs/starlight/components';
 
-<Aside type="note" title="Vitals 1.0">
+<Aside type="note" title="Platforme">
   Windows 10 și 11, x64 (ARM64 în previzualizare), macOS 13+ în previzualizare, plus aplicații
   pentru telefon Android, Wear OS, televizor și iPhone. Nu există planuri datate pentru Linux.
 </Aside>
@@ -64,7 +64,9 @@ import { Aside, Card, CardGrid, Tabs, TabItem, LinkCard } from '@astrojs/starlig
   </Card>
   <Card title="Procese cu model de risc" icon="list-format">
     Grupate, căutabile și stabile sub cursor. Oprirea, suspendarea și reluarea îți spun consecința
-    reală înainte să confirmi, iar procesele care trăiesc sub o secundă sunt totuși înregistrate.
+    reală înainte să confirmi. Eșantionarea rulează o dată pe secundă, așa că un proces care
+    pornește și se închide între două eșantioane nu apare în listă — serviciul auxiliar care le-ar
+    prinde nu este încă livrat.
   </Card>
   <Card title="Performanță, completă" icon="laptop">
     Procesorul cu câte o celulă pentru fiecare nucleu logic, memoria, placa video, fiecare disc și
@@ -75,14 +77,16 @@ import { Aside, Card, CardGrid, Tabs, TabItem, LinkCard } from '@astrojs/starlig
     de comandă, toate alimentate de același eșantionator, deci arată mereu aceleași cifre.
   </Card>
   <Card title="Ușor pentru calculator" icon="rocket">
-    Eșantionatorul Windows are un buget de 30 ms pe eșantion, impus în CI — cel mult circa 3 %
-    dintr-un nucleu la ritmul de o secundă cât fereastra e vizibilă — și eșantionează doar o dată la
-    20 de secunde când e ascunsă. Un monitor care apare printre cei mai mari consumatori în propria
-    listă de procese și-a ratat rostul.
+    Eșantionatorul Windows are un buget de 30 ms pe eșantion, impus în CI, iar costul de repaus al
+    întregii aplicații este măsurat față de `idle-budget.json`: o mediană de 10,7 % dintr-un nucleu
+    cât stă ascunsă în zona de notificare, inclusiv procesul WebView2. Eșantionarea este o dată pe
+    secundă cât fereastra e vizibilă și o dată la 20 de secunde când e ascunsă. Un monitor care
+    apare printre cei mai mari consumatori în propria listă de procese și-a ratat rostul.
   </Card>
   <Card title="Zero telemetrie" icon="information">
-    Fără statistici, fără raportare de erori, fără cont. Singura cerere automată este verificarea
-    actualizărilor, iar pe aceasta o poți dezactiva.
+    Fără statistici, fără raportare de erori, fără cont Vitals. Singura cerere automată este
+    verificarea actualizărilor, iar pe aceasta o poți dezactiva. Conectarea la Kodwen și pagina
+    Sănătate sunt oprite până le pornești.
   </Card>
   <Card title="Open source" icon="github">
     Licență MIT. Fiecare versiune are o atestare de build care leagă programul de instalare de
@@ -133,7 +137,8 @@ import { Aside, Card, CardGrid, Tabs, TabItem, LinkCard } from '@astrojs/starlig
 Fiecare [versiune de pe GitHub](https://github.com/dragoscv/vitals/releases/latest) are trei fișiere
 APK pentru Android: `Vitals_<versiune>_android.apk` pentru telefoane, `_wear.apk` pentru Wear OS și
 `_tv.apk` pentru Android TV și Google TV. Fiecare monitorizează dispozitivul pe care rulează și poate
-urmări PC-urile Windows asociate din rețeaua locală. Listările din Google Play urmează mai târziu.
+urmări PC-urile Windows asociate din rețeaua locală. Aceleași trei formate sunt pe Google Play,
+într-o singură listare: [Vitals: system monitor](https://play.google.com/store/apps/details?id=app.vitals).
 
 ## Pașii următori
 

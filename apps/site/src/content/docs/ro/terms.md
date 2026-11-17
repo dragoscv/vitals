@@ -15,13 +15,20 @@ cele două diferă vreodată, se aplică aceia.
 - **Fără garanție.** Programul este oferit așa cum este, fără nicio garanție. Vitals poate opri,
   suspenda și reprioritiza procese și poate schimba intrările de pornire; aceste acțiuni fac ce spun,
   iar tu răspunzi de felul în care le folosești.
-- **Program tânăr.** Versiunea 1.0 este prima versiune stabilă. Așteaptă-te la imperfecțiuni și
-  păstrează copii de siguranță pentru tot ce contează, ca la orice program.
+- **Program tânăr.** Versiunea 1.0 a fost prima versiune stabilă; versiunea curentă este 1.2.0.
+  Așteaptă-te la imperfecțiuni și păstrează copii de siguranță pentru tot ce contează, ca la orice
+  program.
 - **Calculatorul tău.** Folosește Vitals pe calculatoare pe care le deții sau pe care ai dreptul să
   le administrezi. Accesul la distanță dă dispozitivului asociat nivelul de acces ales de tine; dă
   acces de control doar dispozitivelor de încredere.
-- **Niciun serviciu.** Nu există cont, abonament sau serviciu găzduit. Singurul lucru pe care Vitals
-  îl contactează singur este GitHub, pentru verificarea actualizărilor.
+- **Valorile de sănătate nu sunt sfaturi medicale.** Pagina Sănătate arată valori personale — puls,
+  saturația oxigenului din sânge, somn, greutate și tensiune arterială — de pe un server vmui pe
+  care îl rulezi. Vitals nu este un dispozitiv medical, iar aceste valori nu trebuie folosite
+  pentru a diagnostica sau trata ceva; consultă un medic.
+- **Niciun serviciu.** Nu există abonament sau serviciu găzduit, iar Vitals nu are nevoie de niciun
+  cont. Singurul lucru pe care Vitals îl contactează singur este GitHub, pentru verificarea
+  actualizărilor. Cele două extra-uri opționale — conectarea la Kodwen din pagina Agenți AI și
+  pagina Sănătate care citește de pe serverul tău vmui — sunt oprite până le pornești.
 
 ## Contact
 

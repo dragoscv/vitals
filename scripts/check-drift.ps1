@@ -20,6 +20,11 @@
         7. A synchronous #[tauri::command] that is not on the allowlist of
             handlers known to be cheap. Tauri runs a plain `fn` command on the
             main thread: one slow OS call there freezes every window.
+        8. A docs/tracker.csv row with the wrong number of columns, a
+            duplicated id, or a status outside the vocabulary. Shipped: two
+            rows pasted together with a duplicated status field, which a CSV
+            reader turned into garbage while every reader of the table saw a
+            plausible row.
 
     Exit code is the number of hard failures. Warnings do not fail the gate.
 
@@ -391,6 +396,64 @@ if (Test-Path $iosCatalog) {
     $used = rg -o --no-filename -r '$1' 'L\("([A-Za-z0-9_.]+)"' (Join-Path $root 'apps/ios/Vitals') | Sort-Object -Unique
     foreach ($k in $used) {
         if ($keys -notcontains $k) { $failures.Add("ios: L(`"$k`") has no entry in Localizable.xcstrings (add it to apps/ios/strings-ios.json)") }
+    }
+}
+
+# ── 8. tracker.csv shape ───────────────────────────────────────────────
+
+# The tracker is the only record of what shipped and what is left, and it is
+# hand-edited a few rows at a time. S23-06 and S23-10 were each pasted
+# together with two status fields, so a CSV reader produced a row whose
+# columns shifted by one and nothing noticed: the slice table and the file
+# disagreed. Column count is the cheapest invariant that catches it, because
+# Import-Csv renames a surplus field H8 (and leaves a missing one absent), so
+# a row of the wrong arity is visible here instead of only to whoever opens
+# the file next.
+$tracker = Join-Path $root 'docs/tracker.csv'
+if (Test-Path $tracker) {
+    $trackerColumns = 8   # id,slice,category,title,detail,decision,status,verification
+    $trackerStatuses = @('todo', 'in-progress', 'done', 'blocked', 'dropped')
+    $trackerRows = @(Import-Csv $tracker)
+    if ($trackerRows.Count -eq 0) { $failures.Add('docs/tracker.csv has a header but no rows') }
+
+    # Field counts come from a real reader, not from Import-Csv: a row with
+    # too FEW fields is padded to the header's width and looks correct, which
+    # is exactly how a pasted-together row survived (the mutation that this
+    # check exists for is a short row, not a long one). Quotes are honoured,
+    # because the `detail` field holds commas and newlines.
+    $fieldCounts = [System.Collections.Generic.List[int]]::new()
+    $fields = 1
+    $inQuotes = $false
+    $text = Get-Content -LiteralPath $tracker -Raw
+    for ($i = 0; $i -lt $text.Length; $i++) {
+        $c = $text[$i]
+        if ($inQuotes) {
+            if ($c -eq '"') {
+                if ($i + 1 -lt $text.Length -and $text[$i + 1] -eq '"') { $i = $i + 1 } else { $inQuotes = $false }
+            }
+            continue
+        }
+        if ($c -eq '"') { $inQuotes = $true }
+        elseif ($c -eq ',') { $fields = $fields + 1 }
+        elseif ($c -eq "`n") { $fieldCounts.Add($fields); $fields = 1 }
+    }
+    if ($fieldCounts.Count -eq 0 -or $fields -gt 1) { $fieldCounts.Add($fields) }
+
+    # Record 0 is the header; row N of Import-Csv is record N+1.
+    for ($r = 0; $r -lt $fieldCounts.Count; $r++) {
+        if ($fieldCounts[$r] -eq $trackerColumns) { continue }
+        $label = if ($r -eq 0) { 'header' } else { "row '$($trackerRows[$r - 1].id)'" }
+        $failures.Add("docs/tracker.csv: $label has $($fieldCounts[$r]) columns, expected $trackerColumns — a field is missing or pasted twice")
+    }
+
+    $trackerIds = [System.Collections.Generic.HashSet[string]]::new()
+    foreach ($row in $trackerRows) {
+        if (-not $trackerIds.Add($row.id)) {
+            $failures.Add("docs/tracker.csv: id '$($row.id)' appears more than once")
+        }
+        if ($trackerStatuses -notcontains $row.status) {
+            $failures.Add("docs/tracker.csv: row '$($row.id)' has status '$($row.status)', not one of $($trackerStatuses -join '/')")
+        }
     }
 }
 

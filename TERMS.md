@@ -1,6 +1,6 @@
 # Terms of Use
 
-**Effective date:** 17 October 2026 · [Termeni de utilizare în limba română](#termeni-de-utilizare)
+**Effective date:** 17 November 2026 · [Termeni de utilizare în limba română](#termeni-de-utilizare)
 
 These terms apply to Vitals, a free, open-source system monitor and task
 manager for Windows, published at
@@ -34,10 +34,10 @@ consumer under Romanian or European Union law.
 
 ## Stability
 
-Version 1.0.0 is the first production release for Windows, Android, Wear OS
-and Android TV. Features may still change, readings may be wrong on some
-hardware, and bugs can happen. Builds for macOS and Linux are not published
-yet. Please [report problems](SUPPORT.md).
+Version 1.0.0 was the first production release; the current release is 1.2.0,
+with macOS in preview. Features may still change, readings may be wrong on
+some hardware, and bugs can happen. Linux is not published yet. Please
+[report problems](SUPPORT.md).
 
 ## Acceptable use
 
@@ -50,6 +50,15 @@ unstable. You use these features at your own risk.
 Do not use Vitals, or its remote access, to monitor or control a computer that
 you do not own or administer, or without the permission of the person
 responsible for it.
+
+## Health readings are not medical advice
+
+The Health page can show personal health readings — heart rate, blood oxygen
+(SpO₂), sleep, weight and blood pressure — that it reads from a vmui server
+you run yourself. Vitals is not a medical device, those readings are not
+medical advice, and they must not be used to diagnose, treat or monitor a
+medical condition. Do not rely on them for any decision about your health;
+consult a qualified medical professional.
 
 ## Remote access
 
@@ -93,7 +102,7 @@ protection of mandatory provisions of the law of the country where you live.
 
 # Termeni de utilizare
 
-**Data intrării în vigoare:** 17 octombrie 2026
+**Data intrării în vigoare:** 17 noiembrie 2026
 
 Acești termeni se aplică aplicației Vitals, un monitor de sistem și manager de
 activități gratuit și open source pentru Windows, publicat la
@@ -129,10 +138,10 @@ a Uniunii Europene.
 
 ## Stabilitate
 
-Versiunea 1.0.0 este prima versiune de producție pentru Windows, Android,
-Wear OS și Android TV. Funcțiile se pot schimba în continuare, unele valori
-pot fi greșite pe anumite componente hardware și pot apărea erori. Versiunile
-pentru macOS și Linux nu sunt publicate încă. Vă rugăm să
+Versiunea 1.0.0 a fost prima versiune de producție; versiunea curentă este
+1.2.0, cu macOS în previzualizare. Funcțiile se pot schimba în continuare,
+unele valori pot fi greșite pe anumite componente hardware și pot apărea
+erori. Linux nu este publicat încă. Vă rugăm să
 [raportați problemele](SUPPORT.md).
 
 ## Utilizare acceptabilă
@@ -148,6 +157,15 @@ propriul risc.
 Nu folosiți Vitals sau accesul său la distanță pentru a monitoriza sau
 controla un calculator pe care nu îl dețineți sau nu îl administrați ori fără
 permisiunea persoanei responsabile de el.
+
+## Valorile de sănătate nu sunt sfaturi medicale
+
+Pagina Sănătate poate arăta valori personale de sănătate — puls, saturația
+oxigenului din sânge (SpO₂), somn, greutate și tensiune arterială — citite de
+pe un server vmui pe care îl rulați dvs. Vitals nu este un dispozitiv
+medical, aceste valori nu sunt sfaturi medicale și nu trebuie folosite pentru
+a diagnostica, trata sau monitoriza o afecțiune medicală. Nu vă bazați pe ele
+pentru nicio decizie privind sănătatea dvs.; consultați un medic.
 
 ## Accesul la distanță
 

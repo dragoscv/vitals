@@ -15,12 +15,18 @@ ever differ, that one applies.
 - **No warranty.** The software is provided as it is, without any warranty. Vitals can end,
   suspend and reprioritise processes and change startup entries; those actions do what they say,
   and you are responsible for using them.
-- **Young software.** Version 1.0 is the first stable release. Expect rough edges and keep backups
-  of anything that matters, as you would with any software.
+- **Young software.** Version 1.0 was the first stable release; the current release is 1.2.0.
+  Expect rough edges and keep backups of anything that matters, as you would with any software.
 - **Your own machine.** Use Vitals on computers you own or are allowed to administer. Remote access
   gives the paired device the scope you chose; give control scope only to devices you trust.
-- **No service.** There is no account, subscription or hosted service. The only thing Vitals
-  contacts on its own is GitHub, to check for updates.
+- **Health readings are not medical advice.** The Health page shows personal readings — heart rate,
+  blood oxygen, sleep, weight and blood pressure — from a vmui server you run. Vitals is not a
+  medical device and those readings must not be used to diagnose or treat anything; talk to a
+  medical professional instead.
+- **No service.** There is no subscription or hosted service, and Vitals itself needs no account.
+  The only thing Vitals contacts on its own is GitHub, to check for updates. The two optional
+  extras — the Kodwen sign-in on the AI agents page and the Health page reading your own vmui
+  server — are off until you turn them on.
 
 ## Contact
 

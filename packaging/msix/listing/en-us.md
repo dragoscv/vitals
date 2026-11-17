@@ -51,7 +51,7 @@ AND MORE
 
 Honest numbers: when something cannot be measured, Vitals shows a dash, never a made-up zero.
 
-Private by design: no accounts, no ads, no telemetry, no analytics. Nothing leaves your computer unless you turn on remote access yourself.
+Private by design: no ads, no telemetry, no analytics, and no account needed. Nothing leaves your computer unless you turn on remote access; the only two other connections, the AI agents page signing in to your own Kodwen account and the Health page reading from a vmui server you run yourself, are off until you enable them.
 
 Free and open source (MIT). Available in English and Romanian.
 
@@ -86,7 +86,7 @@ New in 1.1.1:
 - Alerts and a configurable dashboard with light and dark themes
 - Optional phone and TV view of your PC on your home network
 - Prometheus and Home Assistant endpoints, off by default
-- No accounts, no ads, no telemetry
+- No ads, no telemetry, no analytics, no account needed
 - Free and open source (MIT), in English and Romanian
 
 ## Keywords (up to 7, ≤ 40 characters each, ≤ 21 words in total)
@@ -145,4 +145,4 @@ Vitals is a Win32 system monitor and task manager built with Tauri. It needs ful
 
 ## Notes for certification
 
-Vitals runs as a normal desktop app. No account or sign-in is needed. Remote access (a LAN server for the phone and TV views) is off by default and only starts when the user turns it on in Settings > Remote access; while it is off, only a loopback-only API on 127.0.0.1 is open. The self-updater, the Task Manager replacement and the optional sensors service (driver) are disabled in the Store build. Nothing changes a Windows setting without the user's action: actions that need administrator rights ask through UAC, once, for that action only, and the irreversible ones (emptying the Recycle Bin, removing the previous Windows installation, turning hibernation off) need an extra tick first. The lag watchdog only offers actions in a notification; it never ends a process on its own and can be turned off in Settings > Watchdog. CPU load on the taskbar button can be turned off in Settings.
+Vitals runs as a normal desktop app. No account is needed for any feature except the optional AI agents page, where the user may sign in to their own Kodwen account. Remote access (a LAN server for the phone and TV views) is off by default and only starts when the user turns it on in Settings > Remote access; while it is off, only a loopback-only API on 127.0.0.1 is open. The self-updater, the Task Manager replacement and the optional sensors service (driver) are disabled in the Store build. Nothing changes a Windows setting without the user's action: actions that need administrator rights ask through UAC, once, for that action only, and the irreversible ones (emptying the Recycle Bin, removing the previous Windows installation, turning hibernation off) need an extra tick first. The lag watchdog only offers actions in a notification; it never ends a process on its own and can be turned off in Settings > Watchdog. CPU load on the taskbar button can be turned off in Settings.

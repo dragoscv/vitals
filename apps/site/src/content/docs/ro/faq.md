@@ -23,10 +23,13 @@ SmartScreen nu avertizează.
 
 ## Trimite Vitals date undeva?
 
-Fără telemetrie, fără analiză, fără rapoarte de erori și fără cont. Singura conexiune pe care o face
-Vitals de la sine este verificarea actualizărilor pe GitHub în versiunea cu program de instalare, pe
-care o poți opri din **Setări → Despre**. Versiunea din Store nici măcar nu o face, pentru că o
-actualizează Store-ul.
+Fără telemetrie, fără analiză, fără rapoarte de erori și fără cont Vitals. Singura conexiune pe care
+o face Vitals de la sine este verificarea actualizărilor pe GitHub în versiunea cu program de
+instalare, pe care o poți opri din **Setări → Despre**. Versiunea din Store nici măcar nu o face,
+pentru că o actualizează Store-ul.
+
+Alte două conexiuni sunt oprite până le pornești: conectarea la Kodwen din pagina Agenți AI și
+pagina Sănătate, care citește de pe un server vmui pe care îl rulezi tu.
 
 Accesul de la distanță (vederea calculatorului de pe telefon sau televizor) rămâne în rețeaua ta și
 este oprit până îl pornești. [Politica de confidențialitate](/ro/privacy/) enumeră fiecare conexiune
@@ -67,8 +70,10 @@ cealaltă.
 ## Încetinește calculatorul?
 
 E construit să nu o facă. Eșantionarea pe Windows are un buget de 30 de milisecunde pe eșantion,
-verificat la fiecare modificare — cel mult circa 3 % dintr-un nucleu la ritmul implicit de o secundă
-cât fereastra e vizibilă. Când fereastra e ascunsă, eșantionează doar o dată la 20 de secunde.
+verificat la fiecare modificare, iar costul de repaus al întregii aplicații este verificat separat
+față de `idle-budget.json`: o mediană de 10,7 % dintr-un nucleu cât stă ascunsă în zona de
+notificare, inclusiv procesul WebView2. Eșantionarea este o dată pe secundă cât fereastra e
+vizibilă și o dată la 20 de secunde când e ascunsă.
 
 ## Merge pe Windows 10, ARM sau macOS?
 

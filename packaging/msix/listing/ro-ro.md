@@ -51,7 +51,7 @@ STOCARE
 
 Cifre oneste: când ceva nu se poate măsura, Vitals arată o liniuță, niciodată un zero inventat.
 
-Privat din principiu: fără conturi, fără reclame, fără telemetrie, fără analiză. Nimic nu pleacă de pe calculatorul tău decât dacă pornești singur accesul la distanță.
+Privat din principiu: fără reclame, fără telemetrie, fără analiză și fără cont obligatoriu. Nimic nu pleacă de pe calculatorul tău decât dacă pornești singur accesul la distanță; singurele două conexiuni în plus — pagina Agenți AI, care se conectează la contul tău Kodwen, și pagina Sănătate, care citește de pe un server vmui pe care îl rulezi tu — sunt oprite până le pornești.
 
 Gratuit și open source (MIT). Disponibil în română și engleză.
 
@@ -86,7 +86,7 @@ Nou în 1.1.1:
 - Alerte și un panou configurabil, cu teme luminoasă și întunecată
 - Vedere opțională a PC-ului de pe telefon sau televizor, în rețeaua de acasă
 - Puncte de acces pentru Prometheus și Home Assistant, oprite implicit
-- Fără conturi, fără reclame, fără telemetrie
+- Fără reclame, fără telemetrie, fără cont obligatoriu
 - Gratuit și open source (MIT), în română și engleză
 
 ## Cuvinte cheie (până la 7, ≤ 40 caractere fiecare, ≤ 21 de cuvinte în total)
