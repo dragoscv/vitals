@@ -194,16 +194,17 @@ impl Acc {
         self.usage.cost_usd += u.cost.unwrap_or(0.0);
         self.usage.requests += 1;
         self.usage.output_ms += u.duration.unwrap_or(0);
-        if let Some(t) = u.time_to_first_token_ms {
-            if t.is_finite() && t >= 0.0 {
-                self.usage.ttft_sum_ms += t;
-                self.usage.ttft_n += 1;
-            }
+        if let Some(t) = u.time_to_first_token_ms
+            && t.is_finite()
+            && t >= 0.0
+        {
+            self.usage.ttft_sum_ms += t;
+            self.usage.ttft_n += 1;
         }
-        if self.model.is_none() {
-            if let Some(m) = u.model_display_name.filter(|m| !m.is_empty()) {
-                self.model = Some(m);
-            }
+        if self.model.is_none()
+            && let Some(m) = u.model_display_name.filter(|m| !m.is_empty())
+        {
+            self.model = Some(m);
         }
     }
 
@@ -648,7 +649,7 @@ fn build(src: &Source, acc: &Acc, probe: ProcStart<'_>, now: u64) -> AgentSessio
             .or_else(|| workspace.as_deref().map(leaf)),
         workspace,
         branch: yaml.get("branch").cloned().or_else(|| acc.branch.clone()),
-        model: acc.model.clone().map(normalise_model),
+        model: acc.model.as_deref().map(normalise_model),
         state,
         started_ms: acc
             .started
@@ -698,11 +699,11 @@ fn output_rate(out: Option<u64>, output_ms: u64) -> Option<f64> {
 /// after the 2026-11 rebrand so a session does not name a product that no
 /// longer exists. Any other model string is the provider's own word for the
 /// model and is left untouched.
-fn normalise_model(name: String) -> String {
+fn normalise_model(name: &str) -> String {
     if name.trim().eq_ignore_ascii_case("codai") {
         "Kodwen".to_owned()
     } else {
-        name
+        name.to_owned()
     }
 }
 
@@ -1015,7 +1016,9 @@ mod tests {
         assert_eq!(a.tokens_out, Some(500));
         assert!(a.usage.seen);
         assert_eq!(a.usage.cached, 300);
-        assert_eq!(a.usage.reasoning, 50);
+        // Only the first record carries `reasoningTokens`; the second omits the
+        // field entirely, which is "not reported", not zero to be added to.
+        assert_eq!(a.usage.reasoning, 40);
         assert_eq!(a.usage.requests, 2);
         assert_eq!(a.usage.output_ms, 5000);
         assert_eq!(a.usage.ttft_n, 2);
