@@ -164,6 +164,14 @@ enum Commands {
         /// than read-only.
         #[arg(long)]
         control: bool,
+        /// Publish to an MQTT broker with Home Assistant discovery, e.g.
+        /// `mqtt://user:pass@broker.local:1883` or `mqtts://broker.local`.
+        /// Off when omitted, and nothing is published until it is given.
+        #[arg(long)]
+        mqtt: Option<String>,
+        /// Seconds between MQTT publishes. Clamped to 1..=3600.
+        #[arg(long)]
+        mqtt_interval: Option<u64>,
     },
 }
 
@@ -174,6 +182,8 @@ fn main() -> Result<()> {
         port,
         token,
         control,
+        mqtt,
+        mqtt_interval,
     } = &cli.command
     {
         // `serve` never attaches: an instance that proxied the desktop
@@ -182,6 +192,8 @@ fn main() -> Result<()> {
             port: *port,
             token: token.clone(),
             control: *control,
+            mqtt: mqtt.clone(),
+            mqtt_interval: *mqtt_interval,
         });
     }
 
@@ -347,10 +359,14 @@ mod tests {
                 port,
                 token,
                 control,
+                mqtt,
+                mqtt_interval,
             } => {
                 assert_eq!(port, 7331);
                 assert_eq!(token, None);
                 assert!(!control);
+                assert_eq!(mqtt, None, "MQTT is off unless a broker is given");
+                assert_eq!(mqtt_interval, None);
             }
             other => panic!("expected Serve, got {other:?}"),
         }

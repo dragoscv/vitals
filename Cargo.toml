@@ -5,6 +5,7 @@ members = [
     "crates/vitals-ipc",
     "crates/vitals-store",
     "crates/vitals-server",
+    "crates/vitals-mqtt",
     "crates/vitals-bench",
     "crates/vitals-sensors",
     "crates/vitals-win",
@@ -34,6 +35,7 @@ vitals-core = { path = "crates/vitals-core" }
 vitals-ipc = { path = "crates/vitals-ipc" }
 vitals-store = { path = "crates/vitals-store" }
 vitals-server = { path = "crates/vitals-server" }
+vitals-mqtt = { path = "crates/vitals-mqtt" }
 vitals-bench = { path = "crates/vitals-bench" }
 vitals-sensors = { path = "crates/vitals-sensors" }
 vitals-win = { path = "crates/vitals-win" }
@@ -100,6 +102,24 @@ qrcode = { version = "0.14.1", default-features = false, features = ["svg"] }
 # stay on the one adapter the user chose in `lan.rs`. Logging goes through
 # `log`; we do not enable its `async` feature.
 mdns-sd = { version = "0.21.4", default-features = false }
+
+# MQTT publishing with Home Assistant discovery (crates/vitals-mqtt).
+#
+# rumqttc rather than writing the protocol by hand: MQTT 3.1.1 with QoS 1,
+# keep-alive and TLS means retransmission, packet ids and a TLS handshake, and
+# a hand-rolled version of any of those is a bug waiting for a flaky Wi-Fi
+# link. It is the client the ecosystem uses, and its `EventLoop` reconnects by
+# itself — `poll()` returns an error and the next call re-establishes, which
+# is exactly the "reconnect with backoff" the feature needs.
+#
+# `use-rustls-no-provider` + an explicit `rustls` with the `ring` provider
+# rather than the `use-rustls` feature: rumqttc's default turns on
+# `rustls` default features, which is `aws-lc-rs` — a C and assembly build
+# (CMake + NASM on Windows) that the rest of this graph does not have. This
+# workspace already carries `rustls` with `ring`, so the provider is pinned to
+# the one that is already compiling here.
+rumqttc = { version = "0.25.1", default-features = false, features = ["use-rustls-no-provider"] }
+rustls = { version = "0.23.46", default-features = false, features = ["ring", "std", "logging", "tls12"] }
 
 # Type generation
 #

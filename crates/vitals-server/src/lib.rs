@@ -42,6 +42,7 @@ pub mod auth;
 pub mod control;
 pub mod lan;
 pub mod mdns;
+pub mod mqtt;
 pub mod pairing;
 pub mod prometheus;
 pub mod router;

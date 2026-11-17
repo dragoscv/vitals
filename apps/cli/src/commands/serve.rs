@@ -26,6 +26,10 @@ pub struct Options {
     /// Grant `control` scope to the token. Off by default: a token in a
     /// shell history is a remote kill switch for the machine.
     pub control: bool,
+    /// Publish to this MQTT broker. `None` leaves MQTT off entirely.
+    pub mqtt: Option<String>,
+    /// Seconds between MQTT publishes; the crate's default when `None`.
+    pub mqtt_interval: Option<u64>,
 }
 
 /// Builds the token set, and returns the secret beside it: the set keeps only
@@ -67,6 +71,22 @@ fn unix_now() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |d| i64::try_from(d.as_secs()).unwrap_or(i64::MAX))
+}
+
+/// The machine's host name, for the MQTT node id and the Home Assistant device
+/// name. The environment variable is the cheap path on both Windows
+/// (`COMPUTERNAME`) and Unix (`HOSTNAME`); a machine with neither falls back
+/// to a stable placeholder rather than an empty slug.
+fn machine_host() -> String {
+    for key in ["COMPUTERNAME", "HOSTNAME"] {
+        let Ok(value) = std::env::var(key) else {
+            continue;
+        };
+        if !value.trim().is_empty() {
+            return value.trim().to_owned();
+        }
+    }
+    "machine".to_owned()
 }
 
 /// Runs until Ctrl-C.
@@ -118,6 +138,16 @@ pub fn run(options: &Options) -> Result<()> {
         .build()
         .context("starting the async runtime")?;
 
+    // MQTT, if a broker was named on the command line. Built before the block
+    // so a bad address fails fast, and spawned inside it because the publisher
+    // owns a Tokio task.
+    let mqtt_config = options
+        .mqtt
+        .clone()
+        .map(|url| vitals_server::mqtt::config_from_args(url, options.mqtt_interval));
+    let mqtt_state = state.clone();
+    let host = machine_host();
+
     runtime.block_on(async move {
         let handle = vitals_server::serve(state, options.port)
             .await
@@ -134,6 +164,19 @@ pub fn run(options: &Options) -> Result<()> {
         );
 
         std::thread::spawn(move || sample_forever(&frames, &alerts));
+
+        // Held for the life of the process: dropping the handle stops the
+        // publisher, so it must not be dropped here.
+        let _mqtt = match mqtt_config {
+            Some(config) => match vitals_server::mqtt::spawn(config, mqtt_state, &host) {
+                Ok(handle) => handle,
+                Err(error) => {
+                    eprintln!("MQTT: the broker address was refused: {error}");
+                    None
+                }
+            },
+            None => None,
+        };
 
         tokio::signal::ctrl_c()
             .await
@@ -232,6 +275,8 @@ mod tests {
             port: 0,
             token: Some("abc".into()),
             control: false,
+            mqtt: None,
+            mqtt_interval: None,
         });
         assert_eq!(generated, None);
         assert_eq!(secret, "abc");
@@ -244,6 +289,8 @@ mod tests {
             port: 0,
             token: None,
             control: true,
+            mqtt: None,
+            mqtt_interval: None,
         });
         let secret = generated.expect("generated");
         assert!(secret.len() >= 40, "256 bits base64url");
