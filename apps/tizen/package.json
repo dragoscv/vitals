@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "build:wgt": "pnpm build && pwsh -NoProfile -File scripts/tv-deploy.ps1 -NoInstall",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",

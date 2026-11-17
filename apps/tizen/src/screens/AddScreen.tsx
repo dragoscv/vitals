@@ -1,8 +1,9 @@
 /**
- * Adding a PC: its address, then the six-digit code it shows. The code can
- * be typed with the remote's number keys (registered in `focus.ts`) or with
- * the on-screen keypad; the token route is a fallback for a PC whose Vitals
- * predates pairing codes.
+ * Adding a PC: its address, then the six-digit code it shows. Both the
+ * address and the code have an on-screen number pad — the address one adds a
+ * dot, since an IP address needs it — and the code can also be typed with
+ * the remote's number keys (registered in `focus.ts`). The token route is a
+ * fallback for a PC whose Vitals predates pairing codes.
  *
  * No discovery list: finding PCs needs mDNS, which is UDP multicast, and a
  * TV web app has no UDP. The address is on the PC's Remote access page.
@@ -14,18 +15,64 @@ import { useTranslation } from 'react-i18next';
 import { normaliseAddress } from '../lib/address';
 import { cleanCode, isCode, pairWithCode, pairWithToken, type PairRefusal } from '../lib/pairing';
 import { useApp, usePairings } from '../ui/app-context';
+import { setBackHandler } from '../ui/back';
 import { Action, Hint, ScreenTitle } from '../ui/components';
 import { digitOf, focusFirst } from '../ui/focus';
 
 type Step = 'address' | 'code' | 'token';
 
-const KEYPAD = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'] as const;
+const DIGITS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'] as const;
+/** The address needs a dot as well: an IP address like 192.168.1.20 has three. */
+const ADDRESS_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '.'] as const;
+
+/** The on-screen number pad, shared by the address and the code steps. */
+function Keypad({
+  keys,
+  disabled,
+  onKey,
+  onDelete,
+  autofocus,
+}: {
+  keys: readonly string[];
+  disabled: boolean;
+  onKey: (key: string) => void;
+  onDelete: () => void;
+  autofocus?: boolean;
+}) {
+  const { t } = useTranslation();
+  return (
+    <div className="keypad">
+      {keys.map((key, i) => (
+        <button
+          type="button"
+          key={key}
+          className="key"
+          disabled={disabled}
+          onClick={() => onKey(key)}
+          {...(autofocus === true && i === 0 && { 'data-autofocus': '' })}
+        >
+          {key}
+        </button>
+      ))}
+      <button type="button" className="key key-wide" disabled={disabled} onClick={onDelete}>
+        {t('add.codeDelete')}
+      </button>
+    </div>
+  );
+}
 
 export function AddScreen() {
   const { t } = useTranslation();
   const { nav, pairings: store } = useApp();
   const pairings = usePairings();
-  const [step, setStep] = useState<Step>('address');
+  // A stack, not a single step: Back walks it one level at a time, so Back
+  // from the code returns to the address and only Back from the address
+  // leaves the screen. The explicit "change"/"use code" buttons reset it.
+  const [steps, setSteps] = useState<readonly Step[]>(['address']);
+  const step = steps[steps.length - 1] ?? 'address';
+  const goTo = (next: Step) =>
+    setSteps((prev) => (prev[prev.length - 1] === next ? prev : [...prev, next]));
+  const toAddress = () => setSteps(['address']);
   const [address, setAddress] = useState('');
   const [code, setCode] = useState('');
   const [token, setToken] = useState('');
@@ -90,6 +137,11 @@ export function AddScreen() {
     if (next.length === 6) void submitCode(next);
   };
 
+  const typeAddress = (key: string) => {
+    setError(null);
+    setAddress((a) => a + key);
+  };
+
   // The remote's number keys, while the code step is showing.
   useEffect(() => {
     if (step !== 'code') return;
@@ -103,6 +155,22 @@ export function AddScreen() {
     return () => window.removeEventListener('keydown', onKey);
   });
 
+  // Back steps down the flow before it leaves the screen: while a non-root step
+  // is showing, this screen answers the shell's Back press itself, so Back from
+  // the code returns to the address instead of popping the whole screen.
+  useEffect(() => {
+    if (steps.length <= 1) {
+      setBackHandler(null);
+      return;
+    }
+    setBackHandler(() => {
+      setError(null);
+      setSteps((prev) => prev.slice(0, -1));
+      return true;
+    });
+    return () => setBackHandler(null);
+  }, [steps.length]);
+
   const goToCode = () => {
     const base = normaliseAddress(address);
     if (base === null) {
@@ -110,7 +178,7 @@ export function AddScreen() {
       return;
     }
     setError(null);
-    setStep('code');
+    goTo('code');
   };
 
   const shown = normaliseAddress(address)?.replace(/^https?:\/\//, '') ?? address;
@@ -138,13 +206,19 @@ export function AddScreen() {
             />
           </label>
           <Hint>{t('add.addressBody')}</Hint>
+          <Keypad
+            keys={ADDRESS_KEYS}
+            disabled={busy}
+            onKey={typeAddress}
+            onDelete={() => setAddress((a) => a.slice(0, -1))}
+          />
           <div className="choice-row">
             <Action label={t('add.next')} onPress={goToCode} />
             <Action
               label={t('add.useToken')}
               onPress={() => {
                 setError(null);
-                setStep('token');
+                goTo('token');
               }}
             />
           </div>
@@ -162,31 +236,16 @@ export function AddScreen() {
               </span>
             ))}
           </div>
-          <div className="keypad">
-            {KEYPAD.map((d) => (
-              <button
-                type="button"
-                key={d}
-                className="key"
-                disabled={busy}
-                onClick={() => type(d)}
-                {...(d === '1' && { 'data-autofocus': '' })}
-              >
-                {d}
-              </button>
-            ))}
-            <button
-              type="button"
-              className="key key-wide"
-              disabled={busy}
-              onClick={() => setCode((c) => c.slice(0, -1))}
-            >
-              {t('add.codeDelete')}
-            </button>
-          </div>
+          <Keypad
+            keys={DIGITS}
+            autofocus
+            disabled={busy}
+            onKey={type}
+            onDelete={() => setCode((c) => c.slice(0, -1))}
+          />
           <div className="choice-row">
-            <Action label={t('add.change')} onPress={() => setStep('address')} />
-            <Action label={t('add.useToken')} onPress={() => setStep('token')} />
+            <Action label={t('add.change')} onPress={toAddress} />
+            <Action label={t('add.useToken')} onPress={() => goTo('token')} />
           </div>
         </div>
       )}
@@ -221,7 +280,7 @@ export function AddScreen() {
           <Hint>{t('add.tokenBody')}</Hint>
           <div className="choice-row">
             <Action label={t('add.pair')} disabled={busy} onPress={() => void submitToken()} />
-            <Action label={t('add.useCode')} onPress={() => setStep('address')} />
+            <Action label={t('add.useCode')} onPress={toAddress} />
           </div>
         </div>
       )}

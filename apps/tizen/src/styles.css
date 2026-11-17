@@ -28,11 +28,11 @@
 }
 
 html {
-  /* 20 px at 1080 lines, 26.7 px at 1440. Measured on the Odyssey G8's
-   * Chromium 120, `calc(100vh / 54)` on the root resolved to the 16 px
+  /* 24 px at 1080 lines, 32 px at 1440. Measured on the Odyssey G8's
+   * Chromium up to M120, `calc(100vh / 45)` on the root resolved to the 16 px
    * default, so main.tsx also sets it from innerHeight; this line is kept
    * for the desktop browser used in development. */
-  font-size: calc(100vh / 54);
+  font-size: calc(100vh / 45);
 }
 
 * {
@@ -222,6 +222,23 @@ h4 {
 }
 
 .outcome {
+  font-weight: 600;
+}
+
+/* ── Stale: readings that are the last received, not a live view ── */
+
+/* Dim the whole region, so old numbers are never mistaken for current ones. */
+.is-stale {
+  opacity: 0.55;
+}
+
+.stale-badge {
+  align-self: flex-start;
+  padding: 0.15rem 0.7rem;
+  border-radius: 1rem;
+  background: var(--surface-2);
+  color: var(--warn-text);
+  font-size: 0.85rem;
   font-weight: 600;
 }
 
@@ -693,4 +710,90 @@ button:disabled {
 
 .settings-row .info-row {
   flex: 1;
+}
+
+/*
+ * Flex `gap` fallback.
+ *
+ * Flexbox `gap` landed in Chromium 84; Tizen 7.0 ships Chromium 94, so the
+ * oldest TV this app declares support for already honours it, and the build
+ * targets `chrome94` (vite.config.ts). Some Tizen firmware nonetheless
+ * reports an older engine than it runs. There is no `@supports` test that
+ * separates "grid gap" (Chromium 57) from "flex gap" (Chromium 84) —
+ * `@supports (gap: 1px)` is true for both — so this block re-spaces the flex
+ * containers with margins whenever the `gap` property is missing entirely,
+ * the one case a browser cannot be trusted to handle. Grid gaps need no
+ * fallback: they predate every engine here.
+ */
+@supports not (gap: 1px) {
+  .shell > * + * {
+    margin-left: 1.6rem;
+  }
+  .rail > * + * {
+    margin-top: 0.5rem;
+  }
+  .rail-item > * + * {
+    margin-left: 0.8rem;
+  }
+  .screen > * + * {
+    margin-top: 1rem;
+  }
+  .card > * + * {
+    margin-top: 0.7rem;
+  }
+  .card-row > * + * {
+    margin-left: 2rem;
+  }
+  .card-rings > * + * {
+    margin-left: 1rem;
+  }
+  .card-sparks > * + * {
+    margin-top: 0.5rem;
+  }
+  .card-strip > * + * {
+    margin-left: 1.2rem;
+  }
+  .ring > * + * {
+    margin-top: 0.3rem;
+  }
+  .panel > * + * {
+    margin-top: 0.5rem;
+  }
+  .panel-row > * + * {
+    margin-left: 1.4rem;
+  }
+  .stack > * + * {
+    margin-top: 0.5rem;
+  }
+  .info-row > * + * {
+    margin-left: 1rem;
+  }
+  .tab-body > * + * {
+    margin-top: 1rem;
+  }
+  .tabs > * + *,
+  .choice-row > * + * {
+    margin-left: 0.6rem;
+  }
+  .programs-list > * + * {
+    margin-top: 0.6rem;
+  }
+  .rows > * + * {
+    margin-top: 0.2rem;
+  }
+  .row > * + * {
+    margin-left: 1rem;
+  }
+  .field > * + * {
+    margin-top: 0.4rem;
+  }
+  .code > * + * {
+    margin-left: 0.6rem;
+  }
+  .cores > * + * {
+    margin-left: 0.2rem;
+  }
+  .settings-row > * + * {
+    margin-left: 1rem;
+  }
 }

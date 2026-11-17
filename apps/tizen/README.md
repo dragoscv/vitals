@@ -6,7 +6,9 @@ own load, memory, storage, network and screen. Same scope and wording as the
 Google TV app in `apps/android/tv`.
 
 Built for and verified on a Samsung Odyssey G8 (LS34DG850SU, Tizen 9.0,
-Chromium M120, armv7, 3440×1440). `required_version` is 6.0.
+Chromium M120, armv7, 3440×1440). `required_version` is 7.0 and the bundle
+targets Chromium 94, the engine Tizen 7.0 ships, so one `.wgt` runs from
+Tizen 7.0 upwards.
 
 ## What it does
 
@@ -89,12 +91,13 @@ Remote access) to revoke it.
 
 ```powershell
 pnpm --filter @vitals/tizen build        # tsc + vite → apps/tizen/dist
+pnpm --filter @vitals/tizen build:wgt    # and sign it into a .wgt (needs Tizen Studio)
 pnpm --filter @vitals/tizen test
 pnpm --filter @vitals/tizen dev          # desktop browser at :5283, no tizen API
 ```
 
 The build is one classic (non-module) script with relative paths, targeting
-Chromium 120: a module script or a `crossorigin` attribute is refused from
+Chromium 94: a module script or a `crossorigin` attribute is refused from
 an opaque `file://` origin, and a lazily-loaded chunk would be fetched from
 `file://` at runtime. `public/config.xml` and `public/icon.png` are copied
 into `dist`. The icon is generated with every other brand asset by

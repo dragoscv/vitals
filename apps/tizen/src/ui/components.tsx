@@ -151,22 +151,39 @@ export function Hint({ children, tone }: { children: ReactNode; tone?: Level }) 
   return <p className={`hint tone-${tone ?? 'plain'}`}>{children}</p>;
 }
 
+/** Marks the readings below it as the last ones received, not a live view. */
+export function StaleBadge({ label }: { label: string }) {
+  return <span className="stale-badge">{label}</span>;
+}
+
 export function Choice({
   label,
   selected,
   onPress,
   autoFocus,
+  role,
+  id,
+  controls,
 }: {
   label: string;
   selected: boolean;
   onPress: () => void;
   autoFocus?: boolean;
+  /** `'tab'` for a member of a tablist, where `aria-selected` replaces `aria-pressed`. */
+  role?: 'tab';
+  /** The tab's own id, and the id of the panel it shows, linking the two. */
+  id?: string;
+  controls?: string;
 }) {
   return (
     <button
       type="button"
       className={`choice ${selected ? 'is-selected' : ''}`}
-      aria-pressed={selected}
+      role={role === 'tab' ? 'tab' : undefined}
+      aria-selected={role === 'tab' ? selected : undefined}
+      aria-pressed={role === 'tab' ? undefined : selected}
+      id={role === 'tab' ? id : undefined}
+      aria-controls={role === 'tab' ? controls : undefined}
       onClick={onPress}
       {...(autoFocus === true && { 'data-autofocus': '' })}
     >

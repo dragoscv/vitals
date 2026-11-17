@@ -11,7 +11,7 @@ import { registerRemoteKeys } from './ui/focus';
  * 1080-line TV and a 1440-line ultrawide show the same number of lines.
  */
 function sizeRoot(): void {
-  document.documentElement.style.fontSize = `${window.innerHeight / 54}px`;
+  document.documentElement.style.fontSize = `${window.innerHeight / 45}px`;
 }
 
 async function start(): Promise<void> {

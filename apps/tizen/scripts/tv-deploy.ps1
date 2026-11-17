@@ -10,6 +10,11 @@
     Packages from a TEMP copy of dist, because `tizen package` signs in
     place and would leave author/signature XML files inside dist.
 
+    -NoInstall packages only and never touches a device: no `sdb connect`,
+    no install, no launch. This is the path CI uses to build the `.wgt`
+    (it still needs Tizen Studio and a certificate profile — see
+    docs/distribution.md).
+
     With -DevTools the app is launched in debug mode instead, and Chromium's
     DevTools port is forwarded to localhost:9222, so `cdp.mjs` can read the
     page, press keys and take screenshots.
@@ -41,15 +46,35 @@ function Say([string]$m) { $m | Add-Content $Log; Write-Host $m }
 $stage = Join-Path $env:TEMP ('vitals-tz-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
 $out = "$stage-out"
 New-Item -ItemType Directory -Force $stage, $out | Out-Null
-Copy-Item (Join-Path $dist '*') $stage -Recurse
+# Everything in dist except a `.wgt` left there by an earlier run (-NoInstall
+# copies the package back beside the bundle): a previous package must not be
+# zipped into the next one, or the file would grow on every run.
+Get-ChildItem (Join-Path $dist '*') -Exclude '*.wgt' | ForEach-Object {
+    Copy-Item $_.FullName $stage -Recurse -Force
+}
+
+& $tz package -t wgt -s $CertProfile -o $out -- $stage *>> $Log
+# The CLI prints the output path as it finishes writing, and the file can
+# appear a moment after the process returns (seen once: package exited 0, the
+# .wgt was there a second later). Look again briefly rather than report a
+# missing package that is on its way.
+$wgt = $null
+for ($i = 0; $i -lt 20 -and $null -eq $wgt; $i++) {
+    $wgt = Get-ChildItem $out -Filter *.wgt -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($null -eq $wgt) { Start-Sleep -Milliseconds 250 }
+}
+if ($null -eq $wgt) { Say 'NO WGT produced — see the log'; exit 1 }
+Say "WGT $($wgt.FullName) $($wgt.Length) bytes"
+# -NoInstall is the package-only path CI uses: the signed .wgt is the whole
+# output, so there is no device to connect to. Copy it beside the bundle it
+# was made from, so a build runner collects the two as one artifact.
+if ($NoInstall) {
+    Copy-Item $wgt.FullName (Join-Path $dist 'Vitals.wgt') -Force
+    Say "copied to $(Join-Path $dist 'Vitals.wgt')"
+    exit 0
+}
 
 & $sdb connect $Device.Split(':')[0] *>> $Log
-& $tz package -t wgt -s $CertProfile -o $out -- $stage *>> $Log
-$wgt = Get-ChildItem $out -Filter *.wgt | Select-Object -First 1
-if (-not $wgt) { Say 'NO WGT produced — see the log'; exit 1 }
-Say "WGT $($wgt.FullName) $($wgt.Length) bytes"
-if ($NoInstall) { exit 0 }
-
 # A running instance keeps the old code and ignores a debug launch.
 & $sdb -s $Device shell 0 was_kill $pkgId *>> $Log
 & $tz install -n $wgt.Name -s $Device -- $out *>> $Log

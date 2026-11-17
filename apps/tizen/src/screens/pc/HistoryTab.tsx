@@ -20,7 +20,8 @@ type Load =
   | { kind: 'ok'; span: string; series: HistorySeries; empty: boolean };
 
 export function HistoryTab({ pairing }: { pairing: Pairing }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const lang = i18n.language;
   const [span, setSpan] = useState<(typeof SPANS)[number]>(SPANS[0]);
   const [loaded, setLoaded] = useState<Load>({ kind: 'loading' });
   // An answer for another span is stale: show "loading" until this span's arrives.
@@ -50,28 +51,28 @@ export function HistoryTab({ pairing }: { pairing: Pairing }) {
             values: load.series.cpu,
             colour: Palette.cpu,
             max: 100,
-            fmt: percent,
+            fmt: (v: number | null) => percent(v, lang),
           },
           {
             title: t('metric.memory'),
             values: load.series.memory,
             colour: Palette.memory,
             max: 100,
-            fmt: percent,
+            fmt: (v: number | null) => percent(v, lang),
           },
           {
             title: t('metric.gpu'),
             values: load.series.gpu,
             colour: Palette.gpu,
             max: 100,
-            fmt: percent,
+            fmt: (v: number | null) => percent(v, lang),
           },
           {
             title: t('metric.temp'),
             values: load.series.temperature,
             colour: Palette.thermal,
             max: 110,
-            fmt: celsius,
+            fmt: (v: number | null) => celsius(v, lang),
           },
         ]
       : [];

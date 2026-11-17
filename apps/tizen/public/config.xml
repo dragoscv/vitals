@@ -7,7 +7,7 @@
   The package id must be exactly ten alphanumeric characters.
 -->
 <widget xmlns="http://www.w3.org/ns/widgets" xmlns:tizen="http://tizen.org/ns/widgets" id="https://vitals.dragoscatalin.ro/tv" version="1.2.0" viewmodes="maximized">
-  <tizen:application id="VitalsTv01.Vitals" package="VitalsTv01" required_version="6.0"/>
+  <tizen:application id="VitalsTv01.Vitals" package="VitalsTv01" required_version="7.0"/>
   <tizen:profile name="tv-samsung"/>
   <content src="index.html"/>
   <icon src="icon.png"/>

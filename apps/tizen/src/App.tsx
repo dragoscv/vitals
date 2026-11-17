@@ -18,6 +18,7 @@ import { SettingsScreen } from './screens/SettingsScreen';
 import { TvScreen } from './screens/TvScreen';
 import { PcScreen } from './screens/pc/PcScreen';
 import { AppContext, useNavigatorState, type TopRoute } from './ui/app-context';
+import { runBackInterceptor } from './ui/back';
 import { exitApp, focusFirst, isBackKey, moveFocus } from './ui/focus';
 
 const RAIL: readonly { route: TopRoute; label: string; icon: string }[] = [
@@ -56,7 +57,11 @@ export function App() {
     const onKey = (event: KeyboardEvent) => {
       if (isBackKey(event)) {
         event.preventDefault();
-        if (!navRef.current.pop()) exitApp();
+        // A screen may hold its own Back steps (the Add flow keeps its address,
+        // code and token as one screen); it says whether it consumed the press.
+        // Only when it did not does Back leave the screen, and only at the top
+        // level does it leave the app.
+        if (!runBackInterceptor() && !navRef.current.pop()) exitApp();
         return;
       }
       if (moveFocus(event)) event.preventDefault();

@@ -8,6 +8,7 @@ import { gpuPercent, headlineTemperature, memoryPercent } from '@vitals/protocol
 import { useTranslation } from 'react-i18next';
 
 import { celsiusCompact, percentCompact } from '../lib/format';
+import { isStale } from '../lib/live';
 import type { Pairing } from '../lib/pairing';
 import { useApp, useLive, usePairings } from '../ui/app-context';
 import { Hint, Ring, ScreenTitle, Spark } from '../ui/components';
@@ -77,6 +78,7 @@ export function PcCard({
 }) {
   const { t } = useTranslation();
   const { state } = useLive(pairing);
+  const stale = isStale(state);
   const system = state.status === 'live' ? state.system : null;
   const memory = system !== null ? memoryPercent(system) : null;
   const gpu = system !== null ? gpuPercent(system) : null;
@@ -85,7 +87,7 @@ export function PcCard({
   return (
     <button
       type="button"
-      className="card card-pc"
+      className={`card card-pc ${stale ? 'is-stale' : ''}`}
       onClick={onOpen}
       data-pc={pairing.id}
       {...(autoFocus === true && { 'data-autofocus': '' })}

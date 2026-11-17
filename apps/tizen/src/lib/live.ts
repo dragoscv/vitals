@@ -46,6 +46,17 @@ export const INITIAL: LiveState = {
   lastSeenMs: null,
 };
 
+/**
+ * Whether what a screen is showing is old rather than live: the stream is
+ * still connecting, has dropped, or the PC is asleep or has stopped
+ * accepting this TV. The readings on screen are then the last ones received
+ * and must be marked as such — dimmed and badged — never presented as the
+ * current state of the machine.
+ */
+export function isStale(state: LiveState): boolean {
+  return state.status !== 'live';
+}
+
 function push(series: readonly number[], value: number): number[] {
   const next = series.length >= SPARK_POINTS ? series.slice(1) : [...series];
   next.push(value);

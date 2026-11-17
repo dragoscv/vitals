@@ -253,6 +253,35 @@ if (Test-Path $shell) {
     }
 }
 
+# ── 4b. Tizen locale parity ────────────────────────────────────────────
+
+# The Samsung TV app keeps its own two locale files under apps/tizen, which
+# the check above does not reach (it reads packages/i18n). The same guarantee
+# holds there: a key present in one language and absent in the other renders
+# the raw key on the TV, and no compiler notices. CLDR plural suffixes are
+# exempt, exactly as above. The app also has a vitest parity test; this gate
+# catches the drift in two seconds instead of at the next build.
+$tizenLocaleDir = 'apps/tizen/src/locales'
+$tizenLocales = @(Get-ChildItem $tizenLocaleDir -Filter '*.json' -ErrorAction SilentlyContinue)
+if ($tizenLocales.Count -ge 2) {
+    $tizenSets = @{}
+    foreach ($l in $tizenLocales) {
+        $tizenSets[$l.BaseName] = @(Get-LeafKeys (Get-Content $l.FullName -Raw | ConvertFrom-Json) '') | Sort-Object -Unique
+    }
+    foreach ($k in @($tizenSets.Keys)) {
+        $tizenSets[$k] = @($tizenSets[$k] | ForEach-Object { $_ -replace $pluralSuffix, '' }) | Sort-Object -Unique
+    }
+    $names = @($tizenSets.Keys | Sort-Object)
+    $reference = $tizenSets[$names[0]]
+    foreach ($n in $names[1..($names.Count-1)]) {
+        $missing = Compare-Object $reference $tizenSets[$n]
+        foreach ($m in $missing) {
+            $where = if ($m.SideIndicator -eq '<=') { "missing from $n" } else { "missing from $($names[0])" }
+            $failures.Add("tizen i18n key '$($m.InputObject)' $where")
+        }
+    }
+}
+
 # ── 6. Android contract fixtures vs the Rust test that writes them ─────
 
 # The Kotlin models are hand-written (ADR-0033), so the only thing tying

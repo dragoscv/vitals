@@ -15,6 +15,7 @@
   },
   "state": {
     "connecting": "Connecting…",
+    "stale": "Last reading",
     "unreachable": "Can’t reach this PC",
     "unreachableHint": "It may be asleep, off, or on another network.",
     "unauthorised": "This PC no longer accepts this TV. Pair it again.",
@@ -152,6 +153,7 @@
     "readOnly": "This TV was paired to look, not to change anything."
   },
   "action": {
+    "reconnect": "Reconnect",
     "end": "End task",
     "endConfirm": "Press again to end",
     "suspend": "Pause",

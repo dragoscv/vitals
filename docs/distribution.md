@@ -124,6 +124,61 @@ download shows a warning. The private key lives only in repository secrets
 and on the maintainer's machine under `%USERPROFILE%\.tauri`, never in the
 repository (`docs/releasing.md`).
 
+## Samsung TVs (Tizen): sideload only
+
+The Tizen app (`apps/tizen`) is a web app packaged as a **`.wgt`**, and it is
+distributed by sideload only. There is no store route: Samsung Seller Office
+review needs a store-signed package and a registered seller account, and the
+app's only network use is the LAN pairing described in its own README.
+
+What "sideload only" means in practice:
+
+- **The package is signed with a distributor certificate that names one
+  device.** The `mixai-samsung` profile's certificate carries a single DUID
+  (the owner's Odyssey G8), so a `.wgt` built from it installs on that TV and
+  no other. Handing the app to a second person means a new certificate, which
+  is a Samsung-side process, not a code change.
+- **The TV must be in developer mode**, with the building PC's IP set as its
+  developer host, and Tizen Studio (`sdb`) installed on that PC. None of this
+  is something an end user could be asked to do.
+- Because of the two points above, the Tizen app is **not a downloadable
+  artefact in a release**: `release.yml` does not carry it and the download
+  page does not offer it. It is built and installed by hand, on the owner's
+  machine.
+
+### Build and package
+
+```powershell
+pnpm --filter @vitals/tizen build          # tsc + vite → apps/tizen/dist
+pnpm --filter @vitals/tizen build:wgt      # the build, then sign it to a .wgt
+
+# What the two above wrap:
+pwsh -NoProfile -File apps/tizen/scripts/tv-deploy.ps1            # package, install, launch
+pwsh -NoProfile -File apps/tizen/scripts/tv-deploy.ps1 -NoInstall # package only, no device
+```
+
+`build:wgt` runs the Vite build and then packages `dist` through the Tizen
+CLI (`tv-deploy.ps1 -NoInstall`). It needs Tizen Studio and the certificate
+profile, so it runs where those are — a Windows machine set up for the TV,
+the same requirement as installing. The package is staged from a TEMP copy of
+`dist`, never built into it, because `tizen package` signs in place and would
+leave its author/signature XML inside the bundle.
+
+CI (`.github/workflows/ci.yml`, job `tizen`) builds the bundle and a `.wgt` on
+every change to `apps/tizen` — before this job the TV app was never compiled in
+CI at all — and uploads both in the `vitals-tizen` artifact. Where Tizen Studio
+and the certificate profile are present (a self-hosted runner or the
+maintainer's machine) it builds the **signed** `Vitals.wgt` via
+`tv-deploy.ps1 -NoInstall`, which never opens a device connection and so needs
+no TV present. Where they are not — a hosted runner has neither — it assembles
+the same archive **unsigned**, as `Vitals-unsigned.wgt`: the layout and the
+bundle are checked, but a TV will not install it, because the signature is
+exactly what `tizen package` adds.
+
+The bundle targets Chromium 94 and `required_version` is 7.0 (Tizen 7.0), so
+one `.wgt` covers every supported TV up to and including the Odyssey G8's
+Tizen 9. See `apps/tizen/README.md` for the app itself.
+
 ## Summary
 
 - SmartScreen on first run is **expected** for the direct download. Documented,

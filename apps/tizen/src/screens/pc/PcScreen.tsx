@@ -7,7 +7,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { useApp, useLive, usePairings } from '../../ui/app-context';
-import { Action, Choice, Hint, ScreenTitle } from '../../ui/components';
+import { Action, Choice, Hint, ScreenTitle, StaleBadge } from '../../ui/components';
 import { PcStatus } from '../../ui/pc-status';
 import { AboutTab } from './AboutTab';
 import { HistoryTab } from './HistoryTab';
@@ -40,13 +40,16 @@ export function PcScreen({ id }: { id: string }) {
         <ScreenTitle>{pairing.label}</ScreenTitle>
         <PcStatus state={state} />
         {(state.status === 'unreachable' || state.status === 'unauthorised') && (
-          <Action label={t('state.connecting')} onPress={() => connection?.restart()} />
+          <Action label={t('action.reconnect')} onPress={() => connection?.restart()} />
         )}
       </div>
-      <div className="tabs" role="tablist">
+      <div className="tabs" role="tablist" aria-label={pairing.label}>
         {TABS.map((name) => (
           <Choice
             key={name}
+            role="tab"
+            id={`tab-${name}`}
+            controls={`panel-${name}`}
             label={t(`tab.${name}`)}
             selected={tab === name}
             onPress={() => setTab(name)}
@@ -55,7 +58,13 @@ export function PcScreen({ id }: { id: string }) {
         ))}
       </div>
       {offline && state.status === 'unreachable' && <Hint>{t('wake.notPossible')}</Hint>}
-      <div className="tab-body" role="tabpanel">
+      {offline && <StaleBadge label={t('state.stale')} />}
+      <div
+        className={`tab-body ${offline ? 'is-stale' : ''}`}
+        role="tabpanel"
+        id={`panel-${tab}`}
+        aria-labelledby={`tab-${tab}`}
+      >
         {tab === 'now' && <NowTab state={state} />}
         {tab === 'programs' && connection !== null && (
           <ProgramsTab pairing={pairing} state={state} client={connection.client} />

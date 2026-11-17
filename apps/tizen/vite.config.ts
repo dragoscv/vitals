@@ -42,8 +42,12 @@ export default defineConfig({
   },
   server: { port: 5283, strictPort: true },
   build: {
-    // Tizen 9 ships Chromium M120; nothing older runs this package.
-    target: 'chrome120',
+    // Tizen 7.0 ships Chromium 94, the oldest TV this app declares support
+    // for (`required_version` in public/config.xml). Built for that engine,
+    // not for the Odyssey G8's Chromium 120, so the same bundle runs on an
+    // older TV. `styles.css` carries a flex `gap` fallback for the firmware
+    // that reports an older engine than it is.
+    target: 'chrome94',
     minify: true,
     sourcemap: false,
     // No preload polyfill: there is one script and nothing to preload.

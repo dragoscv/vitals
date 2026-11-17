@@ -32,7 +32,7 @@ export function TvScreen() {
             <Ring
               fraction={s.cpuLoad === null ? null : s.cpuLoad / 100}
               colour={Palette.cpu}
-              value={percent(s.cpuLoad)}
+              value={percent(s.cpuLoad, lang)}
               label={t('device.load')}
               level={Thresholds.cpu(s.cpuLoad)}
             />
@@ -44,7 +44,7 @@ export function TvScreen() {
             <Ring
               fraction={memoryPct === null ? null : memoryPct / 100}
               colour={Palette.memory}
-              value={percent(memoryPct)}
+              value={percent(memoryPct, lang)}
               label={t('metric.memoryShort')}
               level={Thresholds.memory(memoryPct)}
             />
@@ -102,7 +102,7 @@ export function TvScreen() {
           {s.networkType === 'WIFI' && (
             <>
               <InfoRow label={t('device.ssid')} value={s.ssid} />
-              <InfoRow label={t('device.signal')} value={percent(s.wifiSignal)} />
+              <InfoRow label={t('device.signal')} value={percent(s.wifiSignal, lang)} />
             </>
           )}
         </Panel>

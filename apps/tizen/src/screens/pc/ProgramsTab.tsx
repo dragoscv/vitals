@@ -101,7 +101,7 @@ export function ProgramsTab({
                         <em className="tone-warn"> · {t('processes.notResponding')}</em>
                       )}
                     </span>
-                    <span className="row-num">{percent(p.cpu)}</span>
+                    <span className="row-num">{percent(p.cpu, i18n.language)}</span>
                     <span className="row-num wide">{bytes(p.memoryPrivate, i18n.language)}</span>
                   </button>
                 );
@@ -171,7 +171,7 @@ function ProcessPanel({
     <Panel title={process.name} accent={Palette.cpu}>
       <InfoRow
         label={t('sort.cpu')}
-        value={percent(process.cpu)}
+        value={percent(process.cpu, lang)}
         tone={process.cpu >= 85 ? Thresholds.cpu(process.cpu) : 'plain'}
       />
       <InfoRow label={t('metric.memory')} value={bytes(process.memoryPrivate, lang)} />
@@ -182,7 +182,7 @@ function ProcessPanel({
           write: rate(process.diskWrite, lang),
         })}
       />
-      <InfoRow label={t('metric.gpu')} value={percent(process.gpu)} />
+      <InfoRow label={t('metric.gpu')} value={percent(process.gpu, lang)} />
       <InfoRow label={t('processes.threads')} value={String(process.threadCount)} />
       <InfoRow label={t('processes.uptime')} value={duration(process.uptimeSecs)} />
       <InfoRow label={t('processes.user')} value={process.user} />

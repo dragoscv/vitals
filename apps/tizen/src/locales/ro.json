@@ -15,6 +15,7 @@
   },
   "state": {
     "connecting": "Se conectează…",
+    "stale": "Ultima citire",
     "unreachable": "PC-ul nu răspunde",
     "unreachableHint": "Poate fi în repaus, oprit sau în altă rețea.",
     "unauthorised": "Acest PC nu mai acceptă televizorul. Asociază-l din nou.",
@@ -153,6 +154,7 @@
     "readOnly": "Televizorul a fost asociat doar pentru a privi, nu pentru a schimba ceva."
   },
   "action": {
+    "reconnect": "Reconectează",
     "end": "Închide",
     "endConfirm": "Apasă din nou pentru a închide",
     "suspend": "Pauză",
