@@ -45,6 +45,26 @@ const ICON_BYTES: usize = (ICON_SIZE * ICON_SIZE * 4) as usize;
 /// so this can never collide with one and the first frame always draws.
 const NO_PERCENT: u16 = u16::MAX;
 
+/// Sentinel for "the plain mark is drawn". Distinct from [`NO_PERCENT`] so the
+/// first frame with the icon switched **off** still replaces the placeholder
+/// bitmap, and so a switch back to off redraws exactly once.
+const PLAIN_MARK: u16 = u16::MAX - 1;
+
+/// Which reading the tray icon carries.
+///
+/// `Off` is the default and costs nothing: no value is computed and no bitmap
+/// is rendered.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum TrayMetric {
+    #[default]
+    Off,
+    Cpu,
+    CpuTemperature,
+    Memory,
+    Network,
+}
+
 /// Localised text for everything the tray shows.
 ///
 /// Pushed from the webview for the same reason alert titles are: the tray
@@ -97,6 +117,9 @@ pub struct Tray {
     /// Last rounded CPU percentage handed to the OS as an icon, or
     /// [`NO_PERCENT`].
     last_percent: AtomicU16,
+    /// The current [`TrayMetric`], as a `u8` so it can be swapped without a
+    /// lock from the sampler thread.
+    metric: std::sync::atomic::AtomicU8,
     last_tooltip: Mutex<String>,
     /// Whether the "still running in the tray" notification has been shown.
     /// Once per process: it is an explanation, not a reminder.
@@ -128,6 +151,7 @@ impl std::fmt::Debug for Tray {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Tray")
             .field("last_percent", &self.last_percent)
+            .field("metric", &self.metric())
             .field("hide_on_close", &self.hide_on_close)
             .field("notified_hidden", &self.notified_hidden)
             .field("menu_installed", &self.menu.lock().is_some())
@@ -146,6 +170,7 @@ impl Tray {
     pub fn new() -> Self {
         Self {
             last_percent: AtomicU16::new(NO_PERCENT),
+            metric: std::sync::atomic::AtomicU8::new(TrayMetric::Off as u8),
             last_tooltip: Mutex::new(String::new()),
             notified_hidden: AtomicBool::new(false),
             hide_on_close: AtomicBool::new(true),
@@ -157,6 +182,26 @@ impl Tray {
     #[must_use]
     pub fn close_to_tray(&self) -> bool {
         self.hide_on_close.load(Ordering::Relaxed)
+    }
+
+    /// Which reading the icon carries.
+    #[must_use]
+    pub fn metric(&self) -> TrayMetric {
+        match self.metric.load(Ordering::Relaxed) {
+            1 => TrayMetric::Cpu,
+            2 => TrayMetric::CpuTemperature,
+            3 => TrayMetric::Memory,
+            4 => TrayMetric::Network,
+            _ => TrayMetric::Off,
+        }
+    }
+
+    /// Changes the reading. Forces the next [`observe`] to redraw by clearing
+    /// the remembered value, so switching the option takes effect immediately
+    /// rather than at the next change of the number.
+    pub fn set_metric(&self, metric: TrayMetric) {
+        self.metric.store(metric as u8, Ordering::Relaxed);
+        self.last_percent.store(NO_PERCENT, Ordering::Relaxed);
     }
 
     pub fn set_close_to_tray(&self, enabled: bool) {
@@ -245,7 +290,9 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
     });
 
     TrayIconBuilder::with_id(TRAY_ID)
-        .icon(icon(0))
+        // The plain mark until the first frame says otherwise; with the option
+        // off (the default) this is also its final state.
+        .icon(icon(None))
         .tooltip("Vitals")
         .menu(&menu)
         // Left click belongs to "show the window"; the menu is the right
@@ -380,11 +427,14 @@ pub fn observe(app: &AppHandle, system: &SystemMetrics) {
     };
     sync_pause(&tray, is_paused(app));
 
-    let cpu = round_percent(system.cpu.total.0);
-    if tray.last_percent.swap(u16::from(cpu), Ordering::Relaxed) != u16::from(cpu)
+    // Nothing is computed when the option is off: the match below short-
+    // circuits before touching a single reading.
+    let value = value_for(tray.metric(), system);
+    let encoded = value.map_or(PLAIN_MARK, u16::from);
+    if tray.last_percent.swap(encoded, Ordering::Relaxed) != encoded
         && let Some(handle) = app.tray_by_id(TRAY_ID)
     {
-        let _ = handle.set_icon(Some(icon(cpu)));
+        let _ = handle.set_icon(Some(icon(value)));
     }
 
     let tooltip = tooltip_text(&tray.strings.lock(), system);
@@ -445,6 +495,46 @@ fn memory_percent(system: &SystemMetrics) -> u8 {
     round_percent((ratio * 100.0) as f32)
 }
 
+/// The value the icon should carry, or `None` for the plain mark.
+///
+/// Two of the four readings are not percentages, so each states its scale
+/// here rather than leaving the reader to guess what a full icon means.
+#[must_use]
+pub fn value_for(metric: TrayMetric, system: &SystemMetrics) -> Option<u8> {
+    match metric {
+        TrayMetric::Off => None,
+        TrayMetric::Cpu => Some(round_percent(system.cpu.total.0)),
+        // A CPU temperature is not a percentage. 0–100 °C maps onto the whole
+        // icon, which is where the range of every consumer CPU lives; anything
+        // hotter clamps to full rather than wrapping.
+        TrayMetric::CpuTemperature => system.cpu.temperature.map(|t| {
+            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+            let value = t.0.clamp(0.0, 100.0).round() as u8;
+            value
+        }),
+        TrayMetric::Memory => Some(memory_percent(system)),
+        TrayMetric::Network => Some(network_percent(system)),
+    }
+}
+
+/// Traffic on the busiest connected adapter, as a share of a 1 Gbit/s link.
+///
+/// A fixed ceiling rather than the adapter's negotiated speed: link speed is
+/// reported in units that differ between drivers, and a "full" icon that means
+/// something different on every machine is worse than a stated constant.
+fn network_percent(system: &SystemMetrics) -> u8 {
+    #[allow(clippy::cast_precision_loss)] // Throughput only; bytes/s, not money.
+    const CEILING_BYTES_PER_SEC: f64 = 125.0 * 1024.0 * 1024.0;
+    let busiest = system
+        .networks
+        .iter()
+        .filter(|adapter| adapter.connected)
+        .map(|adapter| (adapter.rx.0 + adapter.tx.0) as f64)
+        .fold(0.0_f64, f64::max);
+    #[allow(clippy::cast_possible_truncation)]
+    round_percent((busiest / CEILING_BYTES_PER_SEC * 100.0) as f32)
+}
+
 /// Rounds to a whole percent, clamped to 0..=100.
 ///
 /// Clamping rather than asserting for the same reason [`vitals_core::units::Percent`]
@@ -459,19 +549,29 @@ fn round_percent(value: f32) -> u8 {
 }
 
 /// Draws the tray bitmap: a dark rounded tile with a fill rising from the
-/// bottom in proportion to CPU load.
+/// bottom in proportion to the chosen reading.
 ///
 /// A fill rather than a number: 32 px is not enough for two legible digits at
-/// 100% scaling, and the tooltip carries the exact figures anyway. The fill is
+/// 100% scaling, and the tooltip carries the exact figures anyway. `None`
+/// draws the plain mark, which is what the icon looks like when the option is
+/// off. The fill is
 /// the brand's dark-mode fern (`#6cb882`, brand/BRAND.md): it reads 7:1 on the
 /// tile, and the dark tile itself carries the icon on a light taskbar — which
 /// the system accent colour would not reliably do.
-fn render(percent: u8) -> Vec<u8> {
+fn render(value: Option<u8>) -> Vec<u8> {
     const BG: [u8; 4] = [0x13, 0x29, 0x1B, 0xFF];
     const FILL: [u8; 4] = [0x6C, 0xB8, 0x82, 0xFF];
     const RADIUS: i32 = 6;
 
-    let filled_rows = i32::from(percent) * ICON_SIZE / 100;
+    let percent = value.unwrap_or(0);
+    // At least one row whenever a reading is being drawn: without it, a
+    // genuine 0 % would render byte-for-byte like the icon being switched
+    // off, and the two states would be indistinguishable on the taskbar.
+    let filled_rows = if value.is_some() {
+        (i32::from(percent) * ICON_SIZE / 100).max(1)
+    } else {
+        0
+    };
     let fill_top = ICON_SIZE - filled_rows;
 
     let mut pixels = Vec::with_capacity(ICON_BYTES);
@@ -509,12 +609,12 @@ fn outside_rounded_corner(x: i32, y: i32, size: i32, radius: i32) -> bool {
     dx * dx + dy * dy > radius * radius
 }
 
-fn icon(percent: u8) -> Image<'static> {
+fn icon(value: Option<u8>) -> Image<'static> {
     // Non-negative by construction; the constant is signed only for the
     // corner arithmetic in `render`.
     #[allow(clippy::cast_sign_loss)]
     const EDGE: u32 = ICON_SIZE as u32;
-    Image::new_owned(render(percent), EDGE, EDGE)
+    Image::new_owned(render(value), EDGE, EDGE)
 }
 
 #[cfg(test)]
@@ -525,12 +625,13 @@ mod tests {
     fn the_buffer_is_exactly_one_rgba_pixel_per_position() {
         // `Image::new_owned` trusts the length; a wrong one is a garbled icon
         // or a panic deep in the shell rather than a compile error.
-        assert_eq!(render(50).len(), ICON_BYTES);
+        assert_eq!(render(Some(50)).len(), ICON_BYTES);
+        assert_eq!(render(None).len(), ICON_BYTES);
     }
 
     #[test]
     fn an_idle_machine_and_a_pinned_one_do_not_look_the_same() {
-        assert_ne!(render(0), render(100));
+        assert_ne!(render(Some(0)), render(Some(100)));
     }
 
     #[test]
@@ -538,12 +639,12 @@ mod tests {
         // The whole cost argument for the tray rests on this: if the same
         // input could produce different bytes, skipping `set_icon` when the
         // rounded percent is unchanged would drop a real update.
-        assert_eq!(render(43), render(43));
+        assert_eq!(render(Some(43)), render(Some(43)));
     }
 
     #[test]
     fn corners_are_transparent_and_the_centre_is_not() {
-        let pixels = render(0);
+        let pixels = render(Some(0));
         let at = |x: i32, y: i32| {
             let i = ((y * ICON_SIZE + x) * 4) as usize;
             pixels[i + 3]
@@ -551,6 +652,22 @@ mod tests {
         assert_eq!(at(0, 0), 0, "top-left corner");
         assert_eq!(at(ICON_SIZE - 1, ICON_SIZE - 1), 0, "bottom-right corner");
         assert_eq!(at(16, 16), 0xFF, "centre");
+    }
+
+    #[test]
+    fn switching_the_icon_off_draws_the_plain_mark_not_a_zero_reading() {
+        // The trap this guards: "off" must not be indistinguishable from "a
+        // genuine 0 %", or the two states could not be told apart on screen.
+        assert_ne!(render(None), render(Some(0)));
+        assert_eq!(
+            value_for(TrayMetric::Off, &vitals_core::fixtures::system()),
+            None
+        );
+    }
+
+    #[test]
+    fn the_off_metric_is_the_default_so_nothing_is_drawn_unless_asked() {
+        assert_eq!(TrayMetric::default(), TrayMetric::Off);
     }
 
     #[test]

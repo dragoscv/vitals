@@ -411,6 +411,7 @@ fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
         commands::run_connectivity_probe,
         commands::set_close_to_tray,
         commands::set_taskbar_load,
+        commands::set_tray_metric,
         updates::set_auto_update,
         updates::get_pending_update,
         updates::get_update_status,

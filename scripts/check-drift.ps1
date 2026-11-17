@@ -349,6 +349,7 @@ $syncAllowed = @(
     # Reads or writes in-memory state behind a lock; no I/O.
     'get_capabilities', 'request_keyframe', 'get_alerts', 'set_alert_prefs', 'set_alert_strings',
     'set_close_to_tray', 'set_taskbar_load', 'set_tray_strings', 'set_sample_rate',
+    'set_tray_metric',
     'get_launch_options', 'plan_terminate_process', 'plan_suspend_process', 'list_benchmarks',
     'get_distribution', 'get_app_history',
     'set_retention_days', 'get_pending_update', 'set_auto_update', 'log_webview', 'diagnose',

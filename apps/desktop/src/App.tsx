@@ -9,6 +9,7 @@ import {
   pushAutoUpdate,
   pushCloseToTray,
   pushTaskbarLoad,
+  pushTrayMetric,
   pushHistoryEnabled,
   pushRetentionDays,
   pushTrayStrings,
@@ -110,6 +111,7 @@ function useSettingsSync(
 ): void {
   const { historyEnabled, retentionDays, startWithWindows, closeToTray, autoUpdate, taskbarLoad } =
     settings;
+  const trayMetric = settings.trayMetric;
   const patch = useSettings((state) => state.patch);
 
   useEffect(() => {
@@ -131,6 +133,11 @@ function useSettingsSync(
     if (!hydrated) return;
     void pushTaskbarLoad(taskbarLoad);
   }, [hydrated, taskbarLoad]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    void pushTrayMetric(trayMetric);
+  }, [hydrated, trayMetric]);
 
   useEffect(() => {
     if (!hydrated) return;

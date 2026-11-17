@@ -22,7 +22,7 @@ import { useTheme } from '../theme/ThemeProvider';
 import { accents, densities, themeModes, type Accent } from '../theme/types';
 import { SettingsRow, SettingsSection } from './SettingsRow';
 import { clearHistory, exportFlightRecording } from './historyActions';
-import { retentionDayOptions, samplingRates } from './schema';
+import { retentionDayOptions, samplingRates, trayMetrics } from './schema';
 import { useSettings } from './store';
 import { useHostInfo } from './useHostInfo';
 import { useHistoryUsage } from './useHistoryUsage';
@@ -51,6 +51,18 @@ const localeNames: Readonly<Record<Locale, string>> = {
   en: 'English',
   ro: 'Română',
 };
+
+/**
+ * i18n keys for the tray options, spelled out rather than assembled from the
+ * value: a built key silently renders its own name the day a value is renamed.
+ */
+const trayMetricLabels = {
+  off: 'settings.general.trayMetricOff',
+  cpu: 'settings.general.trayMetricCpu',
+  cpuTemperature: 'settings.general.trayMetricCpuTemperature',
+  memory: 'settings.general.trayMetricMemory',
+  network: 'settings.general.trayMetricNetwork',
+} as const;
 
 export function GeneralPanel() {
   const { t } = useTranslation(SHELL_NS);
@@ -138,6 +150,31 @@ export function GeneralPanel() {
           />
         )}
       </SettingsRow>
+
+      {/* Windows only: the tray icon is a Windows notification-area concept,
+          and on macOS the menu-bar item is a different control (S24-10). */}
+      {windows && (
+        <SettingsRow
+          label={t('settings.general.trayMetric')}
+          description={t('settings.general.trayMetricHint')}
+        >
+          {({ labelId }) => (
+            <Select
+              ariaLabel={t('settings.general.trayMetric')}
+              aria-labelledby={labelId}
+              value={settings.trayMetric}
+              onValueChange={(value) => {
+                const metric = trayMetrics.find((candidate) => candidate === value);
+                if (metric) patch({ trayMetric: metric });
+              }}
+              options={trayMetrics.map((metric) => ({
+                value: metric,
+                label: t(trayMetricLabels[metric]),
+              }))}
+            />
+          )}
+        </SettingsRow>
+      )}
 
       <SettingsRow
         label={t('settings.general.hudVisible')}

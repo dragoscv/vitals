@@ -235,6 +235,16 @@ pub fn set_taskbar_load(taskbar: State<'_, crate::taskbar::TaskbarLoad>, enabled
     taskbar.set_enabled(enabled);
 }
 
+/// Which reading the tray icon carries.
+///
+/// Rust-side because the icon is redrawn on the sampler thread while the
+/// window may be hidden; `off` is the default and computes nothing.
+#[tauri::command]
+#[allow(clippy::needless_pass_by_value)]
+pub fn set_tray_metric(tray: State<'_, crate::tray::Tray>, metric: crate::tray::TrayMetric) {
+    tray.set_metric(metric);
+}
+
 /// Localised tray menu labels and tooltip words.
 ///
 /// Same argument as [`set_alert_strings`]: the tray renders in Rust so it

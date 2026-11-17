@@ -7,6 +7,20 @@ import type { ThemeSettings } from '../theme/types';
 export const samplingRates = ['fast', 'normal', 'slow'] as const;
 export type SamplingRate = (typeof samplingRates)[number];
 
+/**
+ * What the tray icon shows.
+ *
+ * `off` draws the plain mark and costs nothing at all; every other value makes
+ * the icon carry a reading. A fill rather than digits, because 32 px cannot
+ * hold two legible digits at 100% scaling — the tooltip carries the numbers.
+ */
+export const trayMetrics = ['off', 'cpu', 'cpuTemperature', 'memory', 'network'] as const;
+export type TrayMetric = (typeof trayMetrics)[number];
+
+function isTrayMetric(value: unknown): value is TrayMetric {
+  return typeof value === 'string' && (trayMetrics as readonly string[]).includes(value);
+}
+
 /** Milliseconds between samples. The UI never speaks in numbers; this does. */
 export const samplingIntervalMs: Readonly<Record<SamplingRate, number>> = {
   fast: 500,
@@ -42,6 +56,11 @@ export interface AppSettings {
   readonly startMinimised: boolean;
   /** The × button hides the window instead of quitting. */
   readonly closeToTray: boolean;
+  /**
+   * Which reading the tray icon carries. Off by default: an icon that draws a
+   * number nobody asked for is a cost, however small, for everyone.
+   */
+  readonly trayMetric: TrayMetric;
   /** CPU load as the taskbar button's progress fill while the window is open. */
   readonly taskbarLoad: boolean;
   readonly confirmEndTask: boolean;
@@ -109,6 +128,7 @@ export const defaultSettings: AppSettings = {
   // a monitor closed by reflex stops monitoring with no warning. It records
   // nothing and sends nothing, so the "everything off" promise is untouched.
   closeToTray: true,
+  trayMetric: 'off',
   taskbarLoad: true,
   confirmEndTask: true,
   hudVisible: false,
@@ -254,6 +274,7 @@ export function parseSettings(raw: unknown): AppSettings {
     startWithWindows: bool(record['startWithWindows'], defaultSettings.startWithWindows),
     startMinimised: bool(record['startMinimised'], defaultSettings.startMinimised),
     closeToTray: bool(record['closeToTray'], defaultSettings.closeToTray),
+    trayMetric: pick(record['trayMetric'], isTrayMetric, defaultSettings.trayMetric),
     taskbarLoad: bool(record['taskbarLoad'], defaultSettings.taskbarLoad),
     confirmEndTask: bool(record['confirmEndTask'], defaultSettings.confirmEndTask),
     hudVisible: bool(record['hudVisible'], defaultSettings.hudVisible),

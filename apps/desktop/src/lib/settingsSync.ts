@@ -93,6 +93,23 @@ export async function pushTaskbarLoad(enabled: boolean): Promise<void> {
 }
 
 /**
+ * Tells the backend which reading the tray icon carries.
+ *
+ * Rust because the tray is redrawn on the sampler thread while the window may
+ * be hidden, and because `off` must cost nothing: no bitmap is rendered and no
+ * value is computed.
+ */
+export async function pushTrayMetric(metric: string): Promise<void> {
+  if (!hasTauriHost()) return;
+  try {
+    const { invoke } = await import('@tauri-apps/api/core');
+    await invoke('set_tray_metric', { metric });
+  } catch {
+    // Intentionally ignored; see module doc.
+  }
+}
+
+/**
  * Tells the background updater whether it may check and install. Lives in
  * Rust because the install happens on quit, after the webview is gone.
  */

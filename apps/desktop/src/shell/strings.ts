@@ -45,6 +45,14 @@ const en = {
       startMinimised: 'Start minimised to the tray',
       closeToTray: 'Close to tray',
       closeToTrayHint: 'The × button hides Vitals; it keeps monitoring. Quit from the tray menu.',
+      trayMetric: 'Tray icon',
+      trayMetricHint:
+        'Draw a reading into the tray icon. Off keeps the plain mark and costs nothing.',
+      trayMetricOff: 'Nothing',
+      trayMetricCpu: 'CPU usage',
+      trayMetricCpuTemperature: 'CPU temperature',
+      trayMetricMemory: 'Memory usage',
+      trayMetricNetwork: 'Network traffic',
       taskbarLoad: 'Show CPU load on the taskbar button',
       taskbarLoadHint:
         'While the window is open, its taskbar button fills with the current CPU load, in your Windows accent colour — amber above 75 %, red above 90 %.',
@@ -266,6 +274,14 @@ const ro = {
       closeToTray: 'Închide în bara de sistem',
       closeToTrayHint:
         'Butonul × ascunde Vitals; monitorizarea continuă. Închide-l din meniul barei de sistem.',
+      trayMetric: 'Pictograma din bara de sistem',
+      trayMetricHint:
+        'Desenează o măsurătoare în pictograma din bara de sistem. Oprit păstrează semnul simplu și nu costă nimic.',
+      trayMetricOff: 'Nimic',
+      trayMetricCpu: 'Utilizarea procesorului',
+      trayMetricCpuTemperature: 'Temperatura procesorului',
+      trayMetricMemory: 'Utilizarea memoriei',
+      trayMetricNetwork: 'Trafic de rețea',
       taskbarLoad: 'Arată încărcarea procesorului pe butonul din bara de activități',
       taskbarLoadHint:
         'Cât fereastra este deschisă, butonul ei din bara de activități se umple cu încărcarea procesorului, în culoarea de accent a Windows — galben peste 75 %, roșu peste 90 %.',
