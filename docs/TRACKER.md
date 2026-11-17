@@ -3458,6 +3458,39 @@ code (service start type, handles/modules read-only, end process tree).
 
 ### Verification log
 
+### 2026-11-17 — the S24 wave: motion, platform gates, Android, Tizen, Apple, MQTT, release plumbing
+
+**What landed on main.** Ten commits, each verified before it was pushed:
+
+| Commit    | Slice     | What it does                                                                                                                                                                                                                                                                                                                                                                     |
+| --------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `3c646f7` | S24-05    | Overlays animate, indicators slide, panels collapse. The root cause: Radix's presence layer reads the computed `animation-name` to decide an overlay is still leaving, and a `transition-*` left it at `none`, so every dialog was unmounted in the same tick the close began. Two keyframes in `theme.css`, an `@starting-style` enhancement and a reduced-motion escape hatch. |
+| `a0f3a63` | S24-04    | `get_capabilities` grows a platform list, so a surface can ask what exists on _this_ machine. Generated binding `Platform.ts`.                                                                                                                                                                                                                                                   |
+| `ff127d7` | S24-09    | Android: alert dedupe, watch sensors, an unauthorised state, a tablet layout, and the first `app`/`tv` unit tests.                                                                                                                                                                                                                                                               |
+| `162b704` | S24-15    | Release plumbing: `version.ps1` now covers `apps/ios/project.yml` and `apps/tizen/public/config.xml`; `update-proof.yml` is a required step in `docs/releasing.md`; macOS/Android/CLI rows in the release notes; MSIX arm64; Chocolatey's icon off jsDelivr; `ubuntu-24.04` pinned.                                                                                              |
+| `afabd24` | S24-14    | Tizen: the target raised to what the owner's TV actually runs, `action.reconnect`, stale dimming, Back as a step stack, `role="tab"`, Intl units, a `.wgt` built in CI, and `check-drift` covering the Tizen locales.                                                                                                                                                            |
+| `1633e54` | S24-10    | The Swift half: capabilities at pairing, a shared snapshot store, alert notifications, a Home-Screen widget and a watch widget, Dynamic Type, string catalogs. **Not compiled here — Swift does not build on Windows.**                                                                                                                                                          |
+| `b2e3c26` | S24-07    | Health declared on every store, the Play data-safety text, and `docs/legal/LAWYER-CHECKLIST.md`.                                                                                                                                                                                                                                                                                 |
+| `839972d` | S24-13    | `crates/vitals-mqtt`: parse the broker address, build the Home Assistant discovery documents and the readings, publish at QoS 1 with a retained availability topic and a bounded reconnect. Wired to the server as `vitals serve --mqtt mqtt://broker`. 27 tests.                                                                                                                |
+| `654e05a` | S24-04/08 | The frontend gates (navigation, palette, shortcut labels, route preload, the process menu and Details, Settings rows) and the fabricated zeros (an em dash where a value was never measured).                                                                                                                                                                                    |
+
+**Verified on this machine, with the command that proved it.** `pnpm typecheck`
+green across 7 packages; `pnpm test` 7/7 turbo tasks, 1358 desktop tests and 163
+in `@vitals/ui`; `scripts/check-drift.ps1` `0 failure(s), 0 warning(s)`;
+`pnpm protocol:check` exit 0; the Android gate
+(`:core:test :app:lintPlayDebug :app:assembleGithubDebug :wear:assembleDebug
+:tv:assembleDebug`) `BUILD SUCCESSFUL in 5m 14s`; `cargo clippy -p vitals-mqtt -p
+vitals-server -p vitals-cli --all-targets -- -D warnings` clean;
+`cargo test -p vitals-mqtt` 27 passed.
+
+**What is deliberately not claimed.** The Swift work has never been compiled —
+that needs a Mac. The MQTT integration has no broker test on this machine, so
+its discovery payloads are proven by unit test, not by a Home Assistant
+dashboard. `S24-02` (the per-machine update prompt), `S24-11` (alert rules and
+notification channels) and `S24-12` (the live tray number and the
+PC-or-internet probe) are still open, as are the real-device pass on
+`dragos-vivobook`, the local reinstall and the 1.3.0 release itself.
+
 ```
 capture (ws-vitals-win): 12 PNGs + 64 frames, exit 0, 138 s
 site build (ws-codai):   33 page(s) built; LD=1; og:type website (/, /ro/), article (/faq/)
