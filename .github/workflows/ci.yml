@@ -505,7 +505,14 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - name: pnpm audit
-        run: pnpm audit --audit-level high
+        # One advisory is ignored here, deliberately and with a date
+        # (2026-11-17): `picomatch` has no fixed version published yet — 4.0.7
+        # is the newest and is the vulnerable one — and it reaches us only
+        # through astro's build-time file watching, where the glob pattern is
+        # our own. `pnpm audit --help` documents the flag; pnpm 12's
+        # `auditConfig.ignoreGhsas` is not read, which is why it is here.
+        # Remove the flag when this advisory stops being reported.
+        run: pnpm audit --audit-level high --ignore GHSA-fc5q-39xc-vjpf
 
       # MIT and Apache-2.0 require their notices to ship with the binary. A
       # dependency bump that forgets to regenerate the file fails here. In

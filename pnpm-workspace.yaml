@@ -27,6 +27,14 @@ strictDepBuilds: true
 #   undici  4 highs incl. TLS validation bypass (<8.12.2)  via astro > unifont
 #   happy-dom  import alias host code execution (high, <21.0.4)  vitest optional peer
 #   vite  launch-editor existence bypass on Windows (high, 8.2.0-8.2.3)  via astro
+#
+# EXCEPTION, 2026-11-17: `picomatch` ReDoS through single-branch repeated
+# extglobs (high, GHSA-fc5q-39xc-vjpf) is IGNORED in `pnpm.auditConfig` of the
+# root package.json, not fixed. 4.0.7 is the newest version published, so
+# there is nothing to upgrade to; it reaches us only through astro's file
+# watching at build time and the pattern has to be attacker-controlled for the
+# ReDoS to matter, which a documentation site's own build never is. DELETE the
+# exception the moment a fixed picomatch exists — `pnpm audit` will say so.
 overrides:
   source-map-js: '>=1.2.2'
   postcss-selector-parser: '>=7.1.6'
@@ -103,3 +111,6 @@ allowBuilds:
   # fsevents.node; its install script would only rebuild it with node-gyp.
   # Listed as false so strictDepBuilds does not fail the macOS release leg.
   fsevents: false
+auditConfig:
+  ignoreGhsas:
+    - GHSA-fc5q-39xc-vjpf
