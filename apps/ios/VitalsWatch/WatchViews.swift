@@ -173,19 +173,22 @@ struct MiniRing: View {
     let text: String
     let colour: Color
     var scale: Double = 100
+    /// Grows with the reader's type size so the number inside stays legible.
+    @ScaledMetric(relativeTo: .body) private var size: CGFloat = 34
+    @ScaledMetric(relativeTo: .body) private var lineWidth: CGFloat = 3
 
     var body: some View {
         ZStack {
-            Circle().stroke(colour.opacity(0.25), lineWidth: 3)
+            Circle().stroke(colour.opacity(0.25), lineWidth: lineWidth)
             if let value, value.isFinite {
                 Circle().trim(from: 0, to: min(1, max(0, value / scale)))
-                    .stroke(colour, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                    .stroke(colour, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
                     .rotationEffect(.degrees(-90))
             }
             Text(text).font(.system(size: 10, weight: .semibold).monospacedDigit())
                 .minimumScaleFactor(0.6).lineLimit(1).padding(3)
         }
-        .frame(width: 34, height: 34)
+        .frame(width: size, height: size)
     }
 }
 
@@ -206,8 +209,10 @@ struct SampleTag: View {
     }
 }
 
-/// "Updated 12 seconds ago", refreshed every 10 s, with an out-of-date mark
-/// once the phone has been silent for more than two minutes.
+/// "Updated 12 seconds ago", refreshed every 10 s. Once the phone has been
+/// silent for more than two minutes (the watch has no pairing of its own, so
+/// the phone is the only source) it says plainly what to do: open Vitals on
+/// the iPhone.
 struct UpdatedLine: View {
     let sentMs: Int64
 
@@ -220,7 +225,7 @@ struct UpdatedLine: View {
                 Text(L("watch_updated", sent.formatted(.relative(presentation: .named, unitsStyle: .abbreviated))))
                     .font(.caption2).foregroundStyle(.secondary)
                 if stale {
-                    Label(L("watch_stale"), systemImage: "exclamationmark.triangle")
+                    Label(L("watch_open_phone"), systemImage: "iphone")
                         .font(.caption2.weight(.semibold)).foregroundStyle(WatchPalette.warn)
                 }
             }

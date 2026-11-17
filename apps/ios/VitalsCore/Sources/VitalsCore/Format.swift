@@ -8,6 +8,23 @@ import Foundation
 public enum Format {
     public static let dash = "\u{2014}"
 
+    /// The day/hour/minute suffixes `duration` joins. The app builds these from
+    /// the string catalog so the units are translated; the default keeps the
+    /// compact "1d 1h" the other surfaces and the tests use.
+    public struct DurationUnits: Sendable, Equatable {
+        public let day: String
+        public let hour: String
+        public let minute: String
+
+        public init(day: String = "d", hour: String = "h", minute: String = "m") {
+            self.day = day
+            self.hour = hour
+            self.minute = minute
+        }
+
+        public static let compact = DurationUnits()
+    }
+
     static func one(_ v: Double, _ locale: Locale) -> String {
         v.formatted(.number.precision(.fractionLength(1)).locale(locale))
     }
@@ -70,14 +87,14 @@ public enum Format {
         return "\(bytes(bps, locale: locale))/s"
     }
 
-    public static func duration(_ secs: Int64?) -> String {
+    public static func duration(_ secs: Int64?, units: DurationUnits = .compact) -> String {
         guard let secs else { return dash }
         let d = secs / 86_400
         let h = (secs % 86_400) / 3_600
         let m = (secs % 3_600) / 60
-        if d > 0 { return "\(d)d \(h)h" }
-        if h > 0 { return "\(h)h \(m)m" }
-        return "\(m)m"
+        if d > 0 { return "\(d)\(units.day) \(h)\(units.hour)" }
+        if h > 0 { return "\(h)\(units.hour) \(m)\(units.minute)" }
+        return "\(m)\(units.minute)"
     }
 
     /// A sensor line's value, by its unit key.

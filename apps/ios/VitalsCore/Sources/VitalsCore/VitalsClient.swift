@@ -64,6 +64,22 @@ public struct VitalsClient: Sendable {
         return URLSession(configuration: c, delegate: NoRedirects(), delegateQueue: nil)
     }()
 
+    /// The live stream gets its own session. A `timeoutIntervalForResource` of
+    /// 15 s (the request session's, meant to bound one HTTP call) closes a
+    /// WebSocket that is supposed to stay open for hours, so the stream would
+    /// die every 15 s. Here the *handshake* is still bounded (10 s — on a LAN
+    /// the PC answers in milliseconds or is not there), but the resource may
+    /// live indefinitely.
+    static let sharedStreamSession: URLSession = {
+        let c = URLSessionConfiguration.ephemeral
+        c.timeoutIntervalForRequest = 10
+        c.timeoutIntervalForResource = .infinity
+        c.waitsForConnectivity = false
+        c.httpShouldSetCookies = false
+        c.urlCache = nil
+        return URLSession(configuration: c, delegate: NoRedirects(), delegateQueue: nil)
+    }()
+
     public init(baseUrl: String, token: String, session: URLSession? = nil, gate: LanGate = .shared) {
         self.baseUrl = baseUrl
         self.token = token
@@ -90,6 +106,13 @@ public struct VitalsClient: Sendable {
 
     public func history(seconds: Int) async -> Result<[MachineSample], ApiFailure> {
         await get("/api/v1/history?seconds=\(seconds)")
+    }
+
+    /// `GET /api/v1/capabilities`: what this PC can actually do. A PC that does
+    /// not serve the route (an older build) answers 404 — the caller keeps the
+    /// controls visible rather than hiding features it cannot confirm.
+    public func capabilities() async -> Result<Capabilities, ApiFailure> {
+        await get("/api/v1/capabilities")
     }
 
     /// `POST /api/v1/control`: 204 is success; anything else carries a reason.
@@ -199,7 +222,7 @@ public struct VitalsClient: Sendable {
             }
             var req = URLRequest(url: url)
             req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-            let task = session.webSocketTask(with: req)
+            let task = Self.sharedStreamSession.webSocketTask(with: req)
             let pinger = Task {
                 while !Task.isCancelled {
                     try? await Task.sleep(for: .seconds(20))
@@ -278,7 +301,6 @@ public enum PairCheck {
             baseUrl: baseUrl,
             token: token,
             scope: scope,
-            mac: wakeMac(summary) ?? previous?.mac,
             createdMs: previous?.createdMs ?? now)
         return .ok(pairing, summary)
     }
@@ -303,11 +325,6 @@ public enum PairCheck {
         case let .failure(f):
             return refusal(f, codeRefused: true)
         }
-    }
-
-    static func wakeMac(_ s: Summary) -> String? {
-        let c = s.system.networks.filter { $0.connected && $0.mac != nil }
-        return (c.first { $0.kind == .ethernet } ?? c.first)?.mac
     }
 
     static func refusal(_ f: ApiFailure, codeRefused: Bool = false) -> Outcome {

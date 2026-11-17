@@ -32,6 +32,12 @@ final class HealthStore {
     private(set) var issue: HealthIssue?
     private(set) var loading = false
     private(set) var pairing: HealthPairing = .idle
+    /// The last Keychain result for the vmui token, surfaced rather than
+    /// swallowed — a token that fails to save looks like a pairing that keeps
+    /// asking to pair again.
+    private(set) var keychainStatus: OSStatus = errSecSuccess
+    /// True when the last Keychain operation for the vmui token did not succeed.
+    var keychainProblem: Bool { keychainStatus != errSecSuccess }
 
     var isConnected: Bool { token != nil }
     /// The first 8 characters, the only part of a token ever shown.
@@ -47,7 +53,9 @@ final class HealthStore {
 
     init() {
         baseUrl = UserDefaults.standard.string(forKey: Self.baseKey) ?? ""
-        token = Self.readToken()
+        let (status, stored) = Self.readToken()
+        if status != errSecItemNotFound { keychainStatus = status }
+        token = stored
     }
 
     // MARK: Polling
@@ -193,7 +201,9 @@ final class HealthStore {
     }
 
     private func connect(token newToken: String) {
-        guard Self.writeToken(newToken) else {
+        let status = Self.writeToken(newToken)
+        keychainStatus = status
+        guard status == errSecSuccess else {
             pairing = .failed(.invalid)
             return
         }
@@ -227,18 +237,19 @@ final class HealthStore {
         ]
     }
 
-    private static func readToken() -> String? {
+    private static func readToken() -> (OSStatus, String?) {
         var query = baseQuery()
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
         var out: AnyObject?
-        guard SecItemCopyMatching(query as CFDictionary, &out) == errSecSuccess,
+        let status = SecItemCopyMatching(query as CFDictionary, &out)
+        guard status == errSecSuccess,
               let data = out as? Data,
-              let s = String(data: data, encoding: .utf8), !s.isEmpty else { return nil }
-        return s
+              let s = String(data: data, encoding: .utf8), !s.isEmpty else { return (status, nil) }
+        return (status, s)
     }
 
-    private static func writeToken(_ token: String) -> Bool {
+    private static func writeToken(_ token: String) -> OSStatus {
         let query = baseQuery()
         let attrs: [String: Any] = [
             kSecValueData as String: Data(token.utf8),
@@ -248,9 +259,9 @@ final class HealthStore {
         if status == errSecItemNotFound {
             var add = query
             add.merge(attrs) { $1 }
-            return SecItemAdd(add as CFDictionary, nil) == errSecSuccess
+            return SecItemAdd(add as CFDictionary, nil)
         }
-        return status == errSecSuccess
+        return status
     }
 
     private static func deleteToken() {

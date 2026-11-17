@@ -10,6 +10,18 @@
 import Foundation
 import VitalsCore
 import WatchConnectivity
+#if canImport(WidgetKit)
+import WidgetKit
+#endif
+
+/// Redraws the Home/Lock Screen widget after a fresh snapshot.
+enum WidgetRefresh {
+    static func reload() {
+        #if canImport(WidgetKit)
+        WidgetCenter.shared.reloadAllTimelines()
+        #endif
+    }
+}
 
 @MainActor
 final class WatchBridge {
@@ -25,6 +37,30 @@ final class WatchBridge {
     private var messageDirty = false
     private var contextDirty = false
     private var pending: Task<Void, Never>?
+    /// PCs whose stream this bridge opened just to answer a watch request; the
+    /// ids are detached again after `borrowSeconds` so no battery is held.
+    private var borrowed: Set<String> = []
+    /// Borrowed streams that have not yet delivered a frame. When one does,
+    /// the 5-second message throttle is bypassed once so the watch does not sit
+    /// on "Connecting…" for a reading that has already arrived.
+    private var waitingForFrame: Set<String> = []
+    private var borrowTask: Task<Void, Never>?
+    /// How long a stream borrowed for the watch is kept open. Long enough for
+    /// a keyframe (and one delta) to arrive on a LAN, short enough to matter
+    /// for the battery.
+    private static let borrowSeconds = 8
+    /// WidgetKit budgets timeline reloads, and frames arrive once a second, so
+    /// the widget is asked to redraw at most this often.
+    private static let widgetReloadInterval: TimeInterval = 60
+    /// How often the app-group picture may be rewritten while nothing
+    /// meaningful changed. Frames arrive once a second; a `UserDefaults` write
+    /// plus a JSON encode per second is pure cost for a widget whose freshness
+    /// is measured in minutes. A change that matters — a PC appearing, going
+    /// offline, or raising an alert — is published at once regardless.
+    private static let publishInterval: TimeInterval = 10
+    private var lastPublishedSignature: String?
+    private var lastPublishedAt: Date?
+    private var lastWidgetReload: Date?
 
     init(store: PairingStore, hub: LiveHub, sample: SampleMode) {
         self.store = store
@@ -42,18 +78,46 @@ final class WatchBridge {
         contextDirty = true
         WCSession.default.delegate = relay
         WCSession.default.activate()
-        hub.onChange = { [weak self] in self?.changed() }
+        hub.observe { [weak self] in self?.changed() }
         sample.onChange = { [weak self] in self?.changed() }
+        publishShared()
     }
 
     private func handle(_ event: WatchSessionRelay.Event) {
         switch event {
         case .changed: flush() // reachability may have opened the message channel
         case .request:
-            // The watch app just opened: answer now, outside the throttle.
+            // The watch app just opened: answer now, outside the throttle, and
+            // — when no screen is watching a PC — open its stream briefly so
+            // the watch gets a live picture instead of "Connecting…" for ever.
             lastMessage = nil
+            borrowStreams()
             changed()
         case .snapshot: break // the phone only sends
+        }
+    }
+
+    /// Opens the stream of every PC nothing else is watching, for a few
+    /// seconds. On a screen that is already open this is a no-op (`existing`
+    /// returns the live stream), so it only does work when the UI is closed —
+    /// which is exactly the case the watch used to see as stuck.
+    private func borrowStreams() {
+        var opened = false
+        for p in store.pairings where hub.existing(p.id) == nil {
+            hub.stream(for: p.id).attach(p)
+            borrowed.insert(p.id)
+            waitingForFrame.insert(p.id)
+            opened = true
+        }
+        guard opened, borrowTask == nil else { return }
+        borrowTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(Self.borrowSeconds))
+            guard !Task.isCancelled, let self else { return }
+            self.borrowTask = nil
+            self.waitingForFrame = []
+            let ids = self.borrowed
+            self.borrowed = []
+            for id in ids { self.hub.existing(id)?.detach() }
         }
     }
 
@@ -64,9 +128,50 @@ final class WatchBridge {
     }
 
     private func changed() {
+        // A borrowed stream just came alive: send its first reading at once.
+        if !waitingForFrame.isEmpty {
+            let cameAlive = Set(waitingForFrame.filter { hub.existing($0)?.state == .live })
+            if !cameAlive.isEmpty {
+                waitingForFrame.subtract(cameAlive)
+                lastMessage = nil
+            }
+        }
+        publishShared()
         messageDirty = true
         contextDirty = true
         flush()
+    }
+
+    /// The Home/Lock Screen widget and the watch complication read this picture
+    /// from the app group. It is published on every news item — *not* only when
+    /// a watch is paired: `flush()` returns early without an activated, paired
+    /// session, so publishing from `send()` would leave the widget dead on a
+    /// phone that has no Apple Watch.
+    ///
+    /// Throttled, but not blind: a change to the set of PCs, to whether one is
+    /// live, or to its alert count is written immediately, because that is what
+    /// a glance at the widget is for. The per-second churn of the readings in
+    /// between waits for `publishInterval`.
+    private func publishShared(now: Date = Date()) {
+        let snap = SharedSnapshot(watch: snapshot(now: now))
+        let signature = Self.signature(snap)
+        let meaningful = signature != lastPublishedSignature
+        let due = lastPublishedAt.map { now.timeIntervalSince($0) >= Self.publishInterval } ?? true
+        guard meaningful || due else { return }
+        lastPublishedSignature = signature
+        lastPublishedAt = now
+        SharedSnapshotStore.save(snap)
+        if let last = lastWidgetReload, now.timeIntervalSince(last) < Self.widgetReloadInterval { return }
+        lastWidgetReload = now
+        WidgetRefresh.reload()
+    }
+
+    /// What a widget actually shows: which PCs there are and how they are
+    /// doing, not the digits. A string rather than a tuple array because
+    /// comparing tuples needs a conformance this code should not depend on.
+    private static func signature(_ snap: SharedSnapshot) -> String {
+        snap.pcs.map { "\($0.id)|\($0.label)|\($0.live)|\($0.alerts)|\($0.sample)" }
+            .joined(separator: ",")
     }
 
     /// Sends what the policy allows now and schedules one trailing send for
@@ -98,7 +203,8 @@ final class WatchBridge {
     }
 
     private func send(_ session: WCSession, message: Bool, context: Bool, now: Date) {
-        guard let data = try? snapshot(now: now).encoded() else { return }
+        let snap = snapshot(now: now)
+        guard let data = try? snap.encoded() else { return }
         let payload: [String: Any] = [WatchSnapshot.payloadKey: data]
         if message {
             lastMessage = now

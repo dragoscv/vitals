@@ -6,6 +6,15 @@
   vmui server; nothing reaches the developer. Required-reason API:
   UserDefaults (CA92.1, the app's own settings: whether the sample PC is
   shown, the vmui address).
+
+  Health & Fitness is declared collected below even though the developer
+  cannot reach the user's vmui server, because owner decision D2
+  (2026-11-12) is "keep Health and declare it everywhere", and the App
+  Privacy answers in App Store Connect are what a reviewer compares against
+  this manifest. Over-declaring cannot be a violation; under-declaring is.
+  If a lawyer answers Q4 of docs/legal/LAWYER-CHECKLIST.md with "the
+  developer is not a controller", the App Privacy answer may become "Data
+  not collected" and this entry can be removed.
 -->
 <plist version="1.0">
 <dict>
@@ -14,7 +23,22 @@
   <key>NSPrivacyTrackingDomains</key>
   <array/>
   <key>NSPrivacyCollectedDataTypes</key>
-  <array/>
+  <array>
+    <dict>
+      <key>NSPrivacyCollectedDataType</key>
+      <string>NSPrivacyCollectedDataTypeHealth</string>
+      <!-- Not linked to the user's identity and never used for tracking:
+           the readings are shown on the device they were read onto. -->
+      <key>NSPrivacyCollectedDataTypeLinked</key>
+      <false/>
+      <key>NSPrivacyCollectedDataTypeTracking</key>
+      <false/>
+      <key>NSPrivacyCollectedDataTypePurposes</key>
+      <array>
+        <string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+      </array>
+    </dict>
+  </array>
   <key>NSPrivacyAccessedAPITypes</key>
   <array>
     <dict>

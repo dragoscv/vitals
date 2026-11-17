@@ -5,8 +5,7 @@ import Testing
 @Suite struct WatchSnapshotTests {
     let pairing = Pairing(
         id: "pc-1", label: "Desk PC", baseUrl: "http://192.168.1.20:7331",
-        token: "vt_secret_token_value_123", scope: .control, mac: "AA:BB:CC:DD:EE:FF",
-        createdMs: 1)
+        token: "vt_secret_token_value_123", scope: .control, createdMs: 1)
 
     func system(_ name: String) throws -> SystemMetrics {
         try JSONDecoder.vitals.decode(Frame.self, from: fixture(name)).payload.system
@@ -52,12 +51,12 @@ import Testing
         _ = try WatchSnapshot(sentMs: 0, pcs: [pc]).encoded()
     }
 
-    @Test func theTokenAddressAndMacNeverAppearInTheEncodedPayload() throws {
+    @Test func theTokenAndAddressNeverAppearInTheEncodedPayload() throws {
         let pc = WatchPc(
             pairing: pairing, state: .live, system: try system("keyframe_full.json"),
             alerts: 0, lastSeenMs: 1)
         let text = try #require(String(data: WatchSnapshot(sentMs: 0, pcs: [pc]).encoded(), encoding: .utf8))
-        for secret in [pairing.token, pairing.baseUrl, "192.168.1.20", "AA:BB:CC:DD:EE:FF"] {
+        for secret in [pairing.token, pairing.baseUrl, "192.168.1.20"] {
             #expect(!text.contains(secret), "leaked \(secret)")
         }
     }

@@ -494,9 +494,9 @@ public enum HealthFormat {
     }
 
     /// Minutes asleep as "6h 52m".
-    public static func sleep(_ minutes: Double?) -> String {
+    public static func sleep(_ minutes: Double?, units: Format.DurationUnits = .compact) -> String {
         guard let minutes, minutes.isFinite, minutes >= 0 else { return Format.dash }
-        return Format.duration(Int64((minutes * 60).rounded()))
+        return Format.duration(Int64((minutes * 60).rounded()), units: units)
     }
 
     /// "121/79 mmHg"; a pressure with either side missing is unmeasured.

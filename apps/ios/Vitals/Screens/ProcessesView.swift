@@ -6,6 +6,10 @@ import VitalsCore
 /// at most every 2.5 s so rows do not jump under a finger (desktop S22-10).
 struct ProcessesView: View {
     let pairingId: String
+    /// What the PC says it can do; nil when it did not answer, in which case a
+    /// control is shown rather than hidden (never hide a feature we cannot rule
+    /// out).
+    var capabilities: Capabilities?
     enum Sort: Hashable { case cpu, memory, name }
 
     @Environment(PairingStore.self) private var store
@@ -50,7 +54,7 @@ struct ProcessesView: View {
         .onChange(of: sort) { lastSort = .distantPast }
         .sheet(item: Binding(get: { selected.map(KeyBox.init) }, set: { selected = $0?.key })) { box in
             if let p = byKey[box.key], let pairing {
-                ProcessSheet(process: p, pairing: pairing, isSample: isSample)
+                ProcessSheet(process: p, pairing: pairing, isSample: isSample, capabilities: capabilities)
                     .presentationDetents([.medium, .large])
             }
         }
@@ -83,6 +87,11 @@ struct KeyBox: Identifiable {
 
 struct ProcessRow: View {
     let process: Process
+    // Fixed columns that grow with the reader's type size, so the CPU and
+    // memory figures stay aligned and readable at the accessibility sizes.
+    @ScaledMetric(relativeTo: .body) private var cpuWidth: CGFloat = 56
+    @ScaledMetric(relativeTo: .body) private var memoryWidth: CGFloat = 76
+
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
@@ -96,9 +105,9 @@ struct ProcessRow: View {
             Spacer()
             Text(Format.percent(process.cpu)).monospacedDigit()
                 .foregroundStyle(process.cpu >= 85 ? Palette.danger : .primary)
-                .frame(width: 56, alignment: .trailing)
+                .frame(width: cpuWidth, alignment: .trailing)
             Text(Format.bytes(process.memoryPrivate)).monospacedDigit().foregroundStyle(.secondary)
-                .frame(width: 76, alignment: .trailing)
+                .frame(width: memoryWidth, alignment: .trailing)
         }
         .accessibilityElement(children: .combine)
     }
@@ -108,6 +117,7 @@ struct ProcessSheet: View {
     let process: Process
     let pairing: Pairing
     let isSample: Bool
+    var capabilities: Capabilities?
     @Environment(PairingStore.self) private var store
     @Environment(\.dismiss) private var dismiss
     @State private var armedEnd = false
@@ -123,7 +133,7 @@ struct ProcessSheet: View {
                     InfoRow(L("process_disk"), "\(Format.rate(process.diskRead)) · \(Format.rate(process.diskWrite))")
                     InfoRow(L("process_gpu"), Format.percent(process.gpu))
                     InfoRow(L("process_threads"), "\(process.threadCount)")
-                    InfoRow(L("process_uptime"), Format.duration(process.uptimeSecs))
+                    InfoRow(L("process_uptime"), DurationWords.text(process.uptimeSecs))
                     InfoRow(L("process_user"), process.user ?? Format.dash)
                     InfoRow(L("process_pid"), "\(process.key.pid)")
                 }
@@ -145,33 +155,54 @@ struct ProcessSheet: View {
             Section { Text(L("process_protected")).foregroundStyle(.secondary) }
         } else {
             Section {
-                Button(role: .destructive) {
-                    if armedEnd {
-                        send(.terminate(process.key), closeOnSuccess: true)
+                if can(.terminateProcess) {
+                    Button(role: .destructive) {
+                        if armedEnd {
+                            send(.terminate(process.key), closeOnSuccess: true)
+                        } else {
+                            armedEnd = true
+                            Task { try? await Task.sleep(for: .seconds(4)); armedEnd = false }
+                        }
+                    } label: { Text(armedEnd ? L("action_end_confirm") : L("action_end")) }
+                }
+                if can(.suspendProcess) {
+                    if process.state == .suspended {
+                        Button(L("action_resume")) { send(.resume(process.key)) }
                     } else {
-                        armedEnd = true
-                        Task { try? await Task.sleep(for: .seconds(4)); armedEnd = false }
-                    }
-                } label: { Text(armedEnd ? L("action_end_confirm") : L("action_end")) }
-                if process.state == .suspended {
-                    Button(L("action_resume")) { send(.resume(process.key)) }
-                } else {
-                    Button(L("action_suspend")) { send(.suspend(process.key)) }
-                }
-                Menu(L("action_priority")) {
-                    ForEach(ControlRequest.Priority.allCases, id: \.self) { p in
-                        Button(priorityName(p)) { send(.setPriority(process.key, p)) }
+                        Button(L("action_suspend")) { send(.suspend(process.key)) }
                     }
                 }
-                Toggle(isOn: Binding(get: { process.inEfficiencyMode }, set: { send(.setEfficiencyMode(process.key, $0)) })) {
-                    VStack(alignment: .leading) {
-                        Text(L("action_efficiency"))
-                        Text(L("action_efficiency_body")).font(.caption).foregroundStyle(.secondary)
+                if can(.setProcessPriority) {
+                    Menu(L("action_priority")) {
+                        ForEach(ControlRequest.Priority.allCases, id: \.self) { p in
+                            Button(priorityName(p)) { send(.setPriority(process.key, p)) }
+                        }
                     }
+                }
+                if can(.setEfficiencyMode) {
+                    Toggle(isOn: Binding(get: { process.inEfficiencyMode }, set: { send(.setEfficiencyMode(process.key, $0)) })) {
+                        VStack(alignment: .leading) {
+                            Text(L("action_efficiency"))
+                            Text(L("action_efficiency_body")).font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                if !canControlAnything {
+                    Text(L("process_unsupported")).foregroundStyle(.secondary)
                 }
             }
             .disabled(busy)
         }
+    }
+
+    /// A capability is hidden only when the PC said it is unavailable; an
+    /// unreported one (nil, or a build that does not serve the route) keeps the
+    /// control.
+    private func can(_ cap: Capability) -> Bool { capabilities?.has(cap) ?? true }
+
+    private var canControlAnything: Bool {
+        [Capability.terminateProcess, .suspendProcess, .setProcessPriority, .setEfficiencyMode]
+            .contains { can($0) }
     }
 
     private func priorityName(_ p: ControlRequest.Priority) -> String {

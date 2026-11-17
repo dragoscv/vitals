@@ -29,15 +29,23 @@ final class PcStream {
     private(set) var alerts: [VitalsCore.Alert] = [] {
         didSet { onChange?() }
     }
+    /// What this PC says it can do, fetched on every connect and reconnect
+    /// (macOS differs from Windows, and a helper can connect mid-session).
+    /// nil means "not known yet" — the caller shows a control rather than
+    /// hiding a feature it cannot confirm.
+    private(set) var capabilities: Capabilities?
     /// Told of every new frame, state and alert list (the watch bridge).
     @ObservationIgnored var onChange: (@MainActor () -> Void)?
     private(set) var cpuHistory: [Double] = []
-    private(set) var memHistory: [Double] = []
+    /// nil entries are ticks where the PC reported no memory total — a gap in
+    /// the line, never a plotted zero.
+    private(set) var memHistory: [Double?] = []
     private(set) var lastSeenMs: Int64?
 
     private var task: Task<Void, Never>?
     private var alertTask: Task<Void, Never>?
     private var backoff = Backoff()
+    private var reconnects = ReconnectCounter()
     private var watchers = 0
     private var stopWork: Task<Void, Never>?
 
@@ -78,7 +86,10 @@ final class PcStream {
 
     private func start(_ pairing: Pairing) {
         let client = VitalsClient(baseUrl: pairing.baseUrl, token: pairing.token)
-        task = Task { [weak self] in await self?.run(client) }
+        task = Task { [weak self] in
+            await self?.loadCapabilities(client)
+            await self?.run(client)
+        }
         alertTask = Task { [weak self] in
             while !Task.isCancelled {
                 if case let .success(a) = await client.alerts() { self?.alerts = a }
@@ -87,8 +98,16 @@ final class PcStream {
         }
     }
 
+    /// Best effort: a PC that does not serve the route (an older build) leaves
+    /// `capabilities` nil, and the UI falls back to showing the controls.
+    private func loadCapabilities(_ client: VitalsClient) async {
+        switch await client.capabilities() {
+        case let .success(c): capabilities = c
+        case .failure: capabilities = nil
+        }
+    }
+
     private func run(_ client: VitalsClient) async {
-        var failures = 0
         while !Task.isCancelled {
             guard LanGate.shared.isOnLan else {
                 state = .offLan
@@ -98,7 +117,7 @@ final class PcStream {
             do {
                 for try await frame in client.frames() {
                     fold(frame)
-                    failures = 0
+                    reconnects.recovered()
                     backoff.reset()
                 }
                 // The server closed cleanly: ask /health why.
@@ -123,10 +142,12 @@ final class PcStream {
                 state = .unauthorised
                 return
             }
-            failures += 1
-            if failures >= 3 { state = .unreachable(lastSeenMs: lastSeenMs) }
+            if reconnects.failed() { state = .unreachable(lastSeenMs: lastSeenMs) }
             let delay = backoff.next()
             try? await Task.sleep(for: .milliseconds(Int(delay)))
+            // A reconnect may land on a freshly updated PC (or a Mac): ask
+            // again rather than trusting the first answer for the session.
+            await loadCapabilities(client)
         }
     }
 
@@ -136,7 +157,7 @@ final class PcStream {
         state = .live
         lastSeenMs = Int64(Date().timeIntervalSince1970 * 1000)
         cpuHistory = Array((cpuHistory + [next.system.cpu.total]).suffix(60))
-        memHistory = Array((memHistory + [next.system.memory.usedPercent ?? 0]).suffix(60))
+        memHistory = Array((memHistory + [next.system.memory.usedPercent]).suffix(60))
         // After lastSeenMs and the view are both new (the state's didSet ran
         // before them).
         onChange?()
@@ -146,13 +167,19 @@ final class PcStream {
 @MainActor @Observable
 final class LiveHub {
     private var streams: [String: PcStream] = [:]
-    /// Called whenever any stream has news; set once by WatchBridge.
-    @ObservationIgnored var onChange: (@MainActor () -> Void)?
+    /// Told whenever any stream has news: the watch bridge and the local
+    /// notifier both listen, so this is a list rather than one slot.
+    @ObservationIgnored private var observers: [@MainActor () -> Void] = []
+
+    func observe(_ handler: @escaping @MainActor () -> Void) { observers.append(handler) }
 
     func stream(for id: String) -> PcStream {
         if let s = streams[id] { return s }
         let s = PcStream(pairingId: id)
-        s.onChange = { [weak self] in self?.onChange?() }
+        s.onChange = { [weak self] in
+            guard let self else { return }
+            for handler in self.observers { handler() }
+        }
         streams[id] = s
         return s
     }

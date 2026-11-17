@@ -256,6 +256,23 @@
         }
       }
     },
+    "add_device_name": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This iPhone's name"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Numele acestui iPhone"
+          }
+        }
+      }
+    },
     "add_manual": {
       "extractionState": "manual",
       "localizations": {
@@ -6729,6 +6746,23 @@
         }
       }
     },
+    "process_unsupported": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This PC does not allow process controls."
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Acest PC nu permite controlul proceselor."
+          }
+        }
+      }
+    },
     "process_uptime": {
       "extractionState": "manual",
       "localizations": {
@@ -7086,6 +7120,57 @@
         }
       }
     },
+    "sensors_sample_cpu": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CPU package"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pachet CPU"
+          }
+        }
+      }
+    },
+    "sensors_sample_fan": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fan 1"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ventilator 1"
+          }
+        }
+      }
+    },
+    "sensors_sample_gpu": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GPU core"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nucleu GPU"
+          }
+        }
+      }
+    },
     "sensors_unavailable": {
       "extractionState": "manual",
       "localizations": {
@@ -7371,6 +7456,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Pornit"
+          }
+        }
+      }
+    },
+    "settings_keychain_error": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vitals could not save this pairing securely (Keychain error %@). It may be lost when the app closes."
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vitals nu a putut salva asocierea în siguranță (eroare Keychain %@). S-ar putea pierde la închiderea aplicației."
           }
         }
       }
@@ -8242,6 +8344,57 @@
         }
       }
     },
+    "unit_day": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "d"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "z"
+          }
+        }
+      }
+    },
+    "unit_hour": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "h"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "o"
+          }
+        }
+      }
+    },
+    "unit_minute": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "m"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "min"
+          }
+        }
+      }
+    },
     "unit_rpm": {
       "extractionState": "manual",
       "localizations": {
@@ -8378,6 +8531,23 @@
         }
       }
     },
+    "watch_open_phone": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Vitals on iPhone"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deschide Vitals pe iPhone"
+          }
+        }
+      }
+    },
     "watch_sample": {
       "extractionState": "manual",
       "localizations": {
@@ -8391,23 +8561,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Date de probă"
-          }
-        }
-      }
-    },
-    "watch_stale": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Out of date"
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Neactualizat"
           }
         }
       }
@@ -8680,6 +8833,40 @@
         }
       }
     },
+    "widget_description": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Processor, memory and temperature of one PC, from the last time Vitals on the iPhone was active."
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Procesorul, memoria și temperatura unui PC, de la ultima dată când Vitals pe iPhone a fost activ."
+          }
+        }
+      }
+    },
+    "widget_empty": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Vitals on iPhone to keep this up to date."
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deschide Vitals pe iPhone ca să rămână la zi."
+          }
+        }
+      }
+    },
     "widget_no_pc": {
       "extractionState": "manual",
       "localizations": {
@@ -8744,6 +8931,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Actualizat %1$@"
+          }
+        }
+      }
+    },
+    "widget_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vitals"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vitals"
           }
         }
       }

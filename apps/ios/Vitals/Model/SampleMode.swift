@@ -24,7 +24,7 @@ final class SampleMode {
     /// Told of every sample tick and toggle (the watch bridge).
     @ObservationIgnored var onChange: (@MainActor () -> Void)?
     private(set) var cpuHistory: [Double] = []
-    private(set) var memHistory: [Double] = []
+    private(set) var memHistory: [Double?] = []
     private var ticker: Task<Void, Never>?
 
     init() {
@@ -46,7 +46,7 @@ final class SampleMode {
                 self.view = MachineView.fold(nil, f)
                 if let s = self.view?.system {
                     self.cpuHistory = Array((self.cpuHistory + [s.cpu.total]).suffix(60))
-                    self.memHistory = Array((self.memHistory + [s.memory.usedPercent ?? 0]).suffix(60))
+                    self.memHistory = Array((self.memHistory + [s.memory.usedPercent]).suffix(60))
                 }
                 t += 1
                 try? await Task.sleep(for: .seconds(1))

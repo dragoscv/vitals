@@ -7,6 +7,8 @@
 #   scripts/build.sh test     swift test VitalsCore (no Simulator needed)
 #   scripts/build.sh build    generate + compile for iphoneos, unsigned (the
 #                             Apple Watch app is embedded and built with it)
+#   scripts/build.sh uitest   generate + run the XCUITest smoke tests on a
+#                             fresh Simulator (VitalsUITests)
 #   scripts/build.sh upload   archive, sign (automatic, API key) and upload to App Store Connect
 #   scripts/build.sh screenshots   App Store screenshots from the Simulator (Sample PC, EN + RO, iPhone + Watch)
 #
@@ -119,8 +121,26 @@ PLIST
     generate
     bash "$HERE/scripts/screenshots.sh"
     ;;
+  uitest)
+    generate
+    # A simulator of its own, the newest runtime the host has, discovered the
+    # same way screenshots.sh does it — device names and runtimes change with
+    # every Xcode, so nothing here is hard-coded. Signing is off: a Simulator
+    # build needs none, and over SSH on vmui-mac the login keychain is locked.
+    RUNTIME="$(xcrun simctl list runtimes -j | /usr/bin/python3 -c 'import json,sys; r=[x for x in json.load(sys.stdin)["runtimes"] if x["platform"]=="iOS" and x["isAvailable"]]; print(r[-1]["identifier"])')"
+    DEVICE_TYPE="$(xcrun simctl list devicetypes -j | /usr/bin/python3 -c 'import json,sys; d=[x["identifier"] for x in json.load(sys.stdin)["devicetypes"] if x["name"].startswith("iPhone")]; print(d[-1])')"
+    UDID="$(xcrun simctl create vitals-uitest "$DEVICE_TYPE" "$RUNTIME")"
+    trap 'xcrun simctl shutdown "$UDID" >/dev/null 2>&1 || true; xcrun simctl delete "$UDID" >/dev/null 2>&1 || true' EXIT
+    xcrun simctl boot "$UDID"
+    xcrun simctl bootstatus "$UDID" -b >/dev/null
+    log "XCUITest smoke on $DEVICE_TYPE ($RUNTIME)"
+    xcodebuild -project Vitals.xcodeproj -scheme Vitals -configuration Debug \
+      -destination "id=$UDID" -derivedDataPath "$OUT/uitest-dd" \
+      CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO test
+    log "OK: XCUITest smoke passed"
+    ;;
   *)
-    echo "usage: $0 test|build|upload|screenshots" >&2
+    echo "usage: $0 test|build|uitest|upload|screenshots" >&2
     exit 2
     ;;
 esac

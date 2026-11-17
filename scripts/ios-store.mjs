@@ -41,6 +41,27 @@ const listing = JSON.parse(
 const check = process.argv.includes('--check');
 const log = (...a) => console.log(...a);
 
+// The limits App Store Connect enforces. Discovering one of them at submission
+// costs a whole upload round, so they are checked here first. Characters for
+// the prose fields (a Romanian ǎ is one character but two bytes), bytes for
+// keywords, which is what the listing file's own comment states.
+const LIMITS = { subtitle: 30, promotionalText: 170, description: 4000 };
+const MAX_KEYWORD_BYTES = 100;
+const MAX_NAME_CHARS = 30;
+for (const [locale, l] of Object.entries(listing.locales)) {
+  for (const [field, max] of Object.entries(LIMITS)) {
+    const chars = [...(l[field] ?? '')].length;
+    if (chars > max) throw new Error(`${locale}: ${field} is ${chars} characters, limit ${max}`);
+  }
+  const keywords = Buffer.byteLength(l.keywords ?? '', 'utf8');
+  if (keywords > MAX_KEYWORD_BYTES)
+    throw new Error(`${locale}: keywords are ${keywords} bytes, limit ${MAX_KEYWORD_BYTES}`);
+  const name = listing.names?.[locale];
+  if (name && [...name].length > MAX_NAME_CHARS)
+    throw new Error(`${locale}: name is over ${MAX_NAME_CHARS} characters`);
+}
+log(`listing limits ok for ${Object.keys(listing.locales).length} locale(s)`);
+
 const version = (
   await asc('GET', `/v1/apps/${APP}/appStoreVersions?filter[platform]=${PLATFORM}&limit=5`)
 ).data.find((v) =>
@@ -77,6 +98,11 @@ for (const [locale, l] of Object.entries(listing.locales)) {
     promotionalText: l.promotionalText,
     supportUrl: listing.supportUrl,
     marketingUrl: listing.marketingUrl,
+    // App Store Connect refuses "What's new" while the app has no live
+    // version, so it is sent only when the listing carries one. Without this
+    // line the field is silently ignored: apps/ios/store/listing.json has
+    // always had a whatsNew and nothing ever applied it.
+    ...(l.whatsNew ? { whatsNew: l.whatsNew } : {}),
   };
   // "What's new" is refused on a first version.
   const v = vlocs.find((x) => x.attributes.locale === locale);

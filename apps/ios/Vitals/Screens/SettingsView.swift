@@ -57,6 +57,13 @@ struct SettingsView: View {
                     Text(L("settings_licences_body_ios")).font(.caption).foregroundStyle(.secondary)
                 }
             }
+            if store.keychainProblem || health.keychainProblem {
+                let status = store.keychainProblem ? store.keychainStatus : health.keychainStatus
+                Section {
+                    Text(L("settings_keychain_error", "\(status)"))
+                        .font(.footnote).foregroundStyle(Palette.warn)
+                }
+            }
         }
         .navigationTitle(L("settings_title"))
         .alert(L("settings_rename"), isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {

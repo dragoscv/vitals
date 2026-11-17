@@ -10,6 +10,12 @@ import VitalsCore
 final class PairingStore {
     private(set) var pairings: [Pairing] = []
     private(set) var loaded = false
+    /// The last Keychain result. A pairing that silently fails to save is a
+    /// paired PC that vanishes on the next launch; surfacing the status turns
+    /// that into something the Settings screen can name.
+    private(set) var keychainStatus: OSStatus = errSecSuccess
+    /// True when the last Keychain operation did not succeed.
+    var keychainProblem: Bool { keychainStatus != errSecSuccess }
 
     private let service = "app.vitals.ios.pairings"
     private let account = "all"
@@ -22,7 +28,10 @@ final class PairingStore {
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
         var out: AnyObject?
-        guard SecItemCopyMatching(query as CFDictionary, &out) == errSecSuccess,
+          let status = SecItemCopyMatching(query as CFDictionary, &out)
+          // A missing item is the normal first-launch case, not an error.
+          if status != errSecItemNotFound { keychainStatus = status }
+          guard status == errSecSuccess,
               let data = out as? Data,
               let list = try? JSONDecoder().decode([Pairing].self, from: data) else { return }
         pairings = list
@@ -68,16 +77,22 @@ final class PairingStore {
     }
 
     private func persist() {
-        guard let data = try? JSONEncoder().encode(pairings) else { return }
+        guard let data = try? JSONEncoder().encode(pairings) else {
+            keychainStatus = errSecParam
+            return
+        }
         let query = baseQuery()
         let attrs: [String: Any] = [
             kSecValueData as String: data,
             kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
         ]
-        if SecItemUpdate(query as CFDictionary, attrs as CFDictionary) == errSecItemNotFound {
+        let status = SecItemUpdate(query as CFDictionary, attrs as CFDictionary)
+        if status == errSecItemNotFound {
             var add = query
             add.merge(attrs) { $1 }
-            SecItemAdd(add as CFDictionary, nil)
+            keychainStatus = SecItemAdd(add as CFDictionary, nil)
+        } else {
+            keychainStatus = status
         }
     }
 }

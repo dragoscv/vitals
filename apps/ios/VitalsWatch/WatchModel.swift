@@ -6,6 +6,19 @@ import Foundation
 import Observation
 import VitalsCore
 import WatchConnectivity
+#if canImport(WidgetKit)
+import WidgetKit
+#endif
+
+/// Asks WidgetKit to redraw the watch widgets/complication after a fresh
+/// snapshot. A no-op where WidgetKit is unavailable.
+enum WidgetRefresh {
+    static func reload() {
+        #if canImport(WidgetKit)
+        WidgetCenter.shared.reloadAllTimelines()
+        #endif
+    }
+}
 
 @MainActor @Observable
 final class WatchModel {
@@ -57,6 +70,9 @@ final class WatchModel {
         guard let next = try? WatchSnapshot.decoded(from: data) else { return }
         if let current = snapshot, current.sentMs > next.sentMs { return }
         snapshot = next
+        // The same picture the watch widgets and the complication read.
+        SharedSnapshotStore.save(SharedSnapshot(watch: next))
+        WidgetRefresh.reload()
     }
 }
 

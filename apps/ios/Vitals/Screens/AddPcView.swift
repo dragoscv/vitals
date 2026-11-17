@@ -16,6 +16,9 @@ struct AddPcView: View {
     @State private var busy = false
     @State private var message: String?
     @State private var scanned: PairingLink?
+    /// The name this iPhone reports to the PC. Editable, and remembered, so a
+    /// list of pairings on the PC says which phone each one is.
+    @State private var deviceName = DeviceName.stored()
 
     var body: some View {
         NavigationStack {
@@ -32,7 +35,7 @@ struct AddPcView: View {
                     switch mode {
                     case .scan: ScanPane { link in scanned = link }
                     case .nearby: NearbyPane(pair: pairToken)
-                    case .code: CodePane(pair: pairCode)
+                    case .code: CodePane(deviceName: $deviceName, pair: pairCode)
                     case .manual: ManualPane(pair: pairToken)
                     }
                 }
@@ -58,6 +61,7 @@ struct AddPcView: View {
             } message: {
                 Text(URLComponents(string: scanned?.baseUrl ?? "")?.host ?? "")
             }
+            .onChange(of: deviceName) { _, name in DeviceName.store(name) }
         }
     }
 
@@ -66,7 +70,7 @@ struct AddPcView: View {
     }
 
     private func pairCode(_ url: String, _ code: String, _ label: String?) {
-        let device = UIDevice.current.name
+        let device = DeviceName.trimmed(deviceName)
         run {
             await PairCheck.withCode(
                 rawUrl: url, rawCode: code, deviceLabel: device, pcLabel: label, existing: store.pairings)
@@ -108,6 +112,27 @@ struct AddPcView: View {
     }
 }
 
+/// The device name this phone sends when pairing, kept between attempts so the
+/// user types it once.
+enum DeviceName {
+    private static let key = "deviceName"
+
+    static func stored() -> String {
+        let saved = UserDefaults.standard.string(forKey: key)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return (saved?.isEmpty == false ? saved : nil) ?? UIDevice.current.name
+    }
+
+    static func store(_ raw: String) {
+        let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        UserDefaults.standard.set(text.isEmpty ? UIDevice.current.name : text, forKey: key)
+    }
+
+    static func trimmed(_ raw: String) -> String {
+        let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        return text.isEmpty ? UIDevice.current.name : text
+    }
+}
+
 // MARK: Panes
 
 struct ManualPane: View {
@@ -130,6 +155,7 @@ struct ManualPane: View {
 }
 
 struct CodePane: View {
+    @Binding var deviceName: String
     let pair: (String, String, String?) -> Void
     @State private var address = ""
     @State private var code = ""
@@ -143,6 +169,8 @@ struct CodePane: View {
             TextField(L("add_code_digits"), text: $code)
                 .keyboardType(.numberPad).textContentType(.oneTimeCode)
                 .font(.title2.monospacedDigit())
+            TextField(L("add_device_name"), text: $deviceName)
+                .textInputAutocapitalization(.words)
             TextField(L("add_name"), text: $name)
             Button(L("add_pair")) { pair(address, code, name.isEmpty ? nil : name) }
                 .disabled(address.isEmpty || !PairingRules.isCode(code))

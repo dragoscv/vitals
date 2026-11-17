@@ -100,7 +100,6 @@
   },
   "watch_sample": { "en": "Sample data", "ro": "Date de probă" },
   "watch_updated": { "en": "Updated %@", "ro": "Actualizat %@" },
-  "watch_stale": { "en": "Out of date", "ro": "Neactualizat" },
   "watch_no_alerts": { "en": "No warnings", "ro": "Niciun avertisment" },
   "watch_state_live": { "en": "Live", "ro": "În direct" },
   "watch_state_connecting": { "en": "Connecting…", "ro": "Se conectează…" },
@@ -108,5 +107,30 @@
   "watch_state_off_lan": { "en": "iPhone not on Wi-Fi", "ro": "iPhone-ul nu e pe Wi-Fi" },
   "watch_state_unauthorised": { "en": "Pair again on iPhone", "ro": "Asociază din nou pe iPhone" },
   "watch_state_incompatible": { "en": "Update Vitals", "ro": "Actualizează Vitals" },
-  "watch_state_unknown": { "en": "Unknown state", "ro": "Stare necunoscută" }
+  "watch_state_unknown": { "en": "Unknown state", "ro": "Stare necunoscută" },
+  "watch_open_phone": { "en": "Open Vitals on iPhone", "ro": "Deschide Vitals pe iPhone" },
+  "add_device_name": { "en": "This iPhone's name", "ro": "Numele acestui iPhone" },
+  "process_unsupported": {
+    "en": "This PC does not allow process controls.",
+    "ro": "Acest PC nu permite controlul proceselor."
+  },
+  "settings_keychain_error": {
+    "en": "Vitals could not save this pairing securely (Keychain error %@). It may be lost when the app closes.",
+    "ro": "Vitals nu a putut salva asocierea în siguranță (eroare Keychain %@). S-ar putea pierde la închiderea aplicației."
+  },
+  "unit_day": { "en": "d", "ro": "z" },
+  "unit_hour": { "en": "h", "ro": "o" },
+  "unit_minute": { "en": "m", "ro": "min" },
+  "sensors_sample_cpu": { "en": "CPU package", "ro": "Pachet CPU" },
+  "sensors_sample_gpu": { "en": "GPU core", "ro": "Nucleu GPU" },
+  "sensors_sample_fan": { "en": "Fan 1", "ro": "Ventilator 1" },
+  "widget_title": { "en": "Vitals", "ro": "Vitals" },
+  "widget_description": {
+    "en": "Processor, memory and temperature of one PC, from the last time Vitals on the iPhone was active.",
+    "ro": "Procesorul, memoria și temperatura unui PC, de la ultima dată când Vitals pe iPhone a fost activ."
+  },
+  "widget_empty": {
+    "en": "Open Vitals on iPhone to keep this up to date.",
+    "ro": "Deschide Vitals pe iPhone ca să rămână la zi."
+  }
 }

@@ -50,20 +50,24 @@ struct Ring: View {
     let text: String
     let colour: Color
     var scale: Double = 100
+    /// Scales with the reader's type size, so the ring still holds its own
+    /// number at the accessibility sizes instead of clipping it.
+    @ScaledMetric(relativeTo: .body) private var size: CGFloat = 66
+    @ScaledMetric(relativeTo: .body) private var lineWidth: CGFloat = 7
 
     var body: some View {
         VStack(spacing: 6) {
             ZStack {
-                Circle().stroke(colour.opacity(0.15), lineWidth: 7)
+                Circle().stroke(colour.opacity(0.15), lineWidth: lineWidth)
                 Circle()
                     .trim(from: 0, to: min(1, max(0, (value ?? 0) / scale)))
-                    .stroke(colour, style: StrokeStyle(lineWidth: 7, lineCap: .round))
+                    .stroke(colour, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
                     .rotationEffect(.degrees(-90))
                     .opacity(value == nil ? 0 : 1)
                 Text(text).font(.callout.monospacedDigit().weight(.semibold))
                     .minimumScaleFactor(0.6).lineLimit(1).padding(6)
             }
-            .frame(width: 66, height: 66)
+            .frame(width: size, height: size)
             Text(label).font(.caption).foregroundStyle(.secondary).lineLimit(1)
         }
         .accessibilityElement(children: .ignore)
@@ -72,9 +76,11 @@ struct Ring: View {
     }
 }
 
-/// A tiny line chart of the last minute.
+/// A tiny line chart of the last minute. A nil entry is a tick the PC did not
+/// measure (or report) — the line breaks there rather than dipping to zero,
+/// so a gap reads as a gap.
 struct Sparkline: View {
-    let values: [Double]
+    let values: [Double?]
     let colour: Color
     var max: Double = 100
 
@@ -82,16 +88,28 @@ struct Sparkline: View {
         GeometryReader { g in
             Path { p in
                 guard values.count > 1 else { return }
+                var penDown = false
                 for (i, v) in values.enumerated() {
+                    guard let v, v.isFinite else { penDown = false; continue }
                     let x = g.size.width * Double(i) / Double(values.count - 1)
                     let y = g.size.height * (1 - Swift.min(1, Swift.max(0, v / max)))
-                    i == 0 ? p.move(to: CGPoint(x: x, y: y)) : p.addLine(to: CGPoint(x: x, y: y))
+                    if penDown {
+                        p.addLine(to: CGPoint(x: x, y: y))
+                    } else {
+                        p.move(to: CGPoint(x: x, y: y))
+                        penDown = true
+                    }
                 }
             }
             .stroke(colour, style: StrokeStyle(lineWidth: 1.5, lineJoin: .round))
         }
         .accessibilityHidden(true)
     }
+}
+
+extension Array where Element == Double {
+    /// Widens a fully measured series to the gap-aware shape Sparkline draws.
+    var asSeries: [Double?] { map { $0 } }
 }
 
 struct InfoRow: View {

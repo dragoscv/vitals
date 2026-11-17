@@ -192,12 +192,88 @@ func frame(_ json: String) throws -> Frame {
         #expect(Format.duration(90_061) == "1d 1h")
     }
 
+    @Test func durationUnitsComeFromTheCallerSoTheyCanBeTranslated() {
+        let units = Format.DurationUnits(day: "z", hour: "o", minute: "min")
+        #expect(Format.duration(90_061, units: units) == "1z 1o")
+        #expect(Format.duration(3_600, units: units) == "1o 0min")
+        #expect(Format.duration(120, units: units) == "2min")
+        // The default stays the compact form the other surfaces use.
+        #expect(Format.duration(120) == "2m")
+    }
+
     @Test func thresholdsMatchTheDesktop() {
         #expect(Level.cpu(84.9) == .ok)
         #expect(Level.cpu(85) == .warn)
         #expect(Level.cpu(95) == .danger)
         #expect(Level.gpuTemp(80) == .warn)
         #expect(Level.cpu(nil) == .unknown)
+    }
+}
+
+// MARK: Reconnect
+
+@Suite struct ReconnectCounterTests {
+    @Test func aPcReadsAsUnreachableOnlyAfterThreeFailedConnections() {
+        var c = ReconnectCounter()
+        #expect(!c.failed())
+        #expect(!c.failed())
+        #expect(!c.isUnreachable)
+        #expect(c.failed())
+        #expect(c.isUnreachable)
+        // More failures keep it unreachable rather than flipping back.
+        #expect(c.failed())
+    }
+
+    @Test func anyFrameClearsTheCountSoOneOldBlipDoesNotMarkAWorkingPcOffline() {
+        var c = ReconnectCounter()
+        _ = c.failed()
+        _ = c.failed()
+        c.recovered()
+        #expect(c.failures == 0)
+        #expect(!c.failed())
+        #expect(!c.isUnreachable)
+    }
+}
+
+// MARK: Capabilities
+
+@Suite struct CapabilitiesTests {
+    @Test func aFullReportDecodesAvailableAndUnavailable() throws {
+        let json = #"""
+        {"platform":"macos",
+         "available":["terminateProcess","suspendProcess","setProcessPriority","thermals"],
+         "unavailable":[["perProcessDiskIo","appSandbox"],["fanControl","noSuchHardware"]]}
+        """#
+        let caps = try JSONDecoder.vitals.decode(Capabilities.self, from: Data(json.utf8))
+        #expect(caps.platform == .macos)
+        #expect(caps.has(.terminateProcess))
+        #expect(!caps.has(.perProcessDiskIo))
+        #expect(caps.reason(.perProcessDiskIo) == .appSandbox)
+        #expect(caps.reason(.fanControl) == .noSuchHardware)
+        #expect(caps.reason(.thermals) == nil)
+    }
+
+    @Test func anUnknownCapabilityOrReasonFromANewerDesktopIsDroppedNotFatal() throws {
+        let json = #"""
+        {"platform":"windows","available":["teleportProcess","thermals"],
+         "unavailable":[["timeTravel","becauseReasons"],["broken"]]}
+        """#
+        let caps = try JSONDecoder.vitals.decode(Capabilities.self, from: Data(json.utf8))
+        // "teleportProcess" decodes tolerantly to .unknown, but an unknown
+        // capability is never reported as available — the UI shows the control
+        // rather than hiding a feature it cannot name.
+        #expect(caps.available.contains(.unknown))
+        #expect(!caps.has(.unknown))
+        #expect(caps.has(.thermals))
+        // The malformed pair is skipped; the unknown reason attaches to unknown.
+        #expect(caps.unavailable.count == 1)
+    }
+
+    @Test func aMissingOrEmptyReportIsAnEmptySetNotAnError() throws {
+        let caps = try JSONDecoder.vitals.decode(Capabilities.self, from: Data("{}".utf8))
+        #expect(caps.platform == .unknown)
+        #expect(caps.available.isEmpty)
+        #expect(!caps.has(.terminateProcess))
     }
 }
 

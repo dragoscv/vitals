@@ -16,19 +16,17 @@ public struct Pairing: Codable, Sendable, Identifiable, Hashable {
     public var baseUrl: String
     public var token: String
     public var scope: Scope
-    public var mac: String?
     public var createdMs: Int64
 
     public init(
         id: String, label: String, baseUrl: String, token: String,
-        scope: Scope = .unknown, mac: String? = nil, createdMs: Int64
+        scope: Scope = .unknown, createdMs: Int64
     ) {
         self.id = id
         self.label = label
         self.baseUrl = baseUrl
         self.token = token
         self.scope = scope
-        self.mac = mac
         self.createdMs = createdMs
     }
 
@@ -168,4 +166,30 @@ public struct Backoff: Sendable {
     }
 
     public mutating func reset() { failures = 0 }
+}
+
+/// How many failed connections in a row before a PC reads as "can't reach".
+///
+/// The same rule as Android's PcStream and the desktop: one dropped socket is
+/// a blip (the stream reconnects with backoff), but three in a row without a
+/// single frame means the PC is off or gone, and the UI should say so rather
+/// than keep showing "Connecting…". Any frame — keyframe or delta — proves the
+/// PC is back and clears the count.
+public struct ReconnectCounter: Sendable, Equatable {
+    public static let unreachableAfter = 3
+    public private(set) var failures = 0
+
+    public init() {}
+
+    /// Records one failed connection; true when the PC should now read as
+    /// unreachable.
+    public mutating func failed() -> Bool {
+        failures += 1
+        return failures >= Self.unreachableAfter
+    }
+
+    /// A frame arrived: the PC is answering again.
+    public mutating func recovered() { failures = 0 }
+
+    public var isUnreachable: Bool { failures >= Self.unreachableAfter }
 }

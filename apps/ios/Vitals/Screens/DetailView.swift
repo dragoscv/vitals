@@ -54,13 +54,15 @@ struct DetailView: View {
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 NavigationLink {
-                    ProcessesView(pairingId: pairing.id)
+                    ProcessesView(pairingId: pairing.id, capabilities: stream?.capabilities)
                 } label: {
                     Label(L("processes"), systemImage: "list.bullet.rectangle")
                 }
             }
         }
-        .navigationDestination(isPresented: $showProcesses) { ProcessesView(pairingId: pairing.id) }
+        .navigationDestination(isPresented: $showProcesses) {
+            ProcessesView(pairingId: pairing.id, capabilities: stream?.capabilities)
+        }
         .onAppear { if let stream { stream.attach(pairing) } else { sample.start() } }
         .onDisappear { stream?.detach() }
     }
@@ -72,7 +74,7 @@ struct NowTab: View {
     let alerts: [VitalsCore.Alert]
     let lastSeen: Int64?
     let cpu: [Double]
-    let mem: [Double]
+    let mem: [Double?]
     let pairing: Pairing
     let isSample: Bool
     @Environment(LiveHub.self) private var hub
@@ -85,7 +87,7 @@ struct NowTab: View {
             if !alerts.isEmpty {
                 Section(L("alert_count_title")) {
                     ForEach(alerts) { a in
-                        Label(alertTitle(a), systemImage: a.severity == .critical ? "exclamationmark.octagon.fill" : "exclamationmark.triangle.fill")
+                        Label(AlertWords.title(a), systemImage: a.severity == .critical ? "exclamationmark.octagon.fill" : "exclamationmark.triangle.fill")
                             .foregroundStyle(a.severity == .critical ? Palette.danger : Palette.warn)
                     }
                 }
@@ -107,27 +109,6 @@ struct NowTab: View {
         }
         .refreshable { if !isSample { hub.stream(for: pairing.id).retry(pairing) } }
     }
-
-    private func alertTitle(_ a: VitalsCore.Alert) -> String {
-        let key: String = switch a.kind {
-        case .cpuSustained: "alert_cpu_sustained"
-        case .cpuThrottled: "alert_cpu_throttled"
-        case .memoryPressure: "alert_memory_pressure"
-        case .memoryCommit: "alert_memory_commit"
-        case .diskSaturated: "alert_disk_saturated"
-        case .diskLatency: "alert_disk_latency"
-        case .diskSpace: "alert_disk_space"
-        case .diskHealth: "alert_disk_health"
-        case .gpuThrottled: "alert_gpu_throttled"
-        case .thermalCpu: "alert_thermal_cpu"
-        case .networkErrors: "alert_network_errors"
-        case .batteryLow: "alert_battery_low"
-        case .batteryHealth: "alert_battery_health"
-        case .unknown: "alert_other"
-        }
-        let title = L(key)
-        return a.subject.isEmpty ? title : "\(title) · \(a.subject)"
-    }
 }
 
 struct CpuSection: View {
@@ -137,15 +118,15 @@ struct CpuSection: View {
             InfoRow(L("cpu_clock"), Format.ghz(cpu.effectiveClock))
             InfoRow(L("cpu_temperature"), Format.celsius(cpu.temperature))
             InfoRow(L("cpu_power"), Format.watts(cpu.power))
-            InfoRow(L("cpu_throttled"), cpu.throttled == nil ? L("cpu_not_throttled") : L("cpu_throttled"))
+            InfoRow(L("cpu_throttled"), CpuWords.throttle(cpu.throttled))
             InfoRow(L("cpu_processes"), "\(cpu.processCount)")
-            InfoRow(L("cpu_uptime"), Format.duration(cpu.uptimeSecs))
+            InfoRow(L("cpu_uptime"), DurationWords.text(cpu.uptimeSecs))
             if !cpu.perCore.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(L("cpu_cores")).font(.caption).foregroundStyle(.secondary)
                     LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 8), spacing: 6) {
                         ForEach(Array(cpu.perCore.enumerated()), id: \.offset) { _, v in
-                            Bar(fraction: v / 100, colour: Palette.of(Level.cpu(v)) == .secondary ? Palette.cpu : Palette.cpu)
+                            Bar(fraction: v / 100, colour: Palette.of(Level.cpu(v)))
                         }
                     }
                 }
@@ -226,7 +207,7 @@ struct BatterySection: View {
     var body: some View {
         Section(L("metric_battery")) {
             InfoRow(battery.charging ? L("battery_charging") : L("battery_discharging"), Format.percent(battery.charge))
-            InfoRow(L("battery_time_left"), Format.duration(battery.timeRemainingSecs))
+            InfoRow(L("battery_time_left"), DurationWords.text(battery.timeRemainingSecs))
             InfoRow(L("battery_health"), Format.percent(battery.health))
         }
     }
@@ -310,9 +291,9 @@ struct SensorsTab: View {
         .task(id: pairing.id) {
             if isSample {
                 lines = [
-                    SensorLine.sample("cpu.package", "CPU package", 54, "temperature"),
-                    SensorLine.sample("gpu.core", "GPU core", 46, "temperature"),
-                    SensorLine.sample("fan.1", "Fan 1", 1240, "fanSpeed"),
+                    SensorLine.sample("cpu.package", L("sensors_sample_cpu"), 54, "temperature"),
+                    SensorLine.sample("gpu.core", L("sensors_sample_gpu"), 46, "temperature"),
+                    SensorLine.sample("fan.1", L("sensors_sample_fan"), 1240, "fanSpeed"),
                 ]
                 return
             }
@@ -372,13 +353,17 @@ struct HistoryTab: View {
                 if rows.isEmpty {
                     Text(L("history_empty")).foregroundStyle(.secondary)
                 } else {
-                    chart(L("metric_cpu"), rows.map(\.cpuPercent), Palette.cpu, Format.percent(rows.map(\.cpuPercent).max()))
-                    let mem = rows.map { $0.memoryTotal > 0 ? Double($0.memoryUsed) / Double($0.memoryTotal) * 100 : 0 }
-                    chart(L("metric_memory_short"), mem, Palette.memory, Format.percent(mem.max()))
+                    let cpu = rows.map(\.cpuPercent)
+                    chart(L("metric_cpu"), cpu.asSeries, Palette.cpu, Format.percent(cpu.max()))
+                    // A sample whose total is missing keeps a gap, not a zero.
+                    let mem: [Double?] = rows.map {
+                        $0.memoryTotal > 0 ? Double($0.memoryUsed) / Double($0.memoryTotal) * 100 : nil
+                    }
+                    chart(L("metric_memory_short"), mem, Palette.memory, Format.percent(mem.compactMap { $0 }.max()))
                     let gpu = rows.compactMap(\.gpuPercent)
-                    if !gpu.isEmpty { chart(L("metric_gpu"), gpu, Palette.gpu, Format.percent(gpu.max())) }
+                    if !gpu.isEmpty { chart(L("metric_gpu"), gpu.asSeries, Palette.gpu, Format.percent(gpu.max())) }
                     let temp = rows.compactMap(\.cpuTempC)
-                    if !temp.isEmpty { chart(L("metric_temp"), temp, Palette.thermal, Format.celsius(temp.max()), max: 110) }
+                    if !temp.isEmpty { chart(L("metric_temp"), temp.asSeries, Palette.thermal, Format.celsius(temp.max()), max: 110) }
                 }
             } else if failed {
                 Text(L("sensors_unavailable")).foregroundStyle(.secondary)
@@ -398,7 +383,7 @@ struct HistoryTab: View {
         }
     }
 
-    private func chart(_ title: String, _ values: [Double], _ colour: Color, _ peak: String, max: Double = 100) -> some View {
+    private func chart(_ title: String, _ values: [Double?], _ colour: Color, _ peak: String, max: Double = 100) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Text(title).font(.subheadline.weight(.semibold))

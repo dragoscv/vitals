@@ -126,7 +126,7 @@ private struct SleepCard: View {
     let h: PhoneHealth
     var body: some View {
         Section(L("health_sleep")) {
-            InfoRow(L("health_sleep_last"), HealthFormat.sleep(h.sleepMin))
+            InfoRow(L("health_sleep_last"), HealthFormat.sleep(h.sleepMin, units: DurationWords.units))
         }
     }
 }

@@ -22,9 +22,12 @@ targets:
   Vitals:
     type: application
     platform: iOS
-    # Explicit shared schemes for both apps: once one target has a scheme,
-    # Xcode stops auto-creating them for the others.
-    scheme: {}
+    # Explicit shared schemes for every target: once one target has a scheme,
+    # Xcode stops auto-creating them for the others. The UI smoke tests ride
+    # the app's scheme, so `xcodebuild test -scheme Vitals` runs them.
+    scheme:
+      testTargets:
+        - VitalsUITests
     sources:
       - path: Vitals
     dependencies:
@@ -34,6 +37,14 @@ targets:
       # Vitals scheme builds, signs and archives the watch app with the phone's.
       - target: VitalsWatch
         embed: true
+      # The Home/Lock Screen widget extension, embedded in the app.
+      - target: VitalsWidget
+        embed: true
+    entitlements:
+      # Shared with the widget: the one picture both draw from.
+      path: Vitals/Vitals.entitlements
+      properties:
+        com.apple.security.application-groups: [group.app.vitals.ios]
     info:
       path: Vitals/Info.plist
       properties:
@@ -87,6 +98,14 @@ targets:
       - path: Vitals/Localizable.xcstrings
     dependencies:
       - package: VitalsCore
+      # The complication / Smart-Stack widget, embedded in the watch app.
+      - target: VitalsWatchWidget
+        embed: true
+    entitlements:
+      # Shared with the watch widget: the watch writes the picture it receives.
+      path: VitalsWatch/VitalsWatch.entitlements
+      properties:
+        com.apple.security.application-groups: [group.app.vitals.ios]
     info:
       # Written by XcodeGen on every generate, like Vitals/Info.plist. A
       # single-target SwiftUI watch app is marked by WKApplication.
@@ -113,3 +132,96 @@ targets:
         LOCALIZATION_PREFERS_STRING_CATALOGS: YES
         # The catalog is generated, not extracted from this target's code.
         SWIFT_EMIT_LOC_STRINGS: NO
+
+  # The Home/Lock Screen widget. Reads the app-group snapshot the phone writes;
+  # never a token, never the network.
+  VitalsWidget:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: '18.0'
+    scheme: {}
+    sources:
+      - path: VitalsWidget
+      # The same generated catalog, so the widget's words match the app's.
+      - path: Vitals/Localizable.xcstrings
+    dependencies:
+      - package: VitalsCore
+    entitlements:
+      path: VitalsWidget/VitalsWidget.entitlements
+      properties:
+        com.apple.security.application-groups: [group.app.vitals.ios]
+    info:
+      path: VitalsWidget/Info.plist
+      properties:
+        CFBundleDisplayName: Vitals Monitor
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.vitals.ios.widget
+        PRODUCT_NAME: VitalsWidget
+        PRODUCT_MODULE_NAME: VitalsWidget
+        GENERATE_INFOPLIST_FILE: YES
+        TARGETED_DEVICE_FAMILY: '1'
+        # Embedded in the app only, never a second top-level product.
+        SKIP_INSTALL: YES
+        LOCALIZATION_PREFERS_STRING_CATALOGS: YES
+        SWIFT_EMIT_LOC_STRINGS: NO
+        INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
+
+  # The watch complication / Smart-Stack widget. Reads the app-group snapshot
+  # the watch app writes from what the phone sent.
+  VitalsWatchWidget:
+    type: app-extension
+    platform: watchOS
+    deploymentTarget: '11.0'
+    scheme: {}
+    sources:
+      - path: VitalsWatchWidget
+      - path: Vitals/Localizable.xcstrings
+    dependencies:
+      - package: VitalsCore
+    entitlements:
+      path: VitalsWatchWidget/VitalsWatchWidget.entitlements
+      properties:
+        com.apple.security.application-groups: [group.app.vitals.ios]
+    info:
+      path: VitalsWatchWidget/Info.plist
+      properties:
+        CFBundleDisplayName: Vitals Monitor
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.vitals.ios.watchkitapp.widget
+        PRODUCT_NAME: VitalsWatchWidget
+        PRODUCT_MODULE_NAME: VitalsWatchWidget
+        GENERATE_INFOPLIST_FILE: YES
+        TARGETED_DEVICE_FAMILY: '4'
+        SKIP_INSTALL: YES
+        LOCALIZATION_PREFERS_STRING_CATALOGS: YES
+        SWIFT_EMIT_LOC_STRINGS: NO
+        INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
+
+  # Smoke tests for every tab the app has without a paired PC. Driven through
+  # the app's own launch arguments (the ones screenshots.sh uses), so they need
+  # no interaction with a moving target. Run: scripts/build.sh uitest.
+  VitalsUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    deploymentTarget: '18.0'
+    scheme: {}
+    sources:
+      - path: VitalsUITests
+    dependencies:
+      - target: Vitals
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.vitals.ios.uitests
+        PRODUCT_NAME: VitalsUITests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: Vitals
+        TARGETED_DEVICE_FAMILY: '1'
+        SWIFT_EMIT_LOC_STRINGS: NO
+        # The tests assert on the catalog's English, so they pin the language.
+        # No INFOPLIST_KEY_CFBundleDisplayName: the runner app is never seen.

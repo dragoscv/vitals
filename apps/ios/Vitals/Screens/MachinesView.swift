@@ -6,6 +6,9 @@ struct MachinesView: View {
     @Environment(LiveHub.self) private var hub
     @Environment(SampleMode.self) private var sample
     @State private var adding = false
+    /// Read on the main actor while the view renders, so the one-shot flag the
+    /// app delegate sets is observed like any other model value.
+    private var quickActions: QuickActionBridge { QuickActionBridge.shared }
 
     private var showSample: Bool { sample.enabled || store.pairings.isEmpty }
 
@@ -42,13 +45,15 @@ struct MachinesView: View {
             for p in store.pairings { hub.stream(for: p.id).retry(p) }
         }
         .sheet(isPresented: $adding) { AddPcView() }
-        .onOpenURL { _ in adding = true }
-        .onReceive(NotificationCenter.default.publisher(for: .vitalsScan)) { _ in adding = true }
+        // The "Scan code" Home Screen quick action, through the app delegate.
+        // Read here as well as set there so a cold launch from the quick action
+        // still opens the sheet once this view exists.
+        .onChange(of: quickActions.pendingScan, initial: true) { _, pending in
+            guard pending else { return }
+            quickActions.pendingScan = false
+            adding = true
+        }
     }
-}
-
-extension Notification.Name {
-    static let vitalsScan = Notification.Name("app.vitals.ios.scan")
 }
 
 struct MachineCard: View {
@@ -101,7 +106,7 @@ struct SampleCard: View {
 struct LiveBody: View {
     let system: SystemMetrics
     let cpu: [Double]
-    let mem: [Double]
+    let mem: [Double?]
 
     var body: some View {
         let gpu = Readings.primaryGpu(system)
@@ -118,7 +123,7 @@ struct LiveBody: View {
                 Ring(label: L("metric_temp"), value: temp, text: Format.celsius(temp), colour: Palette.thermal, scale: 110)
             }
             HStack(spacing: 12) {
-                Sparkline(values: cpu, colour: Palette.cpu).frame(height: 24)
+                Sparkline(values: cpu.asSeries, colour: Palette.cpu).frame(height: 24)
                 Sparkline(values: mem, colour: Palette.memory).frame(height: 24)
             }
         }
