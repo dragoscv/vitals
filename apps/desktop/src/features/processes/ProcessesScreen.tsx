@@ -43,6 +43,7 @@ import { ProcessToolbar } from './ProcessToolbar';
 import { RiskDialog, type RiskAction, type RiskRequest } from './RiskDialog';
 import { PROCESSES_NS } from './strings';
 import { useHostFacts, type HostFactsReader } from './useHostFacts';
+import { runsOn } from '../../shell/platform';
 import {
   createTauriSnapshotSource,
   NO_SAMPLER,
@@ -642,6 +643,9 @@ export function ProcessesScreen({
           `${row.process.name}\tPID ${row.process.key.pid}\t${row.process.user ?? '—'}`,
         );
       },
+      // `bring_process_to_front` is compiled only on Windows (see
+      // `runsOn`); on a Mac the item would fail every time.
+      canBringToFront: runsOn(facts.capabilities?.platform ?? null, 'windows'),
       onBringToFront: () => {
         const name = displayName(row.process);
         void actions
@@ -654,7 +658,7 @@ export function ProcessesScreen({
           );
       },
     }),
-    [actions, beginAction, pathOf, t, tp],
+    [actions, beginAction, facts.capabilities, pathOf, t, tp],
   );
 
   const total = snapshot.processes.size;
@@ -839,6 +843,7 @@ export function ProcessesScreen({
             locale={locale}
             actions={actions}
             host={facts.host}
+            canSetAffinity={runsOn(facts.capabilities?.platform ?? null, 'windows')}
             executablePath={focusedRow === null ? null : pathOf(focusedRow.id)}
             onFailure={setFailure}
           />

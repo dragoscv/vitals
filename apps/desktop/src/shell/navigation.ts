@@ -53,6 +53,8 @@ import {
 } from 'lucide-react';
 import { create } from 'zustand';
 
+import type { Platform } from '@vitals/protocol';
+
 /**
  * Every destination in the application.
  *
@@ -142,36 +144,104 @@ export const navItems: readonly NavItem[] = [
 interface NavVisibility {
   /** A vmui connection is stored (health_status `configured`). */
   readonly health: boolean | null;
+  /**
+   * What this build runs on, from `get_capabilities`.
+   *
+   * `null` until the report arrives, and deliberately treated as "show
+   * everything" rather than as hidden: the report answers in milliseconds,
+   * and hiding eleven destinations on a Windows launch would flash the
+   * sidebar back to full a moment later. Nothing can be clicked in that
+   * window anyway.
+   */
+  readonly platform: Platform | null;
   readonly setHealth: (configured: boolean) => void;
+  readonly setPlatform: (platform: Platform | null) => void;
 }
 
 export const useNavVisibility = create<NavVisibility>((set) => ({
   health: null,
+  platform: null,
   setHealth: (configured) => {
     set({ health: configured });
   },
+  setPlatform: (platform) => {
+    set({ platform });
+  },
 }));
+
+/**
+ * The visibility facts, every one optional.
+ *
+ * A caller that knows one fact passes one — the Sidebar's tests pass only
+ * `health` — and a missing fact means "not known yet", which is also what the
+ * store's `null` means. Kept as a Partial rather than a second interface so
+ * the store's own state satisfies it unchanged.
+ */
+export type VisibilityState = Partial<Pick<NavVisibility, 'health' | 'platform'>>;
+
+/**
+ * Destinations whose backend commands are compiled only on Windows
+ * (`apps/desktop/src-tauri/src/lib.rs`: `#[cfg(windows)]` on the
+ * `inventory::*` and `commands::*` entries that serve them). Asking the
+ * platform is cheaper and more truthful than calling each command and
+ * catching `Unsupported`, and it is what `Capabilities.platform` exists for —
+ * its own comment says the question is "can this build show a Windows-only
+ * page?".
+ *
+ * A route that is merely *partly* Windows-specific stays here: the Processes
+ * screen, for instance, works on macOS with its Windows-only controls absent,
+ * because those controls are gated per command instead.
+ */
+export const windowsOnlyRoutes: readonly RouteId[] = [
+  'network',
+  'startup',
+  'services',
+  'installedApps',
+  'storage',
+  'devices',
+];
+
+/** Whether this build can show the destination at all. */
+export function routeSupported(id: RouteId, platform: Platform | null | undefined): boolean {
+  // Falsy covers both "the report has not answered yet" and a caller that
+  // passed only `{ health }`; either way nothing is hidden.
+  if (!platform) return true;
+  return platform === 'windows' || !windowsOnlyRoutes.includes(id);
+}
 
 /** Whether a route is shown, given the visibility state. */
 export function isRouteVisible(
   id: RouteId,
-  state: Pick<NavVisibility, 'health'> = useNavVisibility.getState(),
+  state: VisibilityState = useNavVisibility.getState(),
 ): boolean {
-  return id === 'health' ? state.health === true : true;
+  if (id === 'health') return state.health === true;
+  return routeSupported(id, state.platform);
 }
 
 /** The nav items currently shown, in sidebar order. */
 export function visibleNavItems(
-  state: Pick<NavVisibility, 'health'> = useNavVisibility.getState(),
+  state: VisibilityState = useNavVisibility.getState(),
 ): readonly NavItem[] {
   return navItems.filter((item) => isRouteVisible(item.id, state));
 }
 
 const withoutHealth: readonly NavItem[] = navItems.filter((item) => item.id !== 'health');
+const withoutWindowsOnly: readonly NavItem[] = navItems.filter(
+  (item) => !windowsOnlyRoutes.includes(item.id),
+);
+const withoutWindowsOnlyOrHealth: readonly NavItem[] = withoutWindowsOnly.filter(
+  (item) => item.id !== 'health',
+);
 
 /** React binding for `visibleNavItems`; re-renders when visibility changes. */
 export function useVisibleNavItems(): readonly NavItem[] {
   const health = useNavVisibility((state) => state.health);
+  const platform = useNavVisibility((state) => state.platform);
+  // Health is orthogonal to the platform: a Mac can pair a vmui server, so
+  // the two rules compose rather than replace each other.
+  if (platform !== null && platform !== 'windows') {
+    return health === true ? withoutWindowsOnly : withoutWindowsOnlyOrHealth;
+  }
   return health === true ? navItems : withoutHealth;
 }
 

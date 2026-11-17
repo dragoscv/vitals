@@ -525,8 +525,11 @@ const Result = forwardRef<
   // the grouping that makes a nine-digit ops/s figure legible.
   const value = (n: number): string => `${formatCount(n, locale)} ${result.unit}`;
   // Already a percentage from the backend, so it is passed straight through.
-  // Scaling it here would be the classic double conversion.
-  const percent = (value: number): string => formatPercent(value, locale);
+  // Scaling it here would be the classic double conversion. A missing value is
+  // passed on as-is: `formatPercent` renders the em dash for it, and a
+  // fabricated `0%` would read as a perfect result on a run that never
+  // measured variability.
+  const percent = (value: number | null): string => formatPercent(value, locale);
 
   return (
     <Card ref={ref} regionLabel={t(`name.${result.id}`)} {...rest}>
@@ -574,7 +577,7 @@ const Result = forwardRef<
                   {t(`trust.reason.${reason}`, {
                     percent:
                       reason === 'variability'
-                        ? percent(result.variability ?? 0)
+                        ? percent(result.variability)
                         : percent(result.conditions.backgroundLoad),
                   })}
                 </li>

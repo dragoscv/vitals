@@ -70,6 +70,12 @@ export interface ProcessMenuProps {
   readonly onShowProperties: () => void;
   readonly onSearchOnline: () => void;
   readonly onCopyDetails: () => void;
+  /**
+   * Whether this build can raise a window at all. `bring_process_to_front`
+   * is compiled only on Windows (see `runsOn` in `shell/platform.ts`), so on
+   * macOS the item would fail every time it is used.
+   */
+  readonly canBringToFront: boolean;
   /** Raises the process's window; offered only when it has one. */
   readonly onBringToFront: () => void;
 }
@@ -102,7 +108,7 @@ export function ProcessMenu(props: ProcessMenuProps): React.JSX.Element {
           in a process list is "where is its window". Only for processes that
           own one: a service has nothing to show, and a disabled item for
           six hundred rows is noise. */}
-      {hasWindow && (
+      {hasWindow && props.canBringToFront && (
         <>
           <ContextMenuItem onSelect={props.onBringToFront}>{tp('front.action')}</ContextMenuItem>
           <ContextMenuSeparator />

@@ -28,6 +28,8 @@ import { useHostInfo } from './useHostInfo';
 import { useHistoryUsage } from './useHistoryUsage';
 import { useTaskManagerReplacement } from './useTaskManagerReplacement';
 import { useIsStoreBuild, useStore } from './useDistribution';
+import { useNavVisibility } from '../shell/navigation';
+import { runsOn } from '../shell/platform';
 import { UpdateSection } from './UpdatePanel';
 
 /** The public documents. One place, so the app and the site cannot disagree. */
@@ -56,6 +58,10 @@ export function GeneralPanel() {
   const patch = useSettings((state) => state.patch);
   const taskManager = useTaskManagerReplacement();
   const storeBuild = useIsStoreBuild();
+  // The platform comes from the visibility store the shell already fills from
+  // `get_capabilities`, so the panel does not ask again.
+  const platform = useNavVisibility((state) => state.platform);
+  const windows = runsOn(platform, 'windows');
 
   // Three reasons the switch cannot move, each shown rather than implied:
   // the registry has not answered yet, a write is in flight, or another
@@ -71,19 +77,25 @@ export function GeneralPanel() {
 
   return (
     <SettingsSection title={t('settings.general.title')}>
-      <SettingsRow
-        label={t('settings.general.startWithWindows')}
-        description={t('settings.general.startWithWindowsHint')}
-      >
-        {({ labelId, describedBy }) => (
-          <Switch
-            aria-labelledby={labelId}
-            aria-describedby={describedBy}
-            checked={settings.startWithWindows}
-            onCheckedChange={(value) => patch({ startWithWindows: value })}
-          />
-        )}
-      </SettingsRow>
+      {/* Windows only, and the label says so. The autostart command answers
+          `Unsupported` elsewhere, so the switch would move and do nothing;
+          the macOS path (SMAppService, S24-10) brings its own wording
+          ("Open at login") with it rather than a Windows word on a Mac. */}
+      {windows && (
+        <SettingsRow
+          label={t('settings.general.startWithWindows')}
+          description={t('settings.general.startWithWindowsHint')}
+        >
+          {({ labelId, describedBy }) => (
+            <Switch
+              aria-labelledby={labelId}
+              aria-describedby={describedBy}
+              checked={settings.startWithWindows}
+              onCheckedChange={(value) => patch({ startWithWindows: value })}
+            />
+          )}
+        </SettingsRow>
+      )}
 
       <SettingsRow label={t('settings.general.startMinimised')}>
         {({ labelId }) => (
@@ -155,8 +167,9 @@ export function GeneralPanel() {
         )}
       </SettingsRow>
 
-      {/* The Store package cannot write HKLM, so the hook would do nothing there. */}
-      {!storeBuild && (
+      {/* Two reasons a hook here would do nothing: the Store package cannot
+          write HKLM, and IFEO exists only on Windows. */}
+      {!storeBuild && windows && (
         <SettingsRow
           label={t('settings.general.replaceTaskManager')}
           description={taskManager.error ?? taskManagerHint}
@@ -174,27 +187,29 @@ export function GeneralPanel() {
         </SettingsRow>
       )}
 
-      <SettingsRow
-        label={t('settings.general.openTaskManager')}
-        description={t(
-          storeBuild
-            ? 'settings.general.openTaskManagerHintStore'
-            : 'settings.general.openTaskManagerHint',
-        )}
-      >
-        {({ labelId }) => (
-          <Button
-            aria-labelledby={labelId}
-            variant="secondary"
-            disabled={!hasTauriHost()}
-            onClick={() => {
-              void reportFailure(openWindowsTaskManager(), t('settings.general.openTaskManager'));
-            }}
-          >
-            {t('settings.general.openTaskManager')}
-          </Button>
-        )}
-      </SettingsRow>
+      {windows && (
+        <SettingsRow
+          label={t('settings.general.openTaskManager')}
+          description={t(
+            storeBuild
+              ? 'settings.general.openTaskManagerHintStore'
+              : 'settings.general.openTaskManagerHint',
+          )}
+        >
+          {({ labelId }) => (
+            <Button
+              aria-labelledby={labelId}
+              variant="secondary"
+              disabled={!hasTauriHost()}
+              onClick={() => {
+                void reportFailure(openWindowsTaskManager(), t('settings.general.openTaskManager'));
+              }}
+            >
+              {t('settings.general.openTaskManager')}
+            </Button>
+          )}
+        </SettingsRow>
+      )}
 
       <SettingsRow label={t('settings.general.quit')} description={t('settings.general.quitHint')}>
         {({ labelId }) => (

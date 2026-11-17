@@ -217,7 +217,11 @@ function Report({
       {unchanged && <p className="text-2xs">{t('windows.unchanged')}</p>}
       {report.outcome === 'needsRestart' && <p className="text-2xs">{t('windows.needsRestart')}</p>}
       {report.outcome === 'toolFailed' && (
-        <p className="text-2xs">{t('windows.toolFailed', { code: hex(report.code ?? 0) })}</p>
+        <p className="text-2xs">
+          {t('windows.toolFailed', {
+            code: report.code === null ? '—' : hex(report.code),
+          })}
+        </p>
       )}
       <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-2xs text-[var(--color-fg-muted)]">
         {report.locationBefore !== null && report.locationAfter !== null && (

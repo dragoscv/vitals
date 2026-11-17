@@ -89,7 +89,7 @@ function host(overrides: Partial<HostInfo> = {}): HostInfo {
 
 function mount(
   actions: ProcessActionsApi = stubActions(),
-  options: { host?: HostInfo | null; path?: string | null } = {},
+  options: { host?: HostInfo | null; path?: string | null; canSetAffinity?: boolean } = {},
 ) {
   const onFailure = vi.fn();
   render(
@@ -98,6 +98,9 @@ function mount(
       locale="en"
       actions={actions}
       host={options.host ?? null}
+      // Windows, the platform these tests were written against; the macOS
+      // case passes false explicitly.
+      canSetAffinity={options.canSetAffinity ?? true}
       executablePath={options.path ?? null}
       onFailure={onFailure}
     />,
@@ -248,6 +251,18 @@ describe('affinity presets', () => {
     mount(stubActions(), { host: null });
     await flush();
     expect(screen.queryByTestId('affinity-presets')).toBeNull();
+  });
+
+  it('offers nothing where the backend has no affinity command, even with a full topology', async () => {
+    // macOS: `set_process_affinity` is #[cfg(windows)], so the section would
+    // be a row of buttons that fail on every press.
+    mount(stubActions(), {
+      host: host({ coreTopology: null, logicalCores: 8 }),
+      canSetAffinity: false,
+    });
+    await flush();
+    expect(screen.queryByTestId('affinity-presets')).toBeNull();
+    expect(screen.queryByText('Run on')).toBeNull();
   });
 
   it('offers the topology-free presets on a uniform machine', async () => {

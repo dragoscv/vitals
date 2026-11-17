@@ -9,9 +9,16 @@ import { RouteView } from '../routes';
 import { useSettings } from '../settings/store';
 import { Content } from './Content';
 import { ErrorBoundary } from './ErrorBoundary';
-import { defaultRoute, navItems, OPEN_SETTINGS_EVENT, useNavVisibility } from './navigation';
+import {
+  defaultRoute,
+  isRouteVisible,
+  navItems,
+  OPEN_SETTINGS_EVENT,
+  useNavVisibility,
+} from './navigation';
 import type { RouteId } from './navigation';
 import { useHealthVisibility } from '../features/health/visibility';
+import { usePlatformVisibility } from './platform';
 import { RouteError } from './RouteError';
 import { Sidebar } from './Sidebar';
 import type { ShortcutActions } from './shortcuts';
@@ -82,19 +89,28 @@ export function AppShell({ version }: AppShellProps) {
   const commitRoute = useSettings((state) => state.navigate);
   const reduced = useReducedMotion();
   useHealthVisibility();
+  usePlatformVisibility();
   const healthVisible = useNavVisibility((state) => state.health);
-  // A restored or current route that is hidden — Health with no vmui
-  // connection — shows the dashboard instead of a page the sidebar cannot
-  // reach. While visibility is still unknown the dashboard shows too, so a
-  // launch never paints a page and then yanks it away.
-  const route: RouteId =
-    savedRoute === 'health' && healthVisible !== true ? defaultRoute : savedRoute;
+  const platform = useNavVisibility((state) => state.platform);
+  // A restored or current route this build cannot show — Health with no vmui
+  // connection, a Windows-only page on a Mac — falls back to the dashboard
+  // instead of rendering a screen whose commands do not exist.
+  //
+  // The two unknowns are treated differently on purpose. Health with no answer
+  // yet is hidden, because a launch must never paint a page and then yank it
+  // away. The platform with no answer yet is treated as "everything works",
+  // because the report lands in the same breath as the first paint and hiding
+  // six working destinations — on Windows, where nearly every launch happens —
+  // is the worse of the two errors.
+  const visibleState = { health: healthVisible, platform };
+  const restoreable = isRouteVisible(savedRoute, visibleState);
+  const route: RouteId = restoreable ? savedRoute : defaultRoute;
 
-  // Once it is KNOWN to be hidden (disconnected), the saved route moves too,
-  // so the next launch does not restore it.
+  // Once it is KNOWN to be hidden, the saved route moves too, so the next
+  // launch does not restore it.
   useEffect(() => {
-    if (savedRoute === 'health' && healthVisible === false) commitRoute(defaultRoute);
-  }, [savedRoute, healthVisible, commitRoute]);
+    if (!restoreable) commitRoute(defaultRoute);
+  }, [restoreable, commitRoute]);
 
   /**
    * Navigation as a View Transition.

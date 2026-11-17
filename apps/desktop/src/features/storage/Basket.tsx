@@ -299,7 +299,7 @@ function ReportRow({ item, locale }: { readonly item: RecycleItem; readonly loca
       )}
       {item.outcome !== 'refused' && item.outcome !== 'recycled' && item.outcome !== 'locked' && (
         <p className="mt-1 text-2xs text-[var(--color-fg-muted)]">
-          {t(`outcomeWhy.${item.outcome}`, { code: item.code ?? 0 })}
+          {t(`outcomeWhy.${item.outcome}`, { code: item.code === null ? '—' : item.code })}
         </p>
       )}
       {item.outcome === 'locked' && <HolderList holders={item.holders} />}

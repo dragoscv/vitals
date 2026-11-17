@@ -813,6 +813,39 @@ describe('shell actions', () => {
     fireEvent.click(screen.getByRole('menuitem', { name: 'Bring to front' }));
     expect(await screen.findByText(/has no window to show/)).toBeTruthy();
   });
+
+  it('offers no Bring to front where the command does not exist', async () => {
+    // macOS: `bring_process_to_front` is compiled only on Windows, so an item
+    // that offered to raise a window would fail on every press.
+    const source = createManualSnapshotSource({
+      ...INITIAL_SNAPSHOT,
+      pending: false,
+      processes: makeMap([
+        makeProcess({ pid: 300, name: 'chrome.exe', kind: 'app', flags: 1 << 6 }),
+      ]),
+    });
+    render(
+      <ProcessesScreen
+        source={source}
+        actions={stubActions()}
+        storage={memoryStorage()}
+        hostFacts={async () => ({
+          host: null,
+          capabilities: {
+            platform: 'macos',
+            available: [],
+            unavailable: [],
+            diskCounterSource: null,
+          },
+        })}
+      />,
+    );
+
+    await openMenuFor(300);
+    // The menu itself is open — this is not a test of an empty page.
+    expect(screen.getByRole('menuitem', { name: 'End task' })).toBeTruthy();
+    expect(screen.queryByRole('menuitem', { name: 'Bring to front' })).toBeNull();
+  });
 });
 
 describe('columns', () => {

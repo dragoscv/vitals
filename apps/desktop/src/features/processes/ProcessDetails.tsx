@@ -57,6 +57,13 @@ export interface ProcessDetailsProps {
    * omitted rather than guessed.
    */
   readonly host: HostInfo | null;
+  /**
+   * Whether this build has an affinity command at all. Windows-only on the
+   * backend, so on a Mac the section is omitted rather than offered and then
+   * refused — the row's "controls that follow what the PC reports it
+   * supports", applied to the platform instead of to the process.
+   */
+  readonly canSetAffinity: boolean;
   /** Full executable path, when the detail fetch has provided one. */
   readonly executablePath: string | null;
   readonly onFailure: (message: string) => void;
@@ -67,6 +74,7 @@ export function ProcessDetails({
   locale,
   actions,
   host,
+  canSetAffinity,
   executablePath,
   onFailure,
 }: ProcessDetailsProps): React.JSX.Element | null {
@@ -142,7 +150,13 @@ export function ProcessDetails({
 
       <EfficiencySection process={p} actions={actions} onFailure={onFailure} />
 
-      <AffinitySection process={p} actions={actions} host={host} onFailure={onFailure} />
+      <AffinitySection
+        process={p}
+        actions={actions}
+        host={host}
+        canSetAffinity={canSetAffinity}
+        onFailure={onFailure}
+      />
 
       <FileSection path={executablePath} actions={actions} onFailure={onFailure} />
 
@@ -301,14 +315,22 @@ function AffinitySection({
   process,
   actions,
   host,
+  canSetAffinity,
   onFailure,
 }: {
   readonly process: Process;
   readonly actions: ProcessActionsApi;
   readonly host: HostInfo | null;
+  /** False where `set_process_affinity` is not compiled in — it is Windows-only. */
+  readonly canSetAffinity: boolean;
   readonly onFailure: (message: string) => void;
 }): React.JSX.Element | null {
   const { t } = useTranslation(PROCESSES_NS);
+  // Two reasons to render nothing, and they are different facts: the machine
+  // cannot express presets (no core topology), or this build has no affinity
+  // command at all. In the second case the section would be a row of buttons
+  // that fail on every press.
+  if (!canSetAffinity) return null;
   const presets = affinityPresets(host);
   if (presets.length === 0) return null;
 
