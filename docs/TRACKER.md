@@ -3458,6 +3458,46 @@ code (service start type, handles/modules read-only, end process tree).
 
 ### Verification log
 
+### 2026-11-17 — S24-12: the PC, the router or the internet
+
+**What it does.** Vitals now answers the question a person actually asks when
+the network misbehaves, and it answers it in one of three actionable ways
+rather than with a list of latencies:
+
+| Commit    | What it is                                                                                                                                                                                                                                                                                                  |
+| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `78f2add` | The model and the verdict in `vitals-core`, with the measurements taken by `vitals-win`. Four ICMP echoes to the default gateway (`GetIpForwardTable2`) and to two public resolvers, a TCP connect on 443 for networks that drop echo requests, and a timed name lookup. A desktop card runs it on request. |
+| `e5650da` | The tray icon can carry a reading: nothing (the default), CPU, CPU temperature, memory or network. Off costs nothing — no value is computed and no bitmap rendered.                                                                                                                                         |
+| `7b42742` | `GET /api/v1/connectivity`, read scope, so a phone can ask the PC and see the same answer. OpenAPI path and schemas.                                                                                                                                                                                        |
+| `11c658b` | The card on Android and iPhone, on a button, never on a timer.                                                                                                                                                                                                                                              |
+
+**Three things the tests caught that a review would not have.**
+
+1. **"0 %" looked exactly like "off".** A fill-only icon renders a genuine
+   zero percent and the plain mark to the same bytes, so the two states were
+   indistinguishable on the taskbar. The icon now always draws one row when a
+   reading is being shown, and a test asserts the two differ.
+2. **The gateway must be ICMP, not TCP.** A home router rarely has anything
+   listening on 443, so a TCP probe there would have reported a perfectly good
+   link as dead. Only the internet targets fall back to TCP.
+3. **A lost probe must never read as 0 ms.** `rtt_ms` stays `None` when
+   nothing came back, and both the desktop and both phone cards render an em
+   dash rather than a number nobody measured.
+
+**Verified.** `cargo test -p vitals-mqtt` and the new core tests green;
+`cargo clippy` clean with `-D warnings` on `vitals-core`, `vitals-win`,
+`vitals-server`, `vitals-cli` and the desktop; 1372 desktop frontend tests;
+`check-drift` **0 failures, 0 warnings**; the Android gate (`:core:test`,
+`:app:lintPlayDebug`, `:app:assembleGithubDebug`, `:wear:assembleDebug`,
+`:tv:assembleDebug`) `BUILD SUCCESSFUL`; the bundle budget within limits at
+99.8 %. **CI run on `11c658b` passed every job**, including "Android (apps)"
+and "Apple (macOS + iOS)".
+
+**Not claimed.** The probe has never run on a machine whose network is
+actually broken — the verdict logic is proven by unit test against injected
+measurements, and the three real-network cases (Wi-Fi off, router off,
+internet down) are part of the vivobook pass in S24-16.
+
 ### 2026-11-17 — the S24 wave: motion, platform gates, Android, Tizen, Apple, MQTT, release plumbing
 
 **What landed on main.** Ten commits, each verified before it was pushed:
