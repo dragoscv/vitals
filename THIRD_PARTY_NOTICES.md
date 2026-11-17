@@ -26,7 +26,7 @@ The signed `IntelMSR`, `AMDFamily17` and `LpcIO` module binaries are embedded
 unmodified. Their complete source is at the link above; the licence text is
 below and is also installed as `sensors\PawnIO-Modules-COPYING.txt`.
 
-## Rust crates (387)
+## Rust crates (393)
 
 | Component | Version | Licence |
 | --- | --- | --- |
@@ -117,7 +117,9 @@ below and is also installed as `sensors\PawnIO-Modules-COPYING.txt`.
 | [fallible-streaming-iterator](https://github.com/sfackler/fallible-streaming-iterator) | 0.1.9 | MIT OR Apache-2.0 |
 | [fastrand](https://github.com/smol-rs/fastrand) | 2.5.0 | Apache-2.0 OR MIT |
 | [fdeflate](https://github.com/image-rs/fdeflate) | 0.3.7 | MIT OR Apache-2.0 |
+| [fixedbitset](https://github.com/petgraph/fixedbitset) | 0.5.9 | MIT OR Apache-2.0 |
 | [flate2](https://github.com/rust-lang/flate2-rs) | 1.1.10 | MIT OR Apache-2.0 |
+| [flume](https://github.com/zesterer/flume) | 0.11.1 | Apache-2.0 OR MIT |
 | [flume](https://github.com/zesterer/flume) | 0.12.0 | Apache-2.0 OR MIT |
 | [fnv](https://github.com/servo/rust-fnv) | 1.0.7 | Apache-2.0  OR  MIT |
 | [foldhash](https://github.com/orlp/foldhash) | 0.2.0 | Zlib |
@@ -198,6 +200,7 @@ below and is also installed as `sensors\PawnIO-Modules-COPYING.txt`.
 | [mio](https://github.com/tokio-rs/mio) | 1.2.3 | MIT |
 | [moxcms](https://github.com/awxkee/moxcms.git) | 0.8.1 | BSD-3-Clause OR Apache-2.0 |
 | [muda](https://github.com/tauri-apps/muda) | 0.20.0 | Apache-2.0 OR MIT |
+| [native-tls](https://github.com/rust-native-tls/rust-native-tls) | 0.2.18 | MIT OR Apache-2.0 |
 | [new_debug_unreachable](https://github.com/mbrubeck/rust-debug-unreachable) | 1.0.6 | MIT |
 | [notify-rust](https://github.com/hoodie/notify-rust) | 4.18.0 | MIT OR Apache-2.0 |
 | [nu-ansi-term](https://github.com/nushell/nu-ansi-term) | 0.50.3 | MIT |
@@ -241,6 +244,7 @@ below and is also installed as `sensors\PawnIO-Modules-COPYING.txt`.
 | [reqwest](https://github.com/seanmonstar/reqwest) | 0.13.5 | MIT OR Apache-2.0 |
 | [rfd](https://github.com/PolyMeilex/rfd) | 0.16.0 | MIT |
 | [ring](https://github.com/briansmith/ring) | 0.17.14 | Apache-2.0 AND ISC |
+| [rumqttc](https://github.com/bytebeamio/rumqtt) | 0.25.1 | Apache-2.0 |
 | [rusqlite](https://github.com/rusqlite/rusqlite) | 0.43.0 | MIT |
 | [rustc-hash](https://github.com/rust-lang/rustc-hash) | 2.1.3 | Apache-2.0 OR MIT |
 | [rustls](https://github.com/rustls/rustls) | 0.23.46 | Apache-2.0 OR ISC OR MIT |
@@ -249,6 +253,7 @@ below and is also installed as `sensors\PawnIO-Modules-COPYING.txt`.
 | [rustls-webpki](https://github.com/rustls/webpki) | 0.103.16 | ISC |
 | [ryu](https://github.com/dtolnay/ryu) | 1.0.23 | Apache-2.0 OR BSL-1.0 |
 | [same-file](https://github.com/BurntSushi/same-file) | 1.0.6 | Unlicense OR MIT |
+| [schannel](https://github.com/steffengy/schannel-rs) | 0.1.29 | MIT |
 | [schemars](https://github.com/GREsau/schemars) | 0.8.22 | MIT |
 | [schemars](https://github.com/GREsau/schemars) | 0.9.0 | MIT |
 | [schemars](https://github.com/GREsau/schemars) | 1.2.2 | MIT |
@@ -327,6 +332,7 @@ below and is also installed as `sensors\PawnIO-Modules-COPYING.txt`.
 | [tinyvec_macros](https://github.com/Soveu/tinyvec_macros) | 0.1.1 | MIT OR Apache-2.0 OR Zlib |
 | [tokio](https://github.com/tokio-rs/tokio) | 1.54.1 | MIT |
 | [tokio-macros](https://github.com/tokio-rs/tokio) | 2.7.2 | MIT |
+| [tokio-native-tls](https://github.com/tokio-rs/tls) | 0.3.1 | MIT |
 | [tokio-rustls](https://github.com/rustls/tokio-rustls) | 0.26.5 | MIT OR Apache-2.0 |
 | [tokio-stream](https://github.com/tokio-rs/tokio) | 0.1.19 | MIT |
 | [tokio-tungstenite](https://github.com/snapview/tokio-tungstenite) | 0.29.0 | MIT |

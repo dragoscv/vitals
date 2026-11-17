@@ -215,13 +215,19 @@ func frame(_ json: String) throws -> Frame {
 @Suite struct ReconnectCounterTests {
     @Test func aPcReadsAsUnreachableOnlyAfterThreeFailedConnections() {
         var c = ReconnectCounter()
-        #expect(!c.failed())
-        #expect(!c.failed())
+        // `failed()` mutates, and the `#expect` macro binds its argument
+        // immutably, so the call is hoisted out and only the result asserted.
+        let first = c.failed()
+        let second = c.failed()
+        #expect(!first)
+        #expect(!second)
         #expect(!c.isUnreachable)
-        #expect(c.failed())
+        let third = c.failed()
+        #expect(third, "the third failure is the one that marks the PC unreachable")
         #expect(c.isUnreachable)
         // More failures keep it unreachable rather than flipping back.
-        #expect(c.failed())
+        let fourth = c.failed()
+        #expect(fourth)
     }
 
     @Test func anyFrameClearsTheCountSoOneOldBlipDoesNotMarkAWorkingPcOffline() {
@@ -230,7 +236,8 @@ func frame(_ json: String) throws -> Frame {
         _ = c.failed()
         c.recovered()
         #expect(c.failures == 0)
-        #expect(!c.failed())
+        let afterRecovery = c.failed()
+        #expect(!afterRecovery)
         #expect(!c.isUnreachable)
     }
 }
