@@ -5,4 +5,4 @@
  * name is part of the wire contract and the key into both locales
  * (`dashboard.alert.<kind>.title`).
  */
-export type AlertKind = "cpuSustained" | "cpuThrottled" | "memoryPressure" | "memoryCommit" | "diskSaturated" | "diskLatency" | "diskSpace" | "diskHealth" | "gpuThrottled" | "thermalCpu" | "networkErrors" | "batteryLow" | "batteryHealth";
+export type AlertKind = "cpuSustained" | "cpuThrottled" | "memoryPressure" | "memoryCommit" | "diskSaturated" | "diskLatency" | "diskSpace" | "diskHealth" | "gpuThrottled" | "thermalCpu" | "networkErrors" | "batteryLow" | "batteryHealth" | "custom";

@@ -396,6 +396,8 @@ public struct Health: Decodable, Sendable {
 public enum AlertKind: String, TolerantEnum {
     case cpuSustained, cpuThrottled, memoryPressure, memoryCommit, diskSaturated, diskLatency
     case diskSpace, diskHealth, gpuThrottled, thermalCpu, networkErrors, batteryLow, batteryHealth
+    /// A rule the user wrote on the PC; the name travels as the subject.
+    case custom
     case unknown
     public static let unknownCase = Self.unknown
 }

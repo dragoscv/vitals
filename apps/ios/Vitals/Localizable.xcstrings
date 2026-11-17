@@ -796,6 +796,23 @@
         }
       }
     },
+    "alert_custom": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your rule on the PC"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Regula ta de pe PC"
+          }
+        }
+      }
+    },
     "alert_disk_health": {
       "extractionState": "manual",
       "localizations": {

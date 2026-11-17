@@ -190,6 +190,13 @@ const en = {
       cause:
         'It holds {{percent, percent}} of its original capacity. This is normal with age, but runtime will keep shrinking.',
     },
+    custom: {
+      // The user named the rule, so the name *is* the headline; the sentence
+      // under it says which way the reading went and how long it held.
+      title: '{{name}}',
+      above: 'Above {{threshold}} for {{seconds}} seconds — {{value}} now.',
+      below: 'Below {{threshold}} for {{seconds}} seconds — {{value}} now.',
+    },
   },
 
   diagnosis: {
@@ -455,6 +462,13 @@ const ro = {
       title: 'Bateria s-a uzat',
       cause:
         'Mai păstrează {{percent, percent}} din capacitatea inițială. Este normal odată cu vârsta, dar autonomia va scădea în continuare.',
+    },
+    custom: {
+      // Utilizatorul și-a numit regula, deci numele este titlul; propoziția de
+      // sub el spune în ce parte a pragului a ieșit citirea și cât a ținut.
+      title: '{{name}}',
+      above: 'Peste {{threshold}} timp de {{seconds}} secunde — acum {{value}}.',
+      below: 'Sub {{threshold}} timp de {{seconds}} secunde — acum {{value}}.',
     },
   },
 

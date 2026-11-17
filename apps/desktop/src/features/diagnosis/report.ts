@@ -44,6 +44,9 @@ export function seriesFor(
     case 'gpu':
     case 'storage':
     case 'battery':
+    // A rule the user wrote names no subsystem, and there is no series that
+    // would explain it: the reading it watches is the rule's own.
+    case 'custom':
       return null;
   }
 }
@@ -77,6 +80,7 @@ export function formatContributorValue(
       return formatPercent(contributor.value / 100, locale);
     case 'storage':
     case 'battery':
+    case 'custom':
       return formatPercent(contributor.value, locale);
   }
 }

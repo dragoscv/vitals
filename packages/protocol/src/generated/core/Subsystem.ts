@@ -3,4 +3,4 @@
 /**
  * Which subsystem a verdict is about. Drives the icon and the chart.
  */
-export type Subsystem = "cpu" | "memory" | "disk" | "gpu" | "network" | "thermal" | "storage" | "battery";
+export type Subsystem = "cpu" | "memory" | "disk" | "gpu" | "network" | "thermal" | "storage" | "battery" | "custom";

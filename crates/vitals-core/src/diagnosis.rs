@@ -68,6 +68,8 @@ pub enum Subsystem {
     Thermal,
     Storage,
     Battery,
+    /// An alert from a rule the user wrote. Never named in a verdict.
+    Custom,
 }
 
 /// The answer to the question, ready to render.
@@ -125,6 +127,10 @@ impl AlertKind {
             Self::ThermalCpu => Subsystem::Thermal,
             Self::NetworkErrors => Subsystem::Network,
             Self::BatteryLow | Self::BatteryHealth => Subsystem::Battery,
+            // A rule the user wrote is not a diagnosis: there is no subsystem
+            // to blame and no contributor to name, so it stays out of the
+            // "why is my PC slow" sentence entirely.
+            Self::Custom => Subsystem::Custom,
         }
     }
 
@@ -226,7 +232,11 @@ fn top_contributors(
         // No per-process attribution exists for these: Windows does not
         // report per-process network bytes without ETW, and free disk space
         // is not a rate anybody is currently consuming.
-        Subsystem::Network | Subsystem::Storage | Subsystem::Battery => Vec::new(),
+        // A user rule names no subsystem to blame either, so it never
+        // contributes to a "why is my PC slow" verdict.
+        Subsystem::Network | Subsystem::Storage | Subsystem::Battery | Subsystem::Custom => {
+            Vec::new()
+        }
     };
 
     let _ = system;

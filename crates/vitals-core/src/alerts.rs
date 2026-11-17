@@ -83,6 +83,10 @@ pub enum AlertKind {
     NetworkErrors,
     BatteryLow,
     BatteryHealth,
+    /// A condition the user defined themselves. The reading, the comparator
+    /// and the threshold all arrive in `values`, because one variant has to
+    /// cover every rule a person can write.
+    Custom,
 }
 
 impl AlertKind {
@@ -102,6 +106,15 @@ impl AlertKind {
                 | Self::NetworkErrors
                 | Self::MemoryPressure
         )
+    }
+
+    /// Whether this kind came from a user rule.
+    ///
+    /// A rule carries its own window, so the engine must not apply the
+    /// built-in one to it.
+    #[must_use]
+    pub const fn is_user_rule(self) -> bool {
+        matches!(self, Self::Custom)
     }
 }
 
@@ -253,11 +266,221 @@ pub mod thresholds {
     pub const BATTERY_HEALTH_PERCENT: f32 = 60.0;
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "ts", ts(export, export_to = "core/"))]
+#[serde(rename_all = "camelCase")]
+pub enum RuleMetric {
+    CpuPercent,
+    CpuTemperature,
+    MemoryPercent,
+    DiskActivePercent,
+    BatteryPercent,
+    NetworkErrorsPerSec,
+}
+
+impl RuleMetric {
+    /// The reading for this metric, or `None` when the machine cannot measure
+    /// it right now.
+    ///
+    /// `None` must not fire a rule: a laptop with no battery sensor does not
+    /// have "0 % battery", and a Mac has no CPU temperature — the same rule
+    /// the rest of Vitals follows, applied to a condition the user wrote.
+    #[must_use]
+    pub fn reading(self, s: &SystemMetrics) -> Option<f64> {
+        match self {
+            Self::CpuPercent => Some(f64::from(s.cpu.total.get())),
+            Self::CpuTemperature => s.cpu.temperature.map(|t| f64::from(t.get())),
+            Self::MemoryPercent => {
+                let total = s.memory.total.get();
+                if total == 0 {
+                    return None;
+                }
+                #[allow(clippy::cast_precision_loss)]
+                Some(s.memory.used.get() as f64 / total as f64 * 100.0)
+            }
+            Self::DiskActivePercent => s
+                .disks
+                .iter()
+                .map(|d| f64::from(d.active_time.get()))
+                .reduce(f64::max),
+            Self::BatteryPercent => s.battery.as_ref().map(|b| f64::from(b.charge.get())),
+            Self::NetworkErrorsPerSec => s
+                .networks
+                .iter()
+                .filter_map(|n| n.errors_per_sec)
+                .map(|e| {
+                    #[allow(clippy::cast_precision_loss)]
+                    {
+                        e as f64
+                    }
+                })
+                .reduce(f64::max),
+        }
+    }
+}
+
+/// Which side of the threshold the condition is on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "ts", ts(export, export_to = "core/"))]
+#[serde(rename_all = "camelCase")]
+pub enum Comparator {
+    Above,
+    Below,
+}
+
+impl Comparator {
+    /// Whether `value` satisfies the rule.
+    #[must_use]
+    pub fn holds(self, value: f64, threshold: f64) -> bool {
+        match self {
+            Self::Above => value > threshold,
+            Self::Below => value < threshold,
+        }
+    }
+
+    /// The i18n key under `dashboard.alert.custom.<slug>` for the cause.
+    #[must_use]
+    pub const fn slug(self) -> &'static str {
+        match self {
+            Self::Above => "above",
+            Self::Below => "below",
+        }
+    }
+}
+
+/// A rule the user wrote, as the settings screen stores it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(
+    feature = "ts",
+    ts(export, export_to = "core/", rename_all = "camelCase")
+)]
+#[serde(rename_all = "camelCase")]
+pub struct Rule {
+    /// Stable across edits, and the key of the alert: two rules on one metric
+    /// must not shadow each other.
+    pub id: String,
+    /// What the user calls it, shown as the alert's subject.
+    pub name: String,
+    pub metric: RuleMetric,
+    pub comparator: Comparator,
+    pub threshold: f64,
+    /// Seconds the condition must hold before the alert is raised. `0` means
+    /// the first true sample is enough.
+    pub sustain_secs: u32,
+    /// Seconds of silence before the same rule may notify again.
+    pub cooldown_secs: u32,
+    pub severity: Severity,
+}
+
+/// The longest a window may be. A day: past that the alert is a report, not a
+/// notification.
+pub const MAX_RULE_WINDOW_SECS: u32 = 86_400;
+
+impl Rule {
+    /// Whether the rule can be used at all.
+    ///
+    /// A rule with no id cannot be tracked, one with no name cannot be shown,
+    /// and a non-finite threshold cannot be compared. Anything else is
+    /// clamped rather than refused: a user who types 99 999 seconds gets the
+    /// longest sane window instead of a rule that silently never fires.
+    #[must_use]
+    pub fn is_usable(&self) -> bool {
+        !self.id.trim().is_empty() && !self.name.trim().is_empty() && self.threshold.is_finite()
+    }
+
+    /// The windows in samples. `sample_ms` is how often `poll` is called.
+    #[must_use]
+    fn windows(&self, sample_ms: u32) -> (u32, u32) {
+        let per_second = 1000.0 / f64::from(sample_ms.max(1));
+        let samples = |secs: u32| {
+            let clamped = secs.min(MAX_RULE_WINDOW_SECS);
+            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+            let count = (f64::from(clamped) * per_second).ceil() as u32;
+            count.max(1)
+        };
+        (samples(self.sustain_secs), samples(self.cooldown_secs))
+    }
+
+    /// The alert this rule raises, with the reading that triggered it.
+    ///
+    /// The reading, comparator and threshold travel in `values` so the one
+    /// `custom` variant can render a sentence about any rule, in whatever
+    /// language, without the engine knowing the words.
+    #[must_use]
+    fn alert(&self, value: f64) -> Alert {
+        alert(
+            AlertKind::Custom,
+            self.severity,
+            self.name.clone(),
+            self.comparator.slug(),
+            vec![
+                ("name", self.name.as_str().into()),
+                ("threshold", self.threshold.into()),
+                ("value", round(value)),
+                ("seconds", u64::from(self.sustain_secs).into()),
+                ("metric", self.metric.slug().into()),
+            ],
+            None,
+        )
+    }
+}
+
+impl RuleMetric {
+    /// The i18n key suffix for a readable metric name.
+    #[must_use]
+    pub const fn slug(self) -> &'static str {
+        match self {
+            Self::CpuPercent => "cpuPercent",
+            Self::CpuTemperature => "cpuTemperature",
+            Self::MemoryPercent => "memoryPercent",
+            Self::DiskActivePercent => "diskActivePercent",
+            Self::BatteryPercent => "batteryPercent",
+            Self::NetworkErrorsPerSec => "networkErrorsPerSec",
+        }
+    }
+}
+
 /// Identity of an alert across ticks: the kind plus the thing it is about.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct Key {
     kind: AlertKind,
     subject: String,
+}
+
+/// A condition to evaluate, with the windows that apply to *it*.
+///
+/// The built-in conditions share one sustain window and one cooldown; a user
+/// rule carries its own, so the windows cannot live on the engine.
+struct Candidate {
+    alert: Alert,
+    /// Consecutive samples the condition must hold before it is raised.
+    sustain: u32,
+    /// Samples of silence before the same condition may notify again.
+    cooldown: u32,
+}
+
+/// Wraps a built-in alert in the engine's own windows.
+fn built_in(alert: Alert) -> Candidate {
+    Candidate {
+        sustain: if alert.kind.requires_sustain() {
+            SUSTAIN_SAMPLES
+        } else {
+            1
+        },
+        cooldown: RENOTIFY_AFTER_SAMPLES,
+        alert,
+    }
+}
+
+/// A rule with its windows already counted in samples.
+#[derive(Debug, Clone)]
+struct CompiledRule {
+    rule: Rule,
+    sustain: u32,
+    cooldown: u32,
 }
 
 /// Per-key memory.
@@ -278,6 +501,8 @@ struct Track {
 pub struct Engine {
     tracks: HashMap<Key, Track>,
     sample: u64,
+    /// The user's rules, with their windows already in samples.
+    rules: Vec<CompiledRule>,
 }
 
 impl Engine {
@@ -313,6 +538,37 @@ impl Engine {
         self.sample
     }
 
+    /// Replaces the user's rules.
+    ///
+    /// `sample_ms` is how often [`Engine::poll`] is called, because the
+    /// windows the user writes are in seconds and the engine counts samples.
+    /// A rule that is not usable is dropped rather than half-applied, and the
+    /// tracks behind rules that no longer exist are removed so a deleted rule
+    /// cannot leave an alert standing for an hour.
+    pub fn set_rules(&mut self, rules: Vec<Rule>, sample_ms: u32) {
+        self.rules = rules
+            .into_iter()
+            .filter(Rule::is_usable)
+            .map(|rule| {
+                let (sustain, cooldown) = rule.windows(sample_ms);
+                CompiledRule {
+                    rule,
+                    sustain,
+                    cooldown,
+                }
+            })
+            .collect();
+        let names: Vec<String> = self.rules.iter().map(|r| r.rule.name.clone()).collect();
+        self.tracks
+            .retain(|key, _| key.kind != AlertKind::Custom || names.contains(&key.subject));
+    }
+
+    /// How many rules are in force, for a status line.
+    #[must_use]
+    pub fn rule_count(&self) -> usize {
+        self.rules.len()
+    }
+
     /// Feeds one sample and returns what changed.
     ///
     /// Every condition is evaluated every tick, including those that are not
@@ -323,7 +579,25 @@ impl Engine {
 
         // Everything that is true right now. Keys absent from this set are
         // false this tick.
-        let candidates = evaluate(system);
+        let mut candidates: Vec<Candidate> = evaluate(system).into_iter().map(built_in).collect();
+        // A rule whose reading is absent raises nothing: "cannot measure" is
+        // not "below the threshold".
+        for compiled in &self.rules {
+            let Some(value) = compiled.rule.metric.reading(system) else {
+                continue;
+            };
+            if compiled
+                .rule
+                .comparator
+                .holds(value, compiled.rule.threshold)
+            {
+                candidates.push(Candidate {
+                    alert: compiled.rule.alert(value),
+                    sustain: compiled.sustain,
+                    cooldown: compiled.cooldown,
+                });
+            }
+        }
         let mut seen: Vec<Key> = Vec::with_capacity(candidates.len());
 
         let mut transitions = AlertTransitions {
@@ -334,8 +608,8 @@ impl Engine {
 
         for candidate in candidates {
             let key = Key {
-                kind: candidate.kind,
-                subject: candidate.subject.clone(),
+                kind: candidate.alert.kind,
+                subject: candidate.alert.subject.clone(),
             };
             seen.push(key.clone());
             let track = self.tracks.entry(key).or_default();
@@ -346,11 +620,11 @@ impl Engine {
                 // *current* value) but keep the original since_sample and
                 // let a severity escalation through — 4 % free becoming 0.9 %
                 // is news even though the alert is not new.
-                let escalated = candidate.severity > raised.severity;
+                let escalated = candidate.alert.severity > raised.severity;
                 let since = raised.since_sample;
                 *raised = Alert {
                     since_sample: since,
-                    ..candidate
+                    ..candidate.alert
                 };
                 if escalated {
                     transitions.raised.push(raised.clone());
@@ -359,25 +633,20 @@ impl Engine {
             }
 
             track.true_run = track.true_run.saturating_add(1);
-            let needed = if candidate.kind.requires_sustain() {
-                SUSTAIN_SAMPLES
-            } else {
-                1
-            };
-            if track.true_run < needed {
+            if track.true_run < candidate.sustain {
                 continue;
             }
 
             let alert = Alert {
                 since_sample: now,
-                ..candidate
+                ..candidate.alert
             };
             track.raised = Some(alert.clone());
             track.true_run = 0;
 
             let in_cooldown = track
                 .last_cleared
-                .is_some_and(|at| now.saturating_sub(at) < u64::from(RENOTIFY_AFTER_SAMPLES));
+                .is_some_and(|at| now.saturating_sub(at) < u64::from(candidate.cooldown));
             if in_cooldown {
                 transitions.raised_quietly.push(alert);
             } else {
@@ -465,6 +734,7 @@ fn serde_variant_name(kind: AlertKind) -> &'static str {
         AlertKind::NetworkErrors => "networkErrors",
         AlertKind::BatteryLow => "batteryLow",
         AlertKind::BatteryHealth => "batteryHealth",
+        AlertKind::Custom => "custom",
     }
 }
 
@@ -919,5 +1189,119 @@ mod tests {
         ]);
         assert_eq!(forward, backward);
         assert!(forward.find("\"name\"") < forward.find("\"percent\""));
+    }
+
+    /// A rule on CPU usage above `threshold`, with the given windows.
+    fn cpu_rule(threshold: f64, sustain_secs: u32, cooldown_secs: u32) -> Rule {
+        Rule {
+            id: "r1".into(),
+            name: "Hot CPU".into(),
+            metric: RuleMetric::CpuPercent,
+            comparator: Comparator::Above,
+            threshold,
+            sustain_secs,
+            cooldown_secs,
+            severity: Severity::Warning,
+        }
+    }
+
+    fn busy(cpu: f32) -> SystemMetrics {
+        let mut s = fixtures::system();
+        s.cpu.total = crate::units::Percent(cpu);
+        s
+    }
+
+    #[test]
+    fn a_user_rule_fires_only_after_its_own_sustained_window() {
+        let mut engine = Engine::new();
+        engine.set_rules(vec![cpu_rule(90.0, 3, 0)], 1000);
+        assert!(engine.active().is_empty());
+        assert!(
+            engine.poll(&busy(95.0)).raised.is_empty(),
+            "one second is not three"
+        );
+        assert!(engine.poll(&busy(95.0)).raised.is_empty());
+        let third = engine.poll(&busy(95.0));
+        assert_eq!(third.raised.len(), 1, "the third second raises it");
+        assert_eq!(third.raised[0].kind, AlertKind::Custom);
+        assert_eq!(third.raised[0].subject, "Hot CPU");
+        assert_eq!(third.raised[0].cause, "alert.custom.above");
+        assert_eq!(engine.active().len(), 1);
+    }
+
+    #[test]
+    fn a_rule_whose_reading_is_absent_never_fires() {
+        let mut engine = Engine::new();
+        engine.set_rules(
+            vec![Rule {
+                metric: RuleMetric::BatteryPercent,
+                comparator: Comparator::Below,
+                threshold: 20.0,
+                ..cpu_rule(0.0, 0, 0)
+            }],
+            1000,
+        );
+        let mut s = fixtures::system();
+        s.battery = None;
+        for _ in 0..10 {
+            engine.poll(&s);
+        }
+        assert!(
+            engine.active().is_empty(),
+            "a machine with no battery sensor does not have an empty battery"
+        );
+    }
+
+    #[test]
+    fn a_rules_cooldown_quiets_the_notification_without_hiding_the_alert() {
+        let mut engine = Engine::new();
+        engine.set_rules(vec![cpu_rule(90.0, 0, 100)], 1000);
+        assert_eq!(engine.poll(&busy(95.0)).raised.len(), 1);
+        // Clear it: the built-in clear window, then it is gone.
+        for _ in 0..(CLEAR_SAMPLES + 2) {
+            engine.poll(&busy(1.0));
+        }
+        assert!(engine.active().is_empty());
+        // True again inside the rule's cooldown: listed, not notified.
+        let again = engine.poll(&busy(95.0));
+        assert!(again.raised.is_empty(), "inside the cooldown");
+        assert_eq!(again.raised_quietly.len(), 1);
+        assert_eq!(engine.active().len(), 1, "still in the list");
+    }
+
+    #[test]
+    fn deleting_a_rule_takes_its_raised_alert_with_it() {
+        let mut engine = Engine::new();
+        engine.set_rules(vec![cpu_rule(90.0, 0, 3600)], 1000);
+        engine.poll(&busy(95.0));
+        assert_eq!(engine.active().len(), 1);
+        engine.set_rules(Vec::new(), 1000);
+        assert!(
+            engine.active().is_empty(),
+            "a rule the user deleted must stop alerting immediately"
+        );
+        assert_eq!(engine.rule_count(), 0);
+    }
+
+    #[test]
+    fn a_rule_with_no_name_is_dropped_rather_than_half_applied() {
+        let mut engine = Engine::new();
+        let mut rule = cpu_rule(90.0, 0, 0);
+        rule.name = "   ".into();
+        engine.set_rules(vec![rule], 1000);
+        assert_eq!(engine.rule_count(), 0);
+        engine.poll(&busy(95.0));
+        assert!(engine.active().is_empty());
+    }
+
+    #[test]
+    fn the_window_the_user_writes_is_seconds_not_samples() {
+        // At 4 Hz, three seconds is twelve samples — not three.
+        let mut engine = Engine::new();
+        engine.set_rules(vec![cpu_rule(90.0, 3, 0)], 250);
+        for _ in 0..11 {
+            assert!(engine.poll(&busy(95.0)).raised.is_empty());
+        }
+        assert_eq!(engine.poll(&busy(95.0)).raised.len(), 1);
     }
 }
