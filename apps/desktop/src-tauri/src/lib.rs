@@ -9,6 +9,7 @@ pub mod agents;
 pub mod alerts;
 pub mod autostart;
 pub mod benchmarks;
+pub mod channels;
 pub mod commands;
 pub mod crashlog;
 #[cfg(windows)]
@@ -150,6 +151,7 @@ pub fn run() {
         .manage(state::AppState::new())
         .manage(server::LanServer::new())
         .manage(alerts::Alerts::new())
+        .manage(std::sync::Arc::new(channels::Channels::new()))
         .manage(agents::Agents::new())
         .manage(updates::PendingInstall::default())
         .plugin(updater_plugin())
@@ -211,6 +213,25 @@ fn init_logging(to_file: bool) {
                 .with_writer(crashlog::CappedLog::new(crashlog::open_log(&dir))),
         )
         .init();
+}
+
+/// The machine's host name, for the alerts that leave it.
+///
+/// Empty rather than a placeholder when the platform cannot say: a wrong name
+/// on someone's dashboard is worse than a blank one.
+fn host_name() -> String {
+    #[cfg(windows)]
+    {
+        vitals_win::hostinfo::read().hostname
+    }
+    #[cfg(target_os = "macos")]
+    {
+        vitals_macos::host_info().hostname
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
+    {
+        String::new()
+    }
 }
 
 /// Every command the webview may call.
@@ -407,6 +428,9 @@ fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
         commands::get_alerts,
         commands::set_alert_prefs,
         commands::set_alert_rules,
+        commands::set_alert_channels,
+        commands::alert_channel_status,
+        commands::test_alert_channel,
         commands::set_alert_strings,
         commands::diagnose,
         commands::run_connectivity_probe,
@@ -460,6 +484,16 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     // still being measured.
     #[cfg(windows)]
     app.manage(startup_impact::StartupImpactStore::new());
+    // The machine name every outbound alert carries, read once at startup:
+    // the backend already knows it and the webview does not have to be told.
+    // An empty name is used rather than a placeholder when the platform has no
+    // hostname — a wrong name on a dashboard is worse than a blank one.
+    if let Some(channels) = app.try_state::<std::sync::Arc<channels::Channels>>() {
+        let host = host_name();
+        if !host.is_empty() {
+            channels.set_host(host);
+        }
+    }
     // Before the sampler, so the first tick can already see whether a CLI
     // is waiting (it is managed state the sampler looks up per tick).
     ipc::start(app.handle());

@@ -373,6 +373,11 @@ pub struct Rule {
     /// Seconds of silence before the same rule may notify again.
     pub cooldown_secs: u32,
     pub severity: Severity,
+    /// Which channels this rule goes to, by id. Empty means every channel
+    /// that is switched on — which is what a rule written before channels
+    /// existed behaves as, and what most users will want anyway.
+    #[serde(default)]
+    pub channels: Vec<String>,
 }
 
 /// The longest a window may be. A day: past that the alert is a report, not a
@@ -567,6 +572,24 @@ impl Engine {
     #[must_use]
     pub fn rule_count(&self) -> usize {
         self.rules.len()
+    }
+
+    /// The channels a rule routed this alert to.
+    ///
+    /// Empty means "every channel", which is also the answer for a built-in
+    /// alert: those are not anybody's rule and go wherever the user's channels
+    /// say. A rule is found by its name because that is what the alert carries
+    /// as its subject — the two are written from the same field.
+    #[must_use]
+    pub fn routed_channels(&self, alert: &Alert) -> Vec<String> {
+        if !alert.kind.is_user_rule() {
+            return Vec::new();
+        }
+        self.rules
+            .iter()
+            .find(|compiled| compiled.rule.name == alert.subject)
+            .map(|compiled| compiled.rule.channels.clone())
+            .unwrap_or_default()
     }
 
     /// Feeds one sample and returns what changed.
@@ -1202,6 +1225,7 @@ mod tests {
             sustain_secs,
             cooldown_secs,
             severity: Severity::Warning,
+            channels: Vec::new(),
         }
     }
 

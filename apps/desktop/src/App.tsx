@@ -11,6 +11,7 @@ import {
   pushCloseToTray,
   pushTaskbarLoad,
   pushAlertRules,
+  pushAlertChannels,
   pushTrayMetric,
   pushHistoryEnabled,
   pushRetentionDays,
@@ -115,6 +116,7 @@ function useSettingsSync(
     settings;
   const trayMetric = settings.trayMetric;
   const alertRules = settings.alertRules;
+  const notificationChannels = settings.notificationChannels;
   const patch = useSettings((state) => state.patch);
 
   useEffect(() => {
@@ -146,6 +148,11 @@ function useSettingsSync(
     if (!hydrated) return;
     void pushAlertRules(alertRules, samplingIntervalMs[settings.samplingRate]);
   }, [hydrated, alertRules, settings.samplingRate]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    void pushAlertChannels(notificationChannels);
+  }, [hydrated, notificationChannels]);
 
   useEffect(() => {
     if (!hydrated) return;

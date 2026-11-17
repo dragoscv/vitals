@@ -93,6 +93,24 @@ export async function pushTaskbarLoad(enabled: boolean): Promise<void> {
 }
 
 /**
+ * Hands the notification channels to the backend.
+ *
+ * The host name travels with them so every alert says which machine it came
+ * from — a dashboard watching three PCs must not show three identical rows.
+ * Nothing is sent anywhere by this call: it stores the configuration, and the
+ * test button is the only thing that sends on purpose.
+ */
+export async function pushAlertChannels(channels: readonly unknown[]): Promise<void> {
+  if (!hasTauriHost()) return;
+  try {
+    const { invoke } = await import('@tauri-apps/api/core');
+    await invoke('set_alert_channels', { config: channels });
+  } catch {
+    // Intentionally ignored; see module doc.
+  }
+}
+
+/**
  * Hands the user's alert rules to the engine, with the interval the sampler
  * is using.
  *

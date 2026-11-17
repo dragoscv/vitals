@@ -170,6 +170,50 @@ pub fn set_alert_rules(
     alerts.set_rules(rules, sample_ms.clamp(50, 60_000));
 }
 
+/// Replaces the configured notification channels.
+///
+/// Deliberately does not send anything: the Settings screen saves as the user
+/// types, and a half-written URL must not receive an alert. The test button
+/// is the way to send on purpose.
+#[tauri::command]
+#[allow(clippy::needless_pass_by_value)]
+pub fn set_alert_channels(
+    channels: State<'_, std::sync::Arc<crate::channels::Channels>>,
+    config: Vec<vitals_core::channels::Channel>,
+) {
+    channels.set(config);
+}
+
+/// What each channel last did, for the status line beside it.
+#[tauri::command]
+#[must_use]
+#[allow(clippy::needless_pass_by_value)]
+pub fn alert_channel_status(
+    channels: State<'_, std::sync::Arc<crate::channels::Channels>>,
+) -> std::collections::HashMap<String, crate::channels::ChannelStatus> {
+    channels.status()
+}
+
+/// Sends one harmless message to a channel so the user can see it works.
+///
+/// Async because it waits on a socket with its own timeout, and the window
+/// must not freeze for five seconds while a typo in a URL times out.
+///
+/// # Errors
+/// A sentence the Settings screen shows verbatim: the refusal, the HTTP
+/// status, or "could not be reached".
+#[tauri::command]
+pub async fn test_alert_channel(
+    channels: State<'_, std::sync::Arc<crate::channels::Channels>>,
+    id: String,
+) -> CommandResult<()> {
+    channels
+        .test(&id)
+        .await
+        .map(|_| ())
+        .map_err(|message| CommandError::Refused { message })
+}
+
 /// "Why is my PC slow?" — the current alerts joined against the process list.
 ///
 /// Request/response, and the webview supplies the processes it already

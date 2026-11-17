@@ -1,9 +1,11 @@
-import { Fragment, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { locales, type Locale } from '@vitals/i18n';
 import type { HostInfo } from '@vitals/protocol';
 import type {
+  Channel as AlertChannel,
+  ChannelKind,
   Comparator,
   Rule as AlertRule,
   RuleMetric,
@@ -39,6 +41,20 @@ import { useIsStoreBuild, useStore } from './useDistribution';
 import { useNavVisibility } from '../shell/navigation';
 import { runsOn } from '../shell/platform';
 import { UpdateSection } from './UpdatePanel';
+
+/** Mirrors `ChannelStatus` in `apps/desktop/src-tauri/src/channels.rs`. */
+interface ChannelStatus {
+  readonly lastOk: boolean | null;
+  readonly lastStatus: number | null;
+}
+
+/**
+ * A type alias rather than an inline generic: `scripts/check-drift.ps1` reads
+ * the command name from an `invoke` call with a single-word type argument, and
+ * a nested generic such as a `Record` slips past its pattern — which would
+ * report the command as unreachable from the webview.
+ */
+type ChannelStatusMap = Record<string, ChannelStatus>;
 
 /** The public documents. One place, so the app and the site cannot disagree. */
 const SITE = 'https://vitals.dragoscatalin.ro';
@@ -626,9 +642,232 @@ export function NotificationsPanel() {
       ))}
 
       <AlertRulesSection />
+      <ChannelsSection />
     </SettingsSection>
   );
 }
+
+/**
+ * Where alerts go beyond this machine.
+ *
+ * Every field saves as it is typed, so a half-written URL is a normal state
+ * rather than an error: the Rust side treats a channel with no usable URL as
+ * inert, and the test button is how the user finds out it works.
+ *
+ * The status line beside each channel comes from the backend, so it says what
+ * actually happened on the last send — not what the browser hoped.
+ */
+function ChannelsSection() {
+  const { t } = useTranslation(SHELL_NS);
+  const channels = useSettings((state) => state.settings.notificationChannels);
+  const patch = useSettings((state) => state.patch);
+  const [testing, setTesting] = useState<string | null>(null);
+  const [result, setResult] = useState<{ id: string; message: string | null } | null>(null);
+  // What each destination last did, read once when the panel opens and again
+  // after a test. Read on demand rather than polled: nothing here changes
+  // while the user is looking at it except by their own click.
+  const [lastResult, setLastResult] = useState<ChannelStatusMap>({});
+
+  const refreshStatus = async () => {
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      setLastResult(await invoke<ChannelStatusMap>('alert_channel_status'));
+    } catch {
+      // No host (a browser build of the screens): nothing to show, and the
+      // panel works without it.
+    }
+  };
+
+  useEffect(() => {
+    void refreshStatus();
+  }, []);
+
+  const update = (index: number, next: Partial<AlertChannel>) => {
+    patch({
+      notificationChannels: channels.map((channel, i) =>
+        i === index ? { ...channel, ...next } : channel,
+      ),
+    });
+  };
+
+  const add = () => {
+    patch({
+      notificationChannels: [
+        ...channels,
+        {
+          id: `channel-${channels.length}-${channels.reduce((n, c) => n + c.id.length, 0)}`,
+          name: t('settings.notifications.newChannel'),
+          kind: 'webhook',
+          url: '',
+          enabled: false,
+          secret: null,
+          minSeverity: 'warning',
+        },
+      ],
+    });
+  };
+
+  const test = async (id: string) => {
+    setTesting(id);
+    setResult(null);
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      await invoke('test_alert_channel', { id });
+      setResult({ id, message: null });
+    } catch (error) {
+      setResult({ id, message: error instanceof Error ? error.message : String(error) });
+    } finally {
+      setTesting(null);
+      void refreshStatus();
+    }
+  };
+
+  return (
+    <>
+      <div className="flex items-center justify-between pt-4">
+        <div>
+          <p className="text-sm font-medium">{t('settings.notifications.channels')}</p>
+          <p className="text-xs text-[var(--color-fg-muted)]">
+            {t('settings.notifications.channelsHint')}
+          </p>
+        </div>
+        <Button variant="secondary" size="sm" onClick={add}>
+          {t('settings.notifications.addChannel')}
+        </Button>
+      </div>
+
+      {channels.map((channel, index) => (
+        <div
+          key={channel.id}
+          className="grid gap-2 border-t border-[var(--color-border-subtle)] pt-3"
+        >
+          <div className="flex items-center gap-2">
+            <Switch
+              aria-label={t('settings.notifications.channelEnabled')}
+              checked={channel.enabled}
+              onCheckedChange={(value) => update(index, { enabled: value })}
+            />
+            <Input
+              ariaLabel={t('settings.notifications.channelName')}
+              value={channel.name}
+              onChange={(event) => update(index, { name: event.target.value })}
+            />
+            <Button
+              variant="secondary"
+              size="sm"
+              aria-label={t('settings.notifications.removeChannel')}
+              onClick={() =>
+                patch({ notificationChannels: channels.filter((_, i) => i !== index) })
+              }
+            >
+              <Trash2 aria-hidden className="size-4" />
+            </Button>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Select
+              ariaLabel={t('settings.notifications.channelKind')}
+              value={channel.kind}
+              onValueChange={(value) => {
+                const kind = channelKindValues.find((candidate) => candidate === value);
+                if (kind) update(index, { kind });
+              }}
+              options={channelKindValues.map((kind) => ({
+                value: kind,
+                label: t(channelKindLabels[kind]),
+              }))}
+            />
+            <Select
+              ariaLabel={t('settings.notifications.channelMinSeverity')}
+              value={channel.minSeverity}
+              onValueChange={(value) => {
+                const severity = ruleSeverityValues.find((candidate) => candidate === value);
+                if (severity) update(index, { minSeverity: severity });
+              }}
+              options={ruleSeverityValues.map((severity) => ({
+                value: severity,
+                label: t(ruleSeverityLabels[severity]),
+              }))}
+            />
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={testing === channel.id}
+              onClick={() => void test(channel.id)}
+            >
+              {testing === channel.id
+                ? t('settings.notifications.testing')
+                : t('settings.notifications.test')}
+            </Button>
+          </div>
+          <Input
+            ariaLabel={t('settings.notifications.channelUrl')}
+            placeholder={channelKindExamples[channel.kind]}
+            value={channel.url}
+            onChange={(event) => update(index, { url: event.target.value })}
+          />
+          {channelUsesSecret[channel.kind] && (
+            <Input
+              type="password"
+              ariaLabel={t('settings.notifications.channelSecret')}
+              value={channel.secret ?? ''}
+              onChange={(event) =>
+                update(index, { secret: event.target.value === '' ? null : event.target.value })
+              }
+            />
+          )}
+          {result?.id === channel.id && (
+            <p
+              role="status"
+              className={`text-xs ${result.message === null ? 'text-[var(--color-success-text)]' : 'text-[var(--color-danger-text)]'}`}
+            >
+              {result.message ?? t('settings.notifications.testOk')}
+            </p>
+          )}
+          {result?.id !== channel.id && lastResult[channel.id]?.lastOk === false && (
+            <p role="status" className="text-xs text-[var(--color-danger-text)]">
+              {lastResult[channel.id]?.lastStatus === null
+                ? t('settings.notifications.lastUnreachable')
+                : t('settings.notifications.lastFailed', {
+                    status: lastResult[channel.id]?.lastStatus ?? 0,
+                  })}
+            </p>
+          )}
+        </div>
+      ))}
+    </>
+  );
+}
+
+const channelKindValues = [
+  'webhook',
+  'ntfy',
+  'discord',
+  'homeAssistant',
+] as const satisfies readonly ChannelKind[];
+
+const channelKindLabels = {
+  webhook: 'settings.notifications.kindWebhook',
+  ntfy: 'settings.notifications.kindNtfy',
+  discord: 'settings.notifications.kindDiscord',
+  homeAssistant: 'settings.notifications.kindHomeAssistant',
+} as const;
+
+/** Mirrors `ChannelKind::example_url` in Rust: what the user is expected to
+ * paste, so the field does not need a sentence to explain itself. */
+const channelKindExamples = {
+  webhook: 'https://example.com/hooks/vitals',
+  ntfy: 'https://ntfy.sh/my-vitals-topic',
+  discord: 'https://discord.com/api/webhooks/…',
+  homeAssistant: 'https://home.example.com:8123/api/events/vitals_alert',
+} as const;
+
+/** Mirrors `ChannelKind::uses_secret`: Discord's credential is its URL. */
+const channelUsesSecret = {
+  webhook: true,
+  ntfy: true,
+  discord: false,
+  homeAssistant: true,
+} as const;
 
 /**
  * The user's own rules: a reading, a side of a threshold, and how long it has
@@ -676,6 +915,9 @@ function AlertRulesSection() {
                   sustainSecs: 30,
                   cooldownSecs: 300,
                   severity: 'warning',
+                  // Every channel, which is what a rule written before
+                  // channels existed behaves as.
+                  channels: [],
                 },
               ],
             })

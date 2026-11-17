@@ -24,4 +24,10 @@ sustainSecs: number,
 /**
  * Seconds of silence before the same rule may notify again.
  */
-cooldownSecs: number, severity: Severity, };
+cooldownSecs: number, severity: Severity, 
+/**
+ * Which channels this rule goes to, by id. Empty means every channel
+ * that is switched on — which is what a rule written before channels
+ * existed behaves as, and what most users will want anyway.
+ */
+channels: Array<string>, };

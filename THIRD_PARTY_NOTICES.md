@@ -26,7 +26,7 @@ The signed `IntelMSR`, `AMDFamily17` and `LpcIO` module binaries are embedded
 unmodified. Their complete source is at the link above; the licence text is
 below and is also installed as `sensors\PawnIO-Modules-COPYING.txt`.
 
-## Rust crates (393)
+## Rust crates (396)
 
 | Component | Version | Licence |
 | --- | --- | --- |
@@ -70,6 +70,7 @@ below and is also installed as `sensors\PawnIO-Modules-COPYING.txt`.
 | [clap_builder](https://github.com/clap-rs/clap) | 4.6.7 | MIT OR Apache-2.0 |
 | [clap_derive](https://github.com/clap-rs/clap) | 4.6.7 | MIT OR Apache-2.0 |
 | [clap_lex](https://github.com/clap-rs/clap) | 1.1.0 | MIT OR Apache-2.0 |
+| [cmov](https://github.com/RustCrypto/utils) | 0.5.4 | Apache-2.0 OR MIT |
 | [colorchoice](https://github.com/rust-cli/anstyle.git) | 1.0.5 | MIT OR Apache-2.0 |
 | [comfy-table](https://github.com/nukesor/comfy-table) | 8.0.1 | MIT |
 | [const-oid](https://github.com/RustCrypto/formats) | 0.10.2 | Apache-2.0 OR MIT |
@@ -88,6 +89,7 @@ below and is also installed as `sensors\PawnIO-Modules-COPYING.txt`.
 | [cssparser](https://github.com/servo/rust-cssparser) | 0.37.0 | MPL-2.0 |
 | [cssparser-macros](https://github.com/servo/rust-cssparser) | 0.7.1 | MPL-2.0 |
 | [ctor](https://github.com/mmastrac/linktime) | 1.0.13 | Apache-2.0 OR MIT |
+| [ctutils](https://github.com/RustCrypto/utils) | 0.4.8 | Apache-2.0 OR MIT |
 | [darling](https://github.com/TedDriggs/darling) | 0.24.1 | MIT |
 | [darling_core](https://github.com/TedDriggs/darling) | 0.24.1 | MIT |
 | [darling_macro](https://github.com/TedDriggs/darling) | 0.24.1 | MIT |
@@ -142,6 +144,7 @@ below and is also installed as `sensors\PawnIO-Modules-COPYING.txt`.
 | [hashlink](https://github.com/djc/hashlink) | 0.12.2 | MIT OR Apache-2.0 |
 | [heck](https://github.com/withoutboats/heck) | 0.5.0 | MIT OR Apache-2.0 |
 | [hex](https://github.com/KokaKiwi/rust-hex) | 0.4.3 | MIT OR Apache-2.0 |
+| [hmac](https://github.com/RustCrypto/MACs) | 0.13.0 | MIT OR Apache-2.0 |
 | [html5ever](https://github.com/servo/html5ever) | 0.39.0 | MIT OR Apache-2.0 |
 | [http](https://github.com/hyperium/http) | 1.5.0 | MIT OR Apache-2.0 |
 | [http-body](https://github.com/hyperium/http-body) | 1.1.0 | MIT |

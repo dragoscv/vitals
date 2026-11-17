@@ -24,6 +24,8 @@ export type * from './core/BytesPerSec';
 export type * from './core/Capabilities';
 export type * from './core/Capability';
 export type * from './core/Celsius';
+export type * from './core/Channel';
+export type * from './core/ChannelKind';
 export type * from './core/CleanupCategory';
 export type * from './core/CloudDown';
 export type * from './core/Comparator';

@@ -17,7 +17,7 @@
 
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager as _};
 use tauri_plugin_notification::NotificationExt;
 use vitals_core::alerts::{Alert, AlertKind, AlertTransitions, Engine};
 use vitals_core::metrics::SystemMetrics;
@@ -187,10 +187,29 @@ impl Alerts {
                 .notification()
                 .builder()
                 .title("Vitals")
-                .body(body)
+                .body(body.clone())
                 .show()
             {
                 tracing::warn!(%error, "notification failed");
+            }
+
+            // Off the machine, to whatever the user configured. Best effort:
+            // a channel that is down must not hold the sampler, and it must
+            // never be the reason a toast did not appear.
+            if let Some(channels) = app.try_state::<std::sync::Arc<crate::channels::Channels>>() {
+                let routed = self.engine.lock().routed_channels(alert);
+                let notification = vitals_core::channels::Notification {
+                    title: title.clone(),
+                    body,
+                    severity: alert.severity,
+                    kind,
+                    subject: alert.subject.clone(),
+                    host: channels.host(),
+                };
+                let sent = channels.dispatch(&notification, alert.severity, &routed);
+                if sent > 0 {
+                    tracing::debug!(sent, "alert dispatched to channels");
+                }
             }
         }
         // Clears are not toasted. A "CPU is fine again" toast is noise; the

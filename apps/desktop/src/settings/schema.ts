@@ -1,5 +1,7 @@
 import { defaultLocale, isSupportedLocale, type Locale } from '@vitals/i18n';
 import type {
+  Channel as AlertChannel,
+  ChannelKind,
   Comparator,
   Rule as AlertRule,
   RuleMetric,
@@ -87,6 +89,14 @@ export interface AppSettings {
    * keep in step.
    */
   readonly alertRules: readonly AlertRule[];
+  /**
+   * Where alerts are sent beyond this machine. The wire type, like the rules:
+   * Rust consumes exactly what the screen stores.
+   *
+   * Nothing is sent anywhere until a URL is written down, and a channel with
+   * no URL is inert rather than an error — the screen saves as the user types.
+   */
+  readonly notificationChannels: readonly AlertChannel[];
 
   readonly historyEnabled: boolean;
   readonly retentionDays: number;
@@ -156,6 +166,7 @@ export const defaultSettings: AppSettings = {
   // No rules by default: a monitor that invents conditions for you is not
   // one you should trust with process-level visibility.
   alertRules: [],
+  notificationChannels: [],
 
   historyEnabled: false,
   retentionDays: 7,
@@ -297,6 +308,49 @@ function parseRules(value: unknown): readonly AlertRule[] {
         ? entry['cooldownSecs']
         : 0,
       severity,
+      channels: Array.isArray(entry['channels'])
+        ? (entry['channels'] as unknown[]).filter((id): id is string => typeof id === 'string')
+        : [],
+    });
+  }
+  return out;
+}
+
+const channelKinds: readonly ChannelKind[] = ['webhook', 'ntfy', 'discord', 'homeAssistant'];
+
+/**
+ * Keeps only well-formed channels.
+ *
+ * Total, like the rule parser and for the same reason: the settings are plain
+ * JSON a user can edit, and a broken channel must cost that channel rather
+ * than the whole panel. A URL is deliberately *not* validated here — a
+ * half-typed one is normal while the user is typing, and the engine treats it
+ * as inert.
+ */
+function parseChannels(value: unknown): readonly AlertChannel[] {
+  if (!Array.isArray(value)) return [];
+  const out: AlertChannel[] = [];
+  for (const raw of value) {
+    if (typeof raw !== 'object' || raw === null) continue;
+    const entry = raw as Record<string, unknown>;
+    const kind = channelKinds.find((candidate) => candidate === entry['kind']);
+    const minSeverity = ruleSeverities.find((candidate) => candidate === entry['minSeverity']);
+    if (
+      typeof entry['id'] !== 'string' ||
+      typeof entry['name'] !== 'string' ||
+      kind === undefined ||
+      minSeverity === undefined
+    ) {
+      continue;
+    }
+    out.push({
+      id: entry['id'],
+      name: entry['name'],
+      kind,
+      url: typeof entry['url'] === 'string' ? entry['url'] : '',
+      enabled: entry['enabled'] === true,
+      secret: typeof entry['secret'] === 'string' ? entry['secret'] : null,
+      minSeverity,
     });
   }
   return out;
@@ -351,6 +405,7 @@ export function parseSettings(raw: unknown): AppSettings {
     closeToTray: bool(record['closeToTray'], defaultSettings.closeToTray),
     trayMetric: pick(record['trayMetric'], isTrayMetric, defaultSettings.trayMetric),
     alertRules: parseRules(record['alertRules']),
+    notificationChannels: parseChannels(record['notificationChannels']),
     taskbarLoad: bool(record['taskbarLoad'], defaultSettings.taskbarLoad),
     confirmEndTask: bool(record['confirmEndTask'], defaultSettings.confirmEndTask),
     hudVisible: bool(record['hudVisible'], defaultSettings.hudVisible),

@@ -94,6 +94,13 @@ getrandom = "0.4.3"
 # Pairing tokens are persisted as SHA-256 only (auth.rs). Already in the
 # graph through Tauri, so this adds no new code to the binary.
 sha2 = "0.11.0"
+# HMAC-SHA256 for the webhook channel's signature header
+# (`crates/vitals-core/src/channels.rs`, sent by the desktop). RustCrypto's
+# `hmac` rather than the construction written out by hand: HMAC has two
+# padding rules and a key-length rule, all three of which are silent when
+# wrong — the receiver simply rejects every request — and the crate is the
+# one the ecosystem uses.
+hmac = "0.13.0"
 local-ip-address = "0.6.13"
 qrcode = { version = "0.14.1", default-features = false, features = ["svg"] }
 # mdns-sd rather than libmdns/zeroconf: it needs no async runtime of its own

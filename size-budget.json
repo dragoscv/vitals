@@ -1,7 +1,7 @@
 {
-  "comment": "Budgets in bytes. Raise deliberately, never to make CI pass. 2026-11-17: shipped 511.7 -> 517.0 KB and mobile 149.5 -> 152.0 KB for the motion system (S24-05: two keyframes and the overlay classes in theme.css) and the platform gates (S24-04); measured growth was 0.7 KB shipped and 0.8 KB mobile, the rest is headroom. Same day: initial 210.9 -> 213.5 KB and shipped 515.0 -> 517.0 KB for the alert-rule editor (S24-11: the rules list, its three selects and two numeric fields, plus the connectivity card in the diagnosis dialog); measured growth 1.6 KB initial and 2.4 KB shipped.",
-  "initialGzipBytes": 218624.0,
-  "shippedGzipBytes": 529408.0,
+  "comment": "Budgets in bytes. Raise deliberately, never to make CI pass. 2026-11-17: shipped 511.7 -> 517.0 KB and mobile 149.5 -> 152.0 KB for the motion system (S24-05: two keyframes and the overlay classes in theme.css) and the platform gates (S24-04); measured growth was 0.7 KB shipped and 0.8 KB mobile, the rest is headroom. Same day: initial 210.9 -> 213.5 KB and shipped 515.0 -> 517.0 KB for the alert-rule editor (S24-11: the rules list, its three selects and two numeric fields, plus the connectivity card in the diagnosis dialog); measured growth 1.6 KB initial and 2.4 KB shipped. Same day again: shipped 517.0 -> 520.0 KB and initial 213.5 -> 214.5 KB for the notification-channel editor (S24-11: a destination list with a kind and a severity select, name, URL and secret fields, and the test button); measured growth 0.9 KB shipped and 0.6 KB initial.",
+  "initialGzipBytes": 219648.0,
+  "shippedGzipBytes": 532480.0,
   "installerBytes": 5884463.0,
   "hudGzipBytes": 125296.0,
   "mobileGzipBytes": 155648.0,
