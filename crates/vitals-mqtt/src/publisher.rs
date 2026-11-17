@@ -9,7 +9,9 @@
 
 use std::time::Duration;
 
-use rumqttc::{AsyncClient, Event, LastWill, MqttOptions, Packet, QoS, Transport};
+use rumqttc::{
+    AsyncClient, Event, LastWill, MqttOptions, Packet, QoS, TlsConfiguration, Transport,
+};
 use tokio::task::JoinHandle;
 
 use crate::config::{ConfigError, MqttConfig};
@@ -69,11 +71,9 @@ impl Publisher {
             options.set_credentials(user, password.unwrap_or_default());
         }
         if broker.tls() {
-            // The `ring` provider is pinned by this workspace's `rustls`
-            // features; the library refuses to start a TLS connection without
-            // a process default provider, and installing it twice is fine.
-            let _ = rustls::crypto::ring::default_provider().install_default();
-            options.set_transport(Transport::tls_with_default_config());
+            // schannel on Windows, the platform's own TLS, verified against
+            // the system trust store — the same one the rest of the app uses.
+            options.set_transport(Transport::Tls(TlsConfiguration::Native));
         }
         // The broker publishes the Last Will when this connection drops
         // without a clean DISCONNECT, which is the only way a crash can be

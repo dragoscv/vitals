@@ -112,14 +112,13 @@ mdns-sd = { version = "0.21.4", default-features = false }
 # itself — `poll()` returns an error and the next call re-establishes, which
 # is exactly the "reconnect with backoff" the feature needs.
 #
-# `use-rustls-no-provider` + an explicit `rustls` with the `ring` provider
-# rather than the `use-rustls` feature: rumqttc's default turns on
-# `rustls` default features, which is `aws-lc-rs` — a C and assembly build
-# (CMake + NASM on Windows) that the rest of this graph does not have. This
-# workspace already carries `rustls` with `ring`, so the provider is pinned to
-# the one that is already compiling here.
-rumqttc = { version = "0.25.1", default-features = false, features = ["use-rustls-no-provider"] }
-rustls = { version = "0.23.46", default-features = false, features = ["ring", "std", "logging", "tls12"] }
+# `use-native-tls` rather than rumqttc's default `use-rustls`. The rustls path
+# pulls `rustls-webpki` 0.102 and `rustls-pemfile` 2.x as fixed dependencies of
+# rumqttc itself — neither is upgradeable from here, one carries
+# RUSTSEC-2026-0104 and the other is unmaintained. native-tls on Windows is
+# schannel, the OS's own TLS, so the app ships no second TLS stack, and the
+# supply-chain gate stays clean.
+rumqttc = { version = "0.25.1", default-features = false, features = ["use-native-tls"] }
 
 # Type generation
 #

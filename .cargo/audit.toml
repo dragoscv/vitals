@@ -29,4 +29,9 @@ ignore = [
   "RUSTSEC-2026-0370", # zvariant
   "RUSTSEC-2026-0371", # zbus_names
   "RUSTSEC-2026-0372", # zvariant_derive
+  # chrono 0.4 (unmaintained, 2026-09-14): reached through `serde_with`, which
+  # `tauri-utils` uses to deserialise its own configuration. Vitals calls no
+  # chrono API and formats every timestamp with `std::time`; the crate is in
+  # the graph because Tauri is, not because we chose it.
+  "RUSTSEC-2026-0543", # chrono
 ]

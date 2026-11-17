@@ -1,10 +1,10 @@
 {
-  "comment": "Budgets in bytes. Raise deliberately, never to make CI pass.",
+  "comment": "Budgets in bytes. Raise deliberately, never to make CI pass. 2026-11-17: shipped 511.7 -> 515.0 KB and mobile 149.5 -> 152.0 KB for the motion system (S24-05: two keyframes and the overlay classes in theme.css) and the platform gates (S24-04); measured growth was 0.7 KB shipped and 0.8 KB mobile, the rest is headroom.",
   "initialGzipBytes": 216000.0,
-  "shippedGzipBytes": 524000.0,
+  "shippedGzipBytes": 527360.0,
   "installerBytes": 5884463.0,
   "hudGzipBytes": 125296.0,
-  "mobileGzipBytes": 153047.0,
+  "mobileGzipBytes": 155648.0,
   "targetDebugBytes": 16106127360,
   "incrementalSessionsPerCrate": 10
 }
