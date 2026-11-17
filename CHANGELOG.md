@@ -7,6 +7,10 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+_(nothing yet — the next change lands here)_
+
+## [1.3.0] — 2026-11-17
+
 ### Added
 
 - AI page: a session now shows what it actually used — input, output, cached

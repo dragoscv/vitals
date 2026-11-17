@@ -18,7 +18,7 @@
     Name="{{IDENTITY_NAME}}"
     Publisher="{{PUBLISHER}}"
     Version="{{VERSION}}"
-    ProcessorArchitecture="x64" />
+    ProcessorArchitecture="{{PROCESSOR_ARCHITECTURE}}" />
 
   <Properties>
     <DisplayName>Vitals: System Monitor</DisplayName>

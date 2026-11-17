@@ -12,6 +12,14 @@ name: Update proof
 # release's publish job. Hosted Windows runners are elevated (1.0.0-1.0.3
 # installers are per machine) and have an interactive desktop, which the
 # tray-menu quit needs when the webview debugging port is refused.
+#
+# Two runs, because there are two install scopes in the field and they take
+# different paths through the updater (D3, 2026-11-12):
+#   scope: user   - 1.2.0 installed per user  -> 1.3.0 per user (the default)
+#   scope: legacy - 1.1.0 installed per machine (the pre-1.2 default, which
+#                   queues NeedsApproval and never installs on its own) ->
+#                   1.3.0, moved to a per-user copy with no UAC prompt.
+# docs/releasing.md makes both a required post-publish step.
 
 on:
   workflow_dispatch:
@@ -24,13 +32,20 @@ on:
         description: 'Version expected after the update (default: the latest release)'
         type: string
         required: false
+      scope:
+        description: 'What the installed version is: user (per-user copy) or legacy (per-machine copy that must move to per-user)'
+        type: choice
+        options:
+          - user
+          - legacy
+        default: user
 
 permissions:
   contents: read
 
 jobs:
   proof:
-    name: Update proof (${{ inputs.from || 'previous' }} -> ${{ inputs.to || 'latest' }})
+    name: Update proof [${{ inputs.scope }}] ${{ inputs.from || 'previous' }} -> ${{ inputs.to || 'latest' }}
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
@@ -63,10 +78,11 @@ jobs:
         env:
           FROM: ${{ steps.v.outputs.from }}
           TO: ${{ steps.v.outputs.to }}
+          SCOPE: ${{ inputs.scope }}
         run: |
-          pwsh -NoProfile -File scripts/ci/update-proof.ps1 -From $env:FROM -To $env:TO -Uninstall
+          pwsh -NoProfile -File scripts/ci/update-proof.ps1 -From $env:FROM -To $env:TO -Scope $env:SCOPE -Uninstall
           if ($LASTEXITCODE -ne 0) { throw "update proof: $LASTEXITCODE check(s) failed" }
-          "Update proof passed: $env:FROM -> $env:TO" | Add-Content $env:GITHUB_STEP_SUMMARY
+          "Update proof passed ($env:SCOPE): $env:FROM -> $env:TO" | Add-Content $env:GITHUB_STEP_SUMMARY
 
       - if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7

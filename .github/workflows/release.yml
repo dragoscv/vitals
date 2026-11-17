@@ -55,7 +55,7 @@ jobs:
   # the version, the tag or whether anything gets published.
   plan:
     name: Plan
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     outputs:
       should_build: ${{ steps.plan.outputs.should_build }}
@@ -564,7 +564,7 @@ jobs:
     name: Build (android)
     needs: plan
     if: needs.plan.outputs.should_build == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     permissions:
       contents: read
@@ -708,7 +708,7 @@ jobs:
       needs.sbom.result == 'success' &&
       needs.android.result == 'success' &&
       (needs.macos-sign.result == 'success' || (needs.macos-sign.result == 'skipped' && vars.PUBLISH_MACOS != 'true'))
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     # The owner approves every tag in the `release` environment; nothing
     # reaches installed copies' updater without it, and the updater key and
@@ -937,6 +937,9 @@ jobs:
         shell: pwsh
         run: |
           $notesArgs = @('-Version', $env:VERSION, '-Tag', $env:TAG, '-Repository', $env:REPOSITORY, '-Out', 'release-notes.md')
+          # macOS is attached only when it was published; the notes must not
+          # promise a download that does not exist.
+          if ($env:PUBLISH_MACOS -eq 'true') { $notesArgs += '-MacOS' }
           pwsh -NoProfile -File scripts/release-notes.ps1 @notesArgs
 
       # prerelease is false for betas on purpose. GitHub's /releases/latest/
@@ -974,7 +977,7 @@ jobs:
     name: npm (@vitals-app/client)
     needs: [plan, publish]
     if: needs.plan.outputs.is_release == 'true' && vars.PUBLISH_NPM == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
       contents: read
@@ -1011,7 +1014,7 @@ jobs:
     # Signed bundles come from `publish` (play-bundles), after approval.
     needs: [plan, publish]
     if: needs.plan.outputs.is_release == 'true' && vars.PUBLISH_PLAY == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
       PRODUCTION: ${{ !contains(needs.plan.outputs.version, '-') }}
@@ -1279,7 +1282,7 @@ jobs:
     name: Scoop bucket
     needs: [plan, publish]
     if: needs.plan.outputs.is_release == 'true' && vars.PUBLISH_SCOOP == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
       VERSION: ${{ needs.plan.outputs.version }}

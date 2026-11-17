@@ -363,6 +363,75 @@ jobs:
         shell: pwsh
         run: pwsh -NoProfile -File scripts/check-size.ps1 -SkipInstaller
 
+  # The Samsung TV app (`apps/tizen`). Until this job it was never compiled by
+  # CI — only the desktop bundle was built — so a TypeScript error, a missing
+  # locale key or a broken build in the TV app reached a release unnoticed.
+  # This builds the same `tsc` + Vite bundle the `.wgt` is made from, on every
+  # change to apps/tizen.
+  #
+  # The `.wgt` itself needs Tizen Studio and a distributor certificate profile
+  # (docs/distribution.md), neither of which is on a hosted runner. Packaging
+  # therefore runs where that toolchain is present — a self-hosted Windows
+  # runner, or the maintainer's machine — and is skipped with a reason where it
+  # is not, rather than failing the gate. The signed package, when produced, is
+  # copied into the bundle and uploaded with it.
+  tizen:
+    name: Tizen (Samsung TV)
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # tsc --noEmit && vite build: one classic script, target Chromium 94,
+      # written to apps/tizen/dist with config.xml and the icon beside it.
+      - name: Build the widget bundle
+        run: pnpm --filter @vitals/tizen build
+
+      # A `.wgt` is a zip of the bundle with config.xml at its root; a TV only
+      # installs one that `tizen package` signed, which needs Tizen Studio and
+      # a certificate profile (docs/distribution.md). Where those exist the
+      # signed package is built; where they do not - a hosted runner - the same
+      # archive is assembled unsigned, so CI always produces a `.wgt`. The step
+      # says which one it made; the artifact carries it either way.
+      - name: Build the .wgt
+        shell: pwsh
+        run: |
+          $dist = Join-Path $PWD 'apps\tizen\dist'
+          $signed = Join-Path $dist 'Vitals.wgt'
+          $unsigned = Join-Path $dist 'Vitals-unsigned.wgt'
+          Remove-Item $signed, $unsigned -ErrorAction SilentlyContinue
+          $tizen = Join-Path $env:USERPROFILE 'tizen-studio\tools\ide\bin\tizen.bat'
+          if (Test-Path $tizen) {
+            pwsh -NoProfile -File apps/tizen/scripts/tv-deploy.ps1 -NoInstall
+            if ($LASTEXITCODE -ne 0) { throw "tizen packaging exited $LASTEXITCODE" }
+            Write-Host 'built a signed .wgt with Tizen Studio'
+          } else {
+            Compress-Archive -Path (Join-Path $dist '*') -DestinationPath $unsigned -Force
+            Write-Host 'built an UNSIGNED .wgt: Tizen Studio is absent, so a TV will not install it, but the archive layout and the bundle are checked'
+          }
+          $made = @(Get-ChildItem $dist -Filter *.wgt)
+          if ($made.Count -eq 0) { throw 'no .wgt produced' }
+          $made | ForEach-Object { Write-Host ("{0} {1} bytes" -f $_.Name, $_.Length) }
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: vitals-tizen
+          # dist carries Vitals.wgt when the packaging step above produced one.
+          path: apps/tizen/dist
+          if-no-files-found: error
+          retention-days: 14
+
   # Coverage floors (vite.config.ts) and the Playwright suite over the real
   # screens in a browser: every route renders without a console error, fits
   # each window size without page scroll, and passes axe at WCAG 2.2 AA.
@@ -387,7 +456,12 @@ jobs:
         run: pnpm --filter @vitals/desktop exec playwright install --with-deps chromium
       - name: Playwright
         run: pnpm --filter @vitals/desktop e2e
-      - if: failure()
+      # `always()`, not `failure()`: a cancelled job — and this one has a
+      # 20-minute timeout — reports `cancelled`, not `failure`, so the trace
+      # of the slowest, flakiest run was exactly the one never uploaded.
+      # Playwright resolves the reporter's outputFolder and the trace
+      # outputDir against the config's directory, apps/desktop.
+      - if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: e2e-report

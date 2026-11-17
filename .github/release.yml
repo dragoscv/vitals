@@ -4,6 +4,11 @@
 # GitHub sorts pull requests by LABEL, not by commit prefix, so these match
 # labels named after the Conventional Commit types. A pull request with no
 # matching label falls into "Other" rather than disappearing.
+#
+# The platform categories below sort by the labels the platform work is
+# actually labelled with (`macos`, `apple`, `ios`, `android`, `cli` exist in
+# the repository since 2026-11-17). A category whose label does not exist
+# matches nothing, silently: check with `gh label list` before adding one.
 changelog:
   exclude:
     labels:
@@ -23,6 +28,18 @@ changelog:
       labels:
         - perf
         - performance
+    - title: macOS, iOS and Apple platforms
+      labels:
+        - macos
+        - apple
+        - ios
+    - title: Android, Wear OS and Google TV
+      labels:
+        - android
+    - title: Command line, LAN API and integrations
+      labels:
+        - cli
+        - api
     - title: Documentation
       labels:
         - docs

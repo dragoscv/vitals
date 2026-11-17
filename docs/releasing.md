@@ -128,6 +128,14 @@ sentence.
    cargo update --workspace
    ```
 
+   "Everywhere" is the Cargo workspace, the root and `apps`/`packages`
+   `package.json` files, `tauri.conf.json`, `apps/ios/project.yml`
+   (`MARKETING_VERSION`, inherited by every Xcode target) and the Tizen
+   widget manifest `apps/tizen/public/config.xml`. `scripts/version.ps1`
+   writes and checks all six; the tag's `verify` job runs `-Check <tag>`, so
+   an iOS or Tizen build that kept last month's version stops the release
+   instead of shipping quietly.
+
 2. In `CHANGELOG.md`, rename `## [Unreleased]` to
    `## [0.9.0-beta.2] — 2026-10-05` and open a fresh `## [Unreleased]` above
    it. The changelog is **hand-curated**: `git cliff --unreleased` (config in
@@ -136,6 +144,31 @@ sentence.
    notes fall back to the Unreleased section, with a warning in the log.
 3. `pwsh -NoProfile -File scripts/verify.ps1`, commit, push.
 4. Tag the commit `v0.9.0-beta.2` and push the tag.
+5. **After the `publish` job is approved and the release is public, prove the
+   update — required, not optional.** An installer nobody can update _to_
+   looks perfect on GitHub; the only thing that shows it is an installed copy
+   accepting the new version. `.github/workflows/update-proof.yml`
+   (`workflow_dispatch`, no secrets) installs a published version on a hosted
+   Windows runner, lets it find, download and verify the new one, quits it as
+   a user would, and asserts the installed executable moved. Run **both**
+   jobs, because the two install scopes take different paths through the
+   updater (D3, 2026-11-12):
+
+| Run                | `scope`  | Installed first    | Ends as         | What it proves                                                                                              |
+| ------------------ | -------- | ------------------ | --------------- | ----------------------------------------------------------------------------------------------------------- |
+| per-machine-chosen | `legacy` | 1.1.0, per machine | 1.3.0, per user | a copy whose update queued `NeedsApproval` (S24-02) moves to the per-user scope on quit, with no UAC prompt |
+| per-user           | `user`   | 1.2.0, per user    | 1.3.0, per user | the ordinary path: download, verify against the baked-in key, install on quit                               |
+
+```powershell
+gh workflow run update-proof.yml -f scope=legacy -f from=1.1.0 -f to=1.3.0
+gh workflow run update-proof.yml -f scope=user   -f from=1.2.0 -f to=1.3.0
+```
+
+Record both run ids in the tracker row for the release. On a machine you
+own the same proof runs from a checkout —
+`pwsh -NoProfile -File scripts/ci/update-proof.ps1 -From 1.1.0 -To 1.3.0 -Scope legacy -Uninstall`,
+elevated and interactive (the release build refuses the webview debugging
+port, so the quit goes through the tray menu).
 
 ## What a release does
 
@@ -431,14 +464,25 @@ The Store package is an **MSIX** uploaded unsigned; Microsoft signs it, so
 this route needs no code-signing certificate. It is built by hand after the
 release build, from the same executables as the installer:
 
-1. Release build (as for the installer), then
-   `pwsh -NoProfile -File packaging/msix/build-msix.ps1 -Version 0.9.0.0`.
-   The fourth version part must be `0`. Identity name and publisher come
-   from Partner Center > Product identity and are parameters of the script.
-2. Partner Center > the app > new submission > Packages: upload
-   `target/msix/Vitals_<version>_x64.msix`.
-3. Listing text, screenshots and the privacy URL: `packaging/msix/listing/`.
-4. Submit for certification. Updates are new submissions with a new package.
+1. Build both architectures and lay out both packages:
+
+```powershell
+pwsh -NoProfile -File packaging/msix/build-and-upload.ps1 -Version 1.3.0.0
+```
+
+x64 is the host build; ARM64 is built with
+`--target aarch64-pc-windows-msvc`, so each architecture has its own
+release directory and its own `AppxManifest` processor architecture. One
+MSIX per architecture is required because the manifest declares a single
+one: an x64-only submission is what leaves an ARM64 machine running the
+x64 build under emulation. To make the packages on a machine you own,
+build each architecture (`tauri build --no-bundle [--target <triple>]`)
+and then
+`pwsh -NoProfile -File packaging/msix/build-msix.ps1 -Version 1.3.0.0 -Architecture x64, arm64`.
+The fourth version part must be `0`; identity name and publisher come
+from Partner Center > Product identity and are parameters of the script. 2. Partner Center > the app > new submission > Packages: upload
+`target/msix/Vitals_<version>_x64.msix` **and**
+`target/msix/Vitals_<version>_arm64.msix` in the one submission. 3. Listing text, screenshots and the privacy URL: `packaging/msix/listing/`. 4. Submit for certification. Updates are new submissions with a new package.
 
 What differs in the Store build is decided at run time from package identity
 (`distribution.rs`): no self-update, no Task Manager replacement, no sensors

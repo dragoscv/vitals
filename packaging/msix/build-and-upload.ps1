@@ -5,32 +5,62 @@
   machine rather than a developer's tree.
 
 .DESCRIPTION
-  Release build of the desktop app without bundles (the MSIX is laid out by
-  build-msix.ps1 from target\release), then build-msix.ps1, then the
-  metadata-token upload that scripts/screenshots/upload.mjs already uses.
-  Prints the gs:// path of the package.
+  Release build of the desktop app without bundles, once per architecture —
+  x64 without --target, ARM64 with --target so it lands in its own directory
+  — then build-msix.ps1 for both, then the metadata-token upload that
+  scripts/screenshots/upload.mjs already uses. Prints the gs:// path of the
+  packages.
+
+  Both architectures go into one Partner Center submission: an x64-only
+  submission is what leaves an ARM64 machine running the x64 build under
+  emulation.
 
 .EXAMPLE
   agentq run -Where cloud -Ws vitals-win -- pwsh -NoProfile -File packaging/msix/build-and-upload.ps1 -Version 1.2.0.0
 #>
 param(
   [Parameter(Mandatory)][string]$Version,
-  [string]$Bucket = 'dragos-devcloud-devcloud-jobs'
+  [string]$Bucket = 'dragos-devcloud-devcloud-jobs',
+  # Split on commas, not a ValidateSet: a `pwsh -File` call delivers
+  # `-Architecture x64,arm64` as one string (see build-msix.ps1).
+  [string[]]$Architecture = @('x64', 'arm64')
 )
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 Set-Location $root
 
+$architectures = @($Architecture | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ } | Select-Object -Unique)
+$unknown = @($architectures | Where-Object { $_ -notin @('x64', 'arm64') })
+if ($unknown.Count) { throw "unknown architecture: $($unknown -join ', ') (x64, arm64)" }
+if (-not $architectures.Count) { throw 'no architecture given' }
+
 # The devcloud runner sets CI=1, which the Tauri CLI parses as `--ci 1` and
 # rejects (it wants true/false). Same fix as scripts/screenshots/run.ps1.
 if ($env:CI) { $env:CI = 'true' }
 
-pnpm --filter '@vitals/desktop' exec tauri build --no-bundle --config '{"bundle":{"createUpdaterArtifacts":false}}'
-if ($LASTEXITCODE -ne 0) { throw "tauri build failed ($LASTEXITCODE)" }
-cargo build --release -p vitals-watchdog
-if ($LASTEXITCODE -ne 0) { throw "watchdog build failed ($LASTEXITCODE)" }
+# x64 is the host build (no --target), because that is where build-msix.ps1
+# looks for it; only a cross build gets a --target directory of its own.
+$targets = @{ x64 = ''; arm64 = 'aarch64-pc-windows-msvc' }
 
-pwsh -NoProfile -File (Join-Path $PSScriptRoot 'build-msix.ps1') -Version $Version
+foreach ($arch in $architectures) {
+  $triple = $targets[$arch]
+  $targetArgs = if ($triple) { @('--target', $triple) } else { @() }
+  if ($triple) {
+    # Cross-compiling needs that target's std; a no-op when already present.
+    rustup target add $triple
+    if ($LASTEXITCODE -ne 0) { throw "rustup target add $triple failed ($LASTEXITCODE)" }
+  }
+
+  pnpm --filter '@vitals/desktop' exec tauri build --no-bundle @targetArgs --config '{"bundle":{"createUpdaterArtifacts":false}}'
+  if ($LASTEXITCODE -ne 0) { throw "tauri build ($arch) failed ($LASTEXITCODE)" }
+  cargo build --release -p vitals-watchdog @targetArgs
+  if ($LASTEXITCODE -ne 0) { throw "watchdog build ($arch) failed ($LASTEXITCODE)" }
+}
+
+# `-Architecture x64,arm64` as one argument on purpose: build-msix.ps1 splits
+# it, and that shape survives the pwsh -File boundary this script is called
+# through (agentq, in the example above).
+pwsh -NoProfile -File (Join-Path $PSScriptRoot 'build-msix.ps1') -Version $Version -Architecture ($architectures -join ',')
 if ($LASTEXITCODE -ne 0) { throw "build-msix failed ($LASTEXITCODE)" }
 
 $out = Join-Path $root 'target\msix-upload'

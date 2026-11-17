@@ -26,6 +26,10 @@ param(
   [string]$Repository = 'dragoscv/vitals',
   [string]$Changelog = (Join-Path (Split-Path -Parent $PSScriptRoot) 'CHANGELOG.md'),
   [Parameter(Mandatory)][string]$Out,
+  # macOS is attached only when PUBLISH_MACOS is on, so its download row is
+  # only written when the release workflow says so: a row is a promise, and a
+  # link to a file that was never uploaded is a broken one.
+  [switch]$MacOS,
   # A nightly gets a warning banner and the Unreleased section.
   [switch]$Nightly
 )
@@ -78,16 +82,36 @@ $banner = if ($Nightly) {
 '@
 } else { '' }
 
+# The download table is assembled rather than written into the here-string:
+# the macOS row exists only when macOS was published, and a conditional
+# inside a table would emit a blank line, which ends a Markdown table.
+$downloads = @(
+  '| Platform | Download |',
+  '| -------- | -------- |',
+  "| Windows, Intel / AMD (x64) | [Vitals_x64-setup.exe](https://github.com/$Repository/releases/download/$Tag/Vitals_x64-setup.exe) |",
+  "| Windows, ARM64 (Snapdragon) | [Vitals_arm64-setup.exe](https://github.com/$Repository/releases/download/$Tag/Vitals_arm64-setup.exe) |"
+)
+if ($MacOS) {
+  $downloads += "| macOS 13+, Apple silicon and Intel | [Vitals_universal.dmg](https://github.com/$Repository/releases/download/$Tag/Vitals_universal.dmg) |"
+}
+$downloads += @(
+  "| Android phone (APK) | [Vitals_${Version}_android.apk](https://github.com/$Repository/releases/download/$Tag/Vitals_${Version}_android.apk) |",
+  "| Android watch, Wear OS (APK) | [Vitals_${Version}_wear.apk](https://github.com/$Repository/releases/download/$Tag/Vitals_${Version}_wear.apk) |",
+  "| Android TV (APK) | [Vitals_${Version}_tv.apk](https://github.com/$Repository/releases/download/$Tag/Vitals_${Version}_tv.apk) |",
+  "| Windows command line (x64) | [vitals-cli_${Version}_x64.zip](https://github.com/$Repository/releases/download/$Tag/vitals-cli_${Version}_x64.zip) |",
+  "| Windows command line (ARM64) | [vitals-cli_${Version}_arm64.zip](https://github.com/$Repository/releases/download/$Tag/vitals-cli_${Version}_arm64.zip) |"
+)
+
 $verify = @"
 
 ---
 
 ### Downloads
 
-| Windows | Installer |
-| ------- | --------- |
-| Intel / AMD (x64) | [Vitals_x64-setup.exe](https://github.com/$Repository/releases/download/$Tag/Vitals_x64-setup.exe) |
-| ARM64 (Snapdragon) | [Vitals_arm64-setup.exe](https://github.com/$Repository/releases/download/$Tag/Vitals_arm64-setup.exe) |
+{{DOWNLOADS}}
+
+The Android downloads are the ``github`` flavour — the one allowed to scan
+folders; the Play builds have no all-files access.
 
 ### Verifying this download
 
@@ -112,8 +136,10 @@ tagged commit, and nowhere else. Checksums for every file are in
 ``````
 
 Software bills of materials (CycloneDX) for the Rust and JavaScript
-dependencies are attached as ``sbom-rust.cdx.json`` and ``sbom-js.cdx.json``.
+dependencies are attached as ``sbom-rust.cdx.json`` and ``sbom-js.cdx.json``,
+and one for the command-line tool as ``sbom-cli.cdx.json``.
 "@
+$verify = $verify.Replace('{{DOWNLOADS}}', ($downloads -join "`n"))
 
 if ($Nightly) {
   # Nightly assets are only the versioned names; the stable copies are made
