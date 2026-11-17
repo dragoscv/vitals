@@ -4003,6 +4003,118 @@ MSIX 1.1.1.0                    gs://dragos-devcloud-devcloud-jobs/shots/2026102
 Play production / wear / tv     41 / 1000041 / 2000041 only; 14 changes sent for review
 ```
 
+### 2026-11-17 — S24-15 release plumbing, and the store-copy half of S24-07
+
+Four release surfaces were lying quietly, and each fix is a check that fails
+loudly instead of a convention someone has to remember.
+
+**iOS and Tizen were not on the version list.** `scripts/version.ps1` read
+four files, so `apps/ios/project.yml` (`MARKETING_VERSION`, one value in
+`settings.base` that every Xcode target inherits) and
+`apps/tizen/public/config.xml` kept whatever they were last written with — a
+tag could ship a store build whose version disagreed with the updater's. Both
+are read, written and checked now. The patterns are anchored (the line for
+`MARKETING_VERSION`, the `<widget>` element for Tizen, so
+`CURRENT_PROJECT_VERSION` and `required_version` are never touched), a missing
+pattern throws, and a second identical `-Set` writes identical bytes. Read,
+set, check and the loud mismatch were proved in a mirror of the six files
+under `.copilot-tmp/version-test`; the repository was never put on a wrong
+version.
+
+**The release body promised only Windows downloads.** `scripts/release-notes.ps1`
+listed the two Windows installers while the release also carries three signed
+Android APKs and two `vitals-cli` zips, and its SBOM sentence named two of the
+three bills of materials. The download table is assembled from a list now
+rather than interpolated inside the here-string — a conditional row inside a
+Markdown table emits a blank line, which ends the table — and the macOS row
+appears only when `vars.PUBLISH_MACOS` is true, because a row is a promise.
+A nightly still strips the whole table.
+
+**Nobody had a checklist entry for the update proof.** `update-proof.yml` can
+prove that an installed copy accepts the new release, but it was a paragraph
+in `docs/releasing.md` and a manual run nobody scheduled. It is step 5 of
+_Cutting a release_ now, naming both scopes: `scope=legacy` (1.1.0 installed
+per machine, whose update queued NeedsApproval, becoming a per-user 1.3.0)
+and `scope=user` (1.2.0 per-user to 1.3.0). The workflow gained the `scope`
+input and passes it to the script; without it the per-machine path could not
+be run at all.
+
+**One MSIX declared x64, and that was the only package.** An x64-only
+submission leaves every ARM64 machine on the emulated build. The manifest
+template takes `{{PROCESSOR_ARCHITECTURE}}`, `build-msix.ps1` gained
+`-Architecture` (x64 from `target/release`, arm64 from
+`target/aarch64-pc-windows-msvc/release`, one layout directory per package,
+and a refusal when `-ReleaseDir` is combined with two architectures), and
+`build-and-upload.ps1` builds and packs both. Measured here with stand-in
+executables: `Vitals_1.3.0.0_arm64.msix`, 0.5 MB, manifest
+`ProcessorArchitecture="arm64"`.
+
+Two smaller things, found by looking rather than by breaking: Chocolatey's
+`iconUrl` was already jsDelivr (only a comment mentions
+raw.githubusercontent.com), and `runs-on: ubuntu-latest` was still in
+`release.yml`, `pages.yml` and `dependabot-notices.yml` while `ci.yml` was
+pinned — all are `ubuntu-24.04` now, with the linux-x64 build leg left on
+`ubuntu-22.04` deliberately (an AppImage links against the build machine's
+glibc). The e2e artefact upload in `ci.yml` became `if: always()`: a job that
+hits its 20-minute timeout reports `cancelled`, not `failure`, so the trace of
+the slowest run was the one never uploaded.
+
+`.github/release.yml` gained macOS/iOS/Apple, Android/Wear/TV and CLI/LAN-API
+categories. A category matches a **label**, and the repository had none named
+after the platforms, so `macos`, `apple`, `ios`, `android`, `cli` and
+`performance` now exist — a category whose label does not exist matches
+nothing, silently.
+
+**Store copy (S24-07, the half that lives in files).** The Play listing did
+not mention the Health page at all, and `apps/android/play/README.md` still
+answered "Health app: No (it measures the device, not the person)" while the
+phone app has a Health tab. Both are corrected, with Data safety rows for the
+user's own vmui server and a Health declaration section; the App Store
+description and review notes describe the tab, `PrivacyInfo.xcprivacy`
+declares Health & Fitness (not linked, no tracking) per D2, and
+`docs/legal/LAWYER-CHECKLIST.md` carries the eight questions a lawyer has to
+answer, each with the surface its answer changes. `PRIVACY.md`, `TERMS.md` and
+the site's privacy/terms pages already carried the Kodwen and vmui
+declarations from the earlier pass; nothing there was rewritten.
+
+```
+version.ps1  -Check v1.2.0 (repository)     every manifest says 1.2.0, exit 0
+version.ps1  -Check v1.2.0 (mirror)         every manifest says 1.2.0, exit 0
+version.ps1  -Set 9.9.9    (mirror)         MARKETING_VERSION: '9.9.9'; version="9.9.9";
+                                            required_version="7.0" untouched
+version.ps1  -Check v9.9.9 (mirror)         every manifest says 9.9.9, exit 0
+version.ps1  -Check v1.2.0 (mirror)         version drift: 6 file(s) disagree, exit 1
+version.ps1  -Set 1.2.0 twice (mirror)      same bytes both times
+release-notes.ps1 -Version 1.3.0 -MacOS     Windows x2, macOS, Android x3, CLI x2,
+                                            sbom-cli.cdx.json named, no blank line in the table
+release-notes.ps1 -Version 1.3.0 -Nightly   Downloads section stripped, Verifying kept
+check-drift.ps1                             drift: 0 failure(s), 0 warning(s)
+prettier --check CHANGELOG.md docs/releasing.md   All matched files use Prettier code style
+build-msix.ps1 -Version 1.3.0.0 -Architecture arm64
+                                            Vitals_1.3.0.0_arm64.msix (0.5 MB), exit 0
+build-msix.ps1 -Architecture x64,arm64 -ReleaseDir ...
+                                            refused: -ReleaseDir names one architecture
+build-msix.ps1 -Architecture x86            refused: unknown architecture: x86
+play changelogs EN/RO                       200 and 193 of 500 characters, both name 1.3.0
+MS listing what is new EN/RO                1265 and 1337 of 1500 characters
+ASC listing.json + PrivacyInfo.xcprivacy    valid JSON/plist; description 2061/2278 of 4000,
+                                            subtitle 29/30, keywords 100/97 bytes; health declared
+```
+
+#### Verification log
+
+- Everything above was run on this machine on 2026-11-17; the raw output is in
+  `.copilot-tmp/rc1112/{evidence.txt,final-state.txt,notes.md}` (scratch, never
+  committed).
+- Not run, and therefore not claimed: any CI job, any Tauri or Rust build (so
+  the arm64 cross-build in `build-and-upload.ps1` is written but unproven), the
+  Playwright suite (the e2e artefact paths are read off the config's directory
+  rather than observed), and the two update-proof runs, which need a published
+  1.3.0.
+- The repository is at 1.2.0, so the row's own check
+  (`scripts/version.ps1 -Check v1.3.0`) passes only once the release wave sets
+  the version; the mirror test proves the two new surfaces are covered.
+
 ## S13 — public beta 0.9.0-beta.1 (2026-09-28)
 
 Decided with the owner (ADR 0031): public repository, beta version, no code
