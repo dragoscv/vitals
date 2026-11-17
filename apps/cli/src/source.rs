@@ -12,6 +12,7 @@
 //! loopback API remains for `--attach <url>` and for a desktop build that
 //! predates the pipe.
 
+use std::io::IsTerminal;
 use std::time::Duration;
 
 use anyhow::{Context, Result};
@@ -122,7 +123,16 @@ impl Source {
                 // Dim, on stderr, once: the numbers are still right, but they
                 // come from a cold sampler and the user should know why the
                 // first tick reads 0 %.
-                eprintln!("\x1b[2m(sampling directly — Vitals is not running)\x1b[0m");
+                //
+                // Styled only when that is allowed. A redirected run
+                // (`vitals ps --json > file`, a CI log) must not collect
+                // escape bytes, and `NO_COLOR` is the convention the rest of
+                // these tools follow.
+                if note_is_styled() {
+                    eprintln!("\x1b[2m(sampling directly — Vitals is not running)\x1b[0m");
+                } else {
+                    eprintln!("(sampling directly — Vitals is not running)");
+                }
                 Direct::new().map(|d| Self::Direct(Box::new(d)))
             }
         }
@@ -637,5 +647,41 @@ impl std::fmt::Debug for Direct {
         f.debug_struct("Direct")
             .field("primed", &self.view.is_primed())
             .finish_non_exhaustive()
+    }
+}
+
+/// Whether the note above may carry ANSI styling.
+///
+/// Pure so the decision is testable without a terminal and without touching a
+/// process-wide environment variable: `NO_COLOR` set to anything at all turns
+/// the styling off (the convention <https://no-color.org> defines), and so
+/// does an `stderr` that is not a terminal — a redirected run must not write
+/// `\x1b[2m` into a log file.
+fn style_enabled(no_color: bool, stderr_is_terminal: bool) -> bool {
+    !no_color && stderr_is_terminal
+}
+
+fn note_is_styled() -> bool {
+    style_enabled(
+        std::env::var_os("NO_COLOR").is_some(),
+        std::io::stderr().is_terminal(),
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::style_enabled;
+
+    #[test]
+    fn the_direct_sampling_note_is_styled_only_on_a_terminal_without_no_color() {
+        assert!(style_enabled(false, true));
+        assert!(
+            !style_enabled(true, true),
+            "NO_COLOR must win even when stderr is a terminal"
+        );
+        assert!(
+            !style_enabled(false, false),
+            "a redirected stream must not collect escape bytes"
+        );
     }
 }
