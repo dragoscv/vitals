@@ -298,7 +298,16 @@
         "leftover": "An older copy of Vitals is still installed for everyone in {{path}}. This copy now updates without asking for administrator rights; the old one can go.",
         "leftoverRemove": "Remove the old copy",
         "leftoverRemoved": "The old copy was removed",
-        "leftoverFailed": "The old copy could not be removed"
+        "leftoverFailed": "The old copy could not be removed",
+        "notCheckedYet": "Not checked yet",
+        "checkedMinutesAgo": "Checked {{count}} min ago",
+        "checkedHoursAgo": "Checked {{count}} h ago",
+        "lastCheckFailed": "The last check failed: {{message}}",
+        "suppressed": {
+          "packaged": "The Microsoft Store keeps this copy up to date.",
+          "development": "Development build: the background updater stays off.",
+          "environment": "Disabled by the VITALS_NO_AUTO_UPDATE environment variable."
+        }
       },
       "legal": "Legal",
       "privacyPolicy": "Privacy policy",

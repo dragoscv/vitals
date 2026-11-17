@@ -323,6 +323,7 @@ $syncAllowed = @(
     'get_launch_options', 'plan_terminate_process', 'plan_suspend_process', 'list_benchmarks',
     'get_distribution', 'get_app_history',
     'set_retention_days', 'get_pending_update', 'set_auto_update', 'log_webview', 'diagnose',
+    'get_update_status',
     'get_lan_status', 'create_pairing', 'create_pairing_code', 'cancel_pairing_code',
     'pairing_code_status', 'revoke_pairing', 'revoke_all_pairings',
     # Flip a cancellation flag the worker polls.

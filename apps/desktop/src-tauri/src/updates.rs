@@ -32,7 +32,7 @@
 // the direct build, which does use them, still lints them in full.
 #![cfg_attr(not(feature = "self-update"), allow(dead_code))]
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 use parking_lot::Mutex;
 use tauri::Manager;
@@ -52,6 +52,18 @@ pub struct PendingInstall {
     /// Labels of the windows the pre-install hook hid, so a setup that did
     /// not start can put back exactly what the user was looking at.
     hidden: Mutex<Vec<String>>,
+    /// Milliseconds since the Unix epoch of the last check that finished,
+    /// whether it found something or not. `0` means none has run yet — the
+    /// panel has to be able to tell "never checked" from "checked and found
+    /// nothing", which is the whole point of showing it.
+    last_check_ms: AtomicU64,
+    /// What the last check that failed said. Cleared by one that works, so
+    /// the panel never shows a stale error next to a working updater.
+    last_error: Mutex<Option<String>>,
+    /// Why the background check is not running at all, when it is not.
+    /// Recorded rather than derived, because the reasons are decided at
+    /// launch and the panel asks much later.
+    suppressed: Mutex<Option<UpdateSuppressed>>,
 }
 
 impl Default for PendingInstall {
@@ -60,6 +72,9 @@ impl Default for PendingInstall {
             ready: Mutex::new(None),
             enabled: AtomicBool::new(true),
             hidden: Mutex::new(Vec::new()),
+            last_check_ms: AtomicU64::new(0),
+            last_error: Mutex::new(None),
+            suppressed: Mutex::new(None),
         }
     }
 }
@@ -70,8 +85,77 @@ impl std::fmt::Debug for PendingInstall {
             .field("ready", &self.ready.lock().is_some())
             .field("enabled", &self.enabled.load(Ordering::Relaxed))
             .field("hidden", &*self.hidden.lock())
+            .field("last_check_ms", &self.last_check_ms.load(Ordering::Relaxed))
+            .field("last_error", &*self.last_error.lock())
+            .field("suppressed", &*self.suppressed.lock())
             .finish()
     }
+}
+
+/// Why the background update check is off for this process.
+///
+/// A reason rather than a flag: "updates are off" and "the Store updates
+/// this copy" look identical from the panel otherwise, and only one of them
+/// is something the user could change.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum UpdateSuppressed {
+    /// The Microsoft Store build: the Store updates it.
+    Packaged,
+    /// A debug build, which has no installer to replace.
+    Development,
+    /// `VITALS_NO_AUTO_UPDATE` is set.
+    Environment,
+}
+
+impl UpdateSuppressed {
+    /// Pure, so the precedence is testable: a debug build is reported as
+    /// such even when it is also packaged, because that is the reason a
+    /// developer can act on.
+    #[must_use]
+    pub const fn from_flags(development: bool, packaged: bool, environment: bool) -> Option<Self> {
+        if development {
+            Some(Self::Development)
+        } else if packaged {
+            Some(Self::Packaged)
+        } else if environment {
+            Some(Self::Environment)
+        } else {
+            None
+        }
+    }
+
+    /// The reason for this process, or `None` when the check runs.
+    #[must_use]
+    pub fn detect() -> Option<Self> {
+        Self::from_flags(
+            cfg!(debug_assertions),
+            crate::distribution::packaged(),
+            std::env::var_os("VITALS_NO_AUTO_UPDATE").is_some(),
+        )
+    }
+}
+
+/// What the Settings panel shows about the background updater.
+///
+/// Assembled from the live state rather than cached, so it cannot drift from
+/// what the app is actually about to do.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateStatus {
+    /// The version downloaded and waiting for a quit, if any.
+    pub pending_version: Option<String>,
+    /// How that waiting update installs.
+    pub quit_install: QuitInstall,
+    /// "Install updates automatically", as the app currently believes it.
+    pub auto_update: bool,
+    /// Milliseconds since the Unix epoch of the last completed check, `0`
+    /// when none has run yet.
+    pub last_check_ms: u64,
+    /// The last check's failure, if the last check failed.
+    pub last_error: Option<String>,
+    /// Why checks are off, when they are.
+    pub suppressed: Option<UpdateSuppressed>,
 }
 
 /// How long after launch to wait before the first check, so the network
@@ -103,10 +187,14 @@ pub fn spawn(app: &tauri::AppHandle) {
     {
         // The Store build is updated by the Store; replacing our own files there
         // is forbidden and would fail against the read-only package directory.
-        if cfg!(debug_assertions)
-            || crate::distribution::packaged()
-            || std::env::var_os("VITALS_NO_AUTO_UPDATE").is_some()
-        {
+        //
+        // The reason is recorded before returning: the panel has to be able
+        // to say *why* nothing is being checked, and "off" and "the Store
+        // updates this copy" are not the same sentence to a user.
+        if let Some(reason) = UpdateSuppressed::detect() {
+            if let Some(state) = app.try_state::<PendingInstall>() {
+                *state.suppressed.lock() = Some(reason);
+            }
             return;
         }
         let app = app.clone();
@@ -127,8 +215,19 @@ pub fn spawn(app: &tauri::AppHandle) {
                     let due = last_check.is_none_or(|t| t.elapsed() >= RECHECK_EVERY);
                     if !update_ready(&app) && due {
                         last_check = Some(std::time::Instant::now());
-                        if let Err(error) = tauri::async_runtime::block_on(fetch(&app)) {
-                            tracing::info!(%error, "background update check did not complete");
+                        if let Some(state) = app.try_state::<PendingInstall>() {
+                            let outcome = tauri::async_runtime::block_on(fetch(&app));
+                            // Recorded whether it worked or not: "checked and
+                            // nothing to do" and "never checked" are different
+                            // facts, and only this one tells them apart.
+                            state.last_check_ms.store(now_ms(), Ordering::Relaxed);
+                            match outcome {
+                                Ok(_) => *state.last_error.lock() = None,
+                                Err(error) => {
+                                    *state.last_error.lock() = Some(error.to_string());
+                                    tracing::info!(%error, "background update check did not complete");
+                                }
+                            }
                         }
                     }
                     if update_ready(&app) {
@@ -143,6 +242,35 @@ pub fn spawn(app: &tauri::AppHandle) {
 fn update_ready(app: &tauri::AppHandle) -> bool {
     app.try_state::<PendingInstall>()
         .is_some_and(|p| p.ready.lock().is_some())
+}
+
+/// Milliseconds since the Unix epoch.
+///
+/// A clock set before 1970 yields `0`, which the panel reads as "never
+/// checked" — the same thing it means everywhere else. A wrong clock
+/// reporting a check that never happened would be the worse lie, and this
+/// machine has spent time on a wrong clock before.
+fn now_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |since| {
+            u64::try_from(since.as_millis()).unwrap_or(u64::MAX)
+        })
+}
+
+/// The version downloaded and waiting, when this build may have one.
+#[cfg(feature = "self-update")]
+fn pending_version(pending: &PendingInstall) -> Option<String> {
+    pending
+        .ready
+        .lock()
+        .as_ref()
+        .map(|(update, _)| update.version.clone())
+}
+
+#[cfg(not(feature = "self-update"))]
+fn pending_version(_pending: &PendingInstall) -> Option<String> {
+    None
 }
 
 /// What the idle install looks at, gathered in one place so the rule is pure.
@@ -392,19 +520,7 @@ pub async fn download_update(
 #[tauri::command]
 #[allow(clippy::needless_pass_by_value)]
 pub fn get_pending_update(pending: tauri::State<'_, PendingInstall>) -> Option<String> {
-    #[cfg(feature = "self-update")]
-    {
-        pending
-            .ready
-            .lock()
-            .as_ref()
-            .map(|(u, _)| u.version.clone())
-    }
-    #[cfg(not(feature = "self-update"))]
-    {
-        let _ = pending;
-        None
-    }
+    pending_version(&pending)
 }
 
 /// Pushed from the webview on hydration and whenever the setting changes.
@@ -477,6 +593,24 @@ fn quit_install() -> QuitInstall {
 #[tauri::command]
 pub async fn get_update_install_mode() -> QuitInstall {
     quit_install()
+}
+
+/// What the Settings panel shows about the background updater.
+///
+/// Everything it reads is already in memory, so it stays synchronous; a sync
+/// command must be listed in the allowlist in `scripts/check-drift.ps1`,
+/// which fails the build for one nobody has vouched for as cheap.
+#[tauri::command]
+#[allow(clippy::needless_pass_by_value)]
+pub fn get_update_status(pending: tauri::State<'_, PendingInstall>) -> UpdateStatus {
+    UpdateStatus {
+        pending_version: pending_version(&pending),
+        quit_install: quit_install(),
+        auto_update: pending.enabled.load(Ordering::Relaxed),
+        last_check_ms: pending.last_check_ms.load(Ordering::Relaxed),
+        last_error: pending.last_error.lock().clone(),
+        suppressed: *pending.suppressed.lock(),
+    }
 }
 
 /// The no-prompt preparation every setup start gets, plus the outcome
@@ -993,5 +1127,37 @@ pub async fn remove_leftover_install() -> Result<(), crate::commands::CommandErr
         Err(crate::commands::CommandError::Unsupported {
             message: "only Windows has a per-machine install to remove".into(),
         })
+    }
+}
+
+#[cfg(test)]
+mod suppression {
+    use super::UpdateSuppressed;
+
+    #[test]
+    fn a_development_build_is_reported_as_development_even_when_it_is_also_packaged() {
+        assert_eq!(
+            UpdateSuppressed::from_flags(true, true, true),
+            Some(UpdateSuppressed::Development),
+            "the reason a developer can act on is the one worth showing"
+        );
+    }
+
+    #[test]
+    fn the_store_build_is_reported_before_the_environment_variable() {
+        assert_eq!(
+            UpdateSuppressed::from_flags(false, true, true),
+            Some(UpdateSuppressed::Packaged),
+            "the Store updates that copy whether or not the variable is set"
+        );
+        assert_eq!(
+            UpdateSuppressed::from_flags(false, false, true),
+            Some(UpdateSuppressed::Environment)
+        );
+        assert_eq!(
+            UpdateSuppressed::from_flags(false, false, false),
+            None,
+            "nothing suppressed means the background check runs"
+        );
     }
 }

@@ -301,7 +301,16 @@
         "leftover": "O copie mai veche a Vitals este încă instalată pentru toți utilizatorii în {{path}}. Copia aceasta se actualizează acum fără drepturi de administrator; cea veche poate fi ștearsă.",
         "leftoverRemove": "Șterge copia veche",
         "leftoverRemoved": "Copia veche a fost ștearsă",
-        "leftoverFailed": "Copia veche nu a putut fi ștearsă"
+        "leftoverFailed": "Copia veche nu a putut fi ștearsă",
+        "notCheckedYet": "Încă neverificat",
+        "checkedMinutesAgo": "Verificat acum {{count}} min",
+        "checkedHoursAgo": "Verificat acum {{count}} h",
+        "lastCheckFailed": "Ultima verificare a eșuat: {{message}}",
+        "suppressed": {
+          "packaged": "Această copie este actualizată de Microsoft Store.",
+          "development": "Versiune de dezvoltare: actualizarea automată rămâne oprită.",
+          "environment": "Dezactivată de variabila de mediu VITALS_NO_AUTO_UPDATE."
+        }
       },
       "legal": "Informații legale",
       "privacyPolicy": "Politica de confidențialitate",

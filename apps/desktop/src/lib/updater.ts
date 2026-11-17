@@ -221,6 +221,36 @@ export async function quitInstallMode(): Promise<QuitInstall> {
   }
 }
 
+/** Why the background check is not running, when it is not. */
+export type UpdateSuppressed = 'packaged' | 'development' | 'environment';
+
+/**
+ * What the background updater is doing, for the About panel.
+ *
+ * `lastCheckMs` is `0` until one has finished, which the panel renders as
+ * "not yet" rather than a date in 1970 — the two are different facts and the
+ * panel knows the difference only if this one is passed through untouched.
+ */
+export interface UpdateStatus {
+  readonly pendingVersion: string | null;
+  readonly quitInstall: QuitInstall;
+  readonly autoUpdate: boolean;
+  readonly lastCheckMs: number;
+  readonly lastError: string | null;
+  readonly suppressed: UpdateSuppressed | null;
+}
+
+/** `null` when there is no host (the browser-only dev server). */
+export async function updateStatus(): Promise<UpdateStatus | null> {
+  if (!updatesAvailableInThisBuild()) return null;
+  try {
+    const { invoke } = await core();
+    return await invoke<UpdateStatus>('get_update_status');
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Installs the background download now. The app exits on success, so a
  * resolved promise is only ever seen on failure paths' absence; a rejection

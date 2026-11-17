@@ -20,8 +20,10 @@ import {
   pendingBackgroundUpdate,
   quitInstallMode,
   removeLeftoverInstall,
+  updateStatus,
   type QuitInstall,
   type UpdateState,
+  type UpdateStatus,
 } from '../lib/updater';
 import { reportFailure } from '../lib/reportFailure';
 import { reportSuccess } from '../lib/reportSuccess';
@@ -46,6 +48,10 @@ export function UpdateSection() {
   const [quitMode, setQuitMode] = useState<QuitInstall>('silent');
   // A Program Files copy left behind after moving to a per-user install.
   const [leftover, setLeftover] = useState<string | null>(null);
+  // What the background thread is doing: when it last ran, why it is not
+  // running, what it last failed with. Read once, on mount: the panel is
+  // open for seconds and the values change on the scale of hours.
+  const [status, setStatus] = useState<UpdateStatus | null>(null);
 
   useEffect(() => {
     let live = true;
@@ -57,6 +63,9 @@ export function UpdateSection() {
     });
     void leftoverInstall().then((path) => {
       if (live) setLeftover(path);
+    });
+    void updateStatus().then((next) => {
+      if (live) setStatus(next);
     });
     return () => {
       live = false;
@@ -149,7 +158,52 @@ export function UpdateSection() {
           </Button>
         </div>
       )}
+      {status !== null && <UpdaterStatusLine status={status} />}
     </div>
+  );
+}
+
+/**
+ * One muted line about the background updater.
+ *
+ * Ordered by what the user can act on rather than by recency: a reason the
+ * check is off beats an error, and an error beats the timestamp, because
+ * "checked four minutes ago" is not the sentence someone needs when the
+ * check is failing.
+ */
+function UpdaterStatusLine({ status }: { readonly status: UpdateStatus }) {
+  const { t } = useTranslation();
+
+  if (status.suppressed !== null) {
+    return (
+      <p className="text-2xs text-[var(--color-fg-muted)]" data-testid="updater-status">
+        {t(`settings.about.update.suppressed.${status.suppressed}`)}
+      </p>
+    );
+  }
+  if (status.lastError !== null) {
+    return (
+      <p className="text-2xs text-[var(--color-fg-muted)]" data-testid="updater-status">
+        {t('settings.about.update.lastCheckFailed', { message: status.lastError })}
+      </p>
+    );
+  }
+  if (status.lastCheckMs === 0) {
+    return (
+      <p className="text-2xs text-[var(--color-fg-muted)]" data-testid="updater-status">
+        {t('settings.about.update.notCheckedYet')}
+      </p>
+    );
+  }
+  // Coarse on purpose: the first check is 20 s after launch and the rest are
+  // twelve hours apart, so a minute count is as much detail as is ever true.
+  const minutes = Math.max(0, Math.round((Date.now() - status.lastCheckMs) / 60_000));
+  return (
+    <p className="text-2xs text-[var(--color-fg-muted)]" data-testid="updater-status">
+      {minutes < 60
+        ? t('settings.about.update.checkedMinutesAgo', { count: minutes })
+        : t('settings.about.update.checkedHoursAgo', { count: Math.round(minutes / 60) })}
+    </p>
   );
 }
 

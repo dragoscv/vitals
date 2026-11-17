@@ -412,6 +412,7 @@ fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
         commands::set_taskbar_load,
         updates::set_auto_update,
         updates::get_pending_update,
+        updates::get_update_status,
         updates::get_update_install_mode,
         updates::download_update,
         updates::install_update_now,
