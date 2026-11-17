@@ -143,7 +143,10 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
             className={cn(
               overlaySurface,
               overlayMotion,
-              'max-h-72 min-w-(--radix-select-trigger-width)',
+              // `min()` of the two caps lives in the stylesheet: an arbitrary
+              // Tailwind value containing `min()` and a `var()` is a silent
+              // drop if the parser disagrees, and a dropped cap is invisible.
+              'vitals-select-content min-w-(--radix-select-trigger-width)',
             )}
           >
             <Radix.Viewport className="p-1">

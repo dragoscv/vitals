@@ -1,7 +1,8 @@
 import { ToggleGroup as Radix } from 'radix-ui';
-import { forwardRef, type ElementRef, type ReactNode } from 'react';
+import { forwardRef, useCallback, type ElementRef, type ReactNode } from 'react';
 import { cn } from '../lib/cn';
 import { disabledData, focusRing } from '../lib/styles';
+import { useSlidingIndicator } from '../lib/useSlidingIndicator';
 
 export interface SegmentedOption<T extends string> {
   readonly value: T;
@@ -37,9 +38,23 @@ function SegmentedControlInner<T extends string>(
   { className, value, onValueChange, options, ariaLabel, size = 'md' }: SegmentedControlProps<T>,
   ref: React.Ref<ElementRef<typeof Radix.Root>>,
 ) {
+  const { ref: measureRef, geometry } = useSlidingIndicator({
+    items: '[role="radio"]',
+    selected: '[role="radio"][data-state="on"]',
+  });
+
+  const setRefs = useCallback(
+    (element: HTMLDivElement | null) => {
+      measureRef(element);
+      if (typeof ref === 'function') ref(element);
+      else if (ref !== null) ref.current = element;
+    },
+    [measureRef, ref],
+  );
+
   return (
     <Radix.Root
-      ref={ref}
+      ref={setRefs}
       type="single"
       value={value}
       // Radix emits '' when the pressed item is toggled off. A segmented
@@ -50,10 +65,27 @@ function SegmentedControlInner<T extends string>(
       }}
       aria-label={ariaLabel}
       className={cn(
-        'inline-flex items-center gap-0.5 rounded-[var(--radius-control)] bg-[var(--color-bg-inset)] p-0.5',
+        // `relative` so the indicator's offsets resolve against the control.
+        'relative inline-flex items-center gap-0.5 rounded-[var(--radius-control)] bg-[var(--color-bg-inset)] p-0.5',
         className,
       )}
     >
+      {geometry !== null && (
+        <span
+          aria-hidden="true"
+          data-segment-indicator=""
+          // Rendered before the segments and with no z-index, so the segments
+          // — which are `relative` — paint their labels over it. An absolutely
+          // positioned element otherwise wins against in-flow content and the
+          // pill would cover the text it is selecting.
+          className="vitals-tab-indicator pointer-events-none absolute top-0 left-0 rounded-[calc(var(--radius-control)-2px)] bg-[var(--color-bg-raised)] shadow-[var(--shadow-widget)]"
+          style={{
+            width: geometry.width,
+            height: geometry.height,
+            transform: `translate3d(${geometry.left}px, ${geometry.top}px, 0)`,
+          }}
+        />
+      )}
       {options.map((option) => (
         <Radix.Item
           key={option.value}
@@ -61,11 +93,14 @@ function SegmentedControlInner<T extends string>(
           disabled={option.disabled}
           aria-label={option.ariaLabel}
           className={cn(
-            'inline-flex items-center justify-center gap-1.5 rounded-[calc(var(--radius-control)-2px)] font-medium whitespace-nowrap text-[var(--color-fg-muted)]',
+            'relative inline-flex items-center justify-center gap-1.5 rounded-[calc(var(--radius-control)-2px)] font-medium whitespace-nowrap text-[var(--color-fg-muted)]',
             'transition-colors duration-(--duration-fast)',
             size === 'sm' ? 'h-6 px-2 text-2xs' : 'h-7 px-2.5 text-2xs',
             'hover:text-[var(--color-fg-default)]',
-            'data-[state=on]:bg-[var(--color-bg-raised)] data-[state=on]:text-[var(--color-fg-default)] data-[state=on]:shadow-[var(--shadow-widget)]',
+            // The raised fill and its shadow moved to the sliding indicator:
+            // leaving them on the segment would draw the "on" state twice —
+            // once instantly under the new segment, once still travelling.
+            'data-[state=on]:text-[var(--color-fg-default)]',
             focusRing,
             disabledData,
           )}

@@ -27,9 +27,11 @@ describe('Meter', () => {
   it('clamps an overshooting sample so the fill cannot escape its track', () => {
     render(<Meter label="CPU" accessibleLabel="CPU usage" value={137} valueText="137%" />);
     expect(
-      screen.getByTestId('meter-fill').style.width,
+      // A full-width fill scaled by the clamped ratio: at 137 of 100 the scale
+      // is exactly 1, so the bar cannot reach past its track.
+      screen.getByTestId('meter-fill').style.transform,
       'a sampled value above max rendered a fill wider than the track',
-    ).toBe('100.00%');
+    ).toBe('scaleX(1.0000)');
   });
 
   it('stays silent by default, so a 1 Hz metric does not narrate forever', () => {
@@ -82,7 +84,11 @@ describe('ProgressBar', () => {
     expect(bar.getAttribute('aria-valuenow')).toBe('3');
     expect(bar.getAttribute('aria-valuemax')).toBe('12');
     expect(bar.getAttribute('aria-valuetext')).toBe('3 of 12 files');
-    expect(screen.getByTestId('progress-indicator').style.width).toBe('25.00%');
+    // One quarter of the track, drawn by scaling a full-width fill from its
+    // left edge rather than by sizing it: a width change relayouts the track on
+    // every frame of the tween, a transform does not.
+    expect(screen.getByTestId('progress-indicator').style.transform).toBe('scaleX(0.2500)');
+    expect(screen.getByTestId('progress-indicator').style.width).toBe('');
   });
 });
 

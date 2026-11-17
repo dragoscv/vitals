@@ -109,11 +109,21 @@ export const Meter = forwardRef<HTMLDivElement, MeterProps>(function Meter(
           className={cn(
             // A light top edge and a soft glow in the fill's own colour: a
             // flat bar reads as a form control, a lit one as a gauge.
-            'h-full rounded-full shadow-[inset_0_1px_0_oklch(1_0_0/0.25),0_0_10px_-2px_currentColor]',
+            // The fill spans the track and is scaled from its left edge rather
+            // than being given a percentage width: a width change relayouts the
+            // track, and the Performance rail holds one of these per core, all
+            // redrawing once a second. `origin-left` is what makes the scale
+            // grow from the start of the bar.
+            'h-full w-full origin-left rounded-full shadow-[inset_0_1px_0_oklch(1_0_0/0.25),0_0_10px_-2px_currentColor]',
             FILL_TONE[tone],
-            reduced ? '' : 'transition-[width] duration-(--duration-slow) ease-(--ease-out-quart)',
+            reduced
+              ? ''
+              : 'transition-transform duration-(--duration-slow) ease-(--ease-out-quart)',
           )}
-          style={{ width: `${(ratio * 100).toFixed(2)}%` }}
+          // `toFixed` before the template: a ratio derived from a float keeps
+          // sixteen digits of noise, and every distinct string is a new style
+          // value for the engine to parse.
+          style={{ transform: `scaleX(${ratio.toFixed(4)})` }}
         />
       </div>
     </div>

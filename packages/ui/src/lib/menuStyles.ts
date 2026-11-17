@@ -14,6 +14,14 @@ import { disabledData, overlayMotion, overlaySurface } from './styles';
 export const menuContent = cn(
   overlaySurface,
   overlayMotion,
+  // Radix publishes the room left before the window edge on every popper as
+  // `--radix-popper-available-height`, so the cap is the same class for the
+  // dropdown and the context menu. Without it a long menu — the column list —
+  // is laid out past the window bottom on a short viewport and its last items
+  // cannot be reached at all: the popup is positioned, not scrollable, by
+  // default, and `overscroll-contain` stops the wheel from scrolling the page
+  // behind it once the menu hits its end.
+  'max-h-(--radix-popper-available-height) overflow-y-auto overscroll-contain',
   'min-w-44 origin-(--radix-popper-transform-origin) p-1',
 );
 

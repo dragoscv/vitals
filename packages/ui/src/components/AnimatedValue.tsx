@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 
 import { useReducedMotion } from '../lib/useReducedMotion';
 
@@ -19,6 +19,12 @@ import { useReducedMotion } from '../lib/useReducedMotion';
  * Screen readers get the final value only: the rolling text is aria-hidden and
  * a visually hidden copy carries the real one, so an update is one
  * announcement (if the region is live at all), not thirty.
+ *
+ * Frames are written straight to the DOM node rather than through state. A
+ * `setState` per frame re-renders the whole row — and every other animated
+ * reading on the page with it — sixty times a second to move three digits,
+ * which on a monitor that shows dozens of them is the difference between an
+ * idle CPU and a UI that competes with the thing it is measuring.
  */
 export function AnimatedValue({
   value,
@@ -34,10 +40,12 @@ export function AnimatedValue({
   readonly live?: boolean;
 }) {
   const reduced = useReducedMotion();
-  const [shown, setShown] = useState(value);
   const from = useRef(value);
+  const rolling = useRef<HTMLSpanElement | null>(null);
 
   useEffect(() => {
+    const element = rolling.current;
+    if (element === null) return;
     const previous = parse(from.current);
     const next = parse(value);
     from.current = value;
@@ -51,7 +59,7 @@ export function AnimatedValue({
       previous.number === next.number ||
       typeof requestAnimationFrame !== 'function'
     ) {
-      setShown(value);
+      element.textContent = value;
       return;
     }
 
@@ -61,7 +69,7 @@ export function AnimatedValue({
       // Ease-out quart, matching --ease-out-quart in theme.css.
       const eased = 1 - (1 - t) ** 4;
       const current = previous.number + (next.number - previous.number) * eased;
-      setShown(t >= 1 ? value : next.render(current));
+      element.textContent = t >= 1 ? value : next.render(current);
       if (t < 1) frame = requestAnimationFrame(step);
     });
 
@@ -70,9 +78,20 @@ export function AnimatedValue({
     };
   }, [value, reduced, duration]);
 
+  // Owning the text without a React child is what removes the per-frame render,
+  // and it costs one thing: the first paint would be empty. A layout effect runs
+  // before the browser paints, so it can seed the reading without handing the
+  // text back to React — as a child it would be written on every commit that
+  // changed the value, which is the render this refactor exists to avoid. The
+  // empty-string guard leaves an in-flight tween alone on an unrelated render.
+  useLayoutEffect(() => {
+    const element = rolling.current;
+    if (element !== null && element.textContent === '') element.textContent = from.current;
+  });
+
   return (
     <>
-      <span aria-hidden="true">{shown}</span>
+      <span ref={rolling} aria-hidden="true" />
       <span className="sr-only" aria-live={live ? 'polite' : undefined}>
         {value}
       </span>

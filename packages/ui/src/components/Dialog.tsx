@@ -1,7 +1,7 @@
 import { Dialog as RadixDialog } from 'radix-ui';
 import { forwardRef, type ComponentPropsWithoutRef, type ElementRef, type ReactNode } from 'react';
 import { cn } from '../lib/cn';
-import { focusRing } from '../lib/styles';
+import { focusRing, overlayMotion, overlayScrim } from '../lib/styles';
 
 export const DialogRoot = RadixDialog.Root;
 export const DialogTrigger = RadixDialog.Trigger;
@@ -65,7 +65,7 @@ export const DialogContent = forwardRef<ElementRef<typeof RadixDialog.Content>, 
         <RadixDialog.Overlay
           className={cn(
             'fixed inset-0 z-50 bg-[var(--color-bg-inset)]/70 backdrop-blur-[2px]',
-            'transition-opacity duration-(--duration-fast) data-[state=closed]:opacity-0 data-[state=open]:opacity-100',
+            overlayScrim,
           )}
         />
         <RadixDialog.Content
@@ -76,7 +76,7 @@ export const DialogContent = forwardRef<ElementRef<typeof RadixDialog.Content>, 
             // past the window edge and its header/footer - the Close and Next buttons - were cut off.
             'fixed top-1/2 left-1/2 z-50 flex max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden',
             'rounded-[var(--radius-widget)] border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] text-[var(--color-fg-default)] shadow-[var(--shadow-overlay)]',
-            'transition-opacity duration-(--duration-fast) data-[state=closed]:opacity-0 data-[state=open]:opacity-100',
+            overlayMotion,
             SIZES[size],
             className,
           )}

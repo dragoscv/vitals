@@ -51,11 +51,29 @@
   --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
   --ease-in-out-quart: cubic-bezier(0.76, 0, 0.24, 1);
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  /*
+   * Springs as `linear()` rather than a bezier. A cubic-bezier can overshoot
+   * once but cannot settle, and the settle is what makes a marker read as
+   * having arrived rather than as sliding on rails; `linear()` lets the curve
+   * be written out step by step instead of approximated by four control
+   * points. Two strengths, because a marker moving 300px across a rail wants a
+   * softer settle than one hopping 60px between tabs.
+   */
+  --spring-snappy: linear(0, 0.42 11%, 0.9 26%, 1.06 42%, 1.03 56%, 0.99 78%, 1 100%);
+  --spring-soft: linear(0, 0.24 14%, 0.68 33%, 0.96 57%, 1.02 74%, 1 100%);
+
+  /* One step of a staggered entrance, so the delay maths lives with the other
+   * motion tokens instead of as a magic number inside a rule. */
+  --stagger-step: 40ms;
 
   --duration-instant: 80ms;
   --duration-fast: 140ms;
   --duration-normal: 220ms;
   --duration-slow: 380ms;
+  /* Leaving is faster than arriving. A dismissal that takes as long as an
+   * entrance is the single biggest source of "this app feels sticky", because
+   * the user has already decided and is waiting on the animation. */
+  --duration-exit: 120ms;
 
   /* ---- Radii ---------------------------------------------------------- */
   --radius-widget: 0.75rem;
@@ -360,6 +378,32 @@
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+  /*
+   * Overlays are the one place `animation: none` is both safe and wanted. The
+   * 0.01ms collapse above still *runs* the entrance and exit, which is one
+   * frame at the offset; and Radix reads a `none` animation name as "nothing
+   * is animating out" and unmounts at once, which is exactly the instant
+   * behaviour reduced motion asks for. The explicit end values cover an engine
+   * that leaves a cancelled animation's first frame applied.
+   */
+  .vitals-overlay-motion,
+  .vitals-overlay-scrim {
+    animation: none !important;
+    opacity: 1;
+    scale: 1;
+  }
+  .vitals-tab-indicator {
+    transition: none !important;
+  }
+  /* The closed state keeps its 0fr row: presence finds no animation to wait
+   * for and unmounts at once, so the panel is simply gone, which is the
+   * instant behaviour this preference asks for. */
+  .vitals-collapsible {
+    transition: none !important;
+  }
+  .vitals-collapsible[data-state='closed'] {
+    animation: none !important;
+  }
 }
 
 /*
@@ -386,6 +430,23 @@
   animation-duration: 0.01ms !important;
   animation-iteration-count: 1 !important;
   transition-duration: 0.01ms !important;
+}
+/* Same reasoning as the media-query block above: the app's own setting has to
+ * stop the overlay animations outright, not merely shorten them. */
+[data-reduce-motion='true'] .vitals-overlay-motion,
+[data-reduce-motion='true'] .vitals-overlay-scrim {
+  animation: none !important;
+  opacity: 1;
+  scale: 1;
+}
+[data-reduce-motion='true'] .vitals-tab-indicator {
+  transition: none !important;
+}
+[data-reduce-motion='true'] .vitals-collapsible {
+  transition: none !important;
+}
+[data-reduce-motion='true'] .vitals-collapsible[data-state='closed'] {
+  animation: none !important;
 }
 [data-reduce-motion='true']::view-transition-group(*),
 [data-reduce-motion='true']::view-transition-old(*),
@@ -428,7 +489,7 @@
  */
 .vitals-stagger > * {
   animation: vitals-rise var(--duration-slow) var(--ease-out-quart) both;
-  animation-delay: calc(min(var(--i, 0), 8) * 40ms);
+  animation-delay: calc(min(var(--i, 0), 8) * var(--stagger-step));
 }
 
 .vitals-rise {
@@ -458,6 +519,186 @@
     opacity: 0;
     filter: blur(2px);
   }
+}
+
+/*
+ * ---- Overlays ---------------------------------------------------------
+ *
+ * Overlay motion is a pair of keyframe animations, not a CSS transition, and
+ * that is not a style preference — it is the only thing Radix's presence layer
+ * understands. Presence decides whether an element is still on its way out by
+ * reading its computed `animation-name` (see `usePresence` in
+ * @radix-ui/react-presence): a transition leaves that at `none`, which presence
+ * reads as "not animating", so the node is unmounted in the same tick the close
+ * starts and the exit is never seen. The same mechanism kills the entrance — the
+ * content is mounted already in the open state, and a transition needs a value
+ * *change* to run, while a keyframe animation starts the moment it is applied.
+ *
+ * Presence also compares the name it recorded on mount with the one it finds
+ * when the element closes, so the two states must name *different* animations.
+ * Give both states the same keyframes and the exit stops working again.
+ *
+ * Only `opacity` and the individual `scale` property are animated. Animating
+ * `transform` clobbers the transform two of these surfaces depend on — Radix
+ * Popper positions menus with `translate3d(x, y, 0)`, and a dialog is centred
+ * with `translate(-50%, -50%)` — so the overlay would jump to the top-left
+ * corner for the length of the animation and back.
+ */
+@keyframes vitals-overlay-in {
+  from {
+    opacity: 0;
+    scale: 0.96;
+  }
+  to {
+    opacity: 1;
+    scale: 1;
+  }
+}
+
+@keyframes vitals-overlay-out {
+  from {
+    opacity: 1;
+    scale: 1;
+  }
+  to {
+    opacity: 0;
+    scale: 0.96;
+  }
+}
+
+/* The scrim fades without scaling: it is full-bleed, so a scale of 0.96 would
+ * pull its edges in and leave a border of un-dimmed app around the dialog. */
+@keyframes vitals-overlay-scrim-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes vitals-overlay-scrim-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+.vitals-overlay-motion[data-state='open'] {
+  animation: vitals-overlay-in var(--duration-fast) var(--spring-soft) both;
+}
+
+.vitals-overlay-motion[data-state='closed'] {
+  animation: vitals-overlay-out var(--duration-exit) var(--ease-out-quart) both;
+}
+
+.vitals-overlay-scrim[data-state='open'] {
+  animation: vitals-overlay-scrim-in var(--duration-fast) var(--spring-soft) both;
+}
+
+.vitals-overlay-scrim[data-state='closed'] {
+  animation: vitals-overlay-scrim-out var(--duration-exit) var(--ease-out-quart) both;
+}
+
+/*
+ * Progressive enhancement only. `@starting-style` supplies the pre-change values
+ * for a transition, so it does nothing while the keyframes above are what drives
+ * the entrance — it is here so that an engine which resolves starting styles
+ * before the animation's first frame cannot paint one frame of the fully open
+ * overlay, and so that moving the entrance to a transition later would not lose
+ * the animation it depends on. Ignored where unsupported.
+ */
+@starting-style {
+  .vitals-overlay-motion[data-state='open'] {
+    opacity: 0;
+    scale: 0.96;
+  }
+  .vitals-overlay-scrim[data-state='open'] {
+    opacity: 0;
+  }
+}
+
+/*
+ * The sliding tab indicator.
+ *
+ * One element for the whole strip, moved to the selected tab, instead of a
+ * marker per tab that switches on and off: the eye can follow a marker that
+ * travels, but has to re-find one that blinks. Its position is written inline
+ * (measured from the selected tab) and only the move is animated, so the slide
+ * stays on the compositor. The indicator is `aria-hidden` at the call site —
+ * the selection is already exposed by `aria-selected`.
+ */
+.vitals-tab-indicator {
+  transition:
+    transform var(--duration-normal) var(--spring-snappy),
+    width var(--duration-normal) var(--ease-out-quart),
+    height var(--duration-normal) var(--ease-out-quart);
+}
+
+/*
+ * ---- Collapsibles -----------------------------------------------------
+ *
+ * Height animates through `grid-template-rows` (0fr -> 1fr), which is the one
+ * way to reach a content's natural height without measuring it in JavaScript
+ * and without the "guess a max-height and hope" trick that always either clips
+ * a long panel or finishes early on a short one.
+ *
+ * The two directions deliberately use different mechanisms. Radix's Collapsible
+ * measures its content by pinning `animation-name: none` *inline* for the first
+ * layout pass after the content mounts, so an entry *animation* is suppressed
+ * at exactly the moment the panel opens; a transition with `@starting-style`
+ * cannot be suppressed that way, so that is what opens the panel. The close
+ * does need an animation: presence unmounts the content the moment it sees no
+ * animation to wait for, and it compares the name it recorded on mount with the
+ * one at close, so the closed state has to name an animation of its own.
+ */
+.vitals-collapsible {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows var(--duration-normal) var(--ease-out-quart);
+}
+
+.vitals-collapsible[data-state='closed'] {
+  grid-template-rows: 0fr;
+  animation: vitals-collapse-out var(--duration-normal) var(--ease-out-quart) both;
+}
+
+@keyframes vitals-collapse-out {
+  from {
+    grid-template-rows: 1fr;
+  }
+  to {
+    grid-template-rows: 0fr;
+  }
+}
+
+/* The clip layer. A 0fr row only hides its child because something below
+ * clips it; without this the content keeps its intrinsic height and the row
+ * appears to animate while nothing moves. */
+.vitals-collapsible > * {
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* The entry: the row starts collapsed and the transition above carries it to
+ * its natural height. This is the one place `@starting-style` is load-bearing
+ * rather than belt-and-braces. */
+@starting-style {
+  .vitals-collapsible[data-state='open'] {
+    grid-template-rows: 0fr;
+  }
+}
+
+/*
+ * The select popup. Radix caps the wrapper to the window but the content keeps
+ * its own tall limit, so on a short viewport the two disagree and the list is
+ * taller than the space it is inside. `min()` of both keeps the 18rem cap on a
+ * full-height window and gives up the remainder on a short one.
+ */
+.vitals-select-content {
+  max-height: min(18rem, var(--radix-select-content-available-height));
 }
 
 @media (prefers-contrast: more) {

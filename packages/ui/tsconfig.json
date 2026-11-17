@@ -1,4 +1,11 @@
 {
   "extends": "@vitals/config/tsconfig/react",
+  "compilerOptions": {
+    // The motion tests assert against the stylesheet's own source, which is the
+    // only way to test a guarantee that lives in CSS. Without this the `node:fs`
+    // import in those tests does not resolve, because an explicit `types` list
+    // is what stops the root `@types/node` from being picked up implicitly.
+    "types": ["node"]
+  },
   "include": ["src/**/*"]
 }

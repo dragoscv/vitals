@@ -57,4 +57,15 @@ describe('AnimatedValue', () => {
     render(<AnimatedValue value="—" />);
     expect(screen.getAllByText('—')).toHaveLength(2);
   });
+
+  it('has the reading on the first painted frame, because the text is not a React child', () => {
+    render(<AnimatedValue value="43.2%" />);
+    // The rolling span has no React child — the tween writes straight to the
+    // node — so the initial text is seeded by a layout effect. Without it the
+    // first paint of a live table cell would be empty, and a later render could
+    // reset a tween that is mid-flight.
+    const rolling = screen.getAllByText('43.2%').find((node) => node.getAttribute('aria-hidden'));
+    expect(rolling, 'the rolling value was not painted before the first frame').toBeDefined();
+    expect(rolling?.childNodes).toHaveLength(1);
+  });
 });

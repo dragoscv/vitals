@@ -13,6 +13,17 @@ export {
 } from './lib/format';
 export { useReducedMotion } from './lib/useReducedMotion';
 export {
+  useSlidingIndicator,
+  type SlidingIndicator,
+  type SlidingIndicatorGeometry,
+  type SlidingIndicatorOptions,
+} from './lib/useSlidingIndicator';
+export {
+  useViewTransition,
+  type ViewTransitionNames,
+  type ViewTransitionRunner,
+} from './lib/useViewTransition';
+export {
   DEFAULT_SETTLE_MS,
   stableOrderStep,
   stickyRowsStep,
@@ -31,6 +42,7 @@ export {
   disabledData,
   focusRing,
   overlayMotion,
+  overlayScrim,
   overlaySurface,
 } from './lib/styles';
 
@@ -49,6 +61,12 @@ export {
   type CardTitleProps,
 } from './components/Card';
 export { Checkbox, type CheckboxProps } from './components/Checkbox';
+export {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+  type CollapsibleContentProps,
+} from './components/Collapsible';
 export {
   ContextMenu,
   ContextMenuCheckboxItem,

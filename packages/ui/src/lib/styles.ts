@@ -43,12 +43,23 @@ export const overlaySurface =
 /**
  * Enter/exit animation for floating surfaces.
  *
- * Expressed as a CSS transition on `data-state` rather than with the
- * `tailwindcss-animate` plugin, which this repo does not install — one more
- * dependency for two keyframes is not a trade worth making. Reduced motion is
- * honoured by theme.css, which collapses transition duration to 0.01ms rather
- * than removing it, so Radix's presence machinery still observes the
- * transition end and unmounts instead of orphaning the node.
+ * A class from `theme.css` rather than a set of Tailwind utilities, because the
+ * rule it carries cannot be expressed as one: the open and closed states must
+ * name two *different* keyframe animations. Radix's presence layer reads the
+ * element's computed `animation-name` to decide whether it is still on its way
+ * out, and a transition leaves that at `none` — which presence reads as "not
+ * animating", unmounting the overlay in the same tick the close begins. That is
+ * why these overlays used to pop in and out with no animation at all, and why
+ * replacing this with `transition-*` utilities silently brings the bug back.
+ *
+ * The keyframes, the `@starting-style` enhancement and the reduced-motion
+ * escape hatch all live in `theme.css`.
  */
-export const overlayMotion =
-  'transition-[opacity,transform] duration-(--duration-fast) ease-(--ease-out-quart) data-[state=closed]:scale-95 data-[state=closed]:opacity-0 data-[state=open]:scale-100 data-[state=open]:opacity-100';
+export const overlayMotion = 'vitals-overlay-motion';
+
+/**
+ * The same pairing for a full-bleed scrim, which fades without scaling — a
+ * scaled backdrop pulls its own edges in off the window and leaves a border of
+ * un-dimmed app around the dialog it is meant to hide.
+ */
+export const overlayScrim = 'vitals-overlay-scrim';

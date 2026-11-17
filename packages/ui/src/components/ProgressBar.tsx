@@ -90,11 +90,16 @@ export const ProgressBar = forwardRef<HTMLDivElement, ProgressBarProps>(
             // is exactly the kind of persistent movement the preference is for.
             reduced
               ? ''
-              : 'transition-[width] duration-(--duration-normal) ease-(--ease-out-quart)',
+              : 'transition-transform duration-(--duration-normal) ease-(--ease-out-quart)',
+            // The determinate fill spans the track and is scaled from its left
+            // edge; a scaled element is composited instead of relaid out, and
+            // the track's own `overflow-hidden` supplies the rounded end, so
+            // only the width of the fill is ever recomputed.
+            !indeterminate && 'w-full origin-left',
             indeterminate && !reduced && 'w-1/3 animate-pulse',
             indeterminate && reduced && 'w-1/3 opacity-60',
           )}
-          style={indeterminate ? undefined : { width: `${(ratio * 100).toFixed(2)}%` }}
+          style={indeterminate ? undefined : { transform: `scaleX(${ratio.toFixed(4)})` }}
         />
       </div>
     );
