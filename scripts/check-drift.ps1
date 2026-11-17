@@ -107,8 +107,18 @@ foreach ($file in $tsFiles) {
 
 # `--no-filename` matters: with it off, rg prefixes every match with the path
 # and the "command name" becomes `src/foo.ts:get_users`, which matches nothing.
-$invoked = Get-Rg @('-o', '--no-filename', "invoke(<[^>]*>)?\('([a-z_]+)'", 'apps/desktop/src', '--glob', '!*.test.*', '-r', '$2') |
-    Sort-Object -Unique
+#
+# Two spellings call a command: `invoke('name')`, and the typed wrapper the
+# agents feature uses, `call<Type>('name')`. The generic argument is required
+# by the second pattern on purpose — without it an unrelated `call(...)` could
+# be read as a command name and the forward check below would invent a
+# failure. Missing the wrapper made five real commands (the whole Kodwen
+# sign-in flow) read as unreachable, and a warning that is always there is a
+# warning everybody learns to skip.
+$invoked = @(
+    Get-Rg @('-o', '--no-filename', "invoke(<[^>]*>)?\('([a-z_]+)'", 'apps/desktop/src', '--glob', '!*.test.*', '-r', '$2')
+    Get-Rg @('-o', '--no-filename', "call<[^>]*>\('([a-z_]+)'", 'apps/desktop/src', '--glob', '!*.test.*', '-r', '$1')
+) | Sort-Object -Unique
 
 # Commands are whatever generate_handler! lists; that is what is reachable.
 # Matching `(\w+)::(\w+)` misses the entries written bare (no module path),
