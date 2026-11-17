@@ -69,7 +69,10 @@ sysinfo = { version = "=0.39.6", default-features = false, features = ["system",
 libc = "0.2"
 
 # Data
-rusqlite = { version = "0.40.2", features = ["bundled"] }
+# 0.43 pulls libsqlite3-sys >= 0.39, which carries the fix for
+# RUSTSEC-2026-0459 (CVE-2026-119375 in the bundled SQLite). The 0.40 line
+# cannot be patched: its libsqlite3-sys requirement is capped below the fix.
+rusqlite = { version = "0.43.0", features = ["bundled"] }
 
 # Local HTTP API (vitals-server)
 #
