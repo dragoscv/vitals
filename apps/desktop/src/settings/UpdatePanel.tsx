@@ -52,6 +52,10 @@ export function UpdateSection() {
   // running, what it last failed with. Read once, on mount: the panel is
   // open for seconds and the values change on the scale of hours.
   const [status, setStatus] = useState<UpdateStatus | null>(null);
+  // The clock is read once, in the effect below, and kept in state rather
+  // than called from render: `Date.now()` in a render is impure, and the
+  // React Compiler rejects it.
+  const [statusReadAtMs, setStatusReadAtMs] = useState<number | null>(null);
 
   useEffect(() => {
     let live = true;
@@ -65,7 +69,10 @@ export function UpdateSection() {
       if (live) setLeftover(path);
     });
     void updateStatus().then((next) => {
-      if (live) setStatus(next);
+      if (live) {
+        setStatus(next);
+        setStatusReadAtMs(Date.now());
+      }
     });
     return () => {
       live = false;
@@ -158,7 +165,9 @@ export function UpdateSection() {
           </Button>
         </div>
       )}
-      {status !== null && <UpdaterStatusLine status={status} />}
+      {status !== null && statusReadAtMs !== null && (
+        <UpdaterStatusLine status={status} readAtMs={statusReadAtMs} />
+      )}
     </div>
   );
 }
@@ -171,7 +180,13 @@ export function UpdateSection() {
  * "checked four minutes ago" is not the sentence someone needs when the
  * check is failing.
  */
-function UpdaterStatusLine({ status }: { readonly status: UpdateStatus }) {
+function UpdaterStatusLine({
+  status,
+  readAtMs,
+}: {
+  readonly status: UpdateStatus;
+  readonly readAtMs: number;
+}) {
   const { t } = useTranslation();
 
   if (status.suppressed !== null) {
@@ -197,7 +212,7 @@ function UpdaterStatusLine({ status }: { readonly status: UpdateStatus }) {
   }
   // Coarse on purpose: the first check is 20 s after launch and the rest are
   // twelve hours apart, so a minute count is as much detail as is ever true.
-  const minutes = Math.max(0, Math.round((Date.now() - status.lastCheckMs) / 60_000));
+  const minutes = Math.max(0, Math.round((readAtMs - status.lastCheckMs) / 60_000));
   return (
     <p className="text-2xs text-[var(--color-fg-muted)]" data-testid="updater-status">
       {minutes < 60

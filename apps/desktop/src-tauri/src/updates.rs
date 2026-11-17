@@ -222,7 +222,7 @@ pub fn spawn(app: &tauri::AppHandle) {
                             // facts, and only this one tells them apart.
                             state.last_check_ms.store(now_ms(), Ordering::Relaxed);
                             match outcome {
-                                Ok(_) => *state.last_error.lock() = None,
+                                Ok(()) => *state.last_error.lock() = None,
                                 Err(error) => {
                                     *state.last_error.lock() = Some(error.to_string());
                                     tracing::info!(%error, "background update check did not complete");
