@@ -1,4 +1,4 @@
-Vitals 1.2.0
-• Urmărește și un Mac, nu doar un PC cu Windows: a apărut Vitals pentru macOS
-• Valorile pe care un calculator nu le raportează apar ca liniuță, niciodată ca zero
-• Ține versiunea la pas cu aplicația desktop
+Vitals 1.3.0
+• Kodwen: pagina AI se conectează acum la ai.kodwen.com
+• Sănătate (opțional): rezumatul serverului tău vmui, direct pe telefon
+• Ecrane late: listă și detaliu alături, pe tabletă

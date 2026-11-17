@@ -57,8 +57,13 @@ Gratuit și open source (MIT). Disponibil în română și engleză.
 
 ## Ce e nou în această versiune (≤ 1500 caractere)
 
-Ce e nou în 1.2.0
+Ce e nou în 1.3.0
 
+• Kodwen: pagina Agenți AI este acum pagina Kodwen și se conectează la ai.kodwen.com. O cheie salvată de o versiune anterioară este mutată prima dată când e folosită, ca nimeni să nu fie delogat de actualizare
+• Pagina AI arată ce a consumat fiecare sesiune — tokeni de intrare, de ieșire, din cache și de raționament, numărul de cereri, costul și viteza — și spune clar când un client nu înregistrează consum
+• Sănătate (opțional): conectezi un server vmui pe care îl rulezi tu și îți citești rezumatul de sănătate și nutriție. Ținut doar în memorie, niciodată scris pe disc, iar pagina rămâne ascunsă până o conectezi
+
+Nou în 1.2.0:
 • Vitals pentru Mac: aplicația desktop rulează acum pe macOS 13 sau mai nou (Apple silicon și Intel), semnată și notarizată de Apple, iar o aplicație pentru iPhone urmărește PC-urile și Mac-urile din rețeaua ta
 • Valorile de memorie pe care le are doar Windows apar ca liniuță pe alte sisteme, nu ca zero
 

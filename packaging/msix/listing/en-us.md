@@ -57,8 +57,13 @@ Free and open source (MIT). Available in English and Romanian.
 
 ## What's new in this version (≤ 1500 characters)
 
-What's new in 1.2.0
+What's new in 1.3.0
 
+• Kodwen: the AI agents page is now the Kodwen page and signs in to ai.kodwen.com. A key saved by an earlier version is moved across the first time it is used, so nobody is signed out by the update
+• The AI page shows what each session actually used — input, output, cached and reasoning tokens, the number of requests, the cost and the speed — and says plainly when a client records no usage
+• Health (opt-in): connect a vmui server you run yourself and read your own health and nutrition summary. Held in memory only, never written to disk, and the page stays hidden until you connect it
+
+New in 1.2.0:
 • Vitals for Mac: the desktop app now runs on macOS 13 or later (Apple silicon and Intel), signed and notarised by Apple, and an iPhone app watches your PCs and Macs on your network
 • Memory figures only Windows has show a dash on other systems instead of a zero
 

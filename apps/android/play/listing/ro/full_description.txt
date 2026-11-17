@@ -19,6 +19,9 @@ Aplicația Android TV e gândită pentru telecomandă: monitorizează televizoru
 PC-UL TĂU (opțional)
 Asociază un PC cu Windows sau macOS care rulează Vitals scanând codul QR. Vezi procesorul, placa grafică, memoria, temperaturile și procesele, primești alerte, îl trezești din somn și, cu o asociere de control, închizi sau suspenzi un proces care nu mai răspunde. Două widgeturi pe ecranul de pornire țin un PC la vedere. Poți ține mai multe PC-uri într-o singură listă. Totul rămâne în rețeaua ta locală.
 
+SĂNĂTATEA TA (opțională)
+Conectezi un server vmui pe care îl rulezi tu și apare un tab Sănătate, cu rezumatul tău de sănătate și nutriție. Valorile vin din serverul ales de tine și de nicăieri altundeva, iar tabul rămâne ascuns până îl conectezi. Scrie clar că nu este sfat medical.
+
 Vitals pentru Windows și macOS este gratuit pe vitals.dragoscatalin.ro. Accesul la distanță rămâne oprit pe PC până îl pornești tu.
 
 ONEST DIN CONSTRUCȚIE

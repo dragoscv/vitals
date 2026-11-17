@@ -37,18 +37,18 @@ changed to run there.
 
 ## App content answers
 
-| Question              | Answer                                                                                                                                       |
-| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| Ads                   | No                                                                                                                                           |
-| App access            | All functionality is available without an account or special access; pairing a PC is optional                                                |
-| Target audience       | 18 and over (a system utility, not designed for children)                                                                                    |
-| Content rating (IARC) | Utility; no violence, sexuality, language, controlled substances, gambling, user interaction or sharing of location; expected: Everyone / 3+ |
-| News app              | No                                                                                                                                           |
-| Government app        | No                                                                                                                                           |
-| Financial features    | None                                                                                                                                         |
-| Health app            | No (it measures the device, not the person)                                                                                                  |
-| Category              | Tools                                                                                                                                        |
-| Foreground service    | `specialUse`: "Monitoring a paired PC on the local network", only while the user chooses to watch a PC in the background                     |
+| Question              | Answer                                                                                                                                                                                                  |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Ads                   | No                                                                                                                                                                                                      |
+| App access            | All functionality is available without an account or special access; pairing a PC is optional                                                                                                           |
+| Target audience       | 18 and over (a system utility, not designed for children)                                                                                                                                               |
+| Content rating (IARC) | Utility; no violence, sexuality, language, controlled substances, gambling, user interaction or sharing of location; expected: Everyone / 3+                                                            |
+| News app              | No                                                                                                                                                                                                      |
+| Government app        | No                                                                                                                                                                                                      |
+| Financial features    | None                                                                                                                                                                                                    |
+| Health app            | **Yes, since 1.3.0** — the optional Health tab shows the owner's own health and nutrition summary, read from a vmui server the user runs. Nothing reaches the developer; see _Health declaration_ below |
+| Category              | Tools                                                                                                                                                                                                   |
+| Foreground service    | `specialUse`: "Monitoring a paired PC on the local network", only while the user chooses to watch a PC in the background                                                                                |
 
 ## Special access declarations
 
@@ -64,18 +64,39 @@ Optional; every reading it gates stays empty until granted (ADR-0035).
 
 ## Data safety answers
 
-| Question                                 | Answer                                                                                                            |
-| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| Does the app collect or share user data? | Yes — only through Google ML Kit (the QR scanner)                                                                 |
-| Data types                               | App info and performance → Diagnostics; Device or other IDs (per-installation, not identifying a person)          |
-| Collected or shared                      | Collected (ML Kit sends to Google as a service provider; not shared with third parties)                           |
-| Processed ephemerally                    | No                                                                                                                |
-| Required or optional                     | Optional: only when the user opens the QR scanner                                                                 |
-| Purpose                                  | Analytics (ML Kit's own diagnostics of the scanner)                                                               |
-| Encrypted in transit                     | Yes (HTTPS)                                                                                                       |
-| Deletion request                         | Not applicable: the developer receives nothing; uninstalling deletes all local data                               |
-| Traffic to the user's own PC             | Not declared: it goes to a device the user controls on their own network, never to the developer or a third party |
+| Question                                 | Answer                                                                                                                                                                                                                                                                                                                                                      |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Does the app collect or share user data? | Yes — Google ML Kit (the QR scanner), and the Health tab while it is connected (see the last two rows)                                                                                                                                                                                                                                                      |
+| Data types                               | App info and performance → Diagnostics; Device or other IDs (per-installation, not identifying a person)                                                                                                                                                                                                                                                    |
+| Collected or shared                      | Collected (ML Kit sends to Google as a service provider; not shared with third parties)                                                                                                                                                                                                                                                                     |
+| Processed ephemerally                    | No                                                                                                                                                                                                                                                                                                                                                          |
+| Required or optional                     | Optional: only when the user opens the QR scanner                                                                                                                                                                                                                                                                                                           |
+| Purpose                                  | Analytics (ML Kit's own diagnostics of the scanner)                                                                                                                                                                                                                                                                                                         |
+| Encrypted in transit                     | Yes (HTTPS)                                                                                                                                                                                                                                                                                                                                                 |
+| Deletion request                         | Not applicable: the developer receives nothing; uninstalling deletes all local data                                                                                                                                                                                                                                                                         |
+| Traffic to the user's own PC             | Not declared: it goes to a device the user controls on their own network, never to the developer or a third party                                                                                                                                                                                                                                           |
+| Health tab (vmui)                        | The phone asks a vmui server the user runs themselves (address + token the user pastes) for the owner's health and nutrition summary. The developer hosts no such server, receives nothing and can access nothing, so by Play's definition ("transmitted off the device **in a way that allows you to access it**") this is not data the developer collects |
+| Data type if declared                    | Health and fitness → Health info, purpose App functionality, not shared with third parties, encrypted in transit, optional (the tab is hidden until a vmui is connected and can be disconnected at any time), deletion is the user's own server                                                                                                             |
 
 Re-check these whenever a dependency that talks to the network is added, and
 whenever [ML Kit's disclosure](https://developers.google.com/ml-kit/android-data-disclosure)
 changes.
+
+## Health declaration
+
+Play asks for a health declaration before an app that touches health data can
+ship. 1.3.0 answers:
+
+| Question                      | Answer                                                                                                                        |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Does the app use health data? | Yes — the optional Health tab (health and nutrition summary)                                                                  |
+| Where does it come from?      | A vmui server the user runs; the user pairs it with their own token. There is no developer server and no developer account    |
+| Is it required?               | No: the tab appears only while a vmui is connected, and disconnecting removes it                                              |
+| Is it advertised or sold?     | No: no ads, no analytics, no research use, no sharing                                                                         |
+| Does it give advice?          | No — the tab says "Not medical advice. Readings come from your vmui and may be incomplete." (`health_not_medical` in the app) |
+
+Question Q4 of `docs/legal/LAWYER-CHECKLIST.md` is exactly "does reading data
+from a user's own server count as health and fitness data collected". If the
+answer is no, the Data safety form stays "not collected" and this table only
+needs the declaration above; if it is yes, the two extra Data safety rows
+already written here are what the form should say.
