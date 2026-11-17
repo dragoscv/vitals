@@ -488,4 +488,5 @@
     <string name="connectivity_targets">Internet</string>
     <string name="connectivity_dns">Căutare nume %1$d ms</string>
     <string name="alert_custom">Regula ta de pe PC</string>
+    <string name="alert_service_stopped">Un serviciu de pe PC s-a oprit</string>
 </resources>

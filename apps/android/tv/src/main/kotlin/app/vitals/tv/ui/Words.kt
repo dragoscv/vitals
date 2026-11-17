@@ -31,6 +31,7 @@ fun AlertKind.title(): Int = when (this) {
     AlertKind.BatteryLow -> R.string.alert_battery_low
     AlertKind.BatteryHealth -> R.string.alert_battery_health
     AlertKind.Custom -> R.string.alert_custom
+    AlertKind.ServiceStopped -> R.string.alert_service_stopped
     // A kind a newer desktop added: worded generically rather than dropped.
     AlertKind.Unknown -> R.string.alert_other
 }

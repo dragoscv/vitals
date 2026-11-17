@@ -966,6 +966,23 @@
         }
       }
     },
+    "alert_service_stopped": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A service on the PC stopped"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un serviciu de pe PC s-a oprit"
+          }
+        }
+      }
+    },
     "alert_thermal_cpu": {
       "extractionState": "manual",
       "localizations": {

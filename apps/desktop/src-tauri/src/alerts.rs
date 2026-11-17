@@ -76,9 +76,66 @@ impl AlertPrefs {
             | AlertKind::BatteryHealth
             // The user wrote the rule and chose its severity, so there is
             // nothing to second-guess: if notifications are on, it notifies.
-            | AlertKind::Custom => true,
+            // A service that was running and is not is exactly the kind of
+            // thing nobody notices until something else breaks.
+            | AlertKind::Custom
+            | AlertKind::ServiceStopped => true,
         }
     }
+}
+
+/// The engine's view of the machine's services.
+///
+/// A translation rather than a shared type: `vitals-win` is the platform
+/// crate and must not depend on the alert engine's vocabulary, and the engine
+/// deliberately carries only the four things its one alert needs. Enumerating
+/// here rather than through `startup::collect` because that also reads the
+/// registry, the startup folders and every scheduled task — work the alert
+/// has no use for and would pay for on every poll.
+///
+/// An unreadable list yields an empty one, which raises nothing: a machine
+/// whose services could not be read is not a machine with every service
+/// stopped.
+#[cfg(windows)]
+#[must_use]
+pub fn services_for_engine() -> Vec<vitals_core::alerts::ServiceState> {
+    use vitals_core::alerts::{ServiceStartType, ServiceState};
+    use vitals_win::startup::services::enumerate_services;
+    use vitals_win::startup::{ServiceState as WinState, StartType};
+
+    enumerate_services(true)
+        .unwrap_or_default()
+        .into_iter()
+        .map(|info| {
+            // The alert's sentence has to name the service, so an absent
+            // display name falls back to the key name. The Services tab keeps
+            // the two apart, because there the difference *is* the
+            // information; here a blank subject would say nothing at all.
+            let display_name = info
+                .display_name
+                .clone()
+                .unwrap_or_else(|| info.name.clone());
+            ServiceState {
+                name: info.name,
+                display_name,
+                start_type: match info.start_type {
+                    StartType::Boot => ServiceStartType::Boot,
+                    StartType::System => ServiceStartType::System,
+                    StartType::Automatic => ServiceStartType::Auto,
+                    StartType::Manual => ServiceStartType::Manual,
+                    StartType::Disabled => ServiceStartType::Disabled,
+                    StartType::Unknown => ServiceStartType::Unknown,
+                },
+                // Every state but `Stopped` counts as running. `StopPending` is a
+                // service on its way down and the next poll confirms it; treating
+                // the transition as a stop would alert during a normal restart,
+                // and `Unknown` means the SCM said something we do not recognise,
+                // where silence is the honest answer.
+                running: !matches!(info.state, WinState::Stopped),
+                triggered: info.triggered,
+            }
+        })
+        .collect()
 }
 
 /// The engine plus everything needed to act on its output.
@@ -145,6 +202,27 @@ impl Alerts {
 
     pub fn set_strings(&self, strings: NotificationStrings) {
         *self.strings.lock() = Some(strings);
+    }
+
+    /// Replaces the service list the engine judges.
+    ///
+    /// Called from the sampler's own slow poll, not once per frame:
+    /// enumerating services on Windows is hundreds of SCM and registry round
+    /// trips, and the alert it feeds is about a transition that takes seconds
+    /// to matter. The engine keeps the "was running" memory across calls, so a
+    /// service that stopped between two polls is still caught.
+    pub fn set_services(&self, services: Vec<vitals_core::alerts::ServiceState>) {
+        self.engine.lock().set_services(services);
+    }
+
+    /// Records that the user stopped this service from Vitals itself.
+    ///
+    /// Stopping something on purpose is not the failure the "it stopped"
+    /// alert is for. The engine forgets the note as soon as the service runs
+    /// again, so a deliberate stop silences one episode and not the service
+    /// forever.
+    pub fn note_stopped_on_purpose(&self, service: &str) {
+        self.engine.lock().note_stopped_on_purpose(service);
     }
 
     /// Called by the sampler once per frame.

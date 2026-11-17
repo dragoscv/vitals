@@ -22,6 +22,7 @@ enum AlertWords {
         case .batteryLow: "alert_battery_low"
         case .batteryHealth: "alert_battery_health"
         case .custom: "alert_custom"
+        case .serviceStopped: "alert_service_stopped"
         case .unknown: "alert_other"
         }
     }

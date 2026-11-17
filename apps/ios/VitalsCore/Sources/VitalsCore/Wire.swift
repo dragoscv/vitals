@@ -398,6 +398,8 @@ public enum AlertKind: String, TolerantEnum {
     case diskSpace, diskHealth, gpuThrottled, thermalCpu, networkErrors, batteryLow, batteryHealth
     /// A rule the user wrote on the PC; the name travels as the subject.
     case custom
+    /// An automatic service on the PC has stopped.
+    case serviceStopped
     case unknown
     public static let unknownCase = Self.unknown
 }

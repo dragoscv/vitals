@@ -252,6 +252,12 @@ fn run(app: &AppHandle, stop: &AtomicBool, flight: &FlightRecorder) {
     #[cfg(windows)]
     let mut last_flush = Instant::now();
 
+    // Nothing has been read yet, so the first tick polls: a service that
+    // stops during the first thirty seconds is exactly the case this alert
+    // exists for.
+    #[cfg(windows)]
+    let mut last_services_poll: Option<Instant> = None;
+
     while !stop.load(Ordering::Relaxed) {
         let Some(interval) = current_interval(app) else {
             // Paused. Sleep until the rate changes or the app quits, so
@@ -317,6 +323,8 @@ fn run(app: &AppHandle, stop: &AtomicBool, flight: &FlightRecorder) {
                 if let Some(alerts) = app.try_state::<crate::alerts::Alerts>() {
                     alerts.observe(app, frame.system());
                 }
+                #[cfg(windows)]
+                poll_services(app, &mut last_services_poll);
                 // The tray, for the same reason: it must keep showing load
                 // while the window is hidden. Both the icon and the tooltip
                 // are guarded on a change, so a steady machine costs nothing.
@@ -465,6 +473,17 @@ fn reconcile_recorder(
 /// How often the accumulated history is written while running.
 #[cfg(windows)]
 const HISTORY_FLUSH_INTERVAL: Duration = Duration::from_secs(60);
+
+/// How often the service list is re-read for the "it stopped" alert.
+///
+/// Thirty seconds rather than one: enumerating every Win32 service with its
+/// configuration is about a thousand SCM calls, and the condition it feeds is
+/// a transition — a service that stopped stays stopped long enough to be seen
+/// at this rate. The first poll happens on the first tick so a service that
+/// dies at launch is caught, and the enumeration runs on its own thread so
+/// the sampler never waits for it.
+#[cfg(windows)]
+const SERVICES_POLL_INTERVAL: Duration = Duration::from_secs(30);
 
 /// Sleeps until the tick that started at `started` is due again.
 ///
@@ -630,6 +649,31 @@ impl Backend {
 /// reload it would otherwise fold deltas onto nothing until the periodic
 /// keyframe. Both are checked every tick so neither request is swallowed by
 /// the other (`take_keyframe_request` clears its flag).
+/// Hands a fresh service list to the alert engine, at its own slow rate.
+///
+/// On a thread of its own, and that is the point: enumerating every Win32
+/// service with its configuration is about a thousand SCM calls, which would
+/// hold the sampler still for the length of it — on a machine that may well be
+/// slow because a service is wedged. The engine keeps the "was running" memory
+/// across polls, so a service that stops between two of them is still caught.
+///
+/// `last` is `None` until the first poll, so the first tick reads the list
+/// rather than waiting half a minute: a service that fails during startup is
+/// exactly the case the alert exists for.
+#[cfg(windows)]
+fn poll_services(app: &AppHandle, last: &mut Option<Instant>) {
+    if last.is_some_and(|at| at.elapsed() < SERVICES_POLL_INTERVAL) {
+        return;
+    }
+    *last = Some(Instant::now());
+    let app = app.clone();
+    std::thread::spawn(move || {
+        if let Some(alerts) = app.try_state::<crate::alerts::Alerts>() {
+            alerts.set_services(crate::alerts::services_for_engine());
+        }
+    });
+}
+
 fn keyframe_wanted(app: &AppHandle) -> bool {
     let pipe = app
         .try_state::<crate::ipc::AttachPipe>()

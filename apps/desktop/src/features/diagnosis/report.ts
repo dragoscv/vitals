@@ -47,6 +47,9 @@ export function seriesFor(
     case 'storage':
     case 'battery':
     case 'custom':
+    // A stopped service is a state, not a load: there is no series that
+    // would explain it under the headline.
+    case 'services':
       return null;
   }
 }
@@ -81,6 +84,7 @@ export function formatContributorValue(
     case 'storage':
     case 'battery':
     case 'custom':
+    case 'services':
       return formatPercent(contributor.value, locale);
   }
 }

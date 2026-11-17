@@ -20,6 +20,7 @@
     <string name="alert_battery_low">Bateria este descărcată</string>
     <string name="alert_battery_health">Bateria se uzează</string>
     <string name="alert_custom">Regula ta de pe PC</string>
+    <string name="alert_service_stopped">Un serviciu de pe PC s-a oprit</string>
 
     <string name="loading">Se încarcă…</string>
     <string name="empty_title">Niciun PC încă</string>

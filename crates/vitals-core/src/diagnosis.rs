@@ -70,6 +70,9 @@ pub enum Subsystem {
     Battery,
     /// An alert from a rule the user wrote. Never named in a verdict.
     Custom,
+    /// A service that should be running has stopped. Not a load, so it never
+    /// contributes contributors to a "why is my PC slow" verdict either.
+    Services,
 }
 
 /// The answer to the question, ready to render.
@@ -131,6 +134,7 @@ impl AlertKind {
             // to blame and no contributor to name, so it stays out of the
             // "why is my PC slow" sentence entirely.
             Self::Custom => Subsystem::Custom,
+            Self::ServiceStopped => Subsystem::Services,
         }
     }
 
@@ -234,9 +238,11 @@ fn top_contributors(
         // is not a rate anybody is currently consuming.
         // A user rule names no subsystem to blame either, so it never
         // contributes to a "why is my PC slow" verdict.
-        Subsystem::Network | Subsystem::Storage | Subsystem::Battery | Subsystem::Custom => {
-            Vec::new()
-        }
+        Subsystem::Network
+        | Subsystem::Storage
+        | Subsystem::Battery
+        | Subsystem::Custom
+        | Subsystem::Services => Vec::new(),
     };
 
     let _ = system;

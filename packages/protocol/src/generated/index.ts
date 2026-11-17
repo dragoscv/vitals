@@ -91,6 +91,8 @@ export type * from './core/SensorKind';
 export type * from './core/SensorLine';
 export type * from './core/SensorReading';
 export type * from './core/SensorSource';
+export type * from './core/ServiceStartType';
+export type * from './core/ServiceState';
 export type * from './core/SessionState';
 export type * from './core/Severity';
 export type * from './core/StartupImpact';

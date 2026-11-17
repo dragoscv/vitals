@@ -197,6 +197,11 @@ const en = {
       above: 'Above {{threshold}} for {{seconds}} seconds — {{value}} now.',
       below: 'Below {{threshold}} for {{seconds}} seconds — {{value}} now.',
     },
+    serviceStopped: {
+      title: '{{serviceName}} has stopped',
+      cause:
+        'This service is set to start automatically and it was running while Vitals watched. Something stopped it — a crash, an uninstaller, or a cleaner tool. Windows reports the service name as {{service}}.',
+    },
   },
 
   diagnosis: {
@@ -469,6 +474,11 @@ const ro = {
       title: '{{name}}',
       above: 'Peste {{threshold}} timp de {{seconds}} secunde — acum {{value}}.',
       below: 'Sub {{threshold}} timp de {{seconds}} secunde — acum {{value}}.',
+    },
+    serviceStopped: {
+      title: '{{serviceName}} s-a oprit',
+      cause:
+        'Acest serviciu este setat să pornească automat și rula cât timp Vitals îl urmărea. Ceva l-a oprit — o eroare, o dezinstalare sau un program de curățare. Windows raportează serviciul cu numele {{service}}.',
     },
   },
 

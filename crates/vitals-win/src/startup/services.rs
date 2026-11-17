@@ -42,6 +42,10 @@ const SC_ENUM_PROCESS_INFO: u32 = 0;
 const ERROR_MORE_DATA: i32 = 234;
 const ERROR_ACCESS_DENIED: i32 = 5;
 
+/// `SERVICE_CONFIG_TRIGGER_INFO`. The answer begins with `cTriggers`, so the
+/// rest of the structure never has to be declared to read it.
+const SERVICE_CONFIG_TRIGGER_INFO: u32 = 8;
+
 /// `SERVICE_STATUS_PROCESS.dwCurrentState` values.
 mod state {
     pub const STOPPED: u32 = 1;
@@ -126,6 +130,13 @@ unsafe extern "system" {
     fn QueryServiceConfigW(
         service: ScHandle,
         config: *mut u8,
+        buffer_size: u32,
+        bytes_needed: *mut u32,
+    ) -> i32;
+    fn QueryServiceConfig2W(
+        service: ScHandle,
+        info_level: u32,
+        buffer: *mut u8,
         buffer_size: u32,
         bytes_needed: *mut u32,
     ) -> i32;
@@ -275,6 +286,15 @@ pub struct ServiceInfo {
     /// host's whole footprint against each of a dozen services — which is
     /// exactly what Task Manager's Details tab appears to do.
     pub svchost_group: Option<String>,
+    /// Whether a system trigger starts it, rather than boot.
+    ///
+    /// Only read when `with_config` was requested, and `false` when the query
+    /// failed — see [`has_triggers`] for why the failure direction is silence.
+    /// This is what decides whether a stopped automatic service is worth an
+    /// alert: without it, every Windows machine would report a permanent
+    /// warning for the many services that are `Auto` **and** stopped by
+    /// design.
+    pub triggered: bool,
 }
 
 impl ServiceInfo {
@@ -295,6 +315,53 @@ impl Drop for ServiceHandle {
         // exactly once — the type is neither Copy nor Clone.
         unsafe { CloseServiceHandle(self.0) };
     }
+}
+
+/// Whether a service starts on a system trigger rather than at boot.
+///
+/// Answers a question that decides whether a stopped service is worth
+/// reporting at all: a great many Windows services are set to start
+/// automatically **and** are stopped, because a trigger starts them on their
+/// first use. Without this, every machine would show a permanent warning.
+///
+/// `true` when the answer cannot be read, which keeps the caller silent rather
+/// than crying wolf. The Services tab still shows the true state; only the
+/// "it stopped unexpectedly" alert errs towards saying nothing.
+fn has_triggers(service: ScHandle) -> bool {
+    let mut needed = 0_u32;
+    // SAFETY: the handle is open for `SERVICE_QUERY_CONFIG`. A null buffer is
+    // the documented first half of the two-call pattern and only reports the
+    // size.
+    let sized = unsafe {
+        QueryServiceConfig2W(
+            service,
+            SERVICE_CONFIG_TRIGGER_INFO,
+            std::ptr::null_mut(),
+            0,
+            &raw mut needed,
+        )
+    };
+    if sized != 0 || needed < 4 {
+        return true;
+    }
+    let mut buffer = vec![0_u8; needed as usize];
+    // SAFETY: `buffer` is exactly `needed` bytes, which is what the first call
+    // asked for, and it outlives the call.
+    let read = unsafe {
+        QueryServiceConfig2W(
+            service,
+            SERVICE_CONFIG_TRIGGER_INFO,
+            buffer.as_mut_ptr(),
+            needed,
+            &raw mut needed,
+        )
+    };
+    if read == 0 {
+        return true;
+    }
+    // `SERVICE_TRIGGER_INFO` starts with `cTriggers`, little-endian on every
+    // platform this runs on.
+    u32::from_le_bytes([buffer[0], buffer[1], buffer[2], buffer[3]]) > 0
 }
 
 /// Enumerates Win32 services.
@@ -435,10 +502,10 @@ pub fn enumerate_services(with_config: bool) -> Result<Vec<ServiceInfo>> {
         let display_name =
             unsafe { wide_ptr_to_string(record.display_name) }.filter(|s| !s.is_empty());
 
-        let (start_type, binary_path) = if with_config {
+        let (start_type, binary_path, triggered) = if with_config {
             query_config(&scm, &name)
         } else {
-            (StartType::Unknown, None)
+            (StartType::Unknown, None, false)
         };
 
         let svchost_group = binary_path.as_deref().and_then(parse_svchost_group);
@@ -455,6 +522,7 @@ pub fn enumerate_services(with_config: bool) -> Result<Vec<ServiceInfo>> {
             },
             binary_path,
             svchost_group,
+            triggered,
         });
     }
 
@@ -465,16 +533,25 @@ pub fn enumerate_services(with_config: bool) -> Result<Vec<ServiceInfo>> {
 ///
 /// Returns `(Unknown, None)` on any failure rather than a default, because
 /// "we could not read it" and "it is set to Manual" must not look the same.
-fn query_config(scm: &ServiceHandle, name: &str) -> (StartType, Option<String>) {
+///
+/// The trigger flag rides along: the handle is already open for
+/// `SERVICE_QUERY_CONFIG`, and asking for the trigger information through the
+/// same handle costs one call instead of a second `OpenServiceW`.
+fn query_config(scm: &ServiceHandle, name: &str) -> (StartType, Option<String>, bool) {
     let wide: Vec<u16> = name.encode_utf16().chain(Some(0)).collect();
 
     // SAFETY: `wide` is NUL-terminated and alive for the call; `scm.0` is a
     // live SCM handle owned by the caller.
     let service = unsafe { OpenServiceW(scm.0, wide.as_ptr(), SERVICE_QUERY_CONFIG) };
     if service.is_null() {
-        return (StartType::Unknown, None);
+        return (StartType::Unknown, None, false);
     }
     let service = ServiceHandle(service);
+
+    // Read before the config query, which may return early: a service whose
+    // start type cannot be read should still not have its trigger state
+    // guessed.
+    let triggered = has_triggers(service.0);
 
     let mut needed: u32 = 0;
 
@@ -482,7 +559,7 @@ fn query_config(scm: &ServiceHandle, name: &str) -> (StartType, Option<String>) 
     unsafe { QueryServiceConfigW(service.0, std::ptr::null_mut(), 0, &raw mut needed) };
 
     if needed == 0 {
-        return (StartType::Unknown, None);
+        return (StartType::Unknown, None, triggered);
     }
 
     // The struct is followed by its strings in the same allocation, so the
@@ -503,7 +580,7 @@ fn query_config(scm: &ServiceHandle, name: &str) -> (StartType, Option<String>) 
     };
 
     if ok == 0 {
-        return (StartType::Unknown, None);
+        return (StartType::Unknown, None, triggered);
     }
 
     // SAFETY: the call succeeded, so the buffer starts with an initialised,
@@ -513,7 +590,7 @@ fn query_config(scm: &ServiceHandle, name: &str) -> (StartType, Option<String>) 
     // SAFETY: `binary_path_name` points into `buffer`, which is alive here.
     let path = unsafe { wide_ptr_to_string(config.binary_path_name) }.filter(|s| !s.is_empty());
 
-    (StartType::from_raw(config.start_type), path)
+    (StartType::from_raw(config.start_type), path, triggered)
 }
 
 /// Extracts the svchost group from a service's command line.

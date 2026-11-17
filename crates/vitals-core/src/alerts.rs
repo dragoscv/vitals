@@ -87,6 +87,8 @@ pub enum AlertKind {
     /// and the threshold all arrive in `values`, because one variant has to
     /// cover every rule a person can write.
     Custom,
+    /// An automatic service that was running has stopped.
+    ServiceStopped,
 }
 
 impl AlertKind {
@@ -448,6 +450,63 @@ impl RuleMetric {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "ts", ts(export, export_to = "core/"))]
+#[serde(rename_all = "camelCase")]
+pub enum ServiceStartType {
+    Boot,
+    System,
+    Auto,
+    Manual,
+    Disabled,
+    Unknown,
+}
+
+/// One service, as the host last saw it.
+///
+/// Not part of the per-second sample: enumerating every service on Windows is
+/// hundreds of registry and SCM round trips, and the row that asked for this
+/// alert says so. The host polls at its own slow rate and hands the result to
+/// [`Engine::set_services`].
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(
+    feature = "ts",
+    ts(export, export_to = "core/", rename_all = "camelCase")
+)]
+#[serde(rename_all = "camelCase")]
+pub struct ServiceState {
+    /// The SCM name, which is what a `net start` would use.
+    pub name: String,
+    /// What the user sees in the services list.
+    pub display_name: String,
+    pub start_type: ServiceStartType,
+    pub running: bool,
+    /// Whether the service starts on a system trigger rather than at boot.
+    ///
+    /// The distinction is the whole reason this alert is not noise. A great
+    /// many Windows services are `Auto` **and** stopped, because a trigger
+    /// starts them on their first use — reporting those would put a permanent
+    /// warning on every machine in the world.
+    pub triggered: bool,
+}
+
+impl ServiceState {
+    /// Whether a stopped service here is worth telling the user about.
+    ///
+    /// Only one that is meant to be running anyway, and that nothing else is
+    /// waiting to start on demand.
+    #[must_use]
+    pub fn is_expected_running(&self) -> bool {
+        !self.triggered
+            && matches!(
+                self.start_type,
+                ServiceStartType::Boot | ServiceStartType::System | ServiceStartType::Auto
+            )
+    }
+}
+
 /// Identity of an alert across ticks: the kind plus the thing it is about.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct Key {
@@ -508,6 +567,19 @@ pub struct Engine {
     sample: u64,
     /// The user's rules, with their windows already in samples.
     rules: Vec<CompiledRule>,
+    /// The last service list the host handed over. Empty until it does, and
+    /// refreshed at the host's own slow rate rather than per sample.
+    services: Vec<ServiceState>,
+    /// Services this process has seen running at least once.
+    ///
+    /// A service that was already stopped when Vitals started is not news and
+    /// is never reported: without this, every machine with a deliberately
+    /// stopped automatic service would show a permanent warning in the first
+    /// fifteen seconds.
+    services_seen_running: std::collections::HashSet<String>,
+    /// Services the user stopped from Vitals itself. Stopping something on
+    /// purpose is not the failure this alert is for.
+    stopped_on_purpose: std::collections::HashSet<String>,
 }
 
 impl Engine {
@@ -592,6 +664,82 @@ impl Engine {
             .unwrap_or_default()
     }
 
+    /// Replaces the service list.
+    ///
+    /// Called at the host's own slow rate, not every sample: see
+    /// [`ServiceState`]. Between refreshes the list is stale but stable, so
+    /// nothing flaps.
+    pub fn set_services(&mut self, services: Vec<ServiceState>) {
+        self.services = services;
+    }
+
+    /// Records that the user stopped a service from Vitals itself.
+    ///
+    /// The entry is forgotten as soon as that service runs again, so a
+    /// deliberate stop is respected once and does not silence the service
+    /// forever — the next time it stops by itself, the user is told.
+    pub fn note_stopped_on_purpose(&mut self, service: &str) {
+        let _ = self.stopped_on_purpose.insert(service.to_owned());
+    }
+
+    /// A service that should be running and is not, or `None`.
+    ///
+    /// Three conditions, and all three matter:
+    ///
+    /// 1. it is meant to be running (automatic, and not trigger-started);
+    /// 2. this process has **seen it running** — a service that was already
+    ///    stopped when Vitals started is not news;
+    /// 3. the user did not stop it from Vitals itself just now.
+    #[must_use]
+    pub fn stopped_service(&self) -> Option<&ServiceState> {
+        self.services.iter().find(|service| {
+            !service.running
+                && service.is_expected_running()
+                && self.services_seen_running.contains(&service.name)
+                && !self.stopped_on_purpose.contains(&service.name)
+        })
+    }
+
+    /// The alerts for services that should be running and are not.
+    ///
+    /// The list is taken out and put back so the borrow of it and the mutable
+    /// borrow of the memory beside it do not overlap; it is thirty or so
+    /// entries, so moving it costs nothing worth counting.
+    fn service_candidates(&mut self) -> Vec<Alert> {
+        let mut out = Vec::new();
+        let services = std::mem::take(&mut self.services);
+        for service in &services {
+            if service.running {
+                let _ = self.services_seen_running.insert(service.name.clone());
+                // A service that runs again is no longer a deliberate stop,
+                // so the next time it goes down the user hears about it.
+                let _ = self.stopped_on_purpose.remove(&service.name);
+                continue;
+            }
+            if service.is_expected_running()
+                && self.services_seen_running.contains(&service.name)
+                && !self.stopped_on_purpose.contains(&service.name)
+            {
+                out.push(alert(
+                    AlertKind::ServiceStopped,
+                    Severity::Warning,
+                    service.display_name.clone(),
+                    "cause",
+                    vec![
+                        // The title is the sentence, so it needs the name as a
+                        // value: the renderer interpolates `values`, and
+                        // `subject` is not one of them.
+                        ("serviceName", service.display_name.as_str().into()),
+                        ("service", service.name.as_str().into()),
+                    ],
+                    None,
+                ));
+            }
+        }
+        self.services = services;
+        out
+    }
+
     /// Feeds one sample and returns what changed.
     ///
     /// Every condition is evaluated every tick, including those that are not
@@ -603,6 +751,11 @@ impl Engine {
         // Everything that is true right now. Keys absent from this set are
         // false this tick.
         let mut candidates: Vec<Candidate> = evaluate(system).into_iter().map(built_in).collect();
+        // A stopped service is not a threshold condition: what matters is that
+        // this process *saw it running* and now does not. The memory is
+        // updated here, in the same tick, so the "not seen means false" pass
+        // below clears a service that comes back up.
+        candidates.extend(self.service_candidates().into_iter().map(built_in));
         // A rule whose reading is absent raises nothing: "cannot measure" is
         // not "below the threshold".
         for compiled in &self.rules {
@@ -758,6 +911,7 @@ fn serde_variant_name(kind: AlertKind) -> &'static str {
         AlertKind::BatteryLow => "batteryLow",
         AlertKind::BatteryHealth => "batteryHealth",
         AlertKind::Custom => "custom",
+        AlertKind::ServiceStopped => "serviceStopped",
     }
 }
 
@@ -1327,5 +1481,126 @@ mod tests {
             assert!(engine.poll(&busy(95.0)).raised.is_empty());
         }
         assert_eq!(engine.poll(&busy(95.0)).raised.len(), 1);
+    }
+
+    /// An automatic service that is meant to be running.
+    fn service(name: &str, running: bool) -> ServiceState {
+        ServiceState {
+            name: name.into(),
+            display_name: format!("{name} service"),
+            start_type: ServiceStartType::Auto,
+            running,
+            triggered: false,
+        }
+    }
+
+    #[test]
+    fn a_service_that_stops_is_reported_with_its_display_name() {
+        let mut engine = Engine::new();
+        engine.set_services(vec![service("Spooler", true)]);
+        engine.poll(&busy(5.0));
+        assert!(engine.active().is_empty(), "running is not news");
+
+        engine.set_services(vec![service("Spooler", false)]);
+        let transitions = engine.poll(&busy(5.0));
+        assert_eq!(transitions.raised.len(), 1);
+        let alert = &transitions.raised[0];
+        assert_eq!(alert.kind, AlertKind::ServiceStopped);
+        assert_eq!(alert.subject, "Spooler service", "what the user sees");
+        assert_eq!(alert.values["service"], AlertValue::Text("Spooler".into()));
+    }
+
+    #[test]
+    fn a_service_that_was_already_stopped_is_never_reported() {
+        // The trap this exists for: every Windows machine has automatic
+        // services that are stopped and fine. Reporting those would put a
+        // permanent warning on every install.
+        let mut engine = Engine::new();
+        engine.set_services(vec![service("Dormant", false)]);
+        for _ in 0..40 {
+            let transitions = engine.poll(&busy(5.0));
+            assert!(transitions.raised.is_empty(), "it was never running");
+        }
+        assert!(engine.active().is_empty());
+    }
+
+    #[test]
+    fn a_trigger_started_service_is_not_reported_when_it_stops() {
+        // Auto **and** stopped is the normal state of a trigger-started
+        // service, and it is the single biggest source of false positives.
+        let mut engine = Engine::new();
+        let mut triggered = service("wuauserv", true);
+        triggered.triggered = true;
+        engine.set_services(vec![triggered.clone()]);
+        engine.poll(&busy(5.0));
+        triggered.running = false;
+        engine.set_services(vec![triggered]);
+        assert!(engine.poll(&busy(5.0)).raised.is_empty());
+        assert!(
+            !ServiceState {
+                triggered: true,
+                ..service("x", false)
+            }
+            .is_expected_running()
+        );
+    }
+
+    #[test]
+    fn a_manual_service_stopping_is_nobody_s_business() {
+        let mut engine = Engine::new();
+        let mut manual = service("Manual", true);
+        manual.start_type = ServiceStartType::Manual;
+        engine.set_services(vec![manual.clone()]);
+        engine.poll(&busy(5.0));
+        manual.running = false;
+        engine.set_services(vec![manual]);
+        assert!(engine.poll(&busy(5.0)).raised.is_empty());
+    }
+
+    #[test]
+    fn a_service_the_user_stopped_from_vitals_is_not_reported_until_it_runs_again() {
+        let mut engine = Engine::new();
+        engine.set_services(vec![service("Spooler", true)]);
+        engine.poll(&busy(5.0));
+
+        engine.note_stopped_on_purpose("Spooler");
+        engine.set_services(vec![service("Spooler", false)]);
+        assert!(
+            engine.poll(&busy(5.0)).raised.is_empty(),
+            "stopping it on purpose is not a failure"
+        );
+
+        // It runs again, so the deliberate stop is forgotten...
+        engine.set_services(vec![service("Spooler", true)]);
+        engine.poll(&busy(5.0));
+        // ...and the next stop by itself is reported.
+        engine.set_services(vec![service("Spooler", false)]);
+        assert_eq!(engine.poll(&busy(5.0)).raised.len(), 1);
+    }
+
+    #[test]
+    fn a_service_coming_back_clears_its_alert() {
+        let mut engine = Engine::new();
+        engine.set_services(vec![service("Spooler", true)]);
+        engine.poll(&busy(5.0));
+        engine.set_services(vec![service("Spooler", false)]);
+        engine.poll(&busy(5.0));
+        assert_eq!(engine.active().len(), 1);
+        engine.set_services(vec![service("Spooler", true)]);
+        for _ in 0..(CLEAR_SAMPLES + 2) {
+            engine.poll(&busy(5.0));
+        }
+        assert!(
+            engine.active().is_empty(),
+            "it is running again, so the warning must go"
+        );
+    }
+
+    #[test]
+    fn an_empty_service_list_is_not_every_service_being_down() {
+        let mut engine = Engine::new();
+        engine.poll(&busy(5.0));
+        assert!(engine.active().is_empty());
+        assert!(engine.stopped_service().is_none());
     }
 }

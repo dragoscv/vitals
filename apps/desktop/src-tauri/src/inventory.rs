@@ -514,14 +514,25 @@ pub async fn set_startup_enabled(
 }
 
 /// Starts, stops or restarts a service.
+///
+/// A stop the user asked for is recorded with the alert engine, which
+/// otherwise reports "this was running and stopped" — true, and exactly the
+/// warning the user does not need for something they just did on purpose. The
+/// note is forgotten as soon as the service runs again, so the next
+/// unexpected stop is still reported.
 #[tauri::command]
 #[cfg(windows)]
 pub async fn control_service(
+    app: tauri::AppHandle,
     name: String,
     action: ServiceControlDto,
     confirmed: Option<bool>,
 ) -> CommandResult<()> {
+    use tauri::Manager as _;
     use vitals_win::startup::ServiceControl as C;
+    // A restart stops it too, and the user asked for that as well.
+    let stopping = matches!(action, ServiceControlDto::Stop | ServiceControlDto::Restart);
+    let subject = name.clone();
     let control = match action {
         ServiceControlDto::Start => C::Start,
         ServiceControlDto::Stop => C::Stop,
@@ -531,7 +542,11 @@ pub async fn control_service(
         vitals_win::startup::StartupChange::Service { name, control },
         confirmed,
     )
-    .await
+    .await?;
+    if stopping && let Some(alerts) = app.try_state::<crate::alerts::Alerts>() {
+        alerts.note_stopped_on_purpose(&subject);
+    }
+    Ok(())
 }
 
 /// Changes when a service starts.

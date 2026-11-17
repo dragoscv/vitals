@@ -466,6 +466,7 @@ enum class AlertKind(override val wire: String) : WireEnum {
     /// A rule the user wrote on the PC. The name travels as the alert's
     /// subject, so the label here is generic.
     Custom("custom"),
+    ServiceStopped("serviceStopped"),
     Unknown("unknown");
 
     object Serializer : TolerantEnumSerializer<AlertKind>("AlertKind", AlertKind.entries.toTypedArray(), AlertKind.Unknown)
