@@ -158,7 +158,18 @@ test.describe('live lists keep their places between ticks', () => {
         }),
       );
       await pushAgents(page, snapshot(pushed));
-      await expect(page.getByText(String(20 + tick)).first()).toBeVisible();
+      // Scoped to the session cards and matched exactly. A loose `getByText`
+      // over the whole page now also matches the usage figures the AI page
+      // gained (a hidden "210.0%" begins with the same digits as the "21"
+      // turns count), and `.first()` picked that hidden node instead.
+      await expect(
+        page
+          .locator('[data-route-visible] li')
+          .filter({ hasText: /^(Alpha|Bravo|Charlie) task/ })
+          .getByText(String(20 + tick), { exact: true })
+          .first(),
+        `push ${String(tick)} did not show ${String(20 + tick)} turns on a session card`,
+      ).toBeVisible();
       await page.waitForTimeout(400);
       expect(await cardBoxes(page), `push ${String(tick)}`).toEqual(before);
     }
