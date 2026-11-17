@@ -209,6 +209,7 @@
     <string name="alert_network_errors">Conexiunea la rețea pierde date</string>
     <string name="alert_battery_low">Bateria este descărcată</string>
     <string name="alert_battery_health">Bateria se uzează</string>
+    <string name="alert_custom">Regula ta de pe PC</string>
 
     <string name="device_tab_storage">Stocare</string>
     <string name="device_tab_apps">Aplicații</string>

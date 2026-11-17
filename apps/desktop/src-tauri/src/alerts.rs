@@ -73,10 +73,10 @@ impl AlertPrefs {
             | AlertKind::DiskHealth
             | AlertKind::NetworkErrors
             | AlertKind::BatteryLow
-            | AlertKind::BatteryHealth => true,
+            | AlertKind::BatteryHealth
             // The user wrote the rule and chose its severity, so there is
             // nothing to second-guess: if notifications are on, it notifies.
-            AlertKind::Custom => true,
+            | AlertKind::Custom => true,
         }
     }
 }
