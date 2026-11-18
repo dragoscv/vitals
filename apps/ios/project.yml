@@ -14,7 +14,11 @@ settings:
     SWIFT_VERSION: '6.0'
     SWIFT_STRICT_CONCURRENCY: complete
     DEVELOPMENT_TEAM: ${DEVELOPMENT_TEAM}
-    CODE_SIGN_STYLE: Automatic
+    # Automatic by default; scripts/build.sh exports VITALS_CODE_SIGN_STYLE=Manual
+    # with a per-target profile when the upload must not call the provisioning
+    # service (Xcode 26.6 answered "Authentication failed: bearer token" on
+    # 2026-11-18 and fell back to a wildcard profile).
+    CODE_SIGN_STYLE: ${VITALS_CODE_SIGN_STYLE}
 packages:
   VitalsCore:
     path: VitalsCore
@@ -66,6 +70,8 @@ targets:
         # App Store too; INFOPLIST_KEY_CFBundleName does not override it.
         PRODUCT_NAME: VitalsMonitor
         PRODUCT_MODULE_NAME: Vitals
+        # Set by the upload driver; empty otherwise.
+        PROVISIONING_PROFILE_SPECIFIER: ${VITALS_PROFILE_APP}
         # iPhone only until iPad screenshots and an iPad test exist.
         TARGETED_DEVICE_FAMILY: '1'
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
@@ -119,6 +125,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: app.vitals.ios.watchkitapp
         PRODUCT_NAME: VitalsMonitorWatch
         PRODUCT_MODULE_NAME: VitalsWatch
+        PROVISIONING_PROFILE_SPECIFIER: ${VITALS_PROFILE_WATCH}
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_CFBundleDisplayName: Vitals Monitor
         # WKRunsIndependentlyOfCompanionApp false (Info.plist above): it needs
@@ -161,6 +168,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: app.vitals.ios.widget
         PRODUCT_NAME: VitalsWidget
         PRODUCT_MODULE_NAME: VitalsWidget
+        PROVISIONING_PROFILE_SPECIFIER: ${VITALS_PROFILE_WIDGET}
         GENERATE_INFOPLIST_FILE: YES
         TARGETED_DEVICE_FAMILY: '1'
         # Embedded in the app only, never a second top-level product.
@@ -196,6 +204,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: app.vitals.ios.watchkitapp.widget
         PRODUCT_NAME: VitalsWatchWidget
         PRODUCT_MODULE_NAME: VitalsWatchWidget
+        PROVISIONING_PROFILE_SPECIFIER: ${VITALS_PROFILE_WATCHWIDGET}
         GENERATE_INFOPLIST_FILE: YES
         TARGETED_DEVICE_FAMILY: '4'
         SKIP_INSTALL: YES

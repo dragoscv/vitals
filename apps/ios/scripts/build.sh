@@ -21,6 +21,15 @@ MODE="${1:-build}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$HERE"
 
+# Signing mode. Automatic (Xcode resolves the profile itself) unless the upload
+# driver asked for Manual and shipped the App Store profiles — see the note in
+# project.yml. Defaults keep the generated project valid when it is not set.
+export VITALS_CODE_SIGN_STYLE="${VITALS_CODE_SIGN_STYLE:-Automatic}"
+export VITALS_PROFILE_APP="${VITALS_PROFILE_APP:-}"
+export VITALS_PROFILE_WATCH="${VITALS_PROFILE_WATCH:-}"
+export VITALS_PROFILE_WIDGET="${VITALS_PROFILE_WIDGET:-}"
+export VITALS_PROFILE_WATCHWIDGET="${VITALS_PROFILE_WATCHWIDGET:-}"
+
 XCODEGEN_VERSION="2.46.0"
 XCODEGEN_SHA256="4d9e34b62172d645eed6457cac13fc222569974098ef4ee9c3368bedf0196806"
 TOOLS="$HOME/.local/codai-ios-tools"
@@ -105,10 +114,29 @@ case "$MODE" in
         -k "$(cat "$HOME/.config/codai/build-keychain.pw")" "$KC" >/dev/null
       log "distribution identity imported"
     fi
-    AUTH=(-allowProvisioningUpdates
-      -authenticationKeyPath "$ASC_KEY_PATH"
-      -authenticationKeyID "$ASC_KEY_ID"
-      -authenticationKeyIssuerID "$ASC_ISSUER_ID")
+    # What the keychain actually offers, so a signing failure is explainable
+    # from the log alone.
+    security find-identity -v -p codesigning \
+      "$HOME/Library/Keychains/codai-build.keychain-db" || true
+    if [ "$VITALS_CODE_SIGN_STYLE" = "Manual" ]; then
+      # Manual signing never calls the provisioning service; the profiles are
+      # installed here under the UUID Xcode looks them up by. This is the path
+      # taken after -allowProvisioningUpdates failed on Xcode 26.6 (2026-11-18).
+      : "${VITALS_PP_DIR:?manual signing needs VITALS_PP_DIR with the .mobileprovision files}"
+      PPD="$HOME/Library/MobileDevice/Provisioning Profiles"
+      mkdir -p "$PPD"
+      for f in "$VITALS_PP_DIR"/*.mobileprovision; do
+        uuid="$(security cms -D -i "$f" | plutil -extract UUID raw -)"
+        cp "$f" "$PPD/$uuid.mobileprovision"
+        log "installed profile $(basename "$f") as $uuid"
+      done
+      AUTH=()
+    else
+      AUTH=(-allowProvisioningUpdates
+        -authenticationKeyPath "$ASC_KEY_PATH"
+        -authenticationKeyID "$ASC_KEY_ID"
+        -authenticationKeyIssuerID "$ASC_ISSUER_ID")
+    fi
     rm -rf "$OUT/Vitals.xcarchive" "$OUT/export"
     log "archive (build $BUILD_NUMBER)"
     xcodebuild -project Vitals.xcodeproj -scheme Vitals -configuration Release \
@@ -117,6 +145,19 @@ case "$MODE" in
       DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" CURRENT_PROJECT_VERSION="$BUILD_NUMBER" archive -quiet
     # Store-eligible upload: a testFlightInternalTestingOnly build can never
     # be attached to an App Store version (ASC 409, codai 2026-10-28).
+    # With manual signing the export needs the profile per bundle id spelled
+    # out; with automatic it finds them through the service.
+    if [ "$VITALS_CODE_SIGN_STYLE" = "Manual" ]; then
+      STYLE_BLOCK="<key>signingStyle</key><string>manual</string>
+  <key>provisioningProfiles</key><dict>
+    <key>app.vitals.ios</key><string>$VITALS_PROFILE_APP</string>
+    <key>app.vitals.ios.watchkitapp</key><string>$VITALS_PROFILE_WATCH</string>
+    <key>app.vitals.ios.widget</key><string>$VITALS_PROFILE_WIDGET</string>
+    <key>app.vitals.ios.watchkitapp.widget</key><string>$VITALS_PROFILE_WATCHWIDGET</string>
+  </dict>"
+    else
+      STYLE_BLOCK="<key>signingStyle</key><string>automatic</string>"
+    fi
     cat > "$OUT/ExportOptions.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -124,7 +165,7 @@ case "$MODE" in
   <key>method</key><string>app-store-connect</string>
   <key>destination</key><string>upload</string>
   <key>teamID</key><string>$DEVELOPMENT_TEAM</string>
-  <key>signingStyle</key><string>automatic</string>
+  $STYLE_BLOCK
   <key>manageAppVersionAndBuildNumber</key><false/>
   <key>testFlightInternalTestingOnly</key><false/>
 </dict></plist>

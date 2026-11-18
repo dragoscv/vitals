@@ -106,6 +106,19 @@ if ($Mode -ne 'upload') {
     # 2026-11-18 it turned ASC_DIST_PW into a bare path the remote shell tried
     # to execute ("zsh:1: permission denied: .../.d.p12"). A file is also LF,
     # no BOM, as anything destined for Linux must be.
+    # The four App Store profiles, fetched (created once) from the API here:
+    # the guest's Xcode 26.6 could no longer regenerate them, so the archive
+    # signs manually against these instead of calling the provisioning
+    # service (2026-11-18).
+    $ppDir = Join-Path $tmp 'profiles'
+    New-Item -ItemType Directory -Force -Path $ppDir | Out-Null
+    $map = & node (Join-Path $repo 'scripts\ios-appstore-profiles.mjs') $ppDir | Select-Object -Last 1
+    if ($LASTEXITCODE -ne 0 -or -not $map) { throw 'App Store profile fetch failed' }
+    $pm = $map | ConvertFrom-Json
+    Invoke-Guest "rm -rf ~/$remote/profiles"
+    & scp -q -r -o BatchMode=yes -i $Key -P $GuestPort $ppDir "${target}:$remote/"
+    if ($LASTEXITCODE -ne 0) { throw 'scp profiles failed' }
+
     $envFile = Join-Path $tmp '.iosenv'
     $lines = @(
       'export DEVELOPMENT_TEAM=' + $team
@@ -113,6 +126,12 @@ if ($Mode -ne 'upload') {
       'export ASC_ISSUER_ID=' + $iss
       'export ASC_KEY_PATH="$PWD/.k.p8"'
       'export BUILD_NUMBER=' + $build
+      'export VITALS_CODE_SIGN_STYLE=Manual'
+      'export VITALS_PP_DIR="$PWD/profiles"'
+      "export VITALS_PROFILE_APP='" + $pm.'app.vitals.ios'.name + "'"
+      "export VITALS_PROFILE_WATCH='" + $pm.'app.vitals.ios.watchkitapp'.name + "'"
+      "export VITALS_PROFILE_WIDGET='" + $pm.'app.vitals.ios.widget'.name + "'"
+      "export VITALS_PROFILE_WATCHWIDGET='" + $pm.'app.vitals.ios.watchkitapp.widget'.name + "'"
     )
     if (Test-Path (Join-Path $tmp 'd.p12')) {
       $lines += 'export ASC_DIST_P12="$PWD/.d.p12"'
