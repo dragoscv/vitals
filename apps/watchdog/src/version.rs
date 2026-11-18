@@ -106,12 +106,25 @@ fn components(version: &str) -> Option<Vec<u64>> {
 /// a changed response shape — because all of them mean the same thing here:
 /// say nothing. A watchdog that toasted "could not check for updates" would be
 /// reporting its own problem as the user's.
+#[cfg(windows)]
 #[must_use]
 pub fn latest_release() -> Option<String> {
     let body = get(LATEST_URL)?;
     let json: serde_json::Value = serde_json::from_str(&body).ok()?;
     let tag = json.get("tag_name")?.as_str()?;
     Some(tag_version(tag).to_owned())
+}
+
+/// No Windows, no check.
+///
+/// `None` rather than a stand-in: this module is compiled and tested on the
+/// Linux CI leg, where the pure comparison is what matters, and a fabricated
+/// answer would be worse than none both there and on any platform the watchdog
+/// does not run on.
+#[cfg(not(windows))]
+#[must_use]
+pub fn latest_release() -> Option<String> {
+    None
 }
 
 /// Starts the daily release check on its own thread.
@@ -123,6 +136,7 @@ pub fn latest_release() -> Option<String> {
 /// Every failure is silent and retried on the next check: offline, rate
 /// limited, a proxy answering something else. A watchdog that reported its own
 /// network trouble would be telling the user about a problem they do not have.
+#[cfg(windows)]
 pub fn start_checking(
     tx: std::sync::mpsc::Sender<String>,
     strings: &'static crate::strings::Strings,
@@ -220,6 +234,7 @@ fn mark_reminded(now: SystemTime) {
 /// no TLS stack, no async runtime and no dependency it would have to be
 /// audited for — in a process that exists to run in the background of machines
 /// that are already struggling.
+#[cfg(windows)]
 fn get(url: &str) -> Option<String> {
     use windows_sys::Win32::Networking::WinHttp as http;
 
@@ -280,6 +295,7 @@ fn get(url: &str) -> Option<String> {
 }
 
 /// Reads a response whole, as UTF-8. `None` on a short or invalid read.
+#[cfg(windows)]
 fn read_body(request: *mut core::ffi::c_void) -> Option<String> {
     use windows_sys::Win32::Networking::WinHttp as http;
 
@@ -314,6 +330,7 @@ fn read_body(request: *mut core::ffi::c_void) -> Option<String> {
 }
 
 /// A NUL-terminated UTF-16 copy of `text`, for the W-suffixed API.
+#[cfg(windows)]
 fn to_wide(text: &str) -> Vec<u16> {
     text.encode_utf16().chain(std::iter::once(0)).collect()
 }
