@@ -17,13 +17,21 @@
 
 .EXAMPLE
   agentq run -Where cloud -Ws vitals-win -- pwsh -NoProfile -File packaging/msix/build-and-upload.ps1 -Version 1.2.0.0
+
+.EXAMPLE
+  pwsh -NoProfile -File packaging/msix/build-and-upload.ps1 -Version 1.3.0.0 -NoUpload
 #>
 param(
   [Parameter(Mandatory)][string]$Version,
   [string]$Bucket = 'dragos-devcloud-devcloud-jobs',
   # Split on commas, not a ValidateSet: a `pwsh -File` call delivers
   # `-Architecture x64,arm64` as one string (see build-msix.ps1).
-  [string[]]$Architecture = @('x64', 'arm64')
+  [string[]]$Architecture = @('x64', 'arm64'),
+  # Leave the packages on disk instead of uploading them to the devcloud
+  # bucket. The hosted CI run (msix.yml) uses this: it publishes them as
+  # workflow artefacts, and it is the only place that reliably has the ARM64
+  # MSVC toolchain, so it is now the normal route for a Store package.
+  [switch]$NoUpload
 )
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
@@ -67,5 +75,11 @@ $out = Join-Path $root 'target\msix-upload'
 New-Item -ItemType Directory -Force -Path $out | Out-Null
 Get-ChildItem (Join-Path $root 'target\msix') -Filter *.msix | Copy-Item -Destination $out
 Get-ChildItem $out | ForEach-Object { "{0} {1:N0} B {2}" -f $_.Name, $_.Length, (Get-FileHash $_.FullName).Hash }
+
+if ($NoUpload) {
+  Write-Host "packages in $out (not uploaded)"
+  exit 0
+}
+
 node (Join-Path $root 'scripts\screenshots\upload.mjs') $out $Bucket
 if ($LASTEXITCODE -ne 0) { throw "upload failed ($LASTEXITCODE)" }

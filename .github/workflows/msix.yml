@@ -1,0 +1,64 @@
+name: MSIX
+
+# Lays out the Microsoft Store packages (x64 + arm64) and hands them to the
+# Partner Center submission as a download.
+#
+# Why this job exists rather than the devcloud Windows VM: ws-vitals-win, which
+# used to run packaging/msix/build-and-upload.ps1, was terminated on
+# 2026-11-17 and refuses to resume ("You can only resume an instance that has
+# previously been suspended"). A hosted runner also carries the ARM64 MSVC
+# toolchain, which a workstation usually does not — without it the arm64 half
+# of the submission cannot be built at all, and an x64-only package leaves
+# every ARM64 machine running the x64 build under emulation.
+#
+#   gh workflow run msix.yml -f version=1.3.0.0
+#
+# The packages land in the run's artefacts; nothing is uploaded to a bucket.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Four-part Store version; the last part must be 0 (e.g. 1.3.0.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  msix:
+    name: Store packages (x64 + arm64)
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # rust-toolchain.toml
+        with:
+          toolchain: 1.99.0
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          shared-key: windows-msix
+          cache-on-failure: true
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # build-and-upload.ps1 owns the build steps, so this route and the old
+      # devcloud route cannot drift: one implementation, two callers.
+      - name: Build and lay out both architectures
+        shell: pwsh
+        run: |
+          pwsh -NoProfile -File packaging/msix/build-and-upload.ps1 -Version '${{ inputs.version }}' -NoUpload
+          if ($LASTEXITCODE -ne 0) { throw "MSIX build exited $LASTEXITCODE" }
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: vitals-msix
+          path: target/msix-upload/*.msix
+          if-no-files-found: error
+          retention-days: 30
