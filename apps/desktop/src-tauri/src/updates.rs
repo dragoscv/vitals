@@ -857,7 +857,6 @@ pub async fn migrate_to_user_install(
     }
 }
 
-#[cfg(feature = "self-update")]
 /// Writes the downloaded setup to a temporary file and starts it per-user.
 ///
 /// The bytes were verified when the plugin downloaded them, so this
@@ -888,6 +887,7 @@ fn start_migration_setup(version: &str, bytes: &[u8]) -> Result<(), String> {
         .map_err(|error| format!("the setup did not start: {error}"))
 }
 
+#[cfg(feature = "self-update")]
 /// "Restart to update", from the Settings panel or the tray. Returns only on
 /// failure: on success the plugin exits the process and the setup restarts
 /// it. A declined prompt keeps the download, so the offer stays — and puts
