@@ -44,6 +44,23 @@ allow is greyed out with the reason, rather than a button that fails when you cl
 Some readings are only available to administrators, such as the memory use of other users'
 processes. Those appear as a dash when Vitals cannot read them.
 
+## Can an alert go somewhere other than Windows notifications?
+
+Yes, if you want it to. **Settings → Notifications** takes a webhook address, an
+[ntfy](https://ntfy.sh) topic, a Discord webhook or a Home Assistant instance, and each alert can be
+routed to the destinations you choose — one rule to Discord, a disk-failure alert to all of them.
+There is a **Test** button per destination, so you find out whether it works before you rely on it.
+
+Nothing is sent until you add an address: with no destination configured the feature does nothing at
+all. A webhook carries an HMAC signature in a header, so your endpoint can prove the request came
+from your own machine. What leaves the computer is the alert's title and explanation, its severity,
+the rule or drive it is about and this computer's name — to the exact address you typed, and nowhere
+else. The [privacy policy](/privacy/) lists every field.
+
+You can also write your own conditions here: a reading (CPU, temperature, memory, disk activity,
+battery, dropped packets), above or below a number of your choosing, for as long as you decide, with
+a cooldown so a condition that flickers does not fill your phone.
+
 ## Why does it show "—" instead of 0?
 
 Because they mean different things. Zero is a measurement: the program really used nothing. A dash

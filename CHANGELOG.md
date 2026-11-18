@@ -20,6 +20,25 @@ _(nothing yet — the next change lands here)_
   Copilot Chat sessions say the client records no usage instead. The Insights
   tab gains the same numbers as a page total (ADR 0043).
 
+- Alerts you write yourself: pick a reading (CPU, CPU temperature, memory, disk
+  activity, battery, dropped packets), a side of a threshold and how long it
+  has to hold, and Vitals watches it. The window and the cooldown are per
+  rule, so "CPU above 90% for 30 seconds" means that at every sampling rate.
+- Alert destinations: a webhook, an ntfy topic, a Discord webhook or a Home
+  Assistant instance, each alert routed to the ones you choose, with a Test
+  button per destination. A webhook is signed with HMAC so your endpoint can
+  verify the sender. Nothing is sent until you add an address.
+- "Is it my PC, my router or my internet?" — a probe in the diagnosis dialog,
+  on a button, that sends four echo requests to the router and to two public
+  addresses and says which of the three is at fault. Also available to a paired
+  phone over the LAN (`GET /api/v1/connectivity`) so the answer is on the phone
+  too.
+- A service that was running and stopped is now an alert, and one you stopped
+  yourself in Vitals is not.
+- The tray icon can carry a reading — CPU, CPU temperature, memory or network
+  traffic — instead of the plain mark. Off by default, and free when off: no
+  value is computed and no bitmap drawn.
+
 - Health: connect Vitals to your vmui account and see your own health and
   nutrition summary on the desktop, iPhone and Android. Held in memory only,
   never written to disk; the page stays hidden until you connect.
@@ -30,6 +49,14 @@ _(nothing yet — the next change lands here)_
   apps' processes or the temperature sensors, and says so.
 
 ### Changed
+
+- The controls that only exist on Windows are hidden elsewhere rather than
+  shown and failing: the navigation, the command palette, the process menu and
+  the Settings rows all ask the backend what this machine can do.
+- Dialogs, menus, tooltips and sheets animate in and out. They did not before:
+  the overlay style was a CSS transition while the layer that unmounts them
+  waits for an _animation_, so every overlay was removed in the same tick it
+  was closed.
 
 - The AI agents page now names the service **Kodwen**, its new name after the
   November 2026 rebrand, and speaks to `ai.kodwen.com` and `auth.kodwen.com`

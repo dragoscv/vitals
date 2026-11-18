@@ -45,6 +45,24 @@ pentru ele Windows afișează fereastra obișnuită, o singură dată, doar pent
 Unele valori sunt disponibile doar administratorilor, de exemplu memoria folosită de procesele altor
 utilizatori. Acestea apar ca o liniuță când Vitals nu le poate citi.
 
+## Poate o alertă să ajungă în altă parte decât în notificările Windows?
+
+Da, dacă vrei asta. **Setări → Notificări** primește o adresă de webhook, un subiect
+[ntfy](https://ntfy.sh), un webhook de Discord sau o instanță Home Assistant, iar fiecare alertă
+poate fi trimisă către destinațiile pe care le alegi — o regulă către Discord, o alertă de disc
+defect către toate. Există un buton **Testează** pentru fiecare destinație, ca să afli dacă
+funcționează înainte să te bazezi pe ea.
+
+Nu se trimite nimic până nu adaugi o adresă: fără nicio destinație configurată, funcția nu face
+absolut nimic. Un webhook primește în plus o semnătură HMAC într-un header, ca destinația ta să poată
+dovedi că cererea a venit de pe calculatorul tău. Pleacă titlul alertei și explicația ei, gravitatea,
+regula sau discul la care se referă și numele acestui calculator — către exact adresa pe care ai
+scris-o, și nicăieri altundeva. [Politica de confidențialitate](/privacy/) listează fiecare câmp.
+
+Tot aici îți poți scrie propriile condiții: o măsurătoare (procesor, temperatură, memorie, activitate
+a discului, baterie, pachete pierdute), peste sau sub un număr ales de tine, cât timp decizi tu, cu o
+perioadă de liniște ca o condiție care oscilează să nu-ți umple telefonul.
+
 ## De ce arată „—” în loc de 0?
 
 Pentru că înseamnă lucruri diferite. Zero este o măsurătoare: programul chiar nu a folosit nimic. O
