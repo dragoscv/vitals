@@ -120,6 +120,7 @@ pub fn main() -> anyhow::Result<()> {
             std::process::exit(i32::try_from(code).unwrap_or(i32::MAX));
         }
         Some("--diagnose") => with_console(diagnose),
+        Some("--check-updates") => with_console(check_updates),
         Some("--test-toast") => with_console(test_toast),
         Some("--play-sound") => with_console(|| play_sound(args.get(1).map(String::as_str))),
         Some("--install") => with_console(install),
@@ -193,6 +194,42 @@ struct Pending {
 /// A toast can sit in the notification centre for days; a click on one from
 /// yesterday must not end whatever that process is doing today.
 const PENDING_FOR: Duration = Duration::from_secs(15 * 60);
+
+/// Prints what the daily release check would decide, and changes nothing.
+///
+/// The same shape as `--diagnose`: a mode whose whole purpose is to be run by
+/// hand and read. It exists because the check's one external call — `WinHTTP` to
+/// GitHub — is the part a unit test cannot cover on an offline runner, and the
+/// alternative of an `#[ignore]`d test is banned by this repo (an ignored test
+/// must live where a job runs it, so it can never quietly never run).
+///
+/// Writes nothing: no reminder stamp, no state. Running it twice in a row
+/// prints the same thing.
+// The `Result` is the signature `with_console` takes, so that every mode in
+// the match has one shape; this one has nothing that can fail.
+#[allow(clippy::unnecessary_wraps)]
+fn check_updates() -> anyhow::Result<()> {
+    let installed = version::installed();
+    println!("installed: {installed}");
+    match version::latest_release() {
+        Some(latest) => {
+            let newer = version::is_newer(installed, &latest);
+            println!("latest:    {latest}");
+            println!(
+                "verdict:   {}",
+                if newer {
+                    "a newer release exists; the watchdog would say so, once a day"
+                } else {
+                    "this build is the latest release; nothing would be said"
+                }
+            );
+        }
+        None => println!(
+            "latest:    could not be read (offline, rate limited, or a proxy answered something else)"
+        ),
+    }
+    Ok(())
+}
 
 fn watch() -> anyhow::Result<()> {
     init_log();

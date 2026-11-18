@@ -410,26 +410,4 @@ mod tests {
         // Same release as this build: nothing to say, whatever the clock says.
         assert!(!should_remind(installed(), now));
     }
-
-    /// The one test that needs the network, so it is ignored by default: CI
-    /// runners are offline and a check that failed there would be switched off
-    /// rather than read.
-    ///
-    /// Run it by hand after touching the `WinHTTP` call, because that FFI is
-    /// easy to get subtly wrong — a wrong flag or a wrong port type returns a
-    /// null handle and this is the only thing that would notice:
-    ///
-    /// ```text
-    /// cargo test -p vitals-watchdog -- --ignored --nocapture
-    /// ```
-    #[test]
-    #[ignore = "needs the network; run by hand after changing the HTTP call"]
-    fn the_live_check_reads_a_version_from_github() {
-        let latest = latest_release().expect("GitHub answered with a tag");
-        println!("installed {} / latest {latest}", installed());
-        assert!(
-            !latest.is_empty() && latest.chars().next().is_some_and(|c| c.is_ascii_digit()),
-            "a tag was read but does not look like a version: {latest}"
-        );
-    }
 }
