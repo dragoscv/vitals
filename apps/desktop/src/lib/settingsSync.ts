@@ -176,6 +176,9 @@ export async function pushTrayStrings(strings: {
   memory: string;
   gpu: string;
   stillRunning: string;
+  updateReadyTitle: string;
+  updateReadyBody: string;
+  updateWaiting: string;
 }): Promise<void> {
   if (!hasTauriHost()) return;
   try {

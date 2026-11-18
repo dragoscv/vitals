@@ -90,6 +90,18 @@ pub struct TrayStrings {
     pub gpu: String,
     /// Body of the one-time "still running" notification.
     pub still_running: String,
+    /// Title of the once-a-day notification while an update waits for
+    /// approval. `{version}` is substituted in Rust, because the toast is
+    /// built where the version is known.
+    #[serde(default = "default_update_ready_title")]
+    pub update_ready_title: String,
+    /// Body of that notification: what the user has to do about it.
+    #[serde(default = "default_update_ready_body")]
+    pub update_ready_body: String,
+    /// Appended to the tooltip while an update is waiting, so the tray says
+    /// what the badge means rather than leaving a colour to be guessed at.
+    #[serde(default = "default_update_waiting")]
+    pub update_waiting: String,
 }
 
 impl Default for TrayStrings {
@@ -104,12 +116,27 @@ impl Default for TrayStrings {
             memory: "Memory".into(),
             gpu: "GPU".into(),
             still_running: "Vitals is still running in the tray.".into(),
+            update_ready_title: default_update_ready_title(),
+            update_ready_body: default_update_ready_body(),
+            update_waiting: default_update_waiting(),
         }
     }
 }
 
 fn default_restart_to_update() -> String {
     "Restart to update".into()
+}
+
+fn default_update_ready_title() -> String {
+    "Vitals {version} is ready".into()
+}
+
+fn default_update_ready_body() -> String {
+    "Restart to update, and Windows will ask for administrator.".into()
+}
+
+fn default_update_waiting() -> String {
+    "update {version} ready".into()
 }
 
 /// Tray state, managed for the lifetime of the process.
@@ -239,6 +266,16 @@ impl Tray {
         {
             tracing::warn!(%error, "tray notification failed");
         }
+    }
+
+    /// The title and body of the "an update is waiting" notice, for a version.
+    #[must_use]
+    pub fn update_prompt(&self, version: &str) -> (String, String) {
+        let strings = self.strings.lock();
+        (
+            strings.update_ready_title.replace("{version}", version),
+            strings.update_ready_body.clone(),
+        )
     }
 }
 
@@ -437,7 +474,8 @@ pub fn observe(app: &AppHandle, system: &SystemMetrics) {
         let _ = handle.set_icon(Some(icon(value)));
     }
 
-    let tooltip = tooltip_text(&tray.strings.lock(), system);
+    let waiting = crate::updates::waiting_version(app);
+    let tooltip = tooltip_text(&tray.strings.lock(), system, waiting.as_deref());
     let mut last = tray.last_tooltip.lock();
     if *last != tooltip
         && let Some(handle) = app.tray_by_id(TRAY_ID)
@@ -465,7 +503,11 @@ pub fn hide_instead_of_closing(app: &AppHandle, window: &tauri::Window) -> bool 
 
 /// `"CPU 43 % · Memory 61 % · GPU 16 %"`, with GPU omitted when no adapter
 /// reports utilisation — an unmeasured number is not zero.
-fn tooltip_text(strings: &TrayStrings, system: &SystemMetrics) -> String {
+///
+/// `waiting` is the version of an update that is downloaded and not yet
+/// installed. It goes in the tooltip rather than only on the tray icon so the
+/// badge is explained in words: a mark with no legend is a decoration.
+fn tooltip_text(strings: &TrayStrings, system: &SystemMetrics, waiting: Option<&str>) -> String {
     let mut parts = vec![
         format!("{} {} %", strings.cpu, round_percent(system.cpu.total.0)),
         format!("{} {} %", strings.memory, memory_percent(system)),
@@ -478,6 +520,9 @@ fn tooltip_text(strings: &TrayStrings, system: &SystemMetrics) -> String {
         .max()
     {
         parts.push(format!("{} {gpu} %", strings.gpu));
+    }
+    if let Some(version) = waiting {
+        parts.push(strings.update_waiting.replace("{version}", version));
     }
     parts.join(" · ")
 }
@@ -685,7 +730,7 @@ mod tests {
         let strings = TrayStrings::default();
         let mut system = vitals_core::fixtures::system();
         system.gpus.clear();
-        let text = tooltip_text(&strings, &system);
+        let text = tooltip_text(&strings, &system, None);
         assert!(!text.contains("GPU"), "got {text}");
         assert!(text.starts_with("CPU "), "got {text}");
     }

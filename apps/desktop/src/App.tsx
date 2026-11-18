@@ -275,6 +275,9 @@ function useTrayStringsSync(): void {
         memory: t('tray.memory'),
         gpu: t('tray.gpu'),
         stillRunning: t('tray.stillRunning'),
+        updateReadyTitle: t('tray.updateReadyTitle'),
+        updateReadyBody: t('tray.updateReadyBody'),
+        updateWaiting: t('tray.updateWaiting'),
       });
     };
 

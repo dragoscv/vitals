@@ -24,6 +24,7 @@ mod actions;
 mod capabilities;
 mod frame;
 mod hostinfo;
+mod input;
 mod mach;
 mod sampler;
 
@@ -31,6 +32,7 @@ pub use actions::{resume, set_priority, suspend, terminate};
 pub use capabilities::capabilities;
 pub use frame::FrameBuilder;
 pub use hostinfo::read as host_info;
+pub use input::idle_secs;
 pub use sampler::{Sample, SystemSampler};
 
 /// When a process started, in Unix milliseconds — what the AI-agents reader

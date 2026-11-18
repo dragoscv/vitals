@@ -245,6 +245,9 @@ const en = {
     memory: 'Memory',
     gpu: 'GPU',
     stillRunning: 'Vitals is still running in the tray.',
+    updateReadyTitle: 'Vitals {{version}} is ready',
+    updateReadyBody: 'Restart to update, and Windows will ask for administrator.',
+    updateWaiting: 'update {{version}} ready',
   },
   placeholder: {
     title: '{{section}} is not ready yet',
@@ -516,6 +519,10 @@ const ro = {
     memory: 'Memorie',
     gpu: 'GPU',
     stillRunning: 'Vitals rulează în continuare în bara de sistem.',
+    updateReadyTitle: 'Vitals {{version}} este gata',
+    updateReadyBody:
+      'Repornește pentru actualizare, iar Windows va cere drepturi de administrator.',
+    updateWaiting: 'actualizarea {{version}} e gata',
   },
   placeholder: {
     title: '{{section}} nu este gata încă',

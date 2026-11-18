@@ -232,6 +232,10 @@ pub fn spawn(app: &tauri::AppHandle) {
                     }
                     if update_ready(&app) {
                         install_if_idle(&app);
+                        // A copy that cannot install by itself gets told, or
+                        // its owner never finds out. Runs on the same slow
+                        // poll, and does nothing 23 h of every 24.
+                        prompt_if_due(&app);
                     }
                     std::thread::sleep(IDLE_POLL);
                 }
@@ -266,6 +270,16 @@ fn pending_version(pending: &PendingInstall) -> Option<String> {
         .lock()
         .as_ref()
         .map(|(update, _)| update.version.clone())
+}
+
+/// The version waiting to be installed, for anything that shows state.
+///
+/// The tray asks for it so the notification-area tooltip can say what the
+/// badge means; the About panel reads the same value through its own command.
+#[must_use]
+pub fn waiting_version(app: &tauri::AppHandle) -> Option<String> {
+    app.try_state::<PendingInstall>()
+        .and_then(|pending| pending_version(&pending))
 }
 
 #[cfg(not(feature = "self-update"))]
@@ -305,7 +319,17 @@ fn moment(app: &tauri::AppHandle) -> Moment {
         vitals_win::input::idle_secs(),
         vitals_win::input::session_ending(),
     );
-    #[cfg(not(windows))]
+    // macOS answers the input question through CoreGraphics (see
+    // `vitals_macos::idle_secs`), which is the half that was missing: with
+    // `None` here a Mac never reached the idle branch at all. The shutdown
+    // question has no cheap answer on this platform — it is an AppKit
+    // notification, and Vitals does not link AppKit — so it stays `false`,
+    // which is the honest "not known" rather than a claim that the session is
+    // safe. A logout during the install window is therefore still possible on
+    // macOS; on Windows it is not.
+    #[cfg(target_os = "macos")]
+    let (idle_secs, session_ending) = (vitals_macos::idle_secs(), false);
+    #[cfg(not(any(windows, target_os = "macos")))]
     let (idle_secs, session_ending) = (None, false);
     Moment {
         idle_secs,
@@ -335,6 +359,39 @@ fn install_if_idle(app: &tauri::AppHandle) {
     if let Err(message) = install_now(app) {
         quiet_relaunch::disarm();
         tracing::warn!(%message, "idle install did not start; trying again later");
+    }
+}
+
+/// Tells the user, at most once a day, that an update is waiting for them.
+///
+/// Only reached for a [`QuitInstall::NeedsApproval`] plan: a silent install
+/// happens by itself and a copy the updater does not own has nothing to
+/// install. See [`prompt`] for why once a day and why the record is a file.
+#[cfg(feature = "self-update")]
+fn prompt_if_due(app: &tauri::AppHandle) {
+    use tauri_plugin_notification::NotificationExt as _;
+
+    if quit_install() != QuitInstall::NeedsApproval {
+        return;
+    }
+    let now = std::time::SystemTime::now();
+    if !prompt::due(now) {
+        return;
+    }
+    let Some(version) = waiting_version(app) else {
+        return;
+    };
+    let Some((title, body)) = app
+        .try_state::<crate::tray::Tray>()
+        .map(|tray| tray.update_prompt(&version))
+    else {
+        return;
+    };
+
+    // Recorded first, then shown: see `prompt::mark`.
+    prompt::mark(now);
+    if let Err(error) = app.notification().builder().title(title).body(body).show() {
+        tracing::warn!(%error, "the update notice could not be shown");
     }
 }
 
@@ -388,6 +445,86 @@ pub mod quiet_relaunch {
             let _ = std::fs::remove_file(&path);
             written.is_ok_and(|w| fresh(w, SystemTime::now()))
         })
+    }
+}
+
+/// A once-a-day reminder that an update is waiting for approval.
+///
+/// The per-machine copy cannot install by itself: its plan is
+/// [`QuitInstall::NeedsApproval`], so the only way its owner learns an update
+/// exists is being told. Before this the single signal was one enabled item in
+/// the tray menu, which is how a workstation ran 1.1.0 through four releases
+/// while `vitals.log` recorded "update verified; it installs when Vitals
+/// quits" seven times.
+///
+/// Once a day rather than once a launch: a tray app restarts for updates, for
+/// logins and after a crash, so "once per process" would nag. The timestamp is
+/// a file for the same reason — memory does not survive the restarts this is
+/// meant to survive.
+///
+/// A `Silent` install needs no reminder (it happens on its own while the PC is
+/// idle) and a `NotOurs` copy has nothing to offer, so only `NeedsApproval`
+/// ever reaches this.
+pub mod prompt {
+    use std::path::PathBuf;
+    use std::time::{Duration, SystemTime};
+
+    /// One reminder a day. Long enough that the toast is news rather than
+    /// nagging, short enough that a fix is not missed for a week.
+    pub const EVERY: Duration = Duration::from_secs(24 * 60 * 60);
+
+    fn path() -> PathBuf {
+        crate::state::data_dir().join("update-prompted-at")
+    }
+
+    /// Whether a reminder is due, given what was last recorded.
+    ///
+    /// Pure, so the rule is testable without a clock or a disk. A missing or
+    /// unreadable timestamp means never prompted; a timestamp in the future
+    /// (a clock that moved backwards) is treated as due rather than as a
+    /// reason to stay silent until the clock catches up.
+    #[must_use]
+    pub fn is_due(stored: Option<SystemTime>, now: SystemTime) -> bool {
+        let Some(when) = stored else {
+            return true;
+        };
+        // Written as a match rather than a `map_or`: a timestamp in the
+        // future (a clock that moved backwards) is *due*, not a reason to
+        // stay silent until the clock catches up.
+        match now.duration_since(when) {
+            Ok(since) => since >= EVERY,
+            Err(_) => true,
+        }
+    }
+
+    /// When the last reminder was shown, or `None` when there is no record.
+    fn stored() -> Option<SystemTime> {
+        let text = std::fs::read_to_string(path()).ok()?;
+        let millis: u64 = text.trim().parse().ok()?;
+        Some(SystemTime::UNIX_EPOCH + Duration::from_millis(millis))
+    }
+
+    /// Whether to show the reminder now.
+    #[must_use]
+    pub fn due(now: SystemTime) -> bool {
+        is_due(stored(), now)
+    }
+
+    /// Records that the reminder was shown.
+    ///
+    /// Written **before** the notification is attempted, deliberately: if
+    /// showing it fails, the alternative is retrying every poll for a day, and
+    /// a quiet machine is better than one pounding a failing notification API.
+    pub fn mark(now: SystemTime) {
+        let millis = now
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .map_or(0, |since| {
+                u64::try_from(since.as_millis()).unwrap_or(u64::MAX)
+            });
+        if let Err(error) = std::fs::write(path(), millis.to_string()) {
+            // The cost of a failed write is one extra reminder a day.
+            tracing::debug!(%error, "could not record the update reminder");
+        }
     }
 }
 
@@ -1159,5 +1296,49 @@ mod suppression {
             None,
             "nothing suppressed means the background check runs"
         );
+    }
+}
+
+/// The once-a-day rule, tested against arithmetic rather than a clock.
+#[cfg(test)]
+mod prompt_rules {
+    use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+    use super::prompt;
+
+    /// A fixed instant, so nothing here depends on what the machine thinks
+    /// the time is.
+    fn at(secs: u64) -> SystemTime {
+        UNIX_EPOCH + Duration::from_secs(secs)
+    }
+
+    #[test]
+    fn a_machine_that_has_never_been_told_is_told() {
+        assert!(prompt::is_due(None, at(1_000_000)));
+    }
+
+    #[test]
+    fn the_poll_after_a_reminder_is_silent() {
+        // The whole point: the updater polls every five minutes, and a
+        // reminder that repeated on every poll would be unusable.
+        let now = at(1_000_000);
+        assert!(!prompt::is_due(Some(now), now + Duration::from_secs(299)));
+    }
+
+    #[test]
+    fn a_day_later_it_is_said_again() {
+        let shown = at(1_000_000);
+        assert!(!prompt::is_due(
+            Some(shown),
+            shown + prompt::EVERY - Duration::from_secs(1)
+        ));
+        assert!(prompt::is_due(Some(shown), shown + prompt::EVERY));
+    }
+
+    #[test]
+    fn a_clock_that_moved_backwards_reminds_rather_than_falling_silent_forever() {
+        // A timestamp from the future would otherwise mean "wait until then",
+        // which a machine whose clock was corrected would never reach.
+        assert!(prompt::is_due(Some(at(2_000_000)), at(1_000_000)));
     }
 }
