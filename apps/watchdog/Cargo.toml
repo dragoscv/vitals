@@ -41,6 +41,9 @@ windows-sys = { version = "0.61.2", features = [
         # A chosen audio file (MP3/WAV/M4A) through MCI; toasts cannot play one.
         "Win32_Media",
         "Win32_Media_Multimedia",
+        # The daily "a new release exists" check: WinHTTP, so the watchdog
+        # grows no TLS stack of its own (version.rs).
+        "Win32_Networking_WinHttp",
 ] }
 
 [lints]

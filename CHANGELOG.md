@@ -35,6 +35,9 @@ _(nothing yet — the next change lands here)_
   too.
 - A service that was running and stopped is now an alert, and one you stopped
   yourself in Vitals is not.
+- The watchdog checks GitHub once a day and says so when a newer Vitals exists,
+  which covers the machine where the app itself is not running. It only looks:
+  nothing is downloaded and nothing is installed from there.
 - The tray icon can carry a reading — CPU, CPU temperature, memory or network
   traffic — instead of the plain mark. Off by default, and free when off: no
   value is computed and no bitmap drawn.

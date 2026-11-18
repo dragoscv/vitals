@@ -25,6 +25,9 @@ mod config;
 mod detect;
 mod forest;
 mod strings;
+// Pure comparison and the throttle are tested on every platform; the HTTP call
+// inside it is Windows-only, which the module gates itself.
+mod version;
 
 #[cfg(windows)]
 mod notify;

@@ -21,6 +21,7 @@ use crate::detect::{COMMIT_LOAD, Detector, Policy, Tick, Trigger, may_propose};
 use crate::forest::{Forest, Metric, Scope, Target};
 use crate::notify::{self, Button};
 use crate::strings::{self, EN, RO, Strings, fill};
+use crate::version;
 use crate::win::{self, LagProbe, Outcome, Processes};
 
 /// Share of a subtree one child must carry for the blame to move into it.
@@ -221,6 +222,12 @@ fn watch() -> anyhow::Result<()> {
     let (done_tx, done_rx) = mpsc::channel::<String>();
     let cores = logical_cores();
     let strings = text();
+    // Its own thread on purpose: the check makes an HTTPS request that can take
+    // seconds, and this process exists to notice a *stall* — blocking the loop
+    // that measures one would be the joke writing itself.
+    // It reports through the same channel the workers use, so there is one
+    // notification path in this binary rather than two.
+    version::start_checking(done_tx.clone(), strings);
 
     let mut next_tick = Instant::now();
     let mut last_scan: Option<Instant> = None;

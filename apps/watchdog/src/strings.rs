@@ -37,6 +37,10 @@ pub struct Strings {
     pub restarted_desktop: &'static str,
     pub restart_failed: &'static str,
     pub sound_test: &'static str,
+    /// Said when GitHub has a newer release than the one installed. Uses both
+    /// version numbers, because "an update is available" without which one is
+    /// a sentence the reader cannot act on.
+    pub update_available: &'static str,
 }
 
 pub const EN: Strings = Strings {
@@ -69,6 +73,7 @@ pub const EN: Strings = Strings {
     restarted_desktop: "The desktop was restarted",
     restart_failed: "{name} could not be restarted: {reason}",
     sound_test: "This is the Vitals watchdog sound",
+    update_available: "Vitals {latest} is out; this PC has {installed}. Open Vitals to update.",
 };
 
 pub const RO: Strings = Strings {
@@ -101,6 +106,7 @@ pub const RO: Strings = Strings {
     restarted_desktop: "Desktopul a fost repornit",
     restart_failed: "{name} nu a putut fi repornit: {reason}",
     sound_test: "Acesta e sunetul watchdog-ului Vitals",
+    update_available: "A apărut Vitals {latest}; acest PC are {installed}. Deschide Vitals pentru actualizare.",
 };
 
 /// Fills `{name}`-style placeholders.
