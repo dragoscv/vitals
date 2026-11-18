@@ -453,6 +453,43 @@ Every package manager points at the **versioned** installer URL and the hash
 in `SHA256SUMS.txt`, never at the stable-named copy, whose bytes change with
 each release.
 
+### Store steps no pipeline can prove
+
+Each of these lives in the store's own account, outside this repository, and
+each one has already cost a release. They are part of the release, not
+housekeeping:
+
+- **A released version is not a listed app.** On 2026-11-18 the iPhone app had
+  two versions `READY_FOR_SALE` and no availability record at all, so App
+  Store Connect read "This app was removed from sale" and the product page
+  404'd while `itunes.apple.com/lookup` returned `resultCount 0`. Check
+  `GET /v1/apps/6827931747/appAvailabilityV2` — a **404** means nobody can
+  install the app — and set it up under Pricing and Availability if so.
+  `scripts/ios-store.mjs` does not set availability; only the Console flow
+  does. Changes reach the store within 24 hours.
+- **Assigning an App Group invalidates the existing profiles**, and the portal
+  says so when you confirm the change. An App ID whose App Groups list is
+  empty while its entitlements ask for one makes every archive fail to sign,
+  and Xcode reports that as an authentication error rather than a signing one.
+  `scripts/ios-appstore-profiles.mjs` replaces any profile whose CMS blob does
+  not contain `group.app.vitals.ios`, so run the upload and read the log
+  rather than trusting a profile that exists.
+- **A permission implies a required feature on Android.** Requesting
+  `ACCESS_WIFI_STATE` makes `android.hardware.wifi` required unless the
+  manifest says `required="false"`, and Play then restricts the app's
+  availability to devices that have it. Play re-reads features only from a new
+  bundle, so the fix ships in the next release. Prove it on the built artefact,
+  not in the source: `aapt dump badging <apk> | rg uses-feature` must print
+  `uses-feature-not-required` for every feature the app does not truly need.
+- **An incomplete app-level declaration blocks the submission.** Play's trader
+  status declaration is per app and required for every developer; a release
+  uploaded by CI sits as a draft with `Submit N changes for review` disabled
+  until it is filled in.
+- **Play Console pages need a fresh tab.** A long-lived tab stops rendering the
+  app pages — the shell stays on "Loading Google Play Console" with no failed
+  request, and the account home degrades the same way afterwards. Open a new
+  tab before concluding the Console is broken.
+
 **npm.** `packages/client` is currently `private` and exports TypeScript
 source, so the registry refuses it. Making it publishable (a JavaScript
 build, `exports` pointing at it, `private` removed) is a separate change;
