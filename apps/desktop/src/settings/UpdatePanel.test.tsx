@@ -309,4 +309,56 @@ describe('the update section', () => {
     });
     expect(backend.calls.some((c) => c.cmd === 'remove_leftover_install')).toBe(true);
   });
+
+  it('offers to move the copy to the account only when an update is waiting', async () => {
+    // A copy installed for everyone: its updates need approval, so the move is
+    // worth offering — but only while there is a setup to move with, because a
+    // migration is a reinstall and there is nothing to reinstall without one.
+    const canMove = {
+      pendingVersion: null,
+      quitInstall: 'needsApproval',
+      autoUpdate: true,
+      lastCheckMs: 0,
+      lastError: null,
+      suppressed: null,
+      canMigrateToUser: true,
+    };
+    backend.answers.get_update_status = canMove;
+
+    const { unmount } = render(<UpdateSection />);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(
+      screen.queryByRole('button', { name: 'Move Vitals to my account' }),
+      'no download, so nothing to move with',
+    ).toBeNull();
+    unmount();
+
+    backend.answers.get_pending_update = '2.0.0';
+    render(<UpdateSection />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Move Vitals to my account' }));
+    await waitFor(() => {
+      expect(backend.calls.some((c) => c.cmd === 'migrate_to_user_install')).toBe(true);
+    });
+  });
+
+  it('keeps the move hidden on a copy that is already per-user', async () => {
+    backend.answers.get_pending_update = '2.0.0';
+    backend.answers.get_update_status = {
+      pendingVersion: '2.0.0',
+      quitInstall: 'silent',
+      autoUpdate: true,
+      lastCheckMs: 0,
+      lastError: null,
+      suppressed: null,
+      canMigrateToUser: false,
+    };
+
+    render(<UpdateSection />);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(screen.queryByTestId('update-migrate')).toBeNull();
+  });
 });

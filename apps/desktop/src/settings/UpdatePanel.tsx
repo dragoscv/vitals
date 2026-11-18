@@ -17,6 +17,7 @@ import {
   downloadAndInstall,
   installBackgroundUpdateNow,
   leftoverInstall,
+  migrateToUserInstall,
   pendingBackgroundUpdate,
   quitInstallMode,
   removeLeftoverInstall,
@@ -130,6 +131,15 @@ export function UpdateSection() {
     void reportSuccess(t('settings.about.update.leftoverRemoved'));
   }
 
+  async function moveToThisAccount() {
+    // The process exits on success, so there is no "done" state to render and
+    // none is invented: the setup restarts the app from its new home.
+    const migration = migrateToUserInstall();
+    setState({ kind: 'installing', version: background ?? '' });
+    void reportFailure(migration, t('settings.about.update.moveFailed'));
+    await migration.catch(() => undefined);
+  }
+
   const showBackground = background !== null && state.kind === 'idle';
 
   return (
@@ -162,6 +172,18 @@ export function UpdateSection() {
           <p className="text-2xs">{t('settings.about.update.leftover', { path: leftover })}</p>
           <Button variant="ghost" onClick={() => void removeLeftover()}>
             {t('settings.about.update.leftoverRemove')}
+          </Button>
+        </div>
+      )}
+      {/* Offered only while an update is waiting, because a migration is a
+          reinstall and there is nothing to reinstall without one. The button
+          exists for the copy whose every update needs a UAC prompt it cannot
+          explain; moving it to the account ends that. */}
+      {status?.canMigrateToUser === true && background !== null && (
+        <div className="space-y-1 pt-2" data-testid="update-migrate">
+          <p className="text-2xs">{t('settings.about.update.moveHint')}</p>
+          <Button variant="ghost" onClick={() => void moveToThisAccount()}>
+            {t('settings.about.update.move')}
           </Button>
         </div>
       )}

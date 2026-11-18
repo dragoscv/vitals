@@ -238,6 +238,11 @@ export interface UpdateStatus {
   readonly lastCheckMs: number;
   readonly lastError: string | null;
   readonly suppressed: UpdateSuppressed | null;
+  /**
+   * True on a per-machine copy, which is the only kind that can move to the
+   * account. The panel uses it to decide whether to offer the move at all.
+   */
+  readonly canMigrateToUser: boolean;
 }
 
 /** `null` when there is no host (the browser-only dev server). */
@@ -295,4 +300,17 @@ export async function leftoverInstall(): Promise<string | null> {
 export async function removeLeftoverInstall(): Promise<void> {
   const { invoke } = await core();
   await invoke('remove_leftover_install');
+}
+
+/**
+ * Moves this copy to the signed-in account.
+ *
+ * Deliberately NOT wrapped in a `try`: unlike the polling calls above, this is
+ * a button the user pressed, and a refusal — no update downloaded, the setup
+ * would not start — has to reach them as a message rather than as nothing
+ * happening. The app exits on success, so there is no reply to render.
+ */
+export async function migrateToUserInstall(): Promise<void> {
+  const { invoke } = await core();
+  await invoke('migrate_to_user_install');
 }

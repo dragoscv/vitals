@@ -156,6 +156,10 @@ pub struct UpdateStatus {
     pub last_error: Option<String>,
     /// Why checks are off, when they are.
     pub suppressed: Option<UpdateSuppressed>,
+    /// Whether this copy is a per-machine installation that could move to the
+    /// account instead. What the panel shows the "move to my account" line
+    /// from; the decision itself is in `vitals_win::install::migration`.
+    pub can_migrate_to_user: bool,
 }
 
 /// How long after launch to wait before the first check, so the network
@@ -747,6 +751,16 @@ pub fn get_update_status(pending: tauri::State<'_, PendingInstall>) -> UpdateSta
         last_check_ms: pending.last_check_ms.load(Ordering::Relaxed),
         last_error: pending.last_error.lock().clone(),
         suppressed: *pending.suppressed.lock(),
+        can_migrate_to_user: {
+            #[cfg(windows)]
+            {
+                vitals_win::install::may_migrate()
+            }
+            #[cfg(not(windows))]
+            {
+                false
+            }
+        },
     }
 }
 
@@ -794,7 +808,86 @@ pub async fn install_update_now(
         .map_err(|message| crate::commands::CommandError::Refused { message })
 }
 
+/// Moves this copy to the signed-in account, so updates stop needing approval.
+///
+/// Only offered for a per-machine copy (see `UpdateStatus::can_migrate_to_user`).
+/// Runs the waiting setup as the current user, which is why it needs no
+/// administrator and why the whole action is one click with no prompt.
+///
+/// # Errors
+/// [`CommandError::Refused`] when there is nothing to install with — a
+/// migration is a reinstall, and there is no reinstall without a setup.
+#[tauri::command]
+pub async fn migrate_to_user_install(
+    app: tauri::AppHandle,
+) -> Result<(), crate::commands::CommandError> {
+    #[cfg(all(windows, feature = "self-update"))]
+    {
+        let (version, bytes) = {
+            let Some(pending) = app.try_state::<PendingInstall>() else {
+                return Err(crate::commands::CommandError::Refused {
+                    message: "Vitals is not ready to move yet".into(),
+                });
+            };
+            let ready = pending.ready.lock();
+            let Some((update, bytes)) = ready.as_ref() else {
+                return Err(crate::commands::CommandError::Refused {
+                    message: "an update has to be downloaded first".into(),
+                });
+            };
+            (update.version.clone(), bytes.clone())
+        };
+        start_migration_setup(&version, &bytes)
+            .map_err(|message| crate::commands::CommandError::Refused { message })?;
+        // Records the request so the next launch reports the old copy as
+        // something to remove rather than as a deliberate second install.
+        vitals_win::install::migrated::arm();
+        outcome::expect(&version);
+        // The setup replaces the files this process is running from; leaving it
+        // alive would leave the old copy locked and the new one half written.
+        app.exit(0);
+        Ok(())
+    }
+    #[cfg(not(all(windows, feature = "self-update")))]
+    {
+        let _ = app;
+        Err(crate::commands::CommandError::Unsupported {
+            message: "this build cannot move itself".into(),
+        })
+    }
+}
+
 #[cfg(feature = "self-update")]
+/// Writes the downloaded setup to a temporary file and starts it per-user.
+///
+/// The bytes were verified when the plugin downloaded them, so this
+/// deliberately does not re-download: the migration is offered precisely when
+/// an update is already waiting, and fetching it twice for one click would be
+/// paying for the same bytes twice.
+///
+/// Returns only on failure; on success the caller exits and the setup restarts
+/// the app from its new home.
+#[cfg(all(windows, feature = "self-update"))]
+fn start_migration_setup(version: &str, bytes: &[u8]) -> Result<(), String> {
+    use std::process::Command;
+
+    let path = crate::state::data_dir().join(format!("vitals-{version}-migrate.exe"));
+    std::fs::write(&path, bytes).map_err(|error| format!("could not write the setup: {error}"))?;
+
+    // `__COMPAT_LAYER` rather than an elevated launch: the whole point of the
+    // migration is that installing for one account needs no administrator.
+    // Set on this process, so the child's loader reads it.
+    vitals_win::install::run_children_as_invoker()
+        .map_err(|error| format!("could not prepare the setup: {error}"))?;
+
+    Command::new(&path)
+        .args(vitals_win::install::migration_args())
+        // Detached: this process exits next, and the setup must outlive it.
+        .spawn()
+        .map(|_| ())
+        .map_err(|error| format!("the setup did not start: {error}"))
+}
+
 /// "Restart to update", from the Settings panel or the tray. Returns only on
 /// failure: on success the plugin exits the process and the setup restarts
 /// it. A declined prompt keeps the download, so the offer stays — and puts

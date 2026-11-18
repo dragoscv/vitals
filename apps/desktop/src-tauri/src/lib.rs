@@ -443,6 +443,7 @@ fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
         updates::get_update_install_mode,
         updates::download_update,
         updates::install_update_now,
+        updates::migrate_to_user_install,
         updates::take_update_outcome,
         updates::get_leftover_install,
         updates::remove_leftover_install,

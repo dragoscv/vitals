@@ -137,6 +137,57 @@ pub fn installer_args(scope: InstallScope, elevated: bool) -> Option<Vec<&'stati
     }
 }
 
+/// What a "move this copy to my account" would do.
+///
+/// A person who once chose "for everyone" is stuck with it: the plan for that
+/// scope is [`UpdatePlan::NeedsApproval`], so every update waits for a click
+/// and a UAC prompt the click does not explain. This is the way out that does
+/// not require reinstalling by hand.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MigrationPlan {
+    /// Start the downloaded setup with `/CurrentUser`, under `RunAsInvoker`, so
+    /// it needs no administrator approval: the point is to stop being asked.
+    Migrate,
+    /// Already a per-user copy; there is nothing to move.
+    AlreadyPerUser,
+    /// Not an installation the updater owns.
+    NotOurs,
+}
+
+/// The decision, pure so every row is tested.
+///
+/// Both per-machine scopes migrate: a copy that chose "for everyone" is the one
+/// this exists for, and a legacy one has no reason to stay either. An
+/// unregistered copy is left alone — Vitals does not install over a program it
+/// did not install. The match has no wildcard, so a new scope fails the build
+/// rather than falling through to a default nobody chose.
+#[must_use]
+pub const fn migration(scope: InstallScope) -> MigrationPlan {
+    match scope {
+        InstallScope::AllUsersChosen | InstallScope::AllUsersLegacy => MigrationPlan::Migrate,
+        InstallScope::CurrentUser => MigrationPlan::AlreadyPerUser,
+        InstallScope::Unregistered => MigrationPlan::NotOurs,
+    }
+}
+
+/// Whether the running copy has anywhere to move to.
+#[must_use]
+pub fn may_migrate() -> bool {
+    migration(current_scope()) == MigrationPlan::Migrate
+}
+
+/// The switches the migration setup must run with, and nothing else.
+///
+/// Deliberately a whole list rather than "the usual ones plus `/CurrentUser`":
+/// the normal update of a per-machine copy carries `/AllUsers` (see
+/// [`installer_args`]), and handing NSIS both scope switches leaves the winner
+/// up to the order they happen to arrive in. The migration's entire point is
+/// to end up per-user, so it names exactly that one switch.
+#[must_use]
+pub fn migration_args() -> Vec<&'static str> {
+    vec!["/CurrentUser"]
+}
+
 /// What the registry says about the two possible installations.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Registrations {
@@ -210,23 +261,80 @@ pub fn current_scope() -> InstallScope {
 /// A per-machine copy left behind by a migration: an `HKLM` entry whose
 /// folder is not the one running. `None` when there is none.
 ///
-/// Only reported for a copy registered without the choice marker, and only
-/// when the running copy is per-user: a person who deliberately has both is
-/// not nagged about either.
+/// Only when the running copy is per-user, and only in one of two cases: the
+/// machine entry carries no choice marker (a 1.0.0–1.0.3 setup migrated it on
+/// its own), or `asked_to_move` is set because the user pressed "Move to my
+/// account". A person who deliberately installed both is not nagged about
+/// either — which is what the choice marker means when nobody asked.
 #[must_use]
 pub fn leftover_machine_install() -> Option<PathBuf> {
     let exe_dir = std::env::current_exe().ok()?.parent()?.to_path_buf();
     let reg = registrations();
-    leftover(&exe_dir, &reg)
+    leftover(&exe_dir, &reg, migrated::recently())
 }
 
 /// Pure half of [`leftover_machine_install`].
+///
+/// `asked_to_move` is "the user pressed the move button" — not "a per-user
+/// copy happens to exist", which is the case the guard below exists for.
 #[must_use]
-pub fn leftover(exe_dir: &Path, reg: &Registrations) -> Option<PathBuf> {
-    if classify(exe_dir, reg) != InstallScope::CurrentUser || reg.machine_chosen {
+pub fn leftover(exe_dir: &Path, reg: &Registrations, asked_to_move: bool) -> Option<PathBuf> {
+    if classify(exe_dir, reg) != InstallScope::CurrentUser {
+        return None;
+    }
+    if reg.machine_chosen && !asked_to_move {
         return None;
     }
     reg.machine.clone().filter(|m| !same_dir(m, exe_dir))
+}
+
+/// Records that a migration was asked for, so the copy it leaves behind is
+/// reported rather than treated as a deliberate second installation.
+///
+/// A file rather than memory: the migration ends with the app exiting and the
+/// setup relaunching it, so anything held in this process is gone by the time
+/// the question is asked.
+pub mod migrated {
+    use std::path::PathBuf;
+    use std::time::{Duration, SystemTime};
+
+    /// Long enough to cover a slow setup and the restart that follows; short
+    /// enough that an abandoned attempt does not offer the removal forever.
+    pub const VALID_FOR: Duration = Duration::from_secs(60 * 60);
+
+    fn path() -> PathBuf {
+        // The temporary directory rather than the app's data folder: the
+        // marker is written by one process and read by the next, both as the
+        // same user, and it is valid for an hour. Nothing here is worth
+        // keeping, and a stale file in a data folder is one more thing to
+        // explain away.
+        std::env::temp_dir().join("vitals-migrated-at")
+    }
+
+    /// Pure: whether a marker written at `written` still applies at `now`.
+    #[must_use]
+    pub fn fresh(written: SystemTime, now: SystemTime) -> bool {
+        now.duration_since(written)
+            .is_ok_and(|age| age <= VALID_FOR)
+    }
+
+    /// Records the request. Written before the setup starts: if it fails to
+    /// start, the offer still shows, and the worst case is one extra question
+    /// about a copy that is genuinely there.
+    pub fn arm() {
+        let _ = std::fs::write(path(), b"");
+    }
+
+    /// Whether a migration was asked for recently, consuming nothing: the
+    /// question is asked on every mount of the panel, and a marker that
+    /// disappeared after the first read would hide the offer from a second
+    /// look at the same session.
+    #[must_use]
+    pub fn recently() -> bool {
+        std::fs::metadata(path())
+            .and_then(|m| m.modified())
+            .is_ok_and(|written| fresh(written, SystemTime::now()))
+    }
 }
 
 fn unquoted_path(raw: &str) -> PathBuf {
@@ -542,6 +650,67 @@ mod tests {
     const MACHINE_DIR: &str = r"C:\Program Files\Vitals";
 
     #[test]
+    fn a_copy_that_chose_for_everyone_is_the_one_that_can_be_moved() {
+        // The reason this exists at all: `NeedsApproval` is the plan for that
+        // scope, so its owner waits for a click and a prompt on every update.
+        assert_eq!(
+            migration(InstallScope::AllUsersChosen),
+            MigrationPlan::Migrate
+        );
+        assert_eq!(
+            migration(InstallScope::AllUsersLegacy),
+            MigrationPlan::Migrate
+        );
+    }
+
+    #[test]
+    fn a_per_user_copy_has_nothing_to_move_and_a_foreign_one_nothing_to_touch() {
+        assert_eq!(
+            migration(InstallScope::CurrentUser),
+            MigrationPlan::AlreadyPerUser
+        );
+        assert_eq!(
+            migration(InstallScope::Unregistered),
+            MigrationPlan::NotOurs
+        );
+    }
+
+    #[test]
+    fn every_scope_has_an_answer_so_the_panel_never_shows_a_blank_choice() {
+        for scope in [
+            InstallScope::CurrentUser,
+            InstallScope::AllUsersChosen,
+            InstallScope::AllUsersLegacy,
+            InstallScope::Unregistered,
+        ] {
+            // Exhaustiveness by use: the match in `migration` has no wildcard,
+            // so a new scope fails to compile rather than falling through.
+            let _ = migration(scope);
+        }
+    }
+
+    #[test]
+    fn the_migration_never_carries_the_all_users_switch() {
+        // The trap: reusing the normal update arguments for a per-machine copy
+        // would hand NSIS `/AllUsers` as well, and the migration would
+        // reinstall the thing it was asked to move away from.
+        let args = migration_args();
+        assert_eq!(args, vec!["/CurrentUser"]);
+        assert!(
+            !args.contains(&"/AllUsers"),
+            "both scope switches in one command line is a coin toss"
+        );
+        // And it agrees with the plan the app would use for a per-user copy.
+        assert_eq!(
+            plan(InstallScope::CurrentUser, false),
+            UpdatePlan::Install {
+                args,
+                as_invoker: true
+            }
+        );
+    }
+
+    #[test]
     fn a_per_user_copy_updates_as_the_invoker_whether_or_not_elevated() {
         for elevated in [false, true] {
             assert_eq!(
@@ -622,17 +791,29 @@ mod tests {
     fn a_leftover_machine_copy_is_reported_only_after_a_migration() {
         let migrated = reg(Some(USER_DIR), Some(MACHINE_DIR), false);
         assert_eq!(
-            leftover(Path::new(USER_DIR), &migrated),
+            leftover(Path::new(USER_DIR), &migrated, false),
             Some(PathBuf::from(MACHINE_DIR))
         );
         // A person who chose Program Files on purpose is not nagged.
         let chosen = reg(Some(USER_DIR), Some(MACHINE_DIR), true);
-        assert_eq!(leftover(Path::new(USER_DIR), &chosen), None);
+        assert_eq!(leftover(Path::new(USER_DIR), &chosen, false), None);
+        // ...unless they asked to move, in which case the old copy is exactly
+        // what they want gone. Without this the button would leave two copies
+        // and say nothing about the second.
+        assert_eq!(
+            leftover(Path::new(USER_DIR), &chosen, true),
+            Some(PathBuf::from(MACHINE_DIR)),
+            "pressing Move makes the old copy theirs to remove"
+        );
         // Running from the machine copy: nothing is left over.
-        assert_eq!(leftover(Path::new(MACHINE_DIR), &migrated), None);
+        assert_eq!(leftover(Path::new(MACHINE_DIR), &migrated, false), None);
         // Only a per-user copy.
         assert_eq!(
-            leftover(Path::new(USER_DIR), &reg(Some(USER_DIR), None, false)),
+            leftover(
+                Path::new(USER_DIR),
+                &reg(Some(USER_DIR), None, false),
+                false
+            ),
             None
         );
     }
