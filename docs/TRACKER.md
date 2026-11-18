@@ -3458,6 +3458,55 @@ code (service start type, handles/modules read-only, end process tree).
 
 ### Verification log
 
+### 2026-11-18 — S24-11: rules you write, destinations you choose, a service that stopped
+
+**What it does.** Three things the row asked for, all reachable from Settings:
+
+1. **Your own rules.** A reading (CPU, CPU temperature, memory, disk activity,
+   battery, dropped packets), above or below a threshold of your choosing, held
+   for as long as you decide, with a cooldown. The window and the cooldown are
+   **per rule** on top of the engine's own — which is the whole reason the
+   engine's candidate now carries its windows instead of reading them from a
+   constant. The settings type _is_ the generated wire type, so nothing can
+   drift between the screen and the engine.
+2. **Destinations.** A webhook (signed with HMAC over the exact body bytes), an
+   ntfy topic, a Discord webhook, or a Home Assistant instance — per alert,
+   with a Test button each. Nothing is sent until you add an address.
+3. **A service that stopped.** Windows auto-start services are enumerated on a
+   slow tick and diffed; a service that was running and is not any more raises
+   `serviceStopped`, and one you stopped yourself in Vitals does not.
+
+| Commit    | What it is                                                        |
+| --------- | ----------------------------------------------------------------- |
+| `3be684a` | The channel senders, the per-rule routing and the HMAC signature. |
+| `2993e73` | The service transition and the new alert kind.                    |
+| `b666d4f` | The retry decision extracted into one tested place.               |
+| `b05fb92` | The rule editor driven through a round trip.                      |
+| `1917d2d` | The FAQ entry (EN + RO) and the changelog.                        |
+
+**A defect the round-trip test found, which no review would have.**
+Clearing the threshold field set the threshold to **0**. `Number('')` is `0`,
+not `NaN`, so the finiteness check I had written passed and an "CPU above 90 %"
+rule silently became "CPU above 0 %" — an alert that fires the moment it is
+saved. The test was red on that code and green on the fix; there is now a
+`typedNumber` that rejects the empty field explicitly, because the dangerous
+case is the one that looks safe.
+
+**Verified.** `cargo clippy --all-targets -- -D warnings` clean on
+`vitals-core`, `vitals-desktop`, `vitals-win`, `vitals-server` and `vitals-cli`;
+16 channel tests (signature, per-destination body, routing, the three retry
+answers, the attempt cap) and 41 alert tests; 1377 frontend tests in 133 files,
+including the new round trip; `check-drift` **0 failures, 0 warnings**;
+typecheck, eslint and prettier clean; the site builds (33 pages); the bundle
+budget within limits. **CI on `b666d4f` passed every job** that ran — Frontend,
+Supply chain, Rust linux/windows/lint/test, Apple, Android unit, Tizen,
+Performance, End-to-end, Build installer, Installer round trip.
+
+**Not claimed, and where it goes instead.** The row's last criterion — _a rule
+firing at a real local ntfy/webhook receiver_ — needs a real receiver on a real
+machine, which is the vivobook pass. It is S24-16's list, and it is stated here
+rather than left implied.
+
 ### 2026-11-17 — S24-12: the PC, the router or the internet
 
 **What it does.** Vitals now answers the question a person actually asks when
