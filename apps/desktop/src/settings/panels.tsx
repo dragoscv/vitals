@@ -899,6 +899,21 @@ const channelUsesSecret = {
  * The engine receives these exactly as they are stored — the settings type is
  * the wire type — so there is no translation step that could drift.
  */
+/**
+ * A number from a text field, or `null` while the user is mid-edit.
+ *
+ * The empty string is the case that matters and the one that reads as safe:
+ * `Number('')` is **`0`**, not `NaN`, so a cleared threshold would silently
+ * become zero — and a rule that says "CPU above 0 %" fires the moment it is
+ * saved. Rejecting the empty field explicitly, rather than trusting a
+ * finiteness check to catch it, is the whole point of this function.
+ */
+function typedNumber(raw: string): number | null {
+  if (raw.trim() === '') return null;
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : null;
+}
+
 function AlertRulesSection() {
   const { t } = useTranslation(SHELL_NS);
   const rules = useSettings((state) => state.settings.alertRules);
@@ -995,10 +1010,11 @@ function AlertRulesSection() {
               ariaLabel={t('settings.notifications.ruleThreshold')}
               value={String(rule.threshold)}
               onChange={(event) => {
-                const next = Number(event.target.value);
-                // Ignore a half-typed value rather than storing NaN, which
-                // Rust drops and the user would never see why.
-                if (Number.isFinite(next)) update(index, { threshold: next });
+                const next = typedNumber(event.target.value);
+                // A field being retyped is not an instruction to change
+                // anything. See `typedNumber` for why the empty string is
+                // the dangerous case rather than an unlikely one.
+                if (next !== null) update(index, { threshold: next });
               }}
             />
             <Input
@@ -1006,8 +1022,8 @@ function AlertRulesSection() {
               ariaLabel={t('settings.notifications.ruleSustain')}
               value={String(rule.sustainSecs)}
               onChange={(event) => {
-                const next = Number(event.target.value);
-                if (Number.isFinite(next)) update(index, { sustainSecs: Math.max(0, next) });
+                const next = typedNumber(event.target.value);
+                if (next !== null) update(index, { sustainSecs: Math.max(0, next) });
               }}
             />
             <Select
