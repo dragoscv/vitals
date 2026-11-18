@@ -81,18 +81,11 @@ if ($Mode -ne 'upload') {
     if ($kid -notmatch '^[A-Z0-9]{8,12}$' -or $team -notmatch '^[A-Z0-9]{10}$' -or $iss -notmatch '^[0-9a-f-]{36}$') { throw 'ASC ids have an unexpected shape' }
     & scp -q -o BatchMode=yes -i $Key -P $GuestPort $p8 "${target}:$remote/.k.p8"
     if ($LASTEXITCODE -ne 0) { throw 'scp key failed' }
-    # Also put the key where Xcode 26 looks for one by itself. Handed only by
-    # path, xcodebuild 26.6 answers "Authentication failed: Make sure a bearer
-    # token was provided, it is properly configured and signed, and it has not
-    # expired" for every target, while the same key answers 200 through the
-    # App Store Connect API from this machine (2026-11-18).
-    & ssh @ssh $target "mkdir -p ~/.appstoreconnect/private_keys && cp ~/$remote/.k.p8 ~/.appstoreconnect/private_keys/AuthKey_$kid.p8 && chmod 600 ~/.appstoreconnect/private_keys/AuthKey_$kid.p8"
-    if ($LASTEXITCODE -ne 0) { throw 'key placement failed' }
   } finally {
     Remove-Item $p8 -Force -ErrorAction SilentlyContinue
   }
   # Ids are not secret; the .p8 is, and it is removed whatever build.sh returns.
-  $cmd = "cd ~/$remote && chmod 600 .k.p8 && DEVELOPMENT_TEAM=$team ASC_KEY_ID=$kid ASC_ISSUER_ID=$iss ASC_KEY_PATH=~/.appstoreconnect/private_keys/AuthKey_$kid.p8 BUILD_NUMBER=$build bash scripts/build.sh upload; rc=`$?; rm -f .k.p8 ~/.appstoreconnect/private_keys/AuthKey_$kid.p8; exit `$rc"
+  $cmd = "cd ~/$remote && chmod 600 .k.p8 && DEVELOPMENT_TEAM=$team ASC_KEY_ID=$kid ASC_ISSUER_ID=$iss ASC_KEY_PATH=`$PWD/.k.p8 BUILD_NUMBER=$build bash scripts/build.sh upload; rc=`$?; rm -f .k.p8; exit `$rc"
   & ssh @ssh $target $cmd *>&1 | Tee-Object -FilePath $log
   $rc = $LASTEXITCODE
 }
