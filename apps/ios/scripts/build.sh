@@ -135,12 +135,19 @@ case "$MODE" in
       # and rejects every distribution profile ("doesn't include signing
       # certificate ..."), which is what the first manual attempt hit.
       SIGN_EXTRA=(CODE_SIGN_IDENTITY="Apple Distribution")
+      EXPORT_AUTH=(-authenticationKeyPath "$ASC_KEY_PATH"
+        -authenticationKeyID "$ASC_KEY_ID"
+        -authenticationKeyIssuerID "$ASC_ISSUER_ID")
     else
       AUTH=(-allowProvisioningUpdates
         -authenticationKeyPath "$ASC_KEY_PATH"
         -authenticationKeyID "$ASC_KEY_ID"
         -authenticationKeyIssuerID "$ASC_ISSUER_ID")
       SIGN_EXTRA=()
+      EXPORT_AUTH=(-allowProvisioningUpdates
+        -authenticationKeyPath "$ASC_KEY_PATH"
+        -authenticationKeyID "$ASC_KEY_ID"
+        -authenticationKeyIssuerID "$ASC_ISSUER_ID")
     fi
     rm -rf "$OUT/Vitals.xcarchive" "$OUT/export"
     log "archive (build $BUILD_NUMBER)"
@@ -177,8 +184,11 @@ case "$MODE" in
 </dict></plist>
 PLIST
     log "export + upload to App Store Connect"
+    # destination=upload talks to App Store Connect, so it needs the key even
+    # when the archive itself was signed offline — without it xcodebuild looks
+    # for a signed-in Xcode account and reports "Failed to Use Accounts".
     xcodebuild -exportArchive -archivePath "$OUT/Vitals.xcarchive" \
-      -exportOptionsPlist "$OUT/ExportOptions.plist" -exportPath "$OUT/export" "${AUTH[@]+"${AUTH[@]}"}"
+      -exportOptionsPlist "$OUT/ExportOptions.plist" -exportPath "$OUT/export" "${EXPORT_AUTH[@]}"
     log "UPLOADED build $BUILD_NUMBER"
     ;;
   screenshots)
