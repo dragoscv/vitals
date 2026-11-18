@@ -3458,6 +3458,57 @@ code (service start type, handles/modules read-only, end process tree).
 
 ### Verification log
 
+### 2026-11-18 — why the iPhone app could not be downloaded, and the Wi-Fi declaration
+
+**The app was not for sale.** App Store Connect carried `This app was removed
+from sale from the App Store` on the 1.3.0 version page, and Pricing and
+Availability offered `Set Up Availability` — the app had **no availability
+record at all**. 1.1.1 and 1.2.0 were both `READY_FOR_SALE`, but a released
+version of a product with no territories is a product nobody can install. That
+resolves the contradiction the audit left open on 2026-11-17: the version state
+said "ready", the `itunes.apple.com/lookup?id=6827931747` answer said
+`resultCount 0`, and both were telling the truth about different things.
+
+Availability was then set up for all countries and regions, which is the only
+step that was missing:
+
+```
+GET /v1/apps/6827931747/appAvailabilityV2        (before) 404 NOT_FOUND
+GET /v1/apps/6827931747/appAvailabilityV2        (after)
+  { "attributes": { "availableInNewTerritories": true } }
+Availability (148 Countries or Regions) - All Countries or Regions
+  Afghanistan  Processing to Available   (the rest of the list the same)
+```
+
+The notice is gone from the version page and the public page now exists:
+`apps.apple.com/us/app/vitals-system-monitor/id6827931747` serves _Vitals:
+System Monitor_, Free, **Version 1.2.0**, Designed for iPhone (1.3.0 is in
+review). README and both site download pages now link it instead of stating
+that the listing is not live. China mainland still shows the Security
+Assessment and AIGC declaration notices — deadline 31 January 2027, and the app
+is not distributed there.
+
+**`android.hardware.wifi` is no longer a requirement.** Play reported
+"Required hardware feature declarations are restricting your app's
+availability: android.hardware.wifi affects Phone, Tablet, Desktop, and Android
+XR users". The phone and wear apps request `ACCESS_WIFI_STATE`, and Android
+implicitly makes a feature **required** when a permission implies it; the TV
+manifest already declared it optional, which is why only those form factors
+were named. Both now say `android:required="false"`, and the built artefacts
+confirm it:
+
+```
+$ aapt dump badging app-play-debug.apk | rg uses-feature
+  uses-feature-not-required: name='android.hardware.camera.any'
+  uses-feature-not-required: name='android.hardware.wifi'
+$ aapt dump badging wear-debug.apk | rg uses-feature
+  uses-feature-not-required: name='android.hardware.wifi'
+```
+
+`./gradlew :app:assembleDebug :wear:assembleDebug` — BUILD SUCCESSFUL in 48s.
+This ships in the next bundle: the 1.3.0 release already in review was built
+from the old manifest, and it was allowed through with the issue ignored.
+
 ### 2026-11-18 — S24-17: Play changes sent for review, iPhone 1.3.0 WAITING_FOR_REVIEW
 
 **iPhone.** Six archive attempts failed before the cause was found, and it was

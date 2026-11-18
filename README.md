@@ -25,7 +25,7 @@ from a terminal.
 | Windows 11 ARM64           | [Vitals_arm64-setup.exe](https://github.com/dragoscv/vitals/releases/latest/download/Vitals_arm64-setup.exe)                                                                  | Preview        |
 | Android phone, Wear OS, TV | APKs on each [release](https://github.com/dragoscv/vitals/releases/latest)                                                                                                    | Stable         |
 | macOS 13+ (universal)      | [Vitals_universal.dmg](https://github.com/dragoscv/vitals/releases/latest/download/Vitals_universal.dmg), Developer ID signed and notarised                                   | Preview        |
-| iPhone (iOS 18+)           | "Vitals Monitor" — App Store listing not live yet                                                                                                                             | Preview        |
+| iPhone (iOS 18+)           | [Vitals: System Monitor](https://apps.apple.com/app/id6827931747) on the App Store                                                                                            | Preview        |
 | Linux                      | —                                                                                                                                                                             | No dated plans |
 
 > **Status: 1.2.0, stable on Windows.** Every section works against live data on
