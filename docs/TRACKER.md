@@ -3458,6 +3458,77 @@ code (service start type, handles/modules read-only, end process tree).
 
 ### Verification log
 
+### 2026-11-18 — S24-17: Play changes sent for review, iPhone 1.3.0 WAITING_FOR_REVIEW
+
+**iPhone.** Six archive attempts failed before the cause was found, and it was
+not the thing the notes blamed. The four `IOS_APP_STORE` profiles carried an
+empty `com.apple.security.application-groups` array: the App Group was
+registered in the developer portal but never _assigned_ to the four App IDs
+(`Configure` → `Vitals shared`), and the portal says in as many words that
+assigning it invalidates the profiles that exist. Every archive therefore
+failed to sign, and Xcode 26.6 reported that as `Authentication failed: Make
+sure a bearer token was provided` on each target — which is why the key, the
+clock and the key placement all tested clean while the build never moved.
+
+What changed:
+
+- `scripts/ios-appstore-profiles.mjs` fetches the four profiles and replaces
+  any whose CMS blob does not contain `group.app.vitals.ios`, so a stale
+  profile can no longer be reused silently.
+- `apps/ios/scripts/build.sh` signs manually: it installs the profiles under
+  their UUIDs, pins `CODE_SIGN_IDENTITY=Apple Distribution` (without it Xcode
+  picks the Apple Development identity and rejects every distribution
+  profile), and keeps the App Store Connect key for `-exportArchive`, because
+  `destination=upload` authenticates with it — dropping it produced
+  `exportArchive Failed to Use Accounts`.
+- On macOS an empty array expansion `"${AUTH[@]}"` is an unbound variable under
+  `set -u`; the guard `"${AUTH[@]+"${AUTH[@]}"}"` was proved on the guest's
+  bash 3.2.57.
+
+The export then failed writing symbols with 115 MiB free on the guest: `df -h`
+showed `/System/Volumes/Data` at 100%. Clearing
+`~/Library/Developer/CoreSimulator/Caches`, the SwiftPM and pnpm caches and the
+old `~/vitals-ios/*` trees freed 3.5 GiB and the upload went straight through.
+
+```
+== xcodebuild Xcode 26.6 Build version 17F113
+== installed profile app.vitals.ios.mobileprovision as 235410d4-826a-40ba-9e61-8a1d89c909c1
+note: Using codesigning identity override: Apple Distribution
+Progress 100%: Upload succeeded.
+** EXPORT SUCCEEDED **
+== UPLOADED build 326
+ios-build upload @ 05f41f2d8bfb (build 326) -> rc=0
+```
+
+Read back from the API, not from the log:
+
+```
+build b6dd5213-8f65-46a0-9caf-8fe846023b6f v326 VALID
+version 1.3.0 (30bf891a) -> WAITING_FOR_REVIEW
+submission 78105b22 WAITING_FOR_REVIEW 2026-11-18T20:36:02Z
+```
+
+The four localisations kept the 1.2.0 screenshots (`APP_IPHONE_65`,
+`APP_WATCH_ULTRA`) and description when the version was created, so only
+`whatsNew` had to be re-applied (`scripts/ios-store.mjs`).
+
+**Play.** The Console's app pages never render in a long-lived tab: the shell
+stays on "Loading Google Play Console" with no failed request, and Home
+degrades the same way once it has happened. A fresh tab renders them. The
+production draft already carried the 1.3.0 bundle (version code 44) under the
+stale internal name "1.2.0"; the staged rollout was unset (the field defaults
+to 100), so it was set to 20% to match `PLAY_ROLLOUT`. Two things blocked the
+submission and both were cleared: an incomplete app-level trader declaration
+(the account is already declared a trader, so it was confirmed, with
+`https://vitals.dragoscatalin.ro/terms/` as the Terms URL) and the
+`android.hardware.wifi` required-feature warning, ignored with "I already have
+plans to resolve this issue" — the honest fix is to declare the feature
+optional, since the phone app also shows its own readings (follow-up). Result:
+**2 changes sent for review**.
+
+**Not done.** The Mac App Store stays frozen (S23-16, waiting on Apple), and
+S24-16 still needs the owner's two clicks.
+
 ### 2026-11-18 — S24-11: rules you write, destinations you choose, a service that stopped
 
 **What it does.** Three things the row asked for, all reachable from Settings:
