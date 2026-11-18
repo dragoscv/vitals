@@ -72,6 +72,8 @@ if ($Mode -ne 'upload') {
   $rc = $LASTEXITCODE
 } else {
   $p8 = Join-Path $tmp 'k.p8'
+  $p12 = Join-Path $tmp 'd.p12'
+  $pwf = Join-Path $tmp 'p12.pw'
   try {
     gcloud secrets versions access latest --secret=apple-asc-key-p8 --project $Project --out-file=$p8 2>$null
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path $p8)) { throw 'secret apple-asc-key-p8 missing' }
@@ -81,11 +83,30 @@ if ($Mode -ne 'upload') {
     if ($kid -notmatch '^[A-Z0-9]{8,12}$' -or $team -notmatch '^[A-Z0-9]{10}$' -or $iss -notmatch '^[0-9a-f-]{36}$') { throw 'ASC ids have an unexpected shape' }
     & scp -q -o BatchMode=yes -i $Key -P $GuestPort $p8 "${target}:$remote/.k.p8"
     if ($LASTEXITCODE -ne 0) { throw 'scp key failed' }
+    # The signing identity an App Store archive needs. Without it xcodebuild
+    # tries to create a distribution certificate itself and reports the failure
+    # as an authentication error, which is how this went unexplained for four
+    # attempts (2026-11-18): the guest's build keychain held only an Apple
+    # Development identity, while notarytool authenticated fine with the same
+    # key. Optional: an absence is a warning, not a stop, because a future
+    # guest may already carry the identity.
+    $distEnv = ''
+    gcloud secrets versions access latest --secret=apple-distribution-p12 --project $Project --out-file=$p12 2>$null
+    gcloud secrets versions access latest --secret=apple-signing-p12-password --project $Project --out-file=$pwf 2>$null
+    if ((Test-Path $p12) -and (Test-Path $pwf) -and (Get-Item $p12).Length -gt 0) {
+      & scp -q -o BatchMode=yes -i $Key -P $GuestPort $p12 "${target}:$remote/.d.p12"
+      if ($LASTEXITCODE -ne 0) { throw 'scp p12 failed' }
+      & scp -q -o BatchMode=yes -i $Key -P $GuestPort $pwf "${target}:$remote/.p12pw"
+      if ($LASTEXITCODE -ne 0) { throw 'scp p12 password failed' }
+      $distEnv = 'ASC_DIST_P12=`$PWD/.d.p12 ASC_DIST_PW=`$PWD/.p12pw'
+    } else {
+      Write-Warning 'distribution p12 unavailable; an App Store archive may fail to sign'
+    }
   } finally {
-    Remove-Item $p8 -Force -ErrorAction SilentlyContinue
+    Remove-Item $p8, $p12, $pwf -Force -ErrorAction SilentlyContinue
   }
   # Ids are not secret; the .p8 is, and it is removed whatever build.sh returns.
-  $cmd = "cd ~/$remote && chmod 600 .k.p8 && DEVELOPMENT_TEAM=$team ASC_KEY_ID=$kid ASC_ISSUER_ID=$iss ASC_KEY_PATH=`$PWD/.k.p8 BUILD_NUMBER=$build bash scripts/build.sh upload; rc=`$?; rm -f .k.p8; exit `$rc"
+  $cmd = "cd ~/$remote && chmod 600 .k.p8 .d.p12 .p12pw 2>/dev/null; $distEnv DEVELOPMENT_TEAM=$team ASC_KEY_ID=$kid ASC_ISSUER_ID=$iss ASC_KEY_PATH=`$PWD/.k.p8 BUILD_NUMBER=$build bash scripts/build.sh upload; rc=`$?; rm -f .k.p8 .d.p12 .p12pw; exit `$rc"
   & ssh @ssh $target $cmd *>&1 | Tee-Object -FilePath $log
   $rc = $LASTEXITCODE
 }

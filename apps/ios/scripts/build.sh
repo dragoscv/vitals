@@ -88,6 +88,20 @@ case "$MODE" in
     : "${DEVELOPMENT_TEAM:?}" "${ASC_KEY_ID:?}" "${ASC_ISSUER_ID:?}" "${ASC_KEY_PATH:?}" "${BUILD_NUMBER:?}"
     generate
     build_keychain
+    # An App Store archive is signed with a DISTRIBUTION identity. The guest
+    # held only "Apple Development: Created via API", and xcodebuild's attempt
+    # to mint the missing distribution certificate is what surfaced as
+    # "Authentication failed: ... bearer token" on every target — while the
+    # same key authenticated fine from notarytool on the same machine
+    # (2026-11-18). The driver ships the exported identity when it has it.
+    if [ -n "${ASC_DIST_P12:-}" ] && [ -f "$ASC_DIST_P12" ]; then
+      KC="$HOME/Library/Keychains/codai-build.keychain-db"
+      security import "$ASC_DIST_P12" -k "$KC" -P "$(cat "${ASC_DIST_PW:?}")" \
+        -T /usr/bin/codesign -T /usr/bin/security -A >/dev/null
+      security set-key-partition-list -S apple-tool:,apple:,codesign: -s \
+        -k "$(cat "$HOME/.config/codai/build-keychain.pw")" "$KC" >/dev/null
+      log "distribution identity imported"
+    fi
     AUTH=(-allowProvisioningUpdates
       -authenticationKeyPath "$ASC_KEY_PATH"
       -authenticationKeyID "$ASC_KEY_ID"
