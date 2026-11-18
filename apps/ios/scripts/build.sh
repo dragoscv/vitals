@@ -131,17 +131,23 @@ case "$MODE" in
         log "installed profile $(basename "$f") as $uuid"
       done
       AUTH=()
+      # Xcode otherwise signs with the "Apple Development" identity it finds
+      # and rejects every distribution profile ("doesn't include signing
+      # certificate ..."), which is what the first manual attempt hit.
+      SIGN_EXTRA=(CODE_SIGN_IDENTITY="Apple Distribution")
     else
       AUTH=(-allowProvisioningUpdates
         -authenticationKeyPath "$ASC_KEY_PATH"
         -authenticationKeyID "$ASC_KEY_ID"
         -authenticationKeyIssuerID "$ASC_ISSUER_ID")
+      SIGN_EXTRA=()
     fi
     rm -rf "$OUT/Vitals.xcarchive" "$OUT/export"
     log "archive (build $BUILD_NUMBER)"
     xcodebuild -project Vitals.xcodeproj -scheme Vitals -configuration Release \
       -destination 'generic/platform=iOS' -derivedDataPath "$OUT/dd" \
       -archivePath "$OUT/Vitals.xcarchive" "${AUTH[@]+"${AUTH[@]}"}" \
+      "${SIGN_EXTRA[@]+"${SIGN_EXTRA[@]}"}" \
       DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" CURRENT_PROJECT_VERSION="$BUILD_NUMBER" archive -quiet
     # Store-eligible upload: a testFlightInternalTestingOnly build can never
     # be attached to an App Store version (ASC 409, codai 2026-10-28).
