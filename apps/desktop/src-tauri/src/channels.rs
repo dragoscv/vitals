@@ -227,14 +227,14 @@ impl Channels {
                     // A 4xx is the user's configuration and will fail the
                     // same way next time; only a server fault is worth a
                     // second try.
-                    if status.is_client_error() || attempt == MAX_ATTEMPTS {
+                    if !worth_retrying(last_status, attempt) {
                         return (false, last_status);
                     }
                 }
                 Err(error) => {
                     last_status = None;
                     tracing::debug!(%error, "channel attempt failed");
-                    if attempt == MAX_ATTEMPTS {
+                    if !worth_retrying(None, attempt) {
                         return (false, None);
                     }
                 }
@@ -409,6 +409,28 @@ fn discord_body(notification: &Notification) -> String {
 
 /// The decimal colour Discord wants. Chosen for contrast against both of its
 /// themes rather than for the exact brand value.
+/// Whether a failed attempt is worth repeating.
+///
+/// Three answers, and each is a real distinction rather than a blanket retry:
+/// a transport error (`None`) means the request never got an answer — a
+/// sleeping laptop, a flaky link — and is worth one more try; a server fault
+/// is the far side having a bad moment; a client error is the user's own
+/// configuration and will fail byte-for-byte the same way, so retrying it
+/// only doubles the requests it makes against an endpoint that already said
+/// no.
+///
+/// The attempt cap is checked first so a 5xx that lasts cannot loop: two
+/// attempts, then the user is told.
+fn worth_retrying(status: Option<u16>, attempt: u32) -> bool {
+    if attempt >= MAX_ATTEMPTS {
+        return false;
+    }
+    match status {
+        None => true,
+        Some(code) => !(400..500).contains(&code),
+    }
+}
+
 const fn discord_colour(severity: Severity) -> u32 {
     match severity {
         Severity::Info => 0x3B_82_F6,     // blue
@@ -677,6 +699,35 @@ mod tests {
             channels.targets(Severity::Info, &[]).is_empty(),
             "below both floors, nothing is sent"
         );
+    }
+
+    #[test]
+    fn a_client_error_is_never_retried_because_it_will_fail_identically() {
+        // The user typed the URL wrong, or the endpoint wants a token we did
+        // not send: sending it twice only doubles the load on an endpoint
+        // that has already answered.
+        assert!(!worth_retrying(Some(404), 1));
+        assert!(!worth_retrying(Some(401), 1));
+        assert!(!worth_retrying(Some(429), 1), "a rate limit is a refusal");
+    }
+
+    #[test]
+    fn a_server_fault_and_a_dead_link_get_one_more_try() {
+        assert!(
+            worth_retrying(Some(503), 1),
+            "the far side is having a moment"
+        );
+        assert!(worth_retrying(Some(500), 1));
+        assert!(worth_retrying(None, 1), "no answer at all");
+    }
+
+    #[test]
+    fn the_attempt_cap_stops_even_a_fault_that_lasts() {
+        // The point of the cap: a 503 that never clears must not turn into a
+        // loop that fires at the user's endpoint until the app is closed.
+        assert!(!worth_retrying(Some(503), MAX_ATTEMPTS));
+        assert!(!worth_retrying(None, MAX_ATTEMPTS));
+        assert!(!worth_retrying(None, MAX_ATTEMPTS + 1));
     }
 
     #[test]

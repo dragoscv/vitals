@@ -43,12 +43,13 @@ export function seriesFor(
       return history.core.netRx;
     // A rule the user wrote names no subsystem, and there is no series that
     // would explain it: the reading it watches is the rule's own.
+    // A stopped service is a state, not a load: there is no series that
+    // would explain it under the headline. Likewise a rule the user wrote
+    // names no subsystem with a chart of its own.
     case 'gpu':
     case 'storage':
     case 'battery':
     case 'custom':
-    // A stopped service is a state, not a load: there is no series that
-    // would explain it under the headline.
     case 'services':
       return null;
   }

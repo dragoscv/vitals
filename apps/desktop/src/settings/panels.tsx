@@ -668,19 +668,40 @@ function ChannelsSection() {
   // while the user is looking at it except by their own click.
   const [lastResult, setLastResult] = useState<ChannelStatusMap>({});
 
-  const refreshStatus = async () => {
+  /**
+   * The last result each channel returned, or `null` when there is no host to
+   * ask — a browser build of the screens, where the panel simply works
+   * without it rather than showing every channel as failed.
+   */
+  const readStatus = async (): Promise<ChannelStatusMap | null> => {
+    if (!hasTauriHost()) return null;
     try {
       const { invoke } = await import('@tauri-apps/api/core');
-      setLastResult(await invoke<ChannelStatusMap>('alert_channel_status'));
+      return await invoke<ChannelStatusMap>('alert_channel_status');
     } catch {
-      // No host (a browser build of the screens): nothing to show, and the
-      // panel works without it.
+      return null;
     }
   };
 
+  // `.then` rather than an `async` body, and no `setLastResult` outside the
+  // callback: React's lint rejects a state write reachable synchronously from
+  // an effect, and the guard stops a reply from a panel the user has already
+  // left.
   useEffect(() => {
-    void refreshStatus();
+    let live = true;
+    void readStatus().then((status) => {
+      if (live && status) setLastResult(status);
+    });
+    return () => {
+      live = false;
+    };
   }, []);
+
+  /** Re-reads after a test, so the row shows what just happened. */
+  const refreshStatus = async () => {
+    const status = await readStatus();
+    if (status) setLastResult(status);
+  };
 
   const update = (index: number, next: Partial<AlertChannel>) => {
     patch({
