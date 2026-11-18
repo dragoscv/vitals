@@ -141,7 +141,7 @@ case "$MODE" in
     log "archive (build $BUILD_NUMBER)"
     xcodebuild -project Vitals.xcodeproj -scheme Vitals -configuration Release \
       -destination 'generic/platform=iOS' -derivedDataPath "$OUT/dd" \
-      -archivePath "$OUT/Vitals.xcarchive" "${AUTH[@]}" \
+      -archivePath "$OUT/Vitals.xcarchive" "${AUTH[@]+"${AUTH[@]}"}" \
       DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" CURRENT_PROJECT_VERSION="$BUILD_NUMBER" archive -quiet
     # Store-eligible upload: a testFlightInternalTestingOnly build can never
     # be attached to an App Store version (ASC 409, codai 2026-10-28).
@@ -172,7 +172,7 @@ case "$MODE" in
 PLIST
     log "export + upload to App Store Connect"
     xcodebuild -exportArchive -archivePath "$OUT/Vitals.xcarchive" \
-      -exportOptionsPlist "$OUT/ExportOptions.plist" -exportPath "$OUT/export" "${AUTH[@]}"
+      -exportOptionsPlist "$OUT/ExportOptions.plist" -exportPath "$OUT/export" "${AUTH[@]+"${AUTH[@]}"}"
     log "UPLOADED build $BUILD_NUMBER"
     ;;
   screenshots)
