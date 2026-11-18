@@ -50,6 +50,14 @@ if ($env:CI) { $env:CI = 'true' }
 # looks for it; only a cross build gets a --target directory of its own.
 $targets = @{ x64 = ''; arm64 = 'aarch64-pc-windows-msvc' }
 
+# The Tauri config overlay goes in a FILE, never on the command line: a JSON
+# argument reaching a native command through PowerShell loses its double
+# quotes, and tauri then reads `{bundle:{createUpdaterArtifacts:false}}` and
+# refuses it ("key must be a string at line 1 column 2" — msix.yml run
+# 44320991850). ci.yml's Build step uses the same shape.
+$overlay = Join-Path ([IO.Path]::GetTempPath()) 'vitals-msix-tauri-overlay.json'
+'{"bundle":{"createUpdaterArtifacts":false}}' | Set-Content -Path $overlay -Encoding utf8NoBOM
+
 foreach ($arch in $architectures) {
   $triple = $targets[$arch]
   $targetArgs = if ($triple) { @('--target', $triple) } else { @() }
@@ -59,7 +67,7 @@ foreach ($arch in $architectures) {
     if ($LASTEXITCODE -ne 0) { throw "rustup target add $triple failed ($LASTEXITCODE)" }
   }
 
-  pnpm --filter '@vitals/desktop' exec tauri build --no-bundle @targetArgs --config '{"bundle":{"createUpdaterArtifacts":false}}'
+  pnpm --filter '@vitals/desktop' exec tauri build --no-bundle @targetArgs --config $overlay
   if ($LASTEXITCODE -ne 0) { throw "tauri build ($arch) failed ($LASTEXITCODE)" }
   cargo build --release -p vitals-watchdog @targetArgs
   if ($LASTEXITCODE -ne 0) { throw "watchdog build ($arch) failed ($LASTEXITCODE)" }
