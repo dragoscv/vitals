@@ -3,6 +3,10 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-feature android:name="android.hardware.type.watch" />
+        <!-- :core declares ACCESS_WIFI_STATE, which makes android.hardware.wifi
+            REQUIRED on the merged manifest; a watch reaches its PC through the
+            phone and through its own network, so Wi-Fi is not a requirement. -->
+        <uses-feature android:name="android.hardware.wifi" android:required="false" />
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />

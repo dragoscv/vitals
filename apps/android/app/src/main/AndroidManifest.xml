@@ -25,6 +25,13 @@
 
     <!-- The camera only scans a pairing code; phones without one pair by NSD or by hand. -->
     <uses-feature android:name="android.hardware.camera.any" android:required="false" />
+        <!-- The two Wi-Fi permissions above make android.hardware.wifi REQUIRED by
+            default, which Play reports as "Required hardware feature declarations
+            are restricting your app's availability" and hides the app from
+            Ethernet-only phones, tablets, Chromebooks and Android XR. Vitals also
+            shows its own readings and a paired PC reached over the LAN, so Wi-Fi
+            is an enhancement, not a requirement. -->
+        <uses-feature android:name="android.hardware.wifi" android:required="false" />
 
     <application
         android:name=".VitalsApp"
