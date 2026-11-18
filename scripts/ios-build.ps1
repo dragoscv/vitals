@@ -98,15 +98,35 @@ if ($Mode -ne 'upload') {
       if ($LASTEXITCODE -ne 0) { throw 'scp p12 failed' }
       & scp -q -o BatchMode=yes -i $Key -P $GuestPort $pwf "${target}:$remote/.p12pw"
       if ($LASTEXITCODE -ne 0) { throw 'scp p12 password failed' }
-      $distEnv = 'ASC_DIST_P12=`$PWD/.d.p12 ASC_DIST_PW=`$PWD/.p12pw'
     } else {
       Write-Warning 'distribution p12 unavailable; an App Store archive may fail to sign'
     }
+    # The values travel in a FILE the script sources, never as `X=y` words on
+    # the ssh command line: PowerShell rewrites those on the way out, and on
+    # 2026-11-18 it turned ASC_DIST_PW into a bare path the remote shell tried
+    # to execute ("zsh:1: permission denied: .../.d.p12"). A file is also LF,
+    # no BOM, as anything destined for Linux must be.
+    $envFile = Join-Path $tmp '.iosenv'
+    $lines = @(
+      'export DEVELOPMENT_TEAM=' + $team
+      'export ASC_KEY_ID=' + $kid
+      'export ASC_ISSUER_ID=' + $iss
+      'export ASC_KEY_PATH="$PWD/.k.p8"'
+      'export BUILD_NUMBER=' + $build
+    )
+    if (Test-Path (Join-Path $tmp 'd.p12')) {
+      $lines += 'export ASC_DIST_P12="$PWD/.d.p12"'
+      $lines += 'export ASC_DIST_PW="$PWD/.p12pw"'
+    }
+    $text = ($lines -join "`n") + "`n"
+    [IO.File]::WriteAllText($envFile, $text, [Text.UTF8Encoding]::new($false))
+    & scp -q -o BatchMode=yes -i $Key -P $GuestPort $envFile "${target}:$remote/.iosenv"
+    if ($LASTEXITCODE -ne 0) { throw 'scp env file failed' }
   } finally {
     Remove-Item $p8, $p12, $pwf -Force -ErrorAction SilentlyContinue
   }
   # Ids are not secret; the .p8 is, and it is removed whatever build.sh returns.
-  $cmd = "cd ~/$remote && chmod 600 .k.p8 .d.p12 .p12pw 2>/dev/null; $distEnv DEVELOPMENT_TEAM=$team ASC_KEY_ID=$kid ASC_ISSUER_ID=$iss ASC_KEY_PATH=`$PWD/.k.p8 BUILD_NUMBER=$build bash scripts/build.sh upload; rc=`$?; rm -f .k.p8 .d.p12 .p12pw; exit `$rc"
+  $cmd = "cd ~/$remote && chmod 600 .k.p8 .d.p12 .p12pw .iosenv 2>/dev/null; bash scripts/build.sh upload; rc=`$?; rm -f .k.p8 .d.p12 .p12pw .iosenv; exit `$rc"
   & ssh @ssh $target $cmd *>&1 | Tee-Object -FilePath $log
   $rc = $LASTEXITCODE
 }

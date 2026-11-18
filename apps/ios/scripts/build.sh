@@ -85,6 +85,9 @@ case "$MODE" in
     log "OK: $APP (+ Watch/VitalsMonitorWatch.app)"
     ;;
   upload)
+    # The driver ships the ids and the key path in this 0600 file rather than
+    # as `X=y` words on the ssh command line, where PowerShell rewrites them.
+    [ -f ./.iosenv ] && . ./.iosenv
     : "${DEVELOPMENT_TEAM:?}" "${ASC_KEY_ID:?}" "${ASC_ISSUER_ID:?}" "${ASC_KEY_PATH:?}" "${BUILD_NUMBER:?}"
     generate
     build_keychain
