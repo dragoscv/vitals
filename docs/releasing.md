@@ -467,6 +467,26 @@ housekeeping:
   install the app — and set it up under Pricing and Availability if so.
   `scripts/ios-store.mjs` does not set availability; only the Console flow
   does. Changes reach the store within 24 hours.
+
+  This is checked now, so it cannot go unnoticed again:
+  `node scripts/check-store-listing.mjs` reads the availability record (and the
+  territory count), both apps' version states, the public lookup and the three
+  storefront pages, printing one line per check. It exits 1 when the app is not
+  for sale and 2 when the check could not run; `--json` prints the same result
+  for a pipeline, and `--fail-on-unlisted` states the exit-1 policy at a call
+  site. It runs on every push to `main`, weekly and on demand in
+  `.github/workflows/store-listing.yml`, and as a pre-flight step of the tag
+  release. It needs the three **repository-level** secrets `APPLE_ASC_KEY_P8`,
+  `APPLE_ASC_KEY_ID` and `APPLE_ASC_ISSUER` (the gcloud secrets of those names —
+  `gcloud secrets versions access latest --secret=apple-asc-key-id
+--project=dragos-devcloud | gh secret set APPLE_ASC_KEY_ID`); without them the
+  scheduled job fails rather than skipping quietly, and the tag step prints
+  SKIPPED and carries on. The Mac app's record is reported but never failed: it
+  is not on the Mac App Store by decision (D6), so no availability record there
+  is expected. A weekly failure can also be mailed through Brivio
+  (`POST /v1/email/send`, scope `emails:send`) once the `BRIVIO_API_KEY` secret
+  and the `STORE_ALERT_TO` variable exist.
+
 - **Assigning an App Group invalidates the existing profiles**, and the portal
   says so when you confirm the change. An App ID whose App Groups list is
   empty while its entitlements ask for one makes every archive fail to sign,
@@ -481,6 +501,12 @@ housekeeping:
   bundle, so the fix ships in the next release. Prove it on the built artefact,
   not in the source: `aapt dump badging <apk> | rg uses-feature` must print
   `uses-feature-not-required` for every feature the app does not truly need.
+  `pwsh -NoProfile -File scripts/check-android-features.ps1` is that check
+  automated — it reads every built APK, compares the required set against
+  `scripts/android-features.json` and against what the source declares
+  optional, and fails on a disagreement. `CAMERA` implies
+  `android.hardware.camera` in the same way, and `android.hardware.camera.any`
+  does not cancel it.
 - **An incomplete app-level declaration blocks the submission.** Play's trader
   status declaration is per app and required for every developer; a release
   uploaded by CI sits as a draft with `Submit N changes for review` disabled

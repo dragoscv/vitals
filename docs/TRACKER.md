@@ -165,7 +165,7 @@ Status values: `todo`, `doing`, `done`, `blocked`, `dropped`.
 | S22   | Per-drive clean-up, drive growth, stable lists, Wear shapes, 1.1.0/1.1.1                                            | done                                                                                                               |
 | S23   | Apple: macOS sampler, notarised DMG, iPhone + Watch, Mac App Store, Health, 1.2.0                                   | 15/16 done — open: S23-16 (blocked)                                                                                |
 | S25   | Kodwen rebrand and the AI usage panel                                                                               | done                                                                                                               |
-| S24   | Reality check 2026-11-12 → release 1.3.0: updater prompt, motion system, platform gates, declarations, ten features | 3/17 done — open: S24-02, S24-04…S24-17 (todo; S24-05 is an uncommitted wave owned by another agent in this clone) |
+| S24   | Reality check 2026-11-12 → release 1.3.0: updater prompt, motion system, platform gates, declarations, ten features | 4/18 done — open: S24-02, S24-04…S24-17 (todo; S24-05 is an uncommitted wave owned by another agent in this clone) |
 
 Per-item status lives in `tracker.csv`. This file records the reasoning; the
 CSV records the state.
@@ -3458,6 +3458,101 @@ code (service start type, handles/modules read-only, end process tree).
 
 ### Verification log
 
+### 2026-11-19 — every implied Android hardware feature, and the three gates that now hold them
+
+**The Wi-Fi warning was the visible half of one mechanism.** Android marks a
+hardware feature REQUIRED when a permission implies it — `ACCESS_WIFI_STATE` →
+`android.hardware.wifi`, `CAMERA` → `android.hardware.camera` — unless the
+manifest declares that feature `android:required="false"`, and Play then hides
+the app from every device that lacks it. The Wi-Fi follow-up fixed the two
+permissions it was told about. Auditing the whole surface found a second
+instance on the same mechanism: the phone already declared
+`android.hardware.camera.any` optional, and **that does not cancel it** — the
+`<uses-feature>` reference says so in its own Caution, naming camera-less
+Chromebooks. The built artefact agreed, and said so in the one place that
+counts:
+
+```
+$ aapt dump badging app-play-debug.apk | rg uses-feature        (before)
+  uses-feature-not-required: name='android.hardware.camera.any'
+  uses-feature-not-required: name='android.hardware.wifi'
+  uses-feature: name='android.hardware.camera'                  <-- REQUIRED
+  uses-feature: name='android.hardware.faketouch'
+```
+
+The phone now declares the back camera optional too, and the TV build lost a
+declaration it never used — `android.hardware.camera.any` on a TV that has no
+camera, never requests `CAMERA` and pairs by a typed six-digit code:
+
+```
+$ aapt dump badging app-play-debug.apk | rg uses-feature        (after)
+  uses-feature-not-required: name='android.hardware.camera'
+  uses-feature-not-required: name='android.hardware.camera.any'
+  uses-feature-not-required: name='android.hardware.wifi'
+  uses-feature: name='android.hardware.faketouch'
+$ aapt dump badging tv-play-debug.apk | rg uses-feature         (after)
+  uses-feature-not-required: name='android.hardware.ethernet'
+  uses-feature-not-required: name='android.hardware.touchscreen'
+  uses-feature-not-required: name='android.hardware.wifi'
+  uses-feature: name='android.software.leanback'
+```
+
+Still required, each with a reason: `android.hardware.type.watch`,
+`android.software.leanback` (what selects those form factors at all) and
+`android.hardware.faketouch` — Android's default input requirement, which the
+phone UI genuinely needs: every form factor this build targets provides at
+least fake touch, and relaxing it would offer a touch UI to D-pad-only devices
+where it cannot be operated.
+
+**Three gates, because the source cannot answer the question.** The implied
+features are added at packaging: a merged manifest contains no
+`android.hardware.camera` at all, so checking the manifest — source or merged —
+proves nothing. `scripts/check-android-features.ps1` reads the built APK and
+asserts two things: every feature the source declares optional appears as
+`uses-feature-not-required`, and every REQUIRED feature is on the allowlist in
+`scripts/android-features.json`. `check-drift.ps1` gained check 9 — the same
+allowlist against merged manifests already on disk, two seconds, no build.
+`ManifestFeaturesTest.kt` pins the phone's manifest and a mirror pins the
+watch's, so the mistake is caught before a build is spent on it.
+
+```
+$ pwsh -NoProfile -File scripts/check-android-features.ps1
+android-features: 0 failure(s) across 6 APK(s)                    exit 0
+$ pwsh -NoProfile -File scripts/check-android-features.ps1 -RequireBuilt -Strict
+android-features: 0 failure(s) across 6 APK(s)                    exit 0
+$ pwsh -NoProfile -File scripts/check-drift.ps1
+drift: 0 failure(s), 0 warning(s) - checked 16 ts_rs files, 128 invokes, 128 commands, 2 locales
+$ ./gradlew :app:test :tv:test
+BUILD SUCCESSFUL in 36s
+```
+
+**Why the gate cannot decide by timestamp.** Skipping an artefact older than
+its manifest was tried and removed: a Gradle UP-TO-DATE build leaves an old
+timestamp on current content, and an edit that is reverted leaves a new one on
+unchanged content, so the verdict was wrong in both directions — the watch
+release artefact rebuilt minutes earlier was still reported as too old to
+check. Both assertions are content checks now: an artefact whose manifest
+disagrees with the source fails, and the remedy is to rebuild it. The only
+skip left is having no APK at all, which is printed rather than silent, and
+`-RequireBuilt` refuses it where a build has just run — the lesson the
+store-listing guard was written from, where a check that quietly skips looks
+green.
+
+The watch release artefact was rebuilt for this, because the one on disk was a
+2026-09-29 build that still required Wi-Fi. `:wear:assembleRelease` ran from a
+clean detached worktree at a pushed commit (the guard refuses a release build
+from the shared clone, where other agents' half-finished files live) —
+`BUILD SUCCESSFUL in 1m 30s` — and the copy in the clone now reports
+`uses-feature-not-required: name='android.hardware.wifi'`. The clean worktree
+has no release keystore, so the artefact it produced is unsigned; the manifest
+it carries, which is what Play reads, is the current one.
+
+The new test was made to fail before it was trusted. With `android.hardware.camera`
+set to `android:required="true"`, `:app:testPlayDebugUnitTest` reports
+`the_back_camera_the_camera_permission_implies_is_declared_optional FAILED —
+java.lang.AssertionError at ManifestFeaturesTest.kt:56` (3 tests completed, 1
+failed); the mutation was reverted immediately.
+
 ### 2026-11-18 — why the iPhone app could not be downloaded, and the Wi-Fi declaration
 
 **The app was not for sale.** App Store Connect carried `This app was removed
@@ -3628,6 +3723,61 @@ Performance, End-to-end, Build installer, Installer round trip.
 firing at a real local ntfy/webhook receiver_ — needs a real receiver on a real
 machine, which is the vivobook pass. It is S24-16's list, and it is stated here
 rather than left implied.
+
+### 2026-11-18 — S24-18: an app that is released but not for sale
+
+**What happened, and why nothing caught it.** Two versions of the iPhone app
+were `READY_FOR_SALE` (1.1.1 and 1.2.0) while the app itself had **no
+availability record at all**. App Store Connect's version page read "This app
+was removed from sale from the App Store", `GET
+/v1/apps/6827931747/appAvailabilityV2` answered 404,
+`itunes.apple.com/lookup?id=6827931747` returned `resultCount 0` and the
+product page 404'd. Every gate this repository had watched the build; a
+released version of a product with no territories is a product nobody can
+install, and both facts were true at once, for weeks. It was fixed by hand in
+the Console (Pricing and Availability → Set Up Availability → All Countries or
+Regions → Confirm), after which the API answered
+`availableInNewTerritories: true` and the page served Free / Version 1.2.0.
+
+**What checks it now.** `scripts/check-store-listing.mjs`, in two layers
+because the first needs no credential at all: the public lookup and the three
+storefront pages (iPhone, Mac, Play), then the App Store Connect availability
+record with its territory count and both apps' version states. It exits 1 when
+the app is not for sale and 2 when the check could not run, and **a verdict
+outranks a could-not-run** so a real finding is never masked by an unrelated
+failure. A storefront page status is only ever a warning — the pages
+rate-limit, as this run's Mac page did with a 429 — so a non-200 there proves
+nothing about the listing. `--json` prints the same result for a pipeline, and
+`--fail-on-unlisted` exists only so a call site says out loud which policy it
+relies on.
+
+**Two judgement calls, stated rather than hidden.** The Mac app's missing
+availability record is reported, never failed: it is not on the Mac App Store
+by decision (D6, it ships a notarised DMG), so a permanent red there would be
+noise that trains everyone to ignore the job. And the guard is not silent when
+it cannot authenticate: the script prints `SKIPPED` for the App Store Connect
+half, but `.github/workflows/store-listing.yml` (every push to `main`, weekly,
+and on demand) **fails** when the repository-level key is absent, because a
+check that skips every week looks exactly like a check that passes — which is
+the failure this row exists to end.
+
+**Verified, with the output.** `node scripts/check-store-listing.mjs` exit 0,
+printing `lookup: 1 result(s), Vitals: System Monitor`,
+`availability: 200 availableInNewTerritories=true territories=175`,
+`ios versions: 1.3.0 WAITING_FOR_REVIEW, 1.2.0 READY_FOR_SALE, 1.1.1
+READY_FOR_SALE`, `mac availability: 404` (expected, D6) and the three pages
+200/200/429 with the 429 a warning; `node scripts/check-store-listing.mjs
+--json` exit 0 with the same values; `pnpm exec prettier --check
+scripts/check-store-listing.mjs` clean; both workflow files parse as YAML (the
+checker is `.copilot-tmp/yaml-parse.mjs`, prettier's own YAML parser).
+
+**Not wired yet, and it belongs to the owner.** The three repository-level
+secrets `APPLE_ASC_KEY_P8`, `APPLE_ASC_KEY_ID` and `APPLE_ASC_ISSUER` do not
+exist — the App Store Connect key is a `release`-environment secret, and that
+environment holds a required approval, which a scheduled run cannot use — and
+neither does `BRIVIO_API_KEY` for the failure mail. The new workflow will
+fail until they are set, deliberately, rather than skipping. The exact
+commands are in `docs/releasing.md`, "Store steps no pipeline can prove".
 
 ### 2026-11-17 — S24-12: the PC, the router or the internet
 
