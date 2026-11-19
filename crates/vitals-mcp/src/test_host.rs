@@ -50,9 +50,13 @@ impl TestHost {
     /// A machine with something to report.
     #[must_use]
     pub fn new() -> Self {
+        // The machine's own process count has to match the list it serves, or
+        // a summary would disagree with its own keyframe.
+        let mut system = fixtures::system();
+        system.cpu.process_count = Some(3);
         Self {
             machine_state: Some(State {
-                system: fixtures::system(),
+                system,
                 processes: vec![
                     fixtures::process("chrome.exe", 4242, 71.0),
                     fixtures::process("explorer.exe", 100, 4.0),
@@ -96,9 +100,11 @@ impl TestHost {
     /// A machine that read fine and has nothing measurable or raised.
     #[must_use]
     pub fn empty() -> Self {
+        let mut system = fixtures::system();
+        system.cpu.process_count = Some(0);
         Self {
             machine_state: Some(State {
-                system: fixtures::system(),
+                system,
                 processes: Vec::new(),
                 alerts: Vec::new(),
                 history: Vec::new(),
@@ -220,7 +226,7 @@ mod tests {
     fn the_fixture_host_answers_with_the_three_processes_it_declares() {
         let host = TestHost::new();
         let summary = host.summary(10).unwrap().unwrap();
-        assert_eq!(summary.process_count, 3);
+        assert_eq!(summary.process_count, Some(3));
         assert_eq!(summary.top[0].name, "chrome.exe", "the busiest is first");
         assert_eq!(summary.top[0].key.pid, Pid(4242));
     }
@@ -253,7 +259,7 @@ mod tests {
     fn the_empty_host_reads_fine_and_reports_nothing() {
         let host = TestHost::empty();
         let summary = host.summary(5).unwrap().unwrap();
-        assert_eq!(summary.process_count, 0);
+        assert_eq!(summary.process_count, Some(0));
         assert!(host.sensors().unwrap().is_empty());
         assert!(host.alerts().unwrap().is_empty());
         assert!(host.history(3_600).unwrap().is_empty());

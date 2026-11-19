@@ -46,6 +46,9 @@ object Format {
 
     fun rate(bps: Long?): String = bps?.let { "${bytes(it)}/s" } ?: DASH
 
+    /** A whole-number count (processes, threads). Absent is an em dash, never 0. */
+    fun count(v: Int?): String = v?.toString() ?: DASH
+
     fun duration(secs: Long?): String {
         secs ?: return DASH
         val d = secs / 86_400

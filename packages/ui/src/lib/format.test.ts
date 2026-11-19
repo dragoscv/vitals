@@ -141,6 +141,10 @@ describe('formatLatency', () => {
     expect(formatLatency(12.34, L)).toBe('12.3 ms');
     expect(formatLatency(123.4, L)).toBe('123 ms');
   });
+
+  it('an unmeasured latency is an em dash, never "0 ms"', () => {
+    expect(formatLatency(null, L)).toBe('—');
+  });
 });
 
 describe('formatTemperature and formatWatts', () => {
@@ -162,5 +166,13 @@ describe('formatTemperature and formatWatts', () => {
 describe('formatCount', () => {
   it('groups digits so large counts are readable', () => {
     expect(formatCount(1_048_576, L)).toBe('1,048,576');
+  });
+
+  it('an unmeasured count is an em dash, never zero', () => {
+    // A platform that will not let the sampler count processes must not read
+    // as "nothing is running".
+    expect(formatCount(null, L)).toBe('—');
+    // A measured zero is a reading, not an absence.
+    expect(formatCount(0, L)).toBe('0');
   });
 });

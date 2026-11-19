@@ -301,10 +301,14 @@ impl RuleMetric {
                 #[allow(clippy::cast_precision_loss)]
                 Some(s.memory.used.get() as f64 / total as f64 * 100.0)
             }
+            // Absent where the platform has no busy-time counter (macOS). An
+            // unmeasured disk must not enter the maximum: a fabricated zero
+            // would let a busy disk on a Mac look idle and never alert.
             Self::DiskActivePercent => s
                 .disks
                 .iter()
-                .map(|d| f64::from(d.active_time.get()))
+                .filter_map(|d| d.active_time)
+                .map(|active| f64::from(active.get()))
                 .reduce(f64::max),
             Self::BatteryPercent => s.battery.as_ref().map(|b| f64::from(b.charge.get())),
             Self::NetworkErrorsPerSec => s
@@ -992,7 +996,10 @@ fn evaluate(s: &SystemMetrics) -> Vec<Alert> {
     for disk in &s.disks {
         let label = disk.mount.clone().unwrap_or_else(|| disk.name.clone());
 
-        if disk.active_time.get() > thresholds::DISK_ACTIVE_PERCENT {
+        if disk
+            .active_time
+            .is_some_and(|active| active.get() > thresholds::DISK_ACTIVE_PERCENT)
+        {
             // Latency and saturation have different causes and fixes: a
             // saturated disk is a workload problem; one that is slow *and*
             // saturated has a queue — hardware or driver.

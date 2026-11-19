@@ -133,7 +133,9 @@ fn full_process() -> vitals_core::process::Process {
 }
 
 /// What a Mac sends: no commit charge, no pool split, no hardware-reserved
-/// figure. Every native client must decode it and keep those null.
+/// figure, no disk busy-time counter, and — in the App Store sandbox — no
+/// process list to count. Every native client must decode it and keep those
+/// null rather than reading them as zero.
 fn mac_frame() -> Frame {
     let mut mac_system = fixtures::system();
     mac_system.memory.paged_pool = None;
@@ -141,6 +143,11 @@ fn mac_frame() -> Frame {
     mac_system.memory.committed = None;
     mac_system.memory.commit_limit = None;
     mac_system.memory.hardware_reserved = None;
+    mac_system.cpu.process_count = None;
+    mac_system.cpu.thread_count = None;
+    for disk in &mut mac_system.disks {
+        disk.active_time = None;
+    }
     Frame {
         seq: FrameSeq(4),
         timestamp_ms: 1_700_000_003_000,
@@ -252,6 +259,56 @@ fn writes_the_android_contract_fixtures() {
     write(
         "agents.json",
         &vitals_server::agents::redact_snapshot(&agents_snapshot()),
+    );
+}
+
+/// The Mac frame as it reaches the wire, for the three readings a Mac cannot
+/// measure. The guarantee each test below states is the whole point of the
+/// exercise: absence, never a zero a client would read as a measurement.
+fn mac_wire() -> serde_json::Value {
+    serde_json::to_value(mac_frame()).unwrap()
+}
+
+/// The same field that must be absent on the Mac is a real number on the
+/// measured Windows frame this test writes — so the absence comes from the
+/// platform, not from the encoder dropping the field on the floor.
+#[test]
+fn a_measured_machine_still_sends_numbers_for_the_three_readings() {
+    let win = serde_json::to_value(fixtures::keyframe(
+        1,
+        vec![fixtures::process("idle.exe", 7, 0.0)],
+    ))
+    .unwrap();
+    let cpu = &win["payload"]["system"]["cpu"];
+    assert!(cpu["processCount"].is_number());
+    assert!(cpu["threadCount"].is_number());
+    assert!(win["payload"]["system"]["disks"][0]["activeTime"].is_number());
+}
+
+#[test]
+fn a_sandboxed_mac_sends_no_process_count_rather_than_a_confident_zero() {
+    assert_eq!(
+        mac_wire()["payload"]["system"]["cpu"]["processCount"],
+        serde_json::Value::Null,
+        "the sandbox cannot enumerate processes, so a 0 reads as 'none running'"
+    );
+}
+
+#[test]
+fn a_sandboxed_mac_sends_no_thread_count_rather_than_a_confident_zero() {
+    assert_eq!(
+        mac_wire()["payload"]["system"]["cpu"]["threadCount"],
+        serde_json::Value::Null,
+        "the thread count is a sum over the process list the sandbox cannot read"
+    );
+}
+
+#[test]
+fn a_mac_disk_sends_no_active_time_rather_than_a_confident_zero() {
+    assert_eq!(
+        mac_wire()["payload"]["system"]["disks"][0]["activeTime"],
+        serde_json::Value::Null,
+        "macOS publishes no busy-time counter; 0 % would say 'idle'"
     );
 }
 

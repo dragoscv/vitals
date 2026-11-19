@@ -3553,6 +3553,60 @@ set to `android:required="true"`, `:app:testPlayDebugUnitTest` reports
 java.lang.AssertionError at ManifestFeaturesTest.kt:56` (3 tests completed, 1
 failed); the mutation was reverted immediately.
 
+### 2026-11-19 — the two halves of S24-13, and a zero that was not a measurement
+
+**An agent can now read a machine, and cannot touch it.** `crates/vitals-mcp`
+owns the protocol: the JSON-RPC server (initialize, tools/list, tools/call,
+resources/list, resources/read), six read-only tools — summary, processes with
+a top count, sensors, alerts, history over a range, diagnosis — and one
+resource per machine. `vitals mcp` serves it over stdio; the LAN server serves
+the same route at `POST /mcp` behind a read-scope token. There are no control
+tools, so ending and reprioritising a process stay impossible over MCP.
+
+Proved against the real thing rather than in the abstract:
+
+```
+$ cargo test -p vitals-cli -p vitals-mcp -p vitals-server
+  vitals-mcp         58 passed      (unit, over the wire shapes)
+  mcp_stdio           4 passed      (handshake + a tool call over a real pipe)
+  serve_mcp           2 passed      (the real `vitals serve` process, on a port)
+$ cargo clippy --workspace --all-targets -- -D warnings   EXIT=0
+```
+
+`serve_mcp` is the row's "token-less call refused": it starts the binary and
+asserts a 401 whose body is the shared refusal, not a new one.
+
+**MQTT is reachable without a terminal.** Settings → Remote access → MQTT sets
+the broker — parsed as a URL, accepted only as `mqtt://`/`mqtts://` with a
+host, and refused with a readable sentence per problem. The address is written
+to `settings.json` and a password is not, which is why a password smuggled
+inside the URL is refused; the password goes to the OS secret store (Windows
+Credential Manager target `vitals/mqtt-password`, macOS Keychain) and the
+uninstaller removes it. The switch reflects the user's wish and a second row
+reflects the backend, so a broker that refuses the connection cannot show a
+switch that looks on.
+
+**The one principle, applied to the places it had been lost.** Where a machine
+cannot report a reading, the value is now absent end to end rather than `0`:
+processor and thread counts, disk activity, a graphics card whose driver does
+not answer, a desktop's battery, a disconnected adapter's counters. A new
+prover samples this machine for real and prints what a scraper would receive:
+
+```
+$ cargo run -p vitals-server --example prove_absence
+  === this machine, as measured ===
+    prometheus  vitals_process_count         1 series
+    prometheus  vitals_disk_active_percent   omitted (absent, not 0)
+  === the same machine as macOS describes it ===
+    prometheus  vitals_process_count         omitted (absent, not 0)
+    HA entity   processes                    omitted (absent, not 0)
+```
+
+All five clients were walked (desktop, CLI, Tizen, Android, iOS), plus the
+Prometheus exporter, the MQTT feed and the MCP tools. `pnpm typecheck`, `pnpm
+lint`, `pnpm test` (1401 desktop tests) and `:core:test :app:test :tv:test`
+are green; the Swift half is compiled by CI's Apple job.
+
 ### 2026-11-18 — why the iPhone app could not be downloaded, and the Wi-Fi declaration
 
 **The app was not for sale.** App Store Connect carried `This app was removed

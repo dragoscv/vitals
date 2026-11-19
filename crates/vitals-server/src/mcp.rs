@@ -175,10 +175,12 @@ mod tests {
 
     fn state_with_a_frame() -> ApiState {
         let frames = crate::state::FrameSource::new();
-        frames.publish(std::sync::Arc::new(fixtures::keyframe(
-            1,
-            vec![fixtures::process("chrome.exe", 4242, 71.0)],
-        )));
+        let mut frame = fixtures::keyframe(1, vec![fixtures::process("chrome.exe", 4242, 71.0)]);
+        // The machine's own count has to match the list it serves.
+        if let vitals_core::sample::FramePayload::Keyframe { system, .. } = &mut frame.payload {
+            system.cpu.process_count = Some(1);
+        }
+        frames.publish(std::sync::Arc::new(frame));
         ApiState {
             frames,
             tokens: std::sync::Arc::new(crate::state::ServerLock::new(

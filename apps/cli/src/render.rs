@@ -133,8 +133,11 @@ pub fn system(metrics: &SystemMetrics) -> Vec<(&'static str, String)> {
                 percent(metrics.memory.used_percent())
             ),
         ),
-        ("Processes", metrics.cpu.process_count.to_string()),
-        ("Threads", metrics.cpu.thread_count.to_string()),
+        (
+            "Processes",
+            opt(metrics.cpu.process_count, |n| n.to_string()),
+        ),
+        ("Threads", opt(metrics.cpu.thread_count, |n| n.to_string())),
         ("Uptime", uptime(metrics.cpu.uptime_secs)),
         (
             "CPU clock",

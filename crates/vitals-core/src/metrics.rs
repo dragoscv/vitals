@@ -79,8 +79,18 @@ pub struct CpuMetrics {
     /// True when the CPU is being held below its capability by heat or power
     /// limits. The headline signal for "why is my PC slow".
     pub throttled: Option<ThrottleReason>,
-    pub process_count: u32,
-    pub thread_count: u32,
+    /// Processes running, or `None` when the platform will not let the
+    /// sampler see them.
+    ///
+    /// The Mac App Store build runs sandboxed and cannot enumerate other
+    /// processes, so the list it counts is empty. A plain `u32` then reported
+    /// a confident `0` — "nothing is running" on a machine with hundreds of
+    /// processes. Absence says what is true: not measured on this build.
+    pub process_count: Option<u32>,
+    /// Threads running across every process, or `None` under the same
+    /// sandbox that hides the process list. The figure is a sum over that
+    /// list, so it is unknown wherever the list is.
+    pub thread_count: Option<u32>,
     pub handle_count: Option<u32>,
     #[cfg_attr(feature = "ts", ts(type = "number"))]
     pub uptime_secs: u64,
@@ -199,7 +209,12 @@ pub struct DiskMetrics {
     pub read: BytesPerSec,
     pub write: BytesPerSec,
     /// Share of time the disk had at least one IO outstanding.
-    pub active_time: Percent,
+    ///
+    /// `None` where the platform has no busy-time counter. macOS publishes
+    /// none, and a plain `Percent` made every Mac drive read `0 %` busy —
+    /// indistinguishable from a genuinely idle disk, and a lie on a drive at
+    /// full tilt.
+    pub active_time: Option<Percent>,
     /// Average response time in milliseconds. The number that actually
     /// correlates with a machine feeling slow — far more than throughput.
     pub response_ms: Option<f32>,

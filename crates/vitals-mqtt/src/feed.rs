@@ -101,10 +101,12 @@ pub fn all_specs() -> Vec<EntitySpec> {
 
 /// The readings for one sample.
 ///
-/// `process_count` and `alert_count` come from the same frame the system
-/// metrics do; the caller already has them and this keeps the function pure.
+/// `alert_count` comes from the same frame the system metrics do; the caller
+/// already has it and this keeps the function pure. The process count is read
+/// from the frame's own CPU metrics, so a platform that cannot count them
+/// publishes the entity as absent rather than zero.
 #[must_use]
-pub fn readings(system: &SystemMetrics, process_count: usize, alert_count: usize) -> Vec<Reading> {
+pub fn readings(system: &SystemMetrics, alert_count: usize) -> Vec<Reading> {
     let mut out = Vec::with_capacity(all_specs().len());
 
     out.push(Reading {
@@ -129,10 +131,15 @@ pub fn readings(system: &SystemMetrics, process_count: usize, alert_count: usize
         });
     }
 
-    out.push(Reading {
-        spec: PROCESSES,
-        value: json!(process_count),
-    });
+    // Absent where the platform will not let the sampler enumerate processes
+    // (a sandboxed Mac build). A zero there is a lie, and `absent()` in Home
+    // Assistant handles an omitted state correctly.
+    if let Some(process_count) = system.cpu.process_count {
+        out.push(Reading {
+            spec: PROCESSES,
+            value: json!(process_count),
+        });
+    }
     out.push(Reading {
         spec: ALERTS,
         value: json!(alert_count),
@@ -171,6 +178,7 @@ mod tests {
         SystemMetrics {
             cpu: CpuMetrics {
                 total: Percent(42.25),
+                process_count: Some(214),
                 temperature: cpu_temp.map(Celsius),
                 ..CpuMetrics::default()
             },
@@ -201,7 +209,7 @@ mod tests {
 
     #[test]
     fn a_normal_machine_publishes_the_core_readings() {
-        let r = readings(&machine(Some(48.0), Some(77.0)), 214, 2);
+        let r = readings(&machine(Some(48.0), Some(77.0)), 2);
         // 42.25 rounded to one decimal, half away from zero.
         assert_eq!(value_of(&r, "cpu"), Some(json!(42.3)));
         assert_eq!(value_of(&r, "cpu_temperature"), Some(json!(48.0)));
@@ -214,20 +222,30 @@ mod tests {
 
     #[test]
     fn an_absent_temperature_is_omitted_not_zero() {
-        let r = readings(&machine(None, None), 10, 0);
+        let r = readings(&machine(None, None), 0);
         assert_eq!(value_of(&r, "cpu_temperature"), None);
         assert_eq!(value_of(&r, "battery"), None);
         assert_eq!(value_of(&r, "problem"), Some(Value::from("OFF")));
     }
 
     #[test]
+    fn a_machine_that_cannot_count_processes_publishes_no_process_entity() {
+        // The sandboxed Mac build never enumerates processes. It must leave
+        // the entity out rather than feed Home Assistant a fabricated `0`.
+        let mut mac = machine(None, None);
+        mac.cpu.process_count = None;
+        let r = readings(&mac, 0);
+        assert_eq!(value_of(&r, "processes"), None);
+    }
+
+    #[test]
     fn the_problem_sensor_is_on_exactly_when_an_alert_is() {
         assert_eq!(
-            value_of(&readings(&machine(None, None), 1, 0), "problem"),
+            value_of(&readings(&machine(None, None), 0), "problem"),
             Some(Value::from("OFF"))
         );
         assert_eq!(
-            value_of(&readings(&machine(None, None), 1, 1), "problem"),
+            value_of(&readings(&machine(None, None), 1), "problem"),
             Some(Value::from("ON"))
         );
     }
@@ -237,7 +255,7 @@ mod tests {
         // The two directions matter: an announced entity that is never fed is
         // a permanent `unknown` on the dashboard, and a published key with no
         // announcement is invisible.
-        let full = readings(&machine(Some(40.0), Some(50.0)), 1, 1);
+        let full = readings(&machine(Some(40.0), Some(50.0)), 1);
         for spec in all_specs() {
             assert!(
                 full.iter().any(|r| r.spec.object == spec.object),

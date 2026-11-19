@@ -107,21 +107,30 @@ pub fn render(system: &SystemMetrics, processes: &[Process], top_n: usize) -> St
                 }
             },
         );
-        gauge(
-            &mut out,
-            "vitals_disk_active_percent",
-            "Share of time the disk had IO outstanding.",
-            |o| {
-                for d in &system.disks {
-                    let _ = writeln!(
-                        o,
-                        "vitals_disk_active_percent{{disk=\"{}\"}} {}",
-                        escape(&d.name),
-                        num(d.active_time.0)
-                    );
-                }
-            },
-        );
+        // Only for disks that report it: macOS has no busy-time counter, and a
+        // fabricated 0 % would pull every `avg()` on a dashboard down.
+        let with_active: Vec<_> = system
+            .disks
+            .iter()
+            .filter_map(|d| d.active_time.map(|active| (d, active)))
+            .collect();
+        if !with_active.is_empty() {
+            gauge(
+                &mut out,
+                "vitals_disk_active_percent",
+                "Share of time the disk had IO outstanding.",
+                |o| {
+                    for (d, active) in &with_active {
+                        let _ = writeln!(
+                            o,
+                            "vitals_disk_active_percent{{disk=\"{}\"}} {}",
+                            escape(&d.name),
+                            num(active.0)
+                        );
+                    }
+                },
+            );
+        }
         gauge(
             &mut out,
             "vitals_disk_capacity_bytes",
@@ -350,17 +359,24 @@ pub fn render(system: &SystemMetrics, processes: &[Process], top_n: usize) -> St
         });
     }
 
-    gauge(
-        &mut out,
-        "vitals_process_count",
-        "Processes and threads running.",
-        |o| {
-            let _ = writeln!(o, "vitals_process_count {}", system.cpu.process_count);
-        },
-    );
-    gauge(&mut out, "vitals_thread_count", "Threads running.", |o| {
-        let _ = writeln!(o, "vitals_thread_count {}", system.cpu.thread_count);
-    });
+    // Omitted where the platform will not let the sampler count, so a
+    // sandboxed Mac frame does not publish "0 processes" about a machine
+    // running hundreds.
+    if let Some(count) = system.cpu.process_count {
+        gauge(
+            &mut out,
+            "vitals_process_count",
+            "Processes and threads running.",
+            |o| {
+                let _ = writeln!(o, "vitals_process_count {count}");
+            },
+        );
+    }
+    if let Some(threads) = system.cpu.thread_count {
+        gauge(&mut out, "vitals_thread_count", "Threads running.", |o| {
+            let _ = writeln!(o, "vitals_thread_count {threads}");
+        });
+    }
     gauge(&mut out, "vitals_uptime_seconds", "Time since boot.", |o| {
         let _ = writeln!(o, "vitals_uptime_seconds {}", system.cpu.uptime_secs);
     });
@@ -575,6 +591,34 @@ mod tests {
         s.disks[0].name = r#"Weird "disk"\name"#.to_owned();
         let out = render(&s, &[], 0);
         assert!(out.contains(r#"disk="Weird \"disk\"\\name""#), "{out}");
+    }
+
+    #[test]
+    fn a_frame_that_cannot_report_processes_or_disk_activity_exports_neither() {
+        // A sandboxed Mac frame: the sampler cannot enumerate processes, and
+        // macOS has no disk busy-time counter. All four series must be
+        // omitted, not published as 0, which would poison every average on a
+        // dashboard that scrapes this.
+        let mut mac = fixtures::system();
+        mac.cpu.process_count = None;
+        mac.cpu.thread_count = None;
+        for disk in &mut mac.disks {
+            disk.active_time = None;
+        }
+        let out = render(&mac, &[], 0);
+        assert!(!out.contains("vitals_process_count"), "{out}");
+        assert!(!out.contains("vitals_thread_count"), "{out}");
+        assert!(!out.contains("vitals_disk_active_percent"), "{out}");
+
+        // A measured machine still exports all of them: the absence has to
+        // come from the frame, not from the exporter dropping fields.
+        let out = render(&fixtures::system(), &[], 0);
+        assert!(out.contains("vitals_process_count 287"), "{out}");
+        assert!(out.contains("vitals_thread_count 3914"), "{out}");
+        assert!(
+            out.contains(r#"vitals_disk_active_percent{disk="C:"} 12.500"#),
+            "{out}"
+        );
     }
 
     #[test]

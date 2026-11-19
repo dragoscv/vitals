@@ -52,6 +52,14 @@ export function percentCompact(v: Num): string {
 }
 
 /**
+ * A whole-number count (processes, threads). Absent is {@link DASH}, never
+ * `0`: a PC that could not count must not read as "nothing running".
+ */
+export function count(v: Num): string {
+  return missing(v) ? DASH : `${v}`;
+}
+
+/**
  * A temperature as an `Intl` unit, so the spacing follows the locale
  * (`46°C` in English, `46 °C` in Romanian). A value that rounds to zero is
  * written as zero: "-0 °C" is a rounding artefact, not a reading.

@@ -1172,7 +1172,12 @@ async fn a_summary_carries_the_busiest_processes_and_the_true_count_in_a_fractio
     let processes: Vec<_> = (0..200)
         .map(|i| fixtures::process(&format!("p{i}.exe"), 1000 + i, (i % 50) as f32))
         .collect();
-    h.frames.publish(Arc::new(fixtures::keyframe(3, processes)));
+    // The summary's count is the machine's own, so the frame has to carry it.
+    let mut frame = fixtures::keyframe(3, processes);
+    if let vitals_core::sample::FramePayload::Keyframe { system, .. } = &mut frame.payload {
+        system.cpu.process_count = Some(200);
+    }
+    h.frames.publish(Arc::new(frame));
 
     let (status, body) = request(
         &h.base,
@@ -1184,7 +1189,7 @@ async fn a_summary_carries_the_busiest_processes_and_the_true_count_in_a_fractio
     .await;
     assert_eq!(status, 200, "{body}");
     let summary: vitals_core::remote::Summary = serde_json::from_str(&body).expect("summary json");
-    assert_eq!(summary.process_count, 200);
+    assert_eq!(summary.process_count, Some(200));
     assert_eq!(summary.top.len(), 3);
     assert!(
         summary

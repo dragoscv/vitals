@@ -198,9 +198,12 @@ export function formatUptime(seconds: number, locale?: string): string {
  *
  * Grouping matters more than it seems: "1048576" and "104857" are hard to
  * distinguish at a glance, "1,048,576" and "104,857" are not.
+ *
+ * An unmeasured count is an em dash, never `0`: a platform that will not let
+ * the sampler count processes must not read as "nothing is running".
  */
-export function formatCount(value: number, locale?: string): string {
-  if (!Number.isFinite(value)) return '—';
+export function formatCount(value: number | null, locale?: string): string {
+  if (value === null || !Number.isFinite(value)) return '—';
   return new Intl.NumberFormat(locale).format(value);
 }
 
@@ -210,8 +213,8 @@ export function formatCount(value: number, locale?: string): string {
  * Sub-millisecond values are shown in microseconds rather than rounded to
  * "0 ms", which would wrongly imply the operation was free.
  */
-export function formatLatency(ms: number, locale?: string): string {
-  if (!Number.isFinite(ms)) return '—';
+export function formatLatency(ms: number | null, locale?: string): string {
+  if (ms === null || !Number.isFinite(ms)) return '—';
   if (ms < 1) {
     return `${new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(ms * 1000)} µs`;
   }

@@ -198,7 +198,7 @@ private fun LazyListScope.cpu(system: SystemMetrics) = item(key = "cpu") {
         InfoRow(stringResource(R.string.cpu_power), Format.watts(cpu.power))
         val throttle = cpu.throttled
         Hint(if (throttle == null) stringResource(R.string.cpu_not_throttled) else stringResource(R.string.cpu_throttled) + " " + stringResource(throttle.words()))
-        InfoRow(stringResource(R.string.cpu_processes), cpu.processCount.toString())
+        InfoRow(stringResource(R.string.cpu_processes), Format.count(cpu.processCount))
         InfoRow(stringResource(R.string.cpu_uptime), Format.duration(cpu.uptimeSecs))
         Text(stringResource(R.string.cpu_cores), style = MaterialTheme.typography.titleSmall)
         // Four columns: a 32-thread CPU is eight short rows on a TV.

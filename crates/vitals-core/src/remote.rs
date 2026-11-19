@@ -31,8 +31,11 @@ pub struct Summary {
     /// client asked for.
     pub top: Vec<Process>,
     /// Every process on the machine, not just those in `top`, so a client
-    /// can say "5 of 612".
-    pub process_count: u32,
+    /// can say "5 of 612". `None` where the platform will not let the sampler
+    /// count them — exactly the frames whose process list is empty for a
+    /// reason other than "nothing is running" — never a `0` a client would
+    /// read as a bare machine.
+    pub process_count: Option<u32>,
 }
 
 impl Summary {
@@ -57,12 +60,17 @@ impl Summary {
                 .then_with(|| b.memory_private.get().cmp(&a.memory_private.get()))
                 .then_with(|| a.key.pid.0.cmp(&b.key.pid.0))
         });
+        // The machine's own count, not `processes.len()`: on a sandboxed Mac
+        // the list is empty because it cannot be read, and the length would
+        // be a confident zero. `system` is moved into the struct below, so
+        // read the count first (`Option<u32>` is `Copy`).
+        let process_count = system.cpu.process_count;
         Self {
             seq,
             timestamp_ms,
             system,
             top: ranked.into_iter().take(n).cloned().collect(),
-            process_count: u32::try_from(processes.len()).unwrap_or(u32::MAX),
+            process_count,
         }
     }
 }
@@ -132,10 +140,24 @@ mod tests {
             process(2, 40.0, 10),
             process(3, 9.0, 10),
         ];
-        let s = Summary::from_parts(7, 1, SystemMetrics::default(), &all, 2);
+        // The count is the machine's own, so the frame must carry one.
+        let mut system = SystemMetrics::default();
+        system.cpu.process_count = Some(3);
+        let s = Summary::from_parts(7, 1, system, &all, 2);
         let pids: Vec<u32> = s.top.iter().map(|p| p.key.pid.0).collect();
         assert_eq!(pids, vec![2, 3]);
-        assert_eq!(s.process_count, 3);
+        assert_eq!(s.process_count, Some(3));
+    }
+
+    #[test]
+    fn a_machine_that_cannot_count_processes_reports_no_count_not_a_bare_zero() {
+        // A sandboxed Mac serves an empty list because it cannot read one, so
+        // the summary must withhold the count rather than say "0 running".
+        let all = [process(1, 2.0, 10)];
+        let mut system = SystemMetrics::default();
+        system.cpu.process_count = None;
+        let s = Summary::from_parts(7, 1, system, &all, 2);
+        assert_eq!(s.process_count, None);
     }
 
     #[test]

@@ -42,13 +42,18 @@ async fn start() -> Harness {
 /// answers; with it on, the route itself must.
 async fn start_with(loopback_scope: Option<Scope>) -> Harness {
     let frames = FrameSource::new();
-    frames.publish(Arc::new(fixtures::keyframe(
+    let mut frame = fixtures::keyframe(
         1,
         vec![
             fixtures::process("chrome.exe", 4242, 71.0),
             fixtures::process("explorer.exe", 100, 4.0),
         ],
-    )));
+    );
+    // The machine's own count has to match the list it serves.
+    if let vitals_core::sample::FramePayload::Keyframe { system, .. } = &mut frame.payload {
+        system.cpu.process_count = Some(2);
+    }
+    frames.publish(Arc::new(frame));
     let state = ApiState {
         frames,
         tokens: Arc::new(ServerLock::new(TokenSet {

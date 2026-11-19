@@ -59,6 +59,12 @@ public enum Format {
         return "\(v) RPM"
     }
 
+    /// A whole-number count (processes, threads). Absent is an em dash, never 0.
+    public static func count(_ v: Int?) -> String {
+        guard let v else { return dash }
+        return "\(v)"
+    }
+
     public static func volts(_ v: Double?, locale: Locale = .current) -> String {
         guard let v, v.isFinite else { return dash }
         return "\(v.formatted(.number.precision(.fractionLength(2)).locale(locale))) V"

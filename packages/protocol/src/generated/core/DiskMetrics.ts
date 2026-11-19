@@ -14,8 +14,13 @@ export type DiskMetrics = { id: DiskId, name: string, model: string | null,
 mount: string | null, kind: DiskKind, total: Bytes, free: Bytes, read: BytesPerSec, write: BytesPerSec, 
 /**
  * Share of time the disk had at least one IO outstanding.
+ *
+ * `None` where the platform has no busy-time counter. macOS publishes
+ * none, and a plain `Percent` made every Mac drive read `0 %` busy —
+ * indistinguishable from a genuinely idle disk, and a lie on a drive at
+ * full tilt.
  */
-activeTime: Percent, 
+activeTime: Percent | null, 
 /**
  * Average response time in milliseconds. The number that actually
  * correlates with a machine feeling slow — far more than throughput.

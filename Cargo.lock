@@ -5985,6 +5985,7 @@ dependencies = [
  "vitals-ipc",
  "vitals-linux",
  "vitals-macos",
+ "vitals-mqtt",
  "vitals-sensors",
  "vitals-server",
  "vitals-store",

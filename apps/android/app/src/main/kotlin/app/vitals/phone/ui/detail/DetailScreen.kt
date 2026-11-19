@@ -228,7 +228,7 @@ private fun LazyListScope.cpu(system: SystemMetrics) = item(key = "cpu") {
             color = if (throttle == null) MaterialTheme.colorScheme.onSurfaceVariant else readable(Palette.Warn),
             style = MaterialTheme.typography.bodyMedium,
         )
-        InfoRow(stringResource(R.string.cpu_processes), cpu.processCount.toString())
+        InfoRow(stringResource(R.string.cpu_processes), Format.count(cpu.processCount))
         InfoRow(stringResource(R.string.cpu_uptime), Format.duration(cpu.uptimeSecs))
         Text(stringResource(R.string.cpu_cores), style = MaterialTheme.typography.labelLarge)
         // Two columns keep a 32-thread CPU to sixteen short rows.

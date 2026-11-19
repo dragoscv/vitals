@@ -16,6 +16,9 @@ export type Summary = { seq: number, timestampMs: number, system: SystemMetrics,
 top: Array<Process>, 
 /**
  * Every process on the machine, not just those in `top`, so a client
- * can say "5 of 612".
+ * can say "5 of 612". `None` where the platform will not let the sampler
+ * count them — exactly the frames whose process list is empty for a
+ * reason other than "nothing is running" — never a `0` a client would
+ * read as a bare machine.
  */
-processCount: number, };
+processCount: number | null, };

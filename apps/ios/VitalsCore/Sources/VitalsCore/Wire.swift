@@ -101,8 +101,10 @@ public struct CpuMetrics: Decodable, Sendable {
     public let temperature: Double?
     public let power: Double?
     public let throttled: ThrottleReason?
-    public let processCount: Int
-    public let threadCount: Int
+    /// nil from a platform that will not let the sampler count processes (the
+    /// sandboxed Mac build). Never 0, which would read as "none running".
+    public let processCount: Int?
+    public let threadCount: Int?
     public let handleCount: Int?
     public let uptimeSecs: Int64
     public let contextSwitches: Int64?
@@ -157,7 +159,8 @@ public struct DiskMetrics: Decodable, Sendable, Identifiable {
     public let free: Int64
     public let read: Int64
     public let write: Int64
-    public let activeTime: Double
+    /// nil on macOS, which publishes no busy-time counter.
+    public let activeTime: Double?
     public let responseMs: Double?
     public let queueDepth: Double?
     public let temperature: Double?
@@ -308,7 +311,8 @@ public struct Summary: Decodable, Sendable {
     public let timestampMs: Int64
     public let system: SystemMetrics
     public let top: [Process]
-    public let processCount: Int
+    /// nil from a platform that will not let the sampler count processes.
+    public let processCount: Int?
 }
 
 public struct MachineSample: Decodable, Sendable, Identifiable {

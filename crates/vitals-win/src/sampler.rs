@@ -356,7 +356,7 @@ impl SystemSampler {
                 let rates = compute_disk_rates(previous, current, elapsed_ticks);
                 disk.read = rates.read;
                 disk.write = rates.write;
-                disk.active_time = rates.active_time;
+                disk.active_time = Some(rates.active_time);
                 disk.response_ms = rates.response_ms;
             }
         }
@@ -710,8 +710,11 @@ fn build_cpu_metrics(
             .and_then(|s| s.package_watts)
             .map(vitals_core::units::Watts),
         throttled: None,
-        process_count: u32::try_from(processes.len()).unwrap_or(u32::MAX),
-        thread_count,
+        // Windows always lets us count processes and threads, so these are
+        // measured, never absent. The Option exists for the sandboxed Mac
+        // build, not for a guess to be filled in here.
+        process_count: Some(u32::try_from(processes.len()).unwrap_or(u32::MAX)),
+        thread_count: Some(thread_count),
         handle_count: Some(handle_count),
         uptime_secs: uptime_secs(),
         context_switches: None,
@@ -743,7 +746,10 @@ fn build_disk_metrics() -> Vec<DiskMetrics> {
             free: v.available,
             read: BytesPerSec::ZERO,
             write: BytesPerSec::ZERO,
-            active_time: Percent::ZERO,
+            // Activity is not a property of the volume list: it is differenced
+            // from the cumulative counters every tick in `volumes`, which is
+            // the only place that has two snapshots to subtract.
+            active_time: None,
             response_ms: None,
             queue_depth: None,
             temperature: None,
@@ -870,6 +876,32 @@ mod tests {
                 p.cpu
             );
         }
+    }
+
+    #[test]
+    fn a_windows_sample_measures_the_readings_that_are_absent_on_a_mac() {
+        // The other half of the Mac tests: on this platform the sampler can
+        // always count processes and threads and read a volume's busy time, so
+        // an absent reading here would be a bug rather than honesty. Two
+        // samples, because the disk busy time is differenced from counters.
+        let mut sampler = SystemSampler::new();
+        sampler.sample().expect("prime");
+        sleep(Duration::from_millis(200));
+        let sample = sampler.sample().expect("sample");
+
+        let cpu = &sample.system.cpu;
+        assert!(
+            cpu.process_count.is_some_and(|n| n > 0),
+            "Windows counts processes, and a running machine has some"
+        );
+        assert!(
+            cpu.thread_count.is_some_and(|n| n > 0),
+            "Windows counts threads, and a running machine has some"
+        );
+        assert!(
+            sample.system.disks.iter().any(|d| d.active_time.is_some()),
+            "a fixed volume answers IOCTL_DISK_PERFORMANCE unless diskperf is off"
+        );
     }
 
     #[test]

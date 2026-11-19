@@ -282,8 +282,9 @@ fn diagnosis<H: McpHost + ?Sized>(host: &H) -> Outcome {
 #[serde(rename_all = "camelCase")]
 struct ProcessList<'a> {
     processes: &'a [Process],
-    /// Every process on the machine, not just those returned.
-    count: u32,
+    /// Every process on the machine, not just those returned. `None` where
+    /// the platform will not let the sampler count them — never a `0`.
+    count: Option<u32>,
     /// How many are in `processes`, so `count` and the array need not be
     /// compared by hand.
     returned: usize,

@@ -93,16 +93,16 @@ pub fn spawn(
         loop {
             ticker.tick().await;
             // The materialised keyframe, not the newest delta: a delta carries
-            // no process list, and the process count is one of the readings.
+            // no process list, and the process count is one of the readings
+            // (it travels in the CPU metrics, absent where unmeasurable).
             let Some(frame) = state.frames.initial() else {
                 continue;
             };
-            let vitals_core::sample::FramePayload::Keyframe { system, processes } = &frame.payload
-            else {
+            let vitals_core::sample::FramePayload::Keyframe { system, .. } = &frame.payload else {
                 continue;
             };
             let alert_count = (state.alerts)().len();
-            let readings = feed::readings(system, processes.len(), alert_count);
+            let readings = feed::readings(system, alert_count);
             if let Err(error) = publisher.publish_readings(&readings).await {
                 tracing::warn!(%error, "MQTT: a reading was not published");
             }

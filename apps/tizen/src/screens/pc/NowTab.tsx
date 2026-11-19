@@ -1,7 +1,7 @@
 import { memoryPercent } from '@vitals/protocol';
 import { useTranslation } from 'react-i18next';
 
-import { bytes, celsius, duration, ghz, percent, rate, rpm, watts } from '../../lib/format';
+import { bytes, celsius, count, duration, ghz, percent, rate, rpm, watts } from '../../lib/format';
 import { isStale, type LiveState } from '../../lib/live';
 import { Bar, Hint, InfoRow, Panel, Ring, Spark, StaleBadge } from '../../ui/components';
 import { Palette, Thresholds } from '../../ui/theme';
@@ -63,7 +63,7 @@ export function NowTab({ state }: { state: LiveState }) {
             }
             tone={cpu.throttled === null ? 'ok' : 'warn'}
           />
-          <InfoRow label={t('cpu.processes')} value={String(cpu.processCount)} />
+          <InfoRow label={t('cpu.processes')} value={count(cpu.processCount)} />
           <InfoRow label={t('cpu.uptime')} value={duration(cpu.uptimeSecs)} />
           <h4>{t('cpu.cores')}</h4>
           <div className="cores">

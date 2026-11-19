@@ -137,11 +137,17 @@ fun PcDetailScreen(
                         transformation = SurfaceTransformation(spec),
                         label = { Text(stringResource(R.string.top_processes), maxLines = 2, overflow = TextOverflow.Ellipsis) },
                         secondaryLabel = {
-                            val count = state.summary?.processCount ?: 0
+                            val count = state.summary?.processCount
                             // Wear M3 dims a secondary label on a filled button;
                             // on the watch-face blue that was 4.0:1.
                             Text(
-                                pluralStringResource(R.plurals.process_count, count, count),
+                                // A count the PC could not report is an em dash,
+                                // never a "0 processes" plural.
+                                if (count == null) {
+                                    Format.DASH
+                                } else {
+                                    pluralStringResource(R.plurals.process_count, count, count)
+                                },
                                 color = MaterialTheme.colorScheme.onPrimary,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,

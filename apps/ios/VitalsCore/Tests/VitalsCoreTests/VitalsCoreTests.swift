@@ -31,9 +31,15 @@ func fixture(_ name: String) throws -> Data {
     }
 
     @Test func aMacFrameKeepsTheWindowsOnlyMemoryFiguresNil() throws {
-        let m = try JSONDecoder.vitals.decode(Frame.self, from: fixture("keyframe_macos.json")).payload.system.memory
+        let system = try JSONDecoder.vitals.decode(Frame.self, from: fixture("keyframe_macos.json")).payload.system
+        let m = system.memory
         #expect(m.committed == nil && m.commitLimit == nil && m.pagedPool == nil)
         #expect(m.nonPagedPool == nil && m.hardwareReserved == nil)
+        // A sandboxed Mac cannot enumerate processes and has no disk
+        // busy-time counter: all three arrive as nil, never as 0.
+        #expect(system.cpu.processCount == nil)
+        #expect(system.cpu.threadCount == nil)
+        #expect(system.disks.first?.activeTime == nil)
     }
 
     @Test func aDeltaCarriesExitsAndChanges() throws {
@@ -44,7 +50,7 @@ func fixture(_ name: String) throws -> Data {
     }
 
     @Test func summaryHistorySensorsAlertsAndHostDecode() throws {
-        #expect(try JSONDecoder.vitals.decode(Summary.self, from: fixture("summary.json")).processCount >= 1)
+        #expect(try (JSONDecoder.vitals.decode(Summary.self, from: fixture("summary.json")).processCount ?? 0) >= 1)
         #expect(try JSONDecoder.vitals.decode([MachineSample].self, from: fixture("history.json")).count == 2)
         #expect(try JSONDecoder.vitals.decode([SensorLine].self, from: fixture("sensors.json")).first?.unit == "temperature")
         #expect(try !JSONDecoder.vitals.decode([Alert].self, from: fixture("alerts.json")).isEmpty)
@@ -63,6 +69,15 @@ func fixture(_ name: String) throws -> Data {
         let f = try JSONDecoder.vitals.decode(Frame.self, from: Data(json.utf8))
         guard case let .keyframe(_, processes) = f.payload else { Issue.record("not a keyframe"); return }
         #expect(processes.first?.state == .unknown)
+    }
+}
+
+@Suite struct Formatting {
+    @Test func anUnmeasuredCountIsAnEmDashNeverZero() {
+        #expect(Format.count(nil) == Format.dash)
+        // A real zero is a reading, not an absence.
+        #expect(Format.count(0) == "0")
+        #expect(Format.count(287) == "287")
     }
 }
 

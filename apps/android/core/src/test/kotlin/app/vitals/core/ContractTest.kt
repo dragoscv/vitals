@@ -96,7 +96,9 @@ class ContractTest {
     @Test
     fun summary_history_sensors_alerts_and_host_decode() {
         val s = roundTrip("summary.json", Summary.serializer())
-        assertEquals(1, s.processCount)
+        // The machine's count, which the fixture frame declares; `null` would
+        // mean "not measurable" and is a different fact, so fail loudly on it.
+        assertEquals(287, s.processCount ?: -1)
         val h = roundTrip("history.json", ListSerializer(MachineSample.serializer()))
         assertNotNull(h.first().cpuTempC)
         assertNull(h.last().cpuTempC)

@@ -114,10 +114,15 @@ impl SystemSampler {
         self.components.refresh(true);
 
         let thread_count = processes.iter().map(|p| p.thread_count).sum();
+        // The App Store build is sandboxed and cannot enumerate other
+        // processes, so `processes` is empty and a count over it would be a
+        // confident zero. Off the store the list is real and counted as it is;
+        // on the store the honest answer is "not measured", not "none".
+        let counted = (!crate::APP_STORE).then_some(processes.len());
         let system = SystemMetrics {
             cpu: CpuMetrics {
-                process_count: u32::try_from(processes.len()).unwrap_or(u32::MAX),
-                thread_count,
+                process_count: counted.map(|n| u32::try_from(n).unwrap_or(u32::MAX)),
+                thread_count: (!crate::APP_STORE).then_some(thread_count),
                 temperature: self.cpu_temperature(),
                 ..cpu
             },
@@ -168,8 +173,10 @@ impl SystemSampler {
             temperature: None,
             power: None,
             throttled: None,
-            process_count: 0,
-            thread_count: 0,
+            // Both need the process list, which this function does not have;
+            // `sample` fills them from it. Absent until then, never a zero.
+            process_count: None,
+            thread_count: None,
             handle_count: None,
             uptime_secs: System::uptime(),
             context_switches: None,
@@ -379,7 +386,7 @@ impl SystemSampler {
                     read: per_sec(usage.read_bytes, elapsed),
                     write: per_sec(usage.written_bytes, elapsed),
                     // No public busy-time counter on macOS.
-                    active_time: Percent::ZERO,
+                    active_time: None,
                     response_ms: None,
                     queue_depth: None,
                     temperature: None,
@@ -510,12 +517,24 @@ mod tests {
         assert!(sys.cpu.total.get() >= 0.0 && sys.cpu.total.get() <= 100.0);
         assert!(sys.memory.total.get() > 0);
         assert!(sys.memory.used.get() <= sys.memory.total.get());
-        assert_eq!(sys.cpu.process_count as usize, sample.processes.len());
         if crate::APP_STORE {
             // sysinfo's apple-app-store feature never enumerates other
-            // processes: the sandbox build must not invent any.
+            // processes: the sandbox build must not invent any, neither in the
+            // list nor as a count. A `0` here read as "nothing is running".
             assert!(sample.processes.is_empty(), "{}", sample.processes.len());
+            assert!(
+                sys.cpu.process_count.is_none(),
+                "a sandboxed build must report no process count, not zero"
+            );
+            assert!(
+                sys.cpu.thread_count.is_none(),
+                "a sandboxed build must report no thread count, not zero"
+            );
         } else {
+            assert_eq!(
+                sys.cpu.process_count.map(|n| n as usize),
+                Some(sample.processes.len())
+            );
             assert!(sample.processes.len() > 10, "{}", sample.processes.len());
         }
     }
@@ -528,6 +547,22 @@ mod tests {
         assert!(m.paged_pool.is_none());
         assert!(m.non_paged_pool.is_none());
         assert!(m.hardware_reserved.is_none());
+    }
+
+    #[test]
+    fn a_mac_disk_reports_no_active_time_rather_than_a_busy_zero() {
+        // macOS publishes no busy-time counter. Defaulting it to `0 %` said
+        // "idle" about a drive that may be at full tilt, and no reader could
+        // tell that apart from a genuinely idle disk. Absence is the truth.
+        let disks = two_samples().system.disks;
+        assert!(!disks.is_empty(), "the test machine has no volumes");
+        for disk in &disks {
+            assert!(
+                disk.active_time.is_none(),
+                "{} reported a disk activity figure macOS cannot measure",
+                disk.name
+            );
+        }
     }
 
     #[test]

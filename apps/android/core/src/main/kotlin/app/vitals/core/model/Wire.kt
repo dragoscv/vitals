@@ -72,8 +72,10 @@ data class CpuMetrics(
     val temperature: Float?,
     val power: Float?,
     val throttled: ThrottleReason?,
-    val processCount: Int,
-    val threadCount: Int,
+    // Null from a platform that will not let the sampler count processes
+    // (the sandboxed Mac build). Never 0, which would read as "none running".
+    val processCount: Int?,
+    val threadCount: Int?,
     val handleCount: Int?,
     val uptimeSecs: Long,
     val contextSwitches: Long?,
@@ -126,7 +128,8 @@ data class DiskMetrics(
     val free: Long,
     val read: Long,
     val write: Long,
-    val activeTime: Float,
+    // Null on macOS, which publishes no busy-time counter.
+    val activeTime: Float?,
     val responseMs: Float?,
     val queueDepth: Float?,
     val temperature: Float?,
@@ -339,7 +342,8 @@ data class Summary(
     val timestampMs: Long,
     val system: SystemMetrics,
     val top: List<Process>,
-    val processCount: Int,
+    // Null from a platform that will not let the sampler count processes.
+    val processCount: Int?,
 )
 
 /** One row of `GET /api/v1/history`. */

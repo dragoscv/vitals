@@ -120,7 +120,7 @@ struct CpuSection: View {
             InfoRow(L("cpu_temperature"), Format.celsius(cpu.temperature))
             InfoRow(L("cpu_power"), Format.watts(cpu.power))
             InfoRow(L("cpu_throttled"), CpuWords.throttle(cpu.throttled))
-            InfoRow(L("cpu_processes"), "\(cpu.processCount)")
+            InfoRow(L("cpu_processes"), Format.count(cpu.processCount))
             InfoRow(L("cpu_uptime"), DurationWords.text(cpu.uptimeSecs))
             if !cpu.perCore.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {

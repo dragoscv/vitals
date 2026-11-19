@@ -32,7 +32,23 @@ effectiveClock: Hertz | null, maxClock: Hertz | null, temperature: Celsius | nul
  * True when the CPU is being held below its capability by heat or power
  * limits. The headline signal for "why is my PC slow".
  */
-throttled: ThrottleReason | null, processCount: number, threadCount: number, handleCount: number | null, uptimeSecs: number, 
+throttled: ThrottleReason | null, 
+/**
+ * Processes running, or `None` when the platform will not let the
+ * sampler see them.
+ *
+ * The Mac App Store build runs sandboxed and cannot enumerate other
+ * processes, so the list it counts is empty. A plain `u32` then reported
+ * a confident `0` — "nothing is running" on a machine with hundreds of
+ * processes. Absence says what is true: not measured on this build.
+ */
+processCount: number | null, 
+/**
+ * Threads running across every process, or `None` under the same
+ * sandbox that hides the process list. The figure is a sum over that
+ * list, so it is unknown wherever the list is.
+ */
+threadCount: number | null, handleCount: number | null, uptimeSecs: number, 
 /**
  * Context switches per second.
  */

@@ -195,14 +195,20 @@ mod tests {
         /// Three processes, one of them hot, with the alert that explains it.
         fn running() -> Self {
             let mut view = View::default();
-            view.apply(&fixtures::keyframe(
+            let mut frame = fixtures::keyframe(
                 9,
                 vec![
                     fixtures::process("chrome.exe", 4242, 71.0),
                     fixtures::process("explorer.exe", 100, 4.0),
                     fixtures::process("idle", 0, 0.0),
                 ],
-            ));
+            );
+            // The machine's own count has to match the list it serves, or a
+            // summary would disagree with its own keyframe.
+            if let vitals_core::sample::FramePayload::Keyframe { system, .. } = &mut frame.payload {
+                system.cpu.process_count = Some(3);
+            }
+            view.apply(&frame);
             Self {
                 view,
                 alerts: Ok(vec![cpu_alert()]),
@@ -311,7 +317,8 @@ mod tests {
             "the frame's own sequence, not a fabricated 0"
         );
         assert_eq!(
-            summary.process_count, 3,
+            summary.process_count,
+            Some(3),
             "the count covers the whole machine"
         );
         assert_eq!(summary.top.len(), 2, "and the list is what was asked for");
