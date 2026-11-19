@@ -15,7 +15,7 @@
 import type { TFunction } from 'i18next';
 
 import type { Contributor, Diagnosis, Subsystem, SystemMetrics } from '@vitals/protocol';
-import { formatBytes, formatPercent, formatThroughput } from '@vitals/ui';
+import { formatBytes, formatCount, formatPercent, formatThroughput } from '@vitals/ui';
 
 import { alertCause, alertTitle } from '../alerts/alertText';
 import type { MetricHistory } from '../dashboard/history';
@@ -153,7 +153,7 @@ export function formatReport(diagnosis: Diagnosis, ctx: ReportContext): string {
       `  ${t('diagnosis.report.memory')} ${formatBytes(system.memory.used, locale)} / ${formatBytes(system.memory.total, locale)}`,
     );
     lines.push(
-      `  ${t('diagnosis.report.processes')} ${String(system.cpu.processCount)} · ${t('diagnosis.report.threads')} ${String(system.cpu.threadCount)}`,
+      `  ${t('diagnosis.report.processes')} ${formatCount(system.cpu.processCount, locale)} · ${t('diagnosis.report.threads')} ${formatCount(system.cpu.threadCount, locale)}`,
     );
   }
 

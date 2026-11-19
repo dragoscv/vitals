@@ -291,16 +291,26 @@ export class HistoryCollector {
   }
 }
 
-function pushInto(map: DeviceSeries, key: number, value: number): void {
+function pushInto(map: DeviceSeries, key: number, value: number | null): void {
   let buffer = map.get(key);
   if (buffer === undefined) {
-    buffer = new RingBuffer(HISTORY_CAPACITY);
     // A device that appears mid-session has no history, and padding it with
     // zeroes would draw a flat line implying it was idle and present. Leaving
     // the buffer short lets the renderer start the line where the data does.
+    // An absent reading never starts a line either: it is a gap, not a sample.
+    if (value === null) return;
+    buffer = new RingBuffer(HISTORY_CAPACITY);
     map.set(key, buffer);
   }
-  buffer.push(value);
+  // A platform with no busy-time counter (macOS) has nothing to plot. Record
+  // it as a gap — the same treatment a dropped frame gets — rather than `0`,
+  // which would draw a false cliff to the axis that says "idle", a lie about a
+  // disk that may be at full tilt.
+  if (value === null) {
+    buffer.pushGap();
+  } else {
+    buffer.push(value);
+  }
 }
 
 /** The instance the running application collects into. */

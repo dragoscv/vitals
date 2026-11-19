@@ -31,6 +31,7 @@ pub mod ipc;
 pub mod launch;
 #[cfg(target_os = "macos")]
 pub mod macos_actions;
+pub mod mqtt;
 pub mod sampling;
 pub mod server;
 // Measures the boot window through vitals-win's accumulator; there is no
@@ -150,6 +151,7 @@ pub fn run() {
         )
         .manage(state::AppState::new())
         .manage(server::LanServer::new())
+        .manage(mqtt::Mqtt::new())
         .manage(alerts::Alerts::new())
         .manage(std::sync::Arc::new(channels::Channels::new()))
         .manage(agents::Agents::new())
@@ -219,7 +221,7 @@ fn init_logging(to_file: bool) {
 ///
 /// Empty rather than a placeholder when the platform cannot say: a wrong name
 /// on someone's dashboard is worse than a blank one.
-fn host_name() -> String {
+pub(crate) fn host_name() -> String {
     #[cfg(windows)]
     {
         vitals_win::hostinfo::read().hostname
@@ -424,6 +426,10 @@ fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
         server::pairing_code_status,
         server::revoke_pairing,
         server::revoke_all_pairings,
+        mqtt::get_mqtt_status,
+        mqtt::start_mqtt,
+        mqtt::stop_mqtt,
+        mqtt::set_mqtt_password,
         users::get_users,
         commands::get_alerts,
         commands::set_alert_prefs,

@@ -21,6 +21,8 @@ import {
 import { useHud } from './lib/useHud';
 import { reportSuccess } from './lib/reportSuccess';
 import { takeUpdateOutcome } from './lib/updater';
+import { checkBrokerAddress } from './settings/mqtt/address';
+import { defaultMqttApi } from './settings/mqtt/api';
 import { useSettings } from './settings/store';
 import { AppShell } from './shell/AppShell';
 import { SHELL_NS } from './shell/strings';
@@ -290,6 +292,32 @@ function useTrayStringsSync(): void {
 }
 
 /**
+ * Starts the MQTT publisher on launch when the user left the switch on.
+ *
+ * One shot, keyed on hydration — not a sync effect like the settings above.
+ * The Settings panel applies its own edits, and pushing the address on every
+ * change would tear the broker connection down and up once per keystroke.
+ * An address that does not parse is skipped rather than attempted: the panel
+ * shows why it is wrong, and a launch has no one to read a refusal.
+ *
+ * The password is not sent; the backend reads it from the OS secret store.
+ */
+function useMqttAutoStart(hydrated: boolean): void {
+  useEffect(() => {
+    if (!hydrated) return;
+    const { mqtt } = useSettings.getState().settings;
+    if (!mqtt.enabled) return;
+    if (!checkBrokerAddress(mqtt.url).ok) return;
+    void defaultMqttApi()
+      .start({ url: mqtt.url, username: mqtt.username })
+      .catch(() => {
+        // The refusal is kept in the backend and shown in Settings; a
+        // rejection here would land in a launch path with no UI to report it.
+      });
+  }, [hydrated]);
+}
+
+/**
  * Says, once, what became of the update the last session tried to install.
  *
  * A failed install on quit used to be invisible: the next launch was simply
@@ -338,6 +366,7 @@ export function App() {
   useDriveScheduleSync(settings, hydrated);
   useAlertStringsSync();
   useTrayStringsSync();
+  useMqttAutoStart(hydrated);
   useUpdateOutcome();
   useHud(hydrated);
 

@@ -160,7 +160,11 @@ impl LanServer {
     /// Builds the state both listeners serve. One function so the loopback
     /// and LAN servers can never disagree about frames, tokens or controller;
     /// the two differ only in `assets` and `loopback_scope`.
-    fn api_state(
+    ///
+    /// `pub(crate)` so the MQTT publisher (`crate::mqtt`) can read the same
+    /// materialised frame and alert list the LAN clients do, instead of
+    /// opening a second sampling path.
+    pub(crate) fn api_state(
         &self,
         app: &tauri::AppHandle,
         assets: Option<vitals_server::StaticAssets>,

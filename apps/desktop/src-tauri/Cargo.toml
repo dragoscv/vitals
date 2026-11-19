@@ -39,6 +39,10 @@ vitals-core = { workspace = true }
 vitals-ipc = { workspace = true }
 vitals-store = { workspace = true }
 vitals-server = { workspace = true }
+# The publisher settings type the Settings screen stores, handed to
+# `vitals_server::mqtt::spawn`. Already in the graph through vitals-server, so
+# naming it here adds no crate to the build.
+vitals-mqtt = { workspace = true }
 vitals-bench = { workspace = true }
 vitals-agents = { workspace = true }
 # Cloud agents on the AI page (ADR-0039). Already in the graph through

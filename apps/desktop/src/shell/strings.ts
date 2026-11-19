@@ -225,6 +225,33 @@ const en = {
       revoke: 'Revoke',
       revokeAll: 'Revoke all',
     },
+    mqtt: {
+      title: 'MQTT',
+      explainer:
+        'Publish this computer’s readings to a broker — the numbers Vitals measures (CPU, memory, temperature, battery, and how many alerts are active), with Home Assistant discovery. Your process list is not published, only the number of them. This computer connects out to the broker; the broker never connects in.',
+      enable: 'Publish to a broker',
+      enableHint:
+        'Off by default. Nothing is sent anywhere until you turn this on and give an address.',
+      address: 'Broker address',
+      addressHint: 'Start with mqtt:// for a plain connection, or mqtts:// for TLS.',
+      addressPlaceholder: 'mqtt://homeassistant.local:1883',
+      invalidScheme: 'The address must start with mqtt:// or mqtts://.',
+      invalidHost: 'The address has no host. It should look like mqtt://homeassistant.local:1883.',
+      invalidAddress:
+        'That is not a valid address. It should look like mqtt://homeassistant.local:1883.',
+      invalidCredentials:
+        'Remove the username and password from the address and use the fields below. The address is saved in your settings file, so a password inside it would be saved there too.',
+      username: 'Username',
+      usernameHint: 'Optional. Leave it empty for a broker that allows anonymous access.',
+      password: 'Password',
+      passwordHint:
+        'Optional. Kept in this computer’s own secret store (Credential Manager on Windows, the Keychain on macOS), never in the settings file.',
+      passwordSet: 'Saved — type a new one to replace it',
+      savePassword: 'Save',
+      removePassword: 'Remove',
+      status: 'Publisher',
+      publishing: 'Publishing readings',
+    },
     flight: {
       title: 'Flight recorder',
       export: 'Save a recording',
@@ -500,6 +527,33 @@ const ro = {
       scopeControl: 'poate urmări și controla',
       revoke: 'Revocă',
       revokeAll: 'Revocă tot',
+    },
+    mqtt: {
+      title: 'MQTT',
+      explainer:
+        'Publică valorile acestui calculator către un broker — numerele pe care le măsoară Vitals (CPU, memorie, temperatură, baterie și câte alerte sunt active), cu descoperire automată pentru Home Assistant. Lista de procese nu este publicată, doar numărul lor. Acest calculator se conectează la broker; brokerul nu se conectează niciodată la el.',
+      enable: 'Publică către un broker',
+      enableHint:
+        'Dezactivat implicit. Nimic nu este trimis nicăieri până nu activezi asta și dai o adresă.',
+      address: 'Adresa brokerului',
+      addressHint: 'Începe cu mqtt:// pentru o conexiune simplă, sau mqtts:// pentru TLS.',
+      addressPlaceholder: 'mqtt://homeassistant.local:1883',
+      invalidScheme: 'Adresa trebuie să înceapă cu mqtt:// sau mqtts://.',
+      invalidHost: 'Adresa nu are gazdă. Ar trebui să arate ca mqtt://homeassistant.local:1883.',
+      invalidAddress:
+        'Aceasta nu este o adresă validă. Ar trebui să arate ca mqtt://homeassistant.local:1883.',
+      invalidCredentials:
+        'Scoate utilizatorul și parola din adresă și folosește câmpurile de mai jos. Adresa este salvată în fișierul de setări, deci o parolă din ea ar fi salvată tot acolo.',
+      username: 'Utilizator',
+      usernameHint: 'Opțional. Lasă gol pentru un broker care permite acces anonim.',
+      password: 'Parolă',
+      passwordHint:
+        'Opțional. Păstrată în depozitul de secrete al acestui calculator (Credential Manager pe Windows, Keychain pe macOS), niciodată în fișierul de setări.',
+      passwordSet: 'Salvată — scrie alta ca să o înlocuiești',
+      savePassword: 'Salvează',
+      removePassword: 'Șterge',
+      status: 'Publicare',
+      publishing: 'Publică valorile',
     },
     flight: {
       title: 'Înregistrare de diagnostic',

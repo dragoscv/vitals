@@ -7,7 +7,30 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Settings → Remote access → MQTT: publish the readings Vitals measures to a
+  broker of your own, with Home Assistant discovery, from a screen instead of a
+  command-line flag. Off until you turn it on, and the address has to be an
+  `mqtt://` or `mqtts://` URL with a host — a username and password smuggled
+  into the address are refused, because the address is written to the settings
+  file and a password is not. The password goes to your operating system's
+  secret store, and the uninstaller removes it. What is published is the
+  readings (processor, memory, temperature, battery, and how many alerts are
+  active) — not the process list, and not which programs you run.
+
 ### Fixed
+
+- A reading the hardware cannot report no longer arrives as a zero. The
+  computer's processor count, thread count and disk activity, the graphics
+  memory and temperature of a card whose driver does not answer, a desktop's
+  battery, a disconnected adapter's counters — each was a plausible-looking
+  `0` on at least one surface, and a zero is not an absence: it is a
+  measurement, and it poisons every average drawn from it. They now stay
+  absent all the way out — the em dash in the app, no series in Prometheus
+  (which has `absent()` for exactly this), no entity attribute in Home
+  Assistant, no point in the history chart — on all five clients, including
+  the phone and the watch.
 
 - Android: the phone build no longer requires Wi-Fi or a camera, and the TV
   build no longer declares a camera it does not use. Android marks a hardware

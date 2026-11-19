@@ -36,6 +36,7 @@ import {
   SamplingPanel,
 } from './panels';
 import { RemoteAccessPanel } from './lan/RemoteAccessPanel';
+import { MqttPanel } from './mqtt/MqttPanel';
 import { WatchdogPanel } from './WatchdogPanel';
 
 const tabIds = [
@@ -161,6 +162,11 @@ export function SettingsDialog({ open, onOpenChange, version }: SettingsDialogPr
               </TabsContent>
               <TabsContent value="remote">
                 <RemoteAccessPanel />
+                {/* A second half of Remote access: the LAN server is for a
+                    phone on this network, MQTT for a broker that may be
+                    anywhere. Same tab, because both answer "let another
+                    program see this computer". */}
+                <MqttPanel />
               </TabsContent>
               <TabsContent value="health">
                 <HealthPanel />

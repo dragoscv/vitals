@@ -253,6 +253,10 @@
     Pop $0
     nsExec::Exec '"$SYSDIR\cmdkey.exe" /delete:vitals/vmui-health-base'
     Pop $0
+    ; The MQTT broker password (mqtt.rs), for the same reason: a removed app
+    ; must not leave a working credential to someone's broker behind.
+    nsExec::Exec '"$SYSDIR\cmdkey.exe" /delete:vitals/mqtt-password'
+    Pop $0
   ${EndIf}
 !macroend
 

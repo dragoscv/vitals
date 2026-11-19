@@ -56,6 +56,24 @@ export interface DriveSchedule {
 
 export type DriveSchedules = Readonly<Record<string, DriveSchedule>>;
 
+/**
+ * Where readings are published beyond this machine.
+ *
+ * The non-secret half of a broker: the switch, the address and the optional
+ * username. The password is deliberately absent — it lives in the OS secret
+ * store (`apps/desktop/src-tauri/src/mqtt.rs`), because this object is plain
+ * JSON in the user's profile and a broker password there would be readable by
+ * anything that can read the profile and would end up in a backup.
+ */
+export interface MqttSettings {
+  /** The user's switch. Off by default; nothing is published while false. */
+  readonly enabled: boolean;
+  /** `mqtt://host[:port]` or `mqtts://host[:port]`. Empty until filled in. */
+  readonly url: string;
+  /** Empty means the broker is contacted without a username. */
+  readonly username: string;
+}
+
 export interface AppSettings {
   readonly theme: ThemeSettings;
   readonly locale: Locale;
@@ -132,6 +150,9 @@ export interface AppSettings {
    * changed drive letter keeps it. Absent = off, the default.
    */
   readonly driveCleanupSchedules: DriveSchedules;
+
+  /** Publishing to an MQTT broker. Off until the user turns it on. */
+  readonly mqtt: MqttSettings;
 }
 
 /**
@@ -187,6 +208,9 @@ export const defaultSettings: AppSettings = {
   driveCleanupProfiles: {},
   // Off for every drive: deleting on a timer is something the user asks for.
   driveCleanupSchedules: {},
+  // Off, with no address: publishing readings to a broker is something the
+  // user asks for, and an empty address is the honest "not set up yet".
+  mqtt: { enabled: false, url: '', username: '' },
 };
 
 function bool(value: unknown, fallback: boolean): boolean {
@@ -252,6 +276,25 @@ export function parseSchedules(value: unknown): DriveSchedules {
     }
   }
   return out;
+}
+
+/**
+ * Keeps only well-formed MQTT settings.
+ *
+ * Total like the rest of this file: the settings are plain JSON a user can
+ * edit, and one odd value must cost that one field, not the whole section. A
+ * non-string address or username falls back to the default rather than
+ * reaching the backend as something it would have to refuse.
+ */
+function parseMqtt(value: unknown): MqttSettings {
+  if (typeof value !== 'object' || value === null) return defaultSettings.mqtt;
+  const entry = value as Record<string, unknown>;
+  return {
+    enabled: entry['enabled'] === true,
+    url: typeof entry['url'] === 'string' ? entry['url'] : defaultSettings.mqtt.url,
+    username:
+      typeof entry['username'] === 'string' ? entry['username'] : defaultSettings.mqtt.username,
+  };
 }
 
 /** The values the engine accepts, spelled out so a hand-edited rule does not
@@ -440,5 +483,6 @@ export function parseSettings(raw: unknown): AppSettings {
     firstRunDismissed: bool(record['firstRunDismissed'], defaultSettings.firstRunDismissed),
     driveCleanupProfiles: parseProfiles(record['driveCleanupProfiles']),
     driveCleanupSchedules: parseSchedules(record['driveCleanupSchedules']),
+    mqtt: parseMqtt(record['mqtt']),
   };
 }
