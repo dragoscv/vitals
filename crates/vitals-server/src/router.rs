@@ -21,6 +21,7 @@ use tokio_stream::wrappers::BroadcastStream;
 
 use crate::auth::Scope;
 use crate::control::{ControlError, ControlRequest};
+use crate::mcp;
 use crate::prometheus;
 use crate::state::ApiState;
 
@@ -157,6 +158,10 @@ fn router_with_closing(state: ApiState, closing: watch::Receiver<bool>) -> Route
         .route("/api/v1/control", axum::routing::post(control))
         .route("/api/v1/agents", get(agents))
         .route("/api/v1/agents/actions", axum::routing::post(agents_action))
+        // The read-only MCP server the desktop and the CLI also serve on
+        // stdio. Behind the same auth layer, and refused without a token
+        // even on loopback: see `mcp.rs` for why.
+        .route("/mcp", axum::routing::post(mcp::mcp))
         .route("/metrics", get(metrics))
         .route_layer(middleware::from_fn_with_state(state.clone(), authorise))
         .layer(axum::Extension(Closing(closing)));
@@ -280,7 +285,7 @@ impl Closing {
 /// until it happened to disconnect. `None` is the loopback bypass, which
 /// has nothing to revoke.
 #[derive(Debug, Clone)]
-struct Granted {
+pub(crate) struct Granted {
     scope: Scope,
     token: Option<String>,
 }
@@ -302,7 +307,7 @@ impl Granted {
     /// session titles, working directories and command lines: the tokenless
     /// grant exists so `vitals ps` works without pairing, and no local tool
     /// reads agents through it. Another account on the machine would.
-    const fn has_token(&self) -> bool {
+    pub(crate) const fn has_token(&self) -> bool {
         self.token.is_some()
     }
 }

@@ -5,6 +5,7 @@
 pub mod act;
 pub mod eco;
 pub mod info;
+pub mod mcp;
 pub mod ps;
 pub mod report;
 pub mod serve;

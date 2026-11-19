@@ -151,7 +151,22 @@ enum Commands {
         #[arg(short, long)]
         output: Option<std::path::PathBuf>,
     },
+    /// Serve this machine to an AI agent over the Model Context Protocol.
+    ///
+    /// Reads one JSON message per line on stdin and answers on stdout, with
+    /// the tools `summary`, `processes`, `sensors`, `alerts`, `history` and
+    /// `diagnosis`. Read-only: nothing here can end, freeze or re-prioritise
+    /// a process, and there is no tool that tries to.
+    ///
+    /// Point Claude, Copilot or Cursor at `vitals mcp`; see
+    /// docs/integrations/mcp.md for the configuration.
+    Mcp,
     /// Serve metrics to the LAN without the desktop app (headless).
+    ///
+    /// The same routes the desktop serves, including `POST /mcp` — the
+    /// read-only Model Context Protocol server, for an AI agent running on
+    /// another machine. Like every other read route it needs a token, and
+    /// like them it confers no ability to change anything.
     Serve {
         /// TCP port to bind on every interface.
         #[arg(short, long, default_value_t = 7331)]
@@ -230,6 +245,9 @@ fn main() -> Result<()> {
             output.as_deref(),
             cli.json,
         ),
+        // Takes the source rather than borrowing it: the MCP server owns it
+        // for the life of the session.
+        Commands::Mcp => commands::mcp::run(source),
         Commands::Serve { .. } => unreachable!("handled above"),
     }
 }

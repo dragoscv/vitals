@@ -13,12 +13,14 @@
 //! predates the pipe.
 
 use std::io::IsTerminal;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
+use vitals_core::MachineSample;
 use vitals_core::alerts::Alert;
 use vitals_core::ids::ProcessKey;
 use vitals_core::provider::HostInfo;
+use vitals_core::remote::SensorLine;
 use vitals_core::sample::Frame;
 use vitals_ipc::attach::{AttachClient, FrameStream};
 use vitals_server::ControlRequest;
@@ -57,6 +59,12 @@ pub struct Piped {
     /// history. Not identical from the first tick — the app has been
     /// watching longer — but honest about what it has seen.
     engine: vitals_core::alerts::Engine,
+    /// The desktop's loopback API, when it advertises one.
+    ///
+    /// The pipe carries frames and nothing else: sensors and history live
+    /// behind HTTP, and a caller that wants them (the MCP tools) should not
+    /// have to know which transport happened to win.
+    http: Option<Client>,
 }
 
 /// A connection to the desktop's loopback API.
@@ -149,6 +157,8 @@ impl Source {
             frames: None,
             view: View::default(),
             engine: vitals_core::alerts::Engine::new(),
+            http: discovery::read(&discovery::discovery_path())
+                .map(|found| Client::new(&format!("http://127.0.0.1:{}", found.port))),
         })))
     }
 
@@ -314,6 +324,50 @@ impl Source {
             Self::Piped(p) => Ok(p.engine.active()),
             Self::Attached(a) => a.client.alerts(),
             Self::Direct(direct) => Ok(direct.alerts()),
+        }
+    }
+
+    /// Every sensor reading the host can make.
+    ///
+    /// An attached desktop is asked over HTTP, because it answers for *its*
+    /// machine — which may not be this one. Every other source means the
+    /// machine under the CLI's own feet, so the readings are taken here: the
+    /// pipe carries frames and nothing else, and a direct sampler is this
+    /// same machine. [`local_sensor_lines`] does the reading, through the
+    /// platform module the desktop uses, so both surfaces report one set of
+    /// numbers rather than two opinions about the same service.
+    ///
+    /// # Errors
+    /// The attached host refused, or this platform has no sensor backend. The
+    /// message reaches a user as an MCP tool result, so it is written for one.
+    pub fn sensors(&self) -> Result<Vec<SensorLine>> {
+        match self {
+            Self::Attached(a) => a.client.sensors(),
+            Self::Piped(_) | Self::Direct(_) => local_sensor_lines(),
+        }
+    }
+
+    /// Machine-wide samples covering the last `seconds`.
+    ///
+    /// Same shape as [`Source::sensors`]: the store belongs to the desktop,
+    /// so a direct sampler has no history to give and says so.
+    ///
+    /// # Errors
+    /// The source cannot answer; see [`Source::sensors`].
+    pub fn history(&self, seconds: u32) -> Result<Vec<MachineSample>> {
+        match self {
+            Self::Piped(p) => match &p.http {
+                Some(client) => client.history(seconds),
+                None => Err(anyhow::anyhow!(
+                    "history is recorded by the desktop app, whose local API is not \
+                     advertising itself; run `vitals mcp --attach http://127.0.0.1:<port>`"
+                )),
+            },
+            Self::Attached(a) => a.client.history(seconds),
+            Self::Direct(_) => Err(anyhow::anyhow!(
+                "history is recorded by the desktop app's store, and this CLI is \
+                 sampling the machine directly"
+            )),
         }
     }
 
@@ -666,6 +720,134 @@ fn note_is_styled() -> bool {
         std::env::var_os("NO_COLOR").is_some(),
         std::io::stderr().is_terminal(),
     )
+}
+
+/// How long a local sensor read is reused.
+///
+/// One read is a WMI round trip plus a walk of the sensor service's pipe —
+/// 48 ms measured on the machine this was written on — so an agent that calls
+/// the `sensors` tool twice inside a second must not pay for two. The desktop
+/// caches its own LAN reads for the same reason and for the same five
+/// seconds, so a phone and a CLI polling at once cost one read between them.
+#[cfg(windows)]
+const SENSOR_TTL: Duration = Duration::from_secs(5);
+
+/// Every sensor reading this machine can make now.
+///
+/// The same call the desktop's `/api/v1/sensors` makes, through the same
+/// platform module, so the two surfaces cannot disagree about the hardware.
+///
+/// # Errors
+/// This platform has no sensor backend yet.
+#[allow(clippy::unnecessary_wraps)]
+// One shape for two platforms: the
+// non-Windows branch below must fail, so this branch returns
+// the same type and the caller keeps a single call site.
+#[cfg(windows)]
+fn local_sensor_lines() -> Result<Vec<SensorLine>> {
+    static CACHE: std::sync::Mutex<Option<(Instant, Vec<SensorLine>)>> =
+        std::sync::Mutex::new(None);
+    Ok(cached_read(Instant::now(), SENSOR_TTL, &CACHE, || {
+        vitals_win::sensors::read_all()
+            .readings
+            .iter()
+            .map(vitals_win::sensors::SensorReading::to_line)
+            .collect()
+    }))
+}
+
+/// # Errors
+/// Always: no sensor backend exists below Windows in this CLI.
+#[cfg(not(windows))]
+fn local_sensor_lines() -> Result<Vec<SensorLine>> {
+    anyhow::bail!("sensor readings are only available on Windows")
+}
+
+/// A reading reused for `ttl`, taken again otherwise.
+///
+/// Split out from the read so the caching rule can be asserted without a
+/// machine: a caller inside the window must not read, and one outside it
+/// must. An earlier `now` than the stored instant counts as outside — a
+/// monitor must never serve a reading its caller's clock says is in the
+/// future, and `Instant` subtraction would panic rather than say so.
+#[cfg(windows)]
+fn cached_read<T: Clone>(
+    now: Instant,
+    ttl: Duration,
+    cache: &std::sync::Mutex<Option<(Instant, T)>>,
+    read: impl FnOnce() -> T,
+) -> T {
+    let mut guard = cache
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    if let Some((at, value)) = guard.as_ref()
+        && now
+            .checked_duration_since(*at)
+            .is_some_and(|elapsed| elapsed < ttl)
+    {
+        return value.clone();
+    }
+    let value = read();
+    *guard = Some((now, value.clone()));
+    value
+}
+
+#[cfg(all(test, windows))]
+mod cache_tests {
+    use std::sync::Mutex;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::time::Instant;
+
+    use super::{Duration, SENSOR_TTL, cached_read};
+
+    #[test]
+    fn a_reading_taken_inside_the_window_is_reused_and_a_later_one_is_not() {
+        let cache: Mutex<Option<(Instant, u32)>> = Mutex::new(None);
+        let reads = AtomicUsize::new(0);
+        let start = Instant::now();
+        let read = || {
+            reads.fetch_add(1, Ordering::SeqCst);
+            7
+        };
+
+        assert_eq!(cached_read(start, SENSOR_TTL, &cache, read), 7);
+        assert_eq!(
+            cached_read(start + Duration::from_secs(1), SENSOR_TTL, &cache, read),
+            7
+        );
+        assert_eq!(
+            reads.load(Ordering::SeqCst),
+            1,
+            "the second call must be served from the cache"
+        );
+
+        assert_eq!(
+            cached_read(start + Duration::from_secs(5), SENSOR_TTL, &cache, read),
+            7
+        );
+        assert_eq!(
+            reads.load(Ordering::SeqCst),
+            2,
+            "a call at the end of the window is a new read"
+        );
+    }
+
+    #[test]
+    fn a_call_whose_clock_is_behind_the_cached_read_takes_a_fresh_one_instead_of_panicking() {
+        // The tool can be called at any moment, and `Instant` subtraction
+        // panics when the subtrahend is later: a panic inside a monitor is a
+        // far worse answer than one extra WMI read.
+        let cache: Mutex<Option<(Instant, u32)>> = Mutex::new(None);
+        let start = Instant::now();
+        assert_eq!(cached_read(start, SENSOR_TTL, &cache, || 1), 1);
+        // checked_sub, not `-`: the point of the test is a clock that has gone
+        // backwards, and expressing it with an operator that can panic would
+        // make the test panic in the very case it exists to rule out.
+        let behind = start
+            .checked_sub(Duration::from_secs(30))
+            .expect("thirty seconds before an Instant taken a moment ago exists on every platform");
+        assert_eq!(cached_read(behind, SENSOR_TTL, &cache, || 2), 2);
+    }
 }
 
 #[cfg(test)]

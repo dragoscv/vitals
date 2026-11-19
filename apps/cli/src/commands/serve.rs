@@ -93,7 +93,7 @@ fn probe_connectivity() -> vitals_core::connectivity::ConnectivityReport {
 /// name. The environment variable is the cheap path on both Windows
 /// (`COMPUTERNAME`) and Unix (`HOSTNAME`); a machine with neither falls back
 /// to a stable placeholder rather than an empty slug.
-fn machine_host() -> String {
+pub(crate) fn machine_host() -> String {
     for key in ["COMPUTERNAME", "HOSTNAME"] {
         let Ok(value) = std::env::var(key) else {
             continue;
@@ -249,6 +249,13 @@ fn announce(port: u16, secret: &str, generated: Option<&str>, control: bool) {
             );
             eprintln!(
                 "Prometheus: curl -H 'Authorization: Bearer <token>' http://{}:{port}/metrics",
+                iface.address
+            );
+            // Named here because it is the one route a person cannot guess at:
+            // an agent's configuration wants the address, and the whole point
+            // of this server is that there is no desktop to read it from.
+            eprintln!(
+                "MCP for AI agents (read-only): POST http://{}:{port}/mcp with a Bearer token",
                 iface.address
             );
         }

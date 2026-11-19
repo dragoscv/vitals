@@ -12,6 +12,7 @@ description = "The local HTTP API: REST, SSE, WebSocket and Prometheus, over the
 [dependencies]
 vitals-core = { workspace = true }
 vitals-mqtt = { workspace = true }
+vitals-mcp = { workspace = true }
 
 axum = { workspace = true }
 tokio = { workspace = true }

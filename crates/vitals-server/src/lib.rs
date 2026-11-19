@@ -13,6 +13,7 @@
 //! | `GET /api/v1/host`     | Host facts                                      |
 //! | `GET /api/v1/agents`   | The AI page: agentq queues and AI sessions      |
 //! | `POST /api/v1/agents/actions` | An agentq action (control scope)         |
+//! | `POST /mcp`            | The read-only MCP server, for AI agents         |
 //! | `GET /api/v1/health`   | Liveness, unauthenticated                       |
 //! | `POST /api/v1/pair`    | Six-digit code for a token, unauthenticated     |
 //! | `GET /metrics`         | Prometheus text exposition                     |
@@ -41,6 +42,7 @@ pub mod agents;
 pub mod auth;
 pub mod control;
 pub mod lan;
+mod mcp;
 pub mod mdns;
 pub mod mqtt;
 pub mod pairing;

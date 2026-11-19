@@ -346,6 +346,26 @@ implementation.
 See [`../integrations/home-assistant.md`](../integrations/home-assistant.md)
 for REST and command-line sensor examples against this API.
 
+## Model Context Protocol
+
+`POST /mcp` serves the same readings to an AI agent as six read-only MCP
+tools — `summary`, `processes`, `sensors`, `alerts`, `history` and
+`diagnosis` — over JSON-RPC 2.0. `vitals mcp` serves the identical server on
+standard input and output, which is the transport an agent usually launches
+itself.
+
+`/mcp` is the one read route that needs a token **also from `127.0.0.1`**: an
+agent decides what to do with what it reads, so every agent is a pairing the
+user can list and revoke. Read scope is enough, and there is no tool that
+acts on the machine. Configuration for Claude, Copilot and Cursor, and the
+tools' exact replies, are in [`../integrations/mcp.md`](../integrations/mcp.md).
+
+```powershell
+curl.exe -s -X POST "http://127.0.0.1:7331/mcp" `
+  -H "Authorization: Bearer $token" -H "Content-Type: application/json" `
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+```
+
 ## Keeping this in step with the code
 
 `crates/vitals-server/tests/openapi.rs` fails if a route exists in

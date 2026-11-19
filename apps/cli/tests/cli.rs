@@ -25,7 +25,8 @@ fn help_lists_every_subcommand_the_cli_defines() {
     // Mirrors `enum Commands` in main.rs. A subcommand missing from help is
     // a feature nobody will find.
     for name in [
-        "ps", "top", "info", "eco", "kill", "suspend", "resume", "priority", "report", "serve",
+        "ps", "top", "info", "eco", "kill", "suspend", "resume", "priority", "report", "mcp",
+        "serve",
     ] {
         assert!(
             help.lines()

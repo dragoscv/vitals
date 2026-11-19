@@ -220,6 +220,7 @@ const GUARDED_ROUTES: &[(&str, &str)] = &[
     ("POST", "/api/v1/control"),
     ("GET", "/api/v1/agents"),
     ("POST", "/api/v1/agents/actions"),
+    ("POST", "/mcp"),
     ("GET", "/metrics"),
 ];
 

@@ -10,8 +10,10 @@ use std::time::Duration;
 
 use anyhow::{Context, Result, bail};
 use serde::Deserialize;
+use vitals_core::MachineSample;
 use vitals_core::alerts::Alert;
 use vitals_core::provider::HostInfo;
+use vitals_core::remote::SensorLine;
 use vitals_core::sample::Frame;
 use vitals_server::{ControlError, ControlRequest};
 
@@ -87,6 +89,23 @@ impl Client {
     /// Connection failure or a non-2xx status.
     pub fn alerts(&self) -> Result<Vec<Alert>> {
         self.get_json("/api/v1/alerts")
+    }
+
+    /// Every sensor reading the far end can make. An empty array means none
+    /// are measurable there, never "all zero".
+    ///
+    /// # Errors
+    /// Connection failure or a non-2xx status.
+    pub fn sensors(&self) -> Result<Vec<SensorLine>> {
+        self.get_json("/api/v1/sensors")
+    }
+
+    /// Machine-wide history covering the last `seconds` seconds.
+    ///
+    /// # Errors
+    /// Connection failure or a non-2xx status.
+    pub fn history(&self, seconds: u32) -> Result<Vec<MachineSample>> {
+        self.get_json(&format!("/api/v1/history?seconds={seconds}"))
     }
 
     /// `POST /api/v1/control`. A 204 is success; anything else carries a

@@ -6,6 +6,7 @@ members = [
     "crates/vitals-store",
     "crates/vitals-server",
     "crates/vitals-mqtt",
+    "crates/vitals-mcp",
     "crates/vitals-bench",
     "crates/vitals-sensors",
     "crates/vitals-win",
@@ -36,6 +37,7 @@ vitals-ipc = { path = "crates/vitals-ipc" }
 vitals-store = { path = "crates/vitals-store" }
 vitals-server = { path = "crates/vitals-server" }
 vitals-mqtt = { path = "crates/vitals-mqtt" }
+vitals-mcp = { path = "crates/vitals-mcp" }
 vitals-bench = { path = "crates/vitals-bench" }
 vitals-sensors = { path = "crates/vitals-sensors" }
 vitals-win = { path = "crates/vitals-win" }

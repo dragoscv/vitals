@@ -112,6 +112,8 @@ tags:
     description: Acting on processes. Needs the `control` scope.
   - name: agents
     description: The AI page — agentq queues and AI coding agent sessions (ADR-0039).
+  - name: mcp
+    description: The read-only Model Context Protocol server, for AI agents.
 
 security:
   - bearer: []
@@ -671,6 +673,91 @@ paths:
                 $ref: '#/components/schemas/ApiError'
         '503':
           description: agentq could not be started on this host (not installed, `pwsh` missing).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+  /mcp:
+    post:
+      tags: [mcp]
+      summary: The read-only Model Context Protocol server.
+      description: |
+        JSON-RPC 2.0 over MCP's Streamable HTTP transport: one message per
+        request, answered with `application/json`. The methods are
+        `initialize`, `ping`, `tools/list`, `tools/call`, `resources/list`
+        and `resources/read`; a `notifications/*` message is accepted and
+        answered with `202` and no body. `vitals mcp` exposes the same
+        server on stdio, which is the transport an agent usually launches
+        itself.
+
+        The tools are `summary`, `processes`, `sensors`, `alerts`, `history`
+        and `diagnosis`, all read-only. There is no tool that ends, suspends,
+        resumes or re-prioritises a process, and none will be added without
+        changing this document: an agent is a program that reads a sentence
+        and decides what to do, and a kill switch behind a prompt is not a
+        trade Vitals makes.
+
+        **A token is required, also on loopback** — unlike every other read
+        route, which a local caller may use without one. An agent should be a
+        pairing the user can list and revoke, and read scope is all it needs:
+        there is nothing here that acts.
+
+        Configuration for Claude, Copilot and Cursor is in
+        `docs/integrations/mcp.md`.
+      operationId: mcp
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: One JSON-RPC 2.0 message.
+            examples:
+              initialize:
+                value:
+                  {
+                    jsonrpc: '2.0',
+                    id: 1,
+                    method: initialize,
+                    params: { protocolVersion: '2025-06-18', clientInfo: { name: 'example' } },
+                  }
+              callSummary:
+                value:
+                  {
+                    jsonrpc: '2.0',
+                    id: 3,
+                    method: tools/call,
+                    params: { name: summary, arguments: { top: 10 } },
+                  }
+      responses:
+        '200':
+          description: |
+            A JSON-RPC reply. A tool that could not answer — no sensor
+            service, or a sampler that has not taken its first reading — is a
+            **successful** call whose result carries `isError: true` and a
+            sentence saying why, not an HTTP error.
+          content:
+            application/json:
+              schema:
+                type: object
+                description: A JSON-RPC 2.0 response carrying `result` or `error`.
+        '202':
+          description: A notification was accepted. No body.
+        '401':
+          $ref: '#/components/responses/Unauthorised'
+        '403':
+          description: |
+            No token, even though the caller is on loopback and the host
+            grants the tokenless loopback scope.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '413':
+          description: The body is over the 16 KiB cap every route shares. One MCP message is a few hundred bytes.
+        '503':
+          description: Too many requests in flight, or the handler took too long.
           content:
             application/json:
               schema:

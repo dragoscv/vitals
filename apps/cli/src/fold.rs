@@ -20,6 +20,9 @@ use vitals_core::sample::{Frame, FramePayload};
 /// The reconstructed present.
 #[derive(Debug, Default, Clone)]
 pub struct View {
+    /// Sequence of the last frame folded in, so a summary can say which
+    /// frame it describes. Zero before the first keyframe.
+    pub seq: u64,
     pub timestamp_ms: u64,
     pub system: SystemMetrics,
     processes: HashMap<Pid, Process>,
@@ -33,6 +36,7 @@ impl View {
     pub fn apply(&mut self, frame: &Frame) -> bool {
         match &frame.payload {
             FramePayload::Keyframe { system, processes } => {
+                self.seq = frame.seq.0;
                 self.timestamp_ms = frame.timestamp_ms;
                 self.system = system.clone();
                 self.processes = processes.iter().map(|p| (p.key.pid, p.clone())).collect();
@@ -47,6 +51,7 @@ impl View {
                 if !self.primed {
                     return false;
                 }
+                self.seq = frame.seq.0;
                 self.timestamp_ms = frame.timestamp_ms;
                 self.system = system.clone();
                 for pid in exited {

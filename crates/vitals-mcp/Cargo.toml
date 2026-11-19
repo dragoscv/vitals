@@ -1,0 +1,21 @@
+[package]
+name = "vitals-mcp"
+version.workspace = true
+publish.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Read-only Model Context Protocol server: this machine as tools an AI agent can call."
+
+[dependencies]
+vitals-core = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+vitals-core = { workspace = true, features = ["fixtures"] }
+
+[lints]
+workspace = true
