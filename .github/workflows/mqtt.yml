@@ -1,0 +1,181 @@
+name: MQTT
+
+# The MQTT publisher's own unit tests build the discovery payloads as values,
+# so a wrong topic or a missing field is caught with no socket at all. What
+# they cannot show is that the bytes reach a broker: an entity exists for Home
+# Assistant only because a *retained* message really landed on
+# `homeassistant/<component>/<node>/<object>/config`, and a reading only
+# because a state message really landed on the topic that document names.
+#
+# That proof lives in the crate as `crates/vitals-mqtt/tests/broker.rs`, gated
+# on a broker being reachable. This workflow provides one, on every push and
+# pull request that can change the crate, so the proof is re-run rather than
+# taken on trust.
+#
+# Both jobs mirror the `rust-linux` job of ci.yml: the same pinned action
+# revisions, the same toolchain and the same cache style.
+
+on:
+  push:
+    paths:
+      - 'crates/vitals-mqtt/**'
+      - '.github/workflows/mqtt.yml'
+  pull_request:
+    paths:
+      - 'crates/vitals-mqtt/**'
+      - '.github/workflows/mqtt.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  # Cancelling costs nothing on a pull request and throws away the compile it
+  # interrupts on a branch, so this follows ci.yml in cancelling only the
+  # former. rust-cache saves only when a job finishes.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  # CI builds from a restored cache, never incrementally from yesterday's tree.
+  CARGO_INCREMENTAL: 0
+  # Debug info is the largest part of a debug build and backtraces still name
+  # functions. Matches ci.yml so the rust-cache keys stay comparable.
+  CARGO_PROFILE_DEV_DEBUG: 0
+  # The broker `crates/vitals-mqtt/tests/broker.rs` looks for. Unset, the test
+  # skips loudly so a local `cargo test -p vitals-mqtt` needs no broker; set,
+  # it is what makes the test mandatory here.
+  VITALS_MQTT_TEST_BROKER: mqtt://127.0.0.1:1883
+  # The Node broker the Windows job starts. Pinned, because the identity of the
+  # broker that ran is part of the evidence.
+  AEDES_CLI: aedes-cli@1.0.2
+
+jobs:
+  mqtt-linux:
+    name: MQTT (linux)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    # The eclipse-mosquitto image ships its own anonymous-access config
+    # (`listener 1883` and `allow_anonymous true` in
+    # /mosquitto/config/mosquitto.conf), so no config file has to be mounted -
+    # which matters, because a service container starts before the checkout
+    # step and therefore cannot mount anything from the workspace. Pinned by
+    # the OCI index digest so every run uses the same bytes.
+    services:
+      mosquitto:
+        image: eclipse-mosquitto@sha256:fa12172a051310efe5bcb7a6a11b77bd5faacb82cbacd7742aa758bf024fd8e4
+        ports:
+          - 1883:1883
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      # The Rust job needs no JavaScript; these are here for parity with every
+      # other workflow in this repository, and the Windows job below uses them.
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # rust-toolchain.toml
+        with:
+          toolchain: 1.99.0
+
+      # Its own cache key. ci.yml's `linux` job owns `linux`, and two jobs
+      # saving under one key evict each other's entries.
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          shared-key: linux-mqtt
+          cache-on-failure: true
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      # Fail fast and legibly if the service container never opened its port,
+      # rather than leaving the test to time out on a dead socket.
+      - name: Wait for the broker
+        shell: bash
+        run: |
+          for _ in $(seq 1 30); do
+            if (echo > /dev/tcp/127.0.0.1/1883) 2>/dev/null; then
+              echo "mosquitto is listening on 127.0.0.1:1883"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::mosquitto never opened 127.0.0.1:1883"
+          exit 1
+
+      # `--nocapture` so that, should the test ever take its skip path, the
+      # reason is printed in the job log instead of swallowed by the harness.
+      - name: Test (MQTT crate, against mosquitto)
+        shell: bash
+        run: |
+          set -eo pipefail
+          cargo test -p vitals-mqtt -- --nocapture 2>&1 | tee mqtt-test.log
+
+      # A skip here would mean the job proved nothing while staying green.
+      - name: The broker test ran rather than skipping
+        shell: bash
+        run: |
+          if grep -q 'SKIP the MQTT broker test' mqtt-test.log; then
+            echo "::error::the broker test skipped - VITALS_MQTT_TEST_BROKER did not reach it"
+            exit 1
+          fi
+
+  # Windows runners have no service containers, so the broker is started from
+  # this step instead. `aedes-cli` is a pure-JavaScript MQTT 3.1.1 broker with
+  # nothing to install beyond the Node that setup-node already put on PATH; the
+  # crate is `#![cfg(windows)]`-free, so the same test runs unchanged.
+  mqtt-windows:
+    name: MQTT (windows)
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # rust-toolchain.toml
+        with:
+          toolchain: 1.99.0
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          shared-key: windows-mqtt
+          cache-on-failure: true
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      # `npx` fetches the pinned broker on first use; the loop then waits for
+      # something to actually accept a TCP connection on the port, because a
+      # download is not instant and a red test on a slow fetch would be a lie.
+      - name: Start the broker (aedes)
+        shell: pwsh
+        run: |
+          Start-Process -FilePath 'npx.cmd' `
+            -ArgumentList '--yes', $env:AEDES_CLI, '--port', '1883' -WindowStyle Hidden
+          $deadline = (Get-Date).AddSeconds(120)
+          while ((Get-Date) -lt $deadline) {
+            try {
+              $probe = [System.Net.Sockets.TcpClient]::new('127.0.0.1', 1883)
+              $probe.Close()
+              Write-Host 'aedes is listening on 127.0.0.1:1883'
+              exit 0
+            } catch {
+              Start-Sleep -Seconds 2
+            }
+          }
+          throw 'aedes never opened 127.0.0.1:1883'
+
+      - name: Test (MQTT crate, against aedes)
+        shell: pwsh
+        run: |
+          cargo test -p vitals-mqtt -- --nocapture 2>&1 | Tee-Object -FilePath mqtt-test.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (Select-String -Path mqtt-test.log -Pattern 'SKIP the MQTT broker test' -Quiet) {
+            throw 'the broker test skipped - VITALS_MQTT_TEST_BROKER did not reach it'
+          }

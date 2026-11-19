@@ -6,7 +6,7 @@
 //! makes an entity appear, and a typo in one segment silently creates a
 //! second entity that never updates. Keeping them in one file means the
 //! tests can assert the exact string a broker sees (see
-//! `crates/vitals-server/tests/mqtt.rs`).
+//! `crates/vitals-mqtt/tests/broker.rs`).
 
 /// The Home Assistant component a discovery topic belongs to.
 ///

@@ -20,6 +20,13 @@ tracing = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time", "net", "io-util"] }
+# The broker test in `tests/broker.rs` stands a second client in for Home
+# Assistant, so it needs the client crate and JSON directly, and a machine to
+# publish from: `fixtures` is off for the library so it can never reach a
+# release binary, and on here.
+rumqttc = { workspace = true }
+serde_json = { workspace = true }
+vitals-core = { workspace = true, features = ["fixtures"] }
 
 [lints]
 workspace = true

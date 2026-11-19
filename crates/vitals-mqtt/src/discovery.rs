@@ -6,10 +6,15 @@
 //! `unique_id` that keeps the entity stable across restarts. Build the body as
 //! data rather than a format string and a test can read it back as data.
 //!
-//! One rule from the rest of Vitals carries here unchanged: a reading that
-//! cannot be measured is **not** announced and **not** published. A discovery
-//! entry with a `0` in it would put a permanent zero on the user's dashboard,
-//! which is exactly the "fabricated zero" the app refuses everywhere else.
+//! One rule from the rest of Vitals carries here, in the shape discovery needs:
+//! a reading that cannot be measured is still **announced**, because the
+//! entities are built from [`crate::feed::all_specs`] and not from this
+//! machine's sample — only the *state* pass is value-gated (see
+//! [`crate::feed`]). So an unmeasurable entity exists on the dashboard and
+//! stays `unknown`, and one that becomes measurable later is already known
+//! rather than invisible until a restart. What must never happen is a
+//! discovery entry — or a state — carrying a fabricated `0`, which would put a
+//! permanent zero on the user's dashboard; the app refuses that everywhere.
 
 use serde_json::{Value, json};
 
