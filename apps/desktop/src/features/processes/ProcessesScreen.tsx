@@ -10,13 +10,12 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent }
 import { useTranslation } from 'react-i18next';
 
 import { Button, EmptyState, Skeleton } from '@vitals/ui';
-import { displayName } from '@vitals/protocol';
+import { displayName, type Capability } from '@vitals/protocol';
 
 import type { ExportColumn } from '../../lib/export';
 import { reportSuccess } from '../../lib/reportSuccess';
 import { oneOf, parseHash, useUrlState } from '../../lib/useUrlState';
 import {
-  errorMessage,
   isCommandError,
   tauriProcessActions,
   type ActionPlan,
@@ -24,6 +23,7 @@ import {
   type ProcessActionsApi,
   type ProcessPriority,
 } from './actions';
+import { useFailureText } from '../../lib/failureText';
 import {
   COLUMNS,
   DEFAULT_PREFERENCES,
@@ -43,7 +43,7 @@ import { ProcessToolbar } from './ProcessToolbar';
 import { RiskDialog, type RiskAction, type RiskRequest } from './RiskDialog';
 import { PROCESSES_NS } from './strings';
 import { useHostFacts, type HostFactsReader } from './useHostFacts';
-import { runsOn } from '../../shell/platform';
+import { firstUnavailableReason, runsOn, supports, supportsAny } from '../../shell/platform';
 import {
   createTauriSnapshotSource,
   NO_SAMPLER,
@@ -57,6 +57,17 @@ import { SELECT_PROCESS_EVENT, takeProcessSelection } from '../../shell/navigati
 const COLUMN_IDS = COLUMNS.map((column) => column.id);
 const KINDS: readonly KindFilter[] = ['all', 'apps', 'background', 'system'];
 const DIRECTIONS = ['asc', 'desc'] as const;
+
+/**
+ * The capabilities behind every mutating action the context menu offers.
+ * Shared by the "can we act at all" test and the reason it falls back to, so
+ * the two can never disagree about which actions the menu contains.
+ */
+const PROCESS_ACTION_CAPABILITIES: readonly Capability[] = [
+  'terminateProcess',
+  'suspendProcess',
+  'setProcessPriority',
+];
 
 export interface ProcessesScreenProps {
   /** Injectable so tests and the sampler-less preview need no Tauri host. */
@@ -79,6 +90,9 @@ export function ProcessesScreen({
 }: ProcessesScreenProps = {}): React.JSX.Element {
   const { t, i18n } = useTranslation();
   const { t: tp } = useTranslation(PROCESSES_NS);
+  // Turns a rejected command into something showable, including Tauri's own
+  // "command not found" into the unsupported sentence.
+  const describeFailure = useFailureText();
   const locale = i18n.language;
   const confirmEndTask = useSettings((state) => state.settings.confirmEndTask);
   const facts = useHostFacts(hostFacts);
@@ -411,7 +425,7 @@ export function ProcessesScreen({
             denied: true,
           });
         } else {
-          setFailure(errorMessage(error));
+          setFailure(describeFailure(error));
         }
       } finally {
         setBusy(false);
@@ -421,7 +435,7 @@ export function ProcessesScreen({
         }
       }
     },
-    [actions],
+    [actions, describeFailure],
   );
 
   /**
@@ -445,14 +459,14 @@ export function ProcessesScreen({
       if (isCommandError(error) && error.kind === 'refused') {
         setFailure(tp('elevation.declined'));
       } else {
-        setFailure(errorMessage(error));
+        setFailure(describeFailure(error));
       }
     } finally {
       setBusy(false);
       setRequest(null);
       pendingRef.current = null;
     }
-  }, [actions, tp]);
+  }, [actions, tp, describeFailure]);
 
   const beginAction = useCallback(
     async (action: RiskAction, row: ProcessRow) => {
@@ -467,7 +481,7 @@ export function ProcessesScreen({
             ? await actions.planSuspend(row.process)
             : await actions.planTerminate(row.process);
       } catch (error) {
-        setFailure(errorMessage(error));
+        setFailure(describeFailure(error));
         pendingRef.current = null;
         return;
       }
@@ -495,7 +509,7 @@ export function ProcessesScreen({
         childCount: Math.max(0, ids.length - 1),
       });
     },
-    [actions, built.byId, confirmEndTask, runPending],
+    [actions, built.byId, confirmEndTask, runPending, describeFailure],
   );
 
   const onKeyDown = useCallback(
@@ -550,8 +564,10 @@ export function ProcessesScreen({
         case 'Delete':
           // Delete goes through the same plan-then-confirm path as the menu.
           // A destructive shortcut with its own shorter path is how people
-          // end up bugchecking a machine by leaning on a key.
-          if (focusedRow !== null) {
+          // end up bugchecking a machine by leaning on a key. Offered only
+          // where the capability exists, so the key cannot invoke an action
+          // the menu already refuses to show.
+          if (focusedRow !== null && supports(facts.capabilities, 'terminateProcess')) {
             event.preventDefault();
             void beginAction('terminate', focusedRow);
           }
@@ -560,7 +576,16 @@ export function ProcessesScreen({
           break;
       }
     },
-    [rows, rowIndex, focusedId, focusedRow, expanded, onToggleExpand, beginAction],
+    [
+      rows,
+      rowIndex,
+      focusedId,
+      focusedRow,
+      expanded,
+      onToggleExpand,
+      beginAction,
+      facts.capabilities,
+    ],
   );
 
   const menuProps = useCallback(
@@ -584,12 +609,12 @@ export function ProcessesScreen({
               setFailure(
                 isCommandError(elevated) && elevated.kind === 'refused'
                   ? tp('elevation.declined')
-                  : errorMessage(elevated),
+                  : describeFailure(elevated),
               );
               return;
             }
           }
-          setFailure(errorMessage(error));
+          setFailure(describeFailure(error));
         });
       },
       // No confirmation. Priority is reversible, takes effect immediately and
@@ -611,7 +636,7 @@ export function ProcessesScreen({
               }),
             ),
           )
-          .catch((error: unknown) => setFailure(errorMessage(error)));
+          .catch((error: unknown) => setFailure(describeFailure(error)));
       },
       onOpenFileLocation: () => {
         const path = pathOf(row.id);
@@ -619,7 +644,7 @@ export function ProcessesScreen({
         void actions
           .openFileLocation(path)
           .catch((error: unknown) =>
-            setFailure(tp('detail.file.openFailed', { message: errorMessage(error) })),
+            setFailure(tp('detail.file.openFailed', { message: describeFailure(error) })),
           );
       },
       onShowProperties: () => {
@@ -628,7 +653,7 @@ export function ProcessesScreen({
         void actions
           .showFileProperties(path)
           .catch((error: unknown) =>
-            setFailure(tp('detail.file.propertiesFailed', { message: errorMessage(error) })),
+            setFailure(tp('detail.file.propertiesFailed', { message: describeFailure(error) })),
           );
       },
       onSearchOnline: () => {
@@ -646,6 +671,22 @@ export function ProcessesScreen({
       // `bring_process_to_front` is compiled only on Windows (see
       // `runsOn`); on a Mac the item would fail every time.
       canBringToFront: runsOn(facts.capabilities?.platform ?? null, 'windows'),
+      // The mutating actions follow the capability report rather than the
+      // platform: ending a process works on macOS but not in the App Store
+      // sandbox, so a platform check would be wrong in both directions.
+      canTerminate: supports(facts.capabilities, 'terminateProcess'),
+      canSuspend: supports(facts.capabilities, 'suspendProcess'),
+      canSetPriority: supports(facts.capabilities, 'setProcessPriority'),
+      canUseShellActions: runsOn(facts.capabilities?.platform ?? null, 'windows'),
+      // Only when there is nothing to act with at all: the menu then says why
+      // instead of opening as a heading over a blank list.
+      unsupportedReason: supportsAny(facts.capabilities, PROCESS_ACTION_CAPABILITIES)
+        ? null
+        : firstUnavailableReason(
+            facts.capabilities,
+            PROCESS_ACTION_CAPABILITIES,
+            'notSupportedOnPlatform',
+          ),
       onBringToFront: () => {
         const name = displayName(row.process);
         void actions
@@ -654,11 +695,11 @@ export function ProcessesScreen({
             if (!raised) setFailure(tp('front.noWindow', { name }));
           })
           .catch((error: unknown) =>
-            setFailure(tp('front.failed', { name, message: errorMessage(error) })),
+            setFailure(tp('front.failed', { name, message: describeFailure(error) })),
           );
       },
     }),
-    [actions, beginAction, facts.capabilities, pathOf, t, tp],
+    [actions, beginAction, facts.capabilities, pathOf, t, tp, describeFailure],
   );
 
   const total = snapshot.processes.size;
@@ -843,7 +884,7 @@ export function ProcessesScreen({
             locale={locale}
             actions={actions}
             host={facts.host}
-            canSetAffinity={runsOn(facts.capabilities?.platform ?? null, 'windows')}
+            capabilities={facts.capabilities}
             executablePath={focusedRow === null ? null : pathOf(focusedRow.id)}
             onFailure={setFailure}
           />

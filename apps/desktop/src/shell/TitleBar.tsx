@@ -15,6 +15,7 @@ import {
 
 import { SHELL_NS } from './strings';
 import { getWindowControls, type WindowControls } from './windowControls';
+import { useNavVisibility } from './navigation';
 
 /**
  * Height of the caption bar, in pixels.
@@ -24,6 +25,15 @@ import { getWindowControls, type WindowControls } from './windowControls';
  * 46×32 caption buttons are designed for.
  */
 export const TITLE_BAR_HEIGHT = 32;
+
+/**
+ * Leading space the macOS traffic lights need, in pixels.
+ *
+ * With an Overlay title bar the system draws the three controls over the
+ * webview at the leading edge; 78 px clears them (their own inset plus the
+ * button width), so the brand mark does not slide under them.
+ */
+export const TRAFFIC_LIGHT_INSET = 78;
 
 interface CaptionButtonProps {
   readonly label: string;
@@ -115,6 +125,13 @@ export function TitleBar({ children, controls }: TitleBarProps) {
   const { t } = useTranslation(SHELL_NS);
   const [api] = useState<WindowControls>(() => controls ?? getWindowControls());
   const [maximised, setMaximised] = useState(false);
+  // macOS keeps its own frame (tauri.macos.conf.json: decorations with an
+  // Overlay title bar), so the traffic lights are drawn by the system and
+  // must be left room; the Windows caption buttons must not also appear.
+  // `null` (no report yet) is the Windows branch, matching the rest of the
+  // shell, and is what the tests render.
+  const platform = useNavVisibility((state) => state.platform);
+  const isMac = platform === 'macos';
 
   // Maximise state is observed, not assumed. A user can maximise by
   // double-clicking the drag region, dragging to the top edge, or pressing
@@ -169,7 +186,10 @@ export function TitleBar({ children, controls }: TitleBarProps) {
         <ContextMenuTrigger asChild>
           <header
             className="shell-chrome relative flex shrink-0 items-center"
-            style={{ height: TITLE_BAR_HEIGHT }}
+            // The inline style rather than a class: styles.test.ts reads this
+            // element's literal `className` to prove the chrome is unpainted,
+            // and a computed class string would hide the check.
+            style={{ height: TITLE_BAR_HEIGHT, ...(isMac && { paddingLeft: TRAFFIC_LIGHT_INSET }) }}
           >
             {/*
              * The drag region is a sibling layer rather than the header itself so
@@ -192,20 +212,25 @@ export function TitleBar({ children, controls }: TitleBarProps) {
               </span>
             </div>
 
-            <div className="relative flex h-full items-center">
-              <CaptionButton label={t('window.minimise')} onClick={() => void api.minimize()}>
-                <Glyph>{glyph.minimise}</Glyph>
-              </CaptionButton>
-              <CaptionButton
-                label={maximised ? t('window.restore') : t('window.maximise')}
-                onClick={() => void api.toggleMaximize()}
-              >
-                <Glyph>{maximised ? glyph.restore : glyph.maximise}</Glyph>
-              </CaptionButton>
-              <CaptionButton danger label={t('window.close')} onClick={() => void api.close()}>
-                <Glyph>{glyph.close}</Glyph>
-              </CaptionButton>
-            </div>
+            {/* Windows draws its own caption buttons; on macOS the window is
+                decorated natively, so the same buttons here would be a second,
+                non-native set beside the real traffic lights. */}
+            {!isMac && (
+              <div className="relative flex h-full items-center">
+                <CaptionButton label={t('window.minimise')} onClick={() => void api.minimize()}>
+                  <Glyph>{glyph.minimise}</Glyph>
+                </CaptionButton>
+                <CaptionButton
+                  label={maximised ? t('window.restore') : t('window.maximise')}
+                  onClick={() => void api.toggleMaximize()}
+                >
+                  <Glyph>{maximised ? glyph.restore : glyph.maximise}</Glyph>
+                </CaptionButton>
+                <CaptionButton danger label={t('window.close')} onClick={() => void api.close()}>
+                  <Glyph>{glyph.close}</Glyph>
+                </CaptionButton>
+              </div>
+            )}
           </header>
         </ContextMenuTrigger>
         {/*

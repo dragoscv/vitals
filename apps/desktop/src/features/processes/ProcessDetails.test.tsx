@@ -11,7 +11,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { initI18n } from '@vitals/i18n';
-import type { HandleInfo, HostInfo } from '@vitals/protocol';
+import type { Capabilities, HandleInfo, HostInfo } from '@vitals/protocol';
 
 import type { ProcessActionsApi } from './actions';
 import type { ProcessRow } from './model';
@@ -89,7 +89,11 @@ function host(overrides: Partial<HostInfo> = {}): HostInfo {
 
 function mount(
   actions: ProcessActionsApi = stubActions(),
-  options: { host?: HostInfo | null; path?: string | null; canSetAffinity?: boolean } = {},
+  options: {
+    host?: HostInfo | null;
+    path?: string | null;
+    capabilities?: Capabilities | null;
+  } = {},
 ) {
   const onFailure = vi.fn();
   render(
@@ -98,14 +102,23 @@ function mount(
       locale="en"
       actions={actions}
       host={options.host ?? null}
-      // Windows, the platform these tests were written against; the macOS
-      // case passes false explicitly.
-      canSetAffinity={options.canSetAffinity ?? true}
+      // `null` fails open, which is the Windows-like case these tests were
+      // written against; a platform-specific case passes a report explicitly.
+      capabilities={options.capabilities ?? null}
       executablePath={options.path ?? null}
       onFailure={onFailure}
     />,
   );
   return { actions, onFailure };
+}
+
+/** A capability report with a platform and the given unavailable entries. */
+function report(
+  platform: Capabilities['platform'],
+  unavailable: Capabilities['unavailable'] = [],
+  available: Capabilities['available'] = [],
+): Capabilities {
+  return { platform, available, unavailable };
 }
 
 /** Lets the pending `getEfficiencyMode` promise settle into state. */
@@ -173,6 +186,45 @@ describe('efficiency mode', () => {
 
     await waitFor(() => expect(onFailure).toHaveBeenCalledOnce());
     expect(onFailure.mock.calls[0]?.[0]).toContain('no');
+  });
+
+  it('never asks the backend for efficiency mode where it is not built', async () => {
+    // The command is compiled out on that platform, so asking would reject
+    // once per selected process for a state the report already answers.
+    const { actions } = mount(stubActions(), {
+      capabilities: report(
+        'windows',
+        [['setEfficiencyMode', 'notSupportedOnPlatform']],
+        ['setProcessAffinity'],
+      ),
+    });
+    await flush();
+
+    expect(actions.getEfficiencyMode).not.toHaveBeenCalled();
+    expect(screen.queryByRole('switch')).toBeNull();
+    expect(screen.getByText('Not available on this system')).toBeTruthy();
+  });
+
+  it('shows a missing command as unsupported rather than echoing Tauri at the user', async () => {
+    // The race the capability gate cannot close: the report said the command
+    // exists but this build does not have it. Tauri's bare
+    // `Command <name> not found` is not a sentence to put in front of anyone.
+    const { onFailure } = mount(
+      stubActions({
+        getEfficiencyMode: vi.fn(async () => false),
+        setEfficiencyMode: vi.fn(async () => {
+          throw 'Command set_efficiency_mode not found';
+        }),
+      }),
+    );
+    await flush();
+
+    fireEvent.click(screen.getByRole('switch'));
+
+    await waitFor(() => expect(onFailure).toHaveBeenCalledOnce());
+    const message = onFailure.mock.calls[0]?.[0] ?? '';
+    expect(message).toContain('Not available on this system');
+    expect(message).not.toContain('Command set_efficiency_mode not found');
   });
 });
 
@@ -253,16 +305,23 @@ describe('affinity presets', () => {
     expect(screen.queryByTestId('affinity-presets')).toBeNull();
   });
 
-  it('offers nothing where the backend has no affinity command, even with a full topology', async () => {
-    // macOS: `set_process_affinity` is #[cfg(windows)], so the section would
-    // be a row of buttons that fail on every press.
+  it('explains why affinity is missing instead of offering buttons that would fail', async () => {
+    // macOS: `set_process_affinity` is #[cfg(windows)]. The section stays and
+    // names the obstacle; a row of buttons that fail on every press would
+    // read as a broken app.
     mount(stubActions(), {
       host: host({ coreTopology: null, logicalCores: 8 }),
-      canSetAffinity: false,
+      // Only affinity is missing, so the notice can be asserted unambiguously.
+      capabilities: report(
+        'windows',
+        [['setProcessAffinity', 'notSupportedOnPlatform']],
+        ['setEfficiencyMode'],
+      ),
     });
     await flush();
     expect(screen.queryByTestId('affinity-presets')).toBeNull();
-    expect(screen.queryByText('Run on')).toBeNull();
+    expect(screen.getByText('Run on')).toBeTruthy();
+    expect(screen.getByText('Not available on this system')).toBeTruthy();
   });
 
   it('offers the topology-free presets on a uniform machine', async () => {
@@ -321,5 +380,20 @@ describe('file actions', () => {
     await waitFor(() =>
       expect(actions.showFileProperties).toHaveBeenCalledWith('C:\\Apps\\chrome.exe'),
     );
+  });
+
+  it('names the reason instead of offering shell buttons that cannot work here', async () => {
+    // `open_file_location` and the properties dialog are Windows shell
+    // integrations. Off Windows they would be two buttons that reject on
+    // every press — the section explains itself instead.
+    mount(stubActions(), {
+      path: 'C:\\Apps\\chrome.exe',
+      capabilities: report('macos', [], ['setProcessAffinity', 'setEfficiencyMode']),
+    });
+    await flush();
+
+    expect(screen.queryByRole('button', { name: 'Properties' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Open file location' })).toBeNull();
+    expect(screen.getByText('Not available on this system')).toBeTruthy();
   });
 });

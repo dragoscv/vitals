@@ -20,7 +20,7 @@ use std::sync::atomic::{AtomicBool, AtomicU16, Ordering};
 
 use parking_lot::Mutex;
 use tauri::image::Image;
-use tauri::menu::{CheckMenuItem, Menu, MenuEvent, MenuItem};
+use tauri::menu::{CheckMenuItem, IsMenuItem, Menu, MenuEvent, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Manager, Wry};
 use tauri_plugin_notification::NotificationExt;
@@ -162,7 +162,10 @@ pub struct Tray {
 struct MenuHandles {
     show: MenuItem<Wry>,
     pause: CheckMenuItem<Wry>,
-    task_manager: MenuItem<Wry>,
+    /// `None` off Windows: the entry is left out of the menu entirely rather
+    /// than shown disabled, because there is no real Task Manager to open and
+    /// a permanently greyed item names a feature this build does not have.
+    task_manager: Option<MenuItem<Wry>>,
     /// Shown only while an update is downloaded (DEV-3): the one-click way
     /// to install it, with any prompt following the click.
     update: MenuItem<Wry>,
@@ -242,7 +245,9 @@ impl Tray {
         if let Some(handles) = self.menu.lock().as_ref() {
             let _ = handles.show.set_text(&strings.show);
             let _ = handles.pause.set_text(&strings.pause);
-            let _ = handles.task_manager.set_text(&strings.task_manager);
+            if let Some(task_manager) = handles.task_manager.as_ref() {
+                let _ = task_manager.set_text(&strings.task_manager);
+            }
             let _ = handles.update.set_text(&strings.restart_to_update);
             let _ = handles.quit.set_text(&strings.quit);
         }
@@ -307,15 +312,27 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
         None::<&str>,
     )?;
     // Only offered where there is a real Task Manager to open. On other
-    // platforms the item would be a button that does nothing.
-    let task_manager = MenuItem::with_id(
+    // platforms the item is left out rather than disabled: a greyed entry
+    // names a feature this build does not have, and every other macOS app's
+    // menu simply does not contain it.
+    #[cfg(windows)]
+    let task_manager = Some(MenuItem::with_id(
         app,
         "task_manager",
         &strings.task_manager,
-        cfg!(windows),
+        true,
         None::<&str>,
-    )?;
-    let menu = Menu::with_items(app, &[&show, &pause, &task_manager, &update, &quit])?;
+    )?);
+    #[cfg(not(windows))]
+    let task_manager: Option<MenuItem<Wry>> = None;
+
+    let mut items: Vec<&dyn IsMenuItem<Wry>> = vec![&show, &pause];
+    if let Some(task_manager) = task_manager.as_ref() {
+        items.push(task_manager);
+    }
+    items.push(&update);
+    items.push(&quit);
+    let menu = Menu::with_items(app, &items)?;
 
     *tray.menu.lock() = Some(MenuHandles {
         show,
@@ -332,6 +349,10 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
         .icon(icon(None))
         .tooltip("Vitals")
         .menu(&menu)
+        // macOS renders a template as a mask, so the mark takes the menu
+        // bar's own light/dark appearance instead of sitting in it as a
+        // coloured bitmap beside every native item.
+        .icon_as_template(cfg!(target_os = "macos"))
         // Left click belongs to "show the window"; the menu is the right
         // button. Left-clicking a monitor icon to be shown a menu instead of
         // the monitor is a small daily annoyance.

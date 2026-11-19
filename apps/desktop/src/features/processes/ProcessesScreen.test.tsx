@@ -629,6 +629,42 @@ describe('keyboard access', () => {
     expect(actions.terminate).not.toHaveBeenCalled();
   });
 
+  it('Delete does nothing where the build cannot end a process', async () => {
+    // The same capability as the menu item: a keyboard path with its own
+    // shorter route to a command the build does not have would be the exact
+    // "shortcut that is not in the menu" the plan-then-confirm path exists to
+    // avoid.
+    const actions = stubActions();
+    const source = createManualSnapshotSource({
+      ...INITIAL_SNAPSHOT,
+      pending: false,
+      processes: makeMap([makeProcess({ pid: 300, name: 'chrome.exe', kind: 'app' })]),
+    });
+    render(
+      <ProcessesScreen
+        source={source}
+        actions={actions}
+        storage={memoryStorage()}
+        hostFacts={async () => ({
+          host: null,
+          capabilities: {
+            platform: 'macos',
+            available: [],
+            unavailable: [['terminateProcess', 'appSandbox']],
+            diskCounterSource: null,
+          },
+        })}
+      />,
+    );
+
+    const grid = await screen.findByRole('treegrid');
+    fireEvent.keyDown(grid, { key: 'ArrowDown' });
+    fireEvent.keyDown(grid, { key: 'Delete' });
+
+    await waitFor(() => expect(actions.planTerminate).not.toHaveBeenCalled());
+    expect(screen.queryByTestId('risk-dialog')).toBeNull();
+  });
+
   it('Home and End move the focused row to the extremes', async () => {
     mountScreen();
     const grid = await screen.findByRole('treegrid');
@@ -833,7 +869,10 @@ describe('shell actions', () => {
           host: null,
           capabilities: {
             platform: 'macos',
-            available: [],
+            // A direct-build Mac can end, suspend and prioritise a process;
+            // only the Windows-only actions are missing. An empty list here
+            // would describe a platform with no backend at all.
+            available: ['terminateProcess', 'suspendProcess', 'setProcessPriority'],
             unavailable: [],
             diskCounterSource: null,
           },
@@ -845,6 +884,46 @@ describe('shell actions', () => {
     // The menu itself is open — this is not a test of an empty page.
     expect(screen.getByRole('menuitem', { name: 'End task' })).toBeTruthy();
     expect(screen.queryByRole('menuitem', { name: 'Bring to front' })).toBeNull();
+  });
+
+  it('hides every process action the host cannot perform, and names the reason', async () => {
+    // The Mac App Store build: macOS reports terminate, suspend and priority
+    // as unavailable under `AppSandbox`. The menu must not offer any of them,
+    // and must say why rather than open as a heading over a blank list. This
+    // is the screen's half of the contract: the capability report, not the
+    // platform name, decides.
+    const source = createManualSnapshotSource({
+      ...INITIAL_SNAPSHOT,
+      pending: false,
+      processes: makeMap([makeProcess({ pid: 300, name: 'chrome.exe', kind: 'app' })]),
+    });
+    render(
+      <ProcessesScreen
+        source={source}
+        actions={stubActions()}
+        storage={memoryStorage()}
+        hostFacts={async () => ({
+          host: null,
+          capabilities: {
+            platform: 'macos',
+            available: [],
+            unavailable: [
+              ['terminateProcess', 'appSandbox'],
+              ['suspendProcess', 'appSandbox'],
+              ['setProcessPriority', 'appSandbox'],
+            ],
+            diskCounterSource: null,
+          },
+        })}
+      />,
+    );
+
+    await openMenuFor(300);
+
+    for (const name of ['End task', 'Suspend', 'Priority']) {
+      expect(screen.queryByRole('menuitem', { name })).toBeNull();
+    }
+    expect(screen.getByText(/App Store version/)).toBeTruthy();
   });
 });
 

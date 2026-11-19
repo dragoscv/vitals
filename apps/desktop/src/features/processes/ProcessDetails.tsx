@@ -25,13 +25,18 @@ import {
 
 import {
   displayName,
+  type Capabilities,
   type HandleInfo,
   type HostInfo,
   type ModuleInfo,
   type Process,
+  type Unavailable,
 } from '@vitals/protocol';
 
-import { errorMessage, type ProcessActionsApi } from './actions';
+import { UnsupportedNotice } from '../../components/UnsupportedNotice';
+import { runsOn, supports, unavailableReason } from '../../shell/platform';
+import type { ProcessActionsApi } from './actions';
+import { useFailureText } from '../../lib/failureText';
 import { affinityPresets, type AffinityPreset } from './affinity';
 import { UNKNOWN } from './constants';
 import { flagKeys, type ProcessRow } from './model';
@@ -58,12 +63,14 @@ export interface ProcessDetailsProps {
    */
   readonly host: HostInfo | null;
   /**
-   * Whether this build has an affinity command at all. Windows-only on the
-   * backend, so on a Mac the section is omitted rather than offered and then
-   * refused — the row's "controls that follow what the PC reports it
-   * supports", applied to the platform instead of to the process.
+   * What this build can do, from `get_capabilities`. The panel gates each of
+   * its actions on the *capability* rather than on the platform: ending a
+   * process is available on macOS but not in the App Store sandbox, affinity
+   * is Windows-only, and a platform with no backend lists neither. An
+   * unsupported action is replaced by the reason rather than a button that
+   * would fail on every press.
    */
-  readonly canSetAffinity: boolean;
+  readonly capabilities: Capabilities | null;
   /** Full executable path, when the detail fetch has provided one. */
   readonly executablePath: string | null;
   readonly onFailure: (message: string) => void;
@@ -74,7 +81,7 @@ export function ProcessDetails({
   locale,
   actions,
   host,
-  canSetAffinity,
+  capabilities,
   executablePath,
   onFailure,
 }: ProcessDetailsProps): React.JSX.Element | null {
@@ -86,6 +93,10 @@ export function ProcessDetails({
 
   const p = row.process;
   const flags = flagKeys(p.flags);
+  // `open_file_location` and the properties dialog go through Windows shell
+  // APIs and answer `Unsupported` everywhere else, so the section is offered
+  // only where those exist.
+  const canUseShellActions = runsOn(capabilities?.platform ?? null, 'windows');
 
   return (
     <aside
@@ -148,17 +159,29 @@ export function ProcessDetails({
         />
       </Section>
 
-      <EfficiencySection process={p} actions={actions} onFailure={onFailure} />
+      <EfficiencySection
+        process={p}
+        actions={actions}
+        supported={supports(capabilities, 'setEfficiencyMode')}
+        reason={unavailableReason(capabilities, 'setEfficiencyMode') ?? 'notSupportedOnPlatform'}
+        onFailure={onFailure}
+      />
 
       <AffinitySection
         process={p}
         actions={actions}
         host={host}
-        canSetAffinity={canSetAffinity}
+        canSetAffinity={supports(capabilities, 'setProcessAffinity')}
+        reason={unavailableReason(capabilities, 'setProcessAffinity') ?? 'notSupportedOnPlatform'}
         onFailure={onFailure}
       />
 
-      <FileSection path={executablePath} actions={actions} onFailure={onFailure} />
+      <FileSection
+        path={executablePath}
+        actions={actions}
+        supported={canUseShellActions}
+        onFailure={onFailure}
+      />
 
       {/* Keyed on the process so an expanded Handles list for chrome.exe is
           not shown, stale, under the next row the user clicks. */}
@@ -226,13 +249,19 @@ export function ProcessDetails({
 function EfficiencySection({
   process,
   actions,
+  supported,
+  reason,
   onFailure,
 }: {
   readonly process: Process;
   readonly actions: ProcessActionsApi;
+  /** False where `set_efficiency_mode` does not exist in this build. */
+  readonly supported: boolean;
+  readonly reason: Unavailable;
   readonly onFailure: (message: string) => void;
 }): React.JSX.Element {
   const { t } = useTranslation(PROCESSES_NS);
+  const describeFailure = useFailureText();
   // `undefined` = not yet asked; `null` = asked, unreadable.
   const [mode, setMode] = useState<boolean | null | undefined>(undefined);
   const [busy, setBusy] = useState(false);
@@ -249,6 +278,9 @@ function EfficiencySection({
 
   const { pid, startTime } = process.key;
   useEffect(() => {
+    // Nothing to read where the command is not compiled in — asking anyway
+    // would reject once per selected process for a state we already know.
+    if (!supported) return undefined;
     let live = true;
     void actions
       .getEfficiencyMode(latest.current)
@@ -263,7 +295,11 @@ function EfficiencySection({
     return () => {
       live = false;
     };
-  }, [pid, startTime, actions]);
+  }, [pid, startTime, actions, supported]);
+
+  if (!supported) {
+    return <UnsupportedNotice title={t('detail.efficiency.label')} reason={reason} />;
+  }
 
   const unreadable = mode === null;
   const pending = mode === undefined;
@@ -275,7 +311,7 @@ function EfficiencySection({
       .then(() => actions.getEfficiencyMode(process))
       .then((value) => setMode(value))
       .catch((error: unknown) => {
-        onFailure(t('detail.efficiency.failed', { message: errorMessage(error) }));
+        onFailure(t('detail.efficiency.failed', { message: describeFailure(error) }));
       })
       .finally(() => setBusy(false));
   };
@@ -316,6 +352,7 @@ function AffinitySection({
   actions,
   host,
   canSetAffinity,
+  reason,
   onFailure,
 }: {
   readonly process: Process;
@@ -323,20 +360,25 @@ function AffinitySection({
   readonly host: HostInfo | null;
   /** False where `set_process_affinity` is not compiled in — it is Windows-only. */
   readonly canSetAffinity: boolean;
+  readonly reason: Unavailable;
   readonly onFailure: (message: string) => void;
 }): React.JSX.Element | null {
   const { t } = useTranslation(PROCESSES_NS);
-  // Two reasons to render nothing, and they are different facts: the machine
-  // cannot express presets (no core topology), or this build has no affinity
-  // command at all. In the second case the section would be a row of buttons
-  // that fail on every press.
-  if (!canSetAffinity) return null;
+  const describeFailure = useFailureText();
+  // No affinity command in this build: say why rather than offer a row of
+  // buttons that fail on every press. Distinct from the case below, where the
+  // command exists but the *machine* cannot express the presets.
+  if (!canSetAffinity) {
+    return <UnsupportedNotice title={t('detail.affinity.title')} reason={reason} />;
+  }
   const presets = affinityPresets(host);
   if (presets.length === 0) return null;
 
   const apply = (preset: AffinityPreset): void => {
     void actions.setAffinity(process, preset.mask).catch((error: unknown) => {
-      onFailure(t('detail.affinity.failed', { name: process.name, message: errorMessage(error) }));
+      onFailure(
+        t('detail.affinity.failed', { name: process.name, message: describeFailure(error) }),
+      );
     });
   };
 
@@ -366,14 +408,28 @@ function AffinitySection({
 function FileSection({
   path,
   actions,
+  supported,
   onFailure,
 }: {
   readonly path: string | null;
   readonly actions: ProcessActionsApi;
+  /** False where `open_file_location` / properties are not compiled in. */
+  readonly supported: boolean;
   readonly onFailure: (message: string) => void;
 }): React.JSX.Element {
   const { t } = useTranslation();
   const { t: tp } = useTranslation(PROCESSES_NS);
+  const describeFailure = useFailureText();
+
+  // The two commands are Windows shell integrations and answer `Unsupported`
+  // everywhere else, so the buttons would fail on every press. Replace them
+  // with the reason.
+  if (!supported) {
+    return (
+      <UnsupportedNotice title={t('process.action.openLocation')} reason="notSupportedOnPlatform" />
+    );
+  }
+
   const known = path !== null;
   const reason = known ? undefined : tp('detail.file.unknownPath');
 
@@ -388,7 +444,7 @@ function FileSection({
           onClick={() => {
             if (path === null) return;
             void actions.openFileLocation(path).catch((error: unknown) => {
-              onFailure(tp('detail.file.openFailed', { message: errorMessage(error) }));
+              onFailure(tp('detail.file.openFailed', { message: describeFailure(error) }));
             });
           }}
         >
@@ -402,7 +458,7 @@ function FileSection({
           onClick={() => {
             if (path === null) return;
             void actions.showFileProperties(path).catch((error: unknown) => {
-              onFailure(tp('detail.file.propertiesFailed', { message: errorMessage(error) }));
+              onFailure(tp('detail.file.propertiesFailed', { message: describeFailure(error) }));
             });
           }}
         >
@@ -446,6 +502,7 @@ function LazyList<T>({
   readonly locale: string;
 }): React.JSX.Element {
   const { t } = useTranslation(PROCESSES_NS);
+  const describeFailure = useFailureText();
   const [state, setState] = useState<LazyState<T>>({ status: 'collapsed' });
 
   const expanded = state.status !== 'collapsed';
@@ -458,7 +515,7 @@ function LazyList<T>({
     setState({ status: 'loading' });
     void fetch(process)
       .then((items) => setState({ status: 'loaded', items }))
-      .catch((error: unknown) => setState({ status: 'failed', message: errorMessage(error) }));
+      .catch((error: unknown) => setState({ status: 'failed', message: describeFailure(error) }));
   };
 
   const count = state.status === 'loaded' ? formatCount(state.items.length, locale) : null;

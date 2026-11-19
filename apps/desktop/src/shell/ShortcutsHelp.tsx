@@ -11,7 +11,8 @@ import { useTranslation } from 'react-i18next';
 
 import { DialogContent, DialogRoot } from '@vitals/ui';
 
-import { shortcuts } from './shortcuts';
+import { useNavVisibility } from './navigation';
+import { displayKeys, shortcuts } from './shortcuts';
 import { SHELL_NS } from './strings';
 
 export function ShortcutsHelp({
@@ -22,6 +23,10 @@ export function ShortcutsHelp({
   readonly onOpenChange: (open: boolean) => void;
 }) {
   const { t } = useTranslation(SHELL_NS);
+  // Cmd on macOS, Ctrl elsewhere — the registry stores the neutral `Ctrl` and
+  // the label is resolved here so the sheet never names a chord this machine
+  // does not have.
+  const platform = useNavVisibility((state) => state.platform);
 
   return (
     <DialogRoot open={open} onOpenChange={onOpenChange}>
@@ -36,7 +41,7 @@ export function ShortcutsHelp({
             <div key={shortcut.id} className="flex items-baseline justify-between gap-4">
               <dt className="min-w-0 text-sm">{t(shortcut.labelKey)}</dt>
               <dd className="flex shrink-0 items-center gap-1">
-                {shortcut.keys.map((key) => (
+                {displayKeys(shortcut.keys, platform).map((key) => (
                   <kbd
                     key={key}
                     className="rounded-[var(--radius-control)] border border-[var(--color-border-default)] bg-[var(--color-bg-inset)] px-1.5 py-0.5 text-2xs"

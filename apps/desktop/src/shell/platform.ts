@@ -15,7 +15,7 @@
 
 import { useEffect } from 'react';
 
-import type { Capabilities, Platform } from '@vitals/protocol';
+import type { Capabilities, Capability, Platform, Unavailable } from '@vitals/protocol';
 
 import { useNavVisibility } from './navigation';
 
@@ -66,4 +66,64 @@ export function usePlatformVisibility(read?: PlatformReader): void {
  */
 export function runsOn(platform: Platform | null, wanted: Platform): boolean {
   return platform === null || platform === wanted;
+}
+
+/**
+ * Whether the host can actually exercise `capability`.
+ *
+ * The finer question behind `runsOn`: "may this build raise a window" is a
+ * platform fact, but "can it end this process" is not — the Mac App Store
+ * build is macOS and still cannot, and a Linux build has the command compiled
+ * out entirely. Asking the report's own availability list is the only answer
+ * that stays true for all three, and it is what `Capabilities.available`
+ * exists for.
+ *
+ * Fails OPEN when there is no report, on the same rule as `runsOn`: a fact
+ * that could not be read must never take away a control that works. It does
+ * NOT fail open for a report that was read — an empty `available` list means
+ * the host can do none of this, which is exactly what a platform without a
+ * backend reports.
+ */
+export function supports(report: Capabilities | null | undefined, capability: Capability): boolean {
+  if (!report) return true;
+  return report.available.includes(capability);
+}
+
+/**
+ * Why `capability` cannot be exercised here, or `null` when it can — or when
+ * the report could not be read, in which case there is nothing honest to say.
+ */
+export function unavailableReason(
+  report: Capabilities | null | undefined,
+  capability: Capability,
+): Unavailable | null {
+  if (!report) return null;
+  return report.unavailable.find(([name]) => name === capability)?.[1] ?? null;
+}
+
+/**
+ * The first reason any of `wanted` is unavailable, for a surface that asks
+ * one question about a group of actions ("can this build act on a process at
+ * all?"). `fallback` is returned when none of them carries a reason — which
+ * includes a report that was read but lists nothing, the shape a platform
+ * without a backend reports.
+ */
+export function firstUnavailableReason(
+  report: Capabilities | null | undefined,
+  wanted: readonly Capability[],
+  fallback: Unavailable,
+): Unavailable {
+  for (const capability of wanted) {
+    const why = unavailableReason(report, capability);
+    if (why !== null) return why;
+  }
+  return fallback;
+}
+
+/** Whether the host can perform any one of `wanted`. */
+export function supportsAny(
+  report: Capabilities | null | undefined,
+  wanted: readonly Capability[],
+): boolean {
+  return wanted.some((capability) => supports(report, capability));
 }

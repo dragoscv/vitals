@@ -9,6 +9,7 @@
  */
 
 import { visibleNavItems, type RouteId } from './navigation';
+import type { Platform } from '@vitals/protocol';
 
 /** What a shortcut can ask the shell to do. */
 export interface ShortcutActions {
@@ -100,6 +101,19 @@ export const shortcuts: readonly Shortcut[] = [
     run: () => {},
   },
 ];
+
+/**
+ * The labels to draw for a chord, on a given platform.
+ *
+ * The registry stores a platform-neutral `Ctrl` because the *chord* is the
+ * same chord; macOS spells that modifier `⌘`. Drawing "Ctrl+K" on a Mac names
+ * a shortcut the user does not have, so the sheet resolves the label at render
+ * time. Only the primary modifier differs — `Shift` and the letters do not.
+ */
+export function displayKeys(keys: readonly string[], platform: Platform | null): readonly string[] {
+  if (platform !== 'macos') return keys;
+  return keys.map((key) => (key === 'Ctrl' ? '\u2318' : key));
+}
 
 /**
  * Whether a keystroke should be ignored because the user is typing.

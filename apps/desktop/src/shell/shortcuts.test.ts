@@ -1,7 +1,13 @@
 import { describe, expect, it, vi, type Mock } from 'vitest';
 
 import { navItems } from './navigation';
-import { isTypingTarget, runShortcut, shortcuts, type ShortcutActions } from './shortcuts';
+import {
+  displayKeys,
+  isTypingTarget,
+  runShortcut,
+  shortcuts,
+  type ShortcutActions,
+} from './shortcuts';
 
 type MockedActions = { readonly [K in keyof ShortcutActions]: Mock<ShortcutActions[K]> };
 
@@ -93,5 +99,20 @@ describe('isTypingTarget', () => {
     expect(isTypingTarget(check)).toBe(false);
     expect(isTypingTarget(document.body)).toBe(false);
     expect(isTypingTarget(null)).toBe(false);
+  });
+});
+
+describe('displayKeys', () => {
+  it('draws the primary modifier as Cmd on macOS and Ctrl everywhere else', () => {
+    const simple = ['Ctrl', 'K'];
+    expect(displayKeys(simple, 'macos')).toEqual(['\u2318', 'K']);
+    expect(displayKeys(simple, 'windows')).toEqual(['Ctrl', 'K']);
+    // No report yet is the Windows spelling, matching the rest of the shell.
+    expect(displayKeys(simple, null)).toEqual(['Ctrl', 'K']);
+  });
+
+  it('leaves every other cap alone, including the Cmd-already glyphs', () => {
+    expect(displayKeys(['Ctrl', 'Shift', 'H'], 'macos')).toEqual(['\u2318', 'Shift', 'H']);
+    expect(displayKeys(['?'], 'macos')).toEqual(['?']);
   });
 });

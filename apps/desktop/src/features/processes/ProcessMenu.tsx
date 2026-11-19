@@ -20,8 +20,9 @@ import {
   ContextMenuSubTrigger,
 } from '@vitals/ui';
 
-import { displayName, type Process } from '@vitals/protocol';
+import { displayName, type Process, type Unavailable } from '@vitals/protocol';
 
+import { REASON_KEYS } from '../../lib/capabilityText';
 import { priorities, type ProcessPriority } from './actions';
 import { ProcessFlag, hasFlag } from './constants';
 import { PROCESSES_NS } from './strings';
@@ -78,6 +79,22 @@ export interface ProcessMenuProps {
   readonly canBringToFront: boolean;
   /** Raises the process's window; offered only when it has one. */
   readonly onBringToFront: () => void;
+  /**
+   * Which mutating actions this build can actually perform, from the
+   * capability report. A `false` hides the item rather than offering one that
+   * fails on every press.
+   */
+  readonly canTerminate: boolean;
+  readonly canSuspend: boolean;
+  readonly canSetPriority: boolean;
+  /** Windows-only shell integrations (`open_file_location`, properties). */
+  readonly canUseShellActions: boolean;
+  /**
+   * Why no action is offered, when that is the case — the reason the menu
+   * shows in place of a set of items that would all fail. `null` when at
+   * least one action is available.
+   */
+  readonly unsupportedReason: Unavailable | null;
 }
 
 export function ProcessMenu(props: ProcessMenuProps): React.JSX.Element {
@@ -115,64 +132,84 @@ export function ProcessMenu(props: ProcessMenuProps): React.JSX.Element {
         </>
       )}
 
-      <ContextMenuItem destructive onSelect={props.onTerminate}>
-        {t('process.action.endTask')}
-      </ContextMenuItem>
-      <ContextMenuItem
-        destructive
-        disabled={descendantCount === 0}
-        onSelect={props.onTerminateTree}
-      >
-        {descendantCount === 0
-          ? t('process.action.endTree')
-          : t('process.action.endTreeCount', {
-              count: descendantCount,
-            })}
-      </ContextMenuItem>
-
-      <ContextMenuSeparator />
-
-      {suspended ? (
-        <ContextMenuItem onSelect={props.onResume}>{t('process.action.resume')}</ContextMenuItem>
-      ) : (
-        <ContextMenuItem onSelect={props.onSuspend}>{t('process.action.suspend')}</ContextMenuItem>
+      {props.canTerminate && (
+        <>
+          <ContextMenuItem destructive onSelect={props.onTerminate}>
+            {t('process.action.endTask')}
+          </ContextMenuItem>
+          <ContextMenuItem
+            destructive
+            disabled={descendantCount === 0}
+            onSelect={props.onTerminateTree}
+          >
+            {descendantCount === 0
+              ? t('process.action.endTree')
+              : t('process.action.endTreeCount', {
+                  count: descendantCount,
+                })}
+          </ContextMenuItem>
+        </>
       )}
 
-      <ContextMenuSub>
-        <ContextMenuSubTrigger>{t('process.action.priority')}</ContextMenuSubTrigger>
-        <ContextMenuSubContent>
-          {MENU_ORDER.map((priority) => (
-            <ContextMenuItem
-              key={priority}
-              onSelect={() => {
-                props.onSetPriority(priority);
-              }}
-            >
-              {t(PRIORITY_KEYS[priority])}
-            </ContextMenuItem>
-          ))}
-        </ContextMenuSubContent>
-      </ContextMenuSub>
+      {props.canSuspend &&
+        (suspended ? (
+          <ContextMenuItem onSelect={props.onResume}>{t('process.action.resume')}</ContextMenuItem>
+        ) : (
+          <ContextMenuItem onSelect={props.onSuspend}>
+            {t('process.action.suspend')}
+          </ContextMenuItem>
+        ))}
+
+      {props.canSetPriority && (
+        <ContextMenuSub>
+          <ContextMenuSubTrigger>{t('process.action.priority')}</ContextMenuSubTrigger>
+          <ContextMenuSubContent>
+            {MENU_ORDER.map((priority) => (
+              <ContextMenuItem
+                key={priority}
+                onSelect={() => {
+                  props.onSetPriority(priority);
+                }}
+              >
+                {t(PRIORITY_KEYS[priority])}
+              </ContextMenuItem>
+            ))}
+          </ContextMenuSubContent>
+        </ContextMenuSub>
+      )}
+
+      {/*
+       * Nothing to act with, and the menu would otherwise be a heading over a
+       * blank list. Say why, in the reason's own words, rather than leaving
+       * the user to guess whether the process is protected or the platform is.
+       */}
+      {props.unsupportedReason !== null && (
+        <ContextMenuLabel className="max-w-56 text-2xs leading-snug font-normal text-[var(--color-fg-muted)]">
+          {t(REASON_KEYS[props.unsupportedReason])}
+        </ContextMenuLabel>
+      )}
 
       {/* Affinity is not here: it lives in the detail panel as a set of
           presets computed from the core topology, which a flat menu cannot
           show. Selecting the row is what reveals them. */}
-      <ContextMenuItem
-        disabled={!hasPath}
-        {...(noPath !== undefined && { title: noPath })}
-        onSelect={props.onOpenFileLocation}
-      >
-        {t('process.action.openLocation')}
-      </ContextMenuItem>
-      <ContextMenuItem
-        disabled={!hasPath}
-        {...(noPath !== undefined && { title: noPath })}
-        onSelect={props.onShowProperties}
-      >
-        {t('process.action.properties')}
-      </ContextMenuItem>
-
-      <ContextMenuSeparator />
+      {props.canUseShellActions && (
+        <>
+          <ContextMenuItem
+            disabled={!hasPath}
+            {...(noPath !== undefined && { title: noPath })}
+            onSelect={props.onOpenFileLocation}
+          >
+            {t('process.action.openLocation')}
+          </ContextMenuItem>
+          <ContextMenuItem
+            disabled={!hasPath}
+            {...(noPath !== undefined && { title: noPath })}
+            onSelect={props.onShowProperties}
+          >
+            {t('process.action.properties')}
+          </ContextMenuItem>
+        </>
+      )}
 
       <ContextMenuItem onSelect={props.onSearchOnline}>
         {t('process.action.searchOnline')}

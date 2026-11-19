@@ -1,10 +1,11 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { beforeAll, describe, expect, it } from 'vitest';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 
 import { initI18n } from '@vitals/i18n';
 
+import { useNavVisibility } from './navigation';
 import { registerShellStrings } from './strings';
-import { TitleBar } from './TitleBar';
+import { TitleBar, TRAFFIC_LIGHT_INSET } from './TitleBar';
 import type { WindowControls } from './windowControls';
 
 interface Harness {
@@ -61,6 +62,13 @@ function harness(initiallyMaximised = false): Harness {
 beforeAll(async () => {
   await initI18n();
   registerShellStrings();
+});
+
+// The platform is module state; a test that sets it must not leak into the
+// next one, which asserts the Windows caption buttons.
+afterEach(() => {
+  cleanup();
+  useNavVisibility.getState().setPlatform(null);
 });
 
 describe('TitleBar', () => {
@@ -164,5 +172,21 @@ describe('TitleBar', () => {
     // A leaked listener would keep calling setState on an unmounted tree every
     // time the user resizes the window.
     expect(() => h.emitResize()).not.toThrow();
+  });
+
+  it('on macOS leaves the traffic lights to the system and draws no caption buttons', () => {
+    // `titleBarStyle: Overlay` keeps the native frame, so the system draws the
+    // three controls; a second, non-native set here would sit beside them, and
+    // the brand mark needs room cleared for the real ones.
+    useNavVisibility.getState().setPlatform('macos');
+    const { controls } = harness();
+    render(<TitleBar controls={controls}>Dashboard</TitleBar>);
+
+    for (const name of ['Minimise', 'Maximise', 'Close']) {
+      expect(screen.queryByRole('button', { name })).toBeNull();
+    }
+    expect(screen.getByRole('banner').style.paddingLeft).toBe(`${TRAFFIC_LIGHT_INSET}px`);
+    // The bar is still draggable, which is what makes the overlay window move.
+    expect(document.querySelector('[data-tauri-drag-region]')).not.toBeNull();
   });
 });
