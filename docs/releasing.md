@@ -469,6 +469,24 @@ $env:PLAY_ACCESS_TOKEN = (gcloud auth print-access-token).Trim()
 node scripts/check-store-listing.mjs --check --require-full-rollout
 ```
 
+**With no credential to hand, read the verdict out of CI instead.** Because
+`store-listing.yml` runs `--require-full-rollout` on every push to `main` and
+weekly, a green run **is** the proof that production covers everyone — and the
+job log prints the line:
+
+```powershell
+gh run list --workflow=store-listing.yml --limit 5
+gh run view <run-id> --json jobs                                  # the job id
+gh api repos/<owner>/<repo>/actions/jobs/<job-id>/logs |
+  Select-String 'play (production|rollout)'
+# play production: 1.3.0 [versionCodes 44] status=completed userFraction=full
+# play rollout: fully rolled out (1.3.0 completed)
+```
+
+`gh run view <run-id> --log` prints nothing on this repository, so the
+job-level API is the one that works. A **staged** rollout would have failed
+that run, which is what makes a green one worth trusting.
+
 Play gets the **`play` flavour** of the phone and TV apps, which does not
 declare all-files access (Google rejected 1.0.1 for it on 2026-10-14, "not a
 core feature"); the APKs on the GitHub release are the **`github` flavour**
@@ -616,6 +634,30 @@ Files by definition, and `ensure_hook_target_is_admin_only()`
 any executable an ordinary account could swap — which is exactly what a
 `%LOCALAPPDATA%` copy, a Scoop install or a portable copy is. The setting
 refuses with that reason; the fix is a per-machine install, not a retry.
+
+### The real-device pass, scripted (Windows)
+
+The checks no runner can make — a filtered token, an elevated app reached by an
+unelevated CLI, the sensors helper's log cap, a pairing exchange over the LAN —
+are one command against a machine you can reach over `ssh`:
+
+```powershell
+pwsh -NoProfile -File scripts/vivobook-pass.ps1
+pwsh -NoProfile -File scripts/vivobook-pass.ps1 -SkipSensors -SkipPairing
+pwsh -NoProfile -File scripts/vivobook-pass.ps1 -Computer <host> -CliPath <vitals.exe>
+```
+
+It runs the unelevated halves as `-RunLevel Limited -LogonType Interactive`
+tasks (the ssh session there is elevated, and `Start-Process` from it cannot
+show a GUI at all), prints what each check found, and **asserts** the pairing
+exchange — 200 with a 43-character token, then 403 for a replay, 403 for a
+wrong code, and 403 for control from a read token. Two things it changes on
+purpose and leaves behind, because they _are_ the state under test: PawnIO plus
+the `vitals-sensors` service, and its `install.log` inside
+`Program Files\Vitals Sensors`. Everything it registers is removed in a
+`finally`, including a temporary inbound firewall rule for the CLI, and the app
+is relaunched through the machine's own `VitalsLaunch` task so the box is left
+as it was found.
 
 ### Microsoft Store (MSIX, signed by Microsoft)
 

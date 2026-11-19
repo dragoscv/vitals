@@ -139,33 +139,33 @@ in repo memory. This audit found the ninth through the eighteenth.
 
 Status values: `todo`, `doing`, `done`, `blocked`, `dropped`.
 
-| Slice | Theme                                                                                                               | Status                                                                                                             |
-| ----- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| S1    | Dependency upgrades, tooling, VS Code tasks                                                                         | done                                                                                                               |
-| S2    | Truth fixes — dead settings, false capabilities, dead crates                                                        | done                                                                                                               |
-| S3    | `vitals-store` for real: SQLite history, retention, flight recorder                                                 | done                                                                                                               |
-| S4    | LAN server: REST, SSE, WebSocket, Prometheus, mDNS                                                                  | done                                                                                                               |
-| S5    | CLI that samples directly                                                                                           | done                                                                                                               |
-| S6    | Mobile PWA and QR pairing                                                                                           | done                                                                                                               |
-| S7    | UI polish: motion, palette, ultrawide, export, shortcuts                                                            | done                                                                                                               |
-| S8    | Tray, HUD, alerts, notifications, updater                                                                           | done                                                                                                               |
-| S9    | New Windows metrics: DiskCounters, efficiency mode, handles, modules                                                | done                                                                                                               |
-| S10   | Docs, ADRs, CI, supply-chain audits                                                                                 | done                                                                                                               |
-| S11   | Task Manager replacement, HUD overlay                                                                               | done                                                                                                               |
-| S12   | Look-and-feel redesign + the four backend truths it exposed                                                         | done                                                                                                               |
-| S13   | Public beta 0.9.0-beta.1: repo, CI, first release                                                                   | done                                                                                                               |
-| S14   | Storage: fast complete scans, navigation, cleanup, Turbo, extras                                                    | 5/7 done, 1 dropped — open: S14-05 (todo)                                                                          |
-| S15   | Android phone, Wear OS watch, Google TV, Tizen TV                                                                   | done                                                                                                               |
-| S16   | Hardening: latest deps, security, gates, dynamic tests                                                              | done                                                                                                               |
-| S17   | Launch readiness 2026-10-17 (DES/DEV/QA/SEC/LEG/PM/AND/A11Y/I18N/PERF/DOC)                                          | done                                                                                                               |
-| S18   | AI agents page: agentq + every AI client, local and cloud (ADR-0039)                                                | done                                                                                                               |
-| S19   | Launch P2, 1.0.3, updates nobody approves (DEV-3), vivobook MCP                                                     | done                                                                                                               |
-| S20   | 1.0.4: S18 + DEV-3 in one release, winget Scope user                                                                | done                                                                                                               |
-| S21   | Elevation, idle install, AI page hardening, CI round trips, 1.0.5/1.0.6                                             | 9/10 done — open: S21-08 (blocked)                                                                                 |
-| S22   | Per-drive clean-up, drive growth, stable lists, Wear shapes, 1.1.0/1.1.1                                            | done                                                                                                               |
-| S23   | Apple: macOS sampler, notarised DMG, iPhone + Watch, Mac App Store, Health, 1.2.0                                   | 15/16 done — open: S23-16 (blocked)                                                                                |
-| S25   | Kodwen rebrand and the AI usage panel                                                                               | done                                                                                                               |
-| S24   | Reality check 2026-11-12 → release 1.3.0: updater prompt, motion system, platform gates, declarations, ten features | 4/18 done — open: S24-02, S24-04…S24-17 (todo; S24-05 is an uncommitted wave owned by another agent in this clone) |
+| Slice | Theme                                                                                                               | Status                                                                                |
+| ----- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| S1    | Dependency upgrades, tooling, VS Code tasks                                                                         | done                                                                                  |
+| S2    | Truth fixes — dead settings, false capabilities, dead crates                                                        | done                                                                                  |
+| S3    | `vitals-store` for real: SQLite history, retention, flight recorder                                                 | done                                                                                  |
+| S4    | LAN server: REST, SSE, WebSocket, Prometheus, mDNS                                                                  | done                                                                                  |
+| S5    | CLI that samples directly                                                                                           | done                                                                                  |
+| S6    | Mobile PWA and QR pairing                                                                                           | done                                                                                  |
+| S7    | UI polish: motion, palette, ultrawide, export, shortcuts                                                            | done                                                                                  |
+| S8    | Tray, HUD, alerts, notifications, updater                                                                           | done                                                                                  |
+| S9    | New Windows metrics: DiskCounters, efficiency mode, handles, modules                                                | done                                                                                  |
+| S10   | Docs, ADRs, CI, supply-chain audits                                                                                 | done                                                                                  |
+| S11   | Task Manager replacement, HUD overlay                                                                               | done                                                                                  |
+| S12   | Look-and-feel redesign + the four backend truths it exposed                                                         | done                                                                                  |
+| S13   | Public beta 0.9.0-beta.1: repo, CI, first release                                                                   | done                                                                                  |
+| S14   | Storage: fast complete scans, navigation, cleanup, Turbo, extras                                                    | 5/7 done, 1 dropped — open: S14-05 (todo)                                             |
+| S15   | Android phone, Wear OS watch, Google TV, Tizen TV                                                                   | done                                                                                  |
+| S16   | Hardening: latest deps, security, gates, dynamic tests                                                              | done                                                                                  |
+| S17   | Launch readiness 2026-10-17 (DES/DEV/QA/SEC/LEG/PM/AND/A11Y/I18N/PERF/DOC)                                          | done                                                                                  |
+| S18   | AI agents page: agentq + every AI client, local and cloud (ADR-0039)                                                | done                                                                                  |
+| S19   | Launch P2, 1.0.3, updates nobody approves (DEV-3), vivobook MCP                                                     | done                                                                                  |
+| S20   | 1.0.4: S18 + DEV-3 in one release, winget Scope user                                                                | done                                                                                  |
+| S21   | Elevation, idle install, AI page hardening, CI round trips, 1.0.5/1.0.6                                             | done (S21-08 closed 2026-11-19)                                                       |
+| S22   | Per-drive clean-up, drive growth, stable lists, Wear shapes, 1.1.0/1.1.1                                            | done                                                                                  |
+| S23   | Apple: macOS sampler, notarised DMG, iPhone + Watch, Mac App Store, Health, 1.2.0                                   | 15/16 done — open: S23-16 (blocked)                                                   |
+| S25   | Kodwen rebrand and the AI usage panel                                                                               | done                                                                                  |
+| S24   | Reality check 2026-11-12 → release 1.3.0: updater prompt, motion system, platform gates, declarations, ten features | 14/22 done — open: S24-07…S24-10, S24-13, S24-14, S24-16 (in-progress), S24-21 (todo) |
 
 Per-item status lives in `tracker.csv`. This file records the reasoning; the
 CSV records the state.
@@ -315,9 +315,10 @@ vivobook: 1.0.4 test build, updater endpoint http://127.0.0.1:8765/latest.json, 
 Tracker: rows S23-06 and S23-10 had two status segments pasted into the
 verification field (a CSV parser read them as `in-progress`); repaired.
 S21-09, S21-10, S23-06, S23-08, S23-10 closed with the evidence that already
-existed; S23-15 records Apple's decline; S21-08 and S23-16 are `blocked` with
-reasons; S14-05/S14-06 finally have rows. The Slices table is generated from the
-CSV again.
+existed; S23-15 records Apple's decline; S23-16 is `blocked` with reasons, and
+S21-08 was closed on 2026-11-19 — SEC-2 fully verified and SEC-7's claim
+corrected; S14-05/S14-06 finally have rows. The Slices table is generated from
+the CSV again.
 
 ### 2026-11-11 — S23-16 Mac App Store review of 1.2.0 (254)
 
@@ -3457,6 +3458,162 @@ state where the other tool wins; every Vitals claim was checked against the
 code (service start type, handles/modules read-only, end process tree).
 
 ### Verification log
+
+### 2026-11-19 — S21-08 second pass: the log cap was the missing half, and SEC-7's claim was wrong
+
+**What the row was waiting for.** S21-08's five claims need a real
+non-admin Windows session, which no CI runner (admin) and no devcloud agent
+(admin) can provide. The first pass on the laptop verified SEC-1, SEC-3 and
+SEC-9, half of SEC-7, and left SEC-2 partial: the sensors helper refuses to
+install without PawnIO, so the log location and its 1 MB cap were never
+exercised. That refusal is what this pass removes.
+
+**SEC-2, now fully verified.** PawnIO is installed by the helper itself:
+`PawnIO_setup.exe` 2.2.0 downloaded and its sha256 matched the pinned
+`1F519A22…A3032`, `install --pawnio-setup` exited 0, PawnIO 2.2.0.0 is in the
+uninstall registry, the `vitals-sensors` service was created and is
+Running/Automatic, and a reading came back —
+`{"v":1,"ok":true,"vendor":"intel","packageC":64.0,…,"source":"pawnio"}`. The
+cap was **exercised**, not assumed: `install.log` was pre-grown to 1 238 490
+bytes and the same run left it at **425 bytes**, which is the truncate-on-open
+in `LOG_CAP_BYTES` doing its job. Exactly one `install.log` exists, inside
+`Program Files\Vitals Sensors`; nothing named that appears under `%TEMP%`, the
+per-user install directory or `%LOCALAPPDATA%\Vitals`. The 1 MB figure is not
+reachable by ordinary runs — each install appends a dozen lines — which is why
+the test drives the file past the cap first.
+
+**SEC-7: the row's claim was the thing that was wrong.** The elevated CLI does
+attach to an unelevated app over the pipe (`source: attached to Vitals 1.3.0
+over vitals-vladu`). The reverse direction does **not**: an unelevated CLI
+forced to the pipe (`--source app`, which cannot fall back) fails with
+`Access is denied. (os error 5)`, and in the default mode it degrades to
+`source: attached to Vitals 1.3.0 on :7330`. The cause is the pipe's own
+descriptor — `D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;OW)`: an elevated token's
+default owner is the Administrators group, so `OW` admits the elevated caller,
+not the user's filtered token. This is the safe direction (an unelevated
+process must not drive an elevated one) and the loopback API still serves the
+case, so no code change was warranted; the row now states what is true. The
+mechanism — `-RunLevel Limited -LogonType Interactive` tasks, because the ssh
+session is elevated and `Start-Process` from it cannot show a GUI at all — is
+a script, `scripts/vivobook-pass.ps1`, and it cleans up after itself.
+
+**A live 1.3.0 install reproduces the LAN router defect, from this
+workstation.** `curl.exe` against the installed per-user 1.3.0 on
+`192.168.100.104:7331`: `GET` **and** `POST /api/v1/nonsense` both answered
+`200` with `content-type: application/octet-stream` and a body that is the
+desktop SPA shell (`<!DOCTYPE html>… id="root" … /assets/index-DL…js`), while
+`/mobile.html` answered `200 text/html`. So a mistyped endpoint reports
+success, the shell goes out as a binary type, and the body served for a
+phone's deep link is the **desktop** `index.html`: Tauri's asset resolver falls
+back to it while `embedded_assets` names the type after the requested path.
+The server-side half is fixed (an unmatched `/api`, `/metrics` or `/mcp` path
+now answers `404 {"error":"no such endpoint"}`; the shell keeps everything
+else and an extension-less deep link is labelled HTML) — uncommitted at the
+time of writing. **The resolver half is fixed too**, in
+`apps/desktop/src-tauri/src/server.rs`: it now asks the router's
+`is_file_path` what a route is and serves `mobile.html` by name for one,
+instead of letting Tauri's single-page fallback answer with the _desktop's_
+`index.html`. That fallback is why a phone deep-linking a route received the
+desktop bundle — a different build from the page it had loaded — and it is the
+same reason the type came out as `application/octet-stream`. One definition of
+"a route" now serves both halves.
+
+**Store recon, re-verified rather than remembered — and the Play rollout is
+confirmed full.** The iPhone app is listed and for sale (175 territories;
+1.3.0 `WAITING_FOR_REVIEW`, 1.2.0 and 1.1.1 `READY_FOR_SALE`) and the Mac
+record is unchanged (1.2.0 `REJECTED`, no availability — D6). Play cannot be
+read from this machine (`play.credentials: false`) because the credential is a
+_repository secret_, not a local one — but the rollout does not need to be
+inferred: `PLAY_SERVICE_ACCOUNT_JSON` is set at repository level (added
+2026-11-19T14:16Z), and `store-listing.yml` runs
+`check-store-listing.mjs --fail-on-unlisted --require-full-rollout`, which
+_fails_ on a staged rollout and on a missing credential alike. Run 44567518039
+(`main`, 2026-11-19T16:34Z) concluded **success**, and its log says:
+
+```
+play production: 1.3.0 [versionCodes 44] status=completed userFraction=full
+play rollout: fully rolled out (1.3.0 completed)
+```
+
+So 1.3.0 reaches everyone, and the gate that would have caught a release left
+at a fifth of users is live rather than inert.
+
+**Screenshots, done.** The laptop's four capture tasks ran and produced six
+real PNGs — dashboard, processes, startup, storage, and remote access before
+and after, 97 KB to 359 KB — copied here and verified in the bucket at
+`gs://dragos-devcloud-devcloud-jobs/shots/20261119-vivobook-130/`. The laptop
+is reachable now (Ethernet 3 holds 192.168.100.104, the inbound rules for
+`vitals-desktop.exe` are **Allow**, and the Block rules recorded on
+2026-11-19 are gone), though its Wi-Fi is still APIPA.
+
+**The video, done.** OBS's `--startrecording` produced nothing here (its own
+log shows the flag and no recording start), so the capture came from a portable
+ffmpeg and gdigrab — 110 seconds of the desktop at 15 fps while the capture
+harness walked the screens, 952 492 bytes of H.264, uploaded beside the
+stills as `Vitals-walk.mp4`. The eight proof tasks, two 0-byte recordings and
+my own helper scripts were then removed from the machine; `VitalsLaunch` stays
+because it is the only way to start the app unelevated from a script.
+
+**The pairing path, proven end to end from a second host.** With the desktop
+app stopped and the CLI's headless server (`vitals serve`) running on the
+laptop, a real exchange over the LAN: `POST /api/v1/pair` with the six-digit
+code the server printed answered **200** and a 43-character `read` token; that
+token then read `/api/v1/summary` and `/api/v1/health` (**200**); replaying the
+same code answered **403** with the byte-identical body a wrong code gets, so
+the code is single-use and burns into the same refusal (no oracle); and
+`POST /api/v1/control` with the read token answered **403**. Everything the
+pairing path does is therefore exercised except a physical device scanning the
+QR and the video capture, which is what is left on S24-16.
+
+**A real finding from that run, worth keeping.** The first attempt answered
+nothing at all (`HTTP 000`). The laptop has inbound **Allow** rules for
+`vitals-desktop.exe` but **none for `vitals.exe`**, so the CLI's own LAN server
+is blocked by default: Windows raises the firewall prompt for an interactive
+bind, and a server started by a scheduled task or hidden process gets no
+prompt, where the default is Block. `vitals serve` can therefore come up, print
+a token and a pairing code, and be unreachable — which a user would read as
+"pairing is broken", not "the firewall has no rule for this binary". The rule
+used to prove the path was temporary and has been removed. Tracked as
+**S24-22**, because the CLI is the odd one out: the installer creates the
+inbound rule for the app, and nothing does for `vitals serve`.
+
+**…and fixed the same day.** `crates/vitals-win/src/firewall.rs` reads the
+rules out of `…\FirewallPolicy\FirewallRules` and answers
+`Some(true)`/`Some(false)`/`None`; the registry because the stored form is a
+stable `key=value` list while `netsh` and `Get-NetFirewallRule` print
+localised labels, and tri-state because an unreadable key is not a finding.
+`vitals serve` now prints the exact `New-NetFirewallRule` command when the
+answer is `Some(false)` and says nothing when it is `None`. Proved on the
+machine: `cargo run -p vitals-win --example prove_firewall` read **1445** rules
+and reported none admitting (so an empty read is distinguishable from a real
+block), and the same binary run on the laptop from a path with no rule printed
+`Some(false)` and then the command — while a run whose path _did_ have a rule
+stayed silent, correctly, because Windows auto-creates one when a program binds
+interactively. That is precisely why the task-launched CLI on that machine had
+none. Nine unit tests, `fmt` and `clippy -D warnings` clean.
+
+**The two small asks, both settled.** The orphaned GCS job is gone: the stale
+queued build (`ws/vitals-win/queue/20261117-050754-dadd65.json`, a
+`verify.ps1` for sha `10e5122` whose originating session had long ended) is no
+longer present, and `ws/*/queue/` is empty — so nothing is waiting to be
+claimed, and no VM will spend twenty minutes on an eleven-day-old commit. Play's
+"outdated SDK" notice needs no code: it names `androidx.fragment` 1.1.0 against
+bundle `1000041 (1.1.1)`, two releases behind, while
+`:app:dependencyInsight --configuration playDebugRuntimeClasspath` resolves that
+library to **1.5.4**; 1.1.0 and 1.0.0 are only _requested_, by Google's own
+`play-services-basement:18.9.0` graph. Pinning it would fight that graph and
+spend APK budget — which is a CI gate — to silence an informational notice.
+
+**A note for whoever is in `dragos-devcloud` next.** `fl242-cap-probe-*`
+(`a4-highgpu-8g`) instances were live in that project while this ran. They are
+another agent's GPU capacity probe, mid-flight rather than abandoned, and they
+carry their own termination; nothing in the project was deleted from here.
+
+**Still blocked, and both need someone else.** Cutting 1.3.1 waits on Apple —
+1.3.0 is `WAITING_FOR_REVIEW`, so there is nothing to cut until it clears.
+Confirming (and, if needed, raising) the Play rollout needs
+`PLAY_SERVICE_ACCOUNT_JSON`, or a Console session: it cannot be read from this
+machine.
 
 ### 2026-11-19 — S24-20: the move to the account warns before it is taken
 
