@@ -12,8 +12,11 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { initI18n, i18n } from '@vitals/i18n';
+import type { TaskManagerReplacement } from '@vitals/protocol';
 
-import { UpdateSection } from './UpdatePanel';
+import type { UpdateStatus } from '../lib/updater';
+
+import { UpdateSection, losesTaskManagerOnMove } from './UpdatePanel';
 
 const host = vi.hoisted(() => ({ present: true }));
 
@@ -360,5 +363,158 @@ describe('the update section', () => {
       await Promise.resolve();
     });
     expect(screen.queryByTestId('update-migrate')).toBeNull();
+  });
+
+  it('warns that moving to the account turns off the Task Manager replacement', async () => {
+    // The move is offered only on a per-machine copy, and it becomes a
+    // per-account one — where the hook may not point. The warning has to be
+    // on screen before the click, naming what is lost and why.
+    backend.answers.get_pending_update = '2.0.0';
+    backend.answers.get_update_status = {
+      pendingVersion: '2.0.0',
+      quitInstall: 'needsApproval',
+      autoUpdate: true,
+      lastCheckMs: 0,
+      lastError: null,
+      suppressed: null,
+      canMigrateToUser: true,
+    };
+    backend.answers.get_taskmgr_replacement = {
+      enabled: true,
+      replacedBy: null,
+      path: 'C:\\Program Files\\Vitals\\vitals-desktop.exe',
+    };
+
+    render(<UpdateSection />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('update-migrate-taskmgr')).toBeTruthy();
+    });
+    // The reason, not a generic caution: the hook must name a Program Files
+    // path, which the per-account copy the move produces will not have.
+    expect(screen.getByText(/only works from a copy in Program Files/)).toBeTruthy();
+    // Announced when it appears, not only painted.
+    expect(screen.getByTestId('update-migrate-taskmgr').getAttribute('role')).toBe('status');
+    // Still offered — the warning informs the click, it does not block it.
+    expect(screen.getByRole('button', { name: 'Move Vitals to my account' })).toBeTruthy();
+  });
+
+  it('lets the move go ahead while it warns', async () => {
+    backend.answers.get_pending_update = '2.0.0';
+    backend.answers.get_update_status = {
+      pendingVersion: '2.0.0',
+      quitInstall: 'needsApproval',
+      autoUpdate: true,
+      lastCheckMs: 0,
+      lastError: null,
+      suppressed: null,
+      canMigrateToUser: true,
+    };
+    backend.answers.get_taskmgr_replacement = {
+      enabled: true,
+      replacedBy: null,
+      path: 'C:\\Program Files\\Vitals\\vitals-desktop.exe',
+    };
+
+    render(<UpdateSection />);
+    await waitFor(() => {
+      expect(screen.getByTestId('update-migrate-taskmgr')).toBeTruthy();
+    });
+    // The warning is information, not a gate: the click still reaches the
+    // backend. Without this the warning could silently disable the button.
+    fireEvent.click(screen.getByRole('button', { name: 'Move Vitals to my account' }));
+    await waitFor(() => {
+      expect(backend.calls.some((c) => c.cmd === 'migrate_to_user_install')).toBe(true);
+    });
+  });
+
+  it('says nothing about the Task Manager replacement when the setting is off', async () => {
+    backend.answers.get_pending_update = '2.0.0';
+    backend.answers.get_update_status = {
+      pendingVersion: '2.0.0',
+      quitInstall: 'needsApproval',
+      autoUpdate: true,
+      lastCheckMs: 0,
+      lastError: null,
+      suppressed: null,
+      canMigrateToUser: true,
+    };
+    backend.answers.get_taskmgr_replacement = {
+      enabled: false,
+      replacedBy: null,
+      path: null,
+    };
+
+    render(<UpdateSection />);
+
+    // The move is still offered, so this proves the warning depends on the
+    // switch rather than on the block being present.
+    await waitFor(() => {
+      expect(screen.getByTestId('update-migrate')).toBeTruthy();
+    });
+    // Absence is asserted after an explicit flush, never inside `waitFor`:
+    // a retry loop succeeds on its first poll against state React has not
+    // committed, and would pass while the warning was still coming.
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(screen.queryByTestId('update-migrate-taskmgr')).toBeNull();
+    expect(screen.queryByText(/only works from a copy in Program Files/)).toBeNull();
+  });
+
+  it('says nothing about the Task Manager replacement on a per-user copy', async () => {
+    // Replacement on, but nothing is lost: a per-user copy cannot own the
+    // hook in the first place, and the move is not offered at all.
+    backend.answers.get_pending_update = '2.0.0';
+    backend.answers.get_update_status = {
+      pendingVersion: '2.0.0',
+      quitInstall: 'silent',
+      autoUpdate: true,
+      lastCheckMs: 0,
+      lastError: null,
+      suppressed: null,
+      canMigrateToUser: false,
+    };
+    backend.answers.get_taskmgr_replacement = {
+      enabled: true,
+      replacedBy: null,
+      path: 'C:\\Program Files\\Vitals\\vitals-desktop.exe',
+    };
+
+    render(<UpdateSection />);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(screen.queryByTestId('update-migrate')).toBeNull();
+    expect(screen.queryByTestId('update-migrate-taskmgr')).toBeNull();
+  });
+});
+
+describe('the rule behind the Task Manager warning', () => {
+  const perMachine: UpdateStatus = {
+    pendingVersion: null,
+    quitInstall: 'needsApproval',
+    autoUpdate: true,
+    lastCheckMs: 0,
+    lastError: null,
+    suppressed: null,
+    canMigrateToUser: true,
+  };
+  const perUser: UpdateStatus = { ...perMachine, canMigrateToUser: false };
+  const on: TaskManagerReplacement = {
+    enabled: true,
+    replacedBy: null,
+    path: 'C:\\Program Files\\Vitals\\vitals-desktop.exe',
+  };
+  const off: TaskManagerReplacement = { enabled: false, replacedBy: null, path: null };
+
+  it('is true only for a per-machine copy whose replacement is on', () => {
+    expect(losesTaskManagerOnMove(perMachine, on)).toBe(true);
+    // Every way the combination can fail, each on its own line so a broken
+    // guard names itself rather than hiding behind the others.
+    expect(losesTaskManagerOnMove(perMachine, off)).toBe(false);
+    expect(losesTaskManagerOnMove(perUser, on)).toBe(false);
+    expect(losesTaskManagerOnMove(null, on)).toBe(false);
+    expect(losesTaskManagerOnMove(perMachine, null)).toBe(false);
   });
 });

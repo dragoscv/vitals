@@ -304,6 +304,7 @@
         "leftoverFailed": "Copia veche nu a putut fi ștearsă",
         "moveHint": "Vitals este instalat pentru toți utilizatorii acestui PC, deci fiecare actualizare cere aprobarea unui administrator. Mutarea în contul tău pune capăt acestui lucru, iar copia veche poate fi ștearsă după aceea.",
         "move": "Mută Vitals în contul meu",
+        "moveLosesTaskManager": "Mutarea Vitals în contul tău dezactivează „Înlocuiește Task Manager” din Setări › General: înlocuirea funcționează doar dintr-o copie din Program Files, unde Windows o poate garanta, iar o copie pentru un singur cont nu poate sta acolo. Ctrl+Shift+Esc va deschide din nou Task Manager-ul din Windows.",
         "moveFailed": "Vitals nu a putut fi mutat",
         "notCheckedYet": "Încă neverificat",
         "checkedMinutesAgo": "Verificat acum {{count}} min",

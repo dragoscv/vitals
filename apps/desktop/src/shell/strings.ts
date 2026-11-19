@@ -66,6 +66,8 @@ const en = {
         'Ctrl+Shift+Esc and the taskbar\u2019s \u201cTask Manager\u201d open Vitals instead. Windows will ask for permission to change this.',
       replaceTaskManagerOwned:
         '{{debugger}} is already set up as the Task Manager replacement. Turn it off there first.',
+      replaceTaskManagerMoveHint:
+        'Moving Vitals to your account turns this off: the replacement needs a copy in Program Files.',
       openTaskManager: 'Open Windows Task Manager',
       openTaskManagerHint: 'The built-in one, even while Vitals has replaced it.',
       openTaskManagerHintStore: 'The one built into Windows.',
@@ -369,6 +371,8 @@ const ro = {
         'Ctrl+Shift+Esc și opțiunea „Task Manager” din bara de activități deschid Vitals. Windows va cere permisiunea pentru această schimbare.',
       replaceTaskManagerOwned:
         '{{debugger}} este deja configurat ca înlocuitor pentru Task Manager. Dezactivează-l mai întâi de acolo.',
+      replaceTaskManagerMoveHint:
+        'Mutarea Vitals în contul tău îl dezactivează: înlocuirea are nevoie de o copie în Program Files.',
       openTaskManager: 'Deschide Task Manager-ul din Windows',
       openTaskManagerHint: 'Cel încorporat în Windows, chiar dacă Vitals l-a înlocuit.',
       openTaskManagerHintStore: 'Cel încorporat în Windows.',

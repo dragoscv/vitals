@@ -3458,6 +3458,53 @@ code (service start type, handles/modules read-only, end process tree).
 
 ### Verification log
 
+### 2026-11-19 — S24-20: the move to the account warns before it is taken
+
+S24-02 offers to reinstall Vitals as a per-user copy, and it works. What it
+also did was take the Task Manager replacement away, silently. A per-user copy
+cannot own the IFEO hook: `ensure_hook_target_is_admin_only` refuses any
+target outside Program Files, and any folder an ordinary account can write,
+because whoever could swap the named file would get an administrator process
+on the next Ctrl+Shift+Esc. That refusal is correct and was already proved on
+the vivobook — a per-user 1.3.0 copy answers `refused: Vitals can replace Task
+Manager only when it is installed for all users in Program Files…` — but it
+only surfaced if the user later touched the toggle. The move itself was
+offered with no warning at all.
+
+The update section now states the loss **before** the click. The rule is one
+exported predicate, `losesTaskManagerOnMove(status, replacement)`: true only
+on a per-machine copy (`canMigrateToUser`, which is exactly
+`vitals_win::install::may_migrate()`) whose replacement is currently on. The
+warning renders above the Move button, names what is lost (Ctrl+Shift+Esc
+opens Windows Task Manager again) and why (the hook must name a Program Files
+path, and a per-account copy cannot live there), and is a `role="status"` live
+region, so it is announced rather than only painted. Nothing is rendered when
+the replacement is off or the copy is already per-user, and the move stays
+available — the warning informs the click, it does not gate it.
+
+Because the move lives in About and nothing there is visible from the setting
+itself, the Task Manager row in **General** carries a one-line hint while the
+replacement is on: the coupling is discoverable where the switch is, not only
+where the move is.
+
+**Evidence.** `pnpm --filter @vitals/desktop exec tsc --noEmit` 0; `eslint .`
+0; `vitest run` (JSON reporter) 441 suites, 1417 tests, 0 failed;
+`prettier --check` clean on the seven touched files; `scripts/check-drift.ps1`
+0 failures, 0 warnings, 2 locales. Tests pin the warning's combination and its
+absence (replacement off; per-user copy), assert the move still reaches
+`migrate_to_user_install` while the warning is up, and give the predicate its
+own truth table. Mutation-checked: forcing the condition true turned the
+"setting is off" test red with the expected assertion — `expected <p …(2)></p>
+to be null`, receiving the warning — then restored.
+
+**On the way.** `docs/tracker.csv` failed the drift row-shape check while this
+slice was open: a concurrent edit to the S24-13 row (the MQTT/MCP entry) left
+one closing quote off the verification field, so the file parsed as 287
+records instead of 292 and nine rows reported the wrong column count. The row
+was written by another agent, and the missing character only was restored —
+the row's text is untouched — verified first against a copy (0 bad records),
+then on the file itself (drift green again).
+
 ### 2026-11-19 — every implied Android hardware feature, and the three gates that now hold them
 
 **The Wi-Fi warning was the visible half of one mechanism.** Android marks a

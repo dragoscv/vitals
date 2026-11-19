@@ -301,6 +301,7 @@
         "leftoverFailed": "The old copy could not be removed",
         "moveHint": "Vitals is installed for everyone on this PC, so every update asks an administrator to approve it. Moving it to your own account stops that, and the old copy can be removed afterwards.",
         "move": "Move Vitals to my account",
+        "moveLosesTaskManager": "Moving Vitals to your account turns off “Replace Task Manager” in Settings › General: the replacement only works from a copy in Program Files, where Windows can vouch for it, and a per-account copy cannot live there. Ctrl+Shift+Esc will open Windows Task Manager again.",
         "moveFailed": "Vitals could not be moved",
         "notCheckedYet": "Not checked yet",
         "checkedMinutesAgo": "Checked {{count}} min ago",

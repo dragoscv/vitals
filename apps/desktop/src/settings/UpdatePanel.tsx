@@ -10,6 +10,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import type { TaskManagerReplacement } from '@vitals/protocol';
 import { Button, ProgressBar } from '@vitals/ui';
 
 import {
@@ -28,13 +29,34 @@ import {
 } from '../lib/updater';
 import { reportFailure } from '../lib/reportFailure';
 import { reportSuccess } from '../lib/reportSuccess';
+import { useTaskManagerReplacement } from './useTaskManagerReplacement';
 
 /** What `checkForUpdate` hands back, kept only for the duration of one flow. */
 type PendingUpdate = Awaited<ReturnType<typeof checkForUpdate>>['update'];
 
+/**
+ * Whether moving this copy to the account would take the Task Manager
+ * replacement away.
+ *
+ * True only on a per-machine copy — the only kind that can move, so the only
+ * kind that loses anything — whose replacement is currently on. A feature that
+ * is already off loses nothing, so nothing is said: a warning nobody needs is
+ * noise. Named and exported rather than inlined so the rule has one home and
+ * can be tested directly.
+ */
+export function losesTaskManagerOnMove(
+  status: UpdateStatus | null,
+  replacement: TaskManagerReplacement | null,
+): boolean {
+  return status?.canMigrateToUser === true && replacement?.enabled === true;
+}
+
 export function UpdateSection() {
   const { t } = useTranslation();
   const [state, setState] = useState<UpdateState>({ kind: 'idle' });
+  // Read here, not in the About panel above: the warning is part of this
+  // section, and the registry is the truth for whether the replacement is on.
+  const taskManager = useTaskManagerReplacement();
 
   // The handle is not state: nothing renders from it, and putting it in
   // `useState` would re-render the panel on every progress tick for a value
@@ -182,6 +204,21 @@ export function UpdateSection() {
       {status?.canMigrateToUser === true && background !== null && (
         <div className="space-y-1 pt-2" data-testid="update-migrate">
           <p className="text-2xs">{t('settings.about.update.moveHint')}</p>
+          {/* The move ends the Task Manager replacement, and only a copy in
+              Program Files may name the hook — a per-account copy lives in
+              the user's own folder, where the loader would start whatever an
+              ordinary account put there. Said before the click, and only
+              while the setting is actually on: warning about a feature that
+              is already off is noise. */}
+          {losesTaskManagerOnMove(status, taskManager.status) && (
+            <p
+              className="text-2xs text-[var(--color-warn-text)]"
+              data-testid="update-migrate-taskmgr"
+              role="status"
+            >
+              {t('settings.about.update.moveLosesTaskManager')}
+            </p>
+          )}
           <Button variant="ghost" onClick={() => void moveToThisAccount()}>
             {t('settings.about.update.move')}
           </Button>

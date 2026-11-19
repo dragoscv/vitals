@@ -104,12 +104,18 @@ export function GeneralPanel() {
   // tool owns the hook and we refuse to take it from them.
   const taskManagerLocked =
     taskManager.status === null || taskManager.busy || taskManager.status.replacedBy !== null;
-  const taskManagerHint =
-    taskManager.status?.replacedBy !== null && taskManager.status?.replacedBy !== undefined
-      ? t('settings.general.replaceTaskManagerOwned', {
-          debugger: taskManager.status.replacedBy,
-        })
+  const replacedBy = taskManager.status?.replacedBy;
+  const taskManagerBase =
+    replacedBy !== null && replacedBy !== undefined
+      ? t('settings.general.replaceTaskManagerOwned', { debugger: replacedBy })
       : t('settings.general.replaceTaskManagerHint');
+  // While the replacement is on, this copy is per-machine — the only kind that
+  // may own the hook — so the move offered in About would end it, and nothing
+  // over there is visible from this row. Said here, where the setting lives.
+  const taskManagerHint =
+    taskManager.status?.enabled === true
+      ? `${taskManagerBase} ${t('settings.general.replaceTaskManagerMoveHint')}`
+      : taskManagerBase;
 
   return (
     <SettingsSection title={t('settings.general.title')}>
