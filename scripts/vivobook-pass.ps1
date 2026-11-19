@@ -66,6 +66,11 @@ param(
     # Skip the LAN pairing round trip.
     [switch]$SkipPairing,
 
+    # Read-only: report what is installed and what the two boundaries would say,
+    # without installing PawnIO, registering a task or touching a firewall rule.
+    # Use it to re-check a machine you have already run the full pass against.
+    [switch]$Check,
+
     # Keep the two scheduled tasks this registers, for a follow-up run.
     [switch]$KeepTasks
 )
@@ -87,6 +92,55 @@ function Invoke-Remote {
     $exit = $LASTEXITCODE
     $output | ForEach-Object { "$_" }
     if ($exit -ne 0) { throw "ssh to $Computer exited $exit" }
+}
+
+# ── Read-only check ────────────────────────────────────────────────────
+#
+# The S21-08 claims are about state, so re-checking them does not have to
+# install anything: what was installed stays installed until it is removed.
+# The two questions worth asking again are whether the product is still the
+# version under test and whether the app's LAN listener still answers.
+
+if ($Check) {
+    Write-Host '── read-only check ──' -ForegroundColor Cyan
+    $probe = @'
+$ErrorActionPreference = 'Continue'
+function W($m) { $m }
+W '--- the install ---'
+foreach ($k in 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Vitals', 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Vitals') {
+  if (Test-Path $k) { $u = Get-ItemProperty $k; W "  $k => $($u.DisplayVersion) @ $($u.InstallLocation)" } else { W "  $k => absent" }
+}
+foreach ($p in "$env:LOCALAPPDATA\Programs\Vitals\vitals-desktop.exe", "$env:ProgramFiles\Vitals\vitals-desktop.exe") {
+  $version = if (Test-Path $p) { (Get-Item $p).VersionInfo.ProductVersion } else { 'absent' }
+  W "  $p => $version"
+}
+W '--- SEC-2 state: the helper and its log ---'
+$helper = "$env:LOCALAPPDATA\Programs\Vitals\sensors\vitals-sensors.exe"
+$helperVersion = if (Test-Path $helper) { (& $helper version 2>&1 | Select-Object -First 1) } else { 'absent' }
+W "  helper => $helperVersion"
+$log = Join-Path $env:ProgramFiles 'Vitals Sensors\install.log'
+$logSize = if (Test-Path $log) { "$((Get-Item $log).Length) bytes" } else { 'absent' }
+W "  install.log => $logSize"
+$service = (Get-Service vitals-sensors -ErrorAction SilentlyContinue | ForEach-Object { "$($_.Status)/$($_.StartType)" }) -join ' '
+W "  service => $service"
+if (Test-Path $log) { W "  last line: $((Get-Content $log -Tail 1) -join '')" }
+W '--- SEC-9 state: where the app listens ---'
+Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue | Where-Object { $_.LocalPort -in 7330, 7331 } | ForEach-Object { W "  $($_.LocalAddress):$($_.LocalPort)" }
+W '--- S24-22 state: does the firewall admit the CLI? ---'
+$cli = '__CLI__'
+$key = 'HKLM:\SYSTEM\CurrentControlSet\Services\SharedAccess\Parameters\FirewallPolicy\FirewallRules'
+$all = Get-ItemProperty $key
+$naming = 0
+foreach ($name in (Get-Item $key).Property) {
+  if ("$($all.$name)" -match [regex]::Escape($cli)) { $naming++ }
+}
+W "  rules naming the CLI path: $naming (0 means vitals serve would warn)"
+'CHECK-DONE'
+'@
+    $probe = $probe.Replace('__CLI__', $CliPath)
+    (Invoke-Remote -Script $probe) | ForEach-Object { "  $_" }
+    Write-Host 'read-only check finished — nothing on the machine was changed.' -ForegroundColor Green
+    return
 }
 
 # ── SEC-2: the sensors helper's log ────────────────────────────────────

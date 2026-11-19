@@ -13,6 +13,30 @@ Severity: P0 blocks a release, loses users or breaks a store or privacy
 declaration; P1 is a visible defect or a false public claim on a core flow; P2 is
 polish.
 
+## Close-out — 2026-11-19, at 1.3.0
+
+Written by the session that finished the S24-16/S21-08 pass, so a later reader
+starts from what these findings became rather than re-deriving it.
+
+| This check said                                      | Now                                                                                                                                                                                                                                                                                                                                                     |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| this PC runs 1.1.0, "downloading 1.2.0 since 10-29"  | **1.3.0, per-user**, installed with the documented unattended route and its SHA-256 checked against `SHA256SUMS.txt`                                                                                                                                                                                                                                    |
+| vivobook runs a 1.0.4 test build                     | **1.3.0, per-user**; the stale proof tasks are gone and the firewall's Block rules for the app are Allow                                                                                                                                                                                                                                                |
+| Google Play: 1.1.1, "1.2.0 drafts"                   | **1.3.0 fully rolled out** (`userFraction=full`), read by CI through Workload Identity Federation with no stored key (S24-21)                                                                                                                                                                                                                           |
+| App Store iPhone 1.2.0 READY_FOR_SALE                | **1.3.0 `WAITING_FOR_REVIEW`**; 1.2.0 and 1.1.1 remain `READY_FOR_SALE`                                                                                                                                                                                                                                                                                 |
+| Mac App Store rejected, "frozen until Apple answers" | **still rejected.** The reason is not obtainable from any API: `appStoreVersions` carries no message field, `appStoreReviewDetail` holds only contact and notes, and the submission's items refuse `GET_INSTANCE` (`403 … Allowed operations are: CREATE, DELETE, UPDATE`). It lives in the Resolution Center and in the mail to `dragoscv12@gmail.com` |
+
+Two things this pass settled that were open here: **P0-1's machine is gone as a
+witness** (the copy that had been stuck on 1.1.0 is now a per-user 1.3.0), and
+the **real-OS half of S17-10/S21-08 is closed** — a standard-user session
+verified SEC-1/3/9 as before, exercised the sensors helper's 1 MB log cap for
+real (1 238 490 bytes pre-grown, 425 after), and corrected SEC-7 (an unelevated
+CLI is refused over the app's attach pipe with `os error 5` and uses the
+loopback API instead — the safe direction, so no code change). The six
+device captures and a 110-second recording are at
+`gs://dragos-devcloud-devcloud-jobs/shots/20261119-vivobook-130/`, and the pass
+itself is a script: `scripts/vivobook-pass.ps1`.
+
 ## What is live today
 
 | Channel                           | Live                                                   | Gap                                        |
