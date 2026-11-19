@@ -453,7 +453,20 @@ Console exactly as it found it.
 `node scripts/check-store-listing.mjs --check --require-full-rollout` fails
 when production does not cover everyone; the tag release already passes
 `--fail-on-unlisted --require-full-rollout`, and `store-listing.yml` is the job
-that holds the Play credential and can therefore really read the track.
+that can therefore really read the track.
+
+**In CI the credential is federated, not stored** (S24-21). `store-listing.yml`
+mints a short-lived token for `vitals-play@hai-small-apps` through Workload
+Identity Federation, with `access_token_scopes:
+https://www.googleapis.com/auth/androidpublisher` — the action's
+`cloud-platform` default is refused by the Play API with the same `403` a local
+ADC login hits. The provider's attribute condition admits `refs/heads/main`
+**for that one workflow file** (plus every `refs/tags/v`), so the federation is
+not a production-release credential for anything else on `main`. Nothing is
+stored in the repository: the key that used to sit in the
+`PLAY_SERVICE_ACCOUNT_JSON` secret was deleted on 2026-11-19, and the secret
+with it. Verified after the revocation: run 44623160752, `main` @ `6a45c4f`,
+job success, `play rollout: fully rolled out (1.3.0 completed)`.
 
 One of `PLAY_ACCESS_TOKEN`, `PLAY_SERVICE_ACCOUNT_JSON`, or
 `GOOGLE_APPLICATION_CREDENTIALS` naming a file that holds a `service_account`
