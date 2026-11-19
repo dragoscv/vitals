@@ -25,6 +25,12 @@ on:
 
 permissions:
   contents: read
+  # The Play half reads the production track as `vitals-play` through Workload
+  # Identity Federation (S24-21), so the long-lived service-account key that
+  # used to sit in a repository secret can be revoked. The provider admits this
+  # one workflow file on `main`, and tags — not `main` in general — so no other
+  # job on this branch can mint a token for a production release.
+  id-token: write
 
 concurrency:
   # One probe at a time: it reads a public endpoint that rate-limits.
@@ -51,14 +57,6 @@ jobs:
       APPLE_SECRETS_PROJECT: ${{ vars.APPLE_SECRETS_PROJECT || 'dragos-devcloud' }}
       BRIVIO_API_KEY: ${{ secrets.BRIVIO_API_KEY }}
       STORE_ALERT_TO: ${{ vars.STORE_ALERT_TO }}
-      # The Play half of the same question. A repository secret — a
-      # service-account key — rather than Workload Identity Federation, because
-      # the federation provider accepts only `refs/tags/v` (see
-      # apps/android/play/README.md) and this runs on main and on a schedule.
-      # Inert until the secret exists: absent, the script prints SKIPPED, the
-      # public half still decides the exit code — and the step below fails, so
-      # "the secret is missing" can never read as "the rollout is fine".
-      PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -66,6 +64,20 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 24
+
+      # The Play half of the same question, and no longer a stored key: the
+      # identity is `vitals-play` through Workload Identity Federation, so the
+      # credential exists only for the length of this job. The provider's
+      # attribute condition admits `refs/heads/main` **for this workflow file
+      # only** (and every `refs/tags/v`), which is what keeps the federation
+      # from becoming a production-release credential for anything that runs on
+      # `main` — see docs/releasing.md, S24-21.
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        id: gcp
+        with:
+          workload_identity_provider: projects/98856543199/locations/global/workloadIdentityPools/github/providers/vitals
+          service_account: vitals-play@hai-small-apps.iam.gserviceaccount.com
+          token_format: access_token
 
       # Absent credentials are a SKIPPED inside the script, which is right for a
       # repository that has none. Here it is not: a check that skips every week
@@ -77,20 +89,23 @@ jobs:
           echo "::error::APPLE_ASC_KEY_P8 is not set at repository level, so the store-listing check cannot run and this job proves nothing. Add the three APPLE_ASC_* secrets (see docs/releasing.md); the values are the gcloud secrets apple-asc-key-p8 / -key-id / -issuer."
           exit 1
 
-      # The same argument one line down. Without this, a revoked Play
-      # credential would make the rollout half print SKIPPED while the job
-      # stayed green — which is the exact shape of the 2026-11-19 miss: a
-      # release reaching a fifth of users and every gate reading fine.
+      # The same argument for the federated half: without this, a provider
+      # condition that stopped admitting this workflow would make the rollout
+      # print SKIPPED while the job stayed green — which is the exact shape of
+      # the 2026-11-19 miss, a release reaching a fifth of users with every gate
+      # reading fine.
       - name: Google Play credentials exist
-        if: env.PLAY_SERVICE_ACCOUNT_JSON == ''
+        if: steps.gcp.outputs.access_token == ''
         run: |
-          echo "::error::PLAY_SERVICE_ACCOUNT_JSON is not set at repository level, so the Play production-rollout half of the check cannot run and this job would pass while proving nothing about the rollout. Add it: a service-account key for vitals-play@hai-small-apps (see docs/releasing.md)."
+          echo "::error::the Workload Identity Federation exchange produced no access token, so the Play production-rollout half cannot run and this job would pass while proving nothing. Check that the provider's attribute condition still admits this workflow file (gcloud iam workload-identity-pools providers describe vitals --workload-identity-pool=github --location=global --project=hai-small-apps)."
           exit 1
 
       # --require-full-rollout: a staged production rollout — the state every
       # stable tag starts in — must not read as "everything is fine". It turns
       # a 20 % rollout into a failure here and into a warning on a bare run.
       - name: The app is for sale, and reaches everyone
+        env:
+          PLAY_ACCESS_TOKEN: ${{ steps.gcp.outputs.access_token }}
         run: node scripts/check-store-listing.mjs --fail-on-unlisted --require-full-rollout
 
       # The other half of the same question. "Is the app for sale" and "is
