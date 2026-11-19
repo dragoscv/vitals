@@ -2,10 +2,18 @@
 //!
 //! This is the only place that decides *which* numbers leave the machine, and
 //! it keeps the whole of Vitals' Option discipline: a reading whose source is
-//! absent is not in the list, so it is neither announced to Home Assistant nor
-//! published. There is no `0` for "the platform cannot measure this" — a
-//! laptop without a battery sensor does not report an empty battery, and a
-//! Mac does not report a CPU temperature of zero.
+//! absent is not in the list, so it is never published. There is no `0` for
+//! "the platform cannot measure this" — a laptop without a battery sensor does
+//! not report an empty battery, and a Mac does not report a CPU temperature of
+//! zero.
+//!
+//! Absent means absent in the *state* pass. The discovery pass announces every
+//! entity in [`all_specs`] once, including readings this machine cannot make,
+//! so the two passes cannot depend on each other: an unmeasurable entity simply
+//! stays `unknown` on the dashboard, and one that appears later is already
+//! known to Home Assistant rather than invisible until a restart. Checked
+//! against a real broker on 2026-11-19 — a desktop with no battery and no CPU
+//! temperature sensor announced both entities and published neither state.
 
 use serde_json::{Value, json};
 
