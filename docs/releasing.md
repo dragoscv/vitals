@@ -443,6 +443,32 @@ decision 2026-10-14), and a personal developer account must first have
 passed Google's closed-testing requirement — see
 `docs/store-research-2026-10.md`.
 
+**The rollout fraction is the one number no build artefact holds.** The
+Console is where a staged rollout is raised, and on 2026-11-19 it was raised
+to 100 % by hand while every check on `main` stayed green — a release can sit
+at 20 %, reach a fifth of users, and have nothing in the repository say so.
+Read it back instead of assuming: `scripts/play-rollout.mjs` opens a throwaway
+edit, reads the production track and deletes the edit, so the read leaves the
+Console exactly as it found it.
+`node scripts/check-store-listing.mjs --check --require-full-rollout` fails
+when production does not cover everyone; the tag release already passes
+`--fail-on-unlisted --require-full-rollout`, and `store-listing.yml` is the job
+that holds the Play credential and can therefore really read the track.
+
+One of `PLAY_ACCESS_TOKEN`, `PLAY_SERVICE_ACCOUNT_JSON`, or
+`GOOGLE_APPLICATION_CREDENTIALS` naming a file that holds a `service_account`
+key must be set. **The machine's ambient ADC is not one of them**: it is minted
+with the `cloud-platform` scope and the Play API answers `403 Request had
+insufficient authentication scopes`, which reads like a broken check rather
+than a credential that was never usable. For a local run, log in with the Play
+scope first:
+
+```powershell
+gcloud auth application-default login --scopes=https://www.googleapis.com/auth/androidpublisher,https://www.googleapis.com/auth/cloud-platform
+$env:PLAY_ACCESS_TOKEN = (gcloud auth print-access-token).Trim()
+node scripts/check-store-listing.mjs --check --require-full-rollout
+```
+
 Play gets the **`play` flavour** of the phone and TV apps, which does not
 declare all-files access (Google rejected 1.0.1 for it on 2026-10-14, "not a
 core feature"); the APKs on the GitHub release are the **`github` flavour**
@@ -520,6 +546,76 @@ housekeeping:
 source, so the registry refuses it. Making it publishable (a JavaScript
 build, `exports` pointing at it, `private` removed) is a separate change;
 leave `PUBLISH_NPM` off until then.
+
+### Installing per user, unattended (Windows)
+
+The setup is NSIS with `installMode: "both"` and a manifest that asks for
+`highest`, so installing it **per user, from a script, with nobody at the
+console** needs two things and not one — the scope switch _and_ the
+compatibility layer. The app's own one-click move does both; a script that
+copies only half of it stops on a consent prompt that no one will answer:
+
+- **`/CurrentUser` alone is not enough.** The manifest still asks for
+  elevation, so the unanswered prompt returns `ERROR_CANCELLED`, and
+  `Start-Process` throws `System.InvalidOperationException: This command cannot be run due to the error: The operation was canceled by the user.`
+- **Set `__COMPAT_LAYER=RunAsInvoker` in the parent process.** The loader of
+  the process being started reads the layer from the environment it inherits,
+  so a flag on the setup would do nothing; the layer runs the setup with the
+  caller's token and no prompt appears.
+
+`vitals_win::install::run_children_as_invoker()`
+(`crates/vitals-win/src/install.rs:361`) sets that variable for everything the
+process starts afterwards; the scope switch is `installer_args()`
+(`install.rs:132`) and, for the move to per-user, `migration_args()`
+(`install.rs:187`), the pair the app uses through `start_migration_setup()`
+(`apps/desktop/src-tauri/src/updates.rs:870`). `scripts/ci/update-proof-local.ps1`
+is the same recipe written out:
+
+```powershell
+$env:__COMPAT_LAYER = 'RunAsInvoker'
+try { $p = Start-Process -FilePath .\Vitals_1.3.0_x64-setup.exe -ArgumentList '/S', '/CurrentUser' -PassThru -Wait }
+finally { Remove-Item Env:__COMPAT_LAYER -ErrorAction SilentlyContinue }
+$p.ExitCode   # 0
+```
+
+Then **prove where the files went**, because an exit code and a file size say
+nothing about that:
+
+```powershell
+Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Vitals' | Select-Object InstallLocation
+Test-Path 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Vitals'   # False
+Test-Path 'C:\Program Files\Vitals'                                            # False
+(Get-Item "$env:LOCALAPPDATA\Programs\Vitals\vitals-desktop.exe").VersionInfo.ProductVersion
+```
+
+An `InstallLocation` under `%LOCALAPPDATA%\Programs\Vitals`, no `HKLM` entry and
+no Program Files folder is what `install.rs` classifies as
+`InstallScope::CurrentUser`. An `HKLM` entry beside the `HKCU` one means the
+running copy is still the machine-wide one, so every release will keep asking
+for a prompt. **Check the installer's SHA-256 against an independent download**
+— `SHA256SUMS.txt` from the release, or a second fetch — rather than trusting
+the size, which a truncated or substituted file passes.
+
+**A GUI app started from an `ssh` session shows nothing.** That session has no
+desktop, so the process exits and a pid check comes back empty. Put anything
+that has to appear on the screen into a scheduled task instead —
+`-LogonType Interactive` runs it in the logged-on user's session, with
+`-RunLevel Limited` for a standard-user token or `-RunLevel Highest` for an
+elevated one:
+
+```powershell
+$action = New-ScheduledTaskAction -Execute 'C:\path\to\Vitals_1.3.0_x64-setup.exe' -Argument '/S', '/CurrentUser'
+$princ  = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME" -LogonType Interactive -RunLevel Limited
+Register-ScheduledTask -TaskName vitals-install -Action $action -Principal $princ -Force
+Start-ScheduledTask -TaskName vitals-install
+```
+
+**A per-user install cannot replace Task Manager.** It lives outside Program
+Files by definition, and `ensure_hook_target_is_admin_only()`
+(`crates/vitals-win/src/actions/taskmgr.rs:262`) refuses to point the hook at
+any executable an ordinary account could swap — which is exactly what a
+`%LOCALAPPDATA%` copy, a Scoop install or a portable copy is. The setting
+refuses with that reason; the fix is a per-machine install, not a retry.
 
 ### Microsoft Store (MSIX, signed by Microsoft)
 
