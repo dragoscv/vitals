@@ -10,10 +10,13 @@
 //      sees: an app that is not for sale answers resultCount 0 with HTTP 200;
 //   2. the App Store Connect availability record, the authoritative answer.
 //
-// Credentials: the team's ASC key via ~/.copilot/bin/apple-asc.mjs (Secret
-// Manager, dragos-devcloud), read from the env vars the client derives from its
-// secret names — APPLE_ASC_KEY_P8, APPLE_ASC_KEY_ID, APPLE_ASC_ISSUER — with
-// APPLE_SECRETS_PROJECT overriding the project name. Nothing secret is printed.
+// Credentials: the team's ASC key, read from the env vars APPLE_ASC_KEY_P8,
+// APPLE_ASC_KEY_ID and APPLE_ASC_ISSUER (what the workflow provides), else from
+// Secret Manager in APPLE_SECRETS_PROJECT (dragos-devcloud). The client is
+// `scripts/lib/asc.mjs`, a repo-local copy on purpose: this script runs in CI,
+// where the machine-local ~/.copilot/bin/apple-asc.mjs does not exist — all
+// three runs of the first version of this workflow died on that import.
+// Nothing secret is printed.
 // Without readable credentials the App Store Connect half prints one SKIPPED
 // line and the public half still decides the exit code; the workflow that calls
 // this treats the missing secret as a failure of its own, so a scheduled run
@@ -27,9 +30,7 @@
 // or an availability record that does not exist), 2 the check could not run. A
 // verdict outranks a check that could not run, so a finding is never masked by
 // an unrelated failure.
-import { homedir } from 'node:os';
-import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { asc, ascToken } from './lib/asc.mjs';
 
 // The iPhone app is the product: a released version of it that nobody can
 // install is the failure this script exists for. The Mac app is watched too,
@@ -67,10 +68,6 @@ const say = (line) => {
 // is a pipe or a file, which is how CI — and this script's own proofs — capture
 // it. Nothing here exits early, so the exitCode is set at the end and the
 // process ends by itself, after the writes have drained.
-
-const { asc, ascToken } = await import(
-  pathToFileURL(join(homedir(), '.copilot/bin/apple-asc.mjs')).href
-);
 
 // Reads the key id, the issuer and the .p8 — no network. A throw means the
 // credentials are absent, not that the store is broken.

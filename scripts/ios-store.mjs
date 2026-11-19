@@ -3,8 +3,12 @@
 // rights, age rating, review details and free pricing. iPhone by default
 // (apps/ios/store/listing.json); `--platform macos` applies
 // apps/desktop/store/macos-listing.json to the Mac App Store record.
-// Credentials: the team's ASC key via ~/.copilot/bin/apple-asc.mjs (Secret
-// Manager, dragos-devcloud). Nothing secret is printed.
+// Credentials: the team's ASC key, from the env vars APPLE_ASC_KEY_P8,
+// APPLE_ASC_KEY_ID and APPLE_ASC_ISSUER, else Secret Manager
+// (APPLE_SECRETS_PROJECT, default dragos-devcloud). The client is
+// `scripts/lib/asc.mjs`, repo-local because `--check` runs in CI, where the
+// machine-local ~/.copilot/bin/apple-asc.mjs does not exist. Nothing secret is
+// printed.
 //
 //   node scripts/ios-store.mjs            apply and print what changed
 //   node scripts/ios-store.mjs --check    prove the record is complete (read-only)
@@ -21,13 +25,7 @@
 // which is why that probe exists. The audit mints one App Store Connect token
 // for the whole run rather than one per request.
 import { readFileSync } from 'node:fs';
-import { homedir } from 'node:os';
-import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
-
-const { asc: raw, ascToken } = await import(
-  pathToFileURL(join(homedir(), '.copilot/bin/apple-asc.mjs')).href
-);
+import { asc as raw, ascToken } from './lib/asc.mjs';
 const asc = async (method, path, body) => {
   const r = await raw(method, path, body);
   if (r.status >= 300) {
