@@ -13,7 +13,12 @@
 //! predates the pipe.
 
 use std::io::IsTerminal;
-use std::time::{Duration, Instant};
+use std::time::Duration;
+// Only the Windows sensor cache below needs an Instant, and its two platforms
+// that do not have one compile this file too: CI's macOS and Linux clippy jobs
+// (both `-D warnings`) refuse an import no live code path uses.
+#[cfg(windows)]
+use std::time::Instant;
 
 use anyhow::{Context, Result};
 use vitals_core::MachineSample;
