@@ -3553,6 +3553,94 @@ set to `android:required="true"`, `:app:testPlayDebugUnitTest` reports
 java.lang.AssertionError at ManifestFeaturesTest.kt:56` (3 tests completed, 1
 failed); the mutation was reverted immediately.
 
+### 2026-11-19 — the vivobook pass, and how a standard-user session is reached at all
+
+**The laptop was carrying a month of test debris.** Before anything could be
+measured, 1.0.4 had to go and so did eight scheduled tasks from the October
+sessions (`VitalsList`, `VitalsProof104user`, `VitalsQuitProof`, `VitalsRepro`,
+`VitalsStuck`, `VitalsSys`, `VitalsUpdateProofUser`, `VitalsZombie`), all
+pointing at `C:\vproof\*.ps1`. After: no Program Files copy, no HKLM uninstall
+key, no Run value, no tasks, and 1.3.0 installed **per user as a standard user**:
+
+```
+setup sha256=FA52394069A0D2C59B23A575D33FBBED60DBE82A9D5C4402DAEAA7C2EAE38E25
+  (identical to an independent download made on another machine)
+start ... user=vladu elevated=False token=S-1-5-21-...-1001
+installer exit=0
+per-user exe present: True     per-user version: 1.3.0
+HKCU uninstall keys: Vitals 1.3.0 | "C:\Users\vladu\AppData\Local\Programs\Vitals"
+HKLM uninstall keys:            (none)
+```
+
+Two traps cost a round each. **`/CurrentUser` alone is not enough**: the setup's
+manifest still asks for elevation, and an unanswered prompt is
+`ERROR_CANCELLED` — the first attempt died with _"This command cannot be run due
+to the error: The operation was canceled by the user."_ The app's own one-click
+move does two things, not one (`run_children_as_invoker` plus
+`migration_args`), and copying both made it work. And **`Start-Process` from the
+ssh shell cannot launch a GUI**: that session has no desktop, so the app exits
+and the pid comes back empty. Everything that has to appear on the screen now
+runs inside a scheduled task (`-RunLevel Limited` for the standard-user session,
+`-RunLevel Highest` when an elevated app is needed).
+
+The webview turned out to be drivable: `FindAll(Descendants, TrueCondition)`
+makes WebView2 build its accessibility tree, and from there the whole UI is
+readable — `TabItem 'Remote access'`, `Button 'Allow devices on this network'`,
+`Button 'Replace Task Manager'`. A plain name lookup is not enough: the dialog
+is a _Window_ named `Settings` and the sidebar entry is a _Button_ of the same
+name, so the first match was the wrong one.
+
+**Three of the five S21-08 claims are now verified on that machine**, one is
+half verified, and one is partial:
+
+- **SEC-1** — on the per-user copy, _Replace Task Manager_ refused with the
+  app's own sentence (_"Vitals can replace Task Manager only when it is
+  installed for all users in Program Files; this copy runs from
+  …\AppData\Local\Programs\Vitals…"_) and `HKLM\…\Image File Execution
+Options\taskmgr.exe` stayed **absent** before and after.
+- **SEC-9** — `netstat -ano` for the app's pid:
+  `TCP 192.168.100.104:7331 LISTENING` and `TCP 127.0.0.1:7330 LISTENING`,
+  **zero listeners on `0.0.0.0`**. The adapter shown in the panel was
+  `Ethernet 3 - 192.168.100.104`.
+- **SEC-3** — through the loopback listener, `POST /api/v1/pair` with a foreign
+  `Origin` → **403**, with a foreign `Host` (DNS rebinding) → **403**, with
+  both → **403**, and the **control** (no `Origin`, loopback `Host`) → **400
+  `expected {"code": "123456"}`**. The control is what makes the 403s mean
+  something: they came from `pair_guard`, not from a wrong code. The same
+  request to the LAN listener with a foreign `Origin` returned 400 — **not**
+  refused, because over the network the six-digit code is the defence. The row
+  says "from a browser on another host"; the guard refuses a browser on _this_
+  host, which is the attack it was written for.
+- **SEC-7**, half — an elevated CLI attached to the unelevated app
+  (`source: attached to Vitals 1.3.0 over vitals-vladu`). The reverse attached
+  as well but **not over the pipe**: with the app elevated the unelevated CLI
+  read `source: attached to Vitals 1.3.0 on :7330`, i.e. it fell back to the
+  loopback API. The pipe half of that direction is unproven.
+- **SEC-2**, partial — `C:\Program Files\Vitals Sensors\install.log` exists and
+  nothing named `install.log` appears under the per-user install, `%LOCALAPPDATA%\Vitals`,
+  `%TEMP%` or the scratch dir; but the sensors helper now refuses to install
+  without PawnIO (`install failed: PawnIO not installed`, exit 3), so the 1 MB
+  cap was not exercised.
+
+**Still blocked, and both need the person.** The phone and TV cannot pair: the
+laptop has two inbound **Block** firewall rules for `vitals-desktop.exe`, and
+its Wi-Fi holds an APIPA address while the listener sits on the 192.168.100.104
+adapter — so nothing on the network reaches it. And the four screenshot/video
+captures are still owed.
+
+**One consequence worth knowing before the workstation move.** A per-user
+install cannot replace Task Manager — that is SEC-1 working as designed — so
+the one-click move S24-02 asks for silently takes that setting away. Recorded
+on S24-02 rather than changed.
+
+**Play's "outdated SDK" notice is not ours.** It names
+`androidx.fragment:fragment` 1.1.0 against bundle `1000041 (1.1.1)`, two
+releases old. `:app:dependencyInsight --configuration playDebugRuntimeClasspath`
+resolves that library to **1.5.4**; 1.1.0 and 1.0.0 are only _requested_, by
+`com.google.android.gms:play-services-basement:18.9.0` — Google's own graph, via
+ML Kit. Pinning it would fight that graph and spend APK budget, which is a CI
+gate, to silence an informational notice about an old bundle.
+
 ### 2026-11-19 — five gates only CI can see, and what they found
 
 Every local gate was green and CI failed five jobs on `5c310d5`. Each one was
