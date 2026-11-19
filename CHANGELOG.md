@@ -7,7 +7,17 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-_(nothing yet — the next change lands here)_
+### Fixed
+
+- Android: the phone build no longer requires Wi-Fi or a camera, and the TV
+  build no longer declares a camera it does not use. Android marks a hardware
+  feature required when a permission implies it (`ACCESS_WIFI_STATE` →
+  `android.hardware.wifi`, `CAMERA` → `android.hardware.camera`) unless the
+  manifest says otherwise, and Play then hides the app from every device that
+  lacks it — Ethernet-only phones and tablets, camera-less Chromebooks and
+  Android XR. Both are declared optional now, so the next bundle is offered to
+  those users. The 1.3.0 build already in review was made from the old
+  manifest and keeps the restriction.
 
 ## [1.3.0] — 2026-11-17
 

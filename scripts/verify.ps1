@@ -146,12 +146,25 @@ if ($LinuxClippy -ne 'off') {
 }
 
 $total = [System.Diagnostics.Stopwatch]::StartNew()
+# Android availability: Play hides the app from any device that lacks a
+# feature the manifest declares REQUIRED, and a permission implies one. The
+# answer exists only in a built APK, so this lane assembles the three debug
+# APKs and then reads them. Its own lane on purpose: it builds, and the checks
+# lane exists to fail in seconds.
+$androidLane = @()
+if (Test-Path (Join-Path $root 'apps/android/gradlew.bat')) {
+    $androidLane += @{ Name = 'android: features'; Script = 'pwsh -NoProfile -File scripts/check-android-features.ps1 -Build -RequireBuilt' }
+} else {
+    Write-Host '  note: no gradlew.bat here (no Android SDK); the artefact gate is skipped, and CI runs it' -ForegroundColor DarkGray
+}
+
 $jobs = [ordered]@{
     checks = Start-ThreadJob -ScriptBlock $runLane -ArgumentList $root, $checks
     rust   = Start-ThreadJob -ScriptBlock $runLane -ArgumentList $root, $rust
     ts     = Start-ThreadJob -ScriptBlock $runLane -ArgumentList $root, $ts
 }
 if ($linux.Count) { $jobs['linux'] = Start-ThreadJob -ScriptBlock $runLane -ArgumentList $root, $linux }
+if ($androidLane.Count) { $jobs['android'] = Start-ThreadJob -ScriptBlock $runLane -ArgumentList $root, $androidLane }
 
 $results = [System.Collections.Generic.List[object]]::new()
 $pending = [System.Collections.Generic.List[object]]::new()
@@ -179,6 +192,12 @@ while ($pending.Count -gt 0) {
         }
         if ($r.Gate -like 'ts: typecheck*') {
             $r.Output | Select-String -Pattern '^\s*(Tasks|Cached):' | ForEach-Object { Write-Host "        $($_.Line.Trim())" -ForegroundColor DarkGray }
+        }
+        # The artefact gate's own one-line result, so a skip (an APK it could
+        # The artefact gate's own one-line result, so whether it had any APK to
+        # check is visible in the run and not only inside the gate.
+        if ($r.Gate -eq 'android: features') {
+            $r.Output | Select-String -Pattern '^android-features:' | ForEach-Object { Write-Host "        $($_.Line.Trim())" -ForegroundColor DarkGray }
         }
         $results.Add($r)
     }

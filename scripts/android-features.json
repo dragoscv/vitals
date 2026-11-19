@@ -1,0 +1,8 @@
+{
+  "note": "The REQUIRED <uses-feature> names a built Android APK is allowed to carry, per module. Every other feature must appear as `uses-feature-not-required`. Android marks a feature required when a permission implies it (ACCESS_WIFI_STATE -> android.hardware.wifi, CAMERA -> android.hardware.camera), and Play then hides the app from the devices that lack it, so a feature belongs here only when the app genuinely cannot run without it.",
+  "modules": {
+    "app": ["android.hardware.faketouch"],
+    "wear": ["android.hardware.faketouch", "android.hardware.type.watch"],
+    "tv": ["android.software.leanback"]
+  }
+}

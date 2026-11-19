@@ -51,6 +51,7 @@ D-numbers refer to the decision table in [`../TRACKER.md`](../TRACKER.md).
 | [0041](0041-apple-platforms.md)                            | Apple platforms: real macOS sampler, native iPhone app  | S23     |
 | [0042](0042-kodwen-rebrand.md)                             | The AI service is Kodwen; only its public name moved    | S25-01  |
 | [0043](0043-ai-usage-panel.md)                             | The AI page shows token usage, or a gap where unknown   | S25-03  |
+| [0044](0044-artefact-gates-decide-on-content.md)           | An artefact gate decides on content, not on a timestamp | S24-19  |
 
 ## Writing a new one
 

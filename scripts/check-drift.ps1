@@ -25,6 +25,13 @@
             rows pasted together with a duplicated status field, which a CSV
             reader turned into garbage while every reader of the table saw a
             plausible row.
+        9. An Android manifest that declares a hardware feature REQUIRED.
+            Android marks a feature required when a permission implies it
+            (ACCESS_WIFI_STATE -> android.hardware.wifi, CAMERA ->
+            android.hardware.camera), and Play then hides the app from the
+            devices that lack it. Shipped: the phone build required Wi-Fi and a
+            camera after 1.3.0, which hid it from Ethernet-only phones and
+            camera-less Chromebooks.
 
     Exit code is the number of hard failures. Warnings do not fail the gate.
 
@@ -497,6 +504,61 @@ if (Test-Path $tracker) {
         }
         if ($trackerStatuses -notcontains $row.status) {
             $failures.Add("docs/tracker.csv: row '$($row.id)' has status '$($row.status)', not one of $($trackerStatuses -join '/')")
+        }
+    }
+}
+
+# ── 9. Android required features in merged manifests ───────────────────
+
+# Android marks a hardware feature REQUIRED when a permission implies it, and
+# Play then hides the app from every device that lacks it. A manifest that
+# declares <uses-feature> without android:required="false" is therefore an
+# availability bug that no compiler sees. The packaged proof is
+# scripts/check-android-features.ps1, which reads the built APK — the implied
+# features are added at packaging and appear in no manifest at all. This is the
+# cheap half: it reads any merged manifest already on disk and fails when the
+# DECLARED required set leaves the allowlist, so an explicit required="true"
+# (or a declaration that forgot the attribute) is caught in two seconds with no
+# build. A module that has never been built is skipped, not failed: verify.ps1
+# must pass on a checkout that has not assembled Android.
+
+$androidAllowFile = Join-Path $root 'scripts/android-features.json'
+if (Test-Path $androidAllowFile) {
+    $androidAllow = (Get-Content $androidAllowFile -Raw | ConvertFrom-Json).modules
+
+    # Read the attributes by local name so this does not depend on how
+    # PowerShell's XML adapter exposes the android: prefix.
+    function Get-AndroidAttribute($node, $local) {
+        foreach ($a in $node.Attributes) { if ($a.LocalName -eq $local) { return $a.Value } }
+        return $null
+    }
+
+    foreach ($module in @($androidAllow.PSObject.Properties.Name)) {
+        $mergedRoots = @(
+            "apps/android/$module/build/intermediates/merged_manifests"
+            "apps/android/$module/build/intermediates/merged_manifest"
+        )
+        $manifests = @(foreach ($r in $mergedRoots) {
+            if (Test-Path $r) { Get-ChildItem $r -Recurse -Filter 'AndroidManifest.xml' -ErrorAction SilentlyContinue }
+        })
+        if ($manifests.Count -eq 0) { continue }
+
+        $allowed = @($androidAllow.$module)
+        foreach ($m in $manifests) {
+            [xml]$merged = Get-Content -LiteralPath $m.FullName -Raw
+            $relative = $m.FullName.Substring($root.Length).TrimStart('\', '/')
+            $required = @($merged.manifest.'uses-feature' |
+                Where-Object { $_ } |
+                ForEach-Object {
+                    $feature = Get-AndroidAttribute $_ 'name'
+                    $needed = Get-AndroidAttribute $_ 'required'
+                    if ($feature -and $needed -ne 'false') { $feature }
+                } | Sort-Object -Unique)
+            foreach ($f in $required) {
+                if ($allowed -notcontains $f) {
+                    $failures.Add("${relative}: declares '$f' as required, which is not on the allowlist for module '$module' (scripts/android-features.json); declare it android:required=""false"" if the app can run without it")
+                }
+            }
         }
     }
 }

@@ -14,7 +14,9 @@
          offer this build on the Android TV form factor and nowhere else. -->
     <uses-feature android:name="android.software.leanback" android:required="true" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
-    <uses-feature android:name="android.hardware.camera.any" android:required="false" />
+    <!-- No camera declaration: a TV has none, this build never requests the
+         CAMERA permission and pairing is a typed code (AddPcScreen), so
+         nothing implies or uses android.hardware.camera. -->
     <uses-feature android:name="android.hardware.wifi" android:required="false" />
     <uses-feature android:name="android.hardware.ethernet" android:required="false" />
 

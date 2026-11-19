@@ -57,6 +57,7 @@ The individual pieces, if you want them separately:
 
 ```powershell
 pwsh -NoProfile -File scripts/check-drift.ps1   # two seconds; run it first
+pwsh -NoProfile -File scripts/check-android-features.ps1   # reads the built APKs; assemble the debug variants first
 cargo fmt --all; cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 pnpm exec turbo run typecheck lint test   # in parallel, cached; then pnpm format:check
@@ -69,6 +70,14 @@ catch: a struct deriving `ts_rs::TS` without `#[serde(rename_all =
 "camelCase")]`, an `invoke('name')` with no `#[tauri::command]` behind it
 (or one not in `generate_handler!`), and a locale key present in one language
 only. Each of those shipped once before the script existed.
+
+`check-android-features.ps1` covers the one no manifest can answer: Android
+marks a hardware feature required when a permission implies it, so requesting
+Wi-Fi or a camera hides the app from Play on the devices that lack it. It reads
+the built APK, because the implied features are added at packaging and appear
+in no manifest, and it fails when the artefact disagrees with the source or
+requires something outside `scripts/android-features.json`. `verify.ps1` runs
+it with `-Build`, which assembles `:app`, `:tv` and `:wear` for you.
 
 If you changed anything in `crates/vitals-core`, run `pnpm protocol:generate`
 and commit the result; CI fails on a dirty `packages/protocol/src/generated`.

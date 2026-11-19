@@ -126,6 +126,24 @@ if ($driftRelevant) {
     }
 }
 
+# ── Android required features ──────────────────────────────────────────
+
+# A permission implies a hardware feature, and Play then hides the app from
+# every device that lacks it. The implied features are added at packaging, so
+# the answer is only in a built APK: this says something once one exists and
+# nothing before, which is why it is a reminder here and the proof is the gate
+# in verify.ps1 and CI. Only when a manifest or the allowlist is staged, to
+# stay inside the hook's seconds budget.
+$androidRelevant = @($staged | Where-Object {
+    $_ -match '^apps/android/.*AndroidManifest\.xml$' -or $_ -eq 'scripts/android-features.json'
+})
+if ($androidRelevant) {
+    & pwsh -NoProfile -File scripts/check-android-features.ps1 2>&1 | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        $problems.Add("an Android manifest requires a hardware feature it should declare optional (run: pwsh -NoProfile -File scripts/check-android-features.ps1)")
+    }
+}
+
 # ── Report ─────────────────────────────────────────────────────────────
 
 if ($problems.Count -eq 0) { exit 0 }

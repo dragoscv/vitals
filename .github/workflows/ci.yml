@@ -706,3 +706,9 @@ jobs:
           cache-read-only: ${{ github.ref != 'refs/heads/main' }}
       - name: Assemble phone, TV and watch (debug)
         run: ./gradlew :app:assembleDebug :tv:assembleDebug :wear:assembleDebug :tv:lintPlayDebug --console=plain
+      # A permission implies a hardware feature and Play then hides the app
+      # from every device that lacks it; the implied features exist only in
+      # the built APK, so this reads what the step above just assembled.
+      # -Strict refuses to pass without having checked one.
+      - name: Every required hardware feature is declared (aapt)
+        run: pwsh -NoProfile -File ../../scripts/check-android-features.ps1 -RequireBuilt -Strict

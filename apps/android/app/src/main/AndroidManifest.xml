@@ -25,6 +25,12 @@
 
     <!-- The camera only scans a pairing code; phones without one pair by NSD or by hand. -->
     <uses-feature android:name="android.hardware.camera.any" android:required="false" />
+    <!-- camera.any does not cancel what the CAMERA permission implies: Android
+         still marks android.hardware.camera REQUIRED, which hides the app from
+         camera-less Chromebooks and keeps aapt listing it under `uses-feature`
+         instead of `uses-feature-not-required`. The back camera has to be
+         declared optional itself. -->
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
         <!-- The two Wi-Fi permissions above make android.hardware.wifi REQUIRED by
             default, which Play reports as "Required hardware feature declarations
             are restricting your app's availability" and hides the app from
