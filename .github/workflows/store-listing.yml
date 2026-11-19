@@ -1,0 +1,100 @@
+name: Store listing
+
+# A released version is not a listed app. On 2026-11-18 the iPhone app had two
+# versions READY_FOR_SALE and no availability record at all: App Store Connect
+# read "This app was removed from sale from the App Store", the product page
+# 404'd and `itunes.apple.com/lookup` returned resultCount 0 — for weeks and
+# unnoticed, because every gate watched the build and none watched the listing.
+#
+# This runs the probe on every push to main, weekly, and on demand. It uploads
+# nothing: it reads one App Store Connect record, three public storefront pages
+# and the public lookup. docs/releasing.md, "Store steps no pipeline can prove".
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    # Monday 06:17 UTC: the weekend's store processing has settled, and it is
+    # before the week's own releases.
+    - cron: '17 6 * * 1'
+
+permissions:
+  contents: read
+
+concurrency:
+  # One probe at a time: it reads a public endpoint that rate-limits.
+  group: store-listing
+  cancel-in-progress: false
+
+jobs:
+  listing:
+    name: App is for sale
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    # The App Store Connect key was a `release`-environment secret, and that
+    # environment requires an owner approval (SEC-5), so a job that declared it
+    # would pause on a pending deployment instead of checking anything. The same
+    # three values are repository-level secrets now, under the names the shared
+    # client derives from the gcloud secrets (apple-asc-key-id → APPLE_ASC_KEY_ID
+    # and so on); that is what makes an unattended run possible at all. They are
+    # job-level so a step's `if` can see them — GitHub forbids `secrets` in an
+    # `if` expression.
+    env:
+      APPLE_ASC_KEY_P8: ${{ secrets.APPLE_ASC_KEY_P8 }}
+      APPLE_ASC_KEY_ID: ${{ secrets.APPLE_ASC_KEY_ID }}
+      APPLE_ASC_ISSUER: ${{ secrets.APPLE_ASC_ISSUER }}
+      APPLE_SECRETS_PROJECT: ${{ vars.APPLE_SECRETS_PROJECT || 'dragos-devcloud' }}
+      BRIVIO_API_KEY: ${{ secrets.BRIVIO_API_KEY }}
+      STORE_ALERT_TO: ${{ vars.STORE_ALERT_TO }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      # The script imports nothing, so this is the only setup it needs.
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24
+
+      # Absent credentials are a SKIPPED inside the script, which is right for a
+      # repository that has none. Here it is not: a check that skips every week
+      # looks green while proving nothing, and the whole point of this workflow
+      # is that the failure of 2026-11-18 went unnoticed. So it fails instead.
+      - name: App Store Connect credentials exist
+        if: env.APPLE_ASC_KEY_P8 == ''
+        run: |
+          echo "::error::APPLE_ASC_KEY_P8 is not set at repository level, so the store-listing check cannot run and this job proves nothing. Add the three APPLE_ASC_* secrets (see docs/releasing.md); the values are the gcloud secrets apple-asc-key-p8 / -key-id / -issuer."
+          exit 1
+
+      - name: The app is for sale
+        run: node scripts/check-store-listing.mjs --fail-on-unlisted
+
+      # The other half of the same question. "Is the app for sale" and "is
+      # everything a submission needs actually there" were two workflows for
+      # one afternoon's incident; they run in one job, on one schedule, so a
+      # week's silence cannot mean one of them stopped.
+      #
+      # `--all` audits both records, but only the iPhone one decides the exit
+      # code: the Mac app is not on the Mac App Store by decision (D6), so its
+      # gaps are reported and never fail.
+      - name: Every record a submission needs is present
+        run: |
+          set -euo pipefail
+          node scripts/ios-store.mjs --check --all --json | tee "$RUNNER_TEMP/store-completeness.json"
+
+      # GitHub's failure notice reaches whoever watches the repository, which is
+      # not the same as the person who has to fix an App Store listing. Brivio is
+      # the mail platform (POST /v1/email/send, scope emails:send). Inert until
+      # BRIVIO_API_KEY and STORE_ALERT_TO exist, and named here so that is
+      # visible rather than assumed.
+      - name: Mail the owner when the guard fails
+        if: failure() && env.BRIVIO_API_KEY != '' && env.STORE_ALERT_TO != ''
+        env:
+          BRIVIO_API_URL: ${{ vars.BRIVIO_API_URL || 'https://api.brivio.ro' }}
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/alert.json" <<JSON
+          {"to":["$STORE_ALERT_TO"],"category":"alert","subject":"Vitals: the App Store listing check failed","text":"The store-listing guard failed, so the app may not be installable: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"}
+          JSON
+          curl -sS --fail-with-body -X POST "$BRIVIO_API_URL/v1/email/send" \
+            -H "Authorization: Bearer $BRIVIO_API_KEY" \
+            -H 'Content-Type: application/json' \
+            --data @"$RUNNER_TEMP/alert.json"

@@ -192,6 +192,24 @@ jobs:
           node-version: 24
           cache: pnpm
 
+      # A release whose app is not for sale is a release nobody can install: on
+      # 2026-11-18 the iPhone app had two versions READY_FOR_SALE and no
+      # availability record at all, and its App Store page 404'd for weeks. The
+      # check reads one App Store Connect record, the public lookup and the
+      # storefront pages. It uses the repository-level APPLE_ASC_* key, which is
+      # what store-listing.yml runs on weekly; here a missing key prints SKIPPED
+      # and the tag carries on, because the release itself does not depend on the
+      # key and store-listing.yml is the job whose contract is to fail instead.
+      # Tags only: this whole job is a tag job.
+      - name: App Store availability
+        if: needs.plan.outputs.is_release == 'true'
+        env:
+          APPLE_ASC_KEY_P8: ${{ secrets.APPLE_ASC_KEY_P8 }}
+          APPLE_ASC_KEY_ID: ${{ secrets.APPLE_ASC_KEY_ID }}
+          APPLE_ASC_ISSUER: ${{ secrets.APPLE_ASC_ISSUER }}
+          APPLE_SECRETS_PROJECT: ${{ vars.APPLE_SECRETS_PROJECT || 'dragos-devcloud' }}
+        run: node scripts/check-store-listing.mjs --fail-on-unlisted
+
       - run: pnpm install --frozen-lockfile
 
       # Two seconds, and catches what a compile cannot: serde casing against
