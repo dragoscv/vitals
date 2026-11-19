@@ -3577,6 +3577,14 @@ exactly the two failures CI reported — the same test names, on a different
 machine — and after re-recording the same task is `BUILD SUCCESSFUL in 52s`.
 The failure set matching CI exactly is what makes the new images trustworthy.
 
+Verified end to end: CI run `44453323065` on `d0e2423` is **green on every
+job** — `Rust (linux)`, `Apple (macOS + iOS)`, `Frontend`, `Build installer`,
+`Android (unit)`, `Android (apps)`, `Installer round trip`,
+`Performance (windows, release)`, `End-to-end (web)`, `Tizen`,
+`Rust lint/test (windows)`, `Supply chain`. The Apple job is the one that
+compiles the Swift half and the new macOS shell, so those are compiled now
+too; the earlier run never reached them.
+
 ### 2026-11-19 — the two halves of S24-13, and a zero that was not a measurement
 
 **An agent can now read a machine, and cannot touch it.** `crates/vitals-mcp`
