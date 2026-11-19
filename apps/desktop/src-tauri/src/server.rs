@@ -806,12 +806,32 @@ fn host_info() -> Option<vitals_core::provider::HostInfo> {
 fn embedded_assets(app: tauri::AppHandle) -> vitals_server::StaticAssets {
     Arc::new(move |path: &str| {
         let resolver = app.asset_resolver();
-        let key = format!("/{path}");
+        let key = asset_key(path);
         resolver.get(key.clone()).map(|asset| {
             let mime: &'static str = vitals_server::router::mime_for(&key);
             (asset.bytes().to_vec(), mime)
         })
     })
+}
+
+/// The embedded key to serve for a request path.
+///
+/// A path that names a file is that file. Anything else is a route the
+/// single-page app owns, and the page a phone gets is `mobile.html`.
+///
+/// Not `path` itself, because Tauri answers a key it does not hold with its
+/// single-page fallback, and that fallback is the **desktop's** `index.html`:
+/// a phone deep-linking a route received the desktop application, a different
+/// bundle from the one it had loaded, over a link meant for a phone. The
+/// server's router already knows how to tell a route from a file — this asks
+/// it, so the two cannot drift.
+fn asset_key(path: &str) -> String {
+    let path = path.trim_start_matches('/');
+    if vitals_server::router::is_file_path(path) {
+        format!("/{path}")
+    } else {
+        "/mobile.html".to_owned()
+    }
 }
 
 #[cfg(test)]
@@ -828,6 +848,27 @@ mod tests {
         // Another Windows account on the same PC reaches 127.0.0.1 too; a
         // Control grant here let it end this user's processes.
         assert_eq!(LOCAL_SCOPE, Scope::Read);
+    }
+
+    #[test]
+    fn a_route_gets_the_phone_page_and_a_file_gets_itself() {
+        // The defect this pins: Tauri's fallback for an unknown key is the
+        // desktop's index.html, so a deep link from a phone used to render the
+        // desktop bundle — which is why the resolver must ask for mobile.html
+        // by name rather than let the fallback decide.
+        for route in ["some/deep/link", "devices", "settings", ""] {
+            assert_eq!(asset_key(route), "/mobile.html", "route {route:?}");
+        }
+        assert_eq!(asset_key("mobile.html"), "/mobile.html");
+        assert_eq!(asset_key("index.html"), "/index.html");
+        for file in [
+            "assets/index-abc.js",
+            "icon.png",
+            "styles.css",
+            "app.webmanifest",
+        ] {
+            assert_eq!(asset_key(file), format!("/{file}"), "file {file:?}");
+        }
     }
 
     #[test]

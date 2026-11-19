@@ -1053,7 +1053,47 @@ struct AssetQuery {
     token: Option<String>,
 }
 
-/// Serves the mobile web app.
+/// Whether `path` belongs to a machine surface rather than the web app: the
+/// HTTP API under `/api`, the Prometheus scrape at `/metrics`, and the MCP
+/// server at `/mcp`. The single-page-app fallback must not answer these —
+/// see [`assets`].
+///
+/// Matched as the path itself or a child of it, never as a bare string
+/// prefix, so `/apiary` and `/metrics.json` stay web-app paths.
+fn is_machine_surface(path: &str) -> bool {
+    ["/api", "/metrics", "/mcp"].iter().any(|base| {
+        path.strip_prefix(base)
+            .is_some_and(|rest| rest.is_empty() || rest.starts_with('/'))
+    })
+}
+
+/// Whether a path names a file, as opposed to a route a single-page app
+/// renders itself. `/mobile.html` is a file; `/some/deep/link` is not.
+///
+/// Public because the desktop's asset resolver has to make the same call for a
+/// different reason: Tauri answers a key it does not hold with its
+/// single-page fallback, which is the *desktop's* `index.html`, so a phone
+/// deep-linking a route would be handed the desktop application. One
+/// definition, used by both, is the only way the two cannot disagree about
+/// what a route is.
+#[must_use]
+pub fn is_file_path(path: &str) -> bool {
+    path.rsplit('/')
+        .next()
+        .is_some_and(|segment| segment.contains('.'))
+}
+
+/// The router's fallback: any path that matched no route.
+///
+/// A single-page app must answer a deep link with its shell, so a path that
+/// is not an API falls through to the bundled web app. The API and the other
+/// machine surfaces are not the web app, and answering them with the shell
+/// and `200` is a lie with three costs, all measured on a real 1.3.0 install
+/// on 2026-11-19: a client that mistyped an endpoint (`POST
+/// /api/v1/processes/control`, which is not a route) was told it succeeded;
+/// the shell's HTML went out as `application/octet-stream`; and a route probe
+/// got a false positive, which produced a "a read-scope token reached the
+/// control route" conclusion that the real `/api/v1/control` disproved.
 ///
 /// Unauthenticated on purpose: these are the same static files anyone could
 /// take from the installer, and the page cannot show anything until it has a
@@ -1065,6 +1105,21 @@ async fn assets(
     Query(_q): Query<AssetQuery>,
     request: Request,
 ) -> Response {
+    let path = request.uri().path();
+
+    // A machine surface is not the web app: an unmatched path under one is a
+    // `404` in the same `ApiError` shape every other refusal uses, not the
+    // shell. The security-header layer wraps it like any other response.
+    if is_machine_surface(path) {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(ApiError {
+                error: "no such endpoint".to_owned(),
+            }),
+        )
+            .into_response();
+    }
+
     let Some(assets) = state.assets.as_ref() else {
         return (
             StatusCode::NOT_FOUND,
@@ -1073,7 +1128,6 @@ async fn assets(
             .into_response();
     };
 
-    let path = request.uri().path();
     let candidate = if path == "/" { "/mobile.html" } else { path };
 
     // `..` cannot escape: the resolver is given a path and returns bytes it
@@ -1084,11 +1138,24 @@ async fn assets(
     }
 
     match assets(candidate.trim_start_matches('/')) {
-        Some((bytes, mime)) => (
-            [(header::CONTENT_TYPE, HeaderValue::from_static(mime))],
-            bytes,
-        )
-            .into_response(),
+        Some((bytes, mime)) => {
+            // A path with no file extension is a deep link: the resolver had
+            // no such file and returned the shell, but it named the type
+            // after the requested path, which has none — so the shell's HTML
+            // went out as `application/octet-stream` (measured 2026-11-19).
+            // Label it as what it is. A path with an extension keeps the
+            // resolver's type, and a `.html` path was already correct.
+            let mime = if is_file_path(candidate) {
+                mime
+            } else {
+                "text/html; charset=utf-8"
+            };
+            (
+                [(header::CONTENT_TYPE, HeaderValue::from_static(mime))],
+                bytes,
+            )
+                .into_response()
+        }
         None => (StatusCode::NOT_FOUND, "not found").into_response(),
     }
 }

@@ -81,11 +81,19 @@ info:
 
     ## Static files
 
-    Any path not listed below falls through to the bundled mobile web app
-    (`/` serves `/mobile.html`). Those files are unauthenticated on purpose:
-    anyone with the installer already has them, and the page cannot show
-    anything until it has a token. A path containing `..` returns `400`; a
-    server built without the web app returns `404` for everything unlisted.
+    A path that is not listed below and is not a machine surface falls
+    through to the bundled mobile web app, so a deep link returns the app's
+    shell and the app routes it (`/` serves `/mobile.html`). Those files are
+    unauthenticated on purpose: anyone with the installer already has them,
+    and the page cannot show anything until it has a token. A path containing
+    `..` returns `400`; a server built without the web app returns `404` for
+    everything unlisted.
+
+    A path under `/api`, `/metrics` or `/mcp` is a machine surface, not the
+    web app, and the fallback does not answer it: an unmatched one returns
+    `404` with `{"error": …}`. The fallback would otherwise tell a client
+    that mistyped an endpoint that it succeeded, and would serve the shell's
+    HTML as `application/octet-stream`.
   license:
     name: MIT
     identifier: MIT

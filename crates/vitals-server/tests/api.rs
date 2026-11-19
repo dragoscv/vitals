@@ -83,8 +83,17 @@ fn state_with(
         tokens: Arc::new(ServerLock::new(tokens)),
         controller: controller.clone(),
         assets: Some(Arc::new(|path: &str| {
-            (path == "mobile.html")
-                .then(|| (b"<!doctype html>ok".to_vec(), "text/html; charset=utf-8"))
+            // Emulates the production resolver (Tauri's asset resolver): a
+            // path with no file of its own falls back to the single-page
+            // app's shell, and the type is named after the requested path —
+            // `application/octet-stream` for a deep link, which has no
+            // extension. That is what made an unknown API path answer `200`
+            // with HTML under the wrong content type on a real install;
+            // `mime_for` keeps the harness's naming honest.
+            Some((
+                b"<!doctype html>ok".to_vec(),
+                vitals_server::router::mime_for(path),
+            ))
         })),
         host: Arc::new(|| None),
         alerts: Arc::new(Vec::new),
@@ -135,13 +144,20 @@ async fn start_with(loopback_scope: Option<Scope>) -> Harness {
 
 /// A minimal HTTP/1.1 client. Avoids adding reqwest (and rustls, and hyper's
 /// client stack) as a dev-dependency for a handful of requests.
-async fn request(
+struct Reply {
+    status: u16,
+    /// Lower-cased, as sent. Empty when the header is absent.
+    content_type: String,
+    body: String,
+}
+
+async fn reply(
     base: &str,
     method: &str,
     path: &str,
     token: Option<&str>,
     body: Option<&str>,
-) -> (u16, String) {
+) -> Reply {
     use std::fmt::Write as _;
 
     use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
@@ -167,16 +183,40 @@ async fn request(
     stream.read_to_end(&mut raw).await.expect("read");
     let text = String::from_utf8_lossy(&raw).into_owned();
 
-    let status = text
+    let (head, body) = text.split_once("\r\n\r\n").unwrap_or((&text, ""));
+    let status = head
         .split_whitespace()
         .nth(1)
         .and_then(|s| s.parse().ok())
         .unwrap_or(0);
-    let body = text
-        .split_once("\r\n\r\n")
-        .map_or("", |(_, b)| b)
-        .to_owned();
-    (status, body)
+    // The type is what a client branches on, so a test that cares reads it
+    // rather than guessing from the body.
+    let content_type = head
+        .lines()
+        .find_map(|line| {
+            let (name, value) = line.split_once(':')?;
+            name.eq_ignore_ascii_case("content-type")
+                .then(|| value.trim().to_ascii_lowercase())
+        })
+        .unwrap_or_default();
+    Reply {
+        status,
+        content_type,
+        body: body.to_owned(),
+    }
+}
+
+/// The status and body of one request — the shape most tests read, so they do
+/// not name the `Reply` fields.
+async fn request(
+    base: &str,
+    method: &str,
+    path: &str,
+    token: Option<&str>,
+    body: Option<&str>,
+) -> (u16, String) {
+    let response = reply(base, method, path, token, body).await;
+    (response.status, response.body)
 }
 
 #[tokio::test]
@@ -489,6 +529,81 @@ async fn the_web_app_is_served_without_a_token_but_carries_no_data() {
     let (status, body) = request(&h.base, "GET", "/mobile.html", None, None).await;
     assert_eq!(status, 200);
     assert!(body.contains("<!doctype html>"), "{body}");
+}
+
+#[tokio::test]
+async fn a_mistyped_api_path_answers_404_and_not_the_web_app_shell() {
+    // Measured on a real 1.3.0 install on 2026-11-19: the first path is not a
+    // route, yet it returned 200 with the shell, which read as "the endpoint
+    // exists" before the real /api/v1/control was tried.
+    let h = start().await;
+    for (method, path) in [
+        ("POST", "/api/v1/processes/control"),
+        ("GET", "/api/v1/nonsense-xyz"),
+    ] {
+        let response = reply(&h.base, method, path, None, None).await;
+        assert_eq!(response.status, 404, "{method} {path}");
+        assert!(
+            !response.body.contains("<!doctype html>"),
+            "{method} {path} was answered with the web app: {}",
+            response.body
+        );
+    }
+}
+
+#[tokio::test]
+async fn the_machine_surfaces_reach_the_fallback_as_a_404_not_the_web_app() {
+    // Before this change these paths were caught by the single-page-app
+    // fallback and answered with the shell and 200 — the defect. A deep link
+    // and a machine surface both land in the fallback, and only one of them
+    // is the web app; that difference is the whole fix.
+    let h = start().await;
+
+    let deep = reply(&h.base, "GET", "/some/deep/link", None, None).await;
+    assert_eq!(deep.status, 200, "the fallback still serves the web app");
+    assert!(deep.body.contains("<!doctype html>"), "{}", deep.body);
+
+    for path in [
+        "/api",
+        "/api/v1/processes/control",
+        "/metrics/extra",
+        "/mcp/extra",
+    ] {
+        let response = reply(&h.base, "GET", path, None, None).await;
+        assert_eq!(response.status, 404, "{path}");
+        assert!(
+            !response.body.contains("<!doctype html>"),
+            "{path} was answered with the web app: {}",
+            response.body
+        );
+        // One error shape: the same `ApiError` every other refusal uses.
+        assert_eq!(
+            response.body.trim(),
+            r#"{"error":"no such endpoint"}"#,
+            "{path}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn a_deep_link_is_still_served_the_web_app_shell_as_html() {
+    // The fallback exists for the single-page app: a bookmark or a refresh on
+    // a route inside it must get the shell, typed as HTML. An extension-less
+    // deep link went out as `application/octet-stream` (measured 2026-11-19).
+    let h = start().await;
+    for path in ["/", "/some/deep/link", "/mobile.html"] {
+        let response = reply(&h.base, "GET", path, None, None).await;
+        assert_eq!(response.status, 200, "{path}");
+        assert!(
+            response.body.contains("<!doctype html>"),
+            "{path}: {}",
+            response.body
+        );
+        assert_eq!(
+            response.content_type, "text/html; charset=utf-8",
+            "{path} must be served as HTML"
+        );
+    }
 }
 
 #[tokio::test]
