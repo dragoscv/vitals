@@ -258,10 +258,42 @@ fn announce(port: u16, secret: &str, generated: Option<&str>, control: bool) {
                 "MCP for AI agents (read-only): POST http://{}:{port}/mcp with a Bearer token",
                 iface.address
             );
+            warn_if_the_firewall_would_block(iface.address, port);
         }
         None => eprintln!("no LAN interface found; reachable on this machine only"),
     }
 }
+
+/// Says so when Windows Firewall has no inbound rule for this program.
+///
+/// The installer creates a rule for `vitals-desktop.exe`; nothing creates one
+/// for `vitals`, so this server can bind the port, answer on loopback and be
+/// unreachable from every other device. Without this the printed URL looks
+/// like a promise and the failure looks like broken pairing (S24-22).
+///
+/// Silent when the rules cannot be read: "unknown" is not a finding.
+#[cfg(windows)]
+fn warn_if_the_firewall_would_block(address: std::net::Ipv4Addr, port: u16) {
+    let Ok(program) = std::env::current_exe() else {
+        return;
+    };
+    if vitals_win::firewall::inbound_allowed(&program, port) != Some(false) {
+        return;
+    }
+    eprintln!(
+        "warning: Windows Firewall has no inbound rule for this program, so another device \
+         will not reach {address}:{port} even though this server is listening. Add one as \
+         administrator, then start it again:"
+    );
+    eprintln!(
+        "  New-NetFirewallRule -DisplayName 'Vitals LAN (vitals serve)' -Direction Inbound \
+         -Action Allow -Program \"{}\" -Protocol TCP -LocalPort {port}",
+        program.display()
+    );
+}
+
+#[cfg(not(windows))]
+fn warn_if_the_firewall_would_block(_address: std::net::Ipv4Addr, _port: u16) {}
 
 #[allow(clippy::unnecessary_wraps)]
 fn host_info() -> Option<vitals_core::provider::HostInfo> {

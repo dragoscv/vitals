@@ -33,6 +33,7 @@ pub mod crash;
 pub mod credentials;
 pub mod devices;
 pub mod disk;
+pub mod firewall;
 pub mod frame;
 pub mod gpu;
 pub mod handles;

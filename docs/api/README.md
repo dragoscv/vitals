@@ -118,7 +118,10 @@ The code works once, and five wrong codes in total — from anyone — burn it.
 Every refusal is the same `403 {"error":"invalid pairing code"}`, whether the
 code is wrong, expired, burnt or was never shown. A body that is not
 `{"code":"<six digits>"}` is `400` and costs no attempt. `vitals serve` prints
-a code at start-up beside its token.
+a code at start-up beside its token. It also warns when Windows Firewall has
+no inbound rule for the binary — the usual reason a printed URL (or the QR
+code) cannot be reached from another device — and prints the exact
+`New-NetFirewallRule` command to fix it.
 
 Below, `$T` is your token and `$V` is the base URL. In PowerShell:
 
