@@ -200,15 +200,32 @@ jobs:
       # what store-listing.yml runs on weekly; here a missing key prints SKIPPED
       # and the tag carries on, because the release itself does not depend on the
       # key and store-listing.yml is the job whose contract is to fail instead.
+      #
+      # --require-full-rollout is the second half: the previous release must
+      # have finished rolling out to everyone before this one is called done,
+      # so a version left at PLAY_ROLLOUT (20 %) cannot sit there while the next
+      # tag goes green. The Play credentials are deliberately NOT exposed to
+      # this job (the note below says why), so the flag is a policy stated at
+      # the call site here and the Play half prints SKIPPED; it bites in
+      # store-listing.yml, which holds the secret and runs no dependency code.
+      #
+      # Why not here: the Play credential is Workload Identity Federation,
+      # which needs `id-token: write`, and a token minted for `vitals-play`
+      # can release to production. This job runs BEFORE the owner's approval
+      # (SEC-5) and a few steps below runs `pnpm install`, i.e. every
+      # dependency's lifecycle scripts — handing that code a production
+      # release credential is the exact boundary SEC-5 draws. A repository
+      # secret would avoid `id-token: write` but not the boundary, so neither
+      # is added here.
       # Tags only: this whole job is a tag job.
-      - name: App Store availability
+      - name: App Store availability and Play rollout
         if: needs.plan.outputs.is_release == 'true'
         env:
           APPLE_ASC_KEY_P8: ${{ secrets.APPLE_ASC_KEY_P8 }}
           APPLE_ASC_KEY_ID: ${{ secrets.APPLE_ASC_KEY_ID }}
           APPLE_ASC_ISSUER: ${{ secrets.APPLE_ASC_ISSUER }}
           APPLE_SECRETS_PROJECT: ${{ vars.APPLE_SECRETS_PROJECT || 'dragos-devcloud' }}
-        run: node scripts/check-store-listing.mjs --fail-on-unlisted
+        run: node scripts/check-store-listing.mjs --fail-on-unlisted --require-full-rollout
 
       - run: pnpm install --frozen-lockfile
 

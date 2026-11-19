@@ -1,14 +1,19 @@
 name: Store listing
 
-# A released version is not a listed app. On 2026-11-18 the iPhone app had two
-# versions READY_FOR_SALE and no availability record at all: App Store Connect
-# read "This app was removed from sale from the App Store", the product page
-# 404'd and `itunes.apple.com/lookup` returned resultCount 0 — for weeks and
-# unnoticed, because every gate watched the build and none watched the listing.
+# A released version is not a listed app, and a listed app is not one everyone
+# can get. On 2026-11-18 the iPhone app had two versions READY_FOR_SALE and no
+# availability record at all: App Store Connect read "This app was removed from
+# sale from the App Store", the product page 404'd and
+# `itunes.apple.com/lookup` returned resultCount 0 — for weeks and unnoticed.
+# On 2026-11-19 the Play production rollout was raised from 20 % to 100 % by
+# hand and the repository could not tell either: a release left at 20 % reaches
+# a fifth of users while every gate stays green.
 #
 # This runs the probe on every push to main, weekly, and on demand. It uploads
-# nothing: it reads one App Store Connect record, three public storefront pages
-# and the public lookup. docs/releasing.md, "Store steps no pipeline can prove".
+# nothing: it reads one App Store Connect record, the Play production track's
+# release state (through an edit it discards immediately), three public
+# storefront pages and the public lookup. docs/releasing.md, "Store steps no
+# pipeline can prove".
 on:
   push:
     branches: [main]
@@ -46,6 +51,14 @@ jobs:
       APPLE_SECRETS_PROJECT: ${{ vars.APPLE_SECRETS_PROJECT || 'dragos-devcloud' }}
       BRIVIO_API_KEY: ${{ secrets.BRIVIO_API_KEY }}
       STORE_ALERT_TO: ${{ vars.STORE_ALERT_TO }}
+      # The Play half of the same question. A repository secret — a
+      # service-account key — rather than Workload Identity Federation, because
+      # the federation provider accepts only `refs/tags/v` (see
+      # apps/android/play/README.md) and this runs on main and on a schedule.
+      # Inert until the secret exists: absent, the script prints SKIPPED, the
+      # public half still decides the exit code — and the step below fails, so
+      # "the secret is missing" can never read as "the rollout is fine".
+      PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -64,8 +77,21 @@ jobs:
           echo "::error::APPLE_ASC_KEY_P8 is not set at repository level, so the store-listing check cannot run and this job proves nothing. Add the three APPLE_ASC_* secrets (see docs/releasing.md); the values are the gcloud secrets apple-asc-key-p8 / -key-id / -issuer."
           exit 1
 
-      - name: The app is for sale
-        run: node scripts/check-store-listing.mjs --fail-on-unlisted
+      # The same argument one line down. Without this, a revoked Play
+      # credential would make the rollout half print SKIPPED while the job
+      # stayed green — which is the exact shape of the 2026-11-19 miss: a
+      # release reaching a fifth of users and every gate reading fine.
+      - name: Google Play credentials exist
+        if: env.PLAY_SERVICE_ACCOUNT_JSON == ''
+        run: |
+          echo "::error::PLAY_SERVICE_ACCOUNT_JSON is not set at repository level, so the Play production-rollout half of the check cannot run and this job would pass while proving nothing about the rollout. Add it: a service-account key for vitals-play@hai-small-apps (see docs/releasing.md)."
+          exit 1
+
+      # --require-full-rollout: a staged production rollout — the state every
+      # stable tag starts in — must not read as "everything is fine". It turns
+      # a 20 % rollout into a failure here and into a warning on a bare run.
+      - name: The app is for sale, and reaches everyone
+        run: node scripts/check-store-listing.mjs --fail-on-unlisted --require-full-rollout
 
       # The other half of the same question. "Is the app for sale" and "is
       # everything a submission needs actually there" were two workflows for
