@@ -78,6 +78,10 @@ jobs:
           workload_identity_provider: projects/98856543199/locations/global/workloadIdentityPools/github/providers/vitals
           service_account: vitals-play@hai-small-apps.iam.gserviceaccount.com
           token_format: access_token
+          # Not the action's `cloud-platform` default: the Play API answers
+          # `403 Request had insufficient authentication scopes` for that, the
+          # same trap a local ADC login hits (see scripts/play-rollout.mjs).
+          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
 
       # Absent credentials are a SKIPPED inside the script, which is right for a
       # repository that has none. Here it is not: a check that skips every week
