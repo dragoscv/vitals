@@ -1,4 +1,3 @@
-Vitals 1.3.0
-• Kodwen: pagina AI se conectează acum la ai.kodwen.com
-• Sănătate (opțional): rezumatul serverului tău vmui, direct pe telefon
-• Ecrane late: listă și detaliu alături, pe tabletă
+Vitals 1.3.1
+• Oferit mai multor dispozitive: versiunea de telefon nu mai cere Wi-Fi, iar cea de TV nu mai cere cameră, așa că Play poate afișa Vitals pe tablete doar cu Ethernet și pe Chromebook-uri fără cameră
+• O citire pe care PC-ul nu o poate măsura apare ca liniuță, nu ca zero, și pe telefon și pe ceas

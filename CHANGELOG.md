@@ -7,6 +7,8 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.3.1] — 2026-11-20
+
 ### Added
 
 - Settings → Remote access → MQTT: publish the readings Vitals measures to a
@@ -28,8 +30,9 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 'device.availability_topic'`. The reading topics Vitals published were
   correct and the broker kept them; there was simply nothing on the other end
   to receive them. Availability now travels on the entity, where Home
-  Assistant expects it. The 1.3.0 build on the Windows, Android and Apple
-  channels has the old payload.
+  Assistant expects it. Every 1.3.0 desktop build — Windows and the macOS
+  download — carries the old payload. The phone and watch apps never publish
+  MQTT themselves, so they are unaffected.
 
 - A reading the hardware cannot report no longer arrives as a zero. The
   computer's processor count, thread count and disk activity, the graphics

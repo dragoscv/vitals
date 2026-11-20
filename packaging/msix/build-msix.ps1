@@ -30,8 +30,8 @@
   product 9P95RK5VMGPJ ("Vitals: System Monitor"; "Vitals" alone was taken).
 
 .EXAMPLE
-  pwsh -NoProfile -File packaging/msix/build-msix.ps1 -Version 1.3.0.0
-  pwsh -NoProfile -File packaging/msix/build-msix.ps1 -Version 1.3.0.0 -Architecture x64,arm64
+  pwsh -NoProfile -File packaging/msix/build-msix.ps1 -Version 1.3.1.0
+  pwsh -NoProfile -File packaging/msix/build-msix.ps1 -Version 1.3.1.0 -Architecture x64,arm64
 #>
 param(
   [Parameter(Mandatory)][string]$Version,

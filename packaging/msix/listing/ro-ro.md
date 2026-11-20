@@ -57,8 +57,12 @@ Gratuit și open source (MIT). Disponibil în română și engleză.
 
 ## Ce e nou în această versiune (≤ 1500 caractere)
 
-Ce e nou în 1.3.0
+Ce e nou în 1.3.1
 
+• Home Assistant: integrarea MQTT creează acum citirile pe care le anunță. În 1.3.0, Home Assistant respingea fiecare anunț, așa că nu apărea nimic; disponibilitatea călătorește acum cu fiecare citire, astfel încât un PC care dispare apare ca indisponibil, nu ca o valoare veche
+• O citire pe care hardware-ul nu o poate raporta nu mai ajunge ca zero: memoria și temperatura plăcii video, bateria, activitatea discurilor și numerele de procesor pe care mașina nu le poate măsura rămân acum absente, pe fiecare ecran
+
+Nou în 1.3.0:
 • Kodwen: pagina Agenți AI este acum pagina Kodwen și se conectează la ai.kodwen.com. O cheie salvată de o versiune anterioară este mutată prima dată când e folosită, ca nimeni să nu fie delogat de actualizare
 • Pagina AI arată ce a consumat fiecare sesiune — tokeni de intrare, de ieșire, din cache și de raționament, numărul de cereri, costul și viteza — și spune clar când un client nu înregistrează consum
 • Sănătate (opțional): conectezi un server vmui pe care îl rulezi tu și îți citești rezumatul de sănătate și nutriție. Ținut doar în memorie, niciodată scris pe disc, iar pagina rămâne ascunsă până o conectezi
