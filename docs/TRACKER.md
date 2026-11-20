@@ -5296,6 +5296,82 @@ $ cargo clippy -p vitals-win --all-targets -- -D warnings
   18× over its own limit, because it trusted agentq's saturation flag over its own
   measurement (the number now decides, and a disagreement names both).
 
+### 2026-11-20 — S24-36: the release job could not create the release
+
+Publishing v1.3.1 stopped at the last step before the channels: everything that
+builds, signs or verifies had passed — Plan, Verify, four build legs, SBOM and
+sign + notarise macOS — and `Publish` failed at `POST /releases` with
+`403 Resource not accessible by integration`. All five channel jobs then skipped,
+because each requires `publish` to have succeeded.
+
+The message blames the token's permissions, and the repository has had read-only
+default workflow permissions since the tag ruleset went in, so that reading is
+natural. It was wrong, and each candidate cause was checked rather than argued:
+
+- `publish` declares `contents: write`, `id-token: write` and `attestations: write`,
+  and its four attestation steps succeeded in that same run. A downgraded token
+  could not have written them.
+- `git diff --stat` of the publish job between tag `v1.3.0` (published
+  2026-11-18) and `v1.3.1` is empty; nothing about the job had changed.
+- The repository is public, not a fork, not archived; both rulesets are untouched
+  since 2026-09-29 and the owner bypasses them.
+- The action pin has not drifted to v3: `git ls-remote` shows `3bb12739…` **is**
+  v2.6.2.
+
+What refused it is a field nobody would suspect. GitHub rejects a release from
+`GITHUB_TOKEN` when the request carries `target_commitish` and that commit's
+`.github/workflows/` differs from the default branch (upstream
+`softprops/action-gh-release#836`, comment of 2026-10-21, which reproduced it
+with probe workflows: a body with `tag_name` alone is accepted, the same body
+plus `target_commitish` is refused). A tag is cut from `main`, so this fires as
+soon as **any workflow commit lands on `main` after the tag** — 1.3.0 had none,
+1.3.1 had five, alongside test fixtures, docs and scripts.
+
+```
+$ gh run view 44674536062 --log-failed | Select-String 'Resource not accessible'
+GitHub release failed with status: 403
+{"message":"Resource not accessible by integration", ...#create-a-release}
+Skip retry - your GitHub token/PAT does not have the required permission to create a release
+
+$ git diff --name-status cf2949e main
+M  .github/workflows/release.yml      # the tag's workflows differ from main's tip
+M  .github/workflows/{mqtt,msix,store-listing,ha-key-pin}.yml
+A  crates/vitals-mqtt/tests/home_assistant.rs     # tests, docs and scripts only
+
+$ $env:GH_DEBUG='api'; gh release create v1.3.0 --verify-tag --title probe --notes probe
+> POST /repos/dragoscv/vitals/releases
+  "tag_name": "v1.3.0"                # no target_commitish
+< HTTP/2.0 422 Unprocessable Entity   # already_exists - nothing created
+```
+
+`Publish release` now creates the release through `gh api` with no commit target,
+uploads the assets with `gh release upload --clobber`, and reads the release back
+so the run states what the API stored rather than that the calls returned 0. The
+tag exists and is authoritative, and `target_commitish` only means anything when
+a tag has to be created. September's pin to v2.6.2 was a partial sighting of the
+same bug — every version of the action sends the field — so the Dependabot
+`ignore` for it is deleted rather than kept as a note about v3.
+
+The wall worth remembering: **a re-run cannot rescue a tag that already failed**,
+because a re-run uses the workflow file from the tag's own commit. The recovery
+path, and the deliberate exception to "release tags are immutable" that it needs,
+is written up in `docs/releasing.md`.
+
+#### Verification log
+
+- Reproduced twice — the original run and a re-run at 15:36:49Z — with
+  `--log-failed` naming `create-a-release` both times.
+- Every alternative cause refuted by a command, as listed above. The attestation
+  steps are the load-bearing refutation: they prove the permission block was
+  honoured, which is the one thing the 403 appears to deny.
+- The request shape of the fix was measured locally and harmlessly: the probe is a
+  422 against an existing release, so it created nothing and deleted nothing.
+- `actionlint -shellcheck=` clean on the changed workflow; the PowerShell embedded
+  in the step was extracted from the YAML and parsed rather than eyeballed
+  (`.copilot-tmp/rc131/check-publish-step.ps1`).
+- **Not verified, and therefore not claimed:** the repaired `Publish release`
+  itself. It can only run from a tag carrying the fix, and no such run exists yet.
+
 ## S13 — public beta 0.9.0-beta.1 (2026-09-28)
 
 Decided with the owner (ADR 0031): public repository, beta version, no code

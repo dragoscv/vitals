@@ -170,6 +170,47 @@ own the same proof runs from a checkout —
 elevated and interactive (the release build refuses the webview debugging
 port, so the quit goes through the tray menu).
 
+### If `publish` fails with 403 "Resource not accessible by integration"
+
+This is GitHub refusing `POST /releases`, not a missing `contents: write`.
+The `publish` job declares that permission and its four attestation steps
+prove it is granted (they need `attestations: write` from the same block).
+What GitHub rejects is the **`target_commitish` field**: a release creation or
+update from `GITHUB_TOKEN` is refused with exactly this 403 when the target
+commit's `.github/workflows/` differs from the default branch
+(`softprops/action-gh-release#836`, comment of 2026-10-21; a request with
+`tag_name` alone is accepted, the same request plus `target_commitish` is not).
+
+A tag is cut from `main`, so this fires as soon as **any workflow commit lands
+on `main` after the tag** — the tagged commit is then no longer the shape the
+default branch has, and GitHub will not let a CI token publish a release
+against it. That asymmetry is why one release can succeed and the next fail
+with no change to the job: v1.3.0 published on 2026-11-18 and v1.3.1 did not
+on 2026-11-20.
+
+`Publish release` therefore does **not** send a commit target at all — the tag
+exists and is authoritative, and `target_commitish` only means anything when
+the tag has to be created. Do not "fix" this by pinning an older
+`action-gh-release`: every version of it sends `target_commitish` (default
+`github.sha`), which is why the v2.6.2 pin only hid the problem.
+
+**A re-run cannot rescue a tag that already failed**, because a re-run uses the
+workflow file from the tag's own commit. A fix on `main` only reaches a release
+whose tag is cut (or re-cut) after it. So to publish such a tag, re-create the
+tag at a commit that contains the fix:
+
+```powershell
+git push origin :refs/tags/v1.3.1        # delete, so the push below is a creation
+git tag -a -f v1.3.1 -m "Vitals 1.3.1" <sha-with-the-fix>
+git push origin refs/tags/v1.3.1
+```
+
+Deleting and re-creating the tag is a deliberate exception to the
+`release tags: owner only, immutable tag` ruleset, and it is only defensible
+while the release does not exist yet: nothing has been published against the
+old commit, so no consumer can be holding it. Do it before the release is
+public, never after.
+
 ## The release doctor
 
 The rule above — a release must update **every** surface that names it, and
