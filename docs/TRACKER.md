@@ -5074,7 +5074,9 @@ MQTT run 44674535591 (on the tag)     success, 2m12s; the workflow fails the job
 Store listing run 44674475600         success; play production: 1.3.0 [versionCodes 44]
                                       status=completed userFraction=full
                                       play rollout: fully rolled out (1.3.0 completed)
-Release run 44674536062               Plan success; Verify and Build (android) in progress
+Release run 44674536062               Plan, Verify, Build (android), Build (linux-x64) and
+                                      SBOM success; publish waits on the release environment
+MQTT run 44674535591                  success (the broker test cannot take its skip path)
 ```
 
 #### Verification log
@@ -5092,6 +5094,83 @@ Release run 44674536062               Plan success; Verify and Build (android) i
   owner to approve the `release` environment; the MSIX build and its Partner
   Center submission for 1.3.1; and the two `update-proof.yml` runs, which need
   a published release. The row is `todo` for that reason.
+
+### 2026-11-20 — S24-25 / S24-26: two gates that could not have caught the 1.3.0 defect
+
+**What.** 1.3.0 shipped an integration that never created a single entity. Two
+gates stood between that defect and the tag, and neither of them could see it.
+
+The release workflow's store check printed `SKIPPED` for the Play half and exited
+zero, so `--require-full-rollout` had certified nothing on the machine that ran it.
+`release.yml` is not wrong to skip — its credential is Workload Identity Federation
+and needs `id-token: write`, and that job runs before the owner's approval (SEC-5)
+— so the fix does not belong there. `scripts/check-store-listing.mjs` gained
+`--require-credentials`, which turns a half that cannot reach its store into exit 2
+instead of a `SKIPPED` line, and `.github/workflows/store-listing.yml` — the
+workflow that does hold the credential and runs no dependency code — now calls it
+strictly and fails the job when the log carries any `SKIPPED` line at all, the same
+guard `mqtt.yml` already used. A call site that quietly drops the flag still cannot
+pass.
+
+The MQTT crate's tests could not see the defect by construction: the unit tests
+build the discovery document as a value, and the broker test proves delivery. Only
+Home Assistant decides acceptance, and it was not there. `home_assistant.rs` now
+pins every key of every document against Home Assistant's accepted vocabulary, at
+the entity level and inside the `device` block, from a fixture whose `_provenance`
+records the version, the image digest and the enumeration method so a reviewer
+re-derives rather than trusts it. A second test runs against a real Home Assistant
+when `VITALS_HA_URL` and `VITALS_HA_TOKEN` are set, and `mqtt.yml` grew the job that
+supplies them: Home Assistant as a digest-pinned service container beside the
+existing mosquitto one, onboarded over REST, the MQTT integration created, then the
+suite — failing if no entity appears, or if either gated test takes its skip path.
+
+```
+$ cargo test -p vitals-mqtt
+test result: ok. 29 passed; 0 failed          (unit)
+test result: ok.  1 passed; 0 failed          (mosquitto broker)
+test result: ok.  3 passed; 0 failed          (home_assistant)
+Home Assistant created sensor.vitals_on_vitals_ha_ci_cpu with state 33.5
+
+$ node scripts/check-store-listing.mjs                      # no Play credential
+SKIPPED: no Google Play credentials — the production-rollout half was NOT checked.
+  The workflow whose contract is to check it is .github/workflows/store-listing.yml.
+OK: app 6827931747 is for sale (2 warning(s))
+exit=0
+
+$ node scripts/check-store-listing.mjs --require-credentials
+SKIPPED: no Google Play credentials — the production-rollout half was NOT checked. […]
+ERROR --require-credentials: no Google Play credentials, so the production-rollout
+  half could not run; .github/workflows/store-listing.yml is the workflow that must
+  do this check
+exit=2
+
+gh run view 44690023064 --json jobs …
+MQTT (linux, real Home Assistant)  completed/success
+MQTT (linux)                       completed/success
+```
+
+#### Verification log
+
+- Both new tests were mutation-checked, which is the only way to know they are not
+  decorative. Merging `availability_topic`, `payload_available` and
+  `payload_not_available` back into the discovery document's `device` block — the
+  exact 1.3.0 shape — makes them fail with "not a key Home Assistant accepts inside
+  `device`; it discards the whole document and creates no entity", and the fixture
+  self-check fails with them. The scratch copy was deleted and
+  `git diff -- crates/vitals-mqtt/src/` prints 0 lines, so the source is untouched.
+- The store guard was checked the same way: with the new branch removed from a
+  scratch copy the same command exits 0, so that branch is what fails rather than
+  something else. Its workflow guard was then read against a real log — the default
+  run above exits 0 and contains `SKIPPED`, so the guard goes red on it, and a
+  `SKIPPED`-free log goes green.
+- Run in CI, not on this machine: the new Home Assistant job passed in run 44690023064. Before pushing it, the exact `run:` block was extracted from the YAML
+  and replayed against a pristine Home Assistant container, which killed two guesses
+  — the broker step needs an `other_settings` field, and the readiness probe is an
+  unauthenticated `GET /api/onboarding`.
+- Not run: `verify.ps1` locally. Every build in this session went through CI because
+  the machine was admission-saturated. `scripts/check-drift.ps1` (0 failure(s),
+  0 warning(s)) and `actionlint` were run and are clean; `cargo fmt --all -- --check`
+  and `cargo clippy -p vitals-mqtt --all-targets -- -D warnings` are clean.
 
 ## S13 — public beta 0.9.0-beta.1 (2026-09-28)
 
