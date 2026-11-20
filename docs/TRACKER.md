@@ -5372,6 +5372,71 @@ is written up in `docs/releasing.md`.
 - **Not verified, and therefore not claimed:** the repaired `Publish release`
   itself. It can only run from a tag carrying the fix, and no such run exists yet.
 
+### 2026-11-20 — S24-37 to S24-40: the release path itself, hardened after it failed
+
+The 403 in S24-36 was a defect in the publish step, and the useful question after
+it is not "why did GitHub refuse" but "what else about that step could only be
+discovered by a tag run going wrong". Four answers, all of them cheap beside the
+cost of the failure:
+
+- **The release went public before its files were attached** (S24-37).
+  `/releases/latest` resolves a draft only once it is published, so the endpoint
+  every installed copy polls answered 404 for the window the upload took — and an
+  update check can land in that window. It is now created as a draft, filled, and
+  flipped, so `latest.json` and the files it names appear together, and the run
+  reads the release back rather than trusting four exit codes.
+- **A missing asset was a user's failed update, not a red run** (S24-38). The
+  assertions now run before anything is created and again against what the API
+  stored: `latest.json` present, every file it names present with a `.sig` beside
+  it, and the uploaded set compared with the directory both ways. The signature
+  rule reads the signed formats out of the directory instead of a platform list,
+  because the fixed-name copies `scripts/stable-assets.ps1` writes are
+  deliberately unsigned, and a hard-coded list would go stale in silence.
+- **The reasoning had no home** (S24-39). `docs/adr/0045` records the mechanism,
+  the four refuted causes, and the decision not to re-pin or vendor the action;
+  the operator-facing recipe stays in `docs/releasing.md`, and the two link to
+  each other. The ADR's most valuable line is the operational one: a re-run
+  cannot rescue a frozen tag, because a re-run executes the workflow file from the
+  tag's own commit.
+- **The publish path could not be exercised without publishing** (S24-40). A
+  `rehearse` job now runs on `workflow_dispatch` while `publish` is gated on
+  `== push`, so the create, upload and flip calls are **absent** from a rehearsal
+  run rather than skipped inside it. It assembles the same directory, signs the
+  updater bundles with a throwaway key generated in the run, writes the same
+  `latest.json`, and reports the payload — with `contents: read` and no
+  environment, so it needs no approval.
+
+```
+actionlint -shellcheck= .github/workflows/release.yml          exit 0, no output
+drift: 0 failure(s), 0 warning(s) - checked 16 ts_rs files, 132 invokes, 132 commands, 2 locales
+
+rehearsal of the asset gate against a 17-file fake publish/:
+  M1  complete set                                  exit 0  prints the manifest
+  M2  .sig of the file latest.json references gone  fails: no .sig beside Vitals_1.3.2_x64-setup.exe, Vitals_x64-setup.exe
+  M4  latest.json gone (author)                     fails: without it the updater endpoint answers 404
+  33 pwsh steps extracted from the YAML and parsed: 0 failure(s)
+```
+
+#### Verification log
+
+- M1 and M2 were run a second time by the reviewer, not only by the author. M1
+  exits 0 on a complete set; M2 names the file it cannot find a signature for.
+  The `exit 0` printed in M2 is an artefact of a truncated pipeline — the message
+  is the evidence, and it is the message the operator will read.
+- The dry-run makes no API call: every M-run was made with `GH_TOKEN` unset and
+  `GH_HOST` pointed at an unroutable host, and the `-DryRun` branch returns before
+  the first `gh` invocation. Structurally, all four `gh` calls sit after that
+  return.
+- The gate is not vacuous when nothing is signed. `latest.json` is the authority
+  for what the updater fetches, and a name in it without a `.sig` beside it fails
+  on its own.
+- **Not verified, and not claimed:** the create → upload → flip sequence against
+  the live API (it needs a tag carrying this change), and an actual
+  `workflow_dispatch` rehearsal, which has not been started.
+- A trap worth recording: `$LASTEXITCODE` is not readable through a pipeline that
+  `Select-Object -First N` truncates. Two of my own checks read a false pass until
+  I stopped truncating and read the message instead.
+
 ## S13 — public beta 0.9.0-beta.1 (2026-09-28)
 
 Decided with the owner (ADR 0031): public repository, beta version, no code
