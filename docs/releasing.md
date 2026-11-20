@@ -572,6 +572,18 @@ housekeeping:
   app pages — the shell stays on "Loading Google Play Console" with no failed
   request, and the account home degrades the same way afterwards. Open a new
   tab before concluding the Console is broken.
+- **A LAN server needs an inbound firewall rule, and the prompt does not
+  always appear.** Measured 2026-11-19 on the test laptop: the app's listener
+  was bound and answered on loopback while a _second host_ got `HTTP 000`
+  until an Allow rule existed for the program. Two consequences worth knowing
+  before a pairing pass. First, the laptop now carries one rule added by hand
+  during that pass — `Vitals LAN (dev test, removable)`, inbound TCP 7331 for
+  `vitals-desktop.exe` — which is not created by any script here; remove it
+  with `Remove-NetFirewallRule -DisplayName 'Vitals LAN (dev test, removable)'`
+  if the machine is being handed back. Second, `vitals serve` is the worse
+  case, because a server started by a scheduled task gets no prompt at all and
+  the default is Block (S24-22). Do not read "the pairing URL was printed" as
+  "the URL works": check it from another host.
 
 **npm.** `packages/client` is currently `private` and exports TypeScript
 source, so the registry refuses it. Making it publishable (a JavaScript
