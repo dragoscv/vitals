@@ -3532,6 +3532,29 @@ instead of showing the last reading forever.
 table, the availability model and both payload rules, with this failure
 recorded so it is not reintroduced.
 
+**The same proof now ships, for a person rather than for CI.**
+`scripts/ha-demo.ps1` brings up the pair, onboards Home Assistant over REST,
+adds the MQTT integration, points the publisher at the broker and prints the
+entities **Home Assistant** created. It reads them from Home Assistant's entity
+registry over the WebSocket — the registries have no REST route, and
+`/api/config/entity_registry/list` answers 404 — joined with `/api/states` for
+the readings, because Home Assistant derives the entity id from the _device
+name_ (`sensor.vitals_on_dragos_cpu`) and not from the `object_id` Vitals sends.
+Matching entity ids on a substring of the node slug finds nothing and reports
+"no entity" for an instance that accepted every announcement, which is exactly
+the false alarm this lookup removes.
+
+It tears down by default, `-Keep` leaves the rig running, and a resource is
+removed only if it carries the `vitals-demo` label the script applied — so
+`-Down` with the default prefix reports an existing hand-built `vitals-ha`
+instead of deleting it. `-Reproduce` shows the rejection above,
+`-AssertAbsent battery,cpu_temperature` fails if a reading this machine cannot
+take is ever a number rather than `unknown`, `-Json` writes one machine-readable
+document to stdout (the narration goes to stderr) so two builds' entity sets can
+be compared, and `-FromRelease v1.3.0 -ExpectRejected` runs the _published_ CLI
+— downloaded and verified against the release's own `SHA256SUMS.txt` — and
+asserts that Home Assistant refuses it.
+
 #### Verification log
 
 - `cargo test -p vitals-mqtt` with `VITALS_MQTT_TEST_BROKER=mqtt://127.0.0.1:11883`
@@ -3546,6 +3569,22 @@ recorded so it is not reintroduced.
 - Not run, and therefore not claimed: `scripts/verify.ps1` in full, the Tauri
   and Android builds, and any CI job. The fix is confined to
   `crates/vitals-mqtt`, which builds and tests clean on its own.
+- `pwsh -NoProfile -File scripts/ha-demo.ps1 -Json -AssertAbsent battery,cpu_temperature
+-Reproduce` on 2026-11-20, exit 0: 7 entities with live readings (`cpu 100.0`,
+  `memory in use 65.1`, `processes 1051`), `battery` and `cpu_temperature`
+  reading `unknown` with their units intact (`%`, `°C`), the 1.3.0-shaped
+  announcement refused with Home Assistant's `not a valid option at
+'device.availability_topic'` line, the four resources torn down, and stdout
+  carrying only the JSON report.
+- The same script with `-FromRelease v1.3.0 -ExpectRejected -Keep` on
+  2026-11-20, exit 0: the downloaded `vitals-cli_1.3.0_x64.zip` verified as
+  `b51f40c01fc5...` against the release's `SHA256SUMS.txt`, the binary reporting
+  `vitals 1.3.0`, and Home Assistant logging the rejection **seven times**, one
+  per announcement, with the entity registry holding 0 MQTT entities. That is
+  the shipped defect demonstrated from a published artefact, not from a rebuild.
+- `-Down` with the default prefix refused to touch the unlabelled `vitals-ha`,
+  `vitals-mqtt` and `vitals-ha-net` that were already running, named all three,
+  and exited 1 without removing anything.
 
 ### 2026-11-19 — S21-08 second pass: the log cap was the missing half, and SEC-7's claim was wrong
 
@@ -5171,6 +5210,91 @@ MQTT (linux)                       completed/success
   the machine was admission-saturated. `scripts/check-drift.ps1` (0 failure(s),
   0 warning(s)) and `actionlint` were run and are clean; `cargo fmt --all -- --check`
   and `cargo clippy -p vitals-mqtt --all-targets -- -D warnings` are clean.
+
+### 2026-11-20 — S24-27 to S24-35: gates that could not have caught the defect, and a budget that could not be read
+
+**What.** The 1.3.0 defect (S24-13) was a Home Assistant discovery payload that
+Home Assistant rejected while every gate stayed green. Fixing it is not the same
+work as asking which of the checks standing between that defect and a tag could
+have seen it, and which only looked as though they could.
+
+Four could not, each for a different reason, and each reason is now a real gate:
+
+- **The store check could not.** `release.yml` printed `SKIPPED` for the Play half
+  and exited zero, so `--require-full-rollout` had certified nothing on the machine
+  that ran it. The half that holds the credential is `store-listing.yml`, and it now
+  calls the script strictly and fails when its own log carries any `SKIPPED` line
+  (S24-27, with S24-25 from earlier in the day).
+- **The MQTT tests could not.** Unit tests build the document as a value; the broker
+  test proves delivery. Only Home Assistant decides acceptance, and it was absent —
+  so a real one now runs in CI (S24-26), and S24-29 stops the key pin rotting as
+  Home Assistant ships monthly.
+- **The version bump could not.** Nothing checked that a version literal copied into
+  an example still matched the version being released. `check-drift.ps1` now does,
+  and it found two live stalenesses on its first run (S24-30).
+- **The overhead budget could not be read.** It was not wrong; it was
+  uninterpretable. A red on a saturated workstation was briefly taken for a
+  regression on a commit whose CI was green (S24-35).
+
+Four more were not about that defect at all: the Apple hold was correct but
+remembered only by a human (S24-34); a release cut could be incomplete in ways
+nobody would notice for weeks (S24-32); nobody could enumerate what the cut had
+touched (S24-28); and the decision to build here rather than in CI came from
+memory rather than a number (S24-31). The Home Assistant rig from S24-13 is also
+now reproducible by a person instead of living in one agent's scratch directory
+(S24-33).
+
+```
+$ pwsh -NoProfile -File scripts/check-drift.ps1
+FAIL  packaging/msix/build-and-upload.ps1:19 version 1.2.0.0 is not the current Store version 1.3.1.0
+FAIL  .github/workflows/msix.yml:14 version 1.3.0.0 is not the current Store version 1.3.1.0
+drift: 2 failure(s), 0 warning(s)
+        … after correcting those two literals …
+drift: 0 failure(s), 0 warning(s) — checked 16 ts_rs files, 132 invokes, 132 commands, 2 locales
+
+$ node scripts/release-doctor.mjs --version 1.3.1
+7 OK, 2 HELD, 0 STALE, 2 UNKNOWN — PARTIAL check (a live store surface needs a credential)
+
+$ node scripts/release-preflight.mjs --tag v1.3.1
+all checks passed: every manifest says the tag, the CHANGELOG closed this version with a
+fresh [Unreleased] above it, and the tag is annotated and on the default branch.
+
+$ node scripts/check-apple-hold.mjs
+apple hold: held  apps/ios/store/listing.json — describes 1.3.0 while the app is at 1.3.1
+apple hold: OK — every listing is behind the version the app is being built at
+
+$ pwsh -NoProfile -File scripts/machine-preflight.ps1
+VERDICT: use CI — start probe median 15000 ms against the 400 ms limit
+
+$ cargo clippy -p vitals-win --all-targets -- -D warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 27.00s
+```
+
+#### Verification log
+
+- **Every new guard was mutation-checked** — break the thing, watch the check go red,
+  restore — because a gate nobody has watched fail is not a gate. The mutation and its
+  observed result are recorded per row in `docs/tracker.csv`; each scratch copy was
+  deleted and the tree re-checked afterwards.
+- Run on this machine: `check-drift.ps1` (0 failure(s), 0 warning(s)), each new script
+  in its own right, `actionlint` with `-shellcheck=` on all five changed workflows,
+  `prettier --check`, `rustfmt --check`, `cargo check -p vitals-win --tests`, and
+  `cargo clippy -p vitals-win --all-targets -- -D warnings` — run rather than reasoned
+  about, because it is the one gate that could have gone red in CI on the changed Rust
+  test, and this crate denies a pedantic lint set outside tests.
+- **Not run, and therefore not claimed:** `scripts/verify.ps1` locally — CPU was pinned
+  at 100 % with the agentq start-probe median between 7.4 s and 21.9 s against a 400 ms
+  limit, so every build in this session went through CI instead. Also not run: the
+  release run and the on-failure wording of the overhead test, which only CI can show;
+  and the weekly key-pin job and the release-cut gate as _live_ workflow runs, since
+  neither can be triggered without pushing.
+- Two defects in the new tools were found by running them rather than reading them, and
+  are fixed here: `release-doctor.mjs` flagged four usage examples, because it had
+  reimplemented check-drift's rule more loosely and disagreed with the gate that owns it
+  (it now defers to that gate, so one implementation exists); and
+  `machine-preflight.ps1` printed "process starts are not slow" beside a probe median
+  18× over its own limit, because it trusted agentq's saturation flag over its own
+  measurement (the number now decides, and a disagreement names both).
 
 ## S13 — public beta 0.9.0-beta.1 (2026-09-28)
 
