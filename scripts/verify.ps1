@@ -83,6 +83,10 @@ $forceFlag = if ($Force) { '--force' } else { '' }
 $checks = @(
     @{ Name = 'rust: format'; Script = 'cargo fmt --all -- --check' }
     @{ Name = 'contracts: no drift'; Script = 'pwsh -NoProfile -File scripts/check-drift.ps1' }
+    # The Apple listings are held one version behind on purpose; a ripple pass
+    # that moves them would advertise a version App Store Connect is not
+    # reviewing. Pure file reads, so it costs the fast lane nothing.
+    @{ Name = 'apple: listing held'; Script = 'node scripts/check-apple-hold.mjs' }
     @{ Name = 'ts: format'; Script = 'pnpm format:check' }
     # CI's supply-chain job runs this; without it here a new crate passed
     # every local gate and failed on GitHub (S12-36, 2026-09-28).

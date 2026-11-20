@@ -22,6 +22,17 @@
 //   2. the store's own record: the App Store Connect availability record for
 //      Apple, and the production track's release state for Google Play.
 //
+// When the Play half runs, the rollout is ASSERTED, not narrated: under
+// `--require-full-rollout` a stable release that does not cover everyone is a
+// failure, and the numbers behind the verdict — versionCodes, status and
+// userFraction — are appended to $GITHUB_STEP_SUMMARY as a table, so the
+// "at 100 %" claim is a value on the run itself rather than a sentence in a log
+// with a retention window. One case is exempt: a version carrying a SemVer
+// pre-release suffix (`1.3.0-rc.1`) is meant to sit at a partial fraction while
+// it is watched, so it never fails the rollout assertion. The version is read
+// from Play's own release list rather than from the repository, because this
+// check exists to report what the STORE believes; no call site needs a new input.
+//
 // Credentials: for Apple the team's ASC key, read from the env vars
 // APPLE_ASC_KEY_P8, APPLE_ASC_KEY_ID and APPLE_ASC_ISSUER (what the workflow
 // provides), else from Secret Manager in APPLE_SECRETS_PROJECT
@@ -43,17 +54,18 @@
 //   node scripts/check-store-listing.mjs                       human output
 //   node scripts/check-store-listing.mjs --json                machine-readable
 //   node scripts/check-store-listing.mjs --fail-on-unlisted    explicit at a call site
-//   node scripts/check-store-listing.mjs --require-full-rollout  a staged Play rollout fails
+//   node scripts/check-store-listing.mjs --require-full-rollout  a staged rollout of a stable version fails
 //   node scripts/check-store-listing.mjs --require-credentials   a half that could not reach its store fails
 //   node scripts/check-store-listing.mjs --check               accepted no-op (see below)
 //
 // Exit codes: 0 the app is for sale (and fully rolled out, under the flag), 1 it
 // is not (a lookup that finds nothing, an availability record that does not
-// exist, or — under the flag — a Play rollout that does not cover everyone), 2
-// the check could not run — including, under `--require-credentials`, a half that
+// exist, or — under the flag — a stable Play rollout that does not cover
+// everyone; a pre-release still being watched is never a failure), 2 the check
+// could not run — including, under `--require-credentials`, a half that
 // found no credential and would otherwise have skipped. A verdict outranks a
 // check that could not run, so a finding is never masked by an unrelated failure.
-import { writeSync } from 'node:fs';
+import { appendFileSync, writeSync } from 'node:fs';
 import { asc, ascToken } from './lib/asc.mjs';
 import { playCredentialsAvailable, readProductionTrack } from './play-rollout.mjs';
 
@@ -113,7 +125,9 @@ const failOnUnlisted = process.argv.includes('--fail-on-unlisted');
 // Off by default: a staged production rollout is normal while a release is
 // being watched, so it is only a warning unless a call site demands the rollout
 // have finished. `release.yml` and `store-listing.yml` pass it so a release
-// cannot go green while the app reaches a fifth of users.
+// cannot go green while the app reaches a fifth of users. A pre-release is
+// exempt — the Play half below says why — because a fraction below 1 is the
+// intended state for one, not an unfinished release.
 const requireFullRollout = process.argv.includes('--require-full-rollout');
 // Off by default, because `release.yml`'s tag job deliberately runs without the
 // Play credential (SEC-5: it runs before the owner's approval and executes every
@@ -311,11 +325,65 @@ if (!hasCredentials) {
   await listVersions(MAC, macVersions);
 }
 
+// A SemVer version with a pre-release suffix, e.g. "1.3.0-rc.1". `release.yml`
+// splits a stable tag from a pre-release the same way — `PRODUCTION:
+// !contains(version, '-')` — because the hyphen is the only thing the two
+// spellings differ by. Anchored, so an ordinary release name ("1.3.0") is never
+// mistaken for one. The version is Play's own release name (the log line reads
+// `play production: 1.3.0 [versionCodes 44] ...`), so no new input is needed.
+const PRE_RELEASE_SUFFIX = /^\d+\.\d+\.\d+-[0-9A-Za-z][0-9A-Za-z.-]*$/;
+const isPreReleaseVersion = (version) =>
+  typeof version === 'string' && PRE_RELEASE_SUFFIX.test(version.trim());
+
+// Append to the run's step summary, when the runner gave us one. The summary,
+// not only stdout: a GitHub Actions log is a file with a retention window that a
+// reader has to scroll, while $GITHUB_STEP_SUMMARY is rendered on the run's own
+// page and kept with it, so the observed userFraction is a value a later reader —
+// or a script — finds without the log. Appended, never overwritten, so a job with
+// several summaries keeps all of them. A local run leaves the variable unset and
+// writes nothing.
+const writeStepSummary = (lines) => {
+  const path = (process.env.GITHUB_STEP_SUMMARY ?? '').trim();
+  if (!path) return;
+  try {
+    appendFileSync(path, `${lines.join('\n')}\n`);
+  } catch (error) {
+    // A summary that could not be written must not decide the exit code: the
+    // verdict is already on stdout and in the exit status. Say so and carry on.
+    const message = error instanceof Error ? error.message : String(error);
+    say(`could not write the step summary: ${message}`);
+  }
+};
+
+// The markdown the run's page carries: the observed numbers, which are the whole
+// claim. `full` is Play's own encoding of a 100 % rollout (it omits the
+// fraction), spelled the same way the stdout line spells it.
+const playSummaryLines = (releases) => [
+  '### Store listing: the Play production rollout',
+  '',
+  '| versionCodes | status | userFraction |',
+  '| --- | --- | --- |',
+  ...(releases.length === 0
+    ? ['| none | — | — |']
+    : releases.map(
+        (release) =>
+          `| ${release.versionCodes.join(', ') || 'none'} | ${release.status ?? 'unknown'} | ${
+            release.userFraction === null ? 'full' : release.userFraction
+          } |`,
+      )),
+];
+
 // The Play half: what the production track is actually serving. Independent of
 // the Apple credentials above — a repository can have one store's key and not
 // the other's — so it decides only its own lines, and a missing Play credential
 // is SKIPPED exactly like a missing Apple one.
-const play = { credentials: false, releases: [], verdict: null, trackMissing: null };
+const play = {
+  credentials: false,
+  releases: [],
+  verdict: null,
+  trackMissing: null,
+  preRelease: false,
+};
 if (!playCredentialsAvailable()) {
   say(
     'SKIPPED: no Google Play credentials — the production-rollout half was NOT checked. ' +
@@ -345,8 +413,32 @@ if (!playCredentialsAvailable()) {
       );
     }
     if (releases.length === 0) say('play production: no release on the track');
+
+    // A pre-release is the one release allowed to sit below everyone: the tag
+    // that ships it is a pre-release, watched by a few users before the stable
+    // tag, so a fraction below 1 is intended, not an unfinished release. It is
+    // identified by the VERSION, read from Play's own release list — this job
+    // checks out no version, and inventing an input for it would put a fact in
+    // the caller that the store already states (`release.yml`'s PLAY_ROLLOUT is
+    // the intended fraction, not the version, and it is not in this step's env).
+    // The partial release is the `inProgress` one with a fraction below 1, which
+    // is what `rolloutVerdict` calls staged; a halted or draft release carries no
+    // fraction and is never exempt.
+    const partial = releases.find(
+      (release) =>
+        release.status === 'inProgress' &&
+        release.userFraction !== null &&
+        release.userFraction < 1,
+    );
+    play.preRelease = isPreReleaseVersion(partial?.name);
+
     if (verdict.full) {
       say(`play rollout: ${verdict.summary}`);
+    } else if (play.preRelease) {
+      say(
+        `play rollout: ${verdict.summary} — the pre-release ${partial.name} is meant to sit at ` +
+          'a partial fraction, so this is not a failure',
+      );
     } else if (requireFullRollout) {
       failures.push(`the Play production rollout does not cover everyone: ${verdict.summary}`);
       say(`play rollout: FAIL — ${verdict.summary}`);
@@ -356,10 +448,23 @@ if (!playCredentialsAvailable()) {
         `play rollout: WARNING — ${verdict.summary} (not a failure without --require-full-rollout)`,
       );
     }
+
+    // The verdict is a claim; this makes it a recorded value every time the Play
+    // half runs, on the run's own page rather than a log line someone has to find
+    // and read before the next release overwrites the run's retention window.
+    writeStepSummary([...playSummaryLines(releases), '', `play rollout: ${verdict.summary}`, '']);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     couldNotRun.push(`the Play production track could not be read: ${message}`);
     say('play rollout: could not be read');
+    // A durable record that the attempt was made and could not run, so a reader
+    // of the summary does not read silence as "everything reached everyone".
+    writeStepSummary([
+      '### Store listing: the Play production rollout',
+      '',
+      `The production track could not be read: ${message}`,
+      '',
+    ]);
   }
 }
 

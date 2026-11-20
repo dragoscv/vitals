@@ -106,7 +106,12 @@ jobs:
 
       # --require-full-rollout: a staged production rollout — the state every
       # stable tag starts in — must not read as "everything is fine". It turns
-      # a 20 % rollout into a failure here and into a warning on a bare run.
+      # a 20 % rollout into a failure here and into a warning on a bare run. A
+      # pre-release (a version with a SemVer pre-release suffix) is exempt: a
+      # partial fraction is its intended state, not an unfinished release. The
+      # script also appends the observed versionCodes, status and userFraction to
+      # $GITHUB_STEP_SUMMARY, so the "at 100 %" claim is a value on the run
+      # itself rather than a line someone has to find in a log.
       #
       # --require-credentials: the flag that makes this job unable to pass by
       # skipping. Without it, a half that found no credential prints SKIPPED and
