@@ -12,7 +12,13 @@ name: MQTT
 # pull request that can change the crate, so the proof is re-run rather than
 # taken on trust.
 #
-# Both jobs mirror the `rust-linux` job of ci.yml: the same pinned action
+# A broker is still not a validator. `mqtt-linux` and `mqtt-windows` show the
+# bytes arrive; only Home Assistant decides whether the discovery document is
+# usable, so the third job boots a real Home Assistant, adds the MQTT
+# integration over REST and fails if no entity appears. See its comment for the
+# 1.3.0 defect that made this necessary.
+#
+# Every job mirrors the `rust-linux` job of ci.yml: the same pinned action
 # revisions, the same toolchain and the same cache style.
 
 on:
@@ -179,3 +185,207 @@ jobs:
           if (Select-String -Path mqtt-test.log -Pattern 'SKIP the MQTT broker test' -Quiet) {
             throw 'the broker test skipped - VITALS_MQTT_TEST_BROKER did not reach it'
           }
+
+  # The broker is not the validator, and a green broker job is not evidence
+  # that Home Assistant accepts what it read. 1.3.0 nested
+  # `availability_topic`, `payload_available` and `payload_not_available`
+  # inside the `device` block; Home Assistant validates that block against its
+  # device schema, found three keys that are not part of it, and discarded the
+  # WHOLE document - so no entity was created anywhere, in every build, for
+  # weeks, while every test in this repository passed. The rejection is
+  # reported in `/config/home-assistant.log` *inside* the container, which
+  # `docker logs` never shows, and the entity silently never appears.
+  #
+  # So this job runs the real consumer. It needs the whole sequence, not just
+  # the container: a fresh Home Assistant is not onboarded, has no MQTT
+  # integration, and therefore never subscribes to the broker at all. The steps
+  # below create the owner, mint an access token, and add the MQTT integration
+  # through the same config-entry flow the web UI drives, then let
+  # `crates/vitals-mqtt/tests/home_assistant.rs` assert that an entity really
+  # appeared with a reading on it.
+  mqtt-home-assistant:
+    name: MQTT (linux, real Home Assistant)
+    runs-on: ubuntu-24.04
+    # `mqtt-linux` gets 20. This job adds a large image pull and a Home
+    # Assistant boot, which is a wait, not work, so the budget is larger.
+    timeout-minutes: 30
+    # Both images pinned by the same kind of digest as `mqtt-linux`'s. The Home
+    # Assistant digest is the version whose schemas
+    # `crates/vitals-mqtt/tests/fixtures/ha_discovery_keys.json` was enumerated
+    # from; moving this digest means re-enumerating that fixture.
+    services:
+      mosquitto:
+        image: eclipse-mosquitto@sha256:fa12172a051310efe5bcb7a6a11b77bd5faacb82cbacd7742aa758bf024fd8e4
+        ports:
+          - 1883:1883
+      homeassistant:
+        image: ghcr.io/home-assistant/home-assistant@sha256:493a07e8f6530fc640223f4a0a5248f20a61ca2f718bb1d31efbf08a2c5ea28f
+        ports:
+          - 8123:8123
+        # The steps below reach mosquitto at 127.0.0.1:1883 because the service
+        # container's port is published on the runner. Home Assistant is itself
+        # a container, where 127.0.0.1 is Home Assistant, so it is given the
+        # Docker host by name. Without this the integration is created, never
+        # connects, and the failure looks like a discovery bug.
+        options: >-
+          --add-host=host.docker.internal:host-gateway
+    env:
+      HA_URL: http://127.0.0.1:8123
+      HA_USERNAME: vitals-ci
+      HA_PASSWORD: vitals-ci-130
+      # What Home Assistant is told to connect to. See the `options` comment.
+      MQTT_BROKER: host.docker.internal
+      MQTT_PORT: 1883
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # rust-toolchain.toml
+        with:
+          toolchain: 1.99.0
+
+      # A third key again. Sharing one with either job above would let the
+      # three evict each other's entries, which is what the `shared-key`
+      # comments in this file exist to prevent.
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          shared-key: linux-home-assistant
+          cache-on-failure: true
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      # `GET /api/onboarding` needs no token and is answered as soon as the
+      # instance can serve its API, which makes it a readiness probe rather
+      # than a guess at how long a boot takes.
+      - name: Onboard Home Assistant and add the MQTT integration
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ready=0
+          for _ in $(seq 1 90); do
+            if curl -fsS -o /dev/null "$HA_URL/api/onboarding"; then
+              ready=1
+              break
+            fi
+            sleep 2
+          done
+          if [ "$ready" -ne 1 ]; then
+            echo "::error::Home Assistant never answered $HA_URL - is the service container up?"
+            exit 1
+          fi
+          echo "Home Assistant is serving its API at $HA_URL"
+
+          # A fresh container has an owner but no user, so the same sequence
+          # the web UI performs is replayed here. `/auth/token` takes
+          # form-encoded data and rejects JSON with `unsupported_grant_type`.
+          # The bodies are built with `jq -n` rather than interpolated, so a
+          # password containing a quote cannot break the request.
+          users=$(jq -n --arg name 'Vitals CI' --arg username "$HA_USERNAME" \
+            --arg password "$HA_PASSWORD" --arg client_id "$HA_URL/" \
+            '{name: $name, username: $username, password: $password,
+              client_id: $client_id, language: "en"}')
+          onboard=$(curl -fsS -X POST "$HA_URL/api/onboarding/users" \
+            -H 'Content-Type: application/json' -d "$users")
+          auth_code=$(printf '%s' "$onboard" | jq -r '.auth_code // empty')
+          if [ -z "$auth_code" ]; then
+            echo "::error::onboarding returned no auth_code: $onboard"
+            exit 1
+          fi
+
+          token=$(curl -fsS -X POST "$HA_URL/auth/token" \
+            -H 'Content-Type: application/x-www-form-urlencoded' \
+            --data-urlencode 'grant_type=authorization_code' \
+            --data-urlencode "code=$auth_code" \
+            --data-urlencode "client_id=$HA_URL/" | jq -r '.access_token // empty')
+          if [ -z "$token" ]; then
+            echo "::error::no access token - the auth_code was rejected"
+            exit 1
+          fi
+          # So the token cannot reach the log even if something prints it.
+          echo "::add-mask::$token"
+
+          # The last onboarding step is deliberately left unanswered: it is
+          # optional, and answering it would send telemetry from CI.
+          curl -fsS -o /dev/null -X POST "$HA_URL/api/onboarding/core_config" \
+            -H "Authorization: Bearer $token" -H 'Content-Type: application/json' -d '{}'
+
+          # The config-entry flow the web UI drives, over REST. `other_settings`
+          # is required by the step's schema even for a plain unauthenticated
+          # broker, and naming neither certificate authority nor client
+          # certificate is what `set_ca_cert: "off"` means.
+          flow_id=$(curl -fsS -X POST "$HA_URL/api/config/config_entries/flow" \
+            -H "Authorization: Bearer $token" -H 'Content-Type: application/json' \
+            -d '{"handler":"mqtt"}' | jq -r '.flow_id // empty')
+          if [ -z "$flow_id" ]; then
+            echo "::error::Home Assistant did not start an mqtt config-entry flow"
+            exit 1
+          fi
+
+          broker=$(jq -n --arg broker "$MQTT_BROKER" --argjson port "$MQTT_PORT" \
+            '{broker: $broker, port: $port, protocol: "3.1.1",
+              other_settings: {set_client_cert: false, set_ca_cert: "off"}}')
+          result=$(curl -fsS -X POST "$HA_URL/api/config/config_entries/flow/$flow_id" \
+            -H "Authorization: Bearer $token" -H 'Content-Type: application/json' -d "$broker")
+          if [ "$(printf '%s' "$result" | jq -r '.type')" != "create_entry" ]; then
+            echo "::error::Home Assistant refused the MQTT broker: $result"
+            exit 1
+          fi
+
+          # `create_entry` only means the flow finished. Wait for the entry to
+          # report itself loaded, so an unreachable broker is reported here, in
+          # one line, instead of as a timeout in the test below.
+          state=""
+          for _ in $(seq 1 30); do
+            # No `head -n 1`: under `pipefail` its early exit would SIGPIPE the
+            # reader and `set -e` would abort on a success.
+            state=$(curl -fsS "$HA_URL/api/config/config_entries/entry" \
+              -H "Authorization: Bearer $token" \
+              | jq -r '[.[] | select(.domain == "mqtt") | .state] | first // ""')
+            if [ "$state" = "loaded" ]; then
+              break
+            fi
+            sleep 2
+          done
+          if [ "$state" != "loaded" ]; then
+            echo "::error::the MQTT integration is '$state', not 'loaded' - it cannot reach $MQTT_BROKER:$MQTT_PORT"
+            exit 1
+          fi
+          echo "Home Assistant has an MQTT integration loaded against $MQTT_BROKER:$MQTT_PORT"
+
+          # Handed to the test step without ever being printed.
+          echo "VITALS_HA_TOKEN=$token" >> "$GITHUB_ENV"
+
+      # `VITALS_HA_URL` and `VITALS_HA_TOKEN` are what make the acceptance test
+      # run rather than skip, and `VITALS_MQTT_TEST_BROKER` (workflow level) is
+      # inherited, so `broker.rs` runs here too.
+      - name: Test (MQTT crate, against a real Home Assistant)
+        shell: bash
+        env:
+          VITALS_HA_URL: http://127.0.0.1:8123
+          # Generous, because a cold Home Assistant on a shared runner is slow
+          # to create the entity. The test polls every 500 ms and returns as
+          # soon as the entity carries a reading, so this is a ceiling, not a
+          # wait.
+          VITALS_HA_TIMEOUT_SECS: '120'
+        run: |
+          set -eo pipefail
+          cargo test -p vitals-mqtt -- --nocapture 2>&1 | tee ha-test.log
+
+      # A skip in either gated test would leave a green job that proved
+      # nothing, which is exactly how 1.3.0 shipped broken.
+      - name: Neither the broker nor the acceptance test skipped
+        shell: bash
+        run: |
+          failed=0
+          for marker in 'SKIP the MQTT broker test' 'SKIP the Home Assistant acceptance test'; do
+            if grep -q "$marker" ha-test.log; then
+              echo "::error::'$marker' - the job proved nothing"
+              failed=1
+            fi
+          done
+          exit $failed
