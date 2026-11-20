@@ -1009,24 +1009,66 @@ jobs:
       # go through it, so marking a beta pre-release would leave the updater
       # and the website pointing at nothing. The title says "(public beta)"
       # instead.
+      # Created through the API rather than `softprops/action-gh-release`,
+      # because the action always sends `target_commitish` (its default is
+      # `github.sha`) and that field is what GitHub rejects.
+      #
+      # `POST /releases` from GITHUB_TOKEN is refused with 403 "Resource not
+      # accessible by integration" when the request carries a
+      # `target_commitish` whose commit's `.github/workflows/` differs from the
+      # default branch (upstream softprops/action-gh-release#836, comment of
+      # 2026-10-21, reproduced with probe workflows: a body with `tag_name`
+      # alone is accepted, the same body plus `target_commitish` is not).
+      # Every release hits that as soon as a workflow commit lands on `main`
+      # after the tag was cut — which is why v1.3.1 (run 44674536062) failed
+      # here twice on 2026-11-20 while v1.3.0 published cleanly on 2026-11-18,
+      # with no workflow commit between its tag and its publish. Pinning the
+      # action only hid it; the pin is why the same 403 reappeared on a version
+      # that was working, not v3.
+      #
+      # `target_commitish` only means anything when the tag has to be created,
+      # and by now the tag exists and is authoritative, so no commit target is
+      # sent at all. Checked with `GH_DEBUG=api` against an existing tag: this
+      # path sends `tag_name` and nothing else.
       - name: Publish release
-        # v2.6.2, not v3: v3 fails "create a release" with 403 "Resource not
-        # accessible by integration" under the same contents: write token
-        # (nightly 36616112094, 2026-09-29; upstream softprops/action-gh-release
-        # #836). v2.6.2 is the exact commit the v0.9.0-beta.1 publish used.
-        # Dependabot is told to skip v3 in .github/dependabot.yml.
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
-        with:
-          files: publish/*
-          body_path: release-notes.md
-          tag_name: ${{ needs.plan.outputs.tag }}
-          target_commitish: ${{ github.sha }}
-          name: ${{ needs.plan.outputs.title }}
-          prerelease: false
-          make_latest: 'true'
-          # Categorised by .github/release.yml; appended below our notes.
-          generate_release_notes: true
-          fail_on_unmatched_files: true
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TITLE: ${{ needs.plan.outputs.title }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          # The action's `fail_on_unmatched_files`; an empty release would
+          # also break the updater, which reads latest.json from it.
+          $assets = @(Get-ChildItem publish -File)
+          if ($assets.Count -eq 0) {
+            throw 'publish/ is empty — refusing to create a release with no assets'
+          }
+          # `generate_release_notes` appends GitHub's own categorised notes
+          # (.github/release.yml) below ours, as the action did. Written to a
+          # file because the notes are multi-line.
+          $payload = @{
+            tag_name               = $env:TAG
+            name                   = $env:TITLE
+            body                   = (Get-Content release-notes.md -Raw)
+            draft                  = $false
+            prerelease             = $false
+            make_latest            = 'true'
+            generate_release_notes = $true
+          } | ConvertTo-Json -Depth 3
+          Set-Content release-payload.json -Value $payload -Encoding utf8NoBOM
+
+          gh api --method POST "repos/$env:REPOSITORY/releases" --input release-payload.json | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "creating the release failed with exit $LASTEXITCODE" }
+
+          # --clobber keeps a re-run of the same tag idempotent.
+          gh release upload $env:TAG $assets.FullName --clobber
+          if ($LASTEXITCODE -ne 0) { throw "uploading the release assets failed with exit $LASTEXITCODE" }
+
+          # Read back what the API stored: the run's own proof that the release
+          # exists with every asset, not just that the calls returned 0.
+          gh release view $env:TAG --json tagName,isDraft,isPrerelease,assets `
+            --jq '"published \(.tagName) draft=\(.isDraft) prerelease=\(.isPrerelease) assets=\(.assets | length)"'
+          if ($LASTEXITCODE -ne 0) { throw "reading the release back failed with exit $LASTEXITCODE" }
 
   # ── Distribution channels ────────────────────────────────────────────────
   # Tags only, each opt-in with a repo variable, and each skips cleanly —
