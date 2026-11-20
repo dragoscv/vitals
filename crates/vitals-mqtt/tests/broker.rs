@@ -115,10 +115,25 @@ fn assert_discovery(messages: &[Message], device: &DeviceInfo, node: &str, avail
             block["sw_version"].is_string(),
             "device sw_version on {topic}"
         );
-        assert_eq!(
-            block["availability_topic"], availability,
-            "device availability on {topic}"
-        );
+        // Home Assistant validates the device block against its own device
+        // schema and refuses the entire document if a key it does not know
+        // appears there. Availability keys are entity-level, so their
+        // presence in this object is the difference between an entity that
+        // appears and one that is refused with `not a valid option at
+        // 'device.availability_topic'` - which is exactly what every Vitals
+        // entity did until 2026-11-20.
+        for key in [
+            "availability_topic",
+            "payload_available",
+            "payload_not_available",
+        ] {
+            assert!(
+                block.get(key).is_none(),
+                "{key} must not be nested in the device block on {topic}: \
+                 Home Assistant rejects a device block it does not recognise, \
+                 and then creates no entity at all"
+            );
+        }
     }
 }
 

@@ -182,6 +182,54 @@ Home Assistant from Prometheus you would query Prometheus with a `rest`
 sensor again, which is more moving parts than reading Vitals directly. Use
 this route when Prometheus and Grafana are already where you look at graphs.
 
+## Alternative: MQTT discovery (no package, no token)
+
+If you already run an MQTT broker, Vitals can publish itself to it and Home
+Assistant will create the entities on its own — no `secrets.yaml`, no `rest`
+sensors, no YAML templates. Turn it on in **Settings > Remote access**, give
+it the broker address (`mqtt://host:1883`, or `mqtts://` for TLS, with
+`mqtt://user:pass@host:1883` for credentials) and press test. Home Assistant
+only needs the MQTT integration configured for the same broker; discovery is
+on by default.
+
+What appears: one device per machine, named `Vitals on <HOST>`, with a sensor
+for CPU, CPU temperature, memory in use, processes, active alerts and battery,
+plus an `Active alerts` problem binary sensor. Entries Home Assistant cannot
+measure on that machine still exist and read `unknown` — a desktop has no
+battery, and saying so is better than publishing a zero.
+
+The topics, all under the prefixes Vitals defaults to:
+
+| What                         | Topic                                                       |
+| ---------------------------- | ----------------------------------------------------------- |
+| Announcement (retained)      | `homeassistant/sensor/<node>/<node>_<object>/config`        |
+| Announcement, problem sensor | `homeassistant/binary_sensor/<node>/<node>_problem/config`  |
+| Reading (never retained)     | `vitals/<node>/state/summary/cpu` (and `.../alerts/active`) |
+| Availability (retained Will) | `vitals/<node>/availability` — `online` / `offline`         |
+
+`<node>` is `vitals_` plus the host name, lowercased and stripped to ASCII.
+Publishing stops when you turn the setting off, and the availability topic
+goes `offline` so Home Assistant greys the entities out instead of showing
+the last reading forever.
+
+Two rules in the payload are worth knowing before you touch
+`crates/vitals-mqtt/src/discovery.rs`, because breaking either makes **every**
+entity disappear with nothing obviously wrong on the Vitals side:
+
+1. **Availability keys belong on the entity, never inside `device`.** Home
+   Assistant validates the `device` object against its device schema and
+   discards the whole announcement — logging `not a valid option at
+  'device.availability_topic'` — if it finds a key it does not know there.
+   That was true of every Vitals entity until 2026-11-20; the tests passed
+   because they asserted the shape Vitals had invented rather than the shape
+   Home Assistant accepts.
+2. **A unit is omitted, not `null`.** Home Assistant rejects a discovery
+   document that names `unit_of_measurement` for a dimensionless sensor.
+
+If the entities do not appear, read `home-assistant.log` in your Home
+Assistant config directory: a rejected announcement is logged there with the
+reason, and the message quotes the exact payload that was refused.
+
 ## Why the templates are guarded
 
 Two fields in the package can legitimately be `null` on the wire:

@@ -52,27 +52,31 @@ pub struct DeviceInfo {
 }
 
 impl DeviceInfo {
-    /// The device block, with the availability topic attached to it.
+    /// The device block. It carries identity only.
+    ///
+    /// Home Assistant validates this object against its device schema, which
+    /// has no availability fields, and rejects the whole discovery document if
+    /// one appears in it. Nesting them here is what made every entity Vitals
+    /// announced unusable: Home Assistant logged `not a valid option at
+    /// 'device.availability_topic'` and created nothing, while Vitals' own
+    /// tests passed because they asserted the shape Vitals invented rather
+    /// than the shape Home Assistant accepts. Availability belongs on the
+    /// entity, and [`discovery_payload`] sets it there.
     #[must_use]
-    fn block(&self, availability_topic: &str) -> Value {
+    fn block(&self) -> Value {
         json!({
             "identifiers": [self.identifier],
             "name": self.name,
             "manufacturer": "Vitals",
             "sw_version": env!("CARGO_PKG_VERSION"),
-            "availability_topic": availability_topic,
-            "payload_available": crate::policy::availability_payload(true),
-            "payload_not_available": crate::policy::availability_payload(false),
         })
     }
 }
 
 /// The discovery body for one entity, ready to publish as JSON.
 ///
-/// `availability_topic` is repeated on the entity as well as the device: an
-/// entity added to a device block that predates this reading would otherwise
-/// have no availability of its own, and Home Assistant shows such an entity as
-/// permanently unavailable.
+/// Availability is set on the **entity**, never inside the device block: see
+/// [`DeviceInfo::block`] for the failure that taught us the difference.
 #[must_use]
 pub fn discovery_payload(topic_prefix: &str, device: &DeviceInfo, spec: &EntitySpec) -> Value {
     let availability = topics::availability_topic(topic_prefix, &device.node);
@@ -85,7 +89,7 @@ pub fn discovery_payload(topic_prefix: &str, device: &DeviceInfo, spec: &EntityS
         "availability_topic": availability,
         "payload_available": crate::policy::availability_payload(true),
         "payload_not_available": crate::policy::availability_payload(false),
-        "device": device.block(&availability),
+        "device": device.block(),
     });
     // `unit_of_measurement` must be absent, not null: Home Assistant rejects a
     // discovery document that names a unit for a dimensionless sensor, and a
@@ -172,6 +176,28 @@ mod tests {
             "a null unit is not the same as no unit"
         );
         assert!(!map.contains_key("device_class"));
+    }
+
+    #[test]
+    fn the_device_block_carries_no_availability_keys() {
+        // Home Assistant checks the device block against its device schema and
+        // discards the whole document when it finds a key it does not know.
+        // Availability keys nested here made every Vitals entity invisible:
+        // Home Assistant logged `not a valid option at
+        // 'device.availability_topic'` and created nothing at all.
+        let body = discovery_payload("vitals", &device(), &cpu());
+        let block = body["device"].as_object().expect("a device object");
+        for key in [
+            "availability_topic",
+            "payload_available",
+            "payload_not_available",
+        ] {
+            assert!(
+                !block.contains_key(key),
+                "{key} belongs on the entity, not on the device"
+            );
+        }
+        assert_eq!(body["availability_topic"], "vitals/vitals_pc/availability");
     }
 
     #[test]

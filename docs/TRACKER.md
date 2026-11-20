@@ -3459,6 +3459,94 @@ code (service start type, handles/modules read-only, end process tree).
 
 ### Verification log
 
+### 2026-11-20 — S24-13: Home Assistant rejected every entity Vitals announced
+
+**Why this needed a container.** The MQTT half of S24-13 already had a proof
+of the _publisher_: a broker receives the right topics carrying the right
+payloads, and CI keeps that proof. What it never had was Home Assistant
+itself, because the onboarding wizard is interactive. It does not have to be.
+Onboarding is a REST API (`/api/onboarding/users` returns an `auth_code`,
+which `/auth/token` exchanges for a token) and the MQTT integration is a
+config-entry flow, so `eclipse-mosquitto` and
+`ghcr.io/home-assistant/home-assistant:stable` ran side by side on one Docker
+network and the whole setup happened without a browser.
+
+Two details cost a round each. `/auth/token` takes a **form-encoded** body —
+JSON answers `unsupported_grant_type`, which reads like the wrong grant
+rather than the wrong content type. And the broker step of the MQTT flow
+requires an `other_settings` object in which `set_client_cert` is a boolean
+while `set_ca_cert` is a **select** of `off`/`auto`/`custom`; answering
+`false` for it is refused with `expected str`.
+
+**The defect.** With a real Home Assistant listening, every announcement was
+refused:
+
+```
+ERROR (MainThread) [homeassistant.components.mqtt.entity] Error 'not a valid
+option at 'device.availability_topic'' when processing MQTT discovery message
+topic: 'homeassistant/sensor/vitals_dragos/vitals_dragos_cpu/config'
+```
+
+`availability_topic`, `payload_available` and `payload_not_available` were
+nested inside the `device` block. Home Assistant validates that object against
+its device schema, which has no availability fields, and discards the **whole**
+announcement — so the feature never worked against the real thing, and not one
+entity was ever created.
+
+**Why CI stayed green, which matters more than the bug.**
+`crates/vitals-mqtt/tests/broker.rs` asserted that the device block's
+`availability_topic` equalled the availability topic. It asserted the shape
+Vitals had invented rather than the shape the consumer accepts, so it could
+only ever confirm the mistake. The code fix is three deleted lines; the test
+fix is the part that generalises — the assertion is now inverted into the
+rule (`the_device_block_carries_no_availability_keys`), so reintroducing the
+nesting fails in a second, with no broker involved.
+
+**What it looks like working**, against the CLI rebuilt from source:
+
+```
+HA before the publisher starts     8 entities, all unavailable (an earlier run)
+messages on the broker via mosquitto_sub   60, of which 21 discovery
+HA after 25 s of publishing        15 entities, 12 of them sensors
+  sensor.vitals_on_dragos_cpu                       100.0   %
+  sensor.vitals_on_dragos_memory_in_use              67.8   %
+  sensor.vitals_on_dragos_processes                   943
+  sensor.vitals_on_dragos_active_alerts                 1
+  sensor.vitals_on_dragos_cpu_temperature         unknown  °C  (no sensor)
+  sensor.vitals_on_dragos_battery                 unknown  %   (a desktop)
+after stopping the publisher       all 14 sensors unavailable within 15 s
+retained cpu config, read back     device: {identifiers, manufacturer, name,
+  with no publisher running          sw_version} — no availability key
+cargo test -p vitals-mqtt (live mosquitto)  29 unit + 1 broker test, 0 failed
+check-drift.ps1                    drift: 0 failure(s), 0 warning(s)
+```
+
+The two `unknown` readings are the project's own principle at work: a desktop
+has no battery and this machine exposes no CPU temperature, and `unknown` says
+so where a zero would be a lie. The `unavailable` flip is the retained
+availability topic doing its job, so Home Assistant greys the entities out
+instead of showing the last reading forever.
+
+**Ripple.** MQTT discovery was documented nowhere in `docs/`.
+`docs/integrations/home-assistant.md` now carries the setting, the topic
+table, the availability model and both payload rules, with this failure
+recorded so it is not reintroduced.
+
+#### Verification log
+
+- `cargo test -p vitals-mqtt` with `VITALS_MQTT_TEST_BROKER=mqtt://127.0.0.1:11883`
+  run on this machine on 2026-11-20 against the Docker mosquitto container:
+  29 unit tests and 1 broker test passed, the broker test running rather than
+  taking its skip path.
+- The Home Assistant half was read from Home Assistant's own API
+  (`/api/states`) and its log file, not from Vitals. The publisher was the CLI
+  built from this working tree (`target\debug\vitals.exe`), not the released
+  1.3.0 binary, which still carries the defect.
+- Raw output is in `.copilot-tmp/ha/` (scratch, never committed).
+- Not run, and therefore not claimed: `scripts/verify.ps1` in full, the Tauri
+  and Android builds, and any CI job. The fix is confined to
+  `crates/vitals-mqtt`, which builds and tests clean on its own.
+
 ### 2026-11-19 — S21-08 second pass: the log cap was the missing half, and SEC-7's claim was wrong
 
 **What the row was waiting for.** S21-08's five claims need a real

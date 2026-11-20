@@ -21,6 +21,16 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Home Assistant created no entity at all from the MQTT integration. Each
+  announcement carried its availability topic inside the device block, and
+  Home Assistant checks that block against a schema with no place for it, so
+  it discarded the whole announcement and logged `not a valid option at
+'device.availability_topic'`. The reading topics Vitals published were
+  correct and the broker kept them; there was simply nothing on the other end
+  to receive them. Availability now travels on the entity, where Home
+  Assistant expects it. The 1.3.0 build on the Windows, Android and Apple
+  channels has the old payload.
+
 - A reading the hardware cannot report no longer arrives as a zero. The
   computer's processor count, thread count and disk activity, the graphics
   memory and temperature of a card whose driver does not answer, a desktop's
