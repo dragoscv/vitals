@@ -18,6 +18,12 @@ name: MQTT
 # integration over REST and fails if no entity appears. See its comment for the
 # 1.3.0 defect that made this necessary.
 #
+# `scripts/ha-demo.ps1` is the same proof for a person: same pinned containers,
+# same REST onboarding, but it prints the entities Home Assistant created, can
+# publish a deliberately broken announcement to show the failure, and can run a
+# published release instead of a rebuild. When this job goes red on a `paths`
+# change, that script is how to see what happened without pushing again.
+#
 # Every job mirrors the `rust-linux` job of ci.yml: the same pinned action
 # revisions, the same toolchain and the same cache style.
 

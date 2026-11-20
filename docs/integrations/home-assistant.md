@@ -230,6 +230,50 @@ If the entities do not appear, read `home-assistant.log` in your Home
 Assistant config directory: a rejected announcement is logged there with the
 reason, and the message quotes the exact payload that was refused.
 
+### Watching it work, and reproducing the failure
+
+`scripts/ha-demo.ps1` stands up the whole chain on your own machine — a broker,
+a real Home Assistant, the onboarding, the MQTT integration, all of it without a
+browser — and then prints the entities **Home Assistant** created, read back
+from Home Assistant's API. Bytes arriving at the broker is not the same fact as
+Home Assistant accepting them, and acceptance is what 1.3.0 broke.
+
+```powershell
+pwsh -NoProfile -File scripts/ha-demo.ps1 -Keep -Reproduce
+```
+
+`-Reproduce` publishes a deliberately broken announcement in the 1.3.0 shape and
+prints Home Assistant's own rejection of it, so the failing case is visible
+beside the working one. `-Keep` leaves the rig running and prints the URL, the
+credentials and a link to the entity; without it the run tears everything down
+again. `-Down` removes a rig this script created and says what it removed — a
+container of the same name that it did not create is reported and left alone.
+
+Two more things it can show:
+
+```powershell
+# Readings this machine cannot take are absent, not zero: `battery` and
+# `cpu_temperature` must read `unknown`, never a number. Expected to fail on a
+# machine that really has a battery.
+pwsh -NoProfile -File scripts/ha-demo.ps1 -AssertAbsent battery,cpu_temperature
+
+# The build that was actually published, rather than a rebuild of your tree:
+# downloads the v1.3.0 CLI, verifies it against the release's SHA256SUMS.txt,
+# and expects Home Assistant to refuse it.
+pwsh -NoProfile -File scripts/ha-demo.ps1 -FromRelease v1.3.0 -ExpectRejected
+```
+
+The names it prints are Home Assistant's, and Home Assistant builds them from
+the device name — so the CPU reading is `sensor.vitals_on_<host>_cpu` while the
+`unique_id` Vitals sends is `vitals_<host>_cpu`. That is why the script reads
+Home Assistant's entity registry instead of guessing: a guess based on the
+`unique_id` finds nothing and reports "no entity" for an instance that accepted
+every announcement. Add `-Json` to get one machine-readable document on stdout,
+which is what makes two builds' entity sets comparable.
+
+CI runs the same proof on every change under `crates/vitals-mqtt/`, in
+`.github/workflows/mqtt.yml`.
+
 ## Why the templates are guarded
 
 Two fields in the package can legitimately be `null` on the wire:

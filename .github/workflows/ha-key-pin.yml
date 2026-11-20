@@ -1,0 +1,136 @@
+name: Home Assistant key pin
+
+# The MQTT discovery documents Vitals publishes are usable only if Home
+# Assistant accepts them, and `crates/vitals-mqtt/tests/home_assistant.rs` pins
+# every document against Home Assistant's accepted vocabulary, recorded in
+# `crates/vitals-mqtt/tests/fixtures/ha_discovery_keys.json`. That fixture is a
+# SNAPSHOT of a vocabulary Home Assistant changes - it ships monthly, and a key
+# can be renamed or removed. When that happens the pin asserts something that is
+# no longer true while every test stays green, which is the same shape as the
+# 1.3.0 defect the pin exists for (three availability keys inside the `device`
+# block, discarded silently, invisible to every gate for weeks).
+#
+# This workflow re-derives the vocabulary from the current
+# `ghcr.io/home-assistant/home-assistant:stable` - the container method the
+# fixture's own `_provenance` records - and fails when the fixture no longer
+# matches, opening a single tracking issue so the drift has somewhere to live.
+#
+# Cadence: weekly, Monday 06:23 UTC. Home Assistant releases monthly, so a daily
+# run would repeat a week's answer six times for a 2.4 GB image pull each time;
+# before the week's releases is the useful moment. 06:23 is a few minutes off
+# store-listing.yml's 06:17 so the two scheduled jobs do not start together.
+#
+# Deliberately NOT on push. A re-derivation that ran on every push would be
+# noise the team learns to ignore - and the thing it checks is a property of
+# Home Assistant's release, not of a commit, so a push tells it nothing.
+on:
+  schedule:
+    - cron: '23 6 * * 1'
+  workflow_dispatch:
+
+# `issues: write` is the only write scope, for the one tracking issue.
+# `contents: read` is what actions/checkout needs: a workflow that declares
+# `permissions:` gets `none` for every scope it omits, so checkout would fail
+# without it. Nothing here writes to the repository, and no other scope is
+# requested.
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: ha-key-pin
+  cancel-in-progress: false
+
+jobs:
+  pin:
+    name: Home Assistant vocabulary still matches the pin
+    runs-on: ubuntu-24.04
+    # A large image pull and a Home Assistant import, both waits rather than
+    # work - the same budget mqtt.yml's real-Home-Assistant job uses.
+    timeout-minutes: 30
+    steps:
+      # Pinned by full commit SHA, as every workflow in this repository is: a
+      # tag is a moving target and a compromised action would run with this
+      # job's token.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24
+
+      # The script pulls the image, boots it, enumerates the schemas and exits
+      # 1 when the fixture is out of date or 2 when it could not pull, boot or
+      # find Home Assistant. There is no skip path in the script, and every
+      # non-zero exit turns the final step of this job red - so this job cannot
+      # pass by doing nothing. That is deliberate: store-listing.yml greps its
+      # own log for a `SKIPPED:` line for exactly this reason, and a scheduled
+      # check that quietly proved nothing would be worse than no check at all.
+      #
+      # The exit code is captured rather than acted on here, so that the issue
+      # below is opened before the job is failed.
+      - name: Re-derive the vocabulary and compare it to the pin
+        id: pin
+        shell: bash
+        run: |
+          set +e
+          node scripts/ha-pin-refresh.mjs --check 2>&1 | tee "$RUNNER_TEMP/ha-pin.log"
+          code=${PIPESTATUS[0]}
+          set -e
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      # One issue, found by its exact title first: a weekly job that opened a
+      # new issue every time would make fifty and be muted within a quarter. A
+      # refresh that is still outstanding updates the same issue instead.
+      - name: Open or update the tracking issue
+        if: steps.pin.outputs.exit_code == '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TITLE: Home Assistant MQTT key pin is out of date
+        shell: bash
+        run: |
+          set -euo pipefail
+          # A quoted heredoc, so the backticks are markdown code spans and not
+          # a shell command substitution.
+          cat > "$RUNNER_TEMP/body.md" <<'PREAMBLE'
+          The Home Assistant vocabulary pinned in
+          `crates/vitals-mqtt/tests/fixtures/ha_discovery_keys.json` no longer
+          matches the current `ghcr.io/home-assistant/home-assistant:stable`.
+
+          Run `node scripts/ha-pin-refresh.mjs` at the repository root to write the
+          refreshed key sets and provenance, then commit it. If a key was added or
+          removed, check `crates/vitals-mqtt/src/discovery.rs` against it before
+          merging: a document Home Assistant now rejects is the 1.3.0 failure, and
+          a document it newly accepts is a field Vitals could publish.
+
+          ```text
+          PREAMBLE
+          cat "$RUNNER_TEMP/ha-pin.log" >> "$RUNNER_TEMP/body.md"
+          cat >> "$RUNNER_TEMP/body.md" <<'FENCE'
+          ```
+          FENCE
+          # Matched on the whole title, not `--search`: a search tokenises and
+          # could miss its own issue, and an exact match cannot.
+          number=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --limit 500 \
+            --json number,title \
+            | jq -r --arg title "$TITLE" "map(select(.title == \$title)) | .[0].number // empty")
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/body.md"
+            echo "updated issue #$number"
+          else
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$TITLE" --body-file "$RUNNER_TEMP/body.md"
+          fi
+
+      # The visible state in the Actions tab, and the reason a scheduled check
+      # is worth having: a red run is what a cron job has instead of a
+      # notification. Both the out-of-date case (1) and a check that could not
+      # run (2) fail here, so neither reads as a pass.
+      - name: Fail while the pin is out of date, or the check could not run
+        if: steps.pin.outputs.exit_code != '0'
+        shell: bash
+        run: |
+          if [ "${{ steps.pin.outputs.exit_code }}" = '1' ]; then
+            echo "::error::the Home Assistant key pin is out of date - see the tracking issue"
+          else
+            echo "::error::the pin check could not run (exit ${{ steps.pin.outputs.exit_code }}); this is not a pass"
+          fi
+          exit 1
