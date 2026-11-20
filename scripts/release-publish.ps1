@@ -32,6 +32,15 @@
   a flag on the real one so that the create/upload/flip code is not merely
   skipped in a rehearsal: it is absent from the run.
 
+  Re-running for a tag that is already published is supported and does not
+  create a second release: an existing release is adopted and its assets
+  re-uploaded, which is how a channel job that failed after the release went
+  public gets fixed without a new version. One refusal protects an invariant —
+  if any asset of the existing release has been downloaded, the script throws
+  rather than replace it, because replacing a published artefact invalidates
+  every checksum somebody has already copied off the release page. The answer
+  there is a patch release, not a re-run.
+
 .PARAMETER Tag
   The tag to publish, or — with -DryRun — the tag the rehearsal pretends to
   publish. The tag already exists; it is never created here.
@@ -56,6 +65,13 @@
 .PARAMETER DryRun
   Assemble, assert and report, then stop. Makes no API call.
 
+.PARAMETER ReplacePublishedAssets
+  Allow the adoption path to replace assets that have already been downloaded.
+  Off by default: a replaced artefact no longer matches the checksum of any copy
+  taken from the release before the re-run, which is why a patch release is the
+  normal answer. This exists for the case where the tag has to move to carry a
+  workflow fix and the release is hours old with only CI having read it.
+
 .EXAMPLE
   pwsh -NoProfile -File scripts/release-publish.ps1 -Tag v1.3.2 -Title 'Vitals 1.3.2' -Notes release-notes.md
 
@@ -70,7 +86,8 @@ param(
   [string]$Directory = 'publish',
   [string]$Repository,
   [string]$Out = '.',
-  [switch]$DryRun
+  [switch]$DryRun,
+  [switch]$ReplacePublishedAssets
 )
 $ErrorActionPreference = 'Stop'
 
@@ -202,13 +219,42 @@ if ($DryRun) {
   return
 }
 
-$created = gh api --method POST "repos/$Repository/releases" --input $payloadPath
-if ($LASTEXITCODE -ne 0) { throw "creating the release failed with exit $LASTEXITCODE; no release exists and nothing was uploaded" }
-if ([string]::IsNullOrWhiteSpace($created)) { throw 'the create call returned no body, so the release id cannot be read; nothing was uploaded' }
-$releaseId = ($created | ConvertFrom-Json).id
-if (-not $releaseId) { throw 'the create response carried no release id; refusing to continue rather than address an unknown release' }
+# A second run for the same tag — a channel job failed, the workflow was fixed,
+# the release has to be re-published — must not fail with "already_exists", and
+# must not replace bytes somebody has already downloaded. So an existing release
+# is adopted, and adopted only while nothing has been downloaded from it.
+$releaseId = $null
+$probe = $ErrorActionPreference
+$ErrorActionPreference = 'SilentlyContinue'
+$existing = gh api "repos/$Repository/releases/tags/$Tag" 2>$null
+$probeExit = $LASTEXITCODE
+$ErrorActionPreference = $probe
+if ($probeExit -eq 0 -and -not [string]::IsNullOrWhiteSpace($existing)) {
+  $found = $existing | ConvertFrom-Json
+  $downloaded = @($found.assets | Where-Object { $_.download_count -gt 0 })
+  if ($downloaded.Count -gt 0) {
+    $report = @($downloaded | ForEach-Object { "$($_.name) x$($_.download_count)" }) -join ', '
+    if (-not $ReplacePublishedAssets) {
+      throw "release $Tag already exists and has been downloaded ($report); re-uploading would replace bytes under a checksum somebody has already copied — publish a patch release, or pass -ReplacePublishedAssets to record that the replacement is deliberate"
+    }
+    Write-Warning "replacing published assets that have been downloaded ($report); this release's checksums are recomputed, so a copy taken before now no longer matches them"
+    Write-StepSummary "**Replaced published assets** that had been downloaded: $report. The checksums in this release were recomputed by the same run, so any copy taken from it earlier no longer matches."
+  }
+  $releaseId = $found.id
+  if (-not $releaseId) { throw "the existing release for $Tag carried no id; refusing to continue rather than address an unknown release" }
+  Write-Host "release $Tag already exists (id $releaseId, $(@($found.assets).Count) asset(s), none downloaded); adopting it instead of creating a second release"
+  Write-StepSummary "Adopted existing release $releaseId — this run re-uploads its assets, it does not create a second release."
+}
 
-# --clobber keeps a re-run of the same tag idempotent.
+if (-not $releaseId) {
+  $created = gh api --method POST "repos/$Repository/releases" --input $payloadPath
+  if ($LASTEXITCODE -ne 0) { throw "creating the release failed with exit $LASTEXITCODE; no release exists and nothing was uploaded" }
+  if ([string]::IsNullOrWhiteSpace($created)) { throw 'the create call returned no body, so the release id cannot be read; nothing was uploaded' }
+  $releaseId = ($created | ConvertFrom-Json).id
+  if (-not $releaseId) { throw 'the create response carried no release id; refusing to continue rather than address an unknown release' }
+}
+
+# --clobber is what makes the re-upload idempotent rather than a collision.
 gh release upload $Tag $assets.FullName --clobber
 if ($LASTEXITCODE -ne 0) { throw "uploading the release assets failed with exit $LASTEXITCODE; release $releaseId exists as a DRAFT with a partial asset set — complete or delete it before retrying" }
 

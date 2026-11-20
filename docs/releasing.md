@@ -459,7 +459,7 @@ CI, only for releases.
 | `PUBLISH_SCOOP`  | Push `bucket/vitals.json` to `dragoscv/scoop-vitals`.                                                                                             |
 | `PUBLISH_CHOCO`  | Pack and push the `vitals` Chocolatey package.                                                                                                    |
 | `PUBLISH_PLAY`   | Upload the phone, Wear OS and TV bundles to Google Play (track rules below).                                                                      |
-| `PLAY_ROLLOUT`   | Production rollout fraction for a stable tag, e.g. `0.2` (the default) or `1` for everyone.                                                       |
+| `PLAY_ROLLOUT`   | Production rollout for a stable tag: `0.2` (the default) stages, `1` (or `100%`) is everyone. Anything else fails the job before it uploads.      |
 | `PLAY_DRAFT_APP` | `true` while the Play app has never passed review: production drafts, committed without sending for review (send from Publishing overview).       |
 
 Publishing macOS or Linux turns that leg from advisory into a hard gate:
@@ -484,8 +484,40 @@ state, not the package (QA2-6, 2026-10-18):
   beforehand, so each upload tries the flag `PLAY_DRAFT_APP` suggests and,
   only if that commit fails, retries once with the opposite; the summary
   says when it did. The GitHub release is already public by
-  the time the channels run, so a channel failure never un-publishes anything
-  — rerun just that job.
+  the time the channels run, so a channel failure never un-publishes anything.
+- **A fraction of 1 is not what 100 % looks like.** `PLAY_ROLLOUT=1` was
+  documented as "everyone" and passed straight to the upload action's
+  `userFraction`, which the action validates as strictly between 0 and 1 — so
+  the 1.3.1 Play job died with `'userFraction' must be between 0 and 1! Got 1`
+  (run 44748948289) without uploading anything. Play expresses a complete
+  rollout as a **completed** release, not as a fraction, so the job now turns
+  `1` (or `100%`) into `status: completed` with no fraction at all, and rejects
+  any other value out of range while naming the variable.
+
+**Re-running one channel** (the release is public, one channel failed). A
+re-run executes the workflow file in the commit the tag points at, so it can
+only repeat the code that failed — a fix on `main` cannot reach it. When the
+failure is in the workflow itself:
+
+1. fix `main`, and re-point the tag at the fixed commit (see
+   `docs/adr/0045-release-creation-without-a-commit-target.md`);
+2. disable the channels that already succeeded (`PUBLISH_NPM`, `PUBLISH_WINGET`,
+   `PUBLISH_SCOOP`, `PUBLISH_CHOCO` to `false`) — they have published this
+   version, and npm refuses a second publish of the same version, so leaving
+   them on makes a green release look broken;
+3. set `REPLACE_PUBLISHED_ASSETS` to `true` if anything has been downloaded
+   from the release. Publish refuses otherwise, and rightly: replacing an
+   artefact recomputes the release's checksums, so a copy taken earlier stops
+   matching them. It is off by default because the usual answer to a published
+   release is a patch release, not a re-run;
+4. push the tag, approve the `release` environment, and restore every variable
+   once the run has passed them.
+
+`scripts/release-publish.ps1` adopts the existing release instead of creating a
+second one, so the re-run re-uploads the same asset names with the new bytes.
+The replacement is named in the run summary and warned about in the log. Note
+that the update proofs themselves download from the release, so a release
+minutes old already has download counts even though no user has touched it.
 
 ### Authenticode, when a certificate exists
 

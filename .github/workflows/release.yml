@@ -1051,9 +1051,18 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TITLE: ${{ needs.plan.outputs.title }}
+          # Replacing artefacts a release has already published is destructive
+          # — the new set's checksums differ from any copy already taken — so it
+          # stays off unless this variable says otherwise. It is needed because
+          # a channel failure can force the whole workflow to re-run: the tag
+          # moves to the commit carrying the fix, and publish then meets a
+          # release that already exists. See docs/releasing.md.
+          REPLACE_ASSETS: ${{ vars.REPLACE_PUBLISHED_ASSETS }}
         run: |
-          pwsh -NoProfile -File scripts/release-publish.ps1 `
-            -Tag $env:TAG -Title $env:TITLE -Notes release-notes.md -Directory publish
+          $arguments = @('-NoProfile', '-File', 'scripts/release-publish.ps1',
+            '-Tag', $env:TAG, '-Title', $env:TITLE, '-Notes', 'release-notes.md', '-Directory', 'publish')
+          if ($env:REPLACE_ASSETS -eq 'true') { $arguments += '-ReplacePublishedAssets' }
+          pwsh @arguments
           if ($LASTEXITCODE -ne 0) { throw "publishing the release failed with exit $LASTEXITCODE" }
 
   # The publish path, rehearsed. `publish` is gated on
@@ -1319,6 +1328,22 @@ jobs:
           # from Publishing overview.
           DRAFT_APP: ${{ vars.PLAY_DRAFT_APP }}
         run: |
+          # PLAY_ROLLOUT is a fraction for a staged rollout; 1 (or 100%) means
+          # everyone, which the API expresses as a completed release rather than
+          # as a fraction — the upload action rejects userFraction=1 outright
+          # ("'userFraction' must be between 0 and 1! Got 1", 1.3.1 run
+          # 44748948289). An out-of-range value fails here, naming the variable,
+          # rather than inside the action after the release has gone public.
+          full=false
+          case "$ROLLOUT" in
+            1|1.0|100|100%|100.0) full=true ;;
+            *)
+              if ! awk -v f="$ROLLOUT" 'BEGIN { exit !(f > 0 && f < 1) }'; then
+                echo "::error::PLAY_ROLLOUT=$ROLLOUT is not a rollout fraction; use 0 < f < 1 for a staged rollout, or 1 (100%) for everyone"
+                exit 1
+              fi
+              ;;
+          esac
           if [ "$PRODUCTION" = "true" ] && [ "$DRAFT_APP" = "true" ]; then
             echo "phone=production" >> "$GITHUB_OUTPUT"
             echo "wear=wear:production" >> "$GITHUB_OUTPUT"
@@ -1330,8 +1355,13 @@ jobs:
             echo "phone=production" >> "$GITHUB_OUTPUT"
             echo "wear=wear:production" >> "$GITHUB_OUTPUT"
             echo "tv=tv:production" >> "$GITHUB_OUTPUT"
-            echo "status=inProgress" >> "$GITHUB_OUTPUT"
-            echo "fraction=$ROLLOUT" >> "$GITHUB_OUTPUT"
+            if [ "$full" = "true" ]; then
+              echo "status=completed" >> "$GITHUB_OUTPUT"
+              echo "fraction=" >> "$GITHUB_OUTPUT"
+            else
+              echo "status=inProgress" >> "$GITHUB_OUTPUT"
+              echo "fraction=$ROLLOUT" >> "$GITHUB_OUTPUT"
+            fi
             echo "manual=false" >> "$GITHUB_OUTPUT"
           else
             echo "phone=internal" >> "$GITHUB_OUTPUT"
