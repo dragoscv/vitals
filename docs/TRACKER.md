@@ -5002,6 +5002,97 @@ ASC listing.json + PrivacyInfo.xcprivacy    valid JSON/plist; description 2061/2
   (`scripts/version.ps1 -Check v1.3.0`) passes only once the release wave sets
   the version; the mirror test proves the two new surfaces are covered.
 
+### 2026-11-20 — S24-24 release 1.3.1, carrying the Home Assistant fix
+
+**What.** This release is one defect. `crates/vitals-mqtt` put
+`availability_topic`, `payload_available` and `payload_not_available` inside the
+Home Assistant discovery document's `device` block. Home Assistant validates
+that block against a _device_ schema, finds a key that does not belong to it,
+and discards the whole document — so no entity was ever created, for anyone, in
+any build. The symptom is invisible from the outside: the retained config really
+does land on `homeassistant/<component>/<node>/<object>/config`, and the broker
+test asserted that message carried the availability keys, so CI was green while
+the integration did not work at all. The fix (`e2a7f9b`) moves availability to
+the entity level, where Home Assistant reads it, and inverts the broker test to
+assert the device block carries **none** of the three keys.
+
+Where the evidence had to come from is the larger lesson. The unit tests build
+the payload as a value and cannot know what the consumer accepts; the broker
+test proved delivery and not acceptance; and the error appears only in
+`/config/home-assistant.log` inside the container — `docker logs` never shows
+it. A real Home Assistant, onboarded over REST, was the only thing that could
+have caught this, and it did: 15 entities, live CPU/memory/process values, and
+every sensor reading `unavailable` within 15 s of the publisher stopping.
+
+Every 1.3.0 desktop build carries the defect. The phone and watch apps never
+publish MQTT themselves — `rg -l 'vitals-mqtt' --glob Cargo.toml` returns only
+`crates/vitals-server` and `apps/desktop/src-tauri` — so the Android notes say
+nothing about MQTT and the 1.3.0 Android build is unaffected.
+
+**Why now, and what is held.** The recorded plan was to tag 1.3.1 once 1.3.0 had
+cleared Apple review, because two versions cannot sit in review at once. Reading
+`release.yml` showed that constraint is Apple's alone: it has no iOS job at all,
+and every other channel is an independent variable, so a 1.3.1 tag cannot
+disturb the iPhone submission (6827931747, `WAITING_FOR_REVIEW`) or the rejected
+Mac 1.2.0. On 2026-11-20 the owner chose to ship now on Windows, Android and the
+package managers and hold only the Apple submission.
+
+That is also why `apps/ios/store/listing.json` and
+`apps/desktop/store/macos-listing.json` stay on 1.3.0 while the MSIX and Play
+copy moved to 1.3.1: `scripts/ios-store.mjs` applies those two to the version
+Apple is reviewing, and unreleased text on it would be a false claim. The
+drafted EN/RO text is held in the handoff. This is the one deliberate deviation
+from "apply the new store text everywhere".
+
+`PLAY_ROLLOUT` is the repository variable `1`, and `release.yml` passes it
+straight to the upload action's `userFraction`, which is a fraction — so 1 is a
+full rollout, not one per cent, where the default is `0.2`.
+
+**A correction worth recording.** `release.yml`'s copy of the store-listing
+check prints `SKIPPED` for the Play half _on purpose_, and the comment above it
+says why: the Play credential is Workload Identity Federation, which needs
+`id-token: write`, and that job runs _before_ the owner's approval (SEC-5), so
+the flag is stated at the call site and enforced by `store-listing.yml`, which
+holds the secret, runs no dependency code, and is the job whose contract is to
+fail. That was first read here as a gate skipping its own subject; it is a
+deliberate split, and `store-listing.yml` run 44674475600 did read the real
+track and printed `fully rolled out`.
+
+```
+scripts/version.ps1 -Check v1.3.1     every manifest says 1.3.1
+cargo metadata                        exit 0 (lockfile and manifests resolve)
+Cargo.lock diff                       16 changed lines, all 1.3.0 -> 1.3.1, nothing else
+                                      read with git diff --text, because .gitattributes
+                                      sets `diff: unset` for this path
+check-drift.ps1                       drift: 0 failure(s), 0 warning(s) - 16 ts_rs files,
+                                      132 invokes, 132 commands, 2 locales
+Play changelogs EN / RO               301 and 309 of 500 characters, both name 1.3.1
+commit cf2949e                        22 files; pushed to origin/main
+tag v1.3.1 -> cf2949e                 annotated; origin refs/tags/v1.3.1 = 0faf00e2
+MQTT run 44674535591 (on the tag)     success, 2m12s; the workflow fails the job if the
+                                      broker test takes its skip path, so it ran
+Store listing run 44674475600         success; play production: 1.3.0 [versionCodes 44]
+                                      status=completed userFraction=full
+                                      play rollout: fully rolled out (1.3.0 completed)
+Release run 44674536062               Plan success; Verify and Build (android) in progress
+```
+
+#### Verification log
+
+- Everything above was run on this machine or read from GitHub on 2026-11-20;
+  the raw output of the local gates is `.copilot-tmp/rc131/gates.log` (scratch,
+  never committed).
+- Not run, and therefore not claimed: nothing built locally. The machine was
+  admission-saturated at the time (load probe 1377 ms against a 400 ms limit,
+  26 of 26 task slots) and the release builds in CI from the tag, so the local
+  `verify.ps1` was skipped on purpose rather than passed. The two failures it
+  showed earlier in the day were `overhead.rs` under load, on a commit whose
+  CI was green.
+- Not run, and therefore not claimed: the publish job, which waits for the
+  owner to approve the `release` environment; the MSIX build and its Partner
+  Center submission for 1.3.1; and the two `update-proof.yml` runs, which need
+  a published release. The row is `todo` for that reason.
+
 ## S13 — public beta 0.9.0-beta.1 (2026-09-28)
 
 Decided with the owner (ADR 0031): public repository, beta version, no code
