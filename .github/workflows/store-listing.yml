@@ -107,10 +107,44 @@ jobs:
       # --require-full-rollout: a staged production rollout — the state every
       # stable tag starts in — must not read as "everything is fine". It turns
       # a 20 % rollout into a failure here and into a warning on a bare run.
+      #
+      # --require-credentials: the flag that makes this job unable to pass by
+      # skipping. Without it, a half that found no credential prints SKIPPED and
+      # decides nothing about the exit code — which is exactly how a release's
+      # own gate read "the Play rollout is at 100 %" off a line that skipped its
+      # subject. Here both credentials exist (the two guards above proved it), so
+      # a skip is a failure. The log is kept for the guard that follows.
       - name: The app is for sale, and reaches everyone
         env:
           PLAY_ACCESS_TOKEN: ${{ steps.gcp.outputs.access_token }}
-        run: node scripts/check-store-listing.mjs --fail-on-unlisted --require-full-rollout
+        run: |
+          set -euo pipefail
+          node scripts/check-store-listing.mjs \
+            --fail-on-unlisted --require-full-rollout --require-credentials \
+            2>&1 | tee "$RUNNER_TEMP/store-listing.log"
+
+      # The house pattern from mqtt.yml's "The broker test ran rather than
+      # skipping": a skip here would mean the job proved nothing while staying
+      # green. `--require-credentials` makes the script fail on its own skip
+      # path; this checks the same thing from OUTSIDE the script, so a call site
+      # that drops the flag — or a credential the script's own predicate rejects
+      # while the workflow's step-level guard accepted it — cannot slip a
+      # SKIPPED line past the job. Runs even when the step above failed, so the
+      # reason is printed rather than swallowed.
+      - name: Every half of the check ran rather than skipping
+        if: always()
+        shell: bash
+        run: |
+          log="$RUNNER_TEMP/store-listing.log"
+          if [ ! -f "$log" ]; then
+            echo "::error::the store-listing check produced no log, so this job cannot prove that anything ran"
+            exit 1
+          fi
+          if grep -q '^SKIPPED:' "$log"; then
+            echo "::error::the store-listing check skipped a half, so this job proved nothing; the authoritative workflow is store-listing.yml and it must not pass by skipping:"
+            grep '^SKIPPED:' "$log"
+            exit 1
+          fi
 
       # The other half of the same question. "Is the app for sale" and "is
       # everything a submission needs actually there" were two workflows for

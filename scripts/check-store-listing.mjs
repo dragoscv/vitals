@@ -33,19 +33,26 @@
 // Without readable credentials either half prints one SKIPPED line and the
 // public half still decides the exit code; the workflow that calls this treats
 // the missing Apple secret as a failure of its own, so a scheduled run cannot
-// look green while checking nothing.
+// look green while checking nothing. The SKIPPED line names that workflow, so a
+// reader of a bare run is told where the check that is authoritative lives.
+// `--require-credentials` turns that skip into a failure for the call sites that
+// hold both credentials and must not pass by skipping; the default is unchanged,
+// so `release.yml`'s tag job keeps the skip-and-carry-on it deliberately relies
+// on (SEC-5).
 //
 //   node scripts/check-store-listing.mjs                       human output
 //   node scripts/check-store-listing.mjs --json                machine-readable
 //   node scripts/check-store-listing.mjs --fail-on-unlisted    explicit at a call site
 //   node scripts/check-store-listing.mjs --require-full-rollout  a staged Play rollout fails
+//   node scripts/check-store-listing.mjs --require-credentials   a half that could not reach its store fails
 //   node scripts/check-store-listing.mjs --check               accepted no-op (see below)
 //
 // Exit codes: 0 the app is for sale (and fully rolled out, under the flag), 1 it
 // is not (a lookup that finds nothing, an availability record that does not
 // exist, or — under the flag — a Play rollout that does not cover everyone), 2
-// the check could not run. A verdict outranks a check that could not run, so a
-// finding is never masked by an unrelated failure.
+// the check could not run — including, under `--require-credentials`, a half that
+// found no credential and would otherwise have skipped. A verdict outranks a
+// check that could not run, so a finding is never masked by an unrelated failure.
 import { writeSync } from 'node:fs';
 import { asc, ascToken } from './lib/asc.mjs';
 import { playCredentialsAvailable, readProductionTrack } from './play-rollout.mjs';
@@ -76,7 +83,13 @@ const TIMEOUT_MS = 20_000;
 // exists to prevent. `--check` is listed for symmetry with
 // `scripts/ios-store.mjs --check` and because docs/releasing.md documents that
 // invocation; this script has no apply mode, so it is a no-op.
-const KNOWN_FLAGS = new Set(['--json', '--fail-on-unlisted', '--require-full-rollout', '--check']);
+const KNOWN_FLAGS = new Set([
+  '--json',
+  '--fail-on-unlisted',
+  '--require-full-rollout',
+  '--require-credentials',
+  '--check',
+]);
 const unknownFlags = process.argv
   .slice(2)
   .filter((argument) => argument.startsWith('-') && !KNOWN_FLAGS.has(argument));
@@ -102,6 +115,13 @@ const failOnUnlisted = process.argv.includes('--fail-on-unlisted');
 // have finished. `release.yml` and `store-listing.yml` pass it so a release
 // cannot go green while the app reaches a fifth of users.
 const requireFullRollout = process.argv.includes('--require-full-rollout');
+// Off by default, because `release.yml`'s tag job deliberately runs without the
+// Play credential (SEC-5: it runs before the owner's approval and executes every
+// dependency's lifecycle scripts) and must skip rather than fail. On, a half that
+// was asked to check the store and found no credential is a check that could not
+// run — exit 2, not a line a reader has to interpret. `.github/workflows/store-listing.yml`
+// is the call site that holds both credentials and passes this.
+const requireCredentials = process.argv.includes('--require-credentials');
 
 // Human lines are suppressed under --json so stdout stays parseable.
 const say = (line) => {
@@ -224,7 +244,16 @@ const availability = { status: null, availableInNewTerritories: null, territorie
 const macAvailability = { status: null };
 
 if (!hasCredentials) {
-  say('SKIPPED: no App Store Connect credentials');
+  say(
+    'SKIPPED: no App Store Connect credentials — the availability half of the listing was NOT checked. ' +
+      'The workflow whose contract is to check it is .github/workflows/store-listing.yml.',
+  );
+  if (requireCredentials) {
+    couldNotRun.push(
+      '--require-credentials: no App Store Connect credentials, so the availability half could not run; ' +
+        '.github/workflows/store-listing.yml is the workflow that must do this check',
+    );
+  }
 } else {
   // The territory count comes from the relationship's own paging total, so one
   // request answers both "is there a record" and "does it cover anywhere".
@@ -288,7 +317,16 @@ if (!hasCredentials) {
 // is SKIPPED exactly like a missing Apple one.
 const play = { credentials: false, releases: [], verdict: null, trackMissing: null };
 if (!playCredentialsAvailable()) {
-  say('SKIPPED: no Google Play credentials');
+  say(
+    'SKIPPED: no Google Play credentials — the production-rollout half was NOT checked. ' +
+      'The workflow whose contract is to check it is .github/workflows/store-listing.yml.',
+  );
+  if (requireCredentials) {
+    couldNotRun.push(
+      '--require-credentials: no Google Play credentials, so the production-rollout half could not run; ' +
+        '.github/workflows/store-listing.yml is the workflow that must do this check',
+    );
+  }
 } else {
   play.credentials = true;
   try {
@@ -330,6 +368,7 @@ const result = {
   appId: IPHONE.id,
   failOnUnlisted,
   requireFullRollout,
+  requireCredentials,
   credentials: hasCredentials,
   ok: failures.length === 0 && couldNotRun.length === 0,
   lookup,
