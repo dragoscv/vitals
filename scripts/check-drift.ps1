@@ -32,6 +32,12 @@
             devices that lack it. Shipped: the phone build required Wi-Fi and a
             camera after 1.3.0, which hid it from Ethernet-only phones and
             camera-less Chromebooks.
+               10. A version literal copied into a packaging script, a workflow or a
+                script's usage example that no longer matches the current version
+                — the number a human pastes into a build. Shipped twice: an MSIX
+                  example left at 1.2.0.0 after the bump to 1.3.0, and the
+                  workflow_dispatch command in msix.yml left at the previous
+                  version after the bump to 1.3.1.
 
     Exit code is the number of hard failures. Warnings do not fail the gate.
 
@@ -557,6 +563,94 @@ if (Test-Path $androidAllowFile) {
             foreach ($f in $required) {
                 if ($allowed -notcontains $f) {
                     $failures.Add("${relative}: declares '$f' as required, which is not on the allowlist for module '$module' (scripts/android-features.json); declare it android:required=""false"" if the app can run without it")
+                }
+            }
+        }
+    }
+}
+
+# ── 10. the product version in packaging and CI examples ───────────────
+
+# The version is copied by hand into usage examples and command snippets, and
+# a release that bumps it tends to miss one: the literal still builds, still
+# passes every test, and is read only by the person who copy-pastes it into a
+# package that then carries the old number. It has happened twice. An MSIX
+# example in packaging/msix/build-and-upload.ps1 sat at 1.2.0.0 through the
+# bump to 1.3.0, and the workflow_dispatch command in
+# .github/workflows/msix.yml survived the bump to 1.3.1 — the v1.3.1 release
+# commit updated three of the five four-part examples and missed the other
+# two. No compiler and no test sees a number that is only ever pasted by a
+# human.
+#
+# Source of truth: the `[workspace.package] version` in Cargo.toml — the
+# first value scripts/version.ps1 reads, the value a release tag is cut from,
+# and the value version.ps1 -Check then enforces in every manifest. It is
+# read here directly rather than by running version.ps1, because this gate
+# runs in the pre-commit hook and must stay in seconds.
+#
+# Scope, chosen so the check does not cry wolf (a guard that fires on healthy
+# text is one people learn to ignore):
+#
+#   * Only a FOUR-part literal is a candidate. The Store version is the one
+#     number that must equal the product version exactly — an MSIX version
+#     has four parts, the last always 0 — so it is the one worth pinning.
+#     The three-part literals in the release tooling (scripts/release-notes.ps1
+#     -Version 0.9.0-beta.1, the winget README's `$v = '0.9.0-beta.1'`) are
+#     that tool's own subject: it accepts any version, the repo's placeholder
+#     example is deliberately a prerelease, and the Store rule does not apply
+#     to them.
+#   * Only a literal BOUND to a version slot counts: the value of a `-Version`
+#     argument or of a `version=` input (the msix.yml workflow_dispatch). That
+#     is what keeps this off everything that merely looks like a version,
+#     deliberately and by name:
+#       - a dependency or tool pin: `toolchain: 1.99.0`, `npm@11.20.0`,
+#         `KOMAC_VERSION: 2.16.0`, third-party-notices.ps1's `Version =
+#         '0.2.11'` — they name OTHER software, which may differ in every part.
+#       - a URL: PawnIO's `.../releases/download/2.2.0/PawnIO_setup.exe`.
+#       - a platform version: AppxManifest.template.xml's
+#         MinVersion=10.0.19041.0 and MaxVersionTested=10.0.26100.0,
+#         `makepri /pv 10.0.0`, the Chrome `140.0.0.0` in the store-listing
+#         user agent — Windows' and Chrome's, not ours.
+#       - an action SHA or an `@vN` ref in a workflow.
+#       - a historical note: "New in 1.3.0" in packaging/msix/listing, the
+#         `-From 1.1.0 -To 1.1.1` of the update proof — those record what
+#         shipped, so they must NOT move with a bump.
+#       - a format illustration: `e.g. 0.9.0.0` in build-msix.ps1's parameter
+#         help and `(e.g. 1.3.0.0)` in the msix.yml input description show the
+#         SHAPE, not the current value, so neither is read as one.
+#   * A four-part literal must end in `.0`. The current Store version is
+#     derived as `<core>.0`, so a wrong last part is also an agreement
+#     failure; the rule is stated here because it is the Store's own
+#     constraint and reads clearly in the failure message.
+
+$cargoToml = Join-Path $root 'Cargo.toml'
+$currentVersion = [regex]::Match([IO.File]::ReadAllText($cargoToml), '(?m)^\[workspace\.package\][\s\S]*?^version\s*=\s*"([^"]+)"').Groups[1].Value
+if (-not $currentVersion) {
+    $failures.Add('Cargo.toml: no [workspace.package] version to check packaging and CI examples against')
+} else {
+    # The four-part Store form: the core version with any prerelease/build
+    # suffix dropped, plus the trailing .0 the Store requires.
+    $storeVersion = (($currentVersion -split '[-+]')[0]) + '.0'
+
+    # `-Version <v>` (a CLI parameter) and `version=<v>` (the workflow input);
+    # the lookbehind keeps `toolVersion=` and `-VersionInfo` out. Four parts
+    # only, by the scope note above.
+    $boundVersion = [regex]'(?<![A-Za-z0-9_])(?:-Version\s+|version=)(\d+\.\d+\.\d+\.\d+)'
+
+    # An extension allowlist, not a denylist: packaging/ carries PNGs, and a
+    # guess at which files are text would eventually read a binary as one.
+    $versionExtensions = @('.ps1', '.psm1', '.psd1', '.yml', '.yaml', '.json', '.xml', '.nuspec', '.md', '.mjs', '.js', '.sh')
+    $versionRoots = @('packaging', 'scripts', '.github/workflows')
+    $versionFiles = @(Get-ChildItem -Path ($versionRoots | ForEach-Object { Join-Path $root $_ }) -Recurse -File -ErrorAction SilentlyContinue |
+        Where-Object { $versionExtensions -contains $_.Extension })
+    foreach ($file in $versionFiles) {
+        $relative = ([IO.Path]::GetRelativePath($root, $file.FullName)) -replace '\\', '/'
+        $lines = Get-Content -LiteralPath $file.FullName
+        for ($i = 0; $i -lt $lines.Count; $i++) {
+            foreach ($m in $boundVersion.Matches($lines[$i])) {
+                $found = $m.Groups[1].Value
+                if ($found -ne $storeVersion) {
+                    $failures.Add("${relative}:$($i+1) version $found is not the current Store version $storeVersion — update it with the version bump")
                 }
             }
         }

@@ -170,6 +170,56 @@ own the same proof runs from a checkout —
 elevated and interactive (the release build refuses the webview debugging
 port, so the quit goes through the tray menu).
 
+## The release doctor
+
+The rule above — a release must update **every** surface that names it, and
+the way to check is to grep for the old version before calling it done — is
+prose, and prose has not held: the MSIX usage example once stayed a version
+behind, and the Store 0.7.1 listing went live with release notes still
+describing 0.7.0. `scripts/release-doctor.mjs` is that rule as a command. It
+prints one table, one row per surface, and exits non-zero when any row is
+`STALE`.
+
+```powershell
+node scripts/release-doctor.mjs --version 1.3.1
+```
+
+With no `--version` it reads the version from the manifests and checks the
+`v<version>` tag. Everything it reads comes from the repository — no network
+for the surfaces a release owns, no credential — so it runs in a couple of
+seconds, which is why it is safe to put in a pre-commit hook and in CI.
+
+What it checks, one row each:
+
+- **every version manifest**, by re-using `scripts/version.ps1 -Check` (the
+  existing source of truth) rather than re-implementing the six places the
+  version lives;
+- **the `CHANGELOG.md` section** for the version: present, dated, not empty;
+- **version literals** in `scripts/`, `packaging/` and `.github/workflows/`
+  that name Vitals' own version in a command or an example (a `-Version`
+  argument, a workflow-dispatch `version=`, a `Vitals_<v>_` asset name, a
+  `/v<v>/` release URL). A dependency's version (`toolchain: 1.99.0`) is not
+  a Vitals version and is not flagged; past sections of `CHANGELOG.md` and the
+  tracker are history, not surfaces, and are excluded;
+- the **MSIX what's-new strings** (`packaging/msix/listing/*.md`) and the
+  **Play changelogs** (`apps/android/play/listing/*/changelogs/`) for the
+  version;
+- the **two Apple listing files** (`apps/ios/store/listing.json`,
+  `apps/desktop/store/macos-listing.json`). These are held at the version
+  Apple is reviewing, so a file naming an older released version is reported
+  `HELD`, with the reason in the row, and never `STALE`;
+- the **tag**: `git tag`/`git ls-remote`/`git rev-parse` — it exists, is
+  annotated, and its commit is on `origin`;
+- the **tracker row** for the release in `docs/tracker.csv`;
+- the **live store surfaces** (App Store Connect, Google Play) are reported
+  `UNKNOWN — needs credentials`, never skipped and never guessed.
+  `scripts/check-store-listing.mjs` is what reads those, with a key.
+
+Exit codes say both what it found and how much of the check could run:
+`0` a full check, nothing stale; `1`–`99` a full check with that many `STALE`
+surfaces; `100` a partial run (a live store surface needed a credential) with
+nothing stale; `101`–`199` a partial run with that many `STALE` surfaces.
+
 ## What a release does
 
 Pushing a `v*` tag runs `.github/workflows/release.yml`:

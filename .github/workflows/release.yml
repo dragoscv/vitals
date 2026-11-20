@@ -69,6 +69,32 @@ jobs:
         with:
           fetch-depth: 0
 
+      # The cut itself, checked before a single byte is compiled or signed — and
+      # deliberately BEFORE the plan step below. A step that fails after `plan`
+      # has written its outputs leaves should_build/publish set, and `build`
+      # and `publish` gate on those outputs with `!cancelled()` (which
+      # suppresses GitHub's implicit success()), so they would still run and
+      # publish a cut that is not complete. Failing here leaves every output
+      # unset, so verify, build, sbom, android and publish all skip.
+      #
+      # A release is cut by hand (docs/releasing.md) and the ORDER is what makes
+      # it correct: every manifest bumped together, Cargo.lock regenerated, the
+      # CHANGELOG section closed and dated with a fresh [Unreleased] opened, the
+      # annotated tag created and pushed, then this workflow dispatched.
+      # Skipping a step leaves a cut that LOOKS right — a manifest left behind,
+      # or a tag whose commit's CHANGELOG has no section for the version — and
+      # nothing notices until someone reads the release notes weeks later.
+      #
+      # No `if:` and no secret, so a release tag cannot route around it.
+      # scripts/release-preflight.mjs reads the ref and exits non-zero on any
+      # problem; a non-tag ref (workflow_dispatch) is a build-only run and
+      # checks nothing, because it publishes nothing.
+      - name: Release preflight (the cut is complete)
+        shell: pwsh
+        env:
+          REF: ${{ github.ref }}
+        run: node scripts/release-preflight.mjs --ref $env:REF
+
       - id: plan
         shell: pwsh
         env:
