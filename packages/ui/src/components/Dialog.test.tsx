@@ -1,6 +1,6 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
-import { DialogContent, DialogRoot, DialogTrigger } from './Dialog';
+import { DIALOG_MAX_WIDTH_REM, DialogContent, DialogRoot, DialogTrigger } from './Dialog';
 import { Button } from './Button';
 
 afterEach(cleanup);
@@ -23,6 +23,56 @@ function Fixture() {
 }
 
 describe('Dialog', () => {
+  it('caps every dialog at a fixed length, never at a container token the app can redefine', () => {
+    const sizes = ['sm', 'md', 'lg', 'xl', '2xl'] as const;
+    const widths: number[] = [];
+
+    for (const size of sizes) {
+      render(
+        <DialogRoot open>
+          <DialogContent size={size} title="Width" closeLabel="Close">
+            <p>body</p>
+          </DialogContent>
+        </DialogRoot>,
+      );
+      const dialog = screen.getByRole('dialog', { name: 'Width' });
+
+      // `max-w-3xl` is 1920 px in this app: the desktop stylesheet redefines
+      // `--container-3xl` to 120rem for its `@3xl/main:` container variants,
+      // and Tailwind resolves that same token for the width utility. A size
+      // that reaches for it stretches the dialog across a fullscreen window.
+      expect(
+        dialog.className,
+        `size "${size}" rides Tailwind's container scale, which this app redefines to 1920 px`,
+      ).not.toMatch(/\bmax-w-(3xl|4xl|5xl)\b/);
+
+      const cap = /max-w-\[(\d+(?:\.\d+)?)rem\]/.exec(dialog.className);
+      expect(
+        cap,
+        `size "${size}" has no fixed-length width cap, so a fullscreen window stretches it`,
+      ).not.toBeNull();
+      widths.push(Number(cap?.[1]));
+      cleanup();
+    }
+
+    for (const width of widths) {
+      expect(
+        width,
+        'a dialog size is wider than the widest dialog the design system documents',
+      ).toBeLessThanOrEqual(DIALOG_MAX_WIDTH_REM);
+    }
+    // Strictly increasing: two sizes that differ only in name are a trap for
+    // whoever picks one expecting the dialog to change width.
+    expect(
+      widths,
+      `sizes are not ordered, so "wider" does not mean wider: ${widths.join()}`,
+    ).toEqual([...widths].sort((a, b) => a - b));
+    expect(
+      Math.max(...widths),
+      'the widest dialog is narrower than the documented maximum, so nothing can reach it',
+    ).toBe(DIALOG_MAX_WIDTH_REM);
+  });
+
   it('caps its height to the window and scrolls only the body, so the close button and footer never leave the screen', () => {
     render(
       <DialogRoot open>

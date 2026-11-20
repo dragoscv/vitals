@@ -26,6 +26,14 @@
   --breakpoint-4xl: 160rem;
   --breakpoint-5xl: 240rem;
 
+  /*
+   * Container sizes for the `@3xl/main:` variants. Note that this is the SAME
+   * token Tailwind reads for `max-w-3xl`, `max-w-4xl` and `max-w-5xl` — so
+   * redefining it here silently turns those utilities into 1920/2560/3840 px.
+   * That is how the settings dialog came to stretch across a fullscreen window
+   * (2026-11-19). Any element that wants a *cap* must use a length —
+   * `max-w-[48rem]` — not a `max-w-3xl`-class utility.
+   */
   --container-3xl: 120rem;
   --container-4xl: 160rem;
   --container-5xl: 240rem;

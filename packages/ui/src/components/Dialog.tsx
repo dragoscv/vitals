@@ -7,7 +7,32 @@ export const DialogRoot = RadixDialog.Root;
 export const DialogTrigger = RadixDialog.Trigger;
 export const DialogClose = RadixDialog.Close;
 
-const SIZES = { sm: 'max-w-sm', md: 'max-w-md', lg: 'max-w-lg', xl: 'max-w-2xl' } as const;
+/**
+ * Maximum width per size, as explicit lengths rather than `max-w-2xl`/`max-w-3xl`.
+ *
+ * Tailwind resolves those through its `--container-*` scale, and the desktop
+ * app redefines the ultrawide end of that scale for its `@3xl/main:` container
+ * variants (`--container-3xl: 120rem`, apps/desktop/src/styles.css). A dialog
+ * asking for `max-w-3xl` therefore asked for 1920 px and stretched across a
+ * fullscreen window — the whole reason this map exists. A cap has to be a
+ * length for it to mean what it says, and the primitives cannot know which
+ * tokens the app around them has redefined.
+ */
+const SIZES = {
+  sm: 'max-w-[24rem]',
+  md: 'max-w-[28rem]',
+  lg: 'max-w-[32rem]',
+  xl: 'max-w-[42rem]',
+  '2xl': 'max-w-[48rem]',
+} as const;
+
+/**
+ * The widest dialog the design system defines, in rem.
+ *
+ * Exported so a test can assert that no size exceeds it: a cap nobody wrote
+ * down is a cap that drifts upwards one convenience at a time.
+ */
+export const DIALOG_MAX_WIDTH_REM = 48;
 
 export interface DialogContentProps extends Omit<
   ComponentPropsWithoutRef<typeof RadixDialog.Content>,
@@ -71,9 +96,11 @@ export const DialogContent = forwardRef<ElementRef<typeof RadixDialog.Content>, 
         <RadixDialog.Content
           ref={ref}
           className={cn(
-            // Height is capped to the window (dvh: the webview's real viewport) and the body is the
-            // only part that scrolls. Without the cap a long dialog (drive clean-up, settings) grew
-            // past the window edge and its header/footer - the Close and Next buttons - were cut off.
+            // Both axes are capped to the window (`dvh`/`vw`: the webview's real viewport) and the
+            // body is the only part that scrolls. Without the height cap a long dialog (drive
+            // clean-up, settings) grew past the window edge and its header/footer - the Close and
+            // Next buttons - were cut off; without the width cap a fullscreen window stretched the
+            // dialog into a 1920 px wide sheet of running text.
             'fixed top-1/2 left-1/2 z-50 flex max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden',
             'rounded-[var(--radius-widget)] border border-[var(--color-border-default)] bg-[var(--color-bg-raised)] text-[var(--color-fg-default)] shadow-[var(--shadow-overlay)]',
             overlayMotion,

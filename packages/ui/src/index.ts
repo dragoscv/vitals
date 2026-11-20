@@ -84,6 +84,7 @@ export {
   type ContextMenuItemProps,
 } from './components/ContextMenu';
 export {
+  DIALOG_MAX_WIDTH_REM,
   DialogClose,
   DialogContent,
   DialogRoot,

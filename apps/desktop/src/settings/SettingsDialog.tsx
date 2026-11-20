@@ -106,13 +106,18 @@ export function SettingsDialog({ open, onOpenChange, version }: SettingsDialogPr
   return (
     <DialogRoot open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        size="xl"
+        size="2xl"
         title={t('settings.title')}
         closeLabel={t('common.close')}
+        // The width comes from `size="2xl"` (48rem) rather than a `max-w-*`
+        // utility here: `max-w-3xl` is not 48rem in this app — the ultrawide
+        // container scale in styles.css redefines it to 120rem, which is what
+        // stretched this dialog across a fullscreen window.
+        //
         // Capped in `vh` as well as `rem`: settings must remain closeable on a
         // 720p laptop, and a dialog taller than the viewport puts its close
         // button off-screen with no way back other than Escape.
-        className="h-[min(34rem,calc(100vh-4rem))] max-w-3xl"
+        className="h-[min(34rem,calc(100vh-4rem))]"
       >
         <Tabs
           value={tab}
