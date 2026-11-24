@@ -35,8 +35,8 @@ import { ActionsPanel } from './ActionsPanel';
 import { CloudAccount } from './CloudAccount';
 import { agentsTabs, headline, since, usageRows, type AgentsTab } from './model';
 import { Kpi } from './parts';
-import { QueuesPanel, WorktreesPanel, type RequestAction } from './QueuesPanel';
-import { ResourcesPanel } from './ResourcesPanel';
+import { MachineCard, QueuesPanel, WorktreesPanel, type RequestAction } from './QueuesPanel';
+import { AgentqWork, ResourcesInUse, ResourcesPanel } from './ResourcesPanel';
 import { SessionsPanel } from './SessionsPanel';
 import { AGENTS_NS } from './strings';
 import { NO_HOST, useAgents, type AgentsSource } from './useAgents';
@@ -237,9 +237,21 @@ export function AgentsScreen({ source }: AgentsScreenProps): React.JSX.Element {
             >
               {/* Radix mounts only the active panel, so hidden tabs cost nothing. */}
               <TabsContent value="overview" className="flex flex-col gap-4">
-                <ResourcesPanel usage={state.usage} now={now} />
-                <SessionsPanel snapshot={s} now={now} limit="live" />
-                <QueuesPanel snapshot={s} now={now} onAction={request} />
+                <ResourcesInUse usage={state.usage} now={now} />
+                <MachineCard snapshot={s} />
+                {/* The agents are the page's subject, so they take the width
+                    that is left; what agentq is running is a reference column
+                    beside them, and stacks underneath once the window is too
+                    narrow to hold both. */}
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+                  <div className="flex min-w-0 flex-1 flex-col">
+                    <SessionsPanel snapshot={s} now={now} limit="live" />
+                  </div>
+                  <div className="min-w-0 lg:w-72 lg:shrink-0">
+                    <AgentqWork usage={state.usage} now={now} showEmpty />
+                  </div>
+                </div>
+                <QueuesPanel snapshot={s} now={now} onAction={request} machine={false} />
               </TabsContent>
               <TabsContent value="resources">
                 <ResourcesPanel usage={state.usage} now={now} />

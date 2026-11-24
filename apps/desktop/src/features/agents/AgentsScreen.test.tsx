@@ -5,7 +5,7 @@ import type { AgentqAction, AgentsSnapshot } from '@vitals/protocol';
 import { i18n, initI18n } from '@vitals/i18n';
 
 import { AgentsScreen } from './AgentsScreen';
-import { makeSession, makeSnapshot, makeUsageSnapshot } from './fixtures.test-utils';
+import { NOW, makeSession, makeSnapshot, makeUsageSnapshot } from './fixtures.test-utils';
 import { registerAgentsStrings } from './strings';
 import type { AgentsSource } from './useAgents';
 
@@ -51,6 +51,42 @@ describe('AgentsScreen', () => {
     await screen.findByText('Fix the queue');
     act(() => src.push(makeSnapshot({ sessions: [makeSession({ title: 'Ship the release' })] })));
     expect(await screen.findByText('Ship the release')).toBeTruthy();
+  });
+
+  it('lays the overview out as resources, then build slots, then the agents beside what agentq runs', async () => {
+    // The order is the point of the layout: the machine-wide caps sit right
+    // under the reads they explain, and agentq's own execution is a narrow
+    // column beside the agent cards rather than a full-width block below them.
+    const src = source(
+      makeSnapshot({
+        machine: {
+          cap: 2,
+          min: 1,
+          max: 4,
+          cpu: 12.5,
+          freeRamGb: 20,
+          freeCommitGb: 30,
+          why: 'two cores are idle',
+          atMs: NOW,
+        },
+      }),
+    );
+    const view = render(<AgentsScreen source={src} />);
+    await screen.findByText('Resources in use');
+
+    const first = (text: string): Element => {
+      const el = screen.getAllByText(text)[0];
+      if (el === undefined) throw new Error(`nothing on the page says ${text}`);
+      return el;
+    };
+    const precedes = (a: string, b: string): boolean =>
+      (first(a).compareDocumentPosition(first(b)) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+
+    expect(precedes('Resources in use', 'Build slots on this machine')).toBe(true);
+    expect(precedes('Build slots on this machine', 'Fix the queue')).toBe(true);
+    expect(precedes('Fix the queue', 'What agentq is running')).toBe(true);
+    expect(precedes('What agentq is running', 'build:machine')).toBe(true);
+    view.unmount();
   });
 
   it('session cards keep their places when only last activity reorders the pushed list', async () => {

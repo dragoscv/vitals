@@ -33,10 +33,17 @@ export function QueuesPanel({
   snapshot,
   now,
   onAction,
+  machine = true,
 }: {
   readonly snapshot: AgentsSnapshot;
   readonly now: number;
   readonly onAction: RequestAction;
+  /**
+   * Whether to draw the machine's build-slot card at the top. The Overview
+   * moves it up beside "Resources in use", so it passes `false` and renders
+   * the card itself rather than showing it twice.
+   */
+  readonly machine?: boolean;
 }) {
   const { t } = useTranslation(AGENTS_NS);
   const marks = new Map(snapshot.marks.map((mk) => [mk.resource, mk]));
@@ -50,7 +57,7 @@ export function QueuesPanel({
   );
   return (
     <div className="flex flex-col gap-3">
-      <MachineCard snapshot={snapshot} />
+      {machine && <MachineCard snapshot={snapshot} />}
       {busy.length === 0 && <EmptyState title={t('queue.empty')} />}
       <ul
         className="grid [grid-template-columns:repeat(auto-fill,minmax(24rem,1fr))] gap-2"
@@ -72,7 +79,7 @@ export function QueuesPanel({
   );
 }
 
-function MachineCard({ snapshot }: { readonly snapshot: AgentsSnapshot }) {
+export function MachineCard({ snapshot }: { readonly snapshot: AgentsSnapshot }) {
   const { t } = useTranslation(AGENTS_NS);
   const mc = snapshot.machine;
   if (mc === null) return null;

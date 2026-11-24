@@ -334,6 +334,7 @@ const en = {
     work: {
       title: 'What agentq is running',
       running: 'running {{ago}}',
+      empty: 'Nothing is running through agentq right now.',
       footnote:
         'One row per thing agentq is executing right now — a queue ticket it holds, a release run, a background job — measured from the same process table, so these rows add up to the agentq figure above. A process nobody recorded with agentq stays with whoever started it.',
     },
@@ -703,6 +704,7 @@ const ro = {
     work: {
       title: 'Ce rulează agentq',
       running: 'rulează de {{ago}}',
+      empty: 'Momentan nu rulează nimic prin agentq.',
       footnote:
         'Un rând pentru fiecare lucru pe care agentq îl execută acum — un tichet de coadă ținut, o rulare de release, un job de fundal — măsurat din același tablou de procese, deci aceste rânduri se adună exact la cifra agentq de mai sus. Un proces pe care nimeni nu l-a înregistrat la agentq rămâne la cine l-a pornit.',
     },

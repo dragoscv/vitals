@@ -27,7 +27,31 @@ import { repoName, since, usageRows, usageWork, workDetail, type UsageRow } from
 import { UsageMark } from './parts';
 import { AGENTS_NS } from './strings';
 
+/**
+ * The whole resources story, for the tab of its own name: what each tool is
+ * using, then what agentq itself is executing.
+ *
+ * The Overview places the two halves apart — usage beside nothing, work as a
+ * column next to the agents — so both are exported on their own and this is
+ * only the stacked composition the tab wants.
+ */
 export function ResourcesPanel({
+  usage,
+  now,
+}: {
+  readonly usage: AgentUsageSnapshot | null;
+  readonly now: number;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <ResourcesInUse usage={usage} now={now} />
+      <AgentqWork usage={usage} now={now} />
+    </div>
+  );
+}
+
+/** "Resources in use": one card per tool that owns a process. */
+export function ResourcesInUse({
   usage,
   now,
 }: {
@@ -36,13 +60,12 @@ export function ResourcesPanel({
 }) {
   const { t } = useTranslation(AGENTS_NS);
   const rows = usageRows(usage);
-  const work = usageWork(usage);
   if (rows.length === 0) {
     return <EmptyState title={t('usage.empty.title')} description={t('usage.empty.body')} />;
   }
   return (
-    <section aria-labelledby="resources-heading" className="flex flex-col gap-2">
-      <h3 id="resources-heading" className="flex items-baseline gap-2 text-sm font-semibold">
+    <section aria-labelledby="resources-in-use-heading" className="flex flex-col gap-2">
+      <h3 id="resources-in-use-heading" className="flex items-baseline gap-2 text-sm font-semibold">
         {t('usage.title')}
         {usage !== null && (
           <span className="text-2xs font-normal text-[var(--color-fg-muted)]">
@@ -57,9 +80,41 @@ export function ResourcesPanel({
           ))}
         </AnimatePresence>
       </ul>
-      {work.length > 0 && (
-        <div className="mt-1 flex flex-col gap-1.5">
-          <h4 className="text-xs font-semibold">{t('usage.work.title')}</h4>
+      <p className="text-2xs text-[var(--color-fg-muted)]">{t('usage.footnote')}</p>
+    </section>
+  );
+}
+
+/**
+ * "What agentq is running": one row per piece of work that owns a process.
+ *
+ * `showEmpty` keeps the section's place in a layout that puts it beside
+ * another panel — the Overview's right-hand column — so the agents do not
+ * jump to full width the moment agentq finishes its last piece of work.
+ * Left off, a machine with nothing running draws no section at all, which is
+ * what the Resources tab wants.
+ */
+export function AgentqWork({
+  usage,
+  now,
+  showEmpty = false,
+}: {
+  readonly usage: AgentUsageSnapshot | null;
+  readonly now: number;
+  readonly showEmpty?: boolean;
+}) {
+  const { t } = useTranslation(AGENTS_NS);
+  const work = usageWork(usage);
+  if (work.length === 0 && !showEmpty) return null;
+  return (
+    <section aria-labelledby="agentq-work-heading" className="flex flex-col gap-1.5">
+      <h3 id="agentq-work-heading" className="text-sm font-semibold">
+        {t('usage.work.title')}
+      </h3>
+      {work.length === 0 ? (
+        <p className="text-2xs text-[var(--color-fg-muted)]">{t('usage.work.empty')}</p>
+      ) : (
+        <>
           <ul className="flex flex-col gap-1.5">
             <AnimatePresence initial={false}>
               {work.map((item) => (
@@ -68,9 +123,8 @@ export function ResourcesPanel({
             </AnimatePresence>
           </ul>
           <p className="text-2xs text-[var(--color-fg-muted)]">{t('usage.work.footnote')}</p>
-        </div>
+        </>
       )}
-      <p className="text-2xs text-[var(--color-fg-muted)]">{t('usage.footnote')}</p>
     </section>
   );
 }
