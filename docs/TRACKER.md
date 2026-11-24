@@ -139,34 +139,34 @@ in repo memory. This audit found the ninth through the eighteenth.
 
 Status values: `todo`, `doing`, `done`, `blocked`, `dropped`.
 
-| Slice | Theme                                                                                                                                             | Status                                                                                               |
-| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| S1    | Dependency upgrades, tooling, VS Code tasks                                                                                                       | done                                                                                                 |
-| S2    | Truth fixes — dead settings, false capabilities, dead crates                                                                                      | done                                                                                                 |
-| S3    | `vitals-store` for real: SQLite history, retention, flight recorder                                                                               | done                                                                                                 |
-| S4    | LAN server: REST, SSE, WebSocket, Prometheus, mDNS                                                                                                | done                                                                                                 |
-| S5    | CLI that samples directly                                                                                                                         | done                                                                                                 |
-| S6    | Mobile PWA and QR pairing                                                                                                                         | done                                                                                                 |
-| S7    | UI polish: motion, palette, ultrawide, export, shortcuts                                                                                          | done                                                                                                 |
-| S8    | Tray, HUD, alerts, notifications, updater                                                                                                         | done                                                                                                 |
-| S9    | New Windows metrics: DiskCounters, efficiency mode, handles, modules                                                                              | done                                                                                                 |
-| S10   | Docs, ADRs, CI, supply-chain audits                                                                                                               | done                                                                                                 |
-| S11   | Task Manager replacement, HUD overlay                                                                                                             | done                                                                                                 |
-| S12   | Look-and-feel redesign + the four backend truths it exposed                                                                                       | done                                                                                                 |
-| S13   | Public beta 0.9.0-beta.1: repo, CI, first release                                                                                                 | done                                                                                                 |
-| S14   | Storage: fast complete scans, navigation, cleanup, Turbo, extras                                                                                  | 5/7 done, 1 dropped — open: S14-05 (todo)                                                            |
-| S15   | Android phone, Wear OS watch, Google TV, Tizen TV                                                                                                 | done                                                                                                 |
-| S16   | Hardening: latest deps, security, gates, dynamic tests                                                                                            | done                                                                                                 |
-| S17   | Launch readiness 2026-10-17 (DES/DEV/QA/SEC/LEG/PM/AND/A11Y/I18N/PERF/DOC)                                                                        | done                                                                                                 |
-| S18   | AI agents page: agentq + every AI client, local and cloud (ADR-0039)                                                                              | done                                                                                                 |
-| S19   | Launch P2, 1.0.3, updates nobody approves (DEV-3), vivobook MCP                                                                                   | done                                                                                                 |
-| S20   | 1.0.4: S18 + DEV-3 in one release, winget Scope user                                                                                              | done                                                                                                 |
-| S21   | Elevation, idle install, AI page hardening, CI round trips, 1.0.5/1.0.6                                                                           | done (S21-08 closed 2026-11-19)                                                                      |
-| S22   | Per-drive clean-up, drive growth, stable lists, Wear shapes, 1.1.0/1.1.1                                                                          | done                                                                                                 |
-| S23   | Apple: macOS sampler, notarised DMG, iPhone + Watch, Mac App Store, Health, 1.2.0                                                                 | 15/16 done — open: S23-16 (blocked)                                                                  |
-| S25   | Kodwen rebrand and the AI usage panel                                                                                                             | done                                                                                                 |
-| S24   | Reality check 2026-11-12 → release 1.3.0: updater prompt, motion system, platform gates, declarations, ten features                               | 15/22 done — open: S24-07…S24-10, S24-13, S24-14, S24-16 (all in-progress; the rest are other lanes) |
-| S26   | AI page → Actions, → Resources and its agentq work breakdown; three processes-grid fixes (header sorting, first placement, trailing-space search) | done                                                                                                 |
+| Slice | Theme                                                                                                                                                                                              | Status                                                                                               |
+| ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| S1    | Dependency upgrades, tooling, VS Code tasks                                                                                                                                                        | done                                                                                                 |
+| S2    | Truth fixes — dead settings, false capabilities, dead crates                                                                                                                                       | done                                                                                                 |
+| S3    | `vitals-store` for real: SQLite history, retention, flight recorder                                                                                                                                | done                                                                                                 |
+| S4    | LAN server: REST, SSE, WebSocket, Prometheus, mDNS                                                                                                                                                 | done                                                                                                 |
+| S5    | CLI that samples directly                                                                                                                                                                          | done                                                                                                 |
+| S6    | Mobile PWA and QR pairing                                                                                                                                                                          | done                                                                                                 |
+| S7    | UI polish: motion, palette, ultrawide, export, shortcuts                                                                                                                                           | done                                                                                                 |
+| S8    | Tray, HUD, alerts, notifications, updater                                                                                                                                                          | done                                                                                                 |
+| S9    | New Windows metrics: DiskCounters, efficiency mode, handles, modules                                                                                                                               | done                                                                                                 |
+| S10   | Docs, ADRs, CI, supply-chain audits                                                                                                                                                                | done                                                                                                 |
+| S11   | Task Manager replacement, HUD overlay                                                                                                                                                              | done                                                                                                 |
+| S12   | Look-and-feel redesign + the four backend truths it exposed                                                                                                                                        | done                                                                                                 |
+| S13   | Public beta 0.9.0-beta.1: repo, CI, first release                                                                                                                                                  | done                                                                                                 |
+| S14   | Storage: fast complete scans, navigation, cleanup, Turbo, extras                                                                                                                                   | 5/7 done, 1 dropped — open: S14-05 (todo)                                                            |
+| S15   | Android phone, Wear OS watch, Google TV, Tizen TV                                                                                                                                                  | done                                                                                                 |
+| S16   | Hardening: latest deps, security, gates, dynamic tests                                                                                                                                             | done                                                                                                 |
+| S17   | Launch readiness 2026-10-17 (DES/DEV/QA/SEC/LEG/PM/AND/A11Y/I18N/PERF/DOC)                                                                                                                         | done                                                                                                 |
+| S18   | AI agents page: agentq + every AI client, local and cloud (ADR-0039)                                                                                                                               | done                                                                                                 |
+| S19   | Launch P2, 1.0.3, updates nobody approves (DEV-3), vivobook MCP                                                                                                                                    | done                                                                                                 |
+| S20   | 1.0.4: S18 + DEV-3 in one release, winget Scope user                                                                                                                                               | done                                                                                                 |
+| S21   | Elevation, idle install, AI page hardening, CI round trips, 1.0.5/1.0.6                                                                                                                            | done (S21-08 closed 2026-11-19)                                                                      |
+| S22   | Per-drive clean-up, drive growth, stable lists, Wear shapes, 1.1.0/1.1.1                                                                                                                           | done                                                                                                 |
+| S23   | Apple: macOS sampler, notarised DMG, iPhone + Watch, Mac App Store, Health, 1.2.0                                                                                                                  | 15/16 done — open: S23-16 (blocked)                                                                  |
+| S25   | Kodwen rebrand and the AI usage panel                                                                                                                                                              | done                                                                                                 |
+| S24   | Reality check 2026-11-12 → release 1.3.0: updater prompt, motion system, platform gates, declarations, ten features                                                                                | 15/22 done — open: S24-07…S24-10, S24-13, S24-14, S24-16 (all in-progress; the rest are other lanes) |
+| S26   | AI page → Actions, → Resources and its agentq work breakdown, then its layout and one row of headline numbers; three processes-grid fixes (header sorting, first placement, trailing-space search) | done                                                                                                 |
 
 Per-item status lives in `tracker.csv`. This file records the reasoning; the
 CSV records the state.
@@ -174,6 +174,43 @@ CSV records the state.
 ---
 
 ## Verification log
+
+### 2026-11-25 — S26-05: the AI page reads in the order the questions are asked
+
+Both changes came from the owner reading the page rather than from a defect, and
+both are about reading order.
+
+**Overview.** It went Resources in use → Build slots on this machine → the
+sessions and agents → what agentq is running. The machine capacity is context
+for the agents, so it belongs under the readings it explains, and _what agentq
+is running_ answers a different question from _which agent is busy_ — it is now
+a narrower column beside them instead of a block underneath.
+
+**One row of numbers.** The eight headline cards wrapped onto a second row on a
+default window. The card floor is now 6rem and the reading is pinned to the
+bottom of the card (`justify-between`), so the one label long enough to need two
+lines — _Stale or dead holders_ — wraps inside its own card instead of pulling
+its neighbours out of line. The floor is not a guess: the widest label measures
+104 px and the widest reading 80 px against the 95 px of inner width in a
+117 px card, which is why the label wraps and the reading does not.
+
+The same floor fixes the Insight tab's eight-card statistics row, which is the
+same component.
+
+### Verification
+
+- Read live out of the running window's accessibility tree (1280×820, 998 px
+  pane), not from a screenshot: all eight AI-page labels at y=416 and all eight
+  readings at y=451; Insights repeats it at y=661 and y=696. Last card inside
+  the pane on both tabs.
+- Overview order seen in the same read: Resources in use → Build slots on this
+  machine → agents with _What agentq is running_ beside them.
+- `pnpm --filter @vitals/desktop typecheck` exit 0; desktop vitest 139 files /
+  1459 tests passed; `pnpm lint` exit 0; `pnpm format:check` reports the tree
+  formatted.
+- The new order test was mutation-tested twice — reversing the two sections and
+  moving the order column back under them each failed exactly that test, then
+  both were reverted.
 
 ### 2026-11-24 — S26-04: agentq's figure is broken down into what it is executing
 

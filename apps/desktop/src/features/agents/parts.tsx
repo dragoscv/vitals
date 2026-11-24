@@ -209,9 +209,15 @@ export function Kpi({
     danger: 'var(--color-danger-text)',
     accent: 'var(--color-accent)',
   }[tone];
+  // `6rem` rather than the `8.5rem` this floor used to be: eight headline
+  // numbers have to share one row on a default window, and the wider floor
+  // pushed the eighth onto a row of its own. `justify-between` keeps that
+  // honest — the widest label ("Stale or dead holders") wraps to two lines at
+  // this width, and pinning the value to the bottom stops one wrapped label
+  // from standing its neighbour's number a line higher than the rest.
   return (
     <m.div
-      className="flex min-w-[8.5rem] flex-1 flex-col gap-1 rounded-xl border border-[var(--color-border-subtle)] bg-[var(--surface-card)] px-3 py-2.5"
+      className="flex min-w-[6rem] flex-1 flex-col justify-between gap-1 rounded-xl border border-[var(--color-border-subtle)] bg-[var(--surface-card)] px-3 py-2.5"
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
     >
