@@ -9,10 +9,10 @@ app ·
 
 **For app store reviewers:** Vitals collects no personal data, has no
 telemetry, analytics or crash reporting, and the developer receives no data.
-There is no Vitals account; the only sign-in is the optional Kodwen one on the
+There is no Vitals account; the only sign-in is the optional Codwen one on the
 AI agents page. The only automatic network request is an update check to
 GitHub, which the user can turn off. Two further connections are off until the
-user turns them on: that Kodwen sign-in, and the Health page, which reads from
+user turns them on: that Codwen sign-in, and the Health page, which reads from
 a vmui server the user runs. On Android, the QR scanner (Google ML Kit) sends
 Google anonymous diagnostics about itself; see
 [Vitals for Android, Wear OS and Google TV](#vitals-for-android-wear-os-and-google-tv).
@@ -29,7 +29,7 @@ Google anonymous diagnostics about itself; see
   after launch. You can turn it off in Settings → About. The Microsoft Store
   version makes no such request; the Store updates it.
 - Two further connections are entirely opt-in and off until you turn them on:
-  signing in to **Kodwen** on the AI agents page, and the **Health** page,
+  signing in to **Codwen** on the AI agents page, and the **Health** page,
   which reads from a vmui server you run yourself. Neither connects otherwise.
 - Remote access (viewing your PC from a phone on your network) is off until
   you turn it on.
@@ -37,7 +37,7 @@ Google anonymous diagnostics about itself; see
 ## Who is responsible
 
 The controller for the processing described here (the update check, and the
-Kodwen sign-in when you turn it on) is:
+Codwen sign-in when you turn it on) is:
 
 |             |                                                                  |
 | ----------- | ---------------------------------------------------------------- |
@@ -57,7 +57,7 @@ Kodwen sign-in when you turn it on) is:
 | "Search online"                      | Only when you click it, on a process, app, device or startup entry                                                                     | That **name** (process, app, device or startup entry), sent to DuckDuckGo in your browser                                                                                                                                             | Do not click                                                                                                               |
 | PawnIO download from GitHub          | Only when you install the optional sensors service (see [Sensors service](#sensors-service-optional))                                  | The same as for the update check                                                                                                                                                                                                      | Do not install the sensors service                                                                                         |
 | Microsoft WebView2 download          | Only by the installer, only if WebView2 is missing                                                                                     | What Microsoft's download service receives                                                                                                                                                                                            | Install WebView2 beforehand                                                                                                |
-| Kodwen account (AI agents page)      | Only after you press "Sign in with Kodwen"; then every 30 s while the AI agents page is open, and once when you sign out               | Your IP address, the app version and a read-only key labelled "Vitals desktop" (not your computer name). Kodwen answers with your connected desktops and cloud sessions                                                               | Sign out on the Cloud tab (the key is revoked on Kodwen and deleted from Credential Manager); uninstalling also deletes it |
+| Codwen account (AI agents page)      | Only after you press "Sign in with Codwen"; then every 30 s while the AI agents page is open, and once when you sign out               | Your IP address, the app version and a read-only key labelled "Vitals desktop" (not your computer name). Codwen answers with your connected desktops and cloud sessions                                                               | Sign out on the Cloud tab (the key is revoked on Codwen and deleted from Credential Manager); uninstalling also deletes it |
 | Health page to a vmui server         | Only after you connect a vmui server in Settings; then about once a minute while the Health page is open, and never while it is closed | Only `GET /api/v1/me/health` on the vmui address you entered. vmui is your own server and returns your own health readings to you; no third party is involved                                                                         | Disconnect in Settings → Health (deletes the stored token); nothing the developer runs is ever contacted                   |
 | Alert notifications                  | **Off until you add a destination** in Settings → Notifications; then only when an alert is raised, and when you press "Test"          | The alert's title and explanation, its severity, its kind, the disk/adapter/rule it is about, and this computer's name — to the exact address you typed. A webhook also gets an HMAC signature so your endpoint can verify the sender | Remove the destination, or switch it off                                                                                   |
 
@@ -305,7 +305,7 @@ readings and estimates are not medical advice.
 
 The update check is based on legitimate interest (Article 6(1)(f) GDPR):
 keeping software that controls processes on your computer secure and up to
-date. You can object at any time by turning the setting off. The Kodwen
+date. You can object at any time by turning the setting off. The Codwen
 sign-in on the AI agents page is based on your consent, given when you press
 Sign in and withdrawn when you sign out. The Health page talks only to a vmui
 server you run yourself, so the controller carries out no processing there.
@@ -384,10 +384,10 @@ televizoare Samsung (Tizen)
 **Pentru evaluatorii magazinelor de aplicații:** Vitals nu colectează date
 personale, nu are telemetrie, analiză sau raportare a erorilor, iar
 dezvoltatorul nu primește nicio dată. Nu există cont Vitals; singura conectare
-este cea opțională la Kodwen, din pagina Agenți AI. Singura cerere automată în
+este cea opțională la Codwen, din pagina Agenți AI. Singura cerere automată în
 rețea este verificarea actualizărilor pe GitHub, pe care utilizatorul o poate
 dezactiva. Alte două conexiuni sunt oprite până le pornește utilizatorul: acea
-conectare la Kodwen și pagina Sănătate, care citește de pe un server vmui pe
+conectare la Codwen și pagina Sănătate, care citește de pe un server vmui pe
 care îl rulează el. Pe Android, scanerul de coduri QR (Google ML Kit) trimite
 către Google date de diagnosticare anonime despre el însuși; vedeți
 [Vitals pentru Android, Wear OS și Google TV](#vitals-pentru-android-wear-os-și-google-tv).
@@ -405,7 +405,7 @@ către Google date de diagnosticare anonime despre el însuși; vedeți
   aproximativ 20 de secunde după pornire. O puteți dezactiva din Setări →
   Despre.
 - Alte două conexiuni sunt complet opționale și oprite până le porniți:
-  conectarea la **Kodwen** din pagina Agenți AI și pagina **Sănătate**, care
+  conectarea la **Codwen** din pagina Agenți AI și pagina **Sănătate**, care
   citește de pe un server vmui pe care îl rulați dvs. Altfel nu se conectează.
 - Accesul la distanță (vizualizarea PC-ului de pe telefon, în rețeaua dvs.)
   este oprit până îl porniți.
@@ -413,7 +413,7 @@ către Google date de diagnosticare anonime despre el însuși; vedeți
 ## Cine este responsabil
 
 Operatorul pentru prelucrarea descrisă aici (verificarea actualizărilor și
-conectarea la Kodwen, când o porniți) este:
+conectarea la Codwen, când o porniți) este:
 
 |           |                                                                    |
 | --------- | ------------------------------------------------------------------ |
@@ -433,7 +433,7 @@ conectarea la Kodwen, când o porniți) este:
 | „Search online” (căutare online)      | Doar când apăsați, pe un proces, o aplicație, un dispozitiv sau o intrare de pornire                                                          | Acel **nume** (proces, aplicație, dispozitiv sau intrare de pornire), trimis către DuckDuckGo în browser                                                                            | Nu apăsați                                                                                                                 |
 | Descărcarea PawnIO de pe GitHub       | Doar când instalați serviciul opțional de senzori (vedeți [Serviciul de senzori](#serviciul-de-senzori-opțional))                             | La fel ca la verificarea actualizărilor                                                                                                                                             | Nu instalați serviciul de senzori                                                                                          |
 | Descărcarea Microsoft WebView2        | Doar de către programul de instalare, doar dacă WebView2 lipsește                                                                             | Ce primește serviciul de descărcare Microsoft                                                                                                                                       | Instalați WebView2 în prealabil                                                                                            |
-| Contul Kodwen (pagina Agenți AI)      | Doar după ce apăsați „Conectează-te cu Kodwen”; apoi la fiecare 30 s cât pagina Agenți AI e deschisă și o dată la deconectare                 | Adresa IP, versiunea aplicației și o cheie doar pentru citire numită „Vitals desktop” (nu numele calculatorului). Kodwen răspunde cu desktop-urile conectate și sesiunile din cloud | Deconectați-vă din fila Cloud (cheia e revocată la Kodwen și ștearsă din Credential Manager); dezinstalarea o șterge și ea |
+| Contul Codwen (pagina Agenți AI)      | Doar după ce apăsați „Conectează-te cu Codwen”; apoi la fiecare 30 s cât pagina Agenți AI e deschisă și o dată la deconectare                 | Adresa IP, versiunea aplicației și o cheie doar pentru citire numită „Vitals desktop” (nu numele calculatorului). Codwen răspunde cu desktop-urile conectate și sesiunile din cloud | Deconectați-vă din fila Cloud (cheia e revocată la Codwen și ștearsă din Credential Manager); dezinstalarea o șterge și ea |
 | Pagina Sănătate către un server vmui  | Doar după ce conectați un server vmui din Setări; apoi cam o dată pe minut cât pagina Sănătate e deschisă, niciodată când e închisă           | Doar `GET /api/v1/me/health` la adresa vmui pe care ați introdus-o. vmui este serverul dvs. și vă întoarce propriile valori de sănătate; nu este implicat niciun terț               | Deconectați din Setări → Sănătate (șterge tokenul păstrat); nu este contactat niciodată nimic din ce rulează dezvoltatorul |
 
 Actualizările sunt verificate cu o semnătură minisign înainte de instalare,
@@ -704,7 +704,7 @@ medicale.
 Verificarea actualizărilor se bazează pe interesul legitim (articolul 6
 alineatul (1) litera (f) din GDPR): menținerea în siguranță și la zi a unui
 software care controlează procesele de pe calculatorul dvs. Vă puteți opune
-oricând dezactivând setarea. Conectarea la Kodwen din pagina Agenți AI se
+oricând dezactivând setarea. Conectarea la Codwen din pagina Agenți AI se
 bazează pe consimțământul dvs., dat când apăsați Conectare și retras când vă
 deconectați. Pagina Sănătate comunică doar cu un server vmui pe care îl rulați
 dvs., deci operatorul nu efectuează nicio prelucrare acolo. Stocarea locală,

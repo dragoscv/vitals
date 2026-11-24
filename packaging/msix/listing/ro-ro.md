@@ -51,29 +51,23 @@ STOCARE
 
 Cifre oneste: când ceva nu se poate măsura, Vitals arată o liniuță, niciodată un zero inventat.
 
-Privat din principiu: fără reclame, fără telemetrie, fără analiză și fără cont obligatoriu. Nimic nu pleacă de pe calculatorul tău decât dacă pornești singur accesul la distanță; singurele două conexiuni în plus — pagina Agenți AI, care se conectează la contul tău Kodwen, și pagina Sănătate, care citește de pe un server vmui pe care îl rulezi tu — sunt oprite până le pornești.
+Privat din principiu: fără reclame, fără telemetrie, fără analiză și fără cont obligatoriu. Nimic nu pleacă de pe calculatorul tău decât dacă pornești singur accesul la distanță; singurele două conexiuni în plus — pagina Agenți AI, care se conectează la contul tău Codwen, și pagina Sănătate, care citește de pe un server vmui pe care îl rulezi tu — sunt oprite până le pornești.
 
 Gratuit și open source (MIT). Disponibil în română și engleză.
 
 ## Ce e nou în această versiune (≤ 1500 caractere)
 
-Ce e nou în 1.3.1
+Ce e nou în 1.4.0
 
+• Kodwen se numește acum Codwen: pagina Agenți AI se conectează la contul tău Codwen de la auth.codwen.com și îți citește sesiunile de la ai.codwen.com. Fiecare mențiune a produsului folosește noul nume, iar o cheie salvată de o versiune anterioară este mutată prima dată când e folosită, ca nimeni să nu fie delogat de actualizare
+
+Nou în 1.3.1:
 • Home Assistant: integrarea MQTT creează acum citirile pe care le anunță. În 1.3.0, Home Assistant respingea fiecare anunț, așa că nu apărea nimic; disponibilitatea călătorește acum cu fiecare citire, astfel încât un PC care dispare apare ca indisponibil, nu ca o valoare veche
 • O citire pe care hardware-ul nu o poate raporta nu mai ajunge ca zero: memoria și temperatura plăcii video, bateria, activitatea discurilor și numerele de procesor pe care mașina nu le poate măsura rămân acum absente, pe fiecare ecran
 
 Nou în 1.3.0:
-• Kodwen: pagina Agenți AI este acum pagina Kodwen și se conectează la ai.kodwen.com. O cheie salvată de o versiune anterioară este mutată prima dată când e folosită, ca nimeni să nu fie delogat de actualizare
-• Pagina AI arată ce a consumat fiecare sesiune — tokeni de intrare, de ieșire, din cache și de raționament, numărul de cereri, costul și viteza — și spune clar când un client nu înregistrează consum
+• Pagina Agenți AI: conectează-te la propriul cont și vezi agenții care rulează pe celelalte calculatoare ale tale. Pagina arată ce a consumat fiecare sesiune — tokeni de intrare, de ieșire, din cache și de raționament, numărul de cereri, costul și viteza — și spune clar când un client nu înregistrează consum
 • Sănătate (opțional): conectezi un server vmui pe care îl rulezi tu și îți citești rezumatul de sănătate și nutriție. Ținut doar în memorie, niciodată scris pe disc, iar pagina rămâne ascunsă până o conectezi
-
-Nou în 1.2.0:
-• Vitals pentru Mac: aplicația desktop rulează acum pe macOS 13 sau mai nou (Apple silicon și Intel), semnată și notarizată de Apple, iar o aplicație pentru iPhone urmărește PC-urile și Mac-urile din rețeaua ta
-• Valorile de memorie pe care le are doar Windows apar ca liniuță pe alte sisteme, nu ca zero
-
-Nou în 1.1.1:
-• Listele pe viu stau pe loc: pe Performanță, Temperaturi, Panou și pagina AI o citire care apare și dispare își păstrează locul și arată o liniuță cât lipsește, iar cardurile și rândurile se reordonează la câteva secunde, nu la fiecare actualizare
-• Ține versiunea la pas cu aplicațiile de telefon, ceas și TV (aplicația de ceas încape acum pe ceasurile rotunde)
 
 ## Funcții (până la 20, ≤ 200 caractere fiecare)
 

@@ -364,9 +364,16 @@ pub struct RepoStat {
 pub enum AgentClient {
     VscodeCopilot,
     CopilotCli,
-    /// The author's AI gateway. Renamed from `Codai` on 2026-11-17 when the
-    /// service was rebranded to Kodwen; the wire value is `kodwen`.
-    Kodwen,
+    /// The author's AI gateway. Renamed `Codai` → `Kodwen` on 2026-11-17 and
+    /// `Kodwen` → `Codwen` on 2026-11-25; the wire value is `codwen`.
+    ///
+    /// Both earlier spellings are still decoded, so a frame written by an
+    /// older build — a phone that stayed on the previous release, a saved
+    /// fixture, a Home Assistant recording — reads as this client rather
+    /// than falling to `Other`, which would relabel every past session of
+    /// one product as an unknown one.
+    #[serde(alias = "kodwen", alias = "codai")]
+    Codwen,
     Codex,
     ClaudeCode,
     Other,
@@ -404,8 +411,10 @@ pub enum AgentUsageKind {
     Hermes,
     /// `OpenClaw`.
     OpenClaw,
-    /// The Kodwen CLI.
-    Kodwen,
+    /// The Codwen CLI. Renamed from `Kodwen` on 2026-11-25; the same
+    /// aliasing as on [`AgentClient`] keeps an old spelling decodable.
+    #[serde(alias = "kodwen", alias = "codai")]
+    Codwen,
     /// A recognised AI tool that is none of the above: agentq knows a client
     /// is running because it recorded the session, but the executable name
     /// carries no brand to show.
@@ -598,7 +607,7 @@ pub struct AgentSession {
     /// Sum of turn durations: time the agent was actually working.
     ///
     /// The counters below are `None` where the source does not report them
-    /// (a Kodwen cloud session lists only its title and timestamps), never `0`:
+    /// (a Codwen cloud session lists only its title and timestamps), never `0`:
     /// "0 turns" next to a session that has run for hours is a false fact.
     #[cfg_attr(feature = "ts", ts(type = "number | null"))]
     pub active_ms: Option<u64>,
@@ -841,7 +850,7 @@ mod action_wire_tests {
 
 #[cfg(test)]
 mod usage_wire_tests {
-    use super::{AgentUsage, AgentUsageKind, AgentUsageSnapshot};
+    use super::{AgentClient, AgentUsage, AgentUsageKind, AgentUsageSnapshot};
     use crate::units::{Bytes, BytesPerSec, Percent};
 
     fn row_with_nothing_measured() -> AgentUsage {
@@ -899,7 +908,7 @@ mod usage_wire_tests {
             (AgentUsageKind::Codex, "\"codex\""),
             (AgentUsageKind::Hermes, "\"hermes\""),
             (AgentUsageKind::OpenClaw, "\"openClaw\""),
-            (AgentUsageKind::Kodwen, "\"kodwen\""),
+            (AgentUsageKind::Codwen, "\"codwen\""),
             (AgentUsageKind::Cli, "\"cli\""),
         ];
         for (kind, wire) in cases {
@@ -909,6 +918,36 @@ mod usage_wire_tests {
                 kind
             );
         }
+    }
+
+    /// One product was renamed twice, so two older spellings are still on the
+    /// wire: a phone that stayed on an earlier release, a desktop frame read
+    /// out of a recording, a Home Assistant template evaluated against a
+    /// stored frame. If either stopped decoding, the client would fall to
+    /// `Other` — which does not merely look wrong, it also withdraws that
+    /// product's sessions from every per-client figure.
+    #[test]
+    fn the_older_spellings_of_the_codwen_client_still_decode() {
+        for old in ["\"kodwen\"", "\"codai\""] {
+            assert_eq!(
+                serde_json::from_str::<AgentClient>(old).expect("client decodes"),
+                AgentClient::Codwen,
+                "AgentClient rejected {old}"
+            );
+            assert_eq!(
+                serde_json::from_str::<AgentUsageKind>(old).expect("kind decodes"),
+                AgentUsageKind::Codwen,
+                "AgentUsageKind rejected {old}"
+            );
+        }
+        assert_eq!(
+            serde_json::to_string(&AgentClient::Codwen).expect("serialise"),
+            "\"codwen\""
+        );
+        assert_eq!(
+            serde_json::to_string(&AgentUsageKind::Codwen).expect("serialise"),
+            "\"codwen\""
+        );
     }
 
     /// Absence survives a round trip: a snapshot with no agentq row and no

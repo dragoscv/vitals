@@ -27,7 +27,7 @@ cele două diferă vreodată, se aplică aceia.
   pentru a diagnostica sau trata ceva; consultă un medic.
 - **Niciun serviciu.** Nu există abonament sau serviciu găzduit, iar Vitals nu are nevoie de niciun
   cont. Singurul lucru pe care Vitals îl contactează singur este GitHub, pentru verificarea
-  actualizărilor. Cele două extra-uri opționale — conectarea la Kodwen din pagina Agenți AI și
+  actualizărilor. Cele două extra-uri opționale — conectarea la Codwen din pagina Agenți AI și
   pagina Sănătate care citește de pe serverul tău vmui — sunt oprite până le pornești.
 
 ## Contact

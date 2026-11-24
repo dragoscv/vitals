@@ -194,8 +194,8 @@ fn kind_of_client(client: &str) -> AgentUsageKind {
         AgentUsageKind::Hermes
     } else if has("claw") {
         AgentUsageKind::OpenClaw
-    } else if has("kodwen") || has("codwen") || has("codai") {
-        AgentUsageKind::Kodwen
+    } else if has("codwen") || has("kodwen") || has("codai") {
+        AgentUsageKind::Codwen
     } else {
         AgentUsageKind::Cli
     }
@@ -234,7 +234,7 @@ fn classify(name: &str, description: Option<&str>) -> Option<AgentUsageKind> {
         "codex" => AgentUsageKind::Codex,
         "hermes" => AgentUsageKind::Hermes,
         "openclaw" => AgentUsageKind::OpenClaw,
-        "kodwen" | "codwen" | "codai" => AgentUsageKind::Kodwen,
+        "codwen" | "kodwen" | "codai" => AgentUsageKind::Codwen,
         _ => return classify_by_description(description),
     };
     Some(kind)
@@ -842,8 +842,8 @@ mod tests {
             ("codex.exe", AgentUsageKind::Codex),
             ("hermes.exe", AgentUsageKind::Hermes),
             ("openclaw.exe", AgentUsageKind::OpenClaw),
-            ("kodwen.exe", AgentUsageKind::Kodwen),
-            ("codwen", AgentUsageKind::Kodwen),
+            ("codwen.exe", AgentUsageKind::Codwen),
+            ("kodwen", AgentUsageKind::Codwen),
         ];
         for (name, want) in cases {
             assert_eq!(classify(name, None), Some(want), "{name}");
@@ -880,8 +880,9 @@ mod tests {
         assert_eq!(kind_of_client("copilot-cli"), AgentUsageKind::CopilotCli);
         assert_eq!(kind_of_client("claude-code"), AgentUsageKind::Claude);
         assert_eq!(kind_of_client("codex"), AgentUsageKind::Codex);
-        assert_eq!(kind_of_client("kodwen"), AgentUsageKind::Kodwen);
-        assert_eq!(kind_of_client("codai-cli"), AgentUsageKind::Kodwen);
+        assert_eq!(kind_of_client("codwen"), AgentUsageKind::Codwen);
+        assert_eq!(kind_of_client("kodwen"), AgentUsageKind::Codwen);
+        assert_eq!(kind_of_client("codai-cli"), AgentUsageKind::Codwen);
         // A client agentq knows about but this catalogue does not name is
         // still an agent and still gets a row.
         assert_eq!(kind_of_client("some-new-cli"), AgentUsageKind::Cli);

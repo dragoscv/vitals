@@ -54,6 +54,7 @@ D-numbers refer to the decision table in [`../TRACKER.md`](../TRACKER.md).
 | [0044](0044-artefact-gates-decide-on-content.md)           | An artefact gate decides on content, not on a timestamp    | S24-19         |
 | [0045](0045-release-creation-without-a-commit-target.md)   | Release creation sends no commit target                    | S24-36         |
 | [0046](0046-a-hundred-percent-is-a-completed-release.md)   | 100 % is a completed Play release; a channel can be re-run | S24-41, S24-42 |
+| [0047](0047-codwen-rebrand.md)                             | The AI service is Codwen; only its public name moved again | S26-09, S26-10 |
 
 ## Writing a new one
 

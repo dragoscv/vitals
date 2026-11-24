@@ -25,7 +25,7 @@ ever differ, that one applies.
   medical professional instead.
 - **No service.** There is no subscription or hosted service, and Vitals itself needs no account.
   The only thing Vitals contacts on its own is GitHub, to check for updates. The two optional
-  extras — the Kodwen sign-in on the AI agents page and the Health page reading your own vmui
+  extras — the Codwen sign-in on the AI agents page and the Health page reading your own vmui
   server — are off until you turn them on.
 
 ## Contact

@@ -2125,7 +2125,12 @@ components:
           type: string
         client:
           type: string
-          enum: [vscodeCopilot, copilotCli, kodwen, codex, claudeCode, other]
+          description: >-
+            The tool that owns the session. The product called Kodwen until
+            1.4.0 (and codai before that) is `codwen`; a desktop older than
+            1.4.0 still sends an earlier spelling for it, which a client
+            should read as this value rather than as an unknown tool.
+          enum: [vscodeCopilot, copilotCli, codwen, codex, claudeCode, other]
         host:
           type: string
           description: '`local`, or a cloud host name.'
@@ -2153,7 +2158,7 @@ components:
           description: >-
             Sum of turn durations — time the agent was actually working. This
             and the four counts below are `null` when the source does not report
-            them (Kodwen cloud sessions, Codex), never `0`.
+            them (Codwen cloud sessions, Codex), never `0`.
         turns:
           type: [integer, 'null']
         userMessages:

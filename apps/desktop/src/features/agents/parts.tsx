@@ -29,7 +29,7 @@ import { AGENTS_NS } from './strings';
 export const CLIENT_ICON: Record<AgentClient, LucideIcon> = {
   vscodeCopilot: Code2,
   copilotCli: Terminal,
-  kodwen: Sparkles,
+  codwen: Sparkles,
   codex: Cpu,
   claudeCode: Bot,
   other: Bot,
@@ -39,7 +39,7 @@ export const CLIENT_ICON: Record<AgentClient, LucideIcon> = {
 export const CLIENT_HUE: Record<AgentClient, string> = {
   vscodeCopilot: 'oklch(0.68 0.15 245)',
   copilotCli: 'oklch(0.70 0.14 300)',
-  kodwen: 'oklch(0.72 0.16 160)',
+  codwen: 'oklch(0.72 0.16 160)',
   codex: 'oklch(0.72 0.13 80)',
   claudeCode: 'oklch(0.70 0.14 40)',
   other: 'oklch(0.65 0.02 260)',
@@ -60,7 +60,7 @@ export const USAGE_ICON: Record<AgentUsageKind, LucideIcon> = {
   codex: Cpu,
   hermes: Sparkles,
   openClaw: ShieldAlert,
-  kodwen: Sparkles,
+  codwen: Sparkles,
   cli: Terminal,
 };
 
@@ -72,7 +72,7 @@ export const USAGE_HUE: Record<AgentUsageKind, string> = {
   codex: 'oklch(0.72 0.13 80)',
   hermes: 'oklch(0.70 0.16 20)',
   openClaw: 'oklch(0.70 0.15 130)',
-  kodwen: 'oklch(0.72 0.16 160)',
+  codwen: 'oklch(0.72 0.16 160)',
   cli: 'oklch(0.68 0.10 280)',
 };
 

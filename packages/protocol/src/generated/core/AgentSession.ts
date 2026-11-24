@@ -15,7 +15,7 @@ host: string, title: string | null, workspace: string | null, repo: string | nul
  * Sum of turn durations: time the agent was actually working.
  *
  * The counters below are `None` where the source does not report them
- * (a Kodwen cloud session lists only its title and timestamps), never `0`:
+ * (a Codwen cloud session lists only its title and timestamps), never `0`:
  * "0 turns" next to a session that has run for hours is a false fact.
  */
 activeMs: number | null, turns: number | null, userMessages: number | null, toolCalls: number | null, toolFailures: number | null, 

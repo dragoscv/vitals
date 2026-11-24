@@ -3,4 +3,4 @@
 /**
  * The AI client that owns a session.
  */
-export type AgentClient = "vscodeCopilot" | "copilotCli" | "kodwen" | "codex" | "claudeCode" | "other";
+export type AgentClient = "vscodeCopilot" | "copilotCli" | "codwen" | "codex" | "claudeCode" | "other";

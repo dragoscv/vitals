@@ -187,16 +187,20 @@ fn cloud_key() -> Option<String> {
     {
         return Some(key);
     }
-    // A copy that signed in before the 2026-11 rebrand has its key under the
-    // old target. Move it once so an update does not silently sign the user
-    // out; the old target is then deleted only on uninstall.
-    let key = vitals_win::credentials::read(cloud::LEGACY_CREDENTIAL_TARGET)
-        .ok()
-        .flatten()?;
-    if vitals_win::credentials::write(cloud::CREDENTIAL_TARGET, "kodwen", &key).is_ok() {
-        tracing::info!("migrated the Kodwen API key to its new credential target");
+    // A copy that signed in before a rename has its key under an older target
+    // — one per rename, so the newest first. Move it so
+    // an update does not silently sign the user out; the old targets are then
+    // deleted only on uninstall.
+    for old in cloud::LEGACY_CREDENTIAL_TARGETS {
+        let Some(key) = vitals_win::credentials::read(old).ok().flatten() else {
+            continue;
+        };
+        if vitals_win::credentials::write(cloud::CREDENTIAL_TARGET, "codwen", &key).is_ok() {
+            tracing::info!("migrated the Codwen API key to its new credential target");
+        }
+        return Some(key);
     }
-    Some(key)
+    None
 }
 
 #[cfg(not(windows))]
@@ -204,7 +208,7 @@ fn cloud_key() -> Option<String> {
     None
 }
 
-/// One client for every Kodwen call: a connection pool is reused across the
+/// One client for every Codwen call: a connection pool is reused across the
 /// 30 s polls instead of a TLS handshake each time. 3 s to connect and 10 s
 /// overall keep a dead network from holding the agents reader (and a sign-out)
 /// for long.
@@ -276,7 +280,7 @@ pub struct CloudStatus {
     pub error: Option<String>,
 }
 
-/// Whether a Kodwen key is stored, and the connected hosts when it is.
+/// Whether a Codwen key is stored, and the connected hosts when it is.
 #[tauri::command]
 pub async fn get_cloud_status() -> Result<CloudStatus, String> {
     tauri::async_runtime::spawn_blocking(|| {
@@ -310,7 +314,7 @@ pub async fn get_cloud_status() -> Result<CloudStatus, String> {
 /// Device flows in progress; the webview only ever holds their handles.
 static SIGN_INS: vitals_agents::cloud::SignIns = vitals_agents::cloud::SignIns::new();
 
-/// Step one of the Kodwen device flow: returns the code to show and the URL
+/// Step one of the Codwen device flow: returns the code to show and the URL
 /// to open. The secret device code stays here; the webview gets an opaque
 /// handle to pass to `finish_cloud_sign_in` / `cancel_cloud_sign_in`.
 #[tauri::command]
@@ -395,8 +399,8 @@ pub async fn cancel_cloud_sign_in(handle: String) -> Result<bool, String> {
 #[serde(rename_all = "camelCase")]
 pub struct SignOutResult {
     /// Whether the service confirmed the key no longer works. `false`
-    /// (offline, Kodwen down) still signs out here; the UI says the key may
-    /// live on until it is revoked in the Kodwen hub.
+    /// (offline, Codwen down) still signs out here; the UI says the key may
+    /// live on until it is revoked in the Codwen hub.
     pub revoked: bool,
 }
 
@@ -410,7 +414,7 @@ pub async fn cloud_sign_out() -> Result<SignOutResult, String> {
         let revoked = cloud_key().is_none_or(|key| {
             http(&cloud::revoke_request(cloud::DEFAULT_GATEWAY, &key))
                 .and_then(|r| cloud::parse_revoke(&r))
-                .inspect_err(|e| tracing::warn!(error = %e, "Kodwen key revoke failed"))
+                .inspect_err(|e| tracing::warn!(error = %e, "Codwen key revoke failed"))
                 .is_ok()
         });
         clear_key()?;
@@ -422,7 +426,7 @@ pub async fn cloud_sign_out() -> Result<SignOutResult, String> {
 
 #[cfg(windows)]
 fn store_key(key: &str) -> Result<(), String> {
-    vitals_win::credentials::write(vitals_agents::cloud::CREDENTIAL_TARGET, "kodwen", key)
+    vitals_win::credentials::write(vitals_agents::cloud::CREDENTIAL_TARGET, "codwen", key)
         .map_err(|e| e.to_string())
 }
 #[cfg(windows)]

@@ -28,7 +28,7 @@ o face Vitals de la sine este verificarea actualizărilor pe GitHub în versiune
 instalare, pe care o poți opri din **Setări → Despre**. Versiunea din Store nici măcar nu o face,
 pentru că o actualizează Store-ul.
 
-Alte două conexiuni sunt oprite până le pornești: conectarea la Kodwen din pagina Agenți AI și
+Alte două conexiuni sunt oprite până le pornești: conectarea la Codwen din pagina Agenți AI și
 pagina Sănătate, care citește de pe un server vmui pe care îl rulezi tu.
 
 Accesul de la distanță (vederea calculatorului de pe telefon sau televizor) rămâne în rețeaua ta și

@@ -49,7 +49,7 @@ public struct AgentqTicket: Decodable, Sendable {
 }
 
 public enum AgentClient: String, TolerantEnum {
-    case vscodeCopilot, copilotCli, kodwen, codex, claudeCode, other, unknown
+    case vscodeCopilot, copilotCli, codwen, codex, claudeCode, other, unknown
     public static let unknownCase = Self.unknown
 }
 

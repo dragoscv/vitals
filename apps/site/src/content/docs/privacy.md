@@ -20,7 +20,7 @@ and Google TV apps, the iPhone app, and the Samsung (Tizen) TV app. Effective 17
   turn this off in **Settings → About**. The Microsoft Store version makes no such request: the
   Store updates it.
 - **Two connections are opt-in and off until you turn them on.** The AI agents page can sign in to
-  your **Kodwen** account, after which it reads your sessions from Kodwen while the page is open
+  your **Codwen** account, after which it reads your sessions from Codwen while the page is open
   (once every 30 seconds) until you sign out. The Health page reads your own readings from a
   **vmui** server you run yourself. Neither connects unless you enable it, and neither is part of
   the automatic behaviour above.

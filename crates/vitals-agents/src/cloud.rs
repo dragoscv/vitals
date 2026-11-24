@@ -1,12 +1,12 @@
-//! Agents running in the cloud, from the Kodwen account (ADR-0039).
+//! Agents running in the cloud, from the Codwen account (ADR-0039).
 //!
 //! Read-only and opt-in: nothing is sent until the user signs in with the
-//! Kodwen OIDC device flow (RFC 8628, public client `codai-cli`, the same one
+//! Codwen OIDC device flow (RFC 8628, public client `codai-cli`, the same one
 //! `codaid` uses). The resulting key is stored by the desktop in
 //! Credential Manager; this module only builds requests and parses answers,
 //! with the HTTP transport passed in so it stays OS- and runtime-agnostic.
 //!
-//! Endpoints (`apps/gateway` in the Kodwen repo):
+//! Endpoints (`apps/gateway` in the Codwen repo):
 //! - `GET /v1/hosts` — the user's desktops connected right now;
 //! - `GET /v1/sessions?v=2` — conversation sessions with `last_event_at`,
 //!   `executor_device_id` and live `presence_count`;
@@ -20,11 +20,14 @@
 //!
 //! # Names that did not change
 //!
-//! The service rebranded from codai to Kodwen on 2026-11 (domain, product
-//! name, UI). The wire-level identifiers stayed as the service itself still
-//! issues them: the OIDC client is `codai-cli`, a minted key still starts
-//! with `codai_`, and the device-name header is `X-Codai-Device-Name`. Only
-//! the hosts and the human-facing name moved.
+//! The service was renamed twice in 2026-11 — codai, then Kodwen, then Codwen
+//! — and only the domain and the product name followed. The wire-level
+//! identifiers are the service's own and stayed as it issues them: the OIDC
+//! client is `codai-cli`, a minted key starts with `codai_` or `kodwen_`, and
+//! the device-name header is `X-Codai-Device-Name`. Renaming one of those
+//! here would be a change this app cannot make unilaterally: it is the server
+//! that mints the key and reads the header, so a client that renamed it would
+//! simply stop working.
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -35,23 +38,26 @@ use vitals_core::agents::{AgentClient, AgentSession, SessionState};
 
 use crate::time::parse_iso_ms;
 
-pub const DEFAULT_GATEWAY: &str = "https://ai.kodwen.com";
-pub const DEFAULT_AUTH: &str = "https://auth.kodwen.com";
+pub const DEFAULT_GATEWAY: &str = "https://ai.codwen.com";
+pub const DEFAULT_AUTH: &str = "https://auth.codwen.com";
 /// The service's own OIDC client id. Unchanged by the rebrand: it is what
 /// the auth service is configured with, not a choice this app makes.
 pub const CLIENT_ID: &str = "codai-cli";
 /// `agents:read` is the only resource scope requested: no `inference`,
 /// no `keys:manage`, no `email`/`profile` (Vitals never shows who you are).
 pub const SCOPE: &str = "openid agents:read";
-/// What the key is called in the Kodwen hub. Deliberately not the computer
+/// What the key is called in the Codwen hub. Deliberately not the computer
 /// name: that would be personal data sent for no feature (LEG2-3).
 pub const KEY_LABEL: &str = "Vitals desktop";
 /// Credential Manager target for the key.
-pub const CREDENTIAL_TARGET: &str = "vitals/kodwen-api-key";
-/// The target used before the 2026-11 rebrand. Read once to migrate a copy
-/// that signed in while the app was still called codai; the uninstaller
-/// removes both so no orphaned key is left in Credential Manager.
-pub const LEGACY_CREDENTIAL_TARGET: &str = "vitals/codai-api-key";
+pub const CREDENTIAL_TARGET: &str = "vitals/codwen-api-key";
+/// Targets a copy may still hold a key under from an earlier release, newest
+/// first: `vitals/kodwen-api-key` was current while the product was called
+/// Kodwen, `vitals/codai-api-key` before that. One is read once to migrate
+/// the key so an update does not silently sign the user out; the uninstaller
+/// deletes all three, so no orphaned key is left in Credential Manager where
+/// the user would never find it.
+pub const LEGACY_CREDENTIAL_TARGETS: [&str; 2] = ["vitals/kodwen-api-key", "vitals/codai-api-key"];
 
 /// A request the transport must perform.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -184,9 +190,13 @@ pub fn parse_key(res: &Response) -> Result<String, String> {
     ["key", "api_key", "plaintext"]
         .iter()
         .find_map(|k| v.get(*k).and_then(Value::as_str))
-        // `codai_` before the rebrand, `kodwen_` after: accept either so a
-        // brown-out on one side of the rename cannot break sign-in.
-        .filter(|k| k.starts_with("codai_") || k.starts_with("kodwen_"))
+        // `codai_` at the first name, `kodwen_` at the second, `codwen_` at
+        // the third: accept all of them, so whichever release minted the key
+        // and whichever name the service is serving under cannot break
+        // sign-in on its own.
+        .filter(|k| {
+            k.starts_with("codai_") || k.starts_with("kodwen_") || k.starts_with("codwen_")
+        })
         .map(str::to_owned)
         .ok_or_else(|| "no API key in the answer".into())
 }
@@ -212,7 +222,7 @@ pub fn revoke_request(gateway: &str, key: &str) -> Request {
 pub fn parse_revoke(res: &Response) -> Result<(), String> {
     match res.0 {
         200..=299 | 401 => Ok(()),
-        s => Err(format!("Kodwen answered {s}")),
+        s => Err(format!("Codwen answered {s}")),
     }
 }
 
@@ -249,7 +259,7 @@ fn client_header() -> Vec<(String, String)> {
     )]
 }
 
-/// A Kodwen host (a desktop connected to the account).
+/// A Codwen host (a desktop connected to the account).
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, serde::Serialize)]
 pub struct Host {
     pub device_id: String,
@@ -279,7 +289,7 @@ pub fn parse_hosts(res: &Response) -> Result<Vec<Host>, String> {
 /// Cloud sessions active in the last `window_ms`, as [`AgentSession`]s whose
 /// `host` names the device that executes them (or `cloud`).
 ///
-/// Kodwen mirrors local conversations to the cloud: `session_key` is the local
+/// Codwen mirrors local conversations to the cloud: `session_key` is the local
 /// session id (Copilot CLI) or `vscode:<workspace>:<id>` (VS Code). A row
 /// whose key ends in an id `is_local` accepts is the same conversation the local
 /// reader already lists with real counts, so it is dropped rather than shown
@@ -341,7 +351,7 @@ pub fn parse_sessions(
             };
             Some(AgentSession {
                 id: s.get("id")?.as_str()?.to_owned(),
-                client: AgentClient::Kodwen,
+                client: AgentClient::Codwen,
                 host,
                 title: s
                     .get("title")
@@ -385,7 +395,7 @@ fn check(res: &Response) -> Result<(), String> {
     match res.0 {
         200..=299 => Ok(()),
         401 | 403 => Err("signed-out".into()),
-        s => Err(format!("Kodwen answered {s}")),
+        s => Err(format!("Codwen answered {s}")),
     }
 }
 
@@ -517,10 +527,15 @@ mod tests {
             parse_key(&(200, r#"{"api_key":"codai_abc","api_key_id":"k1"}"#.into())).unwrap(),
             "codai_abc"
         );
-        // the rebrand mints kodwen_ keys; a pre-rebrand key still parses
+        // each name minted its own prefix; all three still parse, because
+        // whichever one the service issues is the one the user holds
         assert_eq!(
             parse_key(&(200, r#"{"api_key":"kodwen_abc","api_key_id":"k1"}"#.into())).unwrap(),
             "kodwen_abc"
+        );
+        assert_eq!(
+            parse_key(&(200, r#"{"api_key":"codwen_abc","api_key_id":"k1"}"#.into())).unwrap(),
+            "codwen_abc"
         );
         assert!(parse_key(&(200, r#"{"api_key":null,"api_key_id":"k1"}"#.into())).is_err());
         assert!(parse_key(&(200, r#"{"api_key":"sk-other"}"#.into())).is_err());
@@ -553,7 +568,7 @@ mod tests {
         assert_eq!(s.len(), 1);
         assert_eq!(s[0].host, "DRAGOS");
         assert_eq!(s[0].state, SessionState::Working);
-        assert_eq!(s[0].client, AgentClient::Kodwen);
+        assert_eq!(s[0].client, AgentClient::Codwen);
     }
 
     #[test]
@@ -586,11 +601,20 @@ mod tests {
 
     #[test]
     fn device_auth_request_is_form_encoded_for_the_public_cli_client() {
-        let r = device_auth_request("https://auth.kodwen.com/");
-        assert_eq!(r.url, "https://auth.kodwen.com/device/auth");
+        let r = device_auth_request("https://auth.codwen.com/");
+        assert_eq!(r.url, "https://auth.codwen.com/device/auth");
         let form = r.form.unwrap();
         assert!(form.contains(&("client_id".into(), "codai-cli".into())));
         assert!(form.contains(&("scope".into(), SCOPE.into())));
+    }
+
+    /// The product was renamed; the two hosts it talks to had to move with it.
+    /// A default left behind would send the sign-in to a domain that only
+    /// redirects, and a redirect cannot carry the device flow's form body.
+    #[test]
+    fn the_default_hosts_are_the_current_name() {
+        assert_eq!(DEFAULT_GATEWAY, "https://ai.codwen.com");
+        assert_eq!(DEFAULT_AUTH, "https://auth.codwen.com");
     }
 
     #[test]
@@ -613,7 +637,7 @@ mod tests {
 
     #[test]
     fn the_key_is_labelled_without_the_computer_name() {
-        let r = key_request("https://auth.kodwen.com", "at");
+        let r = key_request("https://auth.codwen.com", "at");
         assert_eq!(
             r.headers,
             vec![(
@@ -628,9 +652,9 @@ mod tests {
 
     #[test]
     fn sign_out_revokes_the_key_with_itself_and_treats_401_as_already_gone() {
-        let r = revoke_request("https://ai.kodwen.com/", "codai_k");
+        let r = revoke_request("https://ai.codwen.com/", "codai_k");
         assert_eq!(r.method, "POST");
-        assert_eq!(r.url, "https://ai.kodwen.com/v1/keys/self/revoke");
+        assert_eq!(r.url, "https://ai.codwen.com/v1/keys/self/revoke");
         assert_eq!(r.bearer.as_deref(), Some("codai_k"));
         assert!(parse_revoke(&(200, r#"{"revoked":true}"#.into())).is_ok());
         assert!(parse_revoke(&(401, String::new())).is_ok());

@@ -42,7 +42,7 @@ function session(id: string, title: string, over: Record<string, unknown> = {}) 
     workspace: 'E:\\gh\\vitals',
     repo: 'vitals',
     branch: 'main',
-    model: 'Kodwen',
+    model: 'Codwen',
     state: 'working',
     startedMs: NOW - 3_600_000,
     lastActivityMs: NOW - 5_000,

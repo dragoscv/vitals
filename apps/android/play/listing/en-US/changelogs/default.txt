@@ -1,3 +1,3 @@
-Vitals 1.3.1
-• Offered to more devices: the phone build no longer requires Wi-Fi and the TV build no longer asks for a camera, so Play can show Vitals on Ethernet-only tablets and camera-less Chromebooks
-• A reading your PC cannot measure shows a dash instead of a zero, on the phone and the watch too
+Vitals 1.4.0
+• Kodwen is now Codwen. Sign-in and agent sessions come from codwen.com, and a key saved by an earlier version is moved across by itself
+• A session an older release named Kodwen still reads as Codwen, not as an unknown tool

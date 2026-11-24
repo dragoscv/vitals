@@ -1,3 +1,3 @@
-Vitals 1.3.1
-• Oferit mai multor dispozitive: versiunea de telefon nu mai cere Wi-Fi, iar cea de TV nu mai cere cameră, așa că Play poate afișa Vitals pe tablete doar cu Ethernet și pe Chromebook-uri fără cameră
-• O citire pe care PC-ul nu o poate măsura apare ca liniuță, nu ca zero, și pe telefon și pe ceas
+Vitals 1.4.0
+• Kodwen se numește acum Codwen. Autentificarea și sesiunile agenților vin de pe codwen.com, iar o cheie salvată de o versiune mai veche este mutată singură
+• O sesiune pe care o versiune mai veche o numea Kodwen apare tot ca Codwen, nu ca unealtă necunoscută

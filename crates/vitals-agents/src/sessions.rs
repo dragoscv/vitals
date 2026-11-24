@@ -498,10 +498,16 @@ impl SessionTracker {
                 let client = match yaml.get("client_name").map(String::as_str) {
                     Some("cli") | None => AgentClient::CopilotCli,
                     Some(c) if c.starts_with("vscode") => AgentClient::VscodeCopilot,
-                    // The gateway was renamed Kodwen in 2026-11; a machine may
-                    // still run a CLI that identifies as codai, so both names
-                    // map to the same client rather than showing as "other".
-                    Some(c) if c.contains("kodwen") || c.contains("codai") => AgentClient::Kodwen,
+                    // The gateway was renamed twice — codai, then Kodwen in
+                    // 2026-11, then Codwen in 2026-11 — and a workspace file
+                    // on disk was written by whichever release was running at
+                    // the time. All three names map to the same client rather
+                    // than showing a current session as "other".
+                    Some(c)
+                        if c.contains("codwen") || c.contains("kodwen") || c.contains("codai") =>
+                    {
+                        AgentClient::Codwen
+                    }
                     Some(_) => AgentClient::Other,
                 };
                 found.push(Source {
@@ -708,13 +714,14 @@ fn output_rate(out: Option<u64>, output_ms: u64) -> Option<f64> {
     Some(out as f64 * 1000.0 / output_ms as f64)
 }
 
-/// The gateway used to report its model as `codai`; the page shows `Kodwen`
-/// after the 2026-11 rebrand so a session does not name a product that no
-/// longer exists. Any other model string is the provider's own word for the
-/// model and is left untouched.
+/// The gateway used to report its model as `codai`, then `kodwen`; the page
+/// shows `Codwen` so a session does not name a product that no longer exists.
+/// Any other model string is the provider's own word for the model and is
+/// left untouched.
 fn normalise_model(name: &str) -> String {
-    if name.trim().eq_ignore_ascii_case("codai") {
-        "Kodwen".to_owned()
+    let trimmed = name.trim();
+    if trimmed.eq_ignore_ascii_case("codai") || trimmed.eq_ignore_ascii_case("kodwen") {
+        "Codwen".to_owned()
     } else {
         name.to_owned()
     }
@@ -1035,10 +1042,10 @@ mod tests {
         assert_eq!(a.usage.requests, 2);
         assert_eq!(a.usage.output_ms, 5000);
         assert_eq!(a.usage.ttft_n, 2);
-        // a source model of "codai" is shown as Kodwen after the rebrand
+        // a source model of "codai" is shown as Codwen after the rebrand
         assert_eq!(
             a.model.as_deref().map(normalise_model),
-            Some("Kodwen".into())
+            Some("Codwen".into())
         );
         // 500 output tokens over 5 s of generation
         assert!((output_rate(a.tokens_out, a.usage.output_ms).unwrap() - 100.0).abs() < 1e-9);

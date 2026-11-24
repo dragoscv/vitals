@@ -1,8 +1,8 @@
 /**
- * Kodwen account on the Cloud tab: sign in with the device flow (a code
+ * Codwen account on the Cloud tab: sign in with the device flow (a code
  * shown here, approved in the browser), see connected hosts, sign out.
  *
- * Nothing is sent to Kodwen until the user presses "Sign in". The key that
+ * Nothing is sent to Codwen until the user presses "Sign in". The key that
  * results is stored by Rust in Credential Manager and never reaches the
  * webview; neither does the device code, which Rust keeps behind an opaque
  * handle. The key is read-only (scope `agents:read`) and signing out revokes

@@ -24,6 +24,7 @@
       "identifier": "opener:allow-open-url",
       "allow": [
         { "url": "https://github.com/dragoscv/vitals*" },
+        { "url": "https://auth.codwen.com/device*" },
         { "url": "https://auth.kodwen.com/device*" },
         { "url": "https://auth.codai.ro/device*" }
       ]

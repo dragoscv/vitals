@@ -18,8 +18,17 @@ import org.junit.Test
 class AgentsWireTest {
     @Test
     fun the_gateway_client_decodes_to_its_own_variant_rather_than_to_other() {
+        val snapshot = decode("""{"sessions":[{"id":"s1","client":"codwen","state":"working"}]}""")
+        assertEquals(AgentClient.Codwen, snapshot.sessions.single().client)
+    }
+
+    @Test
+    fun a_client_renamed_since_this_build_was_installed_is_unknown_not_a_wrong_product() {
+        // The product was called kodwen until 2026-11. A desktop still on that
+        // release sends the old value; this build must not invent a client for
+        // it, and must not fail the answer either.
         val snapshot = decode("""{"sessions":[{"id":"s1","client":"kodwen","state":"working"}]}""")
-        assertEquals(AgentClient.Kodwen, snapshot.sessions.single().client)
+        assertEquals(AgentClient.Unknown, snapshot.sessions.single().client)
     }
 
     @Test
@@ -31,7 +40,7 @@ class AgentsWireTest {
 
     @Test
     fun a_state_this_build_cannot_name_is_not_counted_as_a_session_that_is_running() {
-        val snapshot = decode("""{"sessions":[{"id":"s1","client":"kodwen","state":"thinking"}]}""")
+        val snapshot = decode("""{"sessions":[{"id":"s1","client":"codwen","state":"thinking"}]}""")
         assertTrue("an unreadable state was reported as running", snapshot.activeSessions.isEmpty())
     }
 

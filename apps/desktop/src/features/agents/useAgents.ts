@@ -11,7 +11,7 @@
  *
  * `<Activity>` is not enough on its own: with `lastRoute = agents`, an
  * autostart launch at logon mounts this screen in a window that stays hidden
- * in the tray, and the reader would poll agentq every 2 s (and Kodwen every
+ * in the tray, and the reader would poll agentq every 2 s (and Codwen every
  * 30 s) for a page nobody can see (ENG2, S21-04). So the subscription also
  * follows `document.visibilityState`, like the route preload (`whenVisible`):
  * hidden drops it, visible takes it again.

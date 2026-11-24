@@ -21,7 +21,7 @@ aplicația pentru televizoare Samsung (Tizen). În vigoare din 17 noiembrie 2026
   descărcare. Poți dezactiva asta din **Setări → Despre**. Versiunea din Microsoft Store nu face
   această cerere: o actualizează Store-ul.
 - **Două conexiuni sunt opționale și oprite până le pornești.** Pagina Agenți AI se poate conecta la
-  contul tău **Kodwen**, după care citește sesiunile de la Kodwen cât timp pagina e deschisă (o dată
+  contul tău **Codwen**, după care citește sesiunile de la Codwen cât timp pagina e deschisă (o dată
   la 30 de secunde) până te deconectezi. Pagina Sănătate citește valorile tale de la un server
   **vmui** pe care îl rulezi tu. Niciuna nu se conectează dacă nu o pornești și niciuna nu face
   parte din comportamentul automat de mai sus.

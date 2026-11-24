@@ -81,7 +81,7 @@ export function makeSession(over: Partial<AgentSession> = {}): AgentSession {
     workspace: 'e:\\gh\\vitals',
     repo: 'vitals',
     branch: 'dev',
-    model: 'Kodwen',
+    model: 'Codwen',
     state: 'working',
     startedMs: NOW - 3_600_000,
     lastActivityMs: NOW - 10_000,

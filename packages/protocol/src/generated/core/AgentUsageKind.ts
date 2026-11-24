@@ -13,4 +13,4 @@
  * `Other` — a session of unknown origin is worth listing, a *resource* row
  * of unknown origin is not, because nobody can act on it.
  */
-export type AgentUsageKind = "agentq" | "claude" | "copilotCli" | "vscodeCopilot" | "codex" | "hermes" | "openClaw" | "kodwen" | "cli";
+export type AgentUsageKind = "agentq" | "claude" | "copilotCli" | "vscodeCopilot" | "codex" | "hermes" | "openClaw" | "codwen" | "cli";

@@ -42,7 +42,7 @@ const en = {
   client: {
     vscodeCopilot: 'VS Code Copilot Chat',
     copilotCli: 'Copilot CLI',
-    kodwen: 'Kodwen',
+    codwen: 'Codwen',
     codex: 'Codex',
     claudeCode: 'Claude Code',
     other: 'Other',
@@ -159,22 +159,22 @@ const en = {
     downReason: 'Reason: {{reason}}',
     healthy: 'No cloud workspace is marked down.',
     runs: 'Cloud runs in the last {{hours}} h',
-    signIn: 'Sign in to Kodwen to see agents running in the cloud',
+    signIn: 'Sign in to Codwen to see agents running in the cloud',
     signInBody:
-      'Cloud sessions, environments and usage come from your Kodwen account. Nothing is sent until you sign in.',
-    signInButton: 'Sign in with Kodwen',
+      'Cloud sessions, environments and usage come from your Codwen account. Nothing is sent until you sign in.',
+    signInButton: 'Sign in with Codwen',
     readOnly:
       'Vitals asks for read-only access: it can list your sessions and desktops, never run AI, spend credit or manage keys.',
     cancel: 'Cancel',
     waiting: 'Waiting for approval in the browser…',
     code: 'Confirm this code in the browser:',
     codeAt: 'at {{address}}',
-    account: 'Kodwen account',
+    account: 'Codwen account',
     hosts: 'Connected desktops',
-    noHosts: 'No desktop is connected to Kodwen right now.',
+    noHosts: 'No desktop is connected to Codwen right now.',
     signOut: 'Sign out',
     revokeFailed:
-      'Signed out on this PC, but Kodwen could not be reached to switch the key off. Revoke “Vitals desktop” in the Kodwen hub under API keys.',
+      'Signed out on this PC, but Codwen could not be reached to switch the key off. Revoke “Vitals desktop” in the Codwen hub under API keys.',
     sessions_one: '{{count}} cloud session in the last day, listed under Sessions.',
     sessions_other: '{{count}} cloud sessions in the last day, listed under Sessions.',
   },
@@ -310,7 +310,7 @@ const en = {
 
   empty: {
     title: 'No agents yet',
-    body: 'When an AI agent starts working here — VS Code Copilot Chat, Copilot CLI, Kodwen, Codex or Claude Code — it appears on this page.',
+    body: 'When an AI agent starts working here — VS Code Copilot Chat, Copilot CLI, Codwen, Codex or Claude Code — it appears on this page.',
   },
 
   usage: {
@@ -358,7 +358,7 @@ const en = {
       codex: 'Codex',
       hermes: 'Hermes',
       openClaw: 'OpenClaw',
-      kodwen: 'Kodwen',
+      codwen: 'Codwen',
       cli: 'AI CLI',
     },
   },
@@ -407,7 +407,7 @@ const ro = {
   client: {
     vscodeCopilot: 'VS Code Copilot Chat',
     copilotCli: 'Copilot CLI',
-    kodwen: 'Kodwen',
+    codwen: 'Codwen',
     codex: 'Codex',
     claudeCode: 'Claude Code',
     other: 'Altele',
@@ -525,22 +525,22 @@ const ro = {
     downReason: 'Motiv: {{reason}}',
     healthy: 'Niciun workspace cloud nu e marcat indisponibil.',
     runs: 'Rulări în cloud în ultimele {{hours}} ore',
-    signIn: 'Conectează-te la Kodwen ca să vezi agenții din cloud',
+    signIn: 'Conectează-te la Codwen ca să vezi agenții din cloud',
     signInBody:
-      'Sesiunile, mediile și consumul din cloud vin din contul tău Kodwen. Nu se trimite nimic până nu te conectezi.',
-    signInButton: 'Conectează-te cu Kodwen',
+      'Sesiunile, mediile și consumul din cloud vin din contul tău Codwen. Nu se trimite nimic până nu te conectezi.',
+    signInButton: 'Conectează-te cu Codwen',
     readOnly:
       'Vitals cere acces doar pentru citire: îți poate lista sesiunile și desktop-urile, dar nu poate rula AI, cheltui credit sau gestiona chei.',
     cancel: 'Anulează',
     waiting: 'Se așteaptă aprobarea în browser…',
     code: 'Confirmă acest cod în browser:',
     codeAt: 'la {{address}}',
-    account: 'Cont Kodwen',
+    account: 'Cont Codwen',
     hosts: 'Desktop-uri conectate',
-    noHosts: 'Niciun desktop nu e conectat la Kodwen acum.',
+    noHosts: 'Niciun desktop nu e conectat la Codwen acum.',
     signOut: 'Deconectează-te',
     revokeFailed:
-      'Te-ai deconectat pe acest PC, dar Kodwen nu a putut fi contactat ca să dezactiveze cheia. Revocă „Vitals desktop” în hub-ul Kodwen, la Chei API.',
+      'Te-ai deconectat pe acest PC, dar Codwen nu a putut fi contactat ca să dezactiveze cheia. Revocă „Vitals desktop” în hub-ul Codwen, la Chei API.',
     sessions_one: '{{count}} sesiune cloud în ultima zi, listată la Sesiuni.',
     sessions_few: '{{count}} sesiuni cloud în ultima zi, listate la Sesiuni.',
     sessions_other: '{{count}} de sesiuni cloud în ultima zi, listate la Sesiuni.',
@@ -681,7 +681,7 @@ const ro = {
 
   empty: {
     title: 'Încă niciun agent',
-    body: 'Când un agent AI începe să lucreze aici — VS Code Copilot Chat, Copilot CLI, Kodwen, Codex sau Claude Code — apare pe această pagină.',
+    body: 'Când un agent AI începe să lucreze aici — VS Code Copilot Chat, Copilot CLI, Codwen, Codex sau Claude Code — apare pe această pagină.',
   },
   usage: {
     title: 'Resurse folosite',
@@ -729,7 +729,7 @@ const ro = {
       codex: 'Codex',
       hermes: 'Hermes',
       openClaw: 'OpenClaw',
-      kodwen: 'Kodwen',
+      codwen: 'Codwen',
       cli: 'CLI AI',
     },
   },

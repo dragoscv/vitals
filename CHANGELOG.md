@@ -7,6 +7,8 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.4.0] — 2026-11-25
+
 ### Added
 
 - AI page → **Actions**: run agentq from the window instead of a terminal.
@@ -43,6 +45,20 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the resource a held ticket names, or the command it ran — and never a guess
   from prose: a release run is a deploy and a job is a job, so a job whose script
   happens to be called `land-when-unfrozen.ps1` is not reported as a land.
+
+### Changed
+
+- **The product is now called Codwen.** It was Kodwen, and codai before that,
+  and the name this app shows had fallen a rename behind. The AI agents page
+  signs in at `auth.codwen.com` and reads sessions from `ai.codwen.com`; every
+  string, both locales, the store listings, the site and the phone, watch and
+  TV apps follow the same name. Three things deliberately did not move, because
+  they are issued by the service rather than chosen here: the OIDC client id
+  `codai-cli`, the `codai_`/`kodwen_` key prefixes a minted key carries, and
+  the `x-codai-client` request header. A key saved by an earlier version is
+  moved to the new credential name the first time it is used, and the session
+  contract still decodes the two earlier spellings of the client, so an older
+  phone or a stored frame reads as Codwen rather than as an unknown tool.
 
 ### Fixed
 

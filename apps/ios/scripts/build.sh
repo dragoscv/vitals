@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Reproducible build of the Vitals iPhone app on a macOS host (vmui-mac,
-# Xcode 26.x). Same shape as Kodwen's apps/ios/scripts/build.sh (the shared
+# Xcode 26.x). Same shape as Codwen's apps/ios/scripts/build.sh (the shared
 # Apple runbook): XcodeGen-pinned project, cloud signing with the team's App
 # Store Connect API key, a dedicated build keychain for headless SSH.
 #

@@ -28,7 +28,7 @@ No telemetry, no analytics, no crash reporting and no Vitals account. The only c
 makes by itself is an update check to GitHub in the installer version, which you can turn off in
 **Settings → About**. The Store version does not even do that, because the Store updates it.
 
-Two connections are off until you turn them on: the Kodwen sign-in on the AI agents page, and the
+Two connections are off until you turn them on: the Codwen sign-in on the AI agents page, and the
 Health page, which reads from a vmui server you run yourself.
 
 Remote access (viewing your PC from a phone or TV) stays on your own network and is off until you

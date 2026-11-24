@@ -38,7 +38,7 @@ from a terminal.
 
 **Privacy in one line:** no telemetry, no analytics, no Vitals account. The
 only request Vitals makes by itself is an update check to GitHub, which you
-can turn off. The two opt-in extras — the Kodwen sign-in on the AI agents
+can turn off. The two opt-in extras — the Codwen sign-in on the AI agents
 page and the Health page reading your own vmui server — are off until you
 turn them on. Details in [PRIVACY.md](PRIVACY.md).
 

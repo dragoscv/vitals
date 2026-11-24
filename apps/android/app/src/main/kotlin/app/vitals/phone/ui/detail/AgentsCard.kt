@@ -155,7 +155,7 @@ private fun clientName(client: AgentClient): String = when (client) {
     // AI page (apps/desktop/src/features/agents/strings.ts).
     AgentClient.VscodeCopilot -> "VS Code Copilot Chat"
     AgentClient.CopilotCli -> "Copilot CLI"
-    AgentClient.Kodwen -> "Kodwen"
+    AgentClient.Codwen -> "Codwen"
     AgentClient.Codex -> "Codex"
     AgentClient.ClaudeCode -> "Claude Code"
     AgentClient.Other, AgentClient.Unknown -> stringResource(R.string.agents_client_other)

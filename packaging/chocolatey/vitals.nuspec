@@ -34,7 +34,7 @@
     <copyright>MIT © 2026 Dragos Catalin Vladulescu and Vitals contributors</copyright>
     <tags>system-monitor task-manager performance processes hardware sensors foss</tags>
     <summary>A modern, fast system monitor and task manager.</summary>
-    <description>Vitals is a fast, native system monitor and task manager for Windows: a configurable dashboard, detailed performance metrics, full process control, network and storage management, and benchmarks. Free and open source (MIT). It sends no telemetry and has no analytics. Two connections exist and are off until you turn them on: signing in to your own Kodwen account on the AI agents page, and reading your own vmui server on the Health page. Neither reaches the developer.
+    <description>Vitals is a fast, native system monitor and task manager for Windows: a configurable dashboard, detailed performance metrics, full process control, network and storage management, and benchmarks. Free and open source (MIT). It sends no telemetry and has no analytics. Two connections exist and are off until you turn them on: signing in to your own Codwen account on the AI agents page, and reading your own vmui server on the Health page. Neither reaches the developer.
 
 Installed for the user running Chocolatey, so Vitals can install its own signed updates when you quit it without asking for administrator approval.</description>
   </metadata>

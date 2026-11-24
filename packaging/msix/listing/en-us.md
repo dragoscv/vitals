@@ -51,29 +51,23 @@ AND MORE
 
 Honest numbers: when something cannot be measured, Vitals shows a dash, never a made-up zero.
 
-Private by design: no ads, no telemetry, no analytics, and no account needed. Nothing leaves your computer unless you turn on remote access; the only two other connections, the AI agents page signing in to your own Kodwen account and the Health page reading from a vmui server you run yourself, are off until you enable them.
+Private by design: no ads, no telemetry, no analytics, and no account needed. Nothing leaves your computer unless you turn on remote access; the only two other connections, the AI agents page signing in to your own Codwen account and the Health page reading from a vmui server you run yourself, are off until you enable them.
 
 Free and open source (MIT). Available in English and Romanian.
 
 ## What's new in this version (≤ 1500 characters)
 
-What's new in 1.3.1
+What's new in 1.4.0
 
+• Kodwen is now Codwen: the AI agents page signs in to your own Codwen account at auth.codwen.com and reads your sessions from ai.codwen.com. Every mention of the product follows the new name, and a key saved by an earlier version is moved across the first time it is used, so nobody is signed out by the update
+
+New in 1.3.1:
 • Home Assistant: the MQTT integration now creates the readings it announces. In 1.3.0 Home Assistant rejected every announcement, so nothing appeared; availability now travels with each reading, so a PC that goes away shows as unavailable instead of a stale number
 • A reading the hardware cannot report no longer arrives as a zero: graphics memory and temperature, a battery, disk activity and processor counts the machine cannot measure now stay absent, on every screen
 
 New in 1.3.0:
-• Kodwen: the AI agents page is now the Kodwen page and signs in to ai.kodwen.com. A key saved by an earlier version is moved across the first time it is used, so nobody is signed out by the update
-• The AI page shows what each session actually used — input, output, cached and reasoning tokens, the number of requests, the cost and the speed — and says plainly when a client records no usage
+• AI agents page: sign in to your own account to see the agents running on your other computers. The page shows what each session actually used — input, output, cached and reasoning tokens, the number of requests, the cost and the speed — and says plainly when a client records no usage
 • Health (opt-in): connect a vmui server you run yourself and read your own health and nutrition summary. Held in memory only, never written to disk, and the page stays hidden until you connect it
-
-New in 1.2.0:
-• Vitals for Mac: the desktop app now runs on macOS 13 or later (Apple silicon and Intel), signed and notarised by Apple, and an iPhone app watches your PCs and Macs on your network
-• Memory figures only Windows has show a dash on other systems instead of a zero
-
-New in 1.1.1:
-• Live lists stay still: on Performance, Thermals, the Dashboard and the AI page a reading that comes and goes keeps its place and shows a dash while missing, and cards and rows re-sort every few seconds instead of every update. Nothing moves under the pointer
-• Keeps the version in step with the phone, watch and TV apps (the watch app now fits round watches)
 
 ## Features (up to 20, ≤ 200 characters each)
 
@@ -154,4 +148,4 @@ Vitals is a Win32 system monitor and task manager built with Tauri. It needs ful
 
 ## Notes for certification
 
-Vitals runs as a normal desktop app. No account is needed for any feature except the optional AI agents page, where the user may sign in to their own Kodwen account. Remote access (a LAN server for the phone and TV views) is off by default and only starts when the user turns it on in Settings > Remote access; while it is off, only a loopback-only API on 127.0.0.1 is open. The self-updater, the Task Manager replacement and the optional sensors service (driver) are disabled in the Store build. Nothing changes a Windows setting without the user's action: actions that need administrator rights ask through UAC, once, for that action only, and the irreversible ones (emptying the Recycle Bin, removing the previous Windows installation, turning hibernation off) need an extra tick first. The lag watchdog only offers actions in a notification; it never ends a process on its own and can be turned off in Settings > Watchdog. CPU load on the taskbar button can be turned off in Settings.
+Vitals runs as a normal desktop app. No account is needed for any feature except the optional AI agents page, where the user may sign in to their own Codwen account. Remote access (a LAN server for the phone and TV views) is off by default and only starts when the user turns it on in Settings > Remote access; while it is off, only a loopback-only API on 127.0.0.1 is open. The self-updater, the Task Manager replacement and the optional sensors service (driver) are disabled in the Store build. Nothing changes a Windows setting without the user's action: actions that need administrator rights ask through UAC, once, for that action only, and the irreversible ones (emptying the Recycle Bin, removing the previous Windows installation, turning hibernation off) need an extra tick first. The lag watchdog only offers actions in a notification; it never ends a process on its own and can be turned off in Settings > Watchdog. CPU load on the taskbar button can be turned off in Settings.
