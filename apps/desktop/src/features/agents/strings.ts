@@ -329,6 +329,7 @@ const en = {
       title: 'No agent process is running',
       body: 'Nothing here belongs to agentq or to a recognised AI client at the moment.',
     },
+    footnoteLabel: 'About the figures in this section',
     footnote:
       'Folded from the same process table as the Processes screen. A dash means the machine does not report that figure per process — Windows has no per-process network counters without a kernel trace, and a GPU driver may not report per-process use at all.',
     work: {
@@ -699,6 +700,7 @@ const ro = {
       title: 'Niciun proces de agent nu rulează',
       body: 'În acest moment nimic de aici nu aparține de agentq sau de un client AI recunoscut.',
     },
+    footnoteLabel: 'Despre cifrele din această secțiune',
     footnote:
       'Calculate din același tablou de procese ca pagina Processes. O liniuță înseamnă că sistemul nu raportează cifra respectivă per proces — Windows nu are contoare de rețea per proces fără o urmărire la nivel de kernel, iar driverul video poate să nu raporteze deloc consumul per proces.',
     work: {

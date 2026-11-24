@@ -105,6 +105,41 @@ describe('AgentsScreen', () => {
     view.unmount();
   });
 
+  it('names the build section in a heading above its card, as the other sections do', async () => {
+    // The card's title used to be its first line, inside the accent surface, so
+    // the one section on the page without a heading above its surface read as a
+    // stray panel between the sections instead of as one of them.
+    const src = source(
+      makeSnapshot({
+        machine: {
+          cap: 2,
+          min: 1,
+          max: 4,
+          cpu: 12.5,
+          freeRamGb: 20,
+          freeCommitGb: 30,
+          why: 'two cores are idle',
+          atMs: NOW,
+        },
+      }),
+    );
+    const view = render(<AgentsScreen source={src} />);
+    await screen.findByText('Build slots on this machine');
+
+    const heading = document.getElementById('machine-heading');
+    expect(heading?.tagName).toBe('H3');
+    const section = heading?.closest('section') ?? null;
+    expect(section).not.toBeNull();
+    // The accent surface stays; it just no longer carries the name, so the
+    // boundary and the title are read the same way as everywhere else.
+    const card = section?.querySelector('[class*="accent-subtle"]') ?? null;
+    expect(card).not.toBeNull();
+    expect(card?.textContent ?? '').not.toContain('Build slots on this machine');
+    // One name for the section, not a heading plus a copy inside the card.
+    expect(screen.getAllByText('Build slots on this machine')).toHaveLength(1);
+    view.unmount();
+  });
+
   it('session cards keep their places when only last activity reorders the pushed list', async () => {
     const a = makeSession({ id: 'a', title: 'Alpha task' });
     const b = makeSession({ id: 'b', title: 'Bravo task' });

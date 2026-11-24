@@ -4,7 +4,7 @@
  * zero, and a tool that owns no process gets no row.
  */
 
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { i18n, initI18n } from '@vitals/i18n';
@@ -55,6 +55,25 @@ describe('ResourcesPanel', () => {
     );
     expect(screen.getByText('No agent process is running')).toBeTruthy();
     expect(values(document.body)).toHaveLength(0);
+  });
+
+  it('keeps the dash explanation behind the (i) beside the title, not under the cards', () => {
+    render(<ResourcesPanel usage={makeUsageSnapshot()} now={Date.now()} />);
+    const label = 'About the figures in this section';
+    const heading = document.getElementById('resources-in-use-heading');
+    expect(heading).not.toBeNull();
+    // The heading is what names the section (`aria-labelledby`), so the button
+    // must not be nested inside it, or the section's name becomes the label of
+    // a control.
+    expect(heading?.textContent ?? '').not.toContain(label);
+    const section = heading?.closest('section') ?? null;
+    expect(section?.textContent ?? '').not.toContain('Folded from the same process table');
+
+    const info = screen.getByRole('button', { name: label });
+    expect(info.getAttribute('aria-expanded')).toBe('false');
+    fireEvent.click(info);
+    expect(info.getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByText(/Folded from the same process table/)).toBeTruthy();
   });
 
   it('lists agentq first and then the clients, with the process count', () => {

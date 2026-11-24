@@ -175,6 +175,58 @@ CSV records the state.
 
 ## Verification log
 
+### 2026-11-25 — S26-08: the dash explanation moves behind the title, and the build card is named like the others
+
+Two things the owner saw by reading the page.
+
+**The explanation under the cards.** _Resources in use_ ended with a paragraph
+saying what a dash means, which is the kind of text a person reads once and then
+has to look past on every visit. It now opens from a small (i) immediately after
+the section title, and the surface keeps only the figures.
+
+It is an `InfoPopover` and not a `Tooltip`: a tooltip is unreachable on touch and
+disappears the moment the pointer moves, and this is a paragraph read on purpose
+rather than a label for a control. The (i) sits **beside** the heading rather than
+inside it because the section is named by `aria-labelledby`, which takes the
+heading's text content — a button nested in the heading would rename the section
+to "Resources in use About the figures in this section".
+
+**The build card.** It was the one section on the page that carried its name
+inside its own coloured surface as its first line, so it read as a stray panel
+between the named sections instead of as one of them. It is now a `<section>` with
+an `<h3>` above the accent box — the same boundary every other section draws —
+rather than the box being decorated differently, so the page has one rule for
+naming a section instead of two.
+
+### Verification
+
+- Read out of the live DOM of the running dev window (`http://localhost:5273/`)
+  over the WebView2 DevTools protocol, not from a screenshot: the window sits behind
+  the editor that drives the agent, so a capture of it was not obtainable. The
+  accessible structure is the measurement.
+  - `#machine-heading` is an `H3` "Build slots on this machine" at y=456 x=248, its
+    section carries `aria-labelledby="machine-heading"`, and the accent box inside
+    that section starts at y=484 (height 62) with the title no longer in its text —
+    the heading is above the surface, not in it.
+  - The info button is a `button` with `aria-label` "About the figures in this
+    section" at x=448 y=264, immediately right of the heading at x=248, and it is
+    not inside the heading's text.
+  - The section contains the dash explanation under no condition. Clicking the
+    button set `aria-expanded` to `true`, and the paragraph then existed as the only
+    copy in the document — i.e. inside the popover.
+- Both new tests were mutation-tested and failed exactly on the change they guard:
+  putting the footnote paragraph back under the cards (`ResourcesPanel.test.tsx:70`)
+  and moving the title back inside the accent box (`AgentsScreen.test.tsx:130`).
+  Both mutations were reverted.
+- Traps found and recorded rather than hidden: a page reload that does not bypass
+  the HTTP cache keeps the previously served module for `strings.ts`, so a key
+  added a minute earlier still renders as its own name and looks exactly like a bug
+  in the new code (the probe force-reloads with `ignoreCache`), and an occluded
+  window cannot be captured from this environment at all.
+- typecheck exit 0; desktop vitest 139 files / 1461 tests passed (45 of them in the
+  agents feature); eslint exit 0; prettier reports the tree formatted; `check-drift`
+  0 failures, 0 warnings.
+
 ### 2026-11-25 — S26-06: the build cards sit with the build section, and what agentq runs is the side column
 
 The previous move changed the order of the sections but not which cards belong to

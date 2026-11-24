@@ -85,43 +85,52 @@ export function MachineCard({ snapshot }: { readonly snapshot: AgentsSnapshot })
   if (mc === null) return null;
   const fmt = (v: number | null, unit: string) => (v === null ? '—' : `${v.toFixed(0)} ${unit}`);
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--color-accent-border)] bg-[var(--color-accent-subtle)] p-3">
-      <div>
-        <p className="text-sm font-semibold">{t('machine.title')}</p>
-        {mc.min !== null && mc.max !== null && (
-          <p className="text-2xs text-[var(--color-fg-muted)]">
-            {t('machine.adaptive', { min: mc.min, max: mc.max })}
-          </p>
-        )}
-        {mc.why !== null && (
-          <p className="text-2xs text-[var(--color-fg-subtle)]">
-            {t('machine.why', { why: mc.why })}
-          </p>
-        )}
+    // The title is a heading above the card, not the card's first line: every
+    // other section on this page names itself in an h3 and then draws its
+    // surface, and this one alone put the name inside a coloured box, so it
+    // read as a stray panel between the sections rather than as one of them
+    // (S26-08).
+    <section aria-labelledby="machine-heading" className="flex flex-col gap-2">
+      <h3 id="machine-heading" className="text-sm font-semibold">
+        {t('machine.title')}
+      </h3>
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--color-accent-border)] bg-[var(--color-accent-subtle)] p-3">
+        <div>
+          {mc.min !== null && mc.max !== null && (
+            <p className="text-2xs text-[var(--color-fg-muted)]">
+              {t('machine.adaptive', { min: mc.min, max: mc.max })}
+            </p>
+          )}
+          {mc.why !== null && (
+            <p className="text-2xs text-[var(--color-fg-subtle)]">
+              {t('machine.why', { why: mc.why })}
+            </p>
+          )}
+        </div>
+        <m.span
+          key={mc.cap}
+          initial={{ scale: 1.4, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          className="text-3xl font-bold text-[var(--color-accent)] tabular-nums"
+        >
+          {mc.cap}
+        </m.span>
+        <dl className="flex gap-4 text-2xs">
+          <div>
+            <dt className="text-[var(--color-fg-muted)]">{t('machine.cpu')}</dt>
+            <dd className="font-medium">{fmt(mc.cpu, '%')}</dd>
+          </div>
+          <div>
+            <dt className="text-[var(--color-fg-muted)]">{t('machine.ram')}</dt>
+            <dd className="font-medium">{fmt(mc.freeRamGb, 'GB')}</dd>
+          </div>
+          <div>
+            <dt className="text-[var(--color-fg-muted)]">{t('machine.commit')}</dt>
+            <dd className="font-medium">{fmt(mc.freeCommitGb, 'GB')}</dd>
+          </div>
+        </dl>
       </div>
-      <m.span
-        key={mc.cap}
-        initial={{ scale: 1.4, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        className="text-3xl font-bold text-[var(--color-accent)] tabular-nums"
-      >
-        {mc.cap}
-      </m.span>
-      <dl className="flex gap-4 text-2xs">
-        <div>
-          <dt className="text-[var(--color-fg-muted)]">{t('machine.cpu')}</dt>
-          <dd className="font-medium">{fmt(mc.cpu, '%')}</dd>
-        </div>
-        <div>
-          <dt className="text-[var(--color-fg-muted)]">{t('machine.ram')}</dt>
-          <dd className="font-medium">{fmt(mc.freeRamGb, 'GB')}</dd>
-        </div>
-        <div>
-          <dt className="text-[var(--color-fg-muted)]">{t('machine.commit')}</dt>
-          <dd className="font-medium">{fmt(mc.freeCommitGb, 'GB')}</dd>
-        </div>
-      </dl>
-    </div>
+    </section>
   );
 }
 

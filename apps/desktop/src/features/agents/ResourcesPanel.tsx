@@ -10,7 +10,10 @@
  * machine whose driver reports nothing. `formatThroughput(null)` renders an em
  * dash; printing `0 B/s` instead would state, in the same typeface as the real
  * numbers, that the agent moved no bytes — a different and false claim. The
- * footnote under the list says which figures are unavailable and why.
+ * (i) beside the section's title says which figures are unavailable and why.
+ * That explanation is an `InfoPopover` rather than a `Tooltip` because it is a
+ * paragraph read on purpose: a tooltip is unreachable on touch and disappears
+ * the moment the pointer moves.
  *
  * One row per tool, and a tool that owns no process gets no row: "not running"
  * and "running, using nothing" are different facts.
@@ -21,7 +24,14 @@ import { AnimatePresence } from 'motion/react';
 import { useTranslation } from 'react-i18next';
 
 import type { AgentqWorkKind, AgentqWorkUsage, AgentUsageSnapshot } from '@vitals/protocol';
-import { EmptyState, cn, formatBytes, formatPercent, formatThroughput } from '@vitals/ui';
+import {
+  EmptyState,
+  InfoPopover,
+  cn,
+  formatBytes,
+  formatPercent,
+  formatThroughput,
+} from '@vitals/ui';
 
 import { repoName, since, usageRows, usageWork, workDetail, type UsageRow } from './model';
 import { UsageMark } from './parts';
@@ -65,14 +75,26 @@ export function ResourcesInUse({
   }
   return (
     <section aria-labelledby="resources-in-use-heading" className="flex flex-col gap-2">
-      <h3 id="resources-in-use-heading" className="flex items-baseline gap-2 text-sm font-semibold">
-        {t('usage.title')}
-        {usage !== null && (
-          <span className="text-2xs font-normal text-[var(--color-fg-muted)]">
-            {t('usage.taken', { ago: since(usage.takenAtMs, now) })}
-          </span>
-        )}
-      </h3>
+      {/* The (i) sits beside the heading rather than inside it: `aria-labelledby`
+          takes the heading's text content as the section's name, so a button
+          nested in it would rename the section to "Resources in use About the
+          figures". */}
+      <div className="flex items-center gap-1.5">
+        <h3
+          id="resources-in-use-heading"
+          className="flex items-baseline gap-2 text-sm font-semibold"
+        >
+          {t('usage.title')}
+          {usage !== null && (
+            <span className="text-2xs font-normal text-[var(--color-fg-muted)]">
+              {t('usage.taken', { ago: since(usage.takenAtMs, now) })}
+            </span>
+          )}
+        </h3>
+        <InfoPopover label={t('usage.footnoteLabel')} align="start">
+          {t('usage.footnote')}
+        </InfoPopover>
+      </div>
       <ul className="grid [grid-template-columns:repeat(auto-fill,minmax(21rem,1fr))] gap-2">
         <AnimatePresence initial={false}>
           {rows.map((row) => (
@@ -80,7 +102,6 @@ export function ResourcesInUse({
           ))}
         </AnimatePresence>
       </ul>
-      <p className="text-2xs text-[var(--color-fg-muted)]">{t('usage.footnote')}</p>
     </section>
   );
 }
