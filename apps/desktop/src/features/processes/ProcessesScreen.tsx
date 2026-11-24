@@ -37,13 +37,20 @@ import { buildRows, collectSubtree, type KindFilter, type ProcessRow } from './m
 import { tauriIconStore, type IconStore } from './icons';
 import { createTrendStore, powerLevel, powerScore } from './power';
 import { columnTotals } from './totals';
+import { REASON_KEYS } from '../../lib/capabilityText';
 import { ProcessDetails } from './ProcessDetails';
 import { ProcessTable } from './ProcessTable';
 import { ProcessToolbar } from './ProcessToolbar';
 import { RiskDialog, type RiskAction, type RiskRequest } from './RiskDialog';
 import { PROCESSES_NS } from './strings';
 import { useHostFacts, type HostFactsReader } from './useHostFacts';
-import { firstUnavailableReason, runsOn, supports, supportsAny } from '../../shell/platform';
+import {
+  firstUnavailableReason,
+  runsOn,
+  supports,
+  supportsAny,
+  unavailableReason,
+} from '../../shell/platform';
 import {
   createTauriSnapshotSource,
   NO_SAMPLER,
@@ -588,6 +595,39 @@ export function ProcessesScreen({
     ],
   );
 
+  // The toolbar's End task button acts on the selected row, through the same
+  // plan-then-confirm path as the row menu rather than a second route to the
+  // command. The focused row wins when it is part of the selection (a plain
+  // click sets both); otherwise the first selected row in display order stands
+  // in, so a shift-range or a ctrl-click leaves a live control instead of a
+  // dead one. Only rows actually on screen qualify — a hidden row under a
+  // collapsed parent is not something the button can aim at.
+  const endTaskRow = useMemo(() => {
+    if (selected.size === 0) return null;
+    if (focusedId !== null) {
+      const focused = rows.find((row) => row.id === focusedId);
+      if (focused !== undefined && selected.has(focused.id)) return focused;
+    }
+    return rows.find((row) => selected.has(row.id)) ?? null;
+  }, [selected, focusedId, rows]);
+  const canEndTask = supports(facts.capabilities, 'terminateProcess');
+  const endTaskReason = canEndTask
+    ? null
+    : unavailableReason(facts.capabilities, 'terminateProcess');
+  // Say why the control is inert: a host that cannot end processes and an
+  // empty selection are different facts, and only one of them is fixable by
+  // the user.
+  const endTaskHint =
+    endTaskReason !== null
+      ? t(REASON_KEYS[endTaskReason])
+      : endTaskRow === null
+        ? tp('toolbar.selectHint')
+        : undefined;
+  const onEndTask = useCallback(() => {
+    if (endTaskRow === null) return;
+    void beginAction('terminate', endTaskRow);
+  }, [beginAction, endTaskRow]);
+
   const menuProps = useCallback(
     (row: ProcessRow) => ({
       process: row.process,
@@ -804,6 +844,9 @@ export function ProcessesScreen({
         exportColumns={exportColumns}
         showDetails={preferences.showDetails}
         onShowDetailsChange={(showDetails) => setPreferences((c) => ({ ...c, showDetails }))}
+        onEndTask={onEndTask}
+        endTaskEnabled={endTaskRow !== null && canEndTask}
+        {...(endTaskHint !== undefined && { endTaskHint })}
       />
 
       {failure !== null && (

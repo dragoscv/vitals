@@ -108,6 +108,20 @@ export interface ReconcileOptions {
    * point, which is exactly the movement being prevented.
    */
   readonly frozen?: boolean;
+
+  /**
+   * Orders rows that have no previous position relative to one another.
+   *
+   * `compare` is a deadband comparator, so it reports "equal" for any two
+   * values closer together than the band — on a numeric column that is most
+   * pairs at once. A row entering the list for the first time (a subtree just
+   * expanded, a process that has just started) therefore has no rule deciding
+   * where it sits among its tied new siblings, and keeps the order the feed
+   * handed them in, which the user reads as the sort having been ignored.
+   * This is consulted only for rows being placed for the first time; an
+   * established row must keep its place or the hysteresis does not exist.
+   */
+  readonly tiebreak?: (a: string, b: string) => number;
 }
 
 /**
@@ -139,10 +153,24 @@ export function reconcileOrder(
     if (!seen.has(key)) added.push(key);
   }
 
+  // New rows are placed among themselves before they are merged in, so their
+  // relative order is decided by `compare` — and, where it reports a tie, by
+  // `tiebreak` — rather than by whatever order the feed happened to list them
+  // in. `compare` alone leaves every pair inside the deadband at the mercy of
+  // that order, which is the whole reason an expanded subtree looked random.
+  const place = options.tiebreak;
+  if (place !== undefined) {
+    added.sort((a, b) => {
+      const result = compare(a, b);
+      return result !== 0 ? result : place(a, b);
+    });
+  } else {
+    added.sort(compare);
+  }
+
   if (options.frozen === true) {
     // Appending is the only placement that moves nothing. New rows land at
     // the bottom and slot into place on the next unfrozen tick.
-    added.sort(compare);
     return surviving.concat(added);
   }
 

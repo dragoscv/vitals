@@ -9,7 +9,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { AgentqAction, AgentsSnapshot } from '@vitals/protocol';
 
-import { makeSnapshot } from './fixtures.test-utils';
+import { makeSnapshot, makeUsageSnapshot } from './fixtures.test-utils';
 import { useAgents, type AgentsSource } from './useAgents';
 
 /** A document whose visibility the test controls (see routes.test.tsx). */
@@ -32,6 +32,7 @@ function source(first: AgentsSnapshot): AgentsSource {
     unsubscribe: vi.fn(async () => undefined),
     listen: vi.fn(async () => () => undefined),
     run: vi.fn(async (_a: AgentqAction) => ({ ok: true, code: 0, output: '' })),
+    usage: vi.fn(async () => makeUsageSnapshot()),
   };
 }
 

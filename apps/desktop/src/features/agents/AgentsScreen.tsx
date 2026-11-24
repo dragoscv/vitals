@@ -1,6 +1,7 @@
 /**
  * The AI page (ADR-0039): which AI agents are working on this machine, who
- * started them, what they hold and wait for in agentq, and what it costs.
+ * started them, what they hold and wait for in agentq, what it costs, and
+ * what cpu, memory, disk, network and gpu they are actually using.
  *
  * Data arrives as a pushed snapshot every ~2 s while the page is visible
  * (useAgents). Tabs switch with a short cross-fade; within a tab, cards enter
@@ -32,9 +33,10 @@ import {
 import { CloudPanel, InsightsPanel, JobsPanel, JournalPanel } from './ActivityPanels';
 import { ActionsPanel } from './ActionsPanel';
 import { CloudAccount } from './CloudAccount';
-import { agentsTabs, headline, since, type AgentsTab } from './model';
+import { agentsTabs, headline, since, usageRows, type AgentsTab } from './model';
 import { Kpi } from './parts';
 import { QueuesPanel, WorktreesPanel, type RequestAction } from './QueuesPanel';
+import { ResourcesPanel } from './ResourcesPanel';
 import { SessionsPanel } from './SessionsPanel';
 import { AGENTS_NS } from './strings';
 import { NO_HOST, useAgents, type AgentsSource } from './useAgents';
@@ -124,6 +126,10 @@ export function AgentsScreen({ source }: AgentsScreenProps): React.JSX.Element {
   // nothing it could run, so the tab is not offered rather than offered empty.
   const tabs = s.agentqInstalled ? agentsTabs : agentsTabs.filter((id) => id !== 'actions');
   const h = headline(s);
+  // The badge on the resources tab is how many tools are using this machine:
+  // the panes below are keyed off the same fold, so it cannot disagree with
+  // what the tab shows.
+  const usingCount = usageRows(state.usage).length;
   const now = state.now;
   const machineCap =
     s.machine?.cap ?? s.resources.find((r) => r.kind === 'machine')?.capacity ?? null;
@@ -212,6 +218,7 @@ export function AgentsScreen({ source }: AgentsScreenProps): React.JSX.Element {
             <TabsTrigger key={id} value={id}>
               {t(`tab.${id}`)}
               {id === 'sessions' && <Count n={s.sessions.length} />}
+              {id === 'resources' && usingCount > 0 && <Count n={usingCount} />}
               {id === 'queues' && <Count n={h.queued} />}
               {id === 'jobs' && h.suspectJobs > 0 && <Count n={h.suspectJobs} warn />}
               {id === 'cloud' && s.cloudDown.length > 0 && <Count n={s.cloudDown.length} warn />}
@@ -230,8 +237,12 @@ export function AgentsScreen({ source }: AgentsScreenProps): React.JSX.Element {
             >
               {/* Radix mounts only the active panel, so hidden tabs cost nothing. */}
               <TabsContent value="overview" className="flex flex-col gap-4">
+                <ResourcesPanel usage={state.usage} now={now} />
                 <SessionsPanel snapshot={s} now={now} limit="live" />
                 <QueuesPanel snapshot={s} now={now} onAction={request} />
+              </TabsContent>
+              <TabsContent value="resources">
+                <ResourcesPanel usage={state.usage} now={now} />
               </TabsContent>
               <TabsContent value="sessions">
                 <SessionsPanel snapshot={s} now={now} />

@@ -1,6 +1,49 @@
-import type { AgentSession, AgentqTicket, AgentsSnapshot } from '@vitals/protocol';
+import type {
+  AgentSession,
+  AgentUsage,
+  AgentUsageKind,
+  AgentUsageSnapshot,
+  AgentqTicket,
+  AgentsSnapshot,
+} from '@vitals/protocol';
 
 export const NOW = Date.parse('2026-10-17T03:30:00Z');
+
+/**
+ * One tool's resource row.
+ *
+ * Network and gpu default to `null` because that is what the backend sends on
+ * Windows, and a fixture that quietly filled them in would let a test pass
+ * while the shipped panel printed `0 B/s`.
+ */
+export function makeUsage(
+  kind: AgentUsageKind = 'agentq',
+  over: Partial<AgentUsage> = {},
+): AgentUsage {
+  return {
+    kind,
+    processes: 3,
+    cpu: 42.5,
+    memoryPrivate: 512 * 1024 * 1024,
+    memoryWorkingSet: 640 * 1024 * 1024,
+    diskRead: 1_048_576,
+    diskWrite: 2_097_152,
+    netRx: null,
+    netTx: null,
+    gpu: null,
+    gpuMemory: null,
+    ...over,
+  };
+}
+
+export function makeUsageSnapshot(over: Partial<AgentUsageSnapshot> = {}): AgentUsageSnapshot {
+  return {
+    takenAtMs: NOW - 1_000,
+    agentq: makeUsage('agentq'),
+    clients: [makeUsage('claude', { cpu: 10 }), makeUsage('vscodeCopilot', { cpu: 5 })],
+    ...over,
+  };
+}
 
 export function makeSession(over: Partial<AgentSession> = {}): AgentSession {
   return {

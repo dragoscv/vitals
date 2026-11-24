@@ -953,3 +953,62 @@ describe('columns', () => {
     await waitFor(() => expect(Number(handle.getAttribute('aria-valuenow'))).toBe(before));
   });
 });
+
+describe('the End task button', () => {
+  it('is on screen but inert until a process is selected, then goes through the plan-and-confirm path', async () => {
+    const actions = stubActions();
+    mountScreen(actions);
+    await screen.findByRole('treegrid');
+
+    // Present from the start: an action that only exists in a context menu is
+    // one a user has to already know about.
+    const button = screen.getByRole('button', { name: 'End task' });
+    expect(button.hasAttribute('disabled')).toBe(true);
+
+    fireEvent.pointerDown(await screen.findByTestId('process-row-300'));
+    await waitFor(() => expect(button.hasAttribute('disabled')).toBe(false));
+
+    fireEvent.click(button);
+    // Planning happens on the press; nothing is ended until the dialog is
+    // accepted, exactly as from the row menu.
+    await screen.findByTestId('risk-dialog');
+    expect(actions.planTerminate).toHaveBeenCalledOnce();
+    expect(actions.terminate).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByTestId('risk-confirm'));
+    await waitFor(() => expect(actions.terminate).toHaveBeenCalledOnce());
+  });
+
+  it('stays disabled where the host cannot end a process, and says why', async () => {
+    const source = createManualSnapshotSource({
+      ...INITIAL_SNAPSHOT,
+      pending: false,
+      processes: makeMap([makeProcess({ pid: 300, name: 'chrome.exe', kind: 'app' })]),
+    });
+    render(
+      <ProcessesScreen
+        source={source}
+        actions={stubActions()}
+        storage={memoryStorage()}
+        hostFacts={async () => ({
+          host: null,
+          capabilities: {
+            platform: 'macos',
+            available: [],
+            unavailable: [['terminateProcess', 'appSandbox']],
+            diskCounterSource: null,
+          },
+        })}
+      />,
+    );
+    await screen.findByRole('treegrid');
+
+    // Selecting a row must not enable an action the backend cannot perform.
+    const row = await screen.findByTestId('process-row-300');
+    fireEvent.pointerDown(row);
+    await waitFor(() => expect(row.getAttribute('aria-selected')).toBe('true'));
+    const button = screen.getByRole('button', { name: 'End task' });
+    await waitFor(() => expect(button.hasAttribute('disabled')).toBe(true));
+    expect(button.getAttribute('title')).toBeTruthy();
+  });
+});

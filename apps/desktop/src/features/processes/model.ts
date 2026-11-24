@@ -188,10 +188,16 @@ export function matchesKind(kind: ProcessKind, filter: KindFilter): boolean {
  *
  * Matching on the PID as well as the name because "which process is 4242?" is
  * a question people arrive with, having read the number out of a crash log.
+ *
+ * The query is trimmed first: text pasted out of a log or typed with a stray
+ * trailing space would otherwise be compared verbatim against every field and
+ * match nothing, so the table went empty for a query the user could see was
+ * right. A query that is only whitespace is treated as empty rather than as a
+ * needle that matches no process.
  */
 export function matchesQuery(process: Process, query: string): boolean {
-  if (query === '') return true;
-  const needle = query.toLowerCase();
+  const needle = query.trim().toLowerCase();
+  if (needle === '') return true;
   if (matchesProcessName(process, needle)) return true;
   if (String(process.key.pid).includes(needle)) return true;
   const user = process.user;

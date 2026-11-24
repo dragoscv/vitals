@@ -24,4 +24,23 @@ describe('agents translations', () => {
     for (const s of ['working', 'waiting', 'idle', 'ended']) expect(paths).toContain(`state.${s}`);
     for (const l of ['alive', 'stale', 'dead', 'unknown']) expect(paths).toContain(`liveness.${l}`);
   });
+
+  it('names every resource row the backend can emit', () => {
+    const paths = new Set(keyPaths(bundles.en));
+    // One label per `AgentUsageKind` variant, in the order the Rust enum
+    // declares them: an unlabelled kind renders its own key to the user.
+    for (const k of [
+      'agentq',
+      'claude',
+      'copilotCli',
+      'vscodeCopilot',
+      'codex',
+      'hermes',
+      'openClaw',
+      'kodwen',
+      'cli',
+    ]) {
+      expect(paths).toContain(`usage.kind.${k}`);
+    }
+  });
 });

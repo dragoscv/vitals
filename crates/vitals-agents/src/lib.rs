@@ -14,6 +14,7 @@ pub mod cloud;
 pub mod journal;
 pub mod sessions;
 pub mod time;
+pub mod usage;
 
 use std::path::PathBuf;
 

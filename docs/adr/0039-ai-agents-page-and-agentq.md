@@ -102,6 +102,28 @@ on the machine showed it.
 
 6. **Agent ↔ process attribution** uses command lines read on demand and
    cached per `ProcessKey`, so CPU and memory can be summed per agent tree.
+
+   _Amended 2026-11-24 (S26-03):_ the page gains a **Resources** section, and
+   the attribution rule is now a decision rather than an implementation note. A
+   process is credited to a tool by a **recorded identity, never by its
+   executable name alone**: agentq by its own `running`/`suspect` jobs in
+   `.codai/coord/jobs/*.json` (`pid` + `pidStart`), and each client by the
+   identity it recorded in `coord/agents/*.json` (`appPid`/`shellPid` plus
+   start time), with name rules (VS Code and its forks, Cursor, Claude,
+   Copilot, Codex, Hermes, Openclaw, Kodwen/Codwen/Codai) and a description
+   fallback used **only** when the description names the product. Shared
+   runtimes are **refused on purpose** — `node.exe`, `pwsh.exe`, `python`,
+   `git`, `cargo`, `deno`, `bun` — because `node.exe` hosts most npm CLIs _and_
+   every build script, so claiming it would put everything compiling on the
+   machine on an agent's bill. A start time is matched within 2 s, because
+   Windows recycles PIDs; a process is counted once, under its **nearest
+   claimed ancestor**; a tool with no process gets no row; and a series any
+   contributor cannot report is **`null`, never a partial sum** — the same rule
+   the rest of the page follows. Network and per-process VRAM stay `null`
+   everywhere, because Windows exposes no per-process network counter without
+   an elevated ETW kernel session and WDDM reports GPU utilisation but not
+   per-process VRAM.
+
 7. **Privacy.** Prompts are never read past the event type. Paths and titles
    go through the frame redaction when LAN redaction is on.
 

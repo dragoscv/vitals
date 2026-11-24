@@ -48,7 +48,7 @@ pub fn default_root() -> Option<PathBuf> {
     Some(PathBuf::from(home).join(".codai").join("coord"))
 }
 
-fn read_json(path: &Path) -> Option<Value> {
+pub(crate) fn read_json(path: &Path) -> Option<Value> {
     let text = fs::read_to_string(path).ok()?;
     // PowerShell 5 writes a BOM; serde_json refuses it.
     serde_json::from_str(text.trim_start_matches('\u{feff}')).ok()
@@ -80,7 +80,7 @@ fn read_json_cached(path: &Path, mtime: u64) -> Option<Value> {
     Some(v)
 }
 
-fn json_files(dir: &Path) -> Vec<PathBuf> {
+pub(crate) fn json_files(dir: &Path) -> Vec<PathBuf> {
     let Ok(rd) = fs::read_dir(dir) else {
         return Vec::new();
     };
@@ -93,14 +93,14 @@ fn json_files(dir: &Path) -> Vec<PathBuf> {
     v
 }
 
-fn s(v: &Value, k: &str) -> Option<String> {
+pub(crate) fn s(v: &Value, k: &str) -> Option<String> {
     match v.get(k)? {
         Value::String(x) if !x.is_empty() => Some(x.clone()),
         Value::Number(n) => Some(n.to_string()),
         _ => None,
     }
 }
-fn u(v: &Value, k: &str) -> Option<u64> {
+pub(crate) fn u(v: &Value, k: &str) -> Option<u64> {
     match v.get(k)? {
         Value::Number(n) => n.as_u64().or_else(|| n.as_f64().map(|f| f.max(0.0) as u64)),
         Value::String(x) => x.trim().parse().ok(),
@@ -117,10 +117,10 @@ fn f(v: &Value, k: &str) -> Option<f64> {
 fn b(v: &Value, k: &str) -> Option<bool> {
     v.get(k)?.as_bool()
 }
-fn t(v: &Value, k: &str) -> Option<u64> {
+pub(crate) fn t(v: &Value, k: &str) -> Option<u64> {
     v.get(k)?.as_str().and_then(parse_iso_ms)
 }
-fn pid32(v: &Value, k: &str) -> Option<u32> {
+pub(crate) fn pid32(v: &Value, k: &str) -> Option<u32> {
     u(v, k)
         .and_then(|p| u32::try_from(p).ok())
         .filter(|p| *p != 0)

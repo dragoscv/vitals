@@ -3,6 +3,9 @@
 // `@vitals/protocol` rather than from generated file paths.
 export type * from './core/AgentClient';
 export type * from './core/AgentSession';
+export type * from './core/AgentUsage';
+export type * from './core/AgentUsageKind';
+export type * from './core/AgentUsageSnapshot';
 export type * from './core/AgentqAction';
 export type * from './core/AgentqCaller';
 export type * from './core/AgentqJob';

@@ -16,6 +16,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::units::{Bytes, BytesPerSec, Percent};
+
 /// Everything the AI page renders, read in one pass.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
@@ -370,6 +372,113 @@ pub enum AgentClient {
     Other,
 }
 
+/// Which tool a running process is attributed to on the resources panel.
+///
+/// # Why this is not `AgentClient`
+///
+/// Two of the rows a reader needs have no session at all: agentq itself,
+/// which is not a client, and a CLI driven straight from a terminal, whose
+/// session agentq does not always record. Adding them to `AgentClient` would
+/// put variants into the session model that can never appear on a session.
+/// The two enums therefore stay separate, and `client` is the one that keeps
+/// `Other` — a session of unknown origin is worth listing, a *resource* row
+/// of unknown origin is not, because nobody can act on it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "ts", ts(export, export_to = "core/"))]
+#[serde(rename_all = "camelCase")]
+pub enum AgentUsageKind {
+    /// agentq's own work on this machine: the jobs it started and their
+    /// descendants (a build, a test run, a cloud gate).
+    Agentq,
+    /// Claude Desktop and the `claude` CLI.
+    Claude,
+    /// The `copilot` CLI.
+    CopilotCli,
+    /// The VS Code family — VS Code, VS Code Insiders, Cursor, `VSCodium` —
+    /// which is where GitHub Copilot Chat runs.
+    VscodeCopilot,
+    /// The `codex` CLI.
+    Codex,
+    /// Hermes.
+    Hermes,
+    /// `OpenClaw`.
+    OpenClaw,
+    /// The Kodwen CLI.
+    Kodwen,
+    /// A recognised AI tool that is none of the above: agentq knows a client
+    /// is running because it recorded the session, but the executable name
+    /// carries no brand to show.
+    Cli,
+}
+
+/// What one tool is using right now.
+///
+/// # `null` is not `0`
+///
+/// A measurement that does not exist is `null`, never `0`. Windows reports no
+/// per-process network counters without an ETW kernel session, so `netRx` and
+/// `netTx` are null for every row on that platform — rendering them as `0 B/s`
+/// would claim the agent moved no bytes, which is a different and false fact.
+/// The same applies to `gpu`/`gpuMemory` when the machine has no GPU or the
+/// driver reports nothing, and to the *sum*: if one contributor to a row was
+/// unmeasured, the row's total is null rather than the partial sum, because a
+/// partial total looks complete and is not.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(
+    feature = "ts",
+    ts(export, export_to = "core/", rename_all = "camelCase")
+)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentUsage {
+    pub kind: AgentUsageKind,
+    /// How many processes were attributed: the recorded ones plus every
+    /// descendant. A count of 1 with a large cpu is a single busy process;
+    /// a count of 40 is a build tree.
+    pub processes: u32,
+    /// Percent of one core-equivalent across all counted processes, summed
+    /// the same way the process list sums it (a 16-core machine can exceed
+    /// 100).
+    pub cpu: Percent,
+    /// Private bytes: the memory the tool asked for itself.
+    pub memory_private: Bytes,
+    /// Working set: the memory physically resident, which is what the person
+    /// feels when the machine runs out.
+    pub memory_working_set: Bytes,
+    pub disk_read: BytesPerSec,
+    pub disk_write: BytesPerSec,
+    /// Null when a contributor does not report network use (always, on
+    /// Windows today — see the type docs).
+    pub net_rx: Option<BytesPerSec>,
+    pub net_tx: Option<BytesPerSec>,
+    /// Null when a contributor reports no GPU time, or the machine has none.
+    pub gpu: Option<Percent>,
+    /// Null when a contributor reports no video memory.
+    pub gpu_memory: Option<Bytes>,
+}
+
+/// Every tool's resource use at one instant.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(
+    feature = "ts",
+    ts(export, export_to = "core/", rename_all = "camelCase")
+)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentUsageSnapshot {
+    /// When the process table this was folded from was sampled. A client
+    /// showing a stale number must be able to say so.
+    #[cfg_attr(feature = "ts", ts(type = "number"))]
+    pub taken_at_ms: u64,
+    /// agentq's own row, lifted out of `clients` because it is the one the
+    /// page always shows first and may show on its own.
+    pub agentq: Option<AgentUsage>,
+    /// One row per tool that owns at least one process, busiest first. A tool
+    /// with no process is absent, not present with zeroes.
+    pub clients: Vec<AgentUsage>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[cfg_attr(feature = "ts", ts(export, export_to = "core/"))]
@@ -650,5 +759,95 @@ mod action_wire_tests {
                 serde_json::from_str::<serde_json::Value>(json).unwrap()
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod usage_wire_tests {
+    use super::{AgentUsage, AgentUsageKind, AgentUsageSnapshot};
+    use crate::units::{Bytes, BytesPerSec, Percent};
+
+    fn row_with_nothing_measured() -> AgentUsage {
+        AgentUsage {
+            kind: AgentUsageKind::VscodeCopilot,
+            processes: 5,
+            cpu: Percent(12.5),
+            memory_private: Bytes(1_000),
+            memory_working_set: Bytes(2_000),
+            disk_read: BytesPerSec(3),
+            disk_write: BytesPerSec(4),
+            net_rx: None,
+            net_tx: None,
+            gpu: None,
+            gpu_memory: None,
+        }
+    }
+
+    /// The names the generated TypeScript binding uses are the names serde
+    /// writes. A field renamed on one side only is invisible to the compiler
+    /// and arrives in the webview as `undefined`, which the panel would render
+    /// as an em dash — a wrong measurement that looks like a missing one.
+    #[test]
+    fn a_usage_row_serialises_to_the_camel_case_names_the_binding_declares() {
+        let value = serde_json::to_value(row_with_nothing_measured()).expect("serialise");
+        assert_eq!(
+            value,
+            serde_json::json!({
+                "kind": "vscodeCopilot",
+                "processes": 5,
+                "cpu": 12.5,
+                "memoryPrivate": 1000,
+                "memoryWorkingSet": 2000,
+                "diskRead": 3,
+                "diskWrite": 4,
+                // `null` is the assertion that matters: an unmeasured series
+                // must never travel as `0`.
+                "netRx": null,
+                "netTx": null,
+                "gpu": null,
+                "gpuMemory": null,
+            })
+        );
+    }
+
+    /// Every variant's wire name, because the UI switches on the string it
+    /// receives and a renamed variant would fall through to the default arm.
+    #[test]
+    fn every_usage_kind_has_the_wire_name_the_binding_declares() {
+        let cases = [
+            (AgentUsageKind::Agentq, "\"agentq\""),
+            (AgentUsageKind::Claude, "\"claude\""),
+            (AgentUsageKind::CopilotCli, "\"copilotCli\""),
+            (AgentUsageKind::VscodeCopilot, "\"vscodeCopilot\""),
+            (AgentUsageKind::Codex, "\"codex\""),
+            (AgentUsageKind::Hermes, "\"hermes\""),
+            (AgentUsageKind::OpenClaw, "\"openClaw\""),
+            (AgentUsageKind::Kodwen, "\"kodwen\""),
+            (AgentUsageKind::Cli, "\"cli\""),
+        ];
+        for (kind, wire) in cases {
+            assert_eq!(serde_json::to_string(&kind).expect("serialise"), wire);
+            assert_eq!(
+                serde_json::from_str::<AgentUsageKind>(wire).expect("deserialise"),
+                kind
+            );
+        }
+    }
+
+    /// Absence survives a round trip: a snapshot with no agentq row and no
+    /// clients must come back as absent, not as an empty row of zeroes.
+    #[test]
+    fn a_snapshot_with_nothing_to_show_round_trips_as_absent() {
+        let empty = AgentUsageSnapshot {
+            taken_at_ms: 1_700_000_000_000,
+            agentq: None,
+            clients: Vec::new(),
+        };
+        let json = serde_json::to_string(&empty).expect("serialise");
+        assert!(json.contains(r#""agentq":null"#), "{json}");
+        assert_eq!(
+            serde_json::from_str::<AgentUsageSnapshot>(&json).expect("deserialise"),
+            empty
+        );
     }
 }

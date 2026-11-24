@@ -8,6 +8,8 @@
 
 import { useMemo, useRef } from 'react';
 
+import { displayName } from '@vitals/protocol';
+
 import { COLUMN_BY_ID, type ColumnId } from './columns';
 import { DEADBAND, sortValue, textValue, type ProcessRow } from './model';
 import { advanceSmoothing, deadbandCompare, reconcileOrder } from './ordering';
@@ -55,24 +57,40 @@ export function useStableOrder(input: StableOrderInput): readonly ProcessRow[] {
     const def = COLUMN_BY_ID.get(column);
     const byId = new Map(rows.map((row) => [row.id, row] as const));
 
-    // Changing the sort column is an explicit request to reorder. Carrying
-    // the old order forward would let hysteresis preserve a ranking the user
-    // just asked to replace, which reads as the click having done nothing.
-    if (previousColumn.current !== column) {
+    // Changing the sort column is an explicit request to reorder. Clearing
+    // the previous order discards the hysteresis the old column built, so the
+    // new ranking is derived from the values rather than carried forward from
+    // a rule that no longer describes what the user asked for.
+    const columnChanged = previousColumn.current !== column;
+    if (columnChanged) {
       previousOrder.current = [];
       smoothed.current.clear();
       previousColumn.current = column;
       sortedAt.current = Number.NEGATIVE_INFINITY;
     }
-    // Reversing the direction is a click too, and must answer at once.
-    if (previousDirection.current !== direction) {
+    // Reversing the direction is a click too, and must answer at once. The
+    // previous order is cleared as well: keeping it would let the stability
+    // rule hold rows where the *old* direction left them, which is exactly
+    // the "the click did nothing" symptom.
+    const directionChanged = previousDirection.current !== direction;
+    if (directionChanged) {
+      previousOrder.current = [];
       previousDirection.current = direction;
       sortedAt.current = Number.NEGATIVE_INFINITY;
     }
     const now = clock();
-    const resort = !frozen && now - sortedAt.current >= settleMs;
+    // An explicit request always answers now, even when `frozen` is true — and
+    // `frozen` is necessarily true at the moment of a header click, because
+    // the pointer is over the table. The freeze exists so a row cannot move
+    // under the pointer; it must not also swallow the click asking for a
+    // different order. Passive ticks keep the interval and the freeze.
+    const resort =
+      columnChanged || directionChanged || (!frozen && now - sortedAt.current >= settleMs);
     if (resort) sortedAt.current = now;
 
+    // Locale-aware and case-insensitive, so 'CPU' and 'cpu' are one process
+    // name to a person, and `numeric` so 'proc2' sorts before 'proc10'.
+    const collator = new Intl.Collator(locale, { sensitivity: 'base', numeric: true });
     let compare: (a: string, b: string) => number;
 
     if (def !== undefined && def.numeric) {
@@ -94,7 +112,6 @@ export function useStableOrder(input: StableOrderInput): readonly ProcessRow[] {
         return direction === 'desc' ? -result : result;
       };
     } else {
-      const collator = new Intl.Collator(locale, { sensitivity: 'base', numeric: true });
       compare = (a, b) => {
         const rowA = byId.get(a);
         const rowB = byId.get(b);
@@ -106,10 +123,24 @@ export function useStableOrder(input: StableOrderInput): readonly ProcessRow[] {
       };
     }
 
+    // A stable order for rows that have no previous position. On a numeric
+    // column the deadband makes most pairs "equal", so without this a subtree
+    // that has just been expanded comes out in the order the feed listed it,
+    // which reads as the sort having been ignored. Name, then pid, is stable
+    // and meaningful to a person, and independent of the feed's own ordering.
+    const tiebreak = (a: string, b: string): number => {
+      const rowA = byId.get(a);
+      const rowB = byId.get(b);
+      if (rowA === undefined || rowB === undefined) return 0;
+      const byName = collator.compare(displayName(rowA.process), displayName(rowB.process));
+      if (byName !== 0) return byName;
+      return rowA.process.key.pid - rowB.process.key.pid;
+    };
+
     // Siblings are ordered within their parent, never across the whole list:
     // sorting a tree flat would separate a child from its parent and the
     // indentation would describe a structure the row order contradicts.
-    const ordered = orderTree(rows, compare, previousOrder.current, !resort);
+    const ordered = orderTree(rows, compare, previousOrder.current, !resort, tiebreak);
     previousOrder.current = ordered.map((row) => row.id);
     return ordered;
   }, [rows, column, direction, frozen, locale, settleMs, clock]);
@@ -127,6 +158,7 @@ function orderTree(
   compare: (a: string, b: string) => number,
   previous: readonly string[],
   frozen: boolean,
+  tiebreak: (a: string, b: string) => number,
 ): readonly ProcessRow[] {
   if (rows.length === 0) return rows;
 
@@ -160,7 +192,10 @@ function orderTree(
       .filter((id) => previousRank.has(id))
       .sort((a, b) => (previousRank.get(a) as number) - (previousRank.get(b) as number));
 
-    const ordered = reconcileOrder(previousGroup, new Set(groupIds), compare, { frozen });
+    const ordered = reconcileOrder(previousGroup, new Set(groupIds), compare, {
+      frozen,
+      tiebreak,
+    });
 
     const flat: string[] = [];
     for (const id of ordered) {

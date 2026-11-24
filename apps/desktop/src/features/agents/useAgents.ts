@@ -19,9 +19,10 @@
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 
-import type { AgentqAction, AgentsSnapshot } from '@vitals/protocol';
+import type { AgentqAction, AgentUsageSnapshot, AgentsSnapshot, Process } from '@vitals/protocol';
 
 import { errorMessage } from '../../lib/commandError';
+import { latestMetrics, subscribeToMetrics } from '../../lib/metrics';
 import { hasTauriHost } from '../../shell/host';
 
 export const AGENTS_EVENT = 'vitals://agents';
@@ -33,6 +34,13 @@ export interface AgentsSource {
   unsubscribe(id: number): Promise<void>;
   listen(onSnapshot: (s: AgentsSnapshot) => void): Promise<() => void>;
   run(action: AgentqAction): Promise<AgentqActionResult>;
+  /**
+   * What agentq and the AI clients are using, folded from the given process
+   * table. The table is passed in because per-process cpu is a delta against
+   * the previous frame: the backend cannot enumerate it a second time without
+   * every figure starting at zero.
+   */
+  usage(processes: readonly Process[]): Promise<AgentUsageSnapshot>;
 }
 
 export interface AgentqActionResult {
@@ -59,10 +67,16 @@ export const tauriSource: AgentsSource = {
     const { invoke } = await import('@tauri-apps/api/core');
     return invoke<AgentqActionResult>('run_agentq_action', { action });
   },
+  async usage(processes) {
+    const { invoke } = await import('@tauri-apps/api/core');
+    return invoke<AgentUsageSnapshot>('get_agent_usage', { processes });
+  },
 };
 
 export interface AgentsState {
   readonly snapshot: AgentsSnapshot | null;
+  /** Resource use per tool, or `null` before the first measurement. */
+  readonly usage: AgentUsageSnapshot | null;
   readonly pending: boolean;
   readonly error: string | null;
   /** Wall clock, ticking once a second so durations count up between pushes. */
@@ -87,6 +101,7 @@ export function useAgents(source?: AgentsSource, doc: Document = document): Agen
   const src = source ?? tauriSource;
   const visible = useVisible(doc);
   const [snapshot, setSnapshot] = useState<AgentsSnapshot | null>(null);
+  const [usage, setUsage] = useState<AgentUsageSnapshot | null>(null);
   const [pending, setPending] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
@@ -142,7 +157,58 @@ export function useAgents(source?: AgentsSource, doc: Document = document): Agen
     };
   }, [injected, visible]);
 
+  // The process table lives in the session-wide metrics hub, which the
+  // dashboard and the Processes screen already keep installed. Subscribing
+  // here matters for the case where the AI page is the *first* screen of a
+  // launch: without a subscriber the hub would never start folding frames and
+  // there would be no table to fold resources from. `onSnapshot` does nothing
+  // — the fold is driven by the agents push below, so there is one timer per
+  // page, not two competing ones.
+  useEffect(() => {
+    // A browser build or a test has no sampler, so there is nothing to fold
+    // and the panel stays empty rather than showing a fabricated zero.
+    if (!hasTauriHost()) return undefined;
+    let alive = true;
+    let unlisten: (() => void) | null = null;
+    void subscribeToMetrics({ onSnapshot: () => undefined })
+      .then((u) => {
+        if (alive) unlisten = u;
+        else u();
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+      unlisten?.();
+    };
+  }, []);
+
+  // Recomputed on the page's own cadence — every pushed agents snapshot — so
+  // the numbers share one instant with the rest of the panel and there is no
+  // second interval to keep in step with it.
+  useEffect(() => {
+    if (snapshot === null) return undefined;
+    const table = latestMetrics();
+    const processes = table === null ? [] : [...table.processes.values()];
+    // On a real machine an empty table means the first frame has not arrived
+    // yet, and folding it would flash the panel empty. With no host there is
+    // no sampler at all — an injected source is the only source of truth, and
+    // it is asked even for an empty table.
+    if (processes.length === 0 && hasTauriHost()) return undefined;
+    let alive = true;
+    void srcRef.current
+      .usage(processes)
+      .then((next) => {
+        if (alive) setUsage(next);
+      })
+      // Resources are an extra on a page that is useful without them: a
+      // failure here must not blank the section the user came for.
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [snapshot]);
+
   const run = useCallback((action: AgentqAction) => srcRef.current.run(action), []);
 
-  return { snapshot, pending, error, now, run };
+  return { snapshot, usage, pending, error, now, run };
 }

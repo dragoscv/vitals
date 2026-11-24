@@ -17,6 +17,16 @@ describe('filtering', () => {
     expect(matchesQuery(p, 'firefox')).toBe(false);
   });
 
+  it('ignores surrounding whitespace in the query, and a query of only whitespace filters nothing', () => {
+    // A name pasted out of a log or a task list often carries a trailing
+    // space, and comparing it verbatim emptied the table for a query the user
+    // could see was correct.
+    const p = makeProcess({ pid: 4242, name: 'chrome.exe' });
+    expect(matchesQuery(p, ' chrome.exe ')).toBe(true);
+    expect(matchesQuery(p, '\t4242\n')).toBe(true);
+    expect(matchesQuery(p, '   ')).toBe(true);
+  });
+
   it('groups services and containers under "background"', () => {
     expect(matchesKind('service', 'background')).toBe(true);
     expect(matchesKind('containerized', 'background')).toBe(true);

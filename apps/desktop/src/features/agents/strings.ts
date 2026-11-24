@@ -15,6 +15,7 @@ const en = {
 
   tab: {
     overview: 'Overview',
+    resources: 'Resources',
     sessions: 'Sessions',
     queues: 'Queues',
     worktrees: 'Worktrees',
@@ -311,6 +312,37 @@ const en = {
     title: 'No agents yet',
     body: 'When an AI agent starts working here — VS Code Copilot Chat, Copilot CLI, Kodwen, Codex or Claude Code — it appears on this page.',
   },
+
+  usage: {
+    title: 'Resources in use',
+    taken: 'Measured {{ago}} ago',
+    processes_one: '{{count}} process',
+    processes_other: '{{count}} processes',
+    cpu: 'CPU',
+    memory: 'Memory in use',
+    memoryPrivate: '{{value}} private',
+    disk: 'Disk',
+    network: 'Network',
+    gpu: 'GPU',
+    gpuMemory: '{{value}} VRAM',
+    empty: {
+      title: 'No agent process is running',
+      body: 'Nothing here belongs to agentq or to a recognised AI client at the moment.',
+    },
+    footnote:
+      'Folded from the same process table as the Processes screen. A dash means the machine does not report that figure per process — Windows has no per-process network counters without a kernel trace, and a GPU driver may not report per-process use at all.',
+    kind: {
+      agentq: 'agentq',
+      claude: 'Claude',
+      copilotCli: 'Copilot CLI',
+      vscodeCopilot: 'VS Code Copilot Chat',
+      codex: 'Codex',
+      hermes: 'Hermes',
+      openClaw: 'OpenClaw',
+      kodwen: 'Kodwen',
+      cli: 'AI CLI',
+    },
+  },
   notInstalled: 'agentq is not installed on this machine, so only AI sessions are shown.',
   noHost: {
     title: 'No data arriving',
@@ -329,6 +361,7 @@ const ro = {
 
   tab: {
     overview: 'Prezentare',
+    resources: 'Resurse',
     sessions: 'Sesiuni',
     queues: 'Cozi',
     worktrees: 'Worktree-uri',
@@ -630,6 +663,37 @@ const ro = {
   empty: {
     title: 'Încă niciun agent',
     body: 'Când un agent AI începe să lucreze aici — VS Code Copilot Chat, Copilot CLI, Kodwen, Codex sau Claude Code — apare pe această pagină.',
+  },
+  usage: {
+    title: 'Resurse folosite',
+    taken: 'Măsurat acum {{ago}}',
+    processes_one: '{{count}} proces',
+    processes_few: '{{count}} procese',
+    processes_other: '{{count}} de procese',
+    cpu: 'CPU',
+    memory: 'Memorie ocupată',
+    memoryPrivate: '{{value}} privată',
+    disk: 'Disc',
+    network: 'Rețea',
+    gpu: 'GPU',
+    gpuMemory: '{{value}} VRAM',
+    empty: {
+      title: 'Niciun proces de agent nu rulează',
+      body: 'În acest moment nimic de aici nu aparține de agentq sau de un client AI recunoscut.',
+    },
+    footnote:
+      'Calculate din același tablou de procese ca pagina Processes. O liniuță înseamnă că sistemul nu raportează cifra respectivă per proces — Windows nu are contoare de rețea per proces fără o urmărire la nivel de kernel, iar driverul video poate să nu raporteze deloc consumul per proces.',
+    kind: {
+      agentq: 'agentq',
+      claude: 'Claude',
+      copilotCli: 'Copilot CLI',
+      vscodeCopilot: 'VS Code Copilot Chat',
+      codex: 'Codex',
+      hermes: 'Hermes',
+      openClaw: 'OpenClaw',
+      kodwen: 'Kodwen',
+      cli: 'CLI AI',
+    },
   },
   notInstalled: 'agentq nu e instalat pe acest calculator, deci se afișează doar sesiunile AI.',
   noHost: {

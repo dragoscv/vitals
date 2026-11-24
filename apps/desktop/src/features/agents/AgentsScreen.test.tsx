@@ -5,7 +5,7 @@ import type { AgentqAction, AgentsSnapshot } from '@vitals/protocol';
 import { i18n, initI18n } from '@vitals/i18n';
 
 import { AgentsScreen } from './AgentsScreen';
-import { makeSession, makeSnapshot } from './fixtures.test-utils';
+import { makeSession, makeSnapshot, makeUsageSnapshot } from './fixtures.test-utils';
 import { registerAgentsStrings } from './strings';
 import type { AgentsSource } from './useAgents';
 
@@ -29,6 +29,7 @@ function source(first: AgentsSnapshot) {
       };
     }),
     run: vi.fn(async (_a: AgentqAction) => ({ ok: true, code: 0, output: '' })),
+    usage: vi.fn(async () => makeUsageSnapshot()),
     push: (s) => push?.(s),
   };
   return src;
@@ -147,5 +148,21 @@ describe('AgentsScreen', () => {
     const src = source(makeSnapshot({ agentqInstalled: false, resources: [] }));
     render(<AgentsScreen source={src} />);
     expect(await screen.findByText(/agentq is not installed/)).toBeTruthy();
+  });
+
+  it('asks the backend for resource use and shows it, on the overview and on its own tab', async () => {
+    const src = source(makeSnapshot());
+    render(<AgentsScreen source={src} />);
+    // For the table the sampler already holds, not a second enumeration.
+    await waitFor(() => expect(src.usage).toHaveBeenCalled());
+    // No Tauri host in a test, so there is no metrics hub to fold: the rows
+    // arrive from the injected source instead and the panel draws them.
+    expect(await screen.findByText('Resources in use')).toBeTruthy();
+    fireEvent.click(screen.getByRole('tab', { name: /Resources/ }));
+    expect(await screen.findByText('Claude')).toBeTruthy();
+    // Both the overview and this tab draw a panel, so the exact counts live
+    // in the panel's own test; here it is enough that the rows arrived.
+    expect(screen.getAllByText('VS Code Copilot Chat').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('3 processes').length).toBeGreaterThanOrEqual(3);
   });
 });

@@ -109,6 +109,9 @@ const en = {
   priority: {
     changed: '{{name}} now runs at {{level}} priority',
   },
+  toolbar: {
+    selectHint: 'Select a process first.',
+  },
   search: {
     clear: 'Clear search',
   },
@@ -207,6 +210,9 @@ const ro = {
   },
   priority: {
     changed: '{{name}} rulează acum cu prioritate {{level}}',
+  },
+  toolbar: {
+    selectHint: 'Selectați mai întâi un proces.',
   },
   search: {
     clear: 'Șterge căutarea',

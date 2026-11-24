@@ -177,6 +177,91 @@ fn main() {
     }
     let json = serde_json::to_string(&s).map_or(0, |j| j.len());
     println!("snapshot JSON: {} KB", json / 1024);
+
+    prove_usage(&probe);
+}
+
+/// Samples this machine for real and prints the resource rows the AI page
+/// would draw.
+///
+/// A fixture cannot show that a real sampler's per-process cpu, working set
+/// and disk rates survive the fold, nor which of the tool names on this
+/// machine the catalogue actually recognises — the two questions worth asking
+/// before believing the panel.
+#[cfg(windows)]
+fn prove_usage(probe: &dyn Fn(u32) -> Option<u64>) {
+    let mut sampler = vitals_win::SystemSampler::new();
+    let mut builder = vitals_win::FrameBuilder::new();
+    // Per-process cpu is a delta between two ticks, so the first sample is
+    // 0 % for every process on the machine. Throw it away and fold the
+    // second, which is what the app does.
+    let _ = sampler.sample();
+    std::thread::sleep(std::time::Duration::from_millis(700));
+    let Ok(sample) = sampler.sample() else {
+        println!("usage: sampling failed, nothing to fold");
+        return;
+    };
+    let elapsed = sample.elapsed_ms;
+    let frame = builder.build(sample);
+    let processes = match frame.payload {
+        vitals_core::sample::FramePayload::Keyframe { processes, .. } => processes,
+        vitals_core::sample::FramePayload::Delta { .. } => Vec::new(),
+    };
+
+    let now = vitals_agents::time::now_ms();
+    let root = vitals_agents::agentq::default_root();
+    let t = Instant::now();
+    let owned = root
+        .as_ref()
+        .map(|r| vitals_agents::usage::read_owned(r, probe, now))
+        .unwrap_or_default();
+    let read = t.elapsed();
+
+    println!(
+        "usage: {} processes over {elapsed} ms, read_owned {read:?}",
+        processes.len()
+    );
+    println!("  recorded identities: {}", owned.len());
+    for o in &owned {
+        println!("    pid {} start {:?} -> {:?}", o.pid, o.start_ms, o.kind);
+    }
+
+    let snapshot = vitals_agents::usage::rollup(&processes, &owned, probe, now);
+    let agentq = snapshot.agentq.as_ref();
+    println!(
+        "  agentq row: {}",
+        agentq.map_or("absent (no running job recorded)".to_string(), describe)
+    );
+    if snapshot.clients.is_empty() {
+        println!("  clients: no row (no process on this machine matched the catalogue)");
+    }
+    for row in &snapshot.clients {
+        println!("  client: {}", describe(row));
+    }
+}
+
+#[cfg(not(windows))]
+fn prove_usage(_probe: &dyn Fn(u32) -> Option<u64>) {
+    println!("usage: only Windows has the process counters this folds");
+}
+
+/// Prints a row with every series named, so an absent one reads as `None`
+/// and never as a zero.
+fn describe(row: &vitals_core::agents::AgentUsage) -> String {
+    format!(
+        "{:?} processes={} cpu={:.1}% private={} ws={} disk r={}/s w={}/s net rx={:?} tx={:?} gpu={:?} vram={:?}",
+        row.kind,
+        row.processes,
+        row.cpu.0,
+        row.memory_private.0,
+        row.memory_working_set.0,
+        row.disk_read.0,
+        row.disk_write.0,
+        row.net_rx.map(|v| v.0),
+        row.net_tx.map(|v| v.0),
+        row.gpu.map(|v| v.0),
+        row.gpu_memory.map(|v| v.0),
+    )
 }
 
 #[cfg(windows)]

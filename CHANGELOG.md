@@ -19,6 +19,36 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   its place in the sidebar, appear only when agentq is installed on the
   computer.
 
+- AI page → **Resources**: what each installed AI tool is costing the machine —
+  the processes it is running, the processor and memory it holds, the disk and
+  network it moves and the graphics memory it uses where the driver reports it.
+  The same section sits on the Overview. Each process is credited to a tool by
+  what the tool itself recorded — agentq by its own job files, a client by the
+  process and shell it wrote down — and never by its executable name alone. A
+  process is counted once, under the nearest tool that claims it, and a tool
+  with nothing running gets no row. Shared runtimes are left alone on purpose:
+  `node.exe` runs most npm commands and every build script on the machine, so
+  blaming it for an agent would put everything compiling on that agent's bill.
+  A reading any contributor cannot report stays a dash, not a partial sum.
+
+### Fixed
+
+- Processes: clicking a column header sorts again. The freeze that keeps rows
+  from jumping under your pointer was also swallowing the click that asked for
+  the sort — the pointer can only be over the table at the moment a header is
+  clicked — so the request was ignored. A column or a direction change now
+  outranks the freeze, and the order you asked for arrives at once.
+- Processes: a row you expand arrives in a stable order instead of the order
+  the feed happened to deliver it. A new child is placed by its display name in
+  the language you are using, then by its identifier, so the same list looks
+  the same every time.
+- Processes: a search with a trailing space matches. A query of `foo ` no
+  longer reports nothing while `foo` finds it.
+- Processes: **End task** is a toolbar button as well as a right-click item,
+  disabled until you select a row, and it reaches the same confirmation the
+  menu does. Where the machine cannot end another account's process it stays
+  disabled and says why.
+
 ## [1.3.1] — 2026-11-20
 
 ### Added

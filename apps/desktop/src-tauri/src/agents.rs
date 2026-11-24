@@ -520,6 +520,35 @@ pub struct AgentqActionResult {
     pub output: String,
 }
 
+/// What agentq and each AI client are using right now: cpu, memory, disk,
+/// network and gpu, folded from the live process table.
+///
+/// # Why the webview hands over the process table
+///
+/// The same reason as `commands::diagnose`: those numbers exist in one place,
+/// the frame the sampler already built, and per-process cpu is a *delta*
+/// against the previous tick — a second, unsynchronised enumeration would
+/// report 0 % for every process on its first call and disagree with every
+/// other screen. The webview keeps the durable table from `lib/metrics`, so
+/// the panel and the Processes screen describe the same instant.
+///
+/// Async and on the blocking pool: reading agentq's state means up to a
+/// thousand small files on a busy machine, which must not hold the webview.
+#[tauri::command]
+pub async fn get_agent_usage(
+    processes: Vec<vitals_core::process::Process>,
+) -> Result<vitals_core::agents::AgentUsageSnapshot, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let taken_at_ms = vitals_agents::time::now_ms();
+        let owned = vitals_agents::agentq::default_root()
+            .map(|root| vitals_agents::usage::read_owned(&root, &probe, taken_at_ms))
+            .unwrap_or_default();
+        vitals_agents::usage::rollup(&processes, &owned, &probe, taken_at_ms)
+    })
+    .await
+    .map_err(|e| e.to_string())
+}
+
 /// Runs an agentq action through agentq's own CLI. Desktop-only: a paired
 /// phone gets the Control-scoped LAN route instead, never this command.
 #[tauri::command]

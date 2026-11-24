@@ -20,5 +20,10 @@ rusqlite = { workspace = true }
 [target.'cfg(windows)'.dev-dependencies]
 vitals-win = { workspace = true }
 
+[dev-dependencies]
+# `fixtures::process()` builds a plausible `Process` in one line, so a new
+# field on the struct does not mean editing a thirty-field literal per test.
+vitals-core = { workspace = true, features = ["fixtures"] }
+
 [lints]
 workspace = true

@@ -9,10 +9,19 @@
 
 import * as m from 'motion/react-m';
 import { AnimatePresence } from 'motion/react';
-import { Bot, Code2, Cpu, Sparkles, Terminal, type LucideIcon } from 'lucide-react';
+import {
+  Bot,
+  Code2,
+  Cpu,
+  ShieldAlert,
+  Sparkles,
+  Terminal,
+  Wrench,
+  type LucideIcon,
+} from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
-import type { AgentClient, Liveness, SessionState } from '@vitals/protocol';
+import type { AgentClient, AgentUsageKind, Liveness, SessionState } from '@vitals/protocol';
 import { AnimatedValue, cn } from '@vitals/ui';
 
 import { AGENTS_NS } from './strings';
@@ -34,6 +43,37 @@ export const CLIENT_HUE: Record<AgentClient, string> = {
   codex: 'oklch(0.72 0.13 80)',
   claudeCode: 'oklch(0.70 0.14 40)',
   other: 'oklch(0.65 0.02 260)',
+};
+
+/**
+ * The same marks, for the resources panel's rows.
+ *
+ * Separate from `CLIENT_ICON` because that one is keyed by session client and
+ * this one also has to name agentq, which is not a client and never owns a
+ * session. A resource row for a client shows the same icon as its sessions.
+ */
+export const USAGE_ICON: Record<AgentUsageKind, LucideIcon> = {
+  agentq: Wrench,
+  claude: Bot,
+  copilotCli: Terminal,
+  vscodeCopilot: Code2,
+  codex: Cpu,
+  hermes: Sparkles,
+  openClaw: ShieldAlert,
+  kodwen: Sparkles,
+  cli: Terminal,
+};
+
+export const USAGE_HUE: Record<AgentUsageKind, string> = {
+  agentq: 'oklch(0.72 0.15 200)',
+  claude: 'oklch(0.70 0.14 40)',
+  copilotCli: 'oklch(0.70 0.14 300)',
+  vscodeCopilot: 'oklch(0.68 0.15 245)',
+  codex: 'oklch(0.72 0.13 80)',
+  hermes: 'oklch(0.70 0.16 20)',
+  openClaw: 'oklch(0.70 0.15 130)',
+  kodwen: 'oklch(0.72 0.16 160)',
+  cli: 'oklch(0.68 0.10 280)',
 };
 
 const STATE_TONE: Record<SessionState, string> = {
@@ -112,6 +152,30 @@ export function ClientMark({
 }) {
   const Icon = CLIENT_ICON[client];
   const hue = CLIENT_HUE[client];
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        'inline-grid shrink-0 place-items-center rounded-lg',
+        size === 'sm' ? 'size-6' : 'size-8',
+      )}
+      style={{ background: `color-mix(in oklch, ${hue} 18%, transparent)`, color: hue }}
+    >
+      <Icon className={size === 'sm' ? 'size-3.5' : 'size-4'} />
+    </span>
+  );
+}
+
+/** The mark on a resources row: agentq and each AI tool. */
+export function UsageMark({
+  kind,
+  size = 'md',
+}: {
+  readonly kind: AgentUsageKind;
+  readonly size?: 'sm' | 'md';
+}) {
+  const Icon = USAGE_ICON[kind];
+  const hue = USAGE_HUE[kind];
   return (
     <span
       aria-hidden

@@ -2,7 +2,7 @@
  * Search, filter chips, grouping toggle and the column picker.
  */
 
-import { Columns3, PanelRightClose, PanelRightOpen } from 'lucide-react';
+import { Columns3, PanelRightClose, PanelRightOpen, Power } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import {
@@ -40,6 +40,15 @@ export interface ProcessToolbarProps {
   /** Whether the details panel is shown; the toggle sits at the toolbar's end. */
   readonly showDetails: boolean;
   readonly onShowDetailsChange: (show: boolean) => void;
+  /**
+   * Ends the selected process. Routed through the same plan-then-confirm path
+   * as the row menu's "End task", not a second route to the same command.
+   */
+  readonly onEndTask: () => void;
+  /** False with nothing selected, or where the host cannot end a process. */
+  readonly endTaskEnabled: boolean;
+  /** Why the button cannot act, shown while it is disabled. */
+  readonly endTaskHint?: string;
 }
 
 export function ProcessToolbar(props: ProcessToolbarProps): React.JSX.Element {
@@ -97,6 +106,21 @@ export function ProcessToolbar(props: ProcessToolbarProps): React.JSX.Element {
           move to the next line together, or not at all. Wrapped one by one,
           Export alone dropped to a second line at common window widths. */}
       <div className="ml-auto flex shrink-0 items-center gap-1">
+        {/* Always present, so the primary action on this screen is never
+            hidden behind a right-click; disabled until a row is selected.
+            Quiet until it can act, then loud, because ending a process is
+            irreversible once confirmed. */}
+        <Button
+          size="sm"
+          variant={props.endTaskEnabled ? 'danger' : 'secondary'}
+          disabled={!props.endTaskEnabled}
+          onClick={props.onEndTask}
+          leadingIcon={<Power />}
+          {...(props.endTaskHint !== undefined && { title: props.endTaskHint })}
+        >
+          {t('process.action.endTask')}
+        </Button>
+
         {/* No "Order held" pill here any more, although rows still hold their
           positions while the pointer is over the table. The pill appeared on
           hover, its width wrapped Export onto a second line, and the whole

@@ -12,6 +12,9 @@ import type {
   AgentqLease,
   AgentqResource,
   AgentqTicket,
+  AgentUsage,
+  AgentUsageKind,
+  AgentUsageSnapshot,
   AgentsSnapshot,
   RepoStat,
   SessionState,
@@ -19,6 +22,7 @@ import type {
 
 export type AgentsTab =
   | 'overview'
+  | 'resources'
   | 'sessions'
   | 'queues'
   | 'worktrees'
@@ -30,6 +34,10 @@ export type AgentsTab =
 
 export const agentsTabs: readonly AgentsTab[] = [
   'overview',
+  // Straight after the overview: "what are the agents costing me" is the
+  // question the page exists to answer, and it needs no agentq state to
+  // answer it.
+  'resources',
   'sessions',
   'queues',
   'worktrees',
@@ -39,6 +47,32 @@ export const agentsTabs: readonly AgentsTab[] = [
   'cloud',
   'insights',
 ];
+
+/** One tool's row on the resources panel. */
+export interface UsageRow {
+  readonly key: AgentUsageKind;
+  readonly usage: AgentUsage;
+  /** agentq's own row: shown first and marked, because it is not a client. */
+  readonly self: boolean;
+}
+
+/**
+ * The rows to draw, agentq first and then the busiest client.
+ *
+ * A tool that owns no process has no row at all rather than a row of zeroes —
+ * "not running" and "running, using nothing" are different facts, and a list
+ * of zeroes reads as the second.
+ */
+export function usageRows(snapshot: AgentUsageSnapshot | null): readonly UsageRow[] {
+  if (snapshot === null) return [];
+  const clients: UsageRow[] = snapshot.clients.map((usage) => ({
+    key: usage.kind,
+    usage,
+    self: false,
+  }));
+  const agentq = snapshot.agentq;
+  return agentq === null ? clients : [{ key: agentq.kind, usage: agentq, self: true }, ...clients];
+}
 
 /** Headline numbers for the overview strip. */
 export interface Headline {
