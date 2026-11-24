@@ -260,9 +260,11 @@ warnings` — exit 0. `cargo test --workspace` — **49 test binaries, 1930
 Not verified, and not claimed: the name was not read out of a live window this
 round — the strings are asserted by the desktop component tests and the generated
 binding, and the previous round did read this page live through the WebView2
-DevTools protocol. Nothing was pushed, tagged, submitted to a store, or run
-through `update-proof.yml`; this repository's ADR 0019 leaves publication to the
-owner.
+DevTools protocol. The commit is on `origin/main` (ADR 0019 is partly superseded
+by [0031](adr/0031-public-release-and-distribution.md), which lets an agent push
+`main`). What is **not** done: no tag, no GitHub release, no store submission, no
+`update-proof.yml`. A version being cut in the tree is not a version being
+published.
 
 ### 2026-11-25 — S26-08: the dash explanation moves behind the title, and the build card is named like the others
 
