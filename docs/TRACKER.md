@@ -175,6 +175,57 @@ CSV records the state.
 
 ## Verification log
 
+### 2026-11-25 — S26-06: the build cards sit with the build section, and what agentq runs is the side column
+
+The previous move changed the order of the sections but not which cards belong to
+them, so the queue head that belongs to the build caps was left on its own at the
+bottom of the page, under the sessions. The Overview is now one grid with two
+columns. The left column reads down every remaining section in the order the page
+is asked — _Resources in use_, _Build slots on this machine_, the queues those
+builds sit in, then the sessions working in them. _What agentq is running_ is the
+right-hand column, and it starts at the same top as the first section instead of
+below the last: it answers what agentq holds a process for right now, which is a
+reference list read on its own rather than the end of a long read down the machine.
+
+Two columns, one grid (`lg:grid-cols-[minmax(0,1fr)_18rem]` with `lg:items-start`),
+so the narrow column keeps its own height instead of being stretched to the tall one.
+
+### 2026-11-25 — S26-07: the duplicate React key is not reproducible
+
+A duplicate-key warning naming _Vitals_ was reported from the console, and it is
+closed as not reproducible with the probe in the repository rather than in a scratch
+folder: `scripts/cdp-console.mjs` attaches to the running window's console over the
+WebView2 DevTools protocol, prints every line with its component stack, proves its own
+subscription is live by emitting a line and requiring it back, and proves each click
+by reading `document.title` after it.
+
+Read: every sidebar screen, all ten tabs of the AI page, and a full page reload, twice,
+against both the installed build and the dev server. The console held only Vite's
+connecting and connected lines, the React DevTools notice and the TAURI stale-callback
+warning. The registry holds a single startup entry for Vitals (HKCU `…\Run`, no HKLM
+twin), so the `hkcu:Vitals` label reported beside the warning has nothing to collide
+with, and a production build cannot print the warning at all because React strips the
+duplicate-key check outside development. The decision is to keep the negative result
+instead of applying a speculative fix: no key in the desktop app can produce a
+duplicate, so a change would be a guess with no failing case to test against.
+
+### Verification
+
+- Layout read live out of the dev window's accessibility tree (1282×820, 998 px pane):
+  the left column runs _Resources in use_ (heading y=579) → _Build slots on this
+  machine_ (y=820) → the queues (`build:machine` y=901, `land:codai` y=995) → the
+  sessions (y=1068, y=1102), all inside x 1901–2595; the right column is 288 px
+  (18rem) at x 2611–2899 with _What agentq is running_ at y=579, level with the first
+  section. The eight headline numbers are one row in the same read (labels y=444,
+  readings y=479).
+- The order test failed exactly on each of two mutations — swapping the queues with the
+  sessions inside the left column (line 93), and making the agentq column the first
+  grid child (line 94) — and both were then reverted.
+- `scripts/cdp-console.mjs` reported `channel: OK` and a title for every click on each
+  run, so the empty console is a measurement rather than a dead subscription.
+- typecheck exit 0; desktop vitest 139 files / 1459 tests passed; eslint exit 0;
+  prettier reports the tree formatted; `check-drift` 0 failures.
+
 ### 2026-11-25 — S26-05: the AI page reads in the order the questions are asked
 
 Both changes came from the owner reading the page rather than from a defect, and
@@ -183,8 +234,10 @@ both are about reading order.
 **Overview.** It went Resources in use → Build slots on this machine → the
 sessions and agents → what agentq is running. The machine capacity is context
 for the agents, so it belongs under the readings it explains, and _what agentq
-is running_ answers a different question from _which agent is busy_ — it is now
-a narrower column beside them instead of a block underneath.
+is running_ answers a different question from _which agent is busy_ — it became a
+narrower column beside the agents instead of a block underneath. S26-06 then
+finished the move: the queue head went up under the build caps it belongs to, and
+that column starts at the top of the page rather than under the agents.
 
 **One row of numbers.** The eight headline cards wrapped onto a second row on a
 default window. The card floor is now 6rem and the reading is pinned to the
