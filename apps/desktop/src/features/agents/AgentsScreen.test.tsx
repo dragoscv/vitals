@@ -53,10 +53,12 @@ describe('AgentsScreen', () => {
     expect(await screen.findByText('Ship the release')).toBeTruthy();
   });
 
-  it('lays the overview out as resources, then build slots, then the agents beside what agentq runs', async () => {
+  it('reads the overview down one column while what agentq runs starts at the top beside it', async () => {
     // The order is the point of the layout: the machine-wide caps sit right
-    // under the reads they explain, and agentq's own execution is a narrow
-    // column beside the agent cards rather than a full-width block below them.
+    // under the reads they explain, the queues those builds sit in stay under
+    // the caps instead of being left alone at the bottom, and agentq's own
+    // execution is the right-hand column from the top rather than a block
+    // below the reads.
     const src = source(
       makeSnapshot({
         machine: {
@@ -83,9 +85,23 @@ describe('AgentsScreen', () => {
       (first(a).compareDocumentPosition(first(b)) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
 
     expect(precedes('Resources in use', 'Build slots on this machine')).toBe(true);
-    expect(precedes('Build slots on this machine', 'Fix the queue')).toBe(true);
+    // build:machine is a queue row, and it belongs to the caps directly above
+    // it rather than to the bottom of the page where it used to sit.
+    expect(precedes('Build slots on this machine', 'build:machine')).toBe(true);
+    // 'Fix the queue' is a session title, so this is the agents following the
+    // queues down the same column.
+    expect(precedes('build:machine', 'Fix the queue')).toBe(true);
     expect(precedes('Fix the queue', 'What agentq is running')).toBe(true);
-    expect(precedes('What agentq is running', 'build:machine')).toBe(true);
+
+    // The section order above is what the left column reads down; the column
+    // itself is the layout. Both columns are children of one grid, and the
+    // agentq column is the last of them, which is what makes it start at the
+    // top beside the reads rather than after them.
+    const columns = document.querySelector('[class*="lg:grid-cols"]');
+    expect(columns).not.toBeNull();
+    expect(columns?.contains(first('Resources in use'))).toBe(true);
+    expect(columns?.contains(first('Build slots on this machine'))).toBe(true);
+    expect(columns?.lastElementChild?.contains(first('What agentq is running'))).toBe(true);
     view.unmount();
   });
 

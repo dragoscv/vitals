@@ -237,21 +237,24 @@ export function AgentsScreen({ source }: AgentsScreenProps): React.JSX.Element {
             >
               {/* Radix mounts only the active panel, so hidden tabs cost nothing. */}
               <TabsContent value="overview" className="flex flex-col gap-4">
-                <ResourcesInUse usage={state.usage} now={now} />
-                <MachineCard snapshot={s} />
-                {/* The agents are the page's subject, so they take the width
-                    that is left; what agentq is running is a reference column
-                    beside them, and stacks underneath once the window is too
-                    narrow to hold both. */}
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
-                  <div className="flex min-w-0 flex-1 flex-col">
+                {/* Two columns, and the split is between two kinds of question:
+                    the left reads down everything the machine is doing — what the
+                    tools cost, the build caps, the queues those builds sit in,
+                    then the agents — while what agentq is running is a reference
+                    column that starts at the top beside it. It used to start
+                    below the reads, which left the queue on its own at the
+                    bottom, away from the build slots it belongs to. */}
+                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start">
+                  <div className="flex min-w-0 flex-col gap-4">
+                    <ResourcesInUse usage={state.usage} now={now} />
+                    <MachineCard snapshot={s} />
+                    <QueuesPanel snapshot={s} now={now} onAction={request} machine={false} />
                     <SessionsPanel snapshot={s} now={now} limit="live" />
                   </div>
-                  <div className="min-w-0 lg:w-72 lg:shrink-0">
+                  <div className="min-w-0">
                     <AgentqWork usage={state.usage} now={now} showEmpty />
                   </div>
                 </div>
-                <QueuesPanel snapshot={s} now={now} onAction={request} machine={false} />
               </TabsContent>
               <TabsContent value="resources">
                 <ResourcesPanel usage={state.usage} now={now} />
