@@ -69,7 +69,7 @@ parking_lot = "0.12.5"
 # Mac App Store build can add `apple-sandbox` honestly. Exact pin: its MSRV
 # (1.95) is above the workspace rust-version, and resolver 3 would otherwise
 # fall back to an older release silently.
-sysinfo = { version = "=0.39.6", default-features = false, features = ["system", "disk", "network", "component", "user"] }
+sysinfo = { version = "=0.40.3", default-features = false, features = ["system", "disk", "network", "component", "user"] }
 libc = "0.2"
 
 # Data
@@ -110,7 +110,7 @@ qrcode = { version = "0.14.1", default-features = false, features = ["svg"] }
 # exposes per-interface enable/disable, which is what lets the advertisement
 # stay on the one adapter the user chose in `lan.rs`. Logging goes through
 # `log`; we do not enable its `async` feature.
-mdns-sd = { version = "0.21.4", default-features = false }
+mdns-sd = { version = "0.22.0", default-features = false }
 
 # MQTT publishing with Home Assistant discovery (crates/vitals-mqtt).
 #
