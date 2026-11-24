@@ -227,21 +227,37 @@ resource name. Both locales carry the section and its nine kind names, and the
 footnote says the one limit plainly: a process nobody recorded with agentq stays
 with whoever started it.
 
+The badge is a **word on a text token with a coloured dot beside it**, never
+coloured text. The first version tinted the word with a chart fill, and the
+accessibility gate caught it — `styles.test.ts` forbids a status fill used as a
+text colour, and none of the chart fills is contrast-proven at 11 px — so the
+word carries the meaning on `--color-fg-muted` and the dot only makes a wall of
+rows scannable.
+
 Evidence, in the order it was produced:
 
 ```
-cargo test -p vitals-agents                                 75 passed; 0 failed
+cargo test -p vitals-agents                                 76 passed; 0 failed
 cargo test -p vitals-core                                   193 passed; 0 failed
+cargo test --workspace                                      every suite green,
+                                                            1928 Rust tests, 0 failed
 cargo clippy -p vitals-agents -p vitals-core --all-targets -- -D warnings
                                                             exit 0
 cargo test -p vitals-core --features ts                     regenerated
                                                             AgentqWorkKind.ts,
                                                             AgentqWorkUsage.ts,
                                                             AgentUsageSnapshot.ts (work)
-pnpm --filter @vitals/desktop exec vitest run src/features/agents
-                                                            6 files / 42 tests passed
-pnpm typecheck                                              7/7 successful
-pnpm --filter @vitals/desktop lint                          exit 0
+pnpm --filter @vitals/desktop exec vitest run src/features/agents src/styles.test.ts
+                                                            7 files / 68 tests passed
+pwsh scripts/check-drift.ps1                                0 failure(s), 0 warning(s) —
+                                                            16 ts_rs files, 134
+                                                            invokes, 134 commands,
+                                                            2 locales
+cargo run -p vitals-agents --example prove_agents           recorded work: 11 — six
+                                                            jobs read as [Job], three
+                                                            release runs as [Deploy];
+                                                            agentq row processes=53
+pwsh scripts/verify.ps1                                     16/16 gates pass
 ```
 
 The new tests were proved to bite rather than assumed to. Restricting the claim
@@ -249,7 +265,10 @@ loop to first-wins (so the client that started the build keeps it) failed
 **exactly** `a_held_ticket_charges_the_build_tree_to_agentq_and_not_to_the_client_that_started_it`
 — `74 passed; 1 failed` — and was reverted to `75 passed`. In the panel, making
 the kind badge read `usage.kind` instead of the work's own kind failed **only**
-the new test, and was reverted.
+the new test, and was reverted. Reintroducing the text match for a job
+(`work_kind(None, command).unwrap_or(Job)`) failed **exactly**
+`a_worker_whose_text_merely_mentions_a_kind_is_not_reported_as_one` —
+`75 passed; 1 failed` — and was reverted to `76 passed`.
 
 **The honest gap.** As with S26-03, this was proven by tests and by real state
 on this machine, not by a screenshot: no Tauri window was opened, so the

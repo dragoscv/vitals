@@ -140,7 +140,8 @@ on the machine showed it.
      disagrees with its own header. A test asserts the identity rather than
      trusting it.
    - **The identity is mandatory.** A claim needs a recorded start time and a
-     match within the same 2 s tolerance as everywhere else; a stale entry
+     match within the same 3 s tolerance as everywhere else
+     (`PROC_START_TOLERANCE_MS`); a stale entry
      whose process is gone, or one whose recorded holder has been recycled,
      claims **nothing** and appears as no row. A ticket is `held: true` only; a
      release is `state: "running"`; a job must carry a pid. `dead` holders are
@@ -164,6 +165,12 @@ on the machine showed it.
      names the file rather than the work (measured 2026-11-24: a job waiting for
      a freeze to clear read as a land because its script is called
      `land-when-unfrozen.ps1`).
+
+   The kind shows as a **word on a text token with a coloured dot beside it**,
+   not as coloured text: the chart and status fills are not contrast-proven at
+   this size, and the accessibility audit forbids a status fill used as a text
+   colour outright, so the word carries the meaning and the dot only makes a
+   wall of rows scannable.
 
 7. **Privacy.** Prompts are never read past the event type. Paths and titles
    go through the frame redaction when LAN redaction is on.

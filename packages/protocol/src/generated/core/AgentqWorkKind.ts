@@ -9,8 +9,8 @@
  * ticket names (`build:vitals`, `commit:codai`), or the command it stored
  * when the resource names no kind. Two kinds are never derived from text: a
  * release run is a deploy and a background job is a job, because their
- * recorded purpose is prose and their command is often an inline `-File
- * <script>` whose name describes the file rather than the work. A process
+ * recorded purpose is prose and their command is often an inline script
+ * path, whose file name describes the file rather than the work. A process
  * name is never consulted.
  */
 export type AgentqWorkKind = "build" | "test" | "commit" | "push" | "land" | "install" | "deploy" | "job" | "other";
