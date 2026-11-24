@@ -51,6 +51,7 @@ import {
   Users,
   type LucideIcon,
 } from 'lucide-react';
+import { useMemo } from 'react';
 import { create } from 'zustand';
 
 import type { Platform } from '@vitals/protocol';
@@ -145,6 +146,18 @@ interface NavVisibility {
   /** A vmui connection is stored (health_status `configured`). */
   readonly health: boolean | null;
   /**
+   * Whether agentq is installed and has state here, from
+   * `get_agentq_status`. `null` until the probe answers, and deliberately
+   * treated as visible rather than hidden: the probe is three `stat` calls,
+   * and hiding a page on every launch only to flash it back a moment later
+   * is what the platform rule above refuses to do too.
+   *
+   * `false` on Windows means the AI page would be empty, so it is not
+   * offered. On another platform the page still lists AI sessions, so the
+   * probe is not consulted at all there.
+   */
+  readonly agentq: boolean | null;
+  /**
    * What this build runs on, from `get_capabilities`.
    *
    * `null` until the report arrives, and deliberately treated as "show
@@ -155,14 +168,19 @@ interface NavVisibility {
    */
   readonly platform: Platform | null;
   readonly setHealth: (configured: boolean) => void;
+  readonly setAgentq: (present: boolean) => void;
   readonly setPlatform: (platform: Platform | null) => void;
 }
 
 export const useNavVisibility = create<NavVisibility>((set) => ({
   health: null,
+  agentq: null,
   platform: null,
   setHealth: (configured) => {
     set({ health: configured });
+  },
+  setAgentq: (present) => {
+    set({ agentq: present });
   },
   setPlatform: (platform) => {
     set({ platform });
@@ -177,7 +195,7 @@ export const useNavVisibility = create<NavVisibility>((set) => ({
  * store's `null` means. Kept as a Partial rather than a second interface so
  * the store's own state satisfies it unchanged.
  */
-export type VisibilityState = Partial<Pick<NavVisibility, 'health' | 'platform'>>;
+export type VisibilityState = Partial<Pick<NavVisibility, 'health' | 'platform' | 'agentq'>>;
 
 /**
  * Destinations whose backend commands are compiled only on Windows
@@ -215,6 +233,10 @@ export function isRouteVisible(
   state: VisibilityState = useNavVisibility.getState(),
 ): boolean {
   if (id === 'health') return state.health === true;
+  // Only a Windows build with no agentq has nothing to show here, and only
+  // once the probe has said so: `agentq === false` is that answer, `null` is
+  // "not asked yet".
+  if (id === 'agents') return state.agentq !== false;
   return routeSupported(id, state.platform);
 }
 
@@ -225,24 +247,19 @@ export function visibleNavItems(
   return navItems.filter((item) => isRouteVisible(item.id, state));
 }
 
-const withoutHealth: readonly NavItem[] = navItems.filter((item) => item.id !== 'health');
-const withoutWindowsOnly: readonly NavItem[] = navItems.filter(
-  (item) => !windowsOnlyRoutes.includes(item.id),
-);
-const withoutWindowsOnlyOrHealth: readonly NavItem[] = withoutWindowsOnly.filter(
-  (item) => item.id !== 'health',
-);
-
-/** React binding for `visibleNavItems`; re-renders when visibility changes. */
+/**
+ * React binding for `visibleNavItems`; re-renders when visibility changes.
+ *
+ * Derived through `useMemo` from the raw facts rather than from a table of
+ * every combination: health, platform and agentq are independent, so a table
+ * would need eight hand-written entries and one of them would eventually
+ * disagree with `isRouteVisible`, which is the rule that actually counts.
+ */
 export function useVisibleNavItems(): readonly NavItem[] {
   const health = useNavVisibility((state) => state.health);
   const platform = useNavVisibility((state) => state.platform);
-  // Health is orthogonal to the platform: a Mac can pair a vmui server, so
-  // the two rules compose rather than replace each other.
-  if (platform !== null && platform !== 'windows') {
-    return health === true ? withoutWindowsOnly : withoutWindowsOnlyOrHealth;
-  }
-  return health === true ? navItems : withoutHealth;
+  const agentq = useNavVisibility((state) => state.agentq);
+  return useMemo(() => visibleNavItems({ health, platform, agentq }), [health, platform, agentq]);
 }
 
 /**

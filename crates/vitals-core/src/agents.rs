@@ -507,4 +507,148 @@ pub enum AgentqAction {
     ReapTerminals {
         dry_run: bool,
     },
+    /// Ask agentq to diagnose why *this* machine is waiting and apply its own
+    /// safe remedies: break a dead or long-stale holder, raise a long-waiting
+    /// ticket, release a short burst. The one action that is safe to reach for
+    /// first, because agentq decides what, if anything, to do.
+    Propose {
+        /// Optional context; agentq journals it beside its own diagnosis.
+        reason: Option<String>,
+    },
+    /// Reap dead/stale tickets and leases, rotate the journal and prune state.
+    ///
+    /// `dry_run` is what the "Preview" affordance sends: agentq reports what
+    /// it would reap without touching anything.
+    #[serde(rename_all = "camelCase")]
+    Sweep {
+        dry_run: bool,
+    },
+    /// Raise a waiting ticket in the scheduler order.
+    ///
+    /// `ticket` names one explicitly; without it agentq bumps the first ticket
+    /// it can attribute to this machine. `by` is capped by agentq (`bumpMax`).
+    Bump {
+        ticket: Option<String>,
+        by: i32,
+        reason: String,
+    },
+    /// A temporary extra slot on a resource, so a burst of work is not
+    /// serialised behind one build.
+    ///
+    /// agentq refuses it when the free RAM or commit charge is under twice the
+    /// gate, so this can never be the reason a machine runs out of memory.
+    Burst {
+        /// Defaults to `build:machine`.
+        resource: Option<String>,
+        by: i32,
+        minutes: i32,
+        reason: String,
+    },
+    /// Land a topic branch: pre-gate the rebased result, then merge and push.
+    ///
+    /// The most powerful action on this page — it moves the target branch.
+    /// The UI gates it behind an explicit confirmation, and `gate` runs before
+    /// anything is merged so a broken branch cannot reach `main`.
+    Land {
+        /// The clone to land in. agentq resolves the repository from where it
+        /// is run, and refuses when the clone is not the one it expects, so
+        /// this is always supplied rather than guessed from the app's cwd.
+        repo: String,
+        branch: String,
+        /// `main` or `dev`.
+        onto: String,
+        purpose: String,
+        /// A command run on the rebased result; a failure stops the land.
+        gate: Option<String>,
+    },
+    /// Queue a resource, hold it, run a command, release it.
+    ///
+    /// `command` is the shell command line; without it the resource is held
+    /// and released, which is only useful for the queue itself.
+    Run {
+        resource: String,
+        purpose: String,
+        command: Option<String>,
+        /// `interactive`, `quick`, `gate`, `heavy` or `batch`.
+        lane: Option<String>,
+        /// `local`, `cloud` or `auto` — agentq's `-Where`.
+        place: Option<String>,
+        /// A clone to run in; sets agentq's working directory. Needed for a
+        /// cloud run, which uploads the working tree as a patch.
+        repo: Option<String>,
+    },
+    /// Commit explicit paths in a repository, then fetch, merge and push.
+    ///
+    /// `repo` is the clone the commit lands in; `paths` are the only files
+    /// staged, so a shared clone's other work is never swept in.
+    Commit {
+        repo: String,
+        purpose: String,
+        message: String,
+        paths: Vec<String>,
+    },
+}
+
+/// What agentq looks like on this machine, so the UI can decide whether the
+/// page is worth showing at all.
+///
+/// Absence is not an error: agentq runs on Windows only, and on another
+/// platform the page still lists AI sessions, so `relevant` stays true.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(
+    feature = "ts",
+    ts(export, export_to = "core/", rename_all = "camelCase")
+)]
+#[serde(rename_all = "camelCase")]
+// A wire DTO, and the four flags are four independent facts rather than one
+// state: agentq's script can be installed while its state directory is empty,
+// an AI client can be present with no agentq at all, and `windows` is a
+// compile-time property of the build. The generated TypeScript binding mirrors
+// these names one to one and the page composes them into its own verdict, so
+// folding them into two-variant enums here would change the wire shape the
+// client already reads without removing a case it has to handle.
+#[allow(clippy::struct_excessive_bools)]
+pub struct AgentqStatus {
+    /// `agentq.ps1` is installed where Vitals looks for it.
+    pub script: bool,
+    /// The coordination state directory exists, so there is something to show.
+    pub coord: bool,
+    /// At least one AI client keeps its files on this machine.
+    pub clients: bool,
+    /// Actions are only ever run on Windows; elsewhere the page is read-only.
+    pub windows: bool,
+}
+
+#[cfg(test)]
+mod action_wire_tests {
+    use super::AgentqAction;
+
+    /// The webview and the phone send camelCase keys (ts-rs generates them from
+    /// the enum's `rename_all`), so serde must accept exactly that. This is the
+    /// contract the IPC boundary has no compiler for: if serde and ts-rs
+    /// disagree about a field's name, `invoke` fails at runtime and nothing
+    /// else says so.
+    #[test]
+    fn every_field_the_generated_binding_names_is_accepted_by_serde() {
+        let cases = [
+            r#"{"kind":"reapTerminals","dryRun":true}"#,
+            r#"{"kind":"sweep","dryRun":true}"#,
+            r#"{"kind":"propose","reason":null}"#,
+            r#"{"kind":"bump","ticket":null,"by":20,"reason":"long wait"}"#,
+            r#"{"kind":"burst","resource":null,"by":1,"minutes":30,"reason":"burst"}"#,
+            r#"{"kind":"land","repo":"E:\\gh\\vitals","branch":"feat/x","onto":"main","purpose":"ship","gate":null}"#,
+            r#"{"kind":"run","resource":"build:codai","purpose":"tsc","command":null,"lane":null,"place":null,"repo":null}"#,
+            r#"{"kind":"commit","repo":"E:\\gh\\vitals","purpose":"fix","message":"fix(x): y","paths":["a.ts"]}"#,
+        ];
+        for json in cases {
+            let parsed: AgentqAction =
+                serde_json::from_str(json).unwrap_or_else(|e| panic!("serde rejected {json}: {e}"));
+            let back = serde_json::to_value(&parsed).expect("re-serialise");
+            assert_eq!(
+                back,
+                serde_json::from_str::<serde_json::Value>(json).unwrap()
+            );
+        }
+    }
 }

@@ -465,6 +465,7 @@ fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
         // subscription is live; actions go through agentq's own CLI.
         agents::subscribe_agents,
         agents::unsubscribe_agents,
+        agents::get_agentq_status,
         agents::run_agentq_action,
         agents::get_cloud_status,
         agents::start_cloud_sign_in,

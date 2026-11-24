@@ -3,13 +3,18 @@ import { describe, expect, it } from 'vitest';
 import { NOW, makeSession, makeSnapshot, makeTicket } from './fixtures.test-utils';
 import {
   activeShare,
+  actionPreview,
+  buildAction,
   byClient,
+  cloneFromSlot,
   eventTone,
   formatCount,
   formatDuration,
   headline,
+  initialFields,
   repoName,
   resourceSlots,
+  suggestions,
   workFor,
 } from './model';
 
@@ -79,5 +84,98 @@ describe('agents model', () => {
     expect(eventTone('commit-failed')).toBe('danger');
     expect(eventTone('idle-yield')).toBe('warn');
     expect(eventTone('done')).toBe('ok');
+  });
+});
+
+describe('agents action builder', () => {
+  it('refuses to build an action while a required field is still empty', () => {
+    expect(buildAction('freeze', { resource: '', reason: 'incident' })).toBeNull();
+    expect(buildAction('freeze', { resource: 'build:codai', reason: '' })).toBeNull();
+    expect(buildAction('freeze', { resource: 'build:codai', reason: 'incident' })).toEqual({
+      kind: 'freeze',
+      resource: 'build:codai',
+      reason: 'incident',
+    });
+  });
+
+  it('sends an optional flag as null rather than omitting it', () => {
+    // The wire type says the field is nullable, and a missing key is not the
+    // same fact to a serializer that has a default.
+    expect(buildAction('propose', { reason: '' })).toEqual({ kind: 'propose', reason: null });
+    expect(buildAction('propose', { reason: 'stuck' })).toEqual({
+      kind: 'propose',
+      reason: 'stuck',
+    });
+  });
+
+  it('a sweep opens in preview so the first click cannot reap anything', () => {
+    const open = initialFields('sweep');
+    expect(open.dryRun).toBe('true');
+    expect(buildAction('sweep', open)).toEqual({ kind: 'sweep', dryRun: true });
+    expect(buildAction('sweep', { dryRun: 'false' })).toEqual({ kind: 'sweep', dryRun: false });
+  });
+
+  it('a command with shell metacharacters stays one value in the action', () => {
+    const a = buildAction('run', {
+      resource: 'build:codai',
+      purpose: 'typecheck',
+      command: 'pnpm tsc; rm -rf /',
+    });
+    expect(a).toEqual({
+      kind: 'run',
+      resource: 'build:codai',
+      purpose: 'typecheck',
+      command: 'pnpm tsc; rm -rf /',
+      lane: null,
+      place: null,
+      repo: null,
+    });
+  });
+
+  it('the preview reads back the command the action becomes', () => {
+    expect(
+      actionPreview({
+        kind: 'land',
+        repo: 'E:\\gh\\vitals',
+        branch: 'feat/x',
+        onto: 'main',
+        purpose: 'ship it',
+        gate: null,
+      }),
+    ).toContain('agentq land -Branch feat/x -Onto main -Purpose "ship it"');
+    expect(
+      actionPreview({
+        kind: 'commit',
+        repo: 'E:\\gh\\vitals',
+        purpose: 'fix',
+        message: 'fix(x): y',
+        paths: ['a.ts', 'b.ts'],
+      }),
+    ).toContain('-Paths a.ts,b.ts');
+  });
+
+  it('names the main clone from a worktree slot, and nothing from anything else', () => {
+    expect(cloneFromSlot('E:\\gh\\.wt\\codai\\task-3', 'codai')).toBe('E:\\gh\\codai');
+    expect(cloneFromSlot('E:\\gh\\vitals', 'vitals')).toBeNull();
+    expect(cloneFromSlot(null, 'vitals')).toBeNull();
+  });
+
+  it('offers the safe remedy for a snapshot, naming the count the string reads', () => {
+    const s = makeSnapshot(); // carries one dead ticket, so one holder is stuck
+    const list = suggestions(s, NOW);
+    const propose = list.find((x) => x.id === 'propose');
+    expect(propose?.action.kind).toBe('propose');
+    // The key is `holders`, never `count`: a `count` key would make i18next
+    // look for plural forms the bundles do not define.
+    expect(propose?.params).toEqual({ holders: 1 });
+  });
+
+  it('suggests reclaiming a slot only when one is actually stale', () => {
+    const fresh = suggestions(makeSnapshot(), NOW).map((x) => x.id);
+    expect(fresh).not.toContain('sweep');
+    const stale = makeSnapshot({
+      leases: [{ ...makeSnapshot().leases[0]!, stale: true }],
+    });
+    expect(suggestions(stale, NOW).map((x) => x.id)).toContain('sweep');
   });
 });

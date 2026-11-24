@@ -18,6 +18,7 @@ import {
 } from './navigation';
 import type { RouteId } from './navigation';
 import { useHealthVisibility } from '../features/health/visibility';
+import { useAgentqVisibility } from './agentq';
 import { usePlatformVisibility } from './platform';
 import { RouteError } from './RouteError';
 import { Sidebar } from './Sidebar';
@@ -90,8 +91,10 @@ export function AppShell({ version }: AppShellProps) {
   const reduced = useReducedMotion();
   useHealthVisibility();
   usePlatformVisibility();
+  useAgentqVisibility();
   const healthVisible = useNavVisibility((state) => state.health);
   const platform = useNavVisibility((state) => state.platform);
+  const agentqVisible = useNavVisibility((state) => state.agentq);
   // A restored or current route this build cannot show — Health with no vmui
   // connection, a Windows-only page on a Mac — falls back to the dashboard
   // instead of rendering a screen whose commands do not exist.
@@ -102,7 +105,7 @@ export function AppShell({ version }: AppShellProps) {
   // because the report lands in the same breath as the first paint and hiding
   // six working destinations — on Windows, where nearly every launch happens —
   // is the worse of the two errors.
-  const visibleState = { health: healthVisible, platform };
+  const visibleState = { health: healthVisible, platform, agentq: agentqVisible };
   const restoreable = isRouteVisible(savedRoute, visibleState);
   const route: RouteId = restoreable ? savedRoute : defaultRoute;
 

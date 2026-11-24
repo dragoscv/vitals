@@ -455,6 +455,19 @@ impl Roots {
             codex_home,
         }
     }
+
+    /// Whether any client actually keeps its files in the detected location.
+    ///
+    /// `detect` returns the paths a client *would* use; an empty folder is not
+    /// evidence that anyone uses that client, and a navigation item should not
+    /// appear for a client nobody has ever run.
+    #[must_use]
+    pub fn any_present(&self) -> bool {
+        self.copilot_state.as_ref().is_some_and(|p| p.is_dir())
+            || self.claude_projects.as_ref().is_some_and(|p| p.is_dir())
+            || self.codex_home.as_ref().is_some_and(|p| p.is_dir())
+            || !self.vscode_storage.is_empty()
+    }
 }
 
 impl SessionTracker {

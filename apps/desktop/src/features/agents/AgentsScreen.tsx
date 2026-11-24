@@ -30,6 +30,7 @@ import {
 } from '@vitals/ui';
 
 import { CloudPanel, InsightsPanel, JobsPanel, JournalPanel } from './ActivityPanels';
+import { ActionsPanel } from './ActionsPanel';
 import { CloudAccount } from './CloudAccount';
 import { agentsTabs, headline, since, type AgentsTab } from './model';
 import { Kpi } from './parts';
@@ -119,6 +120,9 @@ export function AgentsScreen({ source }: AgentsScreenProps): React.JSX.Element {
     );
   }
   const s = state.snapshot;
+  // The action builder is agentq's command line; with agentq absent there is
+  // nothing it could run, so the tab is not offered rather than offered empty.
+  const tabs = s.agentqInstalled ? agentsTabs : agentsTabs.filter((id) => id !== 'actions');
   const h = headline(s);
   const now = state.now;
   const machineCap =
@@ -204,7 +208,7 @@ export function AgentsScreen({ source }: AgentsScreenProps): React.JSX.Element {
         className="flex min-h-0 flex-1 flex-col gap-3"
       >
         <TabsList aria-label={t('title')} className="overflow-x-auto">
-          {agentsTabs.map((id) => (
+          {tabs.map((id) => (
             <TabsTrigger key={id} value={id}>
               {t(`tab.${id}`)}
               {id === 'sessions' && <Count n={s.sessions.length} />}
@@ -238,6 +242,13 @@ export function AgentsScreen({ source }: AgentsScreenProps): React.JSX.Element {
               <TabsContent value="worktrees">
                 <WorktreesPanel leases={s.leases} now={now} onAction={request} />
               </TabsContent>
+              {s.agentqInstalled && (
+                <TabsContent value="actions">
+                  {/* The panel owns its own confirmation, so it runs the action
+                      directly rather than through the reason dialog below. */}
+                  <ActionsPanel snapshot={s} busy={busy} onRun={(action) => execute(action)} />
+                </TabsContent>
+              )}
               <TabsContent value="jobs">
                 <JobsPanel snapshot={s} now={now} onAction={request} />
               </TabsContent>

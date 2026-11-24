@@ -7,6 +7,18 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- AI page → **Actions**: run agentq from the window instead of a terminal.
+  Clear a frozen or blocked resource, remove a stale ticket, raise one that has
+  waited too long, add a temporary slot, queue a command, commit explicit
+  paths, land a branch, leave a note, release a worktree, stop a background job
+  — plus what the machine says is worth doing first, read from the live state.
+  Every action shows the exact command it will run before it runs it, and the
+  ones that change another agent's work say so and ask once more. The tab, and
+  its place in the sidebar, appear only when agentq is installed on the
+  computer.
+
 ## [1.3.1] — 2026-11-20
 
 ### Added

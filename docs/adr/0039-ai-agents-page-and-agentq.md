@@ -56,6 +56,25 @@ on the machine showed it.
    unlease and job kill shell out to `agentq.ps1`/`jobs.ps1` with a mandatory
    reason. Vitals never touches a coord file. Over LAN these need the
    `Control` scope.
+
+   _Amended 2026-11-24 (S26-01):_ the write surface is a **tab of fifteen
+   verbs**, not six fixed buttons: clear, freeze, block, break, bump, burst,
+   land, run, commit, note, unlease, propose, sweep, reap terminals and job
+   kill. Each carries its own fields, its tone (safe, careful, danger) and
+   whether it is confirmed before running, and one planner in `vitals-agents`
+   turns a verb and its values into argv under the guards above, so a verb
+   cannot be added without them. The panel previews the exact command from the
+   same values it sends. An unset optional flag is sent as `null` rather than
+   omitted: the shape stays explicit and a missing value is never read as a
+   deliberate absence. **Vitals bounds only what would be meaningless** — an
+   empty reason, a zero bump, a place that is not `local`, `cloud` or `auto` —
+   and leaves a bump above agentq's cap or a burst above its own to agentq,
+   whose caps are configurable and therefore belong where the number is known.
+   The tab and its sidebar entry are **absent unless agentq is installed**, and
+   the probe that decides it fails _open_: a status read that throws shows the
+   page, because a monitor whose probe broke must not claim the feature does
+   not exist.
+
 5. **Cloud is read-only and opt-in.** Sign-in uses the codai OIDC device flow;
    the resulting key is stored in Windows Credential Manager and never shown
    again. Without it the cloud tab says so; nothing is sent anywhere.

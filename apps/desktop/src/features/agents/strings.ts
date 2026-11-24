@@ -18,6 +18,7 @@ const en = {
     sessions: 'Sessions',
     queues: 'Queues',
     worktrees: 'Worktrees',
+    actions: 'Actions',
     jobs: 'Jobs & releases',
     journal: 'Journal',
     cloud: 'Cloud',
@@ -218,6 +219,94 @@ const en = {
     reapPreviewResult: '{{count}} idle terminals ({{mb}} MB) can be closed',
   },
 
+  tone: {
+    safe: 'Safe',
+    careful: 'Touches other agents',
+    danger: 'Moves history',
+  },
+
+  field: {
+    unset: '—',
+    reason: 'Reason (other agents read it)',
+    resource: 'Resource',
+    ticket: 'Ticket',
+    by: 'Amount',
+    minutes: 'Minutes',
+    repo: 'Repository folder',
+    branch: 'Branch',
+    onto: 'Land onto',
+    purpose: 'Why (journaled)',
+    gate: 'Gate command (a failure stops the land)',
+    lane: 'Lane',
+    place: 'Run where',
+    command: 'Command (optional)',
+    message: 'Message',
+    paths: 'Paths (one per line)',
+    pathsHelp: 'Only these files are committed, so other work in a shared clone is never swept in.',
+    path: 'Slot folder',
+    leaseId: 'Lease id',
+    job: 'Job id',
+    dryRun: 'Preview only',
+    dryRunHelp: 'Report what would happen without changing anything.',
+  },
+
+  verb: {
+    propose: 'Fix my wait',
+    proposeHint:
+      'agentq sees why this machine is waiting and applies only the safe remedies: breaking a dead or long-stale holder, raising a long-waiting ticket, releasing a short burst.',
+    sweep: 'Sweep dead state',
+    sweepHint: 'Reap dead or stale tickets and leases, rotate the journal and prune old state.',
+    reapTerminals: 'Close idle terminals',
+    reapTerminalsHint:
+      'Close editor and agent terminals that have sat idle a long time, freeing their memory.',
+    freeze: 'Freeze',
+    freezeHint:
+      'Stop new runs on a resource until it is cleared; acquire and run print the reason.',
+    block: 'Block',
+    blockHint: 'Like freezing, but signals a problem rather than a deliberate pause.',
+    clear: 'Clear a mark',
+    clearHint: 'Remove a freeze or block so the resource is available again.',
+    break: 'Remove a ticket',
+    breakHint:
+      'Delete a stale, stuck or dead ticket from a queue. Never a live, healthy holder — agentq refuses that.',
+    bump: 'Raise a ticket',
+    bumpHint: 'Move a waiting ticket earlier in the scheduler order, so a long wait is not last.',
+    burst: 'Add a temporary slot',
+    burstHint:
+      'Add a temporary extra slot to a resource so a burst of work is not serialised. agentq refuses it when memory is short.',
+    land: 'Land a branch',
+    landHint:
+      'Rebase a topic branch, run the gate on the result, then merge and push it. The gate runs first, so a broken branch cannot reach the target.',
+    run: 'Queue and run a command',
+    runHint:
+      'Take a resource, hold it, run a command and release it. Send it to the cloud to keep this machine free.',
+    commit: 'Commit paths',
+    commitHint:
+      'Commit only the listed paths, then fetch, merge and push. Other work in a shared clone is untouched.',
+    note: 'Leave a note',
+    noteHint: 'A free-form journal entry other agents read: a handoff, or “do not touch X”.',
+    unlease: 'Release a worktree',
+    unleaseHint: 'Give a leased slot back. Anything unpushed is backed up first.',
+    killJob: 'Stop a background job',
+    killJobHint: 'Kill a running background job by its id.',
+  },
+
+  builder: {
+    verbs: 'What to do',
+    title: 'Command',
+    incomplete: 'Fill in the required fields to see the command.',
+    confirmHint: 'Asks once more before running.',
+    directHint: 'Runs straight away.',
+  },
+
+  suggest: {
+    title: 'Suggested',
+    propose: 'Fix {{holders}} stale holder(s)',
+    sweep: 'Reclaim {{slots}} expired slot(s)',
+    bump: 'Raise {{resource}} (waited {{minutes}} min)',
+    clear: 'Clear the mark on {{resource}}',
+  },
+
   empty: {
     title: 'No agents yet',
     body: 'When an AI agent starts working here — VS Code Copilot Chat, Copilot CLI, Kodwen, Codex or Claude Code — it appears on this page.',
@@ -243,6 +332,7 @@ const ro = {
     sessions: 'Sesiuni',
     queues: 'Cozi',
     worktrees: 'Worktree-uri',
+    actions: 'Acțiuni',
     jobs: 'Joburi și release-uri',
     journal: 'Jurnal',
     cloud: 'Cloud',
@@ -443,6 +533,98 @@ const ro = {
     failed: 'agentq a refuzat: {{output}}',
     reapResult: '{{killed}} terminale închise, {{mb}} MB eliberați',
     reapPreviewResult: '{{count}} terminale inactive ({{mb}} MB) pot fi închise',
+  },
+
+  tone: {
+    safe: 'Sigur',
+    careful: 'Atinge alți agenți',
+    danger: 'Mută istoricul',
+  },
+
+  field: {
+    unset: '—',
+    reason: 'Motiv (îl citesc ceilalți agenți)',
+    resource: 'Resursă',
+    ticket: 'Tichet',
+    by: 'Cât',
+    minutes: 'Minute',
+    repo: 'Folder repository',
+    branch: 'Branch',
+    onto: 'Aterizează pe',
+    purpose: 'De ce (notat în jurnal)',
+    gate: 'Comandă de poartă (un eșec oprește aterizarea)',
+    lane: 'Bandă',
+    place: 'Rulează unde',
+    command: 'Comandă (opțional)',
+    message: 'Mesaj',
+    paths: 'Căi (una pe linie)',
+    pathsHelp:
+      'Doar aceste fișiere intră în commit, deci munca altcuiva dintr-o clonă partajată nu e luată niciodată.',
+    path: 'Folder slot',
+    leaseId: 'Id închiriere',
+    job: 'Id job',
+    dryRun: 'Doar previzualizare',
+    dryRunHelp: 'Raportează ce s-ar întâmpla fără să schimbe nimic.',
+  },
+
+  verb: {
+    propose: 'Rezolvă-mi așteptarea',
+    proposeHint:
+      'agentq vede de ce așteaptă acest calculator și aplică doar remediile sigure: elimină un deținător mort sau blocat de mult, ridică un tichet care așteaptă de mult, eliberează un burst scurt.',
+    sweep: 'Curăță starea moartă',
+    sweepHint:
+      'Elimină tichetele și închirierile moarte sau blocate, rotește jurnalul și curăță starea veche.',
+    reapTerminals: 'Închide terminalele inactive',
+    reapTerminalsHint:
+      'Închide terminalele de editor și de agent care au stat inactiv mult timp, eliberându-le memoria.',
+    freeze: 'Îngheață',
+    freezeHint:
+      'Oprește rulările noi pe o resursă până e deblocată; acquire și run afișează motivul.',
+    block: 'Blochează',
+    blockHint: 'Ca înghețarea, dar semnalează o problemă, nu o pauză voită.',
+    clear: 'Șterge un marcaj',
+    clearHint: 'Scoate o înghețare sau un blocaj, ca resursa să fie din nou disponibilă.',
+    break: 'Elimină un tichet',
+    breakHint:
+      'Șterge un tichet blocat, mort sau învechit din coadă. Niciodată un deținător viu și sănătos — agentq refuză.',
+    bump: 'Ridică un tichet',
+    bumpHint:
+      'Mută un tichet care așteaptă mai devreme în ordinea planificatorului, ca o așteptare lungă să nu fie ultima.',
+    burst: 'Adaugă un slot temporar',
+    burstHint:
+      'Adaugă un slot suplimentar temporar la o resursă, ca un val de muncă să nu fie serializat. agentq refuză când memoria e puțină.',
+    land: 'Aterizează un branch',
+    landHint:
+      'Rebazează un branch de lucru, rulează poarta pe rezultat, apoi îl contopește și îl împinge. Poarta rulează prima, deci un branch stricat nu ajunge în țintă.',
+    run: 'Pune la coadă și rulează o comandă',
+    runHint:
+      'Ia o resursă, ține-o, rulează o comandă și eliberează-o. Trimite-o în cloud ca acest calculator să rămână liber.',
+    commit: 'Fă commit pe căi',
+    commitHint:
+      'Fă commit doar pe căile enumerate, apoi fetch, merge și push. Munca altcuiva dintr-o clonă partajată rămâne neatinsă.',
+    note: 'Lasă o notă',
+    noteHint:
+      'Însemnare liberă în jurnal pe care o citesc ceilalți agenți: un handoff sau „nu atinge X”.',
+    unlease: 'Eliberează un worktree',
+    unleaseHint: 'Dă înapoi un slot închiriat. Ce nu e împins e salvat mai întâi.',
+    killJob: 'Oprește un job din fundal',
+    killJobHint: 'Oprește un job din fundal care rulează, după id.',
+  },
+
+  builder: {
+    verbs: 'Ce să faci',
+    title: 'Comandă',
+    incomplete: 'Completează câmpurile obligatorii ca să vezi comanda.',
+    confirmHint: 'Cere încă o confirmare înainte de rulare.',
+    directHint: 'Rulează imediat.',
+  },
+
+  suggest: {
+    title: 'Sugestii',
+    propose: 'Rezolvă {{holders}} deținători blocați',
+    sweep: 'Recuperează {{slots}} sloturi expirate',
+    bump: 'Ridică {{resource}} (a așteptat {{minutes}} min)',
+    clear: 'Șterge marcajul de pe {{resource}}',
   },
 
   empty: {

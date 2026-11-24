@@ -166,6 +166,7 @@ Status values: `todo`, `doing`, `done`, `blocked`, `dropped`.
 | S23   | Apple: macOS sampler, notarised DMG, iPhone + Watch, Mac App Store, Health, 1.2.0                                   | 15/16 done — open: S23-16 (blocked)                                                                  |
 | S25   | Kodwen rebrand and the AI usage panel                                                                               | done                                                                                                 |
 | S24   | Reality check 2026-11-12 → release 1.3.0: updater prompt, motion system, platform gates, declarations, ten features | 15/22 done — open: S24-07…S24-10, S24-13, S24-14, S24-16 (all in-progress; the rest are other lanes) |
+| S26   | AI page → Actions: the agentq write surface, as a tab that exists only where agentq does                            | done                                                                                                 |
 
 Per-item status lives in `tracker.csv`. This file records the reasoning; the
 CSV records the state.
@@ -173,6 +174,104 @@ CSV records the state.
 ---
 
 ## Verification log
+
+### 2026-11-24 — S26-01: the AI page can act
+
+The page could already say what every agent was doing, and could already run two
+fixed commands (reap idle terminals, kill a background job). The gap between
+those two facts was the whole rest of agentq: a resource someone froze, a lease
+whose owner died, a ticket that had waited an hour. Each had a terminal answer
+and no answer in the window.
+
+`apps/desktop/src/features/agents/ActionsPanel.tsx` is that gap closed: fifteen
+verbs, each declaring its fields, its tone and whether it asks once more, with
+a live command preview built from the same values the run sends. Three
+decisions are worth recording.
+
+- **The plan is data.** `plan()` in `vitals-agents` became a fifteen-arm
+  dispatcher over thirteen per-verb helpers, split because clippy's 100-line
+  limit caught the single function — and the result is better than what it
+  replaced, because every guard now lives in exactly one place with a name. The
+  verbs live in one table in the frontend and the tests read the _generated_
+  typed binding, so a field the wire names cannot go unhandled.
+- **agentq keeps its own caps.** Vitals refuses an empty reason, a zero bump and
+  a place that is not `local`, `cloud` or `auto`. It does not refuse a bump of
+  500 or a burst of 40 minutes: `agentq-config.json` sets those limits and they
+  move, so the refusal belongs where the number is known. The cost is honest and
+  bounded — the panel can offer a value agentq will reject, and the refusal
+  arrives as the same toast as any other failure.
+- **Absent is not hidden.** The tab and the sidebar entry are removed when
+  agentq is not installed, and the probe that decides it fails _open_: a status
+  read that throws shows the page, because a monitor whose probe broke must not
+  claim the feature does not exist.
+  Both halves are asserted rather than described: `agentq.test.ts` covers the
+  predicate (including the case that `agentq.ps1` without a state directory is
+  an install that has produced nothing) and the read error, and
+  `navigation.test.ts` covers the rule that only a definite `false` hides the
+  item.
+
+Evidence, in the order it was produced:
+
+```
+cargo clippy --workspace --all-targets -- -D warnings      exit 0
+cargo fmt --all -- --check                                 exit 0
+cargo test -p vitals-agents -p vitals-core                 58 + 185 + 8 passed, 0 failed
+pnpm --filter @vitals/desktop typecheck|test|lint          exit 0, 138 files / 1443 tests
+pwsh scripts/check-drift.ps1                               0 failure(s), 0 warning(s)
+```
+
+The clippy pass was earned twice, not assumed. The first ran and failed with
+`struct_excessive_bools` on the new `AgentqStatus` wire DTO (four independent
+flags, and the generated TypeScript mirrors them one to one — the `allow` says
+so in a comment, as the repo requires). The second failed on `too_many_lines`
+for the 274-line `plan()` and a `collapsible_if` beside it, which is what
+produced the split. A third run failed on `unnecessary_wraps`: two helpers built
+entirely from literals could not fail, so their return type now says that
+instead of being wrapped for uniformity.
+
+Against the real machine, `cargo run -p vitals-agents --example prove_agents`
+reports agentq installed, three resources with their caps and holders, 25 leases
+and 0 stale, nine releases, 154 jobs in 24 h, 511 registry callers and a 295 KB
+snapshot — the parser's own prover, run rather than reasoned about.
+
+Every flag the planner emits for the verbs agentq documents was read back from
+that verb's own help output, because a flag name invented from memory is a
+runtime failure and nothing else:
+
+```
+agentq sweep [-WhatIf] [-Json]                 ← the one the script header never stated
+agentq bump  [-Id <ticket> | -Session <id>] -By 20 -Reason
+agentq burst [-Resource build:machine] [-By 1] [-Minutes 30] -Reason
+agentq land  -Branch <topic> -Onto <dev|main> -Purpose why [-Gate cmd]
+agentq run   -Resource R -Purpose why [-- cmd] [-Lane …] [-Where local|cloud|auto]
+agentq commit -Purpose why -Message m -Paths a,b
+agentq unlease -Repo <slot dir> -LeaseId <id> [-Reason]
+```
+
+The live check is a person looking at it, which is the only one that catches a
+tab that renders and does nothing. The dev app opened the AI page with the
+Actions tab present, the confirm dialog quoted `agentq sweep -Json -WhatIf`
+verbatim, and the run finished with the app's own **Done** toast under a
+Dismiss notification control — a success path that could only be reached
+through the Tauri command, the planner and agentq itself. A dry run was chosen
+deliberately: it exercises the whole chain while changing nothing on a machine
+where other agents are working.
+
+One test was checked for being decorative rather than assumed sound. The
+builder refuses to produce an action while a required field is empty; removing
+that guard made the test fail with the expected assertion, so it bites, and the
+guard was restored.
+
+The two rules this slice added to the shell were mutated the same way rather
+than trusted. Pointing the probe's catch at `present = false` failed the
+fail-open test and nothing else; changing the sidebar rule from `!== false` to
+`!== null` failed five cases, four of them the new ones. Both mutants were
+reverted and the suite re-run green.
+
+Not done, and said rather than implied: no verb was run for real against the
+live queue beyond the dry-run sweep, because every other one changes another
+agent's work. The value that reaches agentq is the one the preview showed, and
+the preview is what was verified.
 
 ### 2026-11-17 — CI green on main, and what that took
 

@@ -23,7 +23,7 @@ use std::time::{Duration, Instant};
 use parking_lot::{Condvar, Mutex};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
-use vitals_core::agents::{AgentqAction, AgentsSnapshot};
+use vitals_core::agents::{AgentqAction, AgentqStatus, AgentsSnapshot};
 
 /// Event carrying the whole [`AgentsSnapshot`] each refresh.
 pub const AGENTS_EVENT: &str = "vitals://agents";
@@ -486,6 +486,30 @@ pub async fn unsubscribe_agents(app: AppHandle, id: u64) {
 pub struct AgentsSubscription {
     pub id: u64,
     pub snapshot: AgentsSnapshot,
+}
+
+/// Whether agentq is usable here, so the AI page's navigation item can appear
+/// only where it would show something. Three `stat` calls, safe at startup.
+#[tauri::command]
+pub async fn get_agentq_status() -> Result<AgentqStatus, String> {
+    tauri::async_runtime::spawn_blocking(agentq_status)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// The profile path comes from the OS rather than the environment, exactly as
+/// [`run_action`] does it: whoever started Vitals must not choose the folder
+/// agentq is looked for in.
+#[cfg(windows)]
+fn agentq_status() -> AgentqStatus {
+    vitals_agents::actions::status(vitals_win::ownership::user_profile().as_deref())
+}
+
+/// agentq is a Windows tool; elsewhere the page is read-only, so only the
+/// session roots can justify showing it.
+#[cfg(not(windows))]
+fn agentq_status() -> AgentqStatus {
+    vitals_agents::actions::status(None)
 }
 
 #[derive(Debug, Serialize)]

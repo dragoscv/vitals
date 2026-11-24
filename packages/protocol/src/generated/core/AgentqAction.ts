@@ -8,4 +8,39 @@ export type AgentqAction = { "kind": "freeze", resource: string, reason: string,
 /**
  * The slot directory, e.g. `E:\gh\.wt\codai\task-3` (agentq `-Repo`).
  */
-path: string, leaseId: string, reason: string, } | { "kind": "killJob", job: string, } | { "kind": "reapTerminals", dryRun: boolean, };
+path: string, leaseId: string, reason: string, } | { "kind": "killJob", job: string, } | { "kind": "reapTerminals", dryRun: boolean, } | { "kind": "propose", 
+/**
+ * Optional context; agentq journals it beside its own diagnosis.
+ */
+reason: string | null, } | { "kind": "sweep", dryRun: boolean, } | { "kind": "bump", ticket: string | null, by: number, reason: string, } | { "kind": "burst", 
+/**
+ * Defaults to `build:machine`.
+ */
+resource: string | null, by: number, minutes: number, reason: string, } | { "kind": "land", 
+/**
+ * The clone to land in. agentq resolves the repository from where it
+ * is run, and refuses when the clone is not the one it expects, so
+ * this is always supplied rather than guessed from the app's cwd.
+ */
+repo: string, branch: string, 
+/**
+ * `main` or `dev`.
+ */
+onto: string, purpose: string, 
+/**
+ * A command run on the rebased result; a failure stops the land.
+ */
+gate: string | null, } | { "kind": "run", resource: string, purpose: string, command: string | null, 
+/**
+ * `interactive`, `quick`, `gate`, `heavy` or `batch`.
+ */
+lane: string | null, 
+/**
+ * `local`, `cloud` or `auto` — agentq's `-Where`.
+ */
+place: string | null, 
+/**
+ * A clone to run in; sets agentq's working directory. Needed for a
+ * cloud run, which uploads the working tree as a patch.
+ */
+repo: string | null, } | { "kind": "commit", repo: string, purpose: string, message: string, paths: Array<string>, };

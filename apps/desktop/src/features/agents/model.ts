@@ -6,6 +6,7 @@
 import type {
   AgentClient,
   AgentSession,
+  AgentqAction,
   AgentqCaller,
   AgentqJob,
   AgentqLease,
@@ -17,13 +18,22 @@ import type {
 } from '@vitals/protocol';
 
 export type AgentsTab =
-  'overview' | 'sessions' | 'queues' | 'worktrees' | 'jobs' | 'journal' | 'cloud' | 'insights';
+  | 'overview'
+  | 'sessions'
+  | 'queues'
+  | 'worktrees'
+  | 'actions'
+  | 'jobs'
+  | 'journal'
+  | 'cloud'
+  | 'insights';
 
 export const agentsTabs: readonly AgentsTab[] = [
   'overview',
   'sessions',
   'queues',
   'worktrees',
+  'actions',
   'jobs',
   'journal',
   'cloud',
@@ -282,4 +292,540 @@ export function eventTone(event: string): EventTone {
   if (/done|commit|push$|land|release-end|acquired|lease$|cloud-done/.test(event)) return 'ok';
   if (/start|queued|placement|cloud-queued|release-begin|release-phase/.test(event)) return 'info';
   return 'neutral';
+}
+
+/*
+ * The action builder.
+ *
+ * A verb plus a flat map of strings goes in, an `AgentqAction` comes out — or
+ * `null` while a required field is still empty, which is what keeps the Run
+ * button honest instead of letting it send something agentq will refuse. The
+ * Rust planner validates again; this only spares the user a round trip.
+ */
+
+/** Every agentq verb the AI page can run. */
+export type VerbId =
+  | 'propose'
+  | 'sweep'
+  | 'reapTerminals'
+  | 'freeze'
+  | 'block'
+  | 'clear'
+  | 'break'
+  | 'bump'
+  | 'burst'
+  | 'land'
+  | 'run'
+  | 'commit'
+  | 'note'
+  | 'unlease'
+  | 'killJob';
+
+export type FieldKind = 'text' | 'number' | 'area' | 'select' | 'toggle';
+
+export interface FieldSpec {
+  readonly key: string;
+  readonly labelKey: string;
+  readonly kind: FieldKind;
+  readonly options?: readonly string[];
+  readonly placeholder?: string;
+  readonly helpKey?: string;
+  /** A verb's Run button waits for these. */
+  readonly required?: boolean;
+  /** Rendered on its own row: a command, a path list. */
+  readonly wide?: boolean;
+  readonly rows?: number;
+  /** Toggle fields only; the value used when the form opens. */
+  readonly initial?: string;
+}
+
+export interface VerbSpec {
+  readonly id: VerbId;
+  readonly labelKey: string;
+  readonly hintKey: string;
+  /** `safe` never surprises, `careful` changes someone else's work, `danger` moves history. */
+  readonly tone: 'safe' | 'careful' | 'danger';
+  /** Asked before running, because the effect is not obvious from the preview. */
+  readonly confirm: boolean;
+  readonly fields: readonly FieldSpec[];
+}
+
+const REASON: FieldSpec = {
+  key: 'reason',
+  labelKey: 'field.reason',
+  kind: 'text',
+  placeholder: 'why',
+  required: true,
+  wide: true,
+};
+
+const DRY_RUN: FieldSpec = {
+  key: 'dryRun',
+  labelKey: 'field.dryRun',
+  kind: 'toggle',
+  helpKey: 'field.dryRunHelp',
+  initial: 'true',
+};
+
+/**
+ * The form every verb needs, in the order it is shown.
+ *
+ * The resource/ticket/lease/job fields are free text with a datalist of what
+ * the snapshot currently holds, rather than a `<select>`: an agentq name is
+ * not always something the snapshot has seen yet (a ticket queued a second
+ * ago, a resource another machine holds), and refusing to name it would make
+ * the page less capable than the command line it fronts.
+ */
+export const verbs: readonly VerbSpec[] = [
+  {
+    id: 'propose',
+    labelKey: 'verb.propose',
+    hintKey: 'verb.proposeHint',
+    tone: 'safe',
+    confirm: false,
+    fields: [{ ...REASON, required: false }],
+  },
+  {
+    id: 'sweep',
+    labelKey: 'verb.sweep',
+    hintKey: 'verb.sweepHint',
+    tone: 'safe',
+    confirm: true,
+    fields: [DRY_RUN],
+  },
+  {
+    id: 'reapTerminals',
+    labelKey: 'verb.reapTerminals',
+    hintKey: 'verb.reapTerminalsHint',
+    tone: 'safe',
+    confirm: true,
+    fields: [DRY_RUN],
+  },
+  {
+    id: 'freeze',
+    labelKey: 'verb.freeze',
+    hintKey: 'verb.freezeHint',
+    tone: 'careful',
+    confirm: false,
+    fields: [{ key: 'resource', labelKey: 'field.resource', kind: 'text', required: true }, REASON],
+  },
+  {
+    id: 'block',
+    labelKey: 'verb.block',
+    hintKey: 'verb.blockHint',
+    tone: 'careful',
+    confirm: false,
+    fields: [{ key: 'resource', labelKey: 'field.resource', kind: 'text', required: true }, REASON],
+  },
+  {
+    id: 'clear',
+    labelKey: 'verb.clear',
+    hintKey: 'verb.clearHint',
+    tone: 'safe',
+    confirm: false,
+    fields: [{ key: 'resource', labelKey: 'field.resource', kind: 'text', required: true }, REASON],
+  },
+  {
+    id: 'break',
+    labelKey: 'verb.break',
+    hintKey: 'verb.breakHint',
+    tone: 'danger',
+    confirm: true,
+    fields: [
+      { key: 'resource', labelKey: 'field.resource', kind: 'text', required: true },
+      { key: 'ticket', labelKey: 'field.ticket', kind: 'text', required: true },
+      REASON,
+    ],
+  },
+  {
+    id: 'bump',
+    labelKey: 'verb.bump',
+    hintKey: 'verb.bumpHint',
+    tone: 'safe',
+    confirm: false,
+    fields: [
+      { key: 'ticket', labelKey: 'field.ticket', kind: 'text' },
+      { key: 'by', labelKey: 'field.by', kind: 'number', placeholder: '20', initial: '20' },
+      REASON,
+    ],
+  },
+  {
+    id: 'burst',
+    labelKey: 'verb.burst',
+    hintKey: 'verb.burstHint',
+    tone: 'safe',
+    confirm: false,
+    fields: [
+      {
+        key: 'resource',
+        labelKey: 'field.resource',
+        kind: 'text',
+        placeholder: 'build:machine',
+      },
+      { key: 'by', labelKey: 'field.by', kind: 'number', placeholder: '1', initial: '1' },
+      {
+        key: 'minutes',
+        labelKey: 'field.minutes',
+        kind: 'number',
+        placeholder: '30',
+        initial: '30',
+      },
+      REASON,
+    ],
+  },
+  {
+    id: 'land',
+    labelKey: 'verb.land',
+    hintKey: 'verb.landHint',
+    tone: 'danger',
+    confirm: true,
+    fields: [
+      { key: 'repo', labelKey: 'field.repo', kind: 'text', required: true, wide: true },
+      { key: 'branch', labelKey: 'field.branch', kind: 'text', required: true },
+      {
+        key: 'onto',
+        labelKey: 'field.onto',
+        kind: 'select',
+        options: ['main', 'dev'],
+        initial: 'main',
+      },
+      { key: 'purpose', labelKey: 'field.purpose', kind: 'text', required: true, wide: true },
+      { key: 'gate', labelKey: 'field.gate', kind: 'text', wide: true },
+    ],
+  },
+  {
+    id: 'run',
+    labelKey: 'verb.run',
+    hintKey: 'verb.runHint',
+    tone: 'careful',
+    confirm: true,
+    fields: [
+      {
+        key: 'resource',
+        labelKey: 'field.resource',
+        kind: 'text',
+        required: true,
+        placeholder: 'build:codai',
+      },
+      { key: 'purpose', labelKey: 'field.purpose', kind: 'text', required: true },
+      {
+        key: 'lane',
+        labelKey: 'field.lane',
+        kind: 'select',
+        options: ['', 'quick', 'gate', 'heavy', 'batch'],
+      },
+      {
+        key: 'place',
+        labelKey: 'field.place',
+        kind: 'select',
+        options: ['', 'local', 'cloud', 'auto'],
+      },
+      { key: 'repo', labelKey: 'field.repo', kind: 'text', wide: true },
+      { key: 'command', labelKey: 'field.command', kind: 'area', rows: 3, wide: true },
+    ],
+  },
+  {
+    id: 'commit',
+    labelKey: 'verb.commit',
+    hintKey: 'verb.commitHint',
+    tone: 'danger',
+    confirm: true,
+    fields: [
+      { key: 'repo', labelKey: 'field.repo', kind: 'text', required: true, wide: true },
+      { key: 'purpose', labelKey: 'field.purpose', kind: 'text', required: true },
+      { key: 'message', labelKey: 'field.message', kind: 'text', required: true, wide: true },
+      {
+        key: 'paths',
+        labelKey: 'field.paths',
+        kind: 'area',
+        rows: 3,
+        required: true,
+        wide: true,
+        helpKey: 'field.pathsHelp',
+      },
+    ],
+  },
+  {
+    id: 'note',
+    labelKey: 'verb.note',
+    hintKey: 'verb.noteHint',
+    tone: 'safe',
+    confirm: false,
+    fields: [
+      { key: 'message', labelKey: 'field.message', kind: 'text', required: true, wide: true },
+    ],
+  },
+  {
+    id: 'unlease',
+    labelKey: 'verb.unlease',
+    hintKey: 'verb.unleaseHint',
+    tone: 'careful',
+    confirm: true,
+    fields: [
+      { key: 'path', labelKey: 'field.path', kind: 'text', required: true, wide: true },
+      { key: 'leaseId', labelKey: 'field.leaseId', kind: 'text', required: true },
+      REASON,
+    ],
+  },
+  {
+    id: 'killJob',
+    labelKey: 'verb.killJob',
+    hintKey: 'verb.killJobHint',
+    tone: 'danger',
+    confirm: true,
+    fields: [{ key: 'job', labelKey: 'field.job', kind: 'text', required: true }],
+  },
+];
+
+export function verbSpec(id: VerbId): VerbSpec {
+  const spec = verbs.find((v) => v.id === id);
+  if (!spec) throw new Error(`unknown verb ${id}`);
+  return spec;
+}
+
+/** The opening value of every field of a verb. */
+export function initialFields(id: VerbId): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const f of verbSpec(id).fields) out[f.key] = f.initial ?? '';
+  return out;
+}
+
+const text = (v: string | undefined): string => (v ?? '').trim();
+const optional = (v: string | undefined): string | null => (text(v) === '' ? null : text(v));
+const num = (v: string | undefined, fallback: number): number => {
+  const n = Number.parseInt((v ?? '').trim(), 10);
+  return Number.isFinite(n) ? n : fallback;
+};
+
+/**
+ * Turns the form into an action, or `null` when a required field is empty.
+ *
+ * Optional flags are sent as `null` rather than omitted, because the wire type
+ * says they are nullable and a missing key is not the same fact to a
+ * serializer that has a default.
+ */
+export function buildAction(id: VerbId, f: Readonly<Record<string, string>>): AgentqAction | null {
+  for (const field of verbSpec(id).fields) {
+    if (field.required && text(f[field.key]) === '') return null;
+  }
+  switch (id) {
+    case 'propose':
+      return { kind: 'propose', reason: optional(f.reason) };
+    case 'sweep':
+      return { kind: 'sweep', dryRun: f.dryRun !== 'false' };
+    case 'reapTerminals':
+      return { kind: 'reapTerminals', dryRun: f.dryRun !== 'false' };
+    case 'freeze':
+      return { kind: 'freeze', resource: text(f.resource), reason: text(f.reason) };
+    case 'block':
+      return { kind: 'block', resource: text(f.resource), reason: text(f.reason) };
+    case 'clear':
+      return { kind: 'clear', resource: text(f.resource), reason: text(f.reason) };
+    case 'break':
+      return {
+        kind: 'break',
+        resource: text(f.resource),
+        ticket: text(f.ticket),
+        reason: text(f.reason),
+      };
+    case 'bump':
+      return {
+        kind: 'bump',
+        ticket: optional(f.ticket),
+        by: num(f.by, 20),
+        reason: text(f.reason),
+      };
+    case 'burst':
+      return {
+        kind: 'burst',
+        resource: optional(f.resource),
+        by: num(f.by, 1),
+        minutes: num(f.minutes, 30),
+        reason: text(f.reason),
+      };
+    case 'land':
+      return {
+        kind: 'land',
+        repo: text(f.repo),
+        branch: text(f.branch),
+        onto: text(f.onto) === '' ? 'main' : text(f.onto),
+        purpose: text(f.purpose),
+        gate: optional(f.gate),
+      };
+    case 'run':
+      return {
+        kind: 'run',
+        resource: text(f.resource),
+        purpose: text(f.purpose),
+        command: optional(f.command),
+        lane: optional(f.lane),
+        place: optional(f.place),
+        repo: optional(f.repo),
+      };
+    case 'commit':
+      return {
+        kind: 'commit',
+        repo: text(f.repo),
+        purpose: text(f.purpose),
+        message: text(f.message),
+        paths: (f.paths ?? '')
+          .split('\n')
+          .map((p) => p.trim())
+          .filter((p) => p !== ''),
+      };
+    case 'note':
+      return { kind: 'note', message: text(f.message) };
+    case 'unlease':
+      return {
+        kind: 'unlease',
+        path: text(f.path),
+        leaseId: text(f.leaseId),
+        reason: text(f.reason),
+      };
+    case 'killJob':
+      return { kind: 'killJob', job: text(f.job) };
+  }
+}
+
+/**
+ * A one-line preview of the command an action becomes.
+ *
+ * Descriptive, not authoritative: the Rust planner owns the real argument
+ * vector, and this exists so the user can read what they are about to run.
+ * Every value is one argument, so the quoting here is only for legibility —
+ * nothing in this application ever joins an action into a shell string.
+ */
+export function actionPreview(action: AgentqAction): string {
+  const q = (v: string): string => (/\s/.test(v) ? `"${v}"` : v);
+  const opt = (flag: string, v: string | null): string => (v === null ? '' : ` ${flag} ${q(v)}`);
+  switch (action.kind) {
+    case 'freeze':
+    case 'block':
+    case 'clear':
+      return `agentq ${action.kind} -Resource ${q(action.resource)} -Reason ${q(action.reason)}`;
+    case 'break':
+      return `agentq break -Resource ${q(action.resource)} -Id ${action.ticket} -Reason ${q(action.reason)}`;
+    case 'note':
+      return `agentq note -Message ${q(action.message)}`;
+    case 'unlease':
+      return `agentq unlease -Repo ${q(action.path)} -LeaseId ${action.leaseId} -Reason ${q(action.reason)}`;
+    case 'killJob':
+      return `jobs.ps1 kill ${action.job}`;
+    case 'reapTerminals':
+      return `reap-terminals.ps1 -Json${action.dryRun ? ' -WhatIf' : ''}`;
+    case 'propose':
+      return `agentq propose${opt('-Reason', action.reason)}`;
+    case 'sweep':
+      return `agentq sweep -Json${action.dryRun ? ' -WhatIf' : ''}`;
+    case 'bump':
+      return `agentq bump${action.ticket === null ? '' : ` -Id ${action.ticket}`} -By ${action.by} -Reason ${q(action.reason)}`;
+    case 'burst':
+      return `agentq burst${opt('-Resource', action.resource)} -By ${action.by} -Minutes ${action.minutes} -Reason ${q(action.reason)}`;
+    case 'land':
+      return `agentq land -Branch ${action.branch} -Onto ${action.onto} -Purpose ${q(action.purpose)}${opt('-Gate', action.gate)}  (in ${action.repo})`;
+    case 'run':
+      return `agentq run -Resource ${action.resource} -Purpose ${q(action.purpose)}${opt('-Lane', action.lane)}${opt('-Where', action.place)}${action.command === null ? '' : ` -- ${action.command}`}${action.repo === null ? '' : `  (in ${action.repo})`}`;
+    case 'commit':
+      return `agentq commit -Purpose ${q(action.purpose)} -Message ${q(action.message)} -Paths ${action.paths.join(',')}  (in ${action.repo})`;
+  }
+}
+
+/** A clone guessed from a leased slot, e.g. `E:\gh\.wt\codai\task-3` → `E:\gh\codai`. */
+export function cloneFromSlot(slot: string | null, repo: string): string | null {
+  if (slot === null) return null;
+  const parts = slot.split(/[\\/]+/).filter((p) => p !== '');
+  if (parts.length < 4) return null;
+  if (parts[parts.length - 3] !== '.wt' || parts[parts.length - 2] !== repo) return null;
+  return [...parts.slice(0, parts.length - 3), repo].join('\\');
+}
+
+/**
+ * Clone directories this machine is known to work in, best guess first.
+ *
+ * Both sources are facts rather than guesses: a registry entry records the
+ * directory a caller ran agentq from, and a lease records the slot it was
+ * given. The main clone beside `.wt` is derived from the slot's shape, which
+ * the worktree ADR fixes — a slot that does not have that shape yields nothing
+ * rather than a plausible-looking wrong path.
+ */
+export function repoCandidates(s: AgentsSnapshot): readonly string[] {
+  const out: string[] = [];
+  const add = (p: string | null | undefined): void => {
+    if (p !== null && p !== undefined && /[\\/]/.test(p) && !out.includes(p)) out.push(p);
+  };
+  for (const c of s.registry) {
+    add(c.repo);
+    add(c.cwd);
+  }
+  for (const l of s.leases) add(cloneFromSlot(l.path, l.repo));
+  return out;
+}
+
+/** Something worth offering before the user goes looking for it. */
+export interface Suggestion {
+  readonly id: 'propose' | 'sweep' | 'bump' | 'clear';
+  /** Values for `suggestion.<id>` interpolation. */
+  readonly params: Readonly<Record<string, string | number>>;
+  readonly action: AgentqAction;
+}
+
+/**
+ * What this snapshot suggests doing, most urgent first.
+ *
+ * Deliberately narrow: every suggestion is safe to accept, and each names a
+ * fact the user can see on the page — a stale holder, an expired slot, a queue
+ * nobody is moving. Nothing here destroys work; the verbs that could still ask
+ * first, through the same confirm dialog every other use of them goes through.
+ */
+export function suggestions(s: AgentsSnapshot, now: number): readonly Suggestion[] {
+  const out: Suggestion[] = [];
+  const tickets = s.resources.flatMap((r) => r.tickets);
+
+  const stuck = tickets.filter((t) => t.liveness === 'stale' || t.liveness === 'dead');
+  if (stuck.length > 0) {
+    out.push({
+      id: 'propose',
+      // `holders`, not `count`: a `count` key makes i18next look for plural
+      // forms (`suggest.propose_one`), and these strings read correctly for
+      // any number.
+      params: { holders: stuck.length },
+      action: { kind: 'propose', reason: `vitals: ${stuck.length} stale holder(s)` },
+    });
+  }
+
+  const expired = s.leases.filter((l) => l.stale);
+  if (expired.length > 0) {
+    out.push({
+      id: 'sweep',
+      params: { slots: expired.length },
+      action: { kind: 'sweep', dryRun: false },
+    });
+  }
+
+  // A queue whose front ticket has waited a while and is not moving. Fifteen
+  // minutes is where a build lock stops looking like work and starts looking
+  // like a serialisation that is stuck.
+  const slowest = tickets
+    .filter((t) => !t.held && t.createdMs !== null && t.priority !== null)
+    .map((t) => ({ t, waited: now - (t.createdMs ?? now) }))
+    .filter((x) => x.waited > 15 * 60_000)
+    .sort((a, b) => b.waited - a.waited)[0];
+  if (slowest) {
+    out.push({
+      id: 'bump',
+      params: { resource: slowest.t.resource, minutes: Math.round(slowest.waited / 60_000) },
+      action: { kind: 'bump', ticket: slowest.t.id, by: 20, reason: 'vitals: long wait' },
+    });
+  }
+
+  const mark = s.marks[0];
+  if (mark) {
+    out.push({
+      id: 'clear',
+      params: { resource: mark.resource },
+      action: { kind: 'clear', resource: mark.resource, reason: 'vitals: clear the mark' },
+    });
+  }
+
+  return out.slice(0, 4);
 }

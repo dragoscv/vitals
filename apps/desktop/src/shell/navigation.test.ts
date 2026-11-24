@@ -22,8 +22,12 @@ import {
 } from './navigation';
 
 /** The store is module-global: every test starts from "nothing known yet". */
-function set(health: boolean | null, platform: Platform | null): void {
-  useNavVisibility.setState({ health, platform });
+function set(
+  health: boolean | null,
+  platform: Platform | null,
+  agentq: boolean | null = null,
+): void {
+  useNavVisibility.setState({ health, platform, agentq });
 }
 
 afterEach(() => {
@@ -92,5 +96,37 @@ describe('destination visibility', () => {
     expect(routeSupported('storage', 'windows')).toBe(true);
     expect(routeSupported('storage', 'macos')).toBe(false);
     expect(routeSupported('storage', null)).toBe(true);
+  });
+});
+
+/**
+ * The AI page is the one destination backed by a separate program rather than
+ * by a command, so it is the one that can be missing on a machine that runs
+ * Windows. The failure worth guarding is hiding it too eagerly: an unasked
+ * probe (`null`) and an installed agentq (`true`) both keep it, and only a
+ * definite "agentq is absent and no client has ever run" takes it away.
+ */
+describe('the AI page when agentq is not installed', () => {
+  it('keeps the AI page until the probe has answered', () => {
+    set(true, 'windows', null);
+    expect(isRouteVisible('agents')).toBe(true);
+  });
+
+  it('keeps the AI page when agentq is installed', () => {
+    set(true, 'windows', true);
+    expect(isRouteVisible('agents')).toBe(true);
+  });
+
+  it('hides the AI page once the probe says agentq is absent', () => {
+    set(true, 'windows', false);
+    expect(isRouteVisible('agents')).toBe(false);
+  });
+
+  it('hides nothing else when agentq is absent, because the two facts are independent', () => {
+    set(true, 'windows', false);
+    const shown = visibleNavItems().map((item) => item.id);
+    for (const id of windowsOnlyRoutes) expect(shown).toContain(id);
+    expect(shown).toContain('health');
+    expect(shown).not.toContain('agents');
   });
 });
