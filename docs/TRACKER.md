@@ -270,9 +270,26 @@ the new test, and was reverted. Reintroducing the text match for a job
 `a_worker_whose_text_merely_mentions_a_kind_is_not_reported_as_one` —
 `75 passed; 1 failed` — and was reverted to `76 passed`.
 
-**The honest gap.** As with S26-03, this was proven by tests and by real state
-on this machine, not by a screenshot: no Tauri window was opened, so the
-rendered rows have been exercised only by their component test.
+**Seen in a window, 2026-11-24.** The rows are no longer covered only by their
+component test: the installed 1.3.1 (built from `f1453b31e28b`, installer SHA
+`c2c6c7e5`) was opened on this machine and the Resources tab read through the
+webview's accessibility tree. Four rows were on it, and each carried the kind
+its own agentq record names, never a word from the command text:
+
+- `build` **build:brivio** — 81 processes, running 54s, 6.0%, 3.07 GB, brivio,
+  term-31308, "land gate publish/term-32064-…"
+- `deploy` **deploy:brivio:release** — 3 processes, running 13m 34s, 0.1%,
+  397 MB, brivio, term-32064, "deploy release @ 1805ecede4a2: node
+  scripts/release.mjs run --yes …"
+- `build` **build:codai** — 19 processes, running 46s, 0.1%, 638 MB, codai,
+  term-32064, "land pregate publish/term-32064-…"
+- `job` **wave8 land when the freeze clears (waits for any wave8 job)** —
+  3 processes
+
+The land gate is the case worth keeping: it runs under a ticket named
+`build:brivio`, so it reports `build`, not `land`. The invariant the tests
+assert is visible in the same window — the agentq card's 6.2% is exactly those
+rows' 6.0 + 0.1 + 0.1, and its 4.76 GB is their sum plus the fourth row.
 
 ### 2026-11-24 — S26-02/S26-03: the processes grid tells the truth, and the AI page says what each tool costs
 
@@ -345,9 +362,15 @@ everywhere, because Windows has no per-process network counters without an
 elevated ETW kernel session and WDDM reports GPU utilisation but not
 per-process VRAM.
 
-**The honest gap.** The Resources panel was proven by tests against real data
-and by `prove_agents` on this machine, not by a screenshot: no Tauri window was
-opened, so the rendered panel has been exercised only by its component test.
+**Seen in a window, 2026-11-24.** The panel has been read off a Tauri window on
+this machine (the installed 1.3.1, built from `f1453b31e28b`), so it is no
+longer covered only by its component test. Two cards were on it: **agentq**
+112 processes, CPU 6.2%, 4.76 GB in use (2.41 GB private), disk 12.0 MB/s ↓ ·
+274 B/s ↑, network `— ↓ · — ↑`, GPU 0.0%; and **VS Code Copilot Chat** 187
+processes, CPU 26.9%, 35.4 GB (32.7 GB private), disk 65.0 MB/s ↓ · 59.5 MB/s ↑,
+GPU 6.4%. The em dashes are the panel working as designed: Windows has no
+per-process network counter without an elevated ETW session, and the card says
+so instead of printing zero.
 
 **Not recorded in ADR-0039.** The processes _ordering_ policy — an explicit
 request outranks the frozen guard, and first placement has a deterministic
