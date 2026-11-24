@@ -221,17 +221,38 @@ fn prove_usage(probe: &dyn Fn(u32) -> Option<u64>) {
         "usage: {} processes over {elapsed} ms, read_owned {read:?}",
         processes.len()
     );
-    println!("  recorded identities: {}", owned.len());
-    for o in &owned {
-        println!("    pid {} start {:?} -> {:?}", o.pid, o.start_ms, o.kind);
+    println!("  recorded identities: {}", owned.entries.len());
+    for o in &owned.entries {
+        println!("    pid {} start {} -> {:?}", o.pid, o.start_ms, o.claim);
+    }
+    println!("  recorded work: {}", owned.work.len());
+    for w in &owned.work {
+        println!(
+            "    {} [{:?}] pid {} repo={:?} session={:?} cmd={:?}",
+            w.label, w.kind, w.pid, w.repo, w.session, w.command
+        );
     }
 
     let snapshot = vitals_agents::usage::rollup(&processes, &owned, probe, now);
     let agentq = snapshot.agentq.as_ref();
     println!(
         "  agentq row: {}",
-        agentq.map_or("absent (no running job recorded)".to_string(), describe)
+        agentq.map_or(
+            "absent (nothing agentq holds owns a process)".to_string(),
+            describe
+        )
     );
+    if snapshot.work.is_empty() {
+        println!("  agentq work: no row (nothing it holds owns a process)");
+    }
+    for row in &snapshot.work {
+        println!(
+            "  work: {} [{:?}] {}",
+            row.label,
+            row.kind,
+            describe(&row.usage)
+        );
+    }
     if snapshot.clients.is_empty() {
         println!("  clients: no row (no process on this machine matched the catalogue)");
     }

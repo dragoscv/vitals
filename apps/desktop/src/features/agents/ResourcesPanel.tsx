@@ -20,10 +20,10 @@ import * as m from 'motion/react-m';
 import { AnimatePresence } from 'motion/react';
 import { useTranslation } from 'react-i18next';
 
-import type { AgentUsageSnapshot } from '@vitals/protocol';
+import type { AgentqWorkKind, AgentqWorkUsage, AgentUsageSnapshot } from '@vitals/protocol';
 import { EmptyState, cn, formatBytes, formatPercent, formatThroughput } from '@vitals/ui';
 
-import { since, usageRows, type UsageRow } from './model';
+import { repoName, since, usageRows, usageWork, workDetail, type UsageRow } from './model';
 import { UsageMark } from './parts';
 import { AGENTS_NS } from './strings';
 
@@ -36,6 +36,7 @@ export function ResourcesPanel({
 }) {
   const { t } = useTranslation(AGENTS_NS);
   const rows = usageRows(usage);
+  const work = usageWork(usage);
   if (rows.length === 0) {
     return <EmptyState title={t('usage.empty.title')} description={t('usage.empty.body')} />;
   }
@@ -56,9 +57,103 @@ export function ResourcesPanel({
           ))}
         </AnimatePresence>
       </ul>
+      {work.length > 0 && (
+        <div className="mt-1 flex flex-col gap-1.5">
+          <h4 className="text-xs font-semibold">{t('usage.work.title')}</h4>
+          <ul className="flex flex-col gap-1.5">
+            <AnimatePresence initial={false}>
+              {work.map((item) => (
+                <WorkRow key={item.pid} work={item} now={now} />
+              ))}
+            </AnimatePresence>
+          </ul>
+          <p className="text-2xs text-[var(--color-fg-muted)]">{t('usage.work.footnote')}</p>
+        </div>
+      )}
       <p className="text-2xs text-[var(--color-fg-muted)]">{t('usage.footnote')}</p>
     </section>
   );
+}
+
+/**
+ * One thing agentq is running, and what it costs.
+ *
+ * The row is keyed by the pid, not the label: two slots can hold the same
+ * resource name, and a label that repeats is exactly what React needs to be
+ * told apart from its sibling.
+ */
+function WorkRow({ work, now }: { readonly work: AgentqWorkUsage; readonly now: number }) {
+  const { t } = useTranslation(AGENTS_NS);
+  const u = work.usage;
+  const detail = workDetail(work);
+  const repo = repoName(work.repo);
+  return (
+    <m.li
+      layout
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.98 }}
+      transition={{ duration: 0.2 }}
+      className="rounded-lg border border-[var(--color-border-subtle)] bg-[var(--surface-card)] px-3 py-2"
+    >
+      <div className="flex items-center gap-2">
+        <span
+          className={cn(
+            'inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-2xs font-medium',
+            'bg-[var(--color-bg-subtle)] text-[var(--color-fg-muted)]',
+          )}
+        >
+          <span aria-hidden className={cn('size-1.5 rounded-full', workKindTone(work.kind))} />
+          {t(`usage.workKind.${work.kind}`)}
+        </span>
+        <span className="truncate text-xs font-medium">{work.label}</span>
+        <span className="ml-auto shrink-0 text-2xs text-[var(--color-fg-muted)]">
+          {t('usage.processes', { count: u.processes })}
+        </span>
+      </div>
+      <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-2xs text-[var(--color-fg-muted)]">
+        {work.startedMs !== null && (
+          <span>{t('usage.work.running', { ago: since(work.startedMs, now) })}</span>
+        )}
+        <span className="tabular-nums">{formatPercent(u.cpu)}</span>
+        <span className="tabular-nums">{formatBytes(u.memoryWorkingSet)}</span>
+        {repo !== null && <span className="truncate">{repo}</span>}
+        {work.session !== null && <span className="truncate">{work.session}</span>}
+      </div>
+      {detail !== null && (
+        <p className="truncate text-2xs text-[var(--color-fg-subtle)]">{detail}</p>
+      )}
+    </m.li>
+  );
+}
+
+/**
+ * A quiet colour per kind of work, as a leading dot rather than as the text
+ * colour: the chart and status fills are not proven at 11px on a subtle
+ * surface, so the word carries the meaning on a text token and the dot only
+ * makes a wall of rows scannable.
+ */
+function workKindTone(kind: AgentqWorkKind): string {
+  switch (kind) {
+    case 'build':
+      return 'bg-[var(--color-chart-cpu)]';
+    case 'test':
+      return 'bg-[var(--color-chart-memory)]';
+    case 'commit':
+      return 'bg-[var(--color-chart-disk)]';
+    case 'push':
+      return 'bg-[var(--color-chart-network)]';
+    case 'land':
+      return 'bg-[var(--color-accent)]';
+    case 'install':
+      return 'bg-[var(--color-chart-power)]';
+    case 'deploy':
+      return 'bg-[var(--color-status-warn)]';
+    case 'job':
+      return 'bg-[var(--color-chart-thermal)]';
+    case 'other':
+      return 'bg-[var(--color-fg-muted)]';
+  }
 }
 
 function UsageCard({ row }: { readonly row: UsageRow }) {

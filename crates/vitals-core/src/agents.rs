@@ -458,6 +458,79 @@ pub struct AgentUsage {
     pub gpu_memory: Option<Bytes>,
 }
 
+/// What agentq is doing with the processes attributed to it.
+///
+/// agentq's work is not one thing: it compiles, runs tests, lands branches,
+/// commits, installs and deploys, and each costs the machine differently. The
+/// kind comes from agentq's own record of the work — the resource a held
+/// ticket names (`build:vitals`, `commit:codai`), or the command it stored
+/// when the resource names no kind. Two kinds are never derived from text: a
+/// release run is a deploy and a background job is a job, because their
+/// recorded purpose is prose and their command is often an inline script
+/// path, whose file name describes the file rather than the work. A process
+/// name is never consulted.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "ts", ts(export, export_to = "core/"))]
+#[serde(rename_all = "camelCase")]
+pub enum AgentqWorkKind {
+    Build,
+    Test,
+    Commit,
+    Push,
+    Land,
+    Install,
+    Deploy,
+    /// A background job started through `job-start.ps1`.
+    Job,
+    /// agentq work whose resource and command name none of the above.
+    Other,
+}
+
+/// One piece of agentq's work, with what it is costing right now.
+///
+/// The numbers are the same measurements a client row carries, folded over
+/// this work's own processes and their descendants: a build's compiler
+/// children are inside `build:vitals` rather than spread over the session that
+/// asked for it. `null` means the same as everywhere else on this type — not
+/// measured, which is not zero.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(
+    feature = "ts",
+    ts(export, export_to = "core/", rename_all = "camelCase")
+)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentqWorkUsage {
+    /// What to show: the queue resource (`build:vitals`), `release
+    /// vitals:any`, or the job's label.
+    pub label: String,
+    pub kind: AgentqWorkKind,
+    /// The queue resource in agentq's own spelling, when there is one.
+    pub resource: Option<String>,
+    pub repo: Option<String>,
+    /// agentq's stated purpose for the ticket, which says what the work is
+    /// for rather than only what runs.
+    pub purpose: Option<String>,
+    /// The command line the work runs, as agentq recorded it. A purpose is
+    /// written for a person; this is what actually executes.
+    pub command: Option<String>,
+    /// The session that queued it, so a row can be traced back to a chat.
+    pub session: Option<String>,
+    /// The process that holds the work, as agentq recorded it: unique per
+    /// row, and what an action on this row would address.
+    pub pid: u32,
+    /// When the work started: the ticket was acquired, the release run began,
+    /// or the job was launched.
+    #[cfg_attr(feature = "ts", ts(type = "number | null"))]
+    pub started_ms: Option<u64>,
+    /// What this work is using, measured exactly like a client row — and
+    /// summed from the same processes, so the agentq row is always the total
+    /// of these and a breakdown can never disagree with it. `usage.kind` is
+    /// always [`AgentUsageKind::Agentq`]; the work's own kind is `kind` above.
+    pub usage: AgentUsage,
+}
+
 /// Every tool's resource use at one instant.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
@@ -477,6 +550,10 @@ pub struct AgentUsageSnapshot {
     /// One row per tool that owns at least one process, busiest first. A tool
     /// with no process is absent, not present with zeroes.
     pub clients: Vec<AgentUsage>,
+    /// What agentq itself is executing, one row per piece of work that owns a
+    /// process, busiest first. Work that is queued or long finished owns
+    /// nothing and is absent; so is a row whose recorded process has exited.
+    pub work: Vec<AgentqWorkUsage>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -842,6 +919,7 @@ mod usage_wire_tests {
             taken_at_ms: 1_700_000_000_000,
             agentq: None,
             clients: Vec::new(),
+            work: Vec::new(),
         };
         let json = serde_json::to_string(&empty).expect("serialise");
         assert!(json.contains(r#""agentq":null"#), "{json}");

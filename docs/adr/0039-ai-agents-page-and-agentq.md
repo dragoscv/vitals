@@ -124,6 +124,47 @@ on the machine showed it.
    an elevated ETW kernel session and WDDM reports GPU utilisation but not
    per-process VRAM.
 
+   _Amended 2026-11-24 (S26-04):_ agentq's own row is broken down into the
+   **work it is executing**, one row per thing that owns a process, because
+   "agentq is using 12 GB" answers no question a person actually has: a build,
+   a test run, a land and an install cost the machine differently and one of
+   them is usually the thing that is slow. The same recorded identity decides
+   it — a **held queue ticket**, a **running release run** and a **running or
+   suspect job** — and never a process name, which is why this needed no new
+   sampling: the owners were already in agentq's files. Three rules make the
+   breakdown trustworthy rather than decorative.
+
+   - **The rows are the total, not a second opinion.** Each row is folded from
+     the same process table in the same pass as the agentq figure, so the rows
+     are exactly that figure partitioned — a panel cannot show a breakdown that
+     disagrees with its own header. A test asserts the identity rather than
+     trusting it.
+   - **The identity is mandatory.** A claim needs a recorded start time and a
+     match within the same 2 s tolerance as everywhere else; a stale entry
+     whose process is gone, or one whose recorded holder has been recycled,
+     claims **nothing** and appears as no row. A ticket is `held: true` only; a
+     release is `state: "running"`; a job must carry a pid. `dead` holders are
+     absent on purpose — "running and costing you" is the question.
+   - **Later claims win, so the row is where the work happens.** The editor's
+     own process stays its client's; the shell a client queued a build through
+     becomes agentq's, because agentq's record is the more specific statement
+     about what that process is doing now. A process nobody recorded stays with
+     the client that started it, and that limit is stated in the panel's own
+     footnote rather than implied. Leases are deliberately **not** claimed: a
+     lease's pid is the session that created it, so claiming it would steal the
+     client's row, and the work a lease represents is already visible as the
+     release run and the tickets that hold it.
+   - **The kind comes from the record, and only twice from text.** The resource
+     prefix of a held ticket (`build`, `commit`, `push`, `land`, `install`,
+     `deploy`), or the command it stored when the resource names no kind, with
+     a test-run marker ranking above the prefix and the command — so a
+     `gate-run` inside a build resource reads as a test. A release run is a
+     deploy and a job is a job because that is what agentq says they are: their
+     purpose and command are prose or an inline script path, and matching those
+     names the file rather than the work (measured 2026-11-24: a job waiting for
+     a freeze to clear read as a land because its script is called
+     `land-when-unfrozen.ps1`).
+
 7. **Privacy.** Prompts are never read past the event type. Paths and titles
    go through the frame redaction when LAN redaction is on.
 

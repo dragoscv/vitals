@@ -6,17 +6,28 @@
 //! The machine runs hundreds of processes and only a handful belong to an AI
 //! tool. Two rules find them, and both are evidence rather than a heuristic:
 //!
-//! 1. **agentq's own state.** A running job in `jobs/*.json` and the
-//!    `appPid`/`shellPid` in `agents/*.json` are pids agentq verified itself,
-//!    so a recorded process is attributed even when its executable name is
-//!    generic — and the shell a client runs in is a plain `pwsh.exe`, which no
-//!    name rule could ever claim.
+//! 1. **agentq's own state.** The process holding a queue ticket, the one
+//!    running a release, a running job in `jobs/*.json`, and the
+//!    `appPid`/`shellPid` in `agents/*.json` are pids agentq recorded itself,
+//!    together with the start time that makes the pid an identity, so a
+//!    recorded process is attributed even when its executable name is generic
+//!    — and the shell a client runs in is a plain `pwsh.exe`, which no name
+//!    rule could ever claim.
 //! 2. **An exact executable name**, for clients that never talk to agentq
 //!    (VS Code with Copilot Chat, a `claude` or `codex` run started by hand).
 //!
 //! A process that is not claimed by either is not counted, including its
 //! descendants: attributing a whole subtree to a tool because one process in
 //! it looked plausible is how "node.exe is using 3 GB" ends up in a report.
+//!
+//! # agentq's own work is a row per thing it is executing
+//!
+//! The build tree under a held ticket belongs to that build, not to the
+//! editor that asked for it: agentq's row is folded from its own records and
+//! then split by what each record is doing, so `build:vitals` and
+//! `release vitals:any` are separate numbers whose sum is the agentq total.
+//! That is the only way "what is agentq costing me, and on what" can be read
+//! off the page instead of guessed from a chat window's total.
 //!
 //! The rows are folded from the same process table the Processes screen shows,
 //! so the two agree to the tick; see `get_agent_usage` for why the webview
@@ -25,7 +36,9 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use vitals_core::agents::{AgentUsage, AgentUsageKind, AgentUsageSnapshot};
+use vitals_core::agents::{
+    AgentUsage, AgentUsageKind, AgentUsageSnapshot, AgentqWorkKind, AgentqWorkUsage,
+};
 use vitals_core::process::Process;
 use vitals_core::units::{Bytes, BytesPerSec, Percent};
 
@@ -38,46 +51,101 @@ use crate::agentq::{self, PROC_START_TOLERANCE_MS, ProcStart};
 /// cycle, and either would spin here forever. Real trees are far shallower.
 const MAX_ANCESTOR_DEPTH: usize = 64;
 
-/// A process agentq's own state says belongs to a tool, as an identity.
+/// What a recorded pid is evidence of.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Claim {
+    /// A tool's own process, from the caller registry or an executable name.
+    Tool(AgentUsageKind),
+    /// One piece of agentq's work: an index into [`Ownership::work`].
+    Work(usize),
+}
+
+/// A process agentq's own state says belongs to a tool or to a piece of work.
 ///
-/// The start time is what makes it an identity: Windows reuses pids, and a
-/// recorded pid that is now an unrelated process must not have that process's
-/// memory charged to the agent. `None` means "agentq already verified this pid
-/// against its recorded start time", which is the case for its jobs.
+/// The start time is what makes it an identity, and it is required: Windows
+/// reuses pids, so a recorded pid that is now an unrelated process must not
+/// have that process's memory charged to the agent. A record that carries no
+/// start time is therefore not an identity at all and is dropped by the
+/// readers below — which is why a stale `shellPid` no longer claims a
+/// stranger's tree.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Owned {
     pub pid: u32,
-    pub start_ms: Option<u64>,
-    pub kind: AgentUsageKind,
+    pub start_ms: u64,
+    pub claim: Claim,
+}
+
+/// One piece of agentq's work, before it has been priced.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Work {
+    pub label: String,
+    pub kind: AgentqWorkKind,
+    pub resource: Option<String>,
+    pub repo: Option<String>,
+    pub purpose: Option<String>,
+    pub command: Option<String>,
+    pub session: Option<String>,
+    pub pid: u32,
+    pub started_ms: Option<u64>,
+}
+
+/// Everything agentq's own state attributes, and the work it is executing.
+///
+/// Read-only, and never a guess: every entry here comes from a file agentq
+/// wrote about a process it started or observed.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Ownership {
+    /// Claims in precedence order — later wins on a shared pid.
+    pub entries: Vec<Owned>,
+    /// The work those claims belong to, indexed by [`Claim::Work`].
+    pub work: Vec<Work>,
 }
 
 /// The processes agentq's own state attributes to agentq and to its clients.
 ///
-/// Read-only, and never a guess: every entry here comes from a file agentq
-/// wrote about a process it started or observed.
+/// Clients are collected first and agentq's work last, because later claims
+/// win: a shell that is holding a ticket is running that ticket, so its tree
+/// is agentq's work and not the chat's. The app a client runs in is a separate
+/// record, so the client keeps its own row.
 #[must_use]
-pub fn read_owned(root: &Path, probe: ProcStart<'_>, now: u64) -> Vec<Owned> {
-    let mut out: Vec<Owned> = agentq::read_jobs(root, probe, now)
-        .into_iter()
-        .filter(|job| job.state == "running" || job.state == "suspect")
-        .filter_map(|job| {
-            Some(Owned {
-                pid: job.pid?,
-                // `read_jobs` derived this state by probing the pid against
-                // the recorded start time, with the same rule used below.
-                start_ms: None,
-                kind: AgentUsageKind::Agentq,
-            })
-        })
-        .collect();
-    out.extend(read_client_owners(&root.join("agents")));
-    out
+pub fn read_owned(root: &Path, probe: ProcStart<'_>, now: u64) -> Ownership {
+    let mut owned = Ownership {
+        entries: read_client_owners(&root.join("agents")),
+        work: Vec::new(),
+    };
+    for worker in agentq::read_workers(root, probe, now) {
+        let index = owned.work.len();
+        owned.work.push(Work {
+            label: worker.label,
+            kind: worker.kind,
+            resource: worker.resource,
+            repo: worker.repo,
+            purpose: worker.purpose,
+            command: worker.command,
+            session: worker.session,
+            pid: worker.pid,
+            started_ms: worker.started_ms,
+        });
+        owned.entries.push(Owned {
+            pid: worker.pid,
+            start_ms: worker.start_ms,
+            claim: Claim::Work(index),
+        });
+    }
+    owned
 }
 
 /// Where a client and the shell it runs in are, from the caller registry.
 ///
 /// A client's *shell* is the process that actually compiles, tests and pushes,
 /// so counting only the app would hide most of the work.
+///
+/// Both halves of an identity are required. A registry entry that records a
+/// pid without its start time cannot be told apart from a recycled pid, and
+/// the sessions of a long day are exactly where a recycled pid lands: agentq
+/// writes `appStart`/`shellStart` on every session, so an entry missing one is
+/// stale or truncated, and claiming a stranger's memory on it would be a wrong
+/// number rather than a missing one.
 fn read_client_owners(dir: &Path) -> Vec<Owned> {
     let mut out = Vec::new();
     for path in agentq::json_files(dir) {
@@ -89,13 +157,16 @@ fn read_client_owners(dir: &Path) -> Vec<Owned> {
         };
         let kind = kind_of_client(&client);
         for (pid_key, start_key) in [("appPid", "appStart"), ("shellPid", "shellStart")] {
-            if let Some(pid) = agentq::pid32(&v, pid_key) {
-                out.push(Owned {
-                    pid,
-                    start_ms: agentq::t(&v, start_key),
-                    kind,
-                });
-            }
+            let (Some(pid), Some(start_ms)) =
+                (agentq::pid32(&v, pid_key), agentq::t(&v, start_key))
+            else {
+                continue;
+            };
+            out.push(Owned {
+                pid,
+                start_ms,
+                claim: Claim::Tool(kind),
+            });
         }
     }
     out
@@ -194,15 +265,30 @@ fn classify_by_description(description: Option<&str>) -> Option<AgentUsageKind> 
 #[must_use]
 pub fn rollup(
     processes: &[Process],
-    owned: &[Owned],
+    owned: &Ownership,
     probe: ProcStart<'_>,
     taken_at_ms: u64,
 ) -> AgentUsageSnapshot {
-    let claimed = claim(processes, owned, probe);
+    let claimed = claim(processes, &owned.entries, probe);
     let mut totals: HashMap<AgentUsageKind, Totals> = HashMap::new();
+    let mut works: Vec<Totals> = owned.work.iter().map(|_| Totals::default()).collect();
     for (index, process) in processes.iter().enumerate() {
-        if let Some(kind) = bucket_of(&claimed, processes, index) {
-            totals.entry(kind).or_default().add(process);
+        match bucket_of(&claimed, processes, index) {
+            Some(Bucket::Tool(kind)) => totals.entry(kind).or_default().add(process),
+            // The agentq row and the work rows are accumulated from the same
+            // process in the same pass, so the breakdown is the total by
+            // construction rather than by a second calculation that could
+            // drift from it.
+            Some(Bucket::Work(work)) => {
+                if let Some(totals_for_work) = works.get_mut(work) {
+                    totals_for_work.add(process);
+                    totals
+                        .entry(AgentUsageKind::Agentq)
+                        .or_default()
+                        .add(process);
+                }
+            }
+            None => {}
         }
     }
 
@@ -224,17 +310,60 @@ pub fn rollup(
         .position(|row| row.kind == AgentUsageKind::Agentq)
         .map(|index| clients.remove(index));
 
+    let mut work: Vec<AgentqWorkUsage> = owned
+        .work
+        .iter()
+        .zip(works)
+        .filter(|(_, totals)| totals.processes > 0)
+        .map(|(w, totals)| AgentqWorkUsage {
+            label: w.label.clone(),
+            kind: w.kind,
+            resource: w.resource.clone(),
+            repo: w.repo.clone(),
+            purpose: w.purpose.clone(),
+            command: w.command.clone(),
+            session: w.session.clone(),
+            pid: w.pid,
+            started_ms: w.started_ms,
+            usage: totals.into_usage(AgentUsageKind::Agentq),
+        })
+        .collect();
+    // Busiest first, then by size, kind and label: the work list must not
+    // reshuffle between refreshes at equal cost.
+    work.sort_by(|a, b| {
+        b.usage
+            .cpu
+            .0
+            .total_cmp(&a.usage.cpu.0)
+            .then(
+                b.usage
+                    .memory_working_set
+                    .0
+                    .cmp(&a.usage.memory_working_set.0),
+            )
+            .then(a.kind.cmp(&b.kind))
+            .then(a.label.cmp(&b.label))
+    });
+
     AgentUsageSnapshot {
         taken_at_ms,
         agentq,
         clients,
+        work,
     }
+}
+
+/// Which row a claimed process belongs to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Bucket {
+    Tool(AgentUsageKind),
+    Work(usize),
 }
 
 /// The claimed pids, and where each pid sits in the process table.
 struct Claimed {
     by_pid: HashMap<u32, usize>,
-    kind: Vec<Option<AgentUsageKind>>,
+    bucket: Vec<Option<Bucket>>,
 }
 
 /// Marks the processes agentq recorded, then those the catalogue names.
@@ -250,41 +379,45 @@ fn claim(processes: &[Process], owned: &[Owned], probe: ProcStart<'_>) -> Claime
         by_pid.entry(process.key.pid.0).or_insert(index);
     }
 
-    let mut kind: Vec<Option<AgentUsageKind>> = processes
+    let mut bucket: Vec<Option<Bucket>> = processes
         .iter()
-        .map(|p| classify(&p.name, p.description.as_deref()))
+        .map(|p| classify(&p.name, p.description.as_deref()).map(Bucket::Tool))
         .collect();
     for entry in owned {
         if let Some(&index) = by_pid.get(&entry.pid)
             && same_process(&processes[index], entry, probe)
         {
-            kind[index] = Some(entry.kind);
+            bucket[index] = Some(match entry.claim {
+                Claim::Tool(kind) => Bucket::Tool(kind),
+                Claim::Work(work) => Bucket::Work(work),
+            });
         }
     }
 
-    Claimed { by_pid, kind }
+    Claimed { by_pid, bucket }
 }
 
 /// Whether the process in the table is the one agentq recorded.
+///
+/// The start time is mandatory, so this is an equality rather than a guess: a
+/// process that began at a different instant is a different process, whatever
+/// its pid says.
 fn same_process(process: &Process, entry: &Owned, probe: ProcStart<'_>) -> bool {
     if process.key.pid.0 != entry.pid {
         return false;
     }
-    match entry.start_ms {
-        None => true,
-        Some(recorded) => probe(entry.pid)
-            .is_some_and(|actual| actual.abs_diff(recorded) <= PROC_START_TOLERANCE_MS),
-    }
+    probe(entry.pid)
+        .is_some_and(|actual| actual.abs_diff(entry.start_ms) <= PROC_START_TOLERANCE_MS)
 }
 
 /// The row `processes[start]` belongs to: its own if it is claimed, else the
 /// nearest claimed ancestor's.
-fn bucket_of(claimed: &Claimed, processes: &[Process], start: usize) -> Option<AgentUsageKind> {
+fn bucket_of(claimed: &Claimed, processes: &[Process], start: usize) -> Option<Bucket> {
     let mut current = Some(start);
     for _ in 0..MAX_ANCESTOR_DEPTH {
         let index = current?;
-        if let Some(kind) = claimed.kind[index] {
-            return Some(kind);
+        if let Some(bucket) = claimed.bucket[index] {
+            return Some(bucket);
         }
         current = processes[index]
             .parent
@@ -383,9 +516,11 @@ impl Totals {
 #[cfg(test)]
 mod tests {
     use super::{
-        AgentUsageKind, AgentUsageSnapshot, Owned, classify, kind_of_client, read_owned, rollup,
+        AgentUsageKind, AgentUsageSnapshot, Claim, Owned, Ownership, classify, kind_of_client,
+        read_owned, rollup,
     };
     use std::path::Path;
+    use vitals_core::agents::AgentqWorkKind;
     use vitals_core::fixtures;
     use vitals_core::ids::Pid;
     use vitals_core::process::Process;
@@ -414,8 +549,16 @@ mod tests {
     fn owned(pid: u32, start_ms: u64, kind: AgentUsageKind) -> Owned {
         Owned {
             pid,
-            start_ms: Some(start_ms),
-            kind,
+            start_ms,
+            claim: Claim::Tool(kind),
+        }
+    }
+
+    /// Ownership with no agentq work in it: the client-claiming tests.
+    fn clients(entries: Vec<Owned>) -> Ownership {
+        Ownership {
+            entries,
+            work: Vec::new(),
         }
     }
 
@@ -499,17 +642,21 @@ mod tests {
             let owned = read_owned(tmp.0.as_path(), &starts, T0);
             assert_eq!(
                 owned
+                    .entries
                     .iter()
-                    .map(|o| (o.pid, o.start_ms, o.kind))
+                    .map(|o| (o.pid, o.start_ms, o.claim))
                     .collect::<Vec<_>>(),
                 vec![
-                    (300, None, AgentUsageKind::Agentq),
-                    (400, Some(T0), AgentUsageKind::VscodeCopilot),
-                    (401, Some(T0), AgentUsageKind::VscodeCopilot),
-                    (402, Some(T0), AgentUsageKind::CopilotCli),
+                    (400, T0, Claim::Tool(AgentUsageKind::VscodeCopilot)),
+                    (401, T0, Claim::Tool(AgentUsageKind::VscodeCopilot)),
+                    (402, T0, Claim::Tool(AgentUsageKind::CopilotCli)),
+                    (300, T0, Claim::Work(0)),
                 ],
-                "the job, then the registry entries in file order"
+                "the registry entries in file order, then agentq's work last, \
+                 because a later claim wins on a shared pid"
             );
+            assert_eq!(owned.work.len(), 1);
+            assert_eq!(owned.work.first().expect("job work").label, "build");
 
             // The fold is what turns those identities into rows: pid 400 is
             // not running, so it must not appear.
@@ -528,6 +675,159 @@ mod tests {
             // Nothing claims pid 402 any more, and 90 % must not be reported
             // as the CLI's: a recycled pid is not evidence of a client.
             assert!(row(&snapshot, AgentUsageKind::CopilotCli).is_none());
+        }
+
+        /// A ticket file as agentq writes it: the holder's pid and the start
+        /// time that makes the pid an identity.
+        fn ticket(resource: &str, pid: u32, command: &str) -> String {
+            let id = format!("{pid:x}");
+            format!(
+                concat!(
+                    r#"{{"id":"{id}","resource":"{resource}","pid":{pid},"#,
+                    r#""procStart":"2026-10-17T03:00:00.0000000Z","session":"term-1","#,
+                    r#""purpose":"why it was queued","cmd":"{command}","#,
+                    r#""repo":"E:\\gh\\vitals","held":true}}"#
+                ),
+                id = id,
+                resource = resource,
+                pid = pid,
+                command = command,
+            )
+        }
+
+        #[test]
+        fn a_held_ticket_charges_the_build_tree_to_agentq_and_not_to_the_client_that_started_it() {
+            let tmp = Tmp::new("ticket");
+            // The session that asked for the build, and the ticket its shell
+            // acquired: both records name pid 500, so the two compete for it.
+            tmp.write(
+                "agents/term-1.json",
+                concat!(
+                    r#"{"session":"term-1","client":"vscode-copilot","app":"code","#,
+                    r#""appPid":400,"appStart":"2026-10-17T03:00:00.0000000Z","#,
+                    r#""shellPid":500,"shellStart":"2026-10-17T03:00:00.0000000Z"}"#,
+                ),
+            );
+            tmp.write(
+                "queues/build_vitals/00000001-aaaa.json",
+                &ticket("build:vitals", 500, "pnpm build"),
+            );
+            let starts = starts(&[(400, T0), (500, T0), (501, T0), (502, T0)]);
+            let tree = [
+                proc("Code - Insiders.exe", 400, 3.0),
+                child(proc("pwsh.exe", 500, 10.0), 400),
+                child(proc("node.exe", 501, 20.0), 500),
+                child(proc("rustc.exe", 502, 30.0), 501),
+            ];
+            let owned = read_owned(tmp.0.as_path(), &starts, T0);
+            let snapshot = rollup(&tree, &owned, &starts, T0);
+
+            let work = snapshot.work.first().expect("one work row");
+            assert_eq!(work.label, "build:vitals");
+            assert_eq!(work.kind, AgentqWorkKind::Build);
+            assert_eq!(work.repo.as_deref(), Some("E:\\gh\\vitals"));
+            assert_eq!(work.purpose.as_deref(), Some("why it was queued"));
+            assert_eq!(
+                work.usage.processes, 3,
+                "the holder, its child and the compiler it spawned"
+            );
+            assert_eq!(work.usage.cpu.0, 60.0);
+            // The editor keeps its own process: the work claim takes the
+            // shell it holds, not the application above it.
+            let vscode = row(&snapshot, AgentUsageKind::VscodeCopilot).expect("editor row");
+            assert_eq!(vscode.processes, 1);
+            assert_eq!(vscode.cpu.0, 3.0);
+            let agentq = snapshot.agentq.as_ref().expect("agentq row");
+            assert_eq!(agentq.processes, work.usage.processes);
+            assert_eq!(agentq.cpu.0, work.usage.cpu.0);
+        }
+
+        #[test]
+        fn a_ticket_whose_recorded_holder_is_gone_is_not_agentq_work() {
+            let tmp = Tmp::new("deadholder");
+            tmp.write(
+                "queues/build_codai/00000002-bbbb.json",
+                &ticket("build:codai", 600, "pnpm build"),
+            );
+            // The pid is running, but it started ten minutes later than the
+            // holder agentq recorded: the holder exited and Windows handed the
+            // pid to something else, which is not this work.
+            let starts = starts(&[(600, T0 + 600_000)]);
+            let owned = read_owned(tmp.0.as_path(), &starts, T0);
+            assert!(owned.work.is_empty(), "no identity, no work");
+            let snapshot = rollup(&[proc("node.exe", 600, 55.0)], &owned, &starts, T0);
+            assert!(snapshot.agentq.is_none());
+            assert!(snapshot.work.is_empty());
+        }
+
+        #[test]
+        fn a_client_entry_without_a_recorded_start_time_claims_nothing() {
+            let tmp = Tmp::new("nostart");
+            // A truncated or stale entry: agentq writes the start time with
+            // every session, so one without it cannot be matched to a process,
+            // and the pid it names may belong to anything by now.
+            tmp.write(
+                "agents/term-9.json",
+                r#"{"session":"term-9","client":"claude-code","shellPid":700,"shellStart":null}"#,
+            );
+            let starts = starts(&[(700, T0)]);
+            let owned = read_owned(tmp.0.as_path(), &starts, T0);
+            assert_eq!(owned, Ownership::default(), "no identity, no claim");
+            let snapshot = rollup(&[proc("node.exe", 700, 88.0)], &owned, &starts, T0);
+            assert!(snapshot.clients.is_empty(), "88 % is not the CLI's");
+        }
+
+        #[test]
+        fn the_agentq_row_is_exactly_the_sum_of_its_work_rows() {
+            let tmp = Tmp::new("sum");
+            tmp.write(
+                "queues/build_vitals/00000001-aaaa.json",
+                &ticket("build:vitals", 500, "pnpm build"),
+            );
+            tmp.write(
+                "queues/land_codai/00000003-cccc.json",
+                &ticket("land:codai", 600, "agentq land"),
+            );
+            tmp.write(
+                "jobs/j1.json",
+                &format!(
+                    concat!(
+                        r#"{{"id":"j1","label":"supervise the wave","pid":700,"#,
+                        r#""pidStart":{},"state":"running","#,
+                        r#""command":"pwsh -File supervise.ps1"}}"#
+                    ),
+                    ticks(T0)
+                ),
+            );
+            let starts = starts(&[(500, T0), (501, T0), (600, T0), (700, T0)]);
+            let tree = [
+                proc("pwsh.exe", 500, 10.0),
+                child(proc("node.exe", 501, 5.0), 500),
+                proc("pwsh.exe", 600, 2.0),
+                proc("pwsh.exe", 700, 1.0),
+                proc("chrome.exe", 800, 99.0),
+            ];
+            let owned = read_owned(tmp.0.as_path(), &starts, T0);
+            let snapshot = rollup(&tree, &owned, &starts, T0);
+
+            let agentq = snapshot.agentq.as_ref().expect("agentq row");
+            let summed: u32 = snapshot.work.iter().map(|w| w.usage.processes).sum();
+            let summed_cpu: f32 = snapshot.work.iter().map(|w| w.usage.cpu.0).sum();
+            assert_eq!(agentq.processes, summed);
+            assert_eq!(agentq.cpu.0, summed_cpu);
+            assert_eq!(agentq.processes, 4, "two tickets and a job, no more");
+            let kinds: Vec<AgentqWorkKind> = snapshot.work.iter().map(|w| w.kind).collect();
+            assert_eq!(
+                kinds,
+                vec![
+                    AgentqWorkKind::Build,
+                    AgentqWorkKind::Land,
+                    AgentqWorkKind::Job
+                ],
+                "busiest first"
+            );
+            // The process nobody claims makes no row at all.
+            assert!(snapshot.clients.is_empty());
         }
     }
 
@@ -588,6 +888,57 @@ mod tests {
     }
 
     #[test]
+    fn a_resource_names_the_kind_of_work_it_holds_and_a_test_run_outranks_it() {
+        use crate::agentq::work_kind;
+        let cases: [(Option<&str>, Option<&str>, Option<AgentqWorkKind>); 11] = [
+            (Some("build:vitals"), None, Some(AgentqWorkKind::Build)),
+            (Some("land:codai"), None, Some(AgentqWorkKind::Land)),
+            (Some("commit:metu"), None, Some(AgentqWorkKind::Commit)),
+            (Some("push:money"), None, Some(AgentqWorkKind::Push)),
+            (Some("install:brivio"), None, Some(AgentqWorkKind::Install)),
+            (
+                Some("deploy:codai:gateway"),
+                None,
+                Some(AgentqWorkKind::Deploy),
+            ),
+            // Tests queue through `build:`, and a suite is not a build.
+            (
+                Some("build:codai"),
+                Some("pnpm test"),
+                Some(AgentqWorkKind::Test),
+            ),
+            (
+                Some("build:codai"),
+                Some("cargo nextest run"),
+                Some(AgentqWorkKind::Test),
+            ),
+            // A release run holds no resource, so its command decides; a
+            // command that names both a deploy and a build is the deploy it
+            // was queued as.
+            (
+                None,
+                Some("pnpm --filter @vitals/desktop tauri build"),
+                Some(AgentqWorkKind::Build),
+            ),
+            (
+                None,
+                Some("deploy-clean.ps1 -Inner -Command pnpm build"),
+                Some(AgentqWorkKind::Deploy),
+            ),
+            // A tunnel script names nothing: the caller decides what silence
+            // means for its own records.
+            (None, Some("-File C:\\Temp\\k2w8\\tunnel.ps1"), None),
+        ];
+        for (resource, command, want) in cases {
+            assert_eq!(
+                work_kind(resource, command),
+                want,
+                "{resource:?} {command:?}"
+            );
+        }
+    }
+
+    #[test]
     fn descendants_of_a_recorded_process_are_counted_with_it() {
         let tree = [
             child(proc("pwsh.exe", 100, 10.0), 1),
@@ -596,7 +947,7 @@ mod tests {
             proc("notepad.exe", 200, 99.0),
         ];
         let owned = [owned(100, 5_000, AgentUsageKind::Agentq)];
-        let snapshot = rollup(&tree, &owned, &starts(&[(100, 5_000)]), 7);
+        let snapshot = rollup(&tree, &clients(owned.to_vec()), &starts(&[(100, 5_000)]), 7);
 
         // agentq's row is lifted out of the client list, so read it there.
         let row = snapshot.agentq.as_ref().expect("agentq row");
@@ -614,7 +965,12 @@ mod tests {
         // something else's run away.
         let tree = [proc("pwsh.exe", 100, 42.0)];
         let owned = [owned(100, 5_000, AgentUsageKind::Agentq)];
-        let snapshot = rollup(&tree, &owned, &starts(&[(100, 30_000)]), 0);
+        let snapshot = rollup(
+            &tree,
+            &clients(owned.to_vec()),
+            &starts(&[(100, 30_000)]),
+            0,
+        );
         assert!(snapshot.agentq.is_none());
         assert!(snapshot.clients.is_empty());
     }
@@ -628,7 +984,7 @@ mod tests {
         // process on Windows does for the network.
         let tree = [child(proc("pwsh.exe", 100, 1.0), 1), measured];
         let owned = [owned(100, 5_000, AgentUsageKind::Agentq)];
-        let snapshot = rollup(&tree, &owned, &starts(&[(100, 5_000)]), 0);
+        let snapshot = rollup(&tree, &clients(owned.to_vec()), &starts(&[(100, 5_000)]), 0);
 
         let row = snapshot.agentq.as_ref().expect("agentq row");
         assert_eq!(row.processes, 2);
@@ -652,7 +1008,7 @@ mod tests {
         b.gpu = Some(vitals_core::units::Percent(1.5));
         let tree = [root, a, b];
         let owned = [owned(100, 5_000, AgentUsageKind::Cli)];
-        let snapshot = rollup(&tree, &owned, &starts(&[(100, 5_000)]), 0);
+        let snapshot = rollup(&tree, &clients(owned.to_vec()), &starts(&[(100, 5_000)]), 0);
 
         let row = row(&snapshot, AgentUsageKind::Cli).expect("row");
         assert_eq!(row.net_tx.map(|v| v.0), Some(1_700));
@@ -666,7 +1022,7 @@ mod tests {
     #[test]
     fn nothing_is_reported_when_no_process_belongs_to_an_agent() {
         let tree = [proc("notepad.exe", 1, 5.0), proc("chrome.exe", 2, 5.0)];
-        let snapshot = rollup(&tree, &[], &starts(&[]), 0);
+        let snapshot = rollup(&tree, &Ownership::default(), &starts(&[]), 0);
         assert!(snapshot.agentq.is_none());
         assert!(snapshot.clients.is_empty());
     }
@@ -679,7 +1035,7 @@ mod tests {
             proc("pwsh.exe", 30, 1.0),
         ];
         let owned = [owned(30, 5_000, AgentUsageKind::Agentq)];
-        let snapshot = rollup(&tree, &owned, &starts(&[(30, 5_000)]), 0);
+        let snapshot = rollup(&tree, &clients(owned.to_vec()), &starts(&[(30, 5_000)]), 0);
 
         assert_eq!(
             snapshot.agentq.as_ref().expect("agentq row").kind,
@@ -700,13 +1056,13 @@ mod tests {
         a.parent = Some(Pid(101));
         let mut b = proc("node.exe", 101, 1.0);
         b.parent = Some(Pid(100));
-        let snapshot = rollup(&[a, b], &[], &starts(&[]), 0);
+        let snapshot = rollup(&[a, b], &Ownership::default(), &starts(&[]), 0);
         assert!(snapshot.clients.is_empty());
     }
 
     #[test]
     fn agentq_owns_nothing_when_its_state_directory_is_absent() {
         let absent = Path::new("Z:\\does\\not\\exist");
-        assert!(read_owned(absent, &starts(&[]), 0).is_empty());
+        assert_eq!(read_owned(absent, &starts(&[]), 0), Ownership::default());
     }
 }

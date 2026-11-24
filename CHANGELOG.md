@@ -31,6 +31,19 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   blaming it for an agent would put everything compiling on that agent's bill.
   A reading any contributor cannot report stays a dash, not a partial sum.
 
+- AI page → **Resources**: the agentq figure is broken down into what agentq is
+  actually doing — a row per queue ticket it holds, release run or background
+  job, in progress, with the kind of work (build, test, commit, push, land,
+  install, deploy, job), how long it has been running, its processes, processor
+  and memory, its repository and the session that asked for it, and the purpose
+  or command agentq recorded. The rows are measured from the same process table
+  as the figure above them, so they always add up to it exactly, and a row
+  appears only while that work owns a process. A command nobody recorded with
+  agentq stays with whoever started it. The kind is the one agentq wrote down —
+  the resource a held ticket names, or the command it ran — and never a guess
+  from prose: a release run is a deploy and a job is a job, so a job whose script
+  happens to be called `land-when-unfrozen.ps1` is not reported as a land.
+
 ### Fixed
 
 - Processes: clicking a column header sorts again. The freeze that keeps rows

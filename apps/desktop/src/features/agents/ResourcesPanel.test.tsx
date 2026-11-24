@@ -9,7 +9,7 @@ import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { i18n, initI18n } from '@vitals/i18n';
 
-import { makeUsage, makeUsageSnapshot } from './fixtures.test-utils';
+import { makeUsage, makeUsageSnapshot, makeWork } from './fixtures.test-utils';
 import { ResourcesPanel } from './ResourcesPanel';
 import { registerAgentsStrings } from './strings';
 
@@ -64,5 +64,39 @@ describe('ResourcesPanel', () => {
     );
     expect(headings).toEqual(['agentq', 'Claude', 'VS Code Copilot Chat']);
     expect(screen.getAllByText('3 processes')).toHaveLength(3);
+  });
+
+  it('breaks agentq’s own figure down into what it is executing, by pid', () => {
+    render(
+      <ResourcesPanel
+        usage={makeUsageSnapshot({
+          work: [
+            makeWork(),
+            makeWork({
+              pid: 4243,
+              label: 'land:codai',
+              kind: 'land',
+              purpose: null,
+              command: 'pnpm land',
+            }),
+          ],
+        })}
+        now={Date.now()}
+      />,
+    );
+    expect(screen.getByText('What agentq is running')).toBeTruthy();
+    expect(screen.getByText('build:vitals')).toBeTruthy();
+    expect(screen.getByText('land:codai')).toBeTruthy();
+    // The kind badge reads the work's own kind, never the agentq usage kind.
+    expect(screen.getByText('land')).toBeTruthy();
+    // A purpose is preferred over the command, and a row without one falls
+    // back to the command rather than showing nothing.
+    expect(screen.getByText('why it was queued')).toBeTruthy();
+    expect(screen.getByText('pnpm land')).toBeTruthy();
+  });
+
+  it('draws no work list at all when agentq is executing nothing', () => {
+    render(<ResourcesPanel usage={makeUsageSnapshot()} now={Date.now()} />);
+    expect(screen.queryByText('What agentq is running')).toBeNull();
   });
 });

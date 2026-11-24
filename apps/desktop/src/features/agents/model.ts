@@ -12,6 +12,7 @@ import type {
   AgentqLease,
   AgentqResource,
   AgentqTicket,
+  AgentqWorkUsage,
   AgentUsage,
   AgentUsageKind,
   AgentUsageSnapshot,
@@ -72,6 +73,30 @@ export function usageRows(snapshot: AgentUsageSnapshot | null): readonly UsageRo
   }));
   const agentq = snapshot.agentq;
   return agentq === null ? clients : [{ key: agentq.kind, usage: agentq, self: true }, ...clients];
+}
+
+/**
+ * What agentq itself is executing, one row per piece of work that owns a
+ * process.
+ *
+ * No filtering happens here on purpose: the backend already drops work that
+ * owns nothing and sorts what is left busiest first, and a second opinion in
+ * the UI is how a measured row would silently stop being shown.
+ */
+export function usageWork(snapshot: AgentUsageSnapshot | null): readonly AgentqWorkUsage[] {
+  return snapshot?.work ?? [];
+}
+
+/**
+ * What a piece of work is for.
+ *
+ * A queue ticket carries the purpose a person wrote for it, which is the more
+ * useful sentence; a release run and a background job record no purpose, so
+ * the command agentq is actually running stands in for it. Null when agentq
+ * recorded neither, and the row then shows neither rather than an empty line.
+ */
+export function workDetail(work: AgentqWorkUsage): string | null {
+  return work.purpose ?? work.command;
 }
 
 /** Headline numbers for the overview strip. */

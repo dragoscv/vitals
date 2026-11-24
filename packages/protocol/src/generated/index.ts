@@ -16,6 +16,8 @@ export type * from './core/AgentqResource';
 export type * from './core/AgentqStats';
 export type * from './core/AgentqStatus';
 export type * from './core/AgentqTicket';
+export type * from './core/AgentqWorkKind';
+export type * from './core/AgentqWorkUsage';
 export type * from './core/AgentsSnapshot';
 export type * from './core/Alert';
 export type * from './core/AlertKind';

@@ -18,7 +18,7 @@ use std::path::{Path, PathBuf};
 use serde_json::Value;
 use vitals_core::agents::{
     AgentqCaller, AgentqJob, AgentqLease, AgentqMark, AgentqRelease, AgentqResource, AgentqTicket,
-    CloudDown, Liveness, MachineCap, ResourceKind,
+    AgentqWorkKind, CloudDown, Liveness, MachineCap, ResourceKind,
 };
 
 use crate::time::{mtime_ms, parse_iso_ms};
@@ -333,6 +333,24 @@ pub fn read_releases(root: &Path, now: u64) -> Vec<AgentqRelease> {
 
 #[must_use]
 pub fn read_jobs(root: &Path, probe: ProcStart<'_>, now: u64) -> Vec<AgentqJob> {
+    job_records(root, probe, now)
+        .into_iter()
+        .map(|r| r.job)
+        .collect()
+}
+
+/// A job and the start time agentq recorded for its process.
+///
+/// `read_jobs` drops the start time because a row does not show it, but
+/// attribution needs it: without it a pid is a number Windows may have
+/// recycled, and the work it now runs would be charged to a job that ended.
+struct JobRecord {
+    job: AgentqJob,
+    /// `pidStart` (`.NET` ticks) as Unix milliseconds.
+    pid_start_ms: Option<u64>,
+}
+
+fn job_records(root: &Path, probe: ProcStart<'_>, now: u64) -> Vec<JobRecord> {
     let dir = root.join("jobs");
     let Ok(rd) = fs::read_dir(&dir) else {
         return Vec::new();
@@ -378,27 +396,270 @@ pub fn read_jobs(root: &Path, probe: ProcStart<'_>, now: u64) -> Vec<AgentqJob> 
                 state
             }
         };
-        out.push(AgentqJob {
-            id: s(&v, "id").unwrap_or_default(),
-            label: s(&v, "label"),
-            command: s(&v, "command"),
-            repo: s(&v, "repo"),
-            pid,
-            state: derived,
-            exit_code: v
-                .get("exitCode")
-                .and_then(Value::as_i64)
-                .and_then(|x| i32::try_from(x).ok()),
-            expected_min: expected,
-            started_ms: started,
-            ended_ms: t(&v, "endedAt"),
-            last_output_ms: log_mtime,
+        out.push(JobRecord {
+            pid_start_ms: recorded,
+            job: AgentqJob {
+                id: s(&v, "id").unwrap_or_default(),
+                label: s(&v, "label"),
+                command: s(&v, "command"),
+                repo: s(&v, "repo"),
+                pid,
+                state: derived,
+                exit_code: v
+                    .get("exitCode")
+                    .and_then(Value::as_i64)
+                    .and_then(|x| i32::try_from(x).ok()),
+                expected_min: expected,
+                started_ms: started,
+                ended_ms: t(&v, "endedAt"),
+                last_output_ms: log_mtime,
+            },
         });
         if out.len() >= 200 {
             break;
         }
     }
     out
+}
+
+/// One process agentq is responsible for, and the work it belongs to.
+///
+/// A job is not the only thing agentq runs. The process that holds a queue
+/// ticket is the one that compiles, tests, lands or deploys — its children
+/// are the compiler and the packager — and a live release run is the pipeline
+/// that builds the installer. Those processes were previously attributed to
+/// whichever editor started the session, which is how a whole `rustc` tree
+/// ended up charged to a chat window.
+///
+/// The identity is agentq's own record: the pid *and* the start time it wrote
+/// when it acquired the ticket, started the release or launched the job. A pid
+/// whose recorded start no longer matches the live process is not returned at
+/// all, so Windows recycling a pid cannot charge a stranger's tree to agentq.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Worker {
+    pub pid: u32,
+    /// The start time agentq recorded, already matched against the live
+    /// process.
+    pub start_ms: u64,
+    /// What to show: the queue resource, `release vitals:any`, or a label.
+    pub label: String,
+    pub kind: AgentqWorkKind,
+    pub resource: Option<String>,
+    pub repo: Option<String>,
+    pub purpose: Option<String>,
+    pub command: Option<String>,
+    pub session: Option<String>,
+    pub started_ms: Option<u64>,
+}
+
+/// The pid as an identity.
+///
+/// `Some((pid, recorded))` only when agentq recorded a start time **and** the
+/// live process still started at it. A record without a start time is not an
+/// identity: the pid alone is a number Windows reuses.
+fn verified_start(
+    probe: ProcStart<'_>,
+    pid: Option<u32>,
+    recorded_ms: Option<u64>,
+) -> Option<(u32, u64)> {
+    let pid = pid?;
+    let recorded = recorded_ms?;
+    let actual = probe(pid)?;
+    (actual.abs_diff(recorded) <= PROC_START_TOLERANCE_MS).then_some((pid, recorded))
+}
+
+/// What a piece of agentq work is, from the resource it holds or its command.
+///
+/// `None` when neither names a kind; each source knows what silence means for
+/// its own records. A test run is recognised first, before the resource is
+/// consulted: tests queue through `build:` and a suite that compiles and a
+/// build that compiles cost the machine very differently.
+///
+/// This is asked only about a **held ticket**, where both strings are agentq's
+/// own record of what it took and what it ran. A release run and a background
+/// job do not ask it: agentq recorded a release and a job, and their `purpose`
+/// and command are prose or an inline script path, so matching them names the
+/// file rather than the work — a job waiting for a freeze to clear reads as a
+/// land because its script is called `land-when-unfrozen.ps1`.
+#[must_use]
+pub fn work_kind(resource: Option<&str>, command: Option<&str>) -> Option<AgentqWorkKind> {
+    let cmd = command.unwrap_or_default().to_ascii_lowercase();
+    let names_test = [
+        "cargo test",
+        "cargo nextest",
+        "nextest run",
+        "vitest",
+        "pytest",
+        "pnpm test",
+        "npm test",
+        "yarn test",
+        "gradlew test",
+        "gate-run",
+    ]
+    .iter()
+    .any(|m| cmd.contains(m));
+    if names_test {
+        return Some(AgentqWorkKind::Test);
+    }
+    let res = resource.unwrap_or_default().to_ascii_lowercase();
+    for (prefix, kind) in [
+        ("build:", AgentqWorkKind::Build),
+        ("land:", AgentqWorkKind::Land),
+        ("commit:", AgentqWorkKind::Commit),
+        ("push:", AgentqWorkKind::Push),
+        ("install:", AgentqWorkKind::Install),
+        ("deploy:", AgentqWorkKind::Deploy),
+    ] {
+        if res.starts_with(prefix) {
+            return Some(kind);
+        }
+    }
+    // No queue resource: a release run or a job, where the command is the only
+    // evidence there is.
+    for (marker, kind) in [
+        ("land", AgentqWorkKind::Land),
+        ("deploy", AgentqWorkKind::Deploy),
+        ("build", AgentqWorkKind::Build),
+        ("commit", AgentqWorkKind::Commit),
+        ("push", AgentqWorkKind::Push),
+        ("install", AgentqWorkKind::Install),
+    ] {
+        if cmd.contains(marker) {
+            return Some(kind);
+        }
+    }
+    None
+}
+
+/// Every process agentq is responsible for right now, one per pid.
+///
+/// Queue tickets win over release runs, which win over background jobs, so the
+/// most specific label survives when one process holds two records — the
+/// holder of `build:vitals` is that build, not "some job".
+#[must_use]
+pub fn read_workers(root: &Path, probe: ProcStart<'_>, now: u64) -> Vec<Worker> {
+    let mut out: Vec<Worker> = Vec::new();
+    let mut seen: std::collections::HashSet<u32> = std::collections::HashSet::new();
+    let mut keep = |w: Worker| seen.insert(w.pid).then_some(w);
+    for w in ticket_workers(root, probe) {
+        if let Some(w) = keep(w) {
+            out.push(w);
+        }
+    }
+    for w in release_workers(root, probe) {
+        if let Some(w) = keep(w) {
+            out.push(w);
+        }
+    }
+    for w in job_workers(root, probe, now) {
+        if let Some(w) = keep(w) {
+            out.push(w);
+        }
+    }
+    out
+}
+
+/// The processes holding a queue ticket: the resource's actual work.
+fn ticket_workers(root: &Path, probe: ProcStart<'_>) -> Vec<Worker> {
+    let Ok(rd) = fs::read_dir(root.join("queues")) else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    for dir in rd
+        .filter_map(Result::ok)
+        .map(|e| e.path())
+        .filter(|p| p.is_dir())
+    {
+        for file in json_files(&dir) {
+            let Some(v) = read_json(&file) else { continue };
+            // A queued-but-waiting ticket owns no process, so it owns no
+            // resource use either.
+            if !b(&v, "held").unwrap_or(false) {
+                continue;
+            }
+            let Some((pid, start_ms)) = verified_start(probe, pid32(&v, "pid"), t(&v, "procStart"))
+            else {
+                continue;
+            };
+            let resource = s(&v, "resource")
+                .or_else(|| dir.file_name().and_then(|n| n.to_str()).map(unsafe_name));
+            let command = s(&v, "cmd");
+            out.push(Worker {
+                label: resource.clone().unwrap_or_else(|| "agentq".to_owned()),
+                kind: work_kind(resource.as_deref(), command.as_deref())
+                    .unwrap_or(AgentqWorkKind::Other),
+                pid,
+                start_ms,
+                resource,
+                repo: s(&v, "repo"),
+                purpose: s(&v, "purpose"),
+                command,
+                session: s(&v, "session"),
+                started_ms: t(&v, "acquired").or_else(|| t(&v, "created")),
+            });
+        }
+    }
+    out
+}
+
+/// The process running a release: agentq's own pipeline, whose children are
+/// the compiler and the packager of an installer.
+fn release_workers(root: &Path, probe: ProcStart<'_>) -> Vec<Worker> {
+    let mut out = Vec::new();
+    for file in json_files(&root.join("releases")) {
+        let Some(v) = read_json(&file) else { continue };
+        if s(&v, "state").as_deref() != Some("running") {
+            continue;
+        }
+        let Some((pid, start_ms)) = verified_start(probe, pid32(&v, "pid"), t(&v, "procStart"))
+        else {
+            continue;
+        };
+        let repo = s(&v, "repo").unwrap_or_default();
+        let target = s(&v, "target").unwrap_or_default();
+        // agentq records the command a release runs in `purpose`. The kind is
+        // not derived from it: a release run is a deploy whatever its command
+        // and prose happen to say.
+        let command = s(&v, "purpose");
+        out.push(Worker {
+            label: format!("release {repo}:{target}"),
+            kind: AgentqWorkKind::Deploy,
+            pid,
+            start_ms,
+            resource: None,
+            repo: Some(repo),
+            purpose: None,
+            command,
+            session: s(&v, "session"),
+            started_ms: t(&v, "started"),
+        });
+    }
+    out
+}
+
+/// The processes of the background jobs still running.
+fn job_workers(root: &Path, probe: ProcStart<'_>, now: u64) -> Vec<Worker> {
+    job_records(root, probe, now)
+        .into_iter()
+        .filter(|r| r.job.state == "running" || r.job.state == "suspect")
+        .filter_map(|r| {
+            let job = r.job;
+            Some(Worker {
+                label: job.label.clone().unwrap_or_else(|| job.id.clone()),
+                // A background job is a job. Its command is often an inline
+                // `-File <path>`, and matching that text would name the script.
+                kind: AgentqWorkKind::Job,
+                pid: job.pid?,
+                start_ms: r.pid_start_ms?,
+                resource: None,
+                repo: job.repo,
+                purpose: None,
+                command: job.command,
+                session: None,
+                started_ms: job.started_ms,
+            })
+        })
+        .collect()
 }
 
 #[must_use]
@@ -647,5 +908,33 @@ mod tests {
             "\u{feff}{\"resource\":\"build:x\",\"state\":\"frozen\",\"reason\":\"incident\"}",
         );
         assert_eq!(read_marks(&d.0)[0].state, "frozen");
+    }
+
+    #[test]
+    fn a_worker_whose_text_merely_mentions_a_kind_is_not_reported_as_one() {
+        let d = Tmp::new("workers");
+        // On the real machine this job is a waiter whose script is called
+        // `land-when-unfrozen.ps1`; matching the command named the file and
+        // reported a background job as a land. A job is a job.
+        d.write(
+            "jobs/j1.json",
+            &format!(
+                r#"{{"id":"j1","label":"wave8 land when the freeze clears","state":"running","pid":9,"command":"-File \"E:\\gh\\.copilot-tmp\\land-when-unfrozen.ps1\" -MaxMin 150","startedAt":"2026-10-17T03:28:00Z","expectedMin":10,"pidStart":{ticks}}}"#,
+                ticks = (NOW * 10_000) + 621_355_968_000_000_000
+            ),
+        );
+        // And this release run compiles an installer, so its purpose mentions
+        // a build: the run is still a deploy.
+        d.write(
+            "releases/vitals__any.json",
+            r#"{"runId":"r1","repo":"vitals","target":"any","sha":"abc","ref":"main","follow":true,"phase":"build","state":"running","session":"term-1","pid":11,"procStart":"2026-10-17T03:29:31Z","started":"2026-10-17T03:00:00Z","purpose":"pnpm build && node scripts/release.mjs run","preemptible":false,"committed":true}"#,
+        );
+        let probe = |_: u32| Some(NOW);
+        let workers = read_workers(&d.0, &probe, NOW);
+        let job = workers.iter().find(|w| w.pid == 9).expect("the job");
+        assert_eq!(job.kind, AgentqWorkKind::Job, "prose must not name it");
+        let release = workers.iter().find(|w| w.pid == 11).expect("the release");
+        assert_eq!(release.kind, AgentqWorkKind::Deploy);
+        assert_eq!(release.label, "release vitals:any");
     }
 }

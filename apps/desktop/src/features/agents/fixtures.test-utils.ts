@@ -4,6 +4,7 @@ import type {
   AgentUsageKind,
   AgentUsageSnapshot,
   AgentqTicket,
+  AgentqWorkUsage,
   AgentsSnapshot,
 } from '@vitals/protocol';
 
@@ -41,6 +42,32 @@ export function makeUsageSnapshot(over: Partial<AgentUsageSnapshot> = {}): Agent
     takenAtMs: NOW - 1_000,
     agentq: makeUsage('agentq'),
     clients: [makeUsage('claude', { cpu: 10 }), makeUsage('vscodeCopilot', { cpu: 5 })],
+    // Empty by default: a snapshot with no work row is the common case, and a
+    // fixture that invented one would make every panel test draw it.
+    work: [],
+    ...over,
+  };
+}
+
+/**
+ * One piece of agentq's executing work.
+ *
+ * `usage.kind` is always `agentq`, exactly as the backend sends it — the
+ * work's own kind is the separate `kind` field, and a fixture that set them
+ * the same would hide a panel that read the wrong one.
+ */
+export function makeWork(over: Partial<AgentqWorkUsage> = {}): AgentqWorkUsage {
+  return {
+    label: 'build:vitals',
+    kind: 'build',
+    resource: 'build:vitals',
+    repo: 'E:\\gh\\vitals',
+    purpose: 'why it was queued',
+    command: 'pnpm build',
+    session: 'term-1',
+    pid: 4242,
+    startedMs: NOW - 120_000,
+    usage: makeUsage('agentq', { processes: 2, cpu: 31.5 }),
     ...over,
   };
 }

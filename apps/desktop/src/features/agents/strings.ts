@@ -331,6 +331,23 @@ const en = {
     },
     footnote:
       'Folded from the same process table as the Processes screen. A dash means the machine does not report that figure per process — Windows has no per-process network counters without a kernel trace, and a GPU driver may not report per-process use at all.',
+    work: {
+      title: 'What agentq is running',
+      running: 'running {{ago}}',
+      footnote:
+        'One row per thing agentq is executing right now — a queue ticket it holds, a release run, a background job — measured from the same process table, so these rows add up to the agentq figure above. A process nobody recorded with agentq stays with whoever started it.',
+    },
+    workKind: {
+      build: 'build',
+      test: 'test',
+      commit: 'commit',
+      push: 'push',
+      land: 'land',
+      install: 'install',
+      deploy: 'deploy',
+      job: 'job',
+      other: 'work',
+    },
     kind: {
       agentq: 'agentq',
       claude: 'Claude',
@@ -683,6 +700,23 @@ const ro = {
     },
     footnote:
       'Calculate din același tablou de procese ca pagina Processes. O liniuță înseamnă că sistemul nu raportează cifra respectivă per proces — Windows nu are contoare de rețea per proces fără o urmărire la nivel de kernel, iar driverul video poate să nu raporteze deloc consumul per proces.',
+    work: {
+      title: 'Ce rulează agentq',
+      running: 'rulează de {{ago}}',
+      footnote:
+        'Un rând pentru fiecare lucru pe care agentq îl execută acum — un tichet de coadă ținut, o rulare de release, un job de fundal — măsurat din același tablou de procese, deci aceste rânduri se adună exact la cifra agentq de mai sus. Un proces pe care nimeni nu l-a înregistrat la agentq rămâne la cine l-a pornit.',
+    },
+    workKind: {
+      build: 'compilare',
+      test: 'teste',
+      commit: 'commit',
+      push: 'push',
+      land: 'land',
+      install: 'instalare',
+      deploy: 'deploy',
+      job: 'job',
+      other: 'lucru',
+    },
     kind: {
       agentq: 'agentq',
       claude: 'Claude',

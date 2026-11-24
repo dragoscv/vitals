@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { NOW, makeSession, makeSnapshot, makeTicket } from './fixtures.test-utils';
+import {
+  NOW,
+  makeSession,
+  makeSnapshot,
+  makeTicket,
+  makeUsageSnapshot,
+  makeWork,
+} from './fixtures.test-utils';
 import {
   activeShare,
   actionPreview,
@@ -15,7 +22,9 @@ import {
   repoName,
   resourceSlots,
   suggestions,
+  usageWork,
   workFor,
+  workDetail,
 } from './model';
 
 describe('agents model', () => {
@@ -177,5 +186,17 @@ describe('agents action builder', () => {
       leases: [{ ...makeSnapshot().leases[0]!, stale: true }],
     });
     expect(suggestions(stale, NOW).map((x) => x.id)).toContain('sweep');
+  });
+
+  it('passes agentq’s work rows through in the order the backend measured them', () => {
+    const rows = [makeWork({ pid: 2 }), makeWork({ pid: 1 })];
+    expect(usageWork(makeUsageSnapshot({ work: rows }))).toEqual(rows);
+    expect(usageWork(null)).toEqual([]);
+  });
+
+  it('shows a purpose in preference to the command, and the command when there is none', () => {
+    expect(workDetail(makeWork({ purpose: 'why', command: 'pnpm build' }))).toBe('why');
+    expect(workDetail(makeWork({ purpose: null, command: 'pnpm build' }))).toBe('pnpm build');
+    expect(workDetail(makeWork({ purpose: null, command: null }))).toBeNull();
   });
 });
