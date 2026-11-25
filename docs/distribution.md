@@ -146,23 +146,61 @@ What "sideload only" means in practice:
   page does not offer it. It is built and installed by hand, on the owner's
   machine.
 
-### Build and package
+### Build and package — the release lane
+
+The release-time entry point is one script, `scripts/tizen-package.ps1`. It
+builds the bundle, signs it, checks the result is genuinely signed, and writes
+a versioned `.wgt`:
+
+```powershell
+pwsh -NoProfile -File scripts/tizen-package.ps1            # build, sign, verify, publish
+pwsh -NoProfile -File scripts/tizen-package.ps1 -DryRun    # print the plan, build nothing
+pwsh -NoProfile -File scripts/tizen-package.ps1 -SkipBuild # sign an existing apps/tizen/dist
+```
+
+- **Prerequisites**, every one checked before anything is built, and every one
+  fatal:
+  - **Tizen Studio** at `%USERPROFILE%\tizen-studio` (or `$env:TIZEN_STUDIO`,
+    or `-TizenHome <path>`), providing `tools\ide\bin\tizen.bat`. `sdb.exe` is
+    reported but **not** required: it is only used to install, and packaging
+    never talks to a device.
+  - **A Samsung certificate profile** — `mixai-samsung` by default
+    (`-CertProfile`), listed in
+    `%USERPROFILE%\tizen-studio-data\profile\profiles.xml` (or
+    `$env:TIZEN_STUDIO_DATA` / `-DataHome`). It is created once in Tizen
+    Studio's Certificate Manager; its keystore and its password live beside it
+    and are secrets, never committed and never passed on a command line.
+  - The **version**, read from `scripts/version.ps1` and cross-checked against
+    `apps/tizen/public/config.xml`. A disagreement stops the run rather than
+    shipping a package that kept last release's number.
+- **What it produces**: `apps/tizen/build/Vitals_<version>.wgt` — a directory
+  `.gitignore` already covers — with a `SHA256SUMS.txt` beside it. The script
+  prints the size, the SHA-256 and the signature entries it found.
+- **`-DryRun`** prints the exact command sequence and the state of every
+  prerequisite, builds and writes nothing, and **exits 0 even on a machine
+  without Tizen Studio** — which is how the lane's logic is proved without the
+  SDK.
+- **Exit codes**: `0` packaged (or a dry run); `1` a prerequisite is missing;
+  `2` the bundle build failed; `3` the Tizen CLI could not package; `4` the
+  package is not a signed `.wgt`; `5` the version surfaces disagree.
+
+Signing is not a separate step, so there is deliberately no `-Sign` switch:
+`tizen package -t wgt -s <profile>` signs in the same command that assembles
+the archive, and a "package only" mode beside a "package and sign" mode would
+be one mode with two names.
+
+The app's own scripts stay for development:
 
 ```powershell
 pnpm --filter @vitals/tizen build          # tsc + vite → apps/tizen/dist
-pnpm --filter @vitals/tizen build:wgt      # the build, then sign it to a .wgt
-
-# What the two above wrap:
-pwsh -NoProfile -File apps/tizen/scripts/tv-deploy.ps1            # package, install, launch
+pnpm --filter @vitals/tizen build:wgt      # that build, then package via tv-deploy.ps1 -NoInstall
 pwsh -NoProfile -File apps/tizen/scripts/tv-deploy.ps1 -NoInstall # package only, no device
 ```
 
-`build:wgt` runs the Vite build and then packages `dist` through the Tizen
-CLI (`tv-deploy.ps1 -NoInstall`). It needs Tizen Studio and the certificate
-profile, so it runs where those are — a Windows machine set up for the TV,
-the same requirement as installing. The package is staged from a TEMP copy of
-`dist`, never built into it, because `tizen package` signs in place and would
-leave its author/signature XML inside the bundle.
+Both `tv-deploy.ps1` and `scripts/tizen-package.ps1` stage from a TEMP copy of
+`dist`, never packaging inside it, because `tizen package` signs in place and
+would leave its author/signature XML inside the bundle. The release script then
+asserts the signature is actually there, which is the one thing a TV refuses.
 
 CI (`.github/workflows/ci.yml`, job `tizen`) builds the bundle and a `.wgt` on
 every change to `apps/tizen` — before this job the TV app was never compiled in
@@ -173,7 +211,55 @@ maintainer's machine) it builds the **signed** `Vitals.wgt` via
 no TV present. Where they are not — a hosted runner has neither — it assembles
 the same archive **unsigned**, as `Vitals-unsigned.wgt`: the layout and the
 bundle are checked, but a TV will not install it, because the signature is
-exactly what `tizen package` adds.
+exactly what `tizen package` adds. The release lane is this same packaging
+step with the prerequisites and the signature asserted rather than assumed.
+
+### Install on a TV or Smart Monitor
+
+The `.wgt` is installed over the network by `sdb`, which is why the device has
+to be prepared first:
+
+1. On the TV: open **Apps**, press `12345` on the remote to open the developer
+   menu, turn **Developer mode** on, set **Host PC IP** to the address of the
+   machine that will build the app, and reboot the TV so it takes effect.
+2. On the PC, with the TV on the same network:
+   `sdb connect <tv-ip>:26101`.
+3. Install and launch it:
+
+   ```powershell
+   pwsh -NoProfile -File apps/tizen/scripts/tv-deploy.ps1            # package, install, launch
+   pwsh -NoProfile -File apps/tizen/scripts/tv-deploy.ps1 -DevTools  # launch in debug, DevTools on :9222
+   ```
+
+   `tv-deploy.ps1` connects to the device (default `192.168.100.135:26101`,
+   `-Device`), kills a running instance, installs and runs it.
+   `scripts/tizen-package.ps1` is the release _packaging_ half and never opens
+   a device connection, so it can run where no TV is present.
+
+### Signing and certificates
+
+- The signature is a **distributor certificate** made once in Tizen Studio's
+  Certificate Manager and stored as a profile (`mixai-samsung`), with an author
+  certificate and a keystore beside it. `tizen package -s <profile>` needs no
+  separate key step and no device.
+- That certificate **names one device's DUID**, so a `.wgt` signed with it
+  installs on that device and no other. A second TV means a new certificate — a
+  Samsung-side process, not a code change — and a public release would need
+  Samsung Seller Office and a store-signed package, which this app does not do.
+- Because signing needs only the profile files and not the device, the package
+  can be built on any machine that holds the profile. CI relies on exactly
+  that.
+
+### Failure modes
+
+| What you see                                             | Cause                                                                        | What to do                                                                                                                                                                                        |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Exit **1**, naming `tizen.bat`                           | Tizen Studio is not installed, or not where the script looks                 | Install it under `%USERPROFILE%\tizen-studio`, set `$env:TIZEN_STUDIO`, or pass `-TizenHome <path>`                                                                                               |
+| Exit **1**, naming the profile                           | No `profiles.xml`, or the profile name is absent from it                     | Create the profile once in Tizen Studio's Certificate Manager, or pass `-CertProfile`                                                                                                             |
+| Exit **4**, "not signed"                                 | A package was produced with no signature — the hosted-runner fallback output | Check the profile is usable; an unsigned `.wgt` a TV refuses to install                                                                                                                           |
+| Exit **3** from the Tizen CLI                            | The profile's certificate is unusable or the keystore password is wrong      | Re-create the profile; never put the password on a command line                                                                                                                                   |
+| The TV refuses the install, or the app will not start    | The bundle's `required_version` is higher than the device's Tizen version    | `required_version` is 7.0 and the bundle targets Chromium 94, so it runs from Tizen 7.0 up; a device below that needs a lower floor in `apps/tizen/public/config.xml` and a matching build target |
+| The install fails with an unknown- or wrong-device error | The certificate's DUID is not this device's                                  | Rebuild with a certificate whose DUID matches the device                                                                                                                                          |
 
 The bundle targets Chromium 94 and `required_version` is 7.0 (Tizen 7.0), so
 one `.wgt` covers every supported TV up to and including the Odyssey G8's

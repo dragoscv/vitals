@@ -474,6 +474,7 @@ fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
         agents::finish_cloud_sign_in,
         agents::cancel_cloud_sign_in,
         agents::cloud_sign_out,
+        agents::get_devcloud_status,
         // The Health page (docs/api/vmui-health.md). The token stays in the
         // OS secret store; the webview sees only its first eight characters.
         health::health_status,

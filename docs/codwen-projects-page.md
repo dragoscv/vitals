@@ -4,20 +4,31 @@ Prepared 2026-11-25 in `E:\gh\vitals`. Every claim naming a file, symbol, route
 or field is **VERIFIED** by reading it, or **EXPECTED** (reasoned, not run).
 British spelling. No emoji.
 
-> **Status, 2026-11-25 later the same day.** A first cut of the page now exists:
-> the `Projects` tab of the AI agents page — `apps/desktop/src/features/agents/`
-> (`ProjectsPanel.tsx`, `projectsApi.ts`, `projectsModel.ts`, `useProjects.ts`,
-> `DevcloudPanel.tsx`, `visibility.ts`), ADR
+> **Status, 2026-11-25, end of day.** The page exists: the `Projects` tab of the
+> AI agents page — `apps/desktop/src/features/agents/` (`ProjectsPanel.tsx`,
+> `projectsApi.ts`, `projectsModel.ts`, `useProjects.ts`, `DevcloudPanel.tsx`,
+> `visibility.ts`, `useCloudStatus.ts`), ADR
 > `docs/adr/0050-cloud-agents-in-the-collaboration-view.md`, both locales and
-> `apps/desktop/e2e/projects.spec.ts` (tracker row S26-19). Read it before
-> building on it. Two things it deliberately does **not** do, both unchanged
-> from this brief: the project list is a fixture **in a development build only**
-> (`GET /v1/projects` and the `projects:read` scope still do not exist, so a
-> packaged build says the projects could not be read), and the devcloud panel
-> shows the local half only. §6.3 asked for a read-only agentq JSON verb before
-> the live half could follow; that verb now exists — `agentq-cloud.ps1 -Status
--Json`, committed in agentq `36a9591` and installed — so heartbeat age, idle
-> and queue depth are unblocked.
+> `apps/desktop/e2e/projects.spec.ts` (tracker rows S26-19, S26-23, S26-26).
+> Read it before building on it. Three things moved after the first cut:
+>
+> - **The projects tab is a development-build surface.** The list has no reader
+>   outside one (`GET /v1/projects` and the `projects:read` scope still do not
+>   exist), so in a packaged build the tab is absent from the tab list rather
+>   than present in a state it can never leave (row S26-26, owner decision). The
+>   tab and the list return in the same commit that gives `projectsApi.ts` a real
+>   source.
+> - **The devcloud panel reads the live half.** §6.3 asked for a read-only agentq
+>   JSON verb before the live half could follow; it exists —
+>   `agentq-cloud.ps1 -Status -Json`, committed in agentq `36a9591` and then
+>   installed, because the checkout and the installed copy are two different
+>   files — and the panel now reads it through the new
+>   `#[tauri::command] get_devcloud_status` (row S26-23). Heartbeat age, idle,
+>   state and queue depth are live; **cost is an em dash** until the document
+>   carries it, which is the correct rendering of a figure nobody measured.
+> - **Failure is a state, not an empty panel.** Four failures are named
+>   separately — no agentq, a blocked read, a non-zero exit, unparsable output —
+>   and a failed refresh keeps the last good reading instead of blanking it.
 
 ## 1. Goal, implementer, scope
 
@@ -325,9 +336,10 @@ Keep the account-client method and "writes go through agentq, never around it"
 (ADR-0039): a workspace's live status must come from **agentq**, not from Vitals
 reading GCS itself.
 
-1. **New agentq surface (missing — name it).** A read-only JSON verb, e.g.
-   `agentq-cloud.ps1 -Status -Json` (today `-Status` prints human text,
-   `agentq-cloud.ps1:274-288`), or a bulk `agentq workspace-status --json`. The
+1. **New agentq surface — BUILT.** A read-only JSON verb,
+   `agentq-cloud.ps1 -Status -Json` (committed in agentq `36a9591`; the human
+   `-Status` table is unchanged, `agentq-cloud.ps1:274-288`). One document
+   describing every workspace, `null` where a figure could not be measured. The
    read-only MCP tools `cloud_workspaces` / `cloud_status` already exist
    (`src/mcp.ts:696-712`) at the agent layer; a CLI verb is the process boundary
    Vitals can call.
@@ -402,8 +414,9 @@ push **EXIST**; Telegram **MISSING**.
 
 Each names the missing endpoint or field:
 
-- **The project list** — `GET /v1/projects` does not exist; only a fixture or an
-  honest "not available yet" state until it does.
+- **The project list** — `GET /v1/projects` does not exist; only a fixture in a
+  development build until it does, and no tab at all in a packaged one (row
+  S26-26).
 - **Per-project `status` / `lastCheckedAt`** — no column; the API must compute
   worst-of-latest. In no route.
 - **Per-component `latencyMs` / `checkedAt`** — server-owned; the client must not
@@ -452,7 +465,9 @@ this brief does not touch them.
 2. **Before the endpoint exists, what does the tab show?** _Recommended: build the
    view against a fixture behind a dev-only flag_, with a visible "awaiting the
    Codwen endpoint" note — reviewable before the contract freezes. Alt: defer the
-   tab.
+   tab. _Answered 2026-11-25 in the other direction: the fixture is kept, and in a
+   packaged build the tab is absent instead (row S26-26) — a state that can never
+   leave can only be a broken tab._
 3. **camelCase or snake_case on the wire?** _Recommended: camelCase_ (this repo
    generates types from Rust with `rename_all = "camelCase"`; `check-drift`
    enforces it). The brief is snake_case — the gateway emits camelCase or the Rust

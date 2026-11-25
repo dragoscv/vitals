@@ -125,7 +125,13 @@ export function AgentsScreen({ source }: AgentsScreenProps): React.JSX.Element {
   const s = state.snapshot;
   // The action builder is agentq's command line; with agentq absent there is
   // nothing it could run, so the tab is not offered rather than offered empty.
-  const tabs = s.agentqInstalled ? agentsTabs : agentsTabs.filter((id) => id !== 'actions');
+  // The projects list has no reader outside a development build yet: the
+  // read-only Codwen projects API is not shipped, so a packaged build could
+  // only say it could not read them. The tab comes back in the same commit
+  // that gives `projectsApi` a real source (owner decision, 2026-11-25).
+  const tabs = (
+    s.agentqInstalled ? agentsTabs : agentsTabs.filter((id) => id !== 'actions')
+  ).filter((id) => id !== 'projects' || import.meta.env.DEV);
   const h = headline(s);
   // The badge on the resources tab is how many tools are using this machine:
   // the panes below are keyed off the same fold, so it cannot disagree with
@@ -285,9 +291,11 @@ export function AgentsScreen({ source }: AgentsScreenProps): React.JSX.Element {
               <TabsContent value="cloud">
                 <CloudPanel snapshot={s} account={<CloudAccount />} />
               </TabsContent>
-              <TabsContent value="projects">
-                <ProjectsPanel snapshot={s} />
-              </TabsContent>
+              {import.meta.env.DEV && (
+                <TabsContent value="projects">
+                  <ProjectsPanel snapshot={s} />
+                </TabsContent>
+              )}
               <TabsContent value="insights">
                 <InsightsPanel snapshot={s} />
               </TabsContent>

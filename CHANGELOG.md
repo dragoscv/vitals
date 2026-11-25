@@ -22,9 +22,30 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   sits the devcloud half this window can already prove: how many cloud runs
   went out in the window, and which workspaces are marked down, with the reason
   where one was recorded. The live half of a workspace — how long ago it
-  reported, whether it is busy, what is queued for it — is named as not
-  available yet rather than guessed at, and the read-only agentq status
-  document it will come from now exists.
+  reported, whether it is busy, what is queued for it — is read from agentq's
+  own read-only status document, through a Rust command that runs it under the
+  same ownership guards the agentq actions use; the webview spawns nothing, a
+  figure the document did not carry is an em dash rather than a zero, and a
+  read that failed is a sentence naming which failure it was. The tab itself is
+  a development-build surface for now: a packaged build has no reader for the
+  list, so the tab is absent rather than present and broken, and it returns in
+  the commit that gives `projectsApi` a real source.
+
+- **The Tizen lane is a script now, not a recipe**: `scripts/tizen-package.ps1`
+  builds the widget, signs it, and refuses to hand back a package the Tizen CLI
+  did not sign — a TV refuses an unsigned archive, and a hosted runner that
+  cannot sign would otherwise produce one silently. It refuses to start at all
+  without Tizen Studio and the signing profile, naming exactly what is missing,
+  and it cross-checks the version `scripts/version.ps1` owns against the widget
+  manifest. `-DryRun` prints the plan and runs on a machine without the SDK.
+
+- **The tracker's own conventions are a gate**: `scripts/check-tracker.ps1`
+  runs inside `scripts/verify.ps1` and fails when a `docs/tracker.csv` row
+  loses a field, when an id is duplicated or names another slice's id, when an
+  id referenced in `docs/TRACKER.md` has no row, when a slice has no section,
+  or when a status leaves the vocabulary the file actually uses. Four rows were
+  added by hand with nothing watching them; this is the gate that would have
+  said so.
 
 ## [1.4.0] — 2026-11-25
 

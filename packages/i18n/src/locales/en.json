@@ -473,7 +473,31 @@
       "healthy": "No cloud workspace is marked down.",
       "down": "{{ws}} is unavailable until {{until}} — runs go local.",
       "downReason": "Reason: {{reason}}",
-      "awaiting": "Live workspace status — heartbeat, idle or busy, queue depth and estimated cost — is not read yet: it needs a read-only agentq status verb. Until then those fields are not shown rather than guessed."
+      "liveTitle": "Live workspace status",
+      "refresh": "Refresh",
+      "reading": "Reading the live status…",
+      "noHost": "Vitals cannot reach the component that runs agentq here.",
+      "unreachable": "The live status could not be read. Showing the last reading.",
+      "stateIdle": "Idle",
+      "stateBusy": "Busy",
+      "stateSuspended": "Suspended",
+      "stateStopped": "Stopped",
+      "stateSuspending": "Suspending",
+      "stateUnknown": "Unknown",
+      "heartbeat": "Heartbeat {{value}}",
+      "idleFor": "Idle for {{value}}",
+      "queue": "Queue {{value}}",
+      "cost": "Cost {{value}}",
+      "agoSeconds_one": "{{count}} s ago",
+      "agoSeconds_other": "{{count}} s ago",
+      "seconds_one": "{{count}} s",
+      "seconds_other": "{{count}} s",
+      "dashNote": "An em dash is a value agentq did not measure — it is never a zero.",
+      "failureNoAgentq": "agentq is not installed here, so there is no live status to read.",
+      "failureBlocked": "The live status was not read, for a safety reason.",
+      "failureFailed": "The agentq status command did not finish.",
+      "failureUnparsable": "agentq answered with something Vitals could not read.",
+      "unreadable": "{{ws}}: {{why}}"
     }
   }
 }

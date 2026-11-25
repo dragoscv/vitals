@@ -4351,6 +4351,47 @@ For Tizen the recommendation is a **release-time-only** lane — `scripts/tizen-
 the artefact is sideload-only, serves one device, and CI already compiles the app. That is a
 recommendation with a written recipe, not an implemented lane, and it is not on this slice's path.
 
+### 2026-11-25 — S26-23 to S26-26: the panel's live half, the Tizen lane, the tracker gate, and what a packaged build shows
+
+Four slices landed together because three of them exist only because a question was asked about the
+fourth.
+
+**S26-23 — the devcloud panel reads the live half.** The panel had been honest about the four figures
+it could not see (heartbeat age, idle, queue depth, cost) and said so rather than drawing zeroes.
+agentq now prints that reading as one document (`S26-21`), so the panel reads it: a `#[tauri::command]`
+(`get_devcloud_status`) runs `agentq-cloud.ps1 -Status -Json` under the same two guards the agentq
+actions apply — an elevated Vitals never runs a user-writable script, and only a script this account or
+administrators own is trusted — and returns the parsed document. The webview spawns nothing; `useCloudStatus`
+reads once when the panel appears, again on request, and once more on a return to the tab after
+`DEVCLOUD_STALE_MS` (60 s) because each read costs several `gcloud` processes. It never polls. Failure is
+a state, not an empty document: no agentq, a blocked read, a non-zero exit and unparsable output are four
+named failures, and a failed refresh keeps the last good reading rather than blanking it.
+
+The panel's own rule survived the change: an unmeasured figure is an em dash, never `0`, and the cost
+column is a dash for every row because the document carries no cost yet.
+
+**S26-24 — the Tizen lane is a script.** `scripts/tizen-package.ps1` packages and signs the widget,
+asserts the produced `.wgt` really is the signed archive a TV accepts, and refuses to start without the
+Tizen CLI and the signing profile, naming what is missing. `-DryRun` prints the plan and runs without the
+SDK, which is how the lane's logic is provable on this workstation. The version is `scripts/version.ps1`'s,
+cross-checked against `apps/tizen/public/config.xml`.
+
+**S26-25 — the tracker's conventions are a gate.** `scripts/check-tracker.ps1` reads both tracker files
+against each other inside `scripts/verify.ps1`. It was proven non-vacuous by mutating copies: a dropped
+field, a corrupted referenced id, a `Done` status, an id naming another slice and a duplicate id each fail
+with their own line. That exercise found a real bug in the gate — PowerShell folds case in `-match`, `-eq`
+and hashtable keys, so `Done` passed a lowercase-token check until `-cmatch` and ordinal collections
+replaced them.
+
+**S26-26 — the projects tab is a development-build surface.** The list has no reader outside a
+development build (the Codwen projects API does not exist, `S26-19`), so a packaged build could only show
+a could-not-be-read state for a list it can never read. The owner chose absence over a broken tab, and the
+tab returns in the same commit that gives `projectsApi` a real source.
+
+Verification log: the full gate ran on the devcloud after all four slices were in the tree, and the panel
+was proven in both directions — its tests fail against the old strings and pass against the document,
+including the row whose figures are all `null`.
+
 ### 2026-11-25 — S26-18: the Codwen projects page is specified, and the two halves the platform is still missing are named
 
 The owner asked for a Vitals page showing the state of the Codwen projects, and for the
