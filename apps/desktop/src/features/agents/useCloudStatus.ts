@@ -97,8 +97,12 @@ export const tauriCloudStatusSource: CloudStatusSource = {
 
 export interface CloudStatusHook {
   readonly state: CloudStatusState;
-  /** Read again now — the panel's Refresh button. */
-  refresh(): void;
+  /**
+   * Read again now — the panel's Refresh button. A property holding a function,
+   * not a method, because the panel hands it to `onClick` with no receiver
+   * (`@typescript-eslint/unbound-method`).
+   */
+  readonly refresh: () => void;
 }
 
 /**
