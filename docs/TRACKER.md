@@ -175,6 +175,59 @@ CSV records the state.
 
 ## Verification log
 
+### 2026-11-25 — S26-15: the browser suite runs on a devcloud workspace
+
+The owner's rule is that browser tests never run on this workstation, because the
+machine is shared with every other agent, and the e2e suite was the one thing
+Vitals still ran here. The recipe is the warm workspace that already serves the
+gate lanes, and the runner takes one command per job, so the lane is two jobs:
+chromium is installed once, and then the suite runs.
+
+**The work travels as a git delta, not a copy.** `scripts/e2e-cloud.ps1` resolves
+the repository from its own path, checks that the runner is installed, and
+submits an argv array rather than a joined string, because the remote side is
+PowerShell and every quoting decision would be a bug waiting to happen. The warm
+checkout already has `node_modules` and the turbo cache, so a run costs about a
+minute of a 16 vCPU virtual machine.
+
+**First real run: 184 passed in 55.7 seconds**, `[devcloud] exit 0`, 62.3 seconds
+end to end including the upload. It is also the first time the collaboration
+screen has been through a browser at all: `collab renders its own screen with no
+console or page errors` passed with the rest. The `ts` lane was re-verified on
+the same visit, because raising the shipped asset budget is what fixed the one
+red gate of the slice: `build: size budget` PASS in 0.8 s, all three gates in
+9.9 s. `pnpm e2e:cloud` is the entry point and `docs/devcloud.md` describes it.
+
+### 2026-11-25 — S26-14: a wedged workspace recycles itself
+
+The cloud verification recorded in the section below ran on this machine for one
+reason: the runner on `ws-vitals-win` had stopped claiming jobs. Its heartbeat was
+frozen in state `suspending`, the virtual machine was RUNNING, and five
+submissions sat in the bucket with nothing but their bundle and their patch.
+
+**A resume does not re-run the startup script.** Only a boot does. So a runner
+that freezes while a request is in flight keeps its frozen process, looks healthy
+to `gcloud`, and never reads the queue again - and nothing in the platform fixes
+it, because the cost janitor can only suspend a wedge. The loop was submit,
+resume, still wedged, idle suspend, repeat; the cure was one
+`gcloud compute instances reset`, which is a boot, and it is not something a
+person should have to guess.
+
+**The heartbeat is the evidence, never the virtual machine's state.** The client
+that submits a job now reads that heartbeat and, when it is older than the
+submission or silent for the whole wait, recycles the workspace itself and gives
+the job a second window. A busy agent beats every 30 seconds, so a working one is
+never touched, and the wait is only a three minute floor. `-Status` grew the
+matching verdict: `ok`, `quiet` with the exact reset command to read again a
+minute later, `STALE`, or `n/a` when the machine is not running.
+
+**Proved by breaking it on purpose.** A deliberately broken agent put the
+workspace into exactly that state; `-Status` named it; the submitted job healed
+the machine by itself and then ran. A sibling chat's client healed
+`cloud:frontiers` the same way in the same hour, without knowing anything about
+the experiment. The supporting change lives in agentq (`ps/bin/agentq-cloud.ps1`,
+commit `8736b45`), recorded here because it is what unblocked these lanes.
+
 ### 2026-11-25 — S26-13: the collaboration page reads what agentq's agents already write to each other
 
 The author asked for chat rooms between agents, or something even better, and for

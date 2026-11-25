@@ -38,6 +38,24 @@ this process is not already holding the build ticket; `AGENTQ_WHERE=local`
 overrides it everywhere. `AGENTQ_CLOUD_STRICT=1` turns the fallback off, so a
 run that silently happened here cannot be mistaken for a run that did not.
 
+## The end-to-end suite
+
+The Playwright suite in `apps/desktop/e2e/` drives a real Chromium, so it belongs
+on the devcloud with the other heavy gates and never on the shared workstation:
+
+```powershell
+pwsh -NoProfile -File scripts/e2e-cloud.ps1 -InstallBrowsers   # first run on a workspace
+pwsh -NoProfile -File scripts/e2e-cloud.ps1                    # the suite
+pwsh -NoProfile -File scripts/e2e-cloud.ps1 -Spec e2e/a11y.spec.ts -Project chromium
+```
+
+It submits `pnpm --filter @vitals/desktop exec playwright test` as one job to
+`ws-vitals-win` — the same command the repository runs locally — and streams the
+log back, so the exit code is the suite's. The HTML report is left on the
+workspace in the checkout's `apps/desktop/e2e-report/`. Chromium is not installed
+on a fresh workspace, so the first run needs `-InstallBrowsers`, which installs it
+as its own step.
+
 ## Why a lane is a job, not a copy of the script
 
 A cloud lane is `verify.ps1 -Lane <name> -Where local` executed inside the job.
