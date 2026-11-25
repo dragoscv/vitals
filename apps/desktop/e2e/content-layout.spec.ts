@@ -16,6 +16,19 @@ import { openRoute, routes } from './support';
  * English ones, and a Storage page whose cards each swallowed the wheel.
  *
  * `VITALS_SHOTS=<dir>` also saves a screenshot per page, width and locale.
+ *
+ * Every `installFakeHost` here declares `lastRoute`, and that is the fix for
+ * the flake this file had: `useSettings.hydrate()` (src/settings/store.ts)
+ * finishes asynchronously with `set({ settings, hydrated: true, route:
+ * settings.lastRoute })`, so when the persisted settings carry no `lastRoute`
+ * the store falls back to the default route ('dashboard') and that write can
+ * land *after* a click, taking `aria-current="page"` off the item just
+ * clicked and failing `openRoute`'s own assertion — a layout test failing
+ * while the layout is fine. Saying which route the user was left on makes the
+ * restore a no-op, so no ordering of click and hydration can lose the route.
+ * There is no wait that could do this from the outside: the write is the last
+ * step of an async function with no DOM observable, and React StrictMode runs
+ * it twice (see the note on the persisted-route test at the bottom).
  */
 
 const widths = [900, 1280, 1920] as const;
@@ -127,7 +140,17 @@ for (const locale of locales) {
           // it holds session ids, repository paths and a free-form message, in
           // Romanian section headings. Without a snapshot it renders its empty
           // state and none of that is measured.
-          await installFakeHost(page, { locale, collab: collabData() });
+          //
+          // `startup` is measured like every other route as of S26-17. It used
+          // to be left out because it would not render at all: the table read
+          // `.atLogon` of a schedule the host had never measured, the route
+          // boundary caught the `TypeError`, and the page read "This section
+          // stopped working" — a real defect, reproduced by the app simply
+          // being opened on the route the user had left it on, and found by
+          // opening the page rather than by a test. The guard in
+          // `schedule.ts` is what makes this route measurable, and this row is
+          // what keeps it measurable.
+          await installFakeHost(page, { locale, collab: collabData(), lastRoute: route.id });
           await openRoute(page, route.id);
           // `settle` looks for the English crash text; this runs in Romanian too.
           await expect(
@@ -164,7 +187,7 @@ test.describe('the wheel over an inner panel', () => {
   test('scrolls the Storage page when the panel under the pointer has nothing to scroll', async ({
     page,
   }) => {
-    await installFakeHost(page, { locale: 'en' });
+    await installFakeHost(page, { locale: 'en', lastRoute: 'storage' });
     await openRoute(page, 'storage');
     await scanFirstDrive(page);
     const route = page.locator('[data-route-visible]');
@@ -189,7 +212,7 @@ test.describe('the wheel over an inner panel', () => {
   });
 
   test('scrolls the Storage page once a long list is at its end', async ({ page }) => {
-    await installFakeHost(page, { locale: 'en' });
+    await installFakeHost(page, { locale: 'en', lastRoute: 'storage' });
     await openRoute(page, 'storage');
     await scanFirstDrive(page);
     const route = page.locator('[data-route-visible]');
@@ -209,5 +232,26 @@ test.describe('the wheel over an inner panel', () => {
     const before = await body.evaluate((el) => el.scrollTop);
     await page.mouse.wheel(0, 400);
     await expect.poll(() => body.evaluate((el) => el.scrollTop)).toBeGreaterThan(before);
+  });
+});
+
+test.describe('the persisted route', () => {
+  test.use({ viewport: { width: 1280, height: 720 } });
+
+  // The premise every test above leans on, and the reason they pass
+  // `lastRoute` to `installFakeHost`: hydration restores the persisted route,
+  // so naming the route the test is about to open makes that restore harmless
+  // whenever it lands. If the app ever stops honouring `lastRoute`, this fails
+  // here — by name — instead of as a rare `aria-current` timeout over there.
+  //
+  // It also explains why the fix could not be a wait inside the spec: by the
+  // time hydration is over, StrictMode has run `hydrate()` twice, that last
+  // write has no DOM observable, and both candidate signals (a sidebar button
+  // being replaced, `#root`'s first element changing) also fire on a click and
+  // on unrelated shell re-renders — measured, not assumed.
+  test('is the route the app opens on', async ({ page }) => {
+    await installFakeHost(page, { locale: 'en', lastRoute: 'storage' });
+    await page.goto('/');
+    await expect(page.locator('[data-nav-item="storage"]')).toHaveAttribute('aria-current', 'page');
   });
 });

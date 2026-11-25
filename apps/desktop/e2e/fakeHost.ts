@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url';
 
 import type { Page } from '@playwright/test';
 
+import type { RouteId } from './support';
+
 /**
  * A stand-in Tauri host for layout tests that need content on screen.
  *
@@ -477,6 +479,17 @@ export function collabData(now: number = Date.now()): unknown {
 export interface FakeHostOptions {
   readonly locale: 'en' | 'ro';
   /**
+   * The route the app was left on, i.e. `lastRoute` in the persisted settings.
+   *
+   * `useSettings.hydrate()` finishes by restoring it
+   * (`set({ settings, hydrated: true, route: settings.lastRoute })`), and that
+   * write can land after a click, taking the route back to the default and
+   * failing a test that had already navigated. A spec that is about to open a
+   * route should say so here: the fixture then matches the app's own contract
+   * and the restore is a no-op whatever the timing.
+   */
+  readonly lastRoute?: RouteId;
+  /**
    * Make the optional readings flicker: every other frame reports CPU power,
    * temperature and GPU power as `null`, the way real sensors skip a tick.
    * The S22-10 defect — rows vanishing and every cell after them moving —
@@ -497,6 +510,7 @@ export interface FakeHostOptions {
 export async function installFakeHost(page: Page, options: FakeHostOptions): Promise<void> {
   const data = {
     locale: options.locale,
+    lastRoute: options.lastRoute ?? null,
     storage: storageData(),
     keyframe: frameData(),
     tables: tableData(),
@@ -568,9 +582,12 @@ export async function installFakeHost(page: Page, options: FakeHostOptions): Pro
       }
       if (cmd === 'plugin:store|get') {
         const key = String(args?.['key']);
-        return Promise.resolve(
-          key === 'app' ? [{ locale: d.locale, firstRunDismissed: true }, true] : [null, false],
-        );
+        const settings: Record<string, unknown> = {
+          locale: d.locale,
+          firstRunDismissed: true,
+        };
+        if (d.lastRoute !== null) settings['lastRoute'] = d.lastRoute;
+        return Promise.resolve(key === 'app' ? [settings, true] : [null, false]);
       }
       if (cmd.startsWith('plugin:')) return Promise.resolve(null);
       if (cmd === 'request_keyframe') {

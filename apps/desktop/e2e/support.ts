@@ -144,8 +144,39 @@ export function visibleRoute(page: Page): Locator {
  * so every fresh page starts on the dashboard. `data-nav-item` is used rather
  * than the button's name because a collapsed sidebar (below 900 px) names it
  * with `aria-label` and hides the text, and the tests run at both widths.
+ *
+ * The route is also handed to the fake host's settings store before the page
+ * loads, so a spec that opens a route cannot be raced by the restore: the
+ * store's `hydrate()` (src/settings/store.ts) is async and finishes with
+ * `route: settings.lastRoute`, so with no persisted route that write lands
+ * *after* the click below and takes the route back to the default, dropping
+ * `aria-current="page"` from the item just clicked. Saying which route the
+ * app was left on makes the restore a no-op whatever the ordering, and there
+ * is no wait that could do this from outside — the write is the last step of
+ * an async function with nothing in the DOM to observe. A page with no Tauri
+ * host has no store to restore, and the seam is simply absent.
  */
 export async function openRoute(page: Page, route: RouteId): Promise<void> {
+  await page.addInitScript((id: string) => {
+    const internals = (
+      window as unknown as {
+        __TAURI_INTERNALS__?: {
+          invoke?: (cmd: string, args?: Record<string, unknown>) => Promise<unknown>;
+        };
+      }
+    ).__TAURI_INTERNALS__;
+    const invoke = internals?.invoke;
+    if (internals === undefined || typeof invoke !== 'function') return;
+    // Runs after the fake host's own init script, which installs this seam.
+    internals.invoke = (cmd, args) => {
+      const result = invoke(cmd, args);
+      if (cmd !== 'plugin:store|get' || args?.['key'] !== 'app') return result;
+      return result.then((entry) => {
+        const [settings, exists] = entry as [Record<string, unknown>, boolean];
+        return [{ ...settings, lastRoute: id }, exists];
+      });
+    };
+  }, route);
   await page.goto('/');
   const item = page.locator(`[data-nav-item="${route}"]`);
   await item.click();
