@@ -27,8 +27,9 @@
          the reverse direction is checked at the slice grain: a slice with rows
          and no section is the defect, not a done row without prose.
       6. The status is a lowercase hyphenated token drawn from the vocabulary
-         actually in use, read from the file rather than declared here, and
-         spelled the same way by every row that uses it.
+         actually in use, which is read from the file rather than declared
+         here, and printed in the message so a typo is answered with the set
+         it should have come from.
 
     Read-only, a few tens of milliseconds, one line per problem, and a final
     `tracker: N problem(s)` line. A clean tree prints that line and nothing
