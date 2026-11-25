@@ -76,6 +76,28 @@ if (-not (Test-Path $allowFile)) {
 }
 $allow = (Get-Content $allowFile -Raw | ConvertFrom-Json).modules
 
+# The build redirects its output to a file, and a devcloud job's stdout is
+# published only when one of its children speaks — so without this, a working
+# assemble and a hung one look identical from outside. Measured 2026-11-25: after
+# the redirect the only external signal left was the instance's CPU, and eleven
+# minutes of a hung build were inferred from it. `scripts/lib` owns the channel
+# now, because the lane above a gate needs it for the same reason the gate does:
+# one implementation, one timeline under `jobs/<id>/stage`.
+. (Join-Path $PSScriptRoot 'lib/devcloud-progress.ps1')
+
+# A growing file uploaded as it grows, for the assemble's own progress: this one
+# answers "is the build working", and Write-DevcloudStage answers "where is the
+# gate now" once the build is over.
+function Send-ProgressFile {
+    param([string]$Path, [string]$ObjectName = 'progress')
+    Send-DevcloudProgress -Path $Path -ObjectName $ObjectName
+}
+
+function Write-Stage {
+    param([string]$Text)
+    Write-DevcloudStage $Text
+}
+
 # ── Build the artefacts first, when asked ─────────────────────────────
 
 if ($Build) {
@@ -85,18 +107,115 @@ if ($Build) {
     $wrapper = Join-Path $root 'apps/android/gradlew.bat'
     $sdk = @($env:ANDROID_HOME, $env:ANDROID_SDK_ROOT) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
     if (-not (Test-Path $wrapper) -or -not $sdk) {
+        # -Strict is the caller saying this machine has to be able to answer,
+        # so the skip this gate allows elsewhere would be a false pass here.
+        # A devcloud lane passes it: a workspace without the SDK must be a red
+        # gate that names the missing toolchain, not a green one that built
+        # nothing.
+        if ($Strict) {
+            Write-Host 'check-android-features: -Strict was set, but there is no Android SDK (or gradlew.bat) here to build the APK this gate verifies' -ForegroundColor Red
+            exit 1
+        }
         Write-Host 'check-android-features: -Build asked for an APK, but there is no Android SDK and gradlew.bat here — nothing to check' -ForegroundColor Yellow
         exit 0
     }
     $assemble = 'apps\android\gradlew.bat -p apps\android :app:assembleDebug :tv:assembleDebug :wear:assembleDebug --console=plain'
     $runBuild = Join-Path $env:USERPROFILE '.copilot\hooks\run-build.ps1'
+    # A build that never returns has to become a red gate in bounded time. Twenty
+    # minutes is generous for three debug APKs built from a warm daemon, and it is
+    # finite: measured 2026-11-25, a wedged assemble left the job silent while the
+    # caller waited out its own 60-minute timeout.
+    $assembleTimeoutMin = 20
     Write-Host 'check-android-features: assembling the debug APKs first' -ForegroundColor Cyan
-    if (Test-Path $runBuild) {
+    Write-Stage "assemble: starting (deadline $assembleTimeoutMin min)"
+    # A build that cold-starts a daemon hands the daemon its own handles: Gradle's
+    # client exits and the daemon keeps the pipe open, so whoever reads this
+    # process's stdout never sees EOF. Inside a devcloud job that reader is the job
+    # runner, which waits for the stream to close before it publishes an exit code
+    # — the lane printed PASS at 63.3 s and the job still had to be killed by its
+    # own timeout (2026-11-25, jobs 20261125-020039-1c1093 and
+    # 20261125-021346-637c46, neither of which ever wrote result.json). So the
+    # build must never inherit our stdio: it writes to a file and we wait on the
+    # process, which is what run-build.ps1 does for the same reason (titi,
+    # 2026-09-29: it hung 3 h after a 103 s gate).
+    $queued = [bool]$env:DEVCLOUD_JOB_ID -or ("$env:AGENTQ_HELD" -match '(^|,)build:')
+    if (-not $queued -and (Test-Path $runBuild)) {
+        # The queue matters locally: two Gradle builds in one repo corrupt each
+        # other's incremental state. Inside a queued build — and a devcloud job is
+        # one — we already hold that ticket, so asking for it again would wait on
+        # ourselves; and run-build's copy on a VM may predate its file redirect.
+        Write-Host 'check-android-features: assembling through run-build.ps1 (agentq queue)' -ForegroundColor DarkGray
         & pwsh -NoProfile -File $runBuild -Wait -Purpose 'android artefact gate' -Command $assemble
         $built = $LASTEXITCODE
     } else {
-        Invoke-Expression $assemble
-        $built = $LASTEXITCODE
+        $tmp = Join-Path $root '.copilot-tmp'
+        if (-not (Test-Path $tmp)) { $null = New-Item -ItemType Directory -Path $tmp }
+        $outFile = Join-Path $tmp 'android-assemble.log'
+        $stdinEmpty = Join-Path $tmp 'android-assemble.stdin'
+        if (-not (Test-Path -LiteralPath $stdinEmpty)) { [IO.File]::WriteAllText($stdinEmpty, '') }
+        Write-Host "check-android-features: assembling directly, already queued (log: $outFile)" -ForegroundColor DarkGray
+        # All three streams go to files. Probing this on the devcloud (2026-11-25):
+        # a grandchild that inherits the caller's stdio keeps the job open for the
+        # grandchild's whole life (95 s for a 90 s ping), and redirecting only
+        # stdout still left it held (92 s) because cmd and its children kept the
+        # inherited stderr handle.
+        $errFile = Join-Path $tmp 'android-assemble.err.log'
+        $proc = Start-Process -FilePath $env:ComSpec -ArgumentList '/d', '/s', '/c', "$assemble 2>&1" -WindowStyle Hidden -PassThru -RedirectStandardOutput $outFile -RedirectStandardError $errFile -RedirectStandardInput $stdinEmpty -WorkingDirectory $root
+        # Follow the log from inside this process while the build runs. A devcloud job
+        # publishes its output only when a child of the job speaks, and the redirect
+        # above means Gradle never speaks to us — measured 2026-11-25: three minutes
+        # into the android lane the job log was empty, which is indistinguishable from
+        # the hang this redirection exists to prevent.
+        $seen = 0
+        $drain = {
+            $lines = @(Get-Content -LiteralPath $outFile -ErrorAction SilentlyContinue)
+            if ($lines.Count -gt $seen) {
+                $lines[$seen..($lines.Count - 1)] | ForEach-Object { Write-Host "  $_" }
+                $seen = $lines.Count
+            }
+        }
+        # Dot-sourced, not called: a scriptblock called with & gets its own scope,
+        # where assigning $seen leaves the outer copy at 0 and reprints from the top
+        # every five seconds.
+        $deadline = (Get-Date).AddMinutes($assembleTimeoutMin)
+        $lastPush = [datetime]::MinValue
+        $timedOut = $false
+        $swAssemble = [System.Diagnostics.Stopwatch]::StartNew()
+        while (-not $proc.HasExited -and (Get-Date) -lt $deadline) {
+            . $drain
+            if ($progress -and ((Get-Date) - $lastPush).TotalSeconds -ge 15) {
+                $lastPush = Get-Date
+                # The header is what makes this readable from outside: the log alone
+                # cannot say whether a silent build is waiting or working, and that
+                # is the question. A JVM with 0 s of CPU and 0 output is a client
+                # waiting on something; a JVM burning CPU with no output is a quiet
+                # build; no JVM at all means the failure is before the daemon.
+                $jvms = @(Get-Process -Name java -ErrorAction SilentlyContinue)
+                $header = '# {0}Z elapsed={1}s java={2} javaCpu={3}s logLines={4}' -f `
+                    (Get-Date).ToUniversalTime().ToString('HH:mm:ss'), [math]::Round($swAssemble.Elapsed.TotalSeconds, 0), $jvms.Count, `
+                    [math]::Round((($jvms | Measure-Object CPU -Sum).Sum), 1), @(Get-Content -LiteralPath $outFile -ErrorAction SilentlyContinue).Count
+                $push = Join-Path (Split-Path -Parent $outFile) 'android-progress.txt'
+                $body = @($header) + @(Get-Content -LiteralPath $outFile -ErrorAction SilentlyContinue)
+                [IO.File]::WriteAllText($push, ($body -join "`r`n"))
+                Send-ProgressFile -Path $push
+            }
+            Start-Sleep -Seconds 5
+        }
+        if (-not $proc.HasExited) {
+            $timedOut = $true
+            Write-Host "check-android-features: the assemble is still running after $assembleTimeoutMin minutes — killing it" -ForegroundColor Red
+            $null = & taskkill /T /F /PID $proc.Id 2>&1
+            Start-Sleep -Seconds 2
+        }
+        $proc.WaitForExit()
+        . $drain
+        $built = if ($timedOut) { 124 } else { $proc.ExitCode }
+        Write-Stage "assemble: finished exit=$built after $([math]::Round($swAssemble.Elapsed.TotalSeconds, 0))s"
+        if ($built -ne 0) {
+            Write-Host 'check-android-features: the assemble failed; the tail of its log:' -ForegroundColor Red
+            Get-Content $outFile -Tail 40 -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "  $_" }
+            Get-Content $errFile -Tail 20 -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "  $_" }
+        }
     }
     if ($built -ne 0) {
         Write-Host "check-android-features: the assemble failed (exit $built) — the gate cannot answer for an artefact that was not built" -ForegroundColor Red
@@ -109,9 +228,11 @@ if ($Build) {
 # Only the packaging output counts: a copy under intermediates/ or a test
 # fixture carries an older manifest and would give a false answer.
 $apkPattern = '[\\/]apps[\\/]android[\\/](?<module>[^\\/]+)[\\/]build[\\/]outputs[\\/]apk[\\/]'
+Write-Stage 'apk-scan: starting'
 $apks = @(Get-ChildItem (Join-Path $root 'apps/android') -Recurse -Filter '*.apk' -ErrorAction SilentlyContinue |
     Where-Object { $_.FullName -match $apkPattern } |
     Sort-Object FullName)
+Write-Stage "apk-scan: $($apks.Count) apk(s)"
 
 if ($apks.Count -eq 0) {
     if ($RequireBuilt -or $Strict) {
@@ -176,6 +297,7 @@ function Get-OptionalFeatures([string[]]$modules) {
 }
 
 $sharedOptional = Get-OptionalFeatures $sharedModules
+Write-Stage "features: $($sharedOptional.Count) optional feature(s) declared in the shared modules"
 
 # ── Check each artefact ───────────────────────────────────────────────
 
@@ -188,6 +310,7 @@ $optionalPattern = "uses-feature-not-required:\s*name='(?<name>[^']+)'"
 foreach ($apk in $apks) {
     $module = [regex]::Match($apk.FullName, $apkPattern).Groups['module'].Value
 
+    Write-Stage "aapt: reading $($apk.Name)"
     $badging = & $aapt dump badging $apk.FullName 2>&1
     $required = @([regex]::Matches(($badging -join "`n"), $requiredPattern) | ForEach-Object { $_.Groups['name'].Value }) | Sort-Object -Unique
     $optional = @([regex]::Matches(($badging -join "`n"), $optionalPattern) | ForEach-Object { $_.Groups['name'].Value }) | Sort-Object -Unique
@@ -221,5 +344,6 @@ foreach ($apk in $apks) {
 foreach ($f in $failures) { Write-Host "FAIL  $f" -ForegroundColor Red }
 Write-Host ''
 Write-Host ("android-features: {0} failure(s) across {1} APK(s)" -f $failures.Count, $apks.Count)
+Write-Stage "verdict: $($failures.Count) failure(s) across $($apks.Count) apk(s)"
 
 exit $failures.Count

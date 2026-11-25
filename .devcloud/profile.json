@@ -1,0 +1,49 @@
+{
+  "v": 1,
+  "repo": "vitals",
+  "comment": "What each lane of scripts/verify.ps1 needs, so agentq can place it without knowing this repository. Lane names are the -Lane values. A toolchain names the image family devcloud-ci-<toolchain>, baked by E:\\gh\\vmui\\infra\\devcloud\\images. Schema and validator: E:\\gh\\vmui\\infra\\devcloud\\profile. Values here are facts, never secrets.",
+  "lanes": {
+    "checks": {
+      "toolchains": ["rust-tauri-win", "node24"],
+      "os": "windows",
+      "machine": "c4d-standard-8",
+      "concurrency": 2,
+      "timeoutMin": 30
+    },
+    "ts": {
+      "toolchains": ["node24"],
+      "os": "windows",
+      "machine": "c4d-standard-8",
+      "concurrency": 2,
+      "timeoutMin": 40
+    },
+    "rust": {
+      "toolchains": ["rust-tauri-win", "node24"],
+      "os": "windows",
+      "machine": "c4d-standard-16",
+      "concurrency": 1,
+      "timeoutMin": 60,
+      "dedicated": true,
+      "why": "The lane ends with the release performance budget (cargo test -p vitals-win --release --test overhead), which is a budget rather than a benchmark: another heavy job on the same VM moves the numbers and turns a healthy tree red. Measured 2026-11-24 on the gate driver: the same member ran 21.3 s idle and 129.9 s under load."
+    },
+    "android": {
+      "toolchains": ["android-jdk21", "node24"],
+      "os": "windows",
+      "machine": "c4d-standard-16",
+      "concurrency": 1,
+      "timeoutMin": 40,
+      "dedicated": true,
+      "why": "The Gradle daemon outlives its client and keeps the stdio it inherited open, which stopped two different readers from ever finishing on 2026-11-25: the job runner, which ended a step on a closed pipe and therefore never published an exit code, and the lane above the gate, which ended on the pipeline's EOF and returned 41 s after a gate that had finished in 0.2 s. Both now wait for a process; a second job in the same Gradle user home is also the documented way to corrupt incremental state."
+    },
+    "linux": {
+      "toolchains": ["rust-tauri-linux"],
+      "os": "linux",
+      "machine": "c4d-standard-16",
+      "concurrency": 1,
+      "timeoutMin": 30,
+      "why": "Two reasons, both hard: vitals-core must keep compiling where vitals-win does not exist, so the lane needs a Linux host even when the rest of the run is on Windows; and a cargo clippy over the whole workspace is the memory-heaviest member this repository has, so it does not go beside another job in the same tree."
+    }
+  },
+  "keep": ["node_modules", "target", ".gradle", ".turbo", ".pnpm-store"],
+  "secrets": []
+}

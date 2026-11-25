@@ -55,6 +55,7 @@ D-numbers refer to the decision table in [`../TRACKER.md`](../TRACKER.md).
 | [0045](0045-release-creation-without-a-commit-target.md)   | Release creation sends no commit target                    | S24-36         |
 | [0046](0046-a-hundred-percent-is-a-completed-release.md)   | 100 % is a completed Play release; a channel can be re-run | S24-41, S24-42 |
 | [0047](0047-codwen-rebrand.md)                             | The AI service is Codwen; only its public name moved again | S26-09, S26-10 |
+| [0048](0048-heavy-gates-run-in-the-devcloud.md)            | Heavy gates run on the devcloud; `-Where` decides          | S26-12         |
 
 ## Writing a new one
 

@@ -23,10 +23,23 @@
     after the other through `pnpm typecheck; pnpm lint; pnpm test` paid the
     cold price for every task that had not changed.
 
+    The Windows lanes can run on the devcloud workspace rather than here (see
+    docs/devcloud.md). `-Where auto`, the default, submits each one as its own
+    agentq cloud job and runs it here only when that submission is refused;
+    `AGENTQ_WHERE=local` is the opt-out. A cloud lane is this same script
+    invoked inside the job as `-Lane <name> -Where local`, so every gate is
+    still defined exactly once, and it prints one `LANE_RESULT` line per gate
+    for the summary table. The workstation is shared with other agents, so the
+    default spends its CPU elsewhere; measured 2026-11-25: the four Windows
+    lanes cost this machine nothing and finish in about the time the Rust lane
+    alone took locally.
+
 .EXAMPLE
     pwsh -NoProfile -File scripts/verify.ps1
     pwsh -NoProfile -File scripts/verify.ps1 -SkipBuild -SkipPerf
     pwsh -NoProfile -File scripts/verify.ps1 -Force   # ignore the turbo cache
+    pwsh -NoProfile -File scripts/verify.ps1 -Where local            # everything here
+    pwsh -NoProfile -File scripts/verify.ps1 -Lane rust              # re-run one red lane
 #>
 [CmdletBinding()]
 param(
@@ -47,30 +60,135 @@ param(
     # agentq is installed and reports a skip otherwise; `on` fails when it
     # cannot run; `off` skips it. CI's Linux leg caught Windows-only dead
     # code three times that no local Windows gate could see (QA2-4).
-    [ValidateSet('auto', 'on', 'off')][string]$LinuxClippy = 'auto'
+    [ValidateSet('auto', 'on', 'off')][string]$LinuxClippy = 'auto',
+
+    # Which lanes to run. `all` runs every lane and lets each Windows-capable
+    # one go to the devcloud; naming one lane is what a cloud job does to
+    # itself, and what you want when a single lane is red.
+    [ValidateSet('all', 'checks', 'rust', 'ts', 'linux', 'android')][string[]]$Lane = @('all'),
+
+    # Where the lanes run. `cloud` submits them to the devcloud workspace and
+    # runs a lane here only when agentq refuses the submission; `local` is the
+    # old behaviour; `auto` (default) prefers the cloud when agentq can reach
+    # it and this process does not already hold the build ticket.
+    [ValidateSet('local', 'cloud', 'auto')][string]$Where = 'auto',
+
+    # The devcloud workspace for the Windows lanes (docs/devcloud.md).
+    [string]$Ws = 'vitals-win',
+
+    # Whether the Android artefact lane may run on the devcloud. On, because the
+    # workspace now has the JDK 21 and SDK 37 the lane needs (provisioned by
+    # scripts/ci/provision-cloud-workspace.ps1) and the lane was measured there on
+    # 2026-11-25: assemble 56 s, five APKs read, zero failures. `off` is the
+    # escape hatch for a workspace that has not been provisioned: without the SDK
+    # the lane's -Build path would answer "nothing to check", and a gate that
+    # checked nothing must not pass.
+    [ValidateSet('auto', 'on', 'off')][string]$AndroidCloud = 'on',
+
+    # Passed by a caller that knows the artefact lane must be able to answer
+    # here: a missing SDK or a missing APK is then a failure rather than the
+    # skip this script allows on a machine that has no Android tooling. The
+    # devcloud submission sets it; a human never needs to.
+    [switch]$RequireAndroid
 )
 
 $ErrorActionPreference = 'Continue'
+
+# A devcloud job narrates itself from inside. The runner publishes a job's output
+# only when one of its children speaks, and a lane captures its gate's output into
+# a record instead of printing it — so from outside, a gate that is working and a
+# gate that is wedged look identical: no lines, low CPU, no network. No-op outside
+# a job (the helper checks DEVCLOUD_JOB_ID itself), so local runs are unaffected.
+. (Join-Path $PSScriptRoot 'lib/devcloud-progress.ps1')
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 
-# A gate is a name and a script block; a lane runs its gates in order and
-# returns one record per gate. The lanes run as thread jobs, so a record
-# carries the gate's output back rather than printing into an interleaved
-# console.
+# A cloud workspace keeps its toolchains outside the repository — the job's own
+# shell predates them, and a process does not see a variable added after it
+# started. scripts/ci/provision-cloud-workspace.ps1 writes this file for that
+# case; on a machine with its own JDK and SDK it is simply absent.
+if (-not $env:ANDROID_HOME) {
+    $toolEnv = if ($env:DEVCLOUD_ENV) { $env:DEVCLOUD_ENV } else { 'C:\devcloud-tools\env.ps1' }
+    if (Test-Path $toolEnv) { . $toolEnv }
+}
+
+$runEveryLane = 'all' -in $Lane
+
+# Which lanes this invocation runs. A cloud job calls itself with one lane, so
+# every gate below is defined once and the two placements cannot drift.
+function Test-Lane([string]$Name) { $runEveryLane -or ($Name -in $Lane) }
+
+# One line per gate, printed by a lane running on its own: the caller rebuilds
+# the summary table from these, so a gate that failed remotely arrives with its
+# name and its seconds rather than a single opaque failure.
+#
+# Invariant, because the two ends are two machines and not necessarily two
+# cultures: the cloud workspace formats seconds as `57.1` and this workstation as
+# `146,7`, and a caller parsing the line with its own culture either throws or
+# silently reads 146. Format and parse are the same contract, so both name the
+# culture instead of inheriting one.
+$invariant = [System.Globalization.CultureInfo]::InvariantCulture
+function Format-LaneResult($Record, [string]$LaneName) {
+    'LANE_RESULT|{0}|{1}|{2}|{3}' -f $LaneName, $Record.Gate, $(if ($Record.Passed) { 'pass' } else { 'fail' }), $Record.Seconds.ToString('0.0', $invariant)
+}
+
+# A gate is a name and a line of PowerShell; a lane runs its gates in order and
+# returns one record per gate. The lanes run as thread jobs, so a record carries
+# the gate's output back rather than printing into an interleaved console.
+#
+# Each gate runs as its own process with its output in files, and the lane waits
+# for that process — never for its pipes. A pipeline of a native command ends on
+# EOF, and a toolchain daemon outlives the gate that started it while keeping the
+# handles it inherited from its ancestors (a Gradle daemon is the one that taught
+# this lesson), so the reader waits for the daemon instead of the gate. Measured
+# here 2026-11-25: a gate that finished in 0.2 s left a 40 s grandchild behind and
+# `& <scriptblock> | ForEach-Object` returned after 41 s. On the devcloud that is
+# a job that never reports: the runner waits for this process, this process waits
+# for a daemon that is doing nothing, and the caller sits at "busy" with low CPU
+# and no log lines. The gate's own build already writes to a file for the same
+# reason; this is the same rule one level up.
+#
+# The epilogue keeps the old `$LASTEXITCODE` semantics: a script ending in a
+# native command must report that command's code, and a gate that ends in `exit 1`
+# must report 1 — which inside a thread job used to mean "end the runspace".
 $runLane = {
-    param([string]$Root, [object[]]$Gates)
+    param([string]$Root, [object[]]$Gates, [int]$GateTimeoutMin = 30)
     Set-Location $Root
+    . (Join-Path $Root 'scripts/lib/devcloud-progress.ps1')
+    $logs = Join-Path ([IO.Path]::GetTempPath()) 'vitals-lane-gates'
+    if (-not (Test-Path $logs)) { $null = New-Item -ItemType Directory -Force -Path $logs | Out-Null }
     foreach ($gate in $Gates) {
+        Write-DevcloudStage "gate '$($gate.Name)': starting"
         $sw = [System.Diagnostics.Stopwatch]::StartNew()
-        $global:LASTEXITCODE = 0
-        $output = & ([scriptblock]::Create($gate.Script)) 2>&1 | ForEach-Object { "$_" }
-        $ok = $LASTEXITCODE -eq 0
+        $slug = $gate.Name -replace '[^\w]', '_'
+        $scriptFile = Join-Path $logs "gate-$slug.ps1"
+        $outFile = Join-Path $logs "gate-$slug.out"
+        $errFile = Join-Path $logs "gate-$slug.err"
+        $body = $gate.Script + "`n" + 'if ($LASTEXITCODE -is [int] -and $LASTEXITCODE -ne 0) { exit $LASTEXITCODE }' + "`n" + 'exit 0'
+        [IO.File]::WriteAllText($scriptFile, $body, [Text.UTF8Encoding]::new($false))
+        $p = Start-Process pwsh -ArgumentList '-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', ('"{0}"' -f $scriptFile) `
+            -WorkingDirectory $Root -WindowStyle Hidden -PassThru -RedirectStandardOutput $outFile -RedirectStandardError $errFile
+        # A gate that never returns has to become a red gate in bounded time, and
+        # it has to stop holding the lane. The assemble inside the android gate
+        # has its own deadline; this one only catches a gate that is stuck before
+        # it gets that far.
+        $timedOut = -not $p.WaitForExit($GateTimeoutMin * 60 * 1000)
+        if ($timedOut) {
+            $null = & taskkill /T /F /PID $p.Id 2>&1
+            Start-Sleep -Seconds 1
+        }
+        $ok = (-not $timedOut) -and ($p.ExitCode -eq 0)
+        $output = @()
+        foreach ($f in $outFile, $errFile) {
+            if (Test-Path -LiteralPath $f) { $output += @(Get-Content -LiteralPath $f) }
+        }
         $sw.Stop()
+        $secs = [math]::Round($sw.Elapsed.TotalSeconds, 1)
+        Write-DevcloudStage "gate '$($gate.Name)': $(if ($timedOut) { "timed out after ${secs}s" } else { "exit $($p.ExitCode) in ${secs}s" })"
         [pscustomobject]@{
             Gate    = $gate.Name
             Passed  = $ok
-            Seconds = [math]::Round($sw.Elapsed.TotalSeconds, 1)
+            Seconds = $secs
             Output  = $output
         }
     }
@@ -125,9 +243,9 @@ if (-not $SkipBuild) {
     $lastChange = git log -1 --format=%cI -- apps/desktop crates Cargo.lock 2>$null
     if ($nsis -and $lastChange -and $nsis.LastWriteTime -gt [datetime]$lastChange) {
         $installerFresh = 'pwsh -NoProfile -File scripts/check-size.ps1'
-        Write-Host "  note: measuring the installer too ($($nsis.Name), built $($nsis.LastWriteTime))" -ForegroundColor DarkGray
+        if (Test-Lane 'ts') { Write-Host "  note: measuring the installer too ($($nsis.Name), built $($nsis.LastWriteTime))" -ForegroundColor DarkGray }
     } else {
-        Write-Host '  note: no installer newer than the last desktop change; installer size is checked by CI (build a fresh one with tauri build to check it here)' -ForegroundColor DarkGray
+        if (Test-Lane 'ts') { Write-Host '  note: no installer newer than the last desktop change; installer size is checked by CI (build a fresh one with tauri build to check it here)' -ForegroundColor DarkGray }
     }
     $ts += @{ Name = 'build: size budget'; Script = $installerFresh }
 }
@@ -136,7 +254,7 @@ if (-not $SkipBuild) {
 # waits on the network and a remote compile, not on this machine.
 $linux = @()
 $agentq = Join-Path $HOME '.copilot\bin\agentq.ps1'
-if ($LinuxClippy -ne 'off') {
+if ((Test-Lane 'linux') -and ($LinuxClippy -ne 'off')) {
     if (Test-Path $agentq) {
         # Single-quoted inner command: bash receives CI's argv unchanged, and
         # agentq cannot strip a `--` that is inside one argument.
@@ -156,34 +274,142 @@ $total = [System.Diagnostics.Stopwatch]::StartNew()
 # APKs and then reads them. Its own lane on purpose: it builds, and the checks
 # lane exists to fail in seconds.
 $androidLane = @()
-if (Test-Path (Join-Path $root 'apps/android/gradlew.bat')) {
-    $androidLane += @{ Name = 'android: features'; Script = 'pwsh -NoProfile -File scripts/check-android-features.ps1 -Build -RequireBuilt' }
-} else {
-    Write-Host '  note: no gradlew.bat here (no Android SDK); the artefact gate is skipped, and CI runs it' -ForegroundColor DarkGray
+if (Test-Lane 'android') {
+    if (Test-Path (Join-Path $root 'apps/android/gradlew.bat')) {
+        $androidGate = 'pwsh -NoProfile -File scripts/check-android-features.ps1 -Build -RequireBuilt'
+        if ($RequireAndroid) { $androidGate += ' -Strict' }
+        $androidLane += @{ Name = 'android: features'; Script = $androidGate }
+    } else {
+        Write-Host '  note: no gradlew.bat here (no Android SDK); the artefact gate is skipped, and CI runs it' -ForegroundColor DarkGray
+    }
 }
 
-$jobs = [ordered]@{
-    checks = Start-ThreadJob -ScriptBlock $runLane -ArgumentList $root, $checks
-    rust   = Start-ThreadJob -ScriptBlock $runLane -ArgumentList $root, $rust
-    ts     = Start-ThreadJob -ScriptBlock $runLane -ArgumentList $root, $ts
+# ── Where the lanes run ───────────────────────────────────────────────
+#
+# This machine is shared with other agents, so the Windows lanes prefer the
+# devcloud. Each one is submitted as its own agentq job, which means the
+# resource queue serialises it against whatever else is building this repo,
+# and agentq's own fallback (exit 4) runs it here when the cloud refuses.
+# `AGENTQ_WHERE=local` turns the whole thing off. A lane inside the job calls
+# this script with -Lane <name> -Where local, so the gate definitions above
+# remain the only ones.
+$cloudReachable = Test-Path $agentq
+if ($Where -eq 'local' -or $env:AGENTQ_WHERE -eq 'local') { $cloudReachable = $false }
+# A job holds its own build ticket; re-entering the queue for the same resource
+# would wait on itself for ever.
+if ($env:AGENTQ_HELD -split ',' -contains 'build:vitals') { $cloudReachable = $false }
+# The same reasoning, without depending on how the job was submitted: the agent
+# runs one job at a time, so a cloud job that submits another cloud job waits for
+# a slot that cannot free until it finishes. A job is identified by its own
+# environment, and this is the only signal that cannot be missing.
+if ($env:DEVCLOUD_JOB_ID) { $cloudReachable = $false }
+if (($Where -eq 'cloud') -and -not $cloudReachable) {
+    Write-Host '  note: -Where cloud asked for, but this process holds the build ticket or agentq is missing; running here' -ForegroundColor Yellow
 }
-if ($linux.Count) { $jobs['linux'] = Start-ThreadJob -ScriptBlock $runLane -ArgumentList $root, $linux }
-if ($androidLane.Count) { $jobs['android'] = Start-ThreadJob -ScriptBlock $runLane -ArgumentList $root, $androidLane }
+
+$cloudLanes = @()
+if ($cloudReachable) {
+    foreach ($name in 'checks', 'rust', 'ts', 'android') {
+        if (-not (Test-Lane $name)) { continue }
+        if (($name -eq 'android') -and ($AndroidCloud -eq 'off')) {
+                    Write-Host '  note: the android lane runs here — -AndroidCloud off was asked for (the cloud workspace has the SDK; see docs/devcloud.md)' -ForegroundColor DarkGray
+            continue
+        }
+        $cloudLanes += $name
+    }
+}
 
 $results = [System.Collections.Generic.List[object]]::new()
+
+foreach ($name in $cloudLanes) {
+    $remote = @('pwsh', '-NoProfile', '-File', 'scripts/verify.ps1', '-Lane', $name, '-Where', 'local', '-LinuxClippy', 'off')
+    if ($SkipBuild) { $remote += '-SkipBuild' }
+    if ($SkipPerf) { $remote += '-SkipPerf' }
+    if ($Force) { $remote += '-Force' }
+    if ($name -eq 'android') { $remote += '-RequireAndroid' }
+    $call = @('run', '-Resource', 'build', '-Where', 'cloud', '-Ws', $Ws, '-Purpose', "verify.ps1 $name lane on the devcloud", '--') + $remote
+    Write-Host "  → $name on $Ws" -ForegroundColor Cyan
+    Write-DevcloudStage "cloud lane '$name': submitted"
+    $stream = [System.Collections.Generic.List[string]]::new()
+    # A child process, not `& $agentq`, and for a measured reason: the cloud
+    # client narrates through [Console]::Out.WriteLine, which is the process's
+    # own stdout and not a PowerShell stream. Called in-process, its log never
+    # reaches this pipeline — and neither did any LANE_RESULT line, so all four
+    # cloud lanes collapsed into "(devcloud exit N)" rows on the first all-cloud
+    # run (2026-11-25: five rows, four of them opaque, while the log held six
+    # LANE_RESULT lines for the checks lane alone). Spawning the shell is what
+    # makes it capturable.
+    $shell = (Get-Process -Id $PID).Path
+    if (-not $shell) { $shell = 'pwsh' }
+    & $shell -NoProfile -NoLogo -File $agentq @call 2>&1 | ForEach-Object { $stream.Add("$_"); Write-Host "    $_" }
+    $code = $LASTEXITCODE
+    Write-DevcloudStage "cloud lane '$name': exit $code"
+    $reported = 0
+    # The stream is split before it is matched, because what arrives is chunks
+    # and not lines: the client prints a job's log as it grows, and the last
+    # chunk is often the whole log in one string. Matched line by line against
+    # whole chunks, `^LANE_RESULT` finds nothing and every cloud lane collapses
+    # into one opaque row — which is the failure this table exists to prevent,
+    # measured 2026-11-25 on the first all-cloud run: five rows, four of them
+    # "checks (devcloud exit 0)", with the six gates of that lane nowhere.
+    foreach ($line in @($stream | ForEach-Object { $_ -split "`r?`n" } | Where-Object { $_ -match '^LANE_RESULT\|' })) {
+        $f = $line.Split('|')
+        $passed = $f[3] -eq 'pass'
+        $colour = if ($passed) { 'Green' } else { 'Red' }
+        $seconds = [double]::Parse($f[4], $invariant)
+        # Formatted, not left to `-f`'s own culture: the remote lane prints its
+        # own table with a dot, and on a Romanian machine this line rendered the
+        # same number as `1,1s` beside it. Two renderings of one measurement in
+        # one log is how a number stops being greppable.
+        $shown = $seconds.ToString('0.0', $invariant)
+        Write-Host ('  {0}  {1,-30} {2,6}s   [{3}]' -f $f[3].ToUpperInvariant(), $f[2], $shown, $name) -ForegroundColor $colour
+        # The whole remote log rather than a tail: the summary below reads the
+        # annotations out of it, and a failing lane was already streamed here.
+        $results.Add([pscustomobject]@{ Gate = $f[2]; Passed = $passed; Seconds = $seconds; Output = @($stream); Streamed = $true })
+        $reported++
+    }
+    if ($reported -eq 0) {
+        # The lane never reached a gate: a failed sync, a missing toolchain, a
+        # timeout. One row saying so is honest; no row for a lane that was
+        # asked for is not.
+        $results.Add([pscustomobject]@{
+                Gate     = "$name (devcloud exit $code)"
+                Passed   = $code -eq 0
+                Seconds  = 0
+                Output   = @($stream)
+                Streamed = $true
+            })
+    }
+}
+
 $pending = [System.Collections.Generic.List[object]]::new()
+$jobs = [ordered]@{}
+if ((Test-Lane 'checks') -and ('checks' -notin $cloudLanes)) { $jobs['checks'] = Start-ThreadJob -ScriptBlock $runLane -ArgumentList $root, $checks }
+if ((Test-Lane 'rust') -and ('rust' -notin $cloudLanes)) { $jobs['rust'] = Start-ThreadJob -ScriptBlock $runLane -ArgumentList $root, $rust }
+if ((Test-Lane 'ts') -and ('ts' -notin $cloudLanes)) { $jobs['ts'] = Start-ThreadJob -ScriptBlock $runLane -ArgumentList $root, $ts }
+if ($linux.Count) { $jobs['linux'] = Start-ThreadJob -ScriptBlock $runLane -ArgumentList $root, $linux }
+if ($androidLane.Count -and ('android' -notin $cloudLanes)) { $jobs['android'] = Start-ThreadJob -ScriptBlock $runLane -ArgumentList $root, $androidLane }
 $jobs.Values | ForEach-Object { $pending.Add($_) }
 
 # Print each lane as it finishes, so a formatting failure is on screen in
 # seconds rather than after the four-minute Rust lane.
 while ($pending.Count -gt 0) {
     $done = Wait-Job -Job $pending -Any
-    $lane = ($jobs.GetEnumerator() | Where-Object { $_.Value.Id -eq $done.Id }).Key
+    # Not `$lane`: PowerShell is case-insensitive, so that name IS the [string[]]
+    # parameter and the key would be wrapped in an array and print as
+    # `System.String[]` in the line below.
+    [string]$laneName = ($jobs.GetEnumerator() | Where-Object { $_.Value.Id -eq $done.Id }).Key
     foreach ($r in @(Receive-Job -Job $done)) {
         $colour = if ($r.Passed) { 'Green' } else { 'Red' }
         $status = if ($r.Passed) { 'PASS' } else { 'FAIL' }
-        Write-Host ('  {0}  {1,-30} {2,6:N1}s   [{3}]' -f $status, $r.Gate, $r.Seconds, $lane) -ForegroundColor $colour
-        if (-not $r.Passed) {
+        Write-Host ('  {0}  {1,-30} {2,6:N1}s   [{3}]' -f $status, $r.Gate, $r.Seconds, $laneName) -ForegroundColor $colour
+        # A lane that ran somewhere else says what it found in a line the
+        # caller can read back; this is that line, and the summary above is
+        # still the answer for a human.
+        if (-not $runEveryLane) { Write-Host (Format-LaneResult $r $laneName) }
+        # A streamed lane (the devcloud) has already printed its output here;
+        # a local one kept it in the record and this is where it appears.
+        if ((-not $r.Passed) -and (-not $r.Streamed)) {
             $r.Output | Select-Object -Last 30 | ForEach-Object { Write-Host "      $_" -ForegroundColor Red }
         }
         if ($r.Gate -eq 'rust: tests' -and $r.Passed) {
@@ -197,7 +423,6 @@ while ($pending.Count -gt 0) {
         if ($r.Gate -like 'ts: typecheck*') {
             $r.Output | Select-String -Pattern '^\s*(Tasks|Cached):' | ForEach-Object { Write-Host "        $($_.Line.Trim())" -ForegroundColor DarkGray }
         }
-        # The artefact gate's own one-line result, so a skip (an APK it could
         # The artefact gate's own one-line result, so whether it had any APK to
         # check is visible in the run and not only inside the gate.
         if ($r.Gate -eq 'android: features') {
@@ -209,6 +434,7 @@ while ($pending.Count -gt 0) {
     [void]$pending.Remove($done)
 }
 $total.Stop()
+Write-DevcloudStage "wrapper: every lane finished, $($results.Count) gate result(s)"
 
 Write-Host ''
 Write-Host ('=' * 64) -ForegroundColor DarkGray
@@ -219,8 +445,10 @@ $wall = [math]::Round($total.Elapsed.TotalSeconds, 1)
 $serial = [math]::Round(($results | Measure-Object Seconds -Sum).Sum, 1)
 if ($failed.Count -gt 0) {
     Write-Host "$($failed.Count) gate(s) FAILED: $($failed.Gate -join ', ')  (wall ${wall}s, serial ${serial}s)" -ForegroundColor Red
+    Write-DevcloudStage "wrapper: exiting 1"
     exit 1
 }
 
 Write-Host "All $($results.Count) gates passed in ${wall}s (${serial}s if run one after another)." -ForegroundColor Green
+Write-DevcloudStage "wrapper: exiting 0"
 exit 0
