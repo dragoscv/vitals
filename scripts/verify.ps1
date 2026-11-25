@@ -227,6 +227,10 @@ $forceFlag = if ($Force) { '--force' } else { '' }
 $checks = @(
     @{ Name = 'rust: format'; Script = 'cargo fmt --all -- --check' }
     @{ Name = 'contracts: no drift'; Script = 'pwsh -NoProfile -File scripts/check-drift.ps1' }
+    # check-drift.ps1 owns the CSV's own shape (arity, duplicate id, status
+    # vocabulary); this owns the agreement between the two tracker files, which
+    # nothing else reads. Both are file reads, so the fast lane still fails fast.
+    @{ Name = 'tracker: conventions'; Script = 'pwsh -NoProfile -File scripts/check-tracker.ps1' }
     # The Apple listings are held one version behind on purpose; a ripple pass
     # that moves them would advertise a version App Store Connect is not
     # reviewing. Pure file reads, so it costs the fast lane nothing.
