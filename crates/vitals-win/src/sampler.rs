@@ -985,6 +985,10 @@ mod tests {
         use windows_sys::Win32::Foundation::FILETIME;
         use windows_sys::Win32::System::Threading::{GetCurrentThread, GetThreadTimes};
 
+        fn ticks(time: FILETIME) -> u64 {
+            (u64::from(time.dwHighDateTime) << 32) | u64::from(time.dwLowDateTime)
+        }
+
         // `FILETIME` is `Copy` with a zeroed `Default`, so the four
         // out-parameters need no other preparation.
         let (mut creation, mut exit) = (FILETIME::default(), FILETIME::default());
@@ -1006,9 +1010,6 @@ mod tests {
             return None;
         }
 
-        fn ticks(time: FILETIME) -> u64 {
-            (u64::from(time.dwHighDateTime) << 32) | u64::from(time.dwLowDateTime)
-        }
         Some(ticks(kernel).saturating_add(ticks(user)))
     }
 

@@ -37,7 +37,8 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use vitals_core::agents::{
-    AgentUsage, AgentUsageKind, AgentUsageSnapshot, AgentqWorkKind, AgentqWorkUsage,
+    AgentUsage, AgentUsageKind, AgentUsageSnapshot, AgentqWorkEstimate, AgentqWorkKind,
+    AgentqWorkUsage,
 };
 use vitals_core::process::Process;
 use vitals_core::units::{Bytes, BytesPerSec, Percent};
@@ -87,6 +88,8 @@ pub struct Work {
     pub session: Option<String>,
     pub pid: u32,
     pub started_ms: Option<u64>,
+    /// How long the work is expected to take, when anything knows.
+    pub estimate: Option<AgentqWorkEstimate>,
 }
 
 /// Everything agentq's own state attributes, and the work it is executing.
@@ -125,6 +128,7 @@ pub fn read_owned(root: &Path, probe: ProcStart<'_>, now: u64) -> Ownership {
             session: worker.session,
             pid: worker.pid,
             started_ms: worker.started_ms,
+            estimate: worker.estimate,
         });
         owned.entries.push(Owned {
             pid: worker.pid,
@@ -325,6 +329,7 @@ pub fn rollup(
             session: w.session.clone(),
             pid: w.pid,
             started_ms: w.started_ms,
+            estimate: w.estimate,
             usage: totals.into_usage(AgentUsageKind::Agentq),
         })
         .collect();

@@ -7,10 +7,11 @@
 //! months of history. A file that shrank (agentq rotates at 64 MB) resets the
 //! offset.
 
-use std::collections::{BTreeMap, VecDeque};
+use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::{Mutex, OnceLock};
 
 use serde_json::Value;
 use vitals_core::agents::{AgentqStats, JournalEvent, RepoStat};
@@ -30,6 +31,8 @@ pub struct JournalTail {
     /// A partial last line, kept until its newline arrives.
     carry: Vec<u8>,
     events: VecDeque<JournalEvent>,
+    /// What finished runs cost, over a longer horizon than `events` keeps.
+    profiles: WorkProfiles,
 }
 
 impl JournalTail {
@@ -51,6 +54,9 @@ impl JournalTail {
             self.offset = 0;
             self.carry.clear();
             self.events.clear();
+            // The profile is deliberately not cleared: it describes what a
+            // resource costs, not what happened in a window, and a rotation
+            // says nothing about the run that just finished.
         }
         if self.offset == 0 && len > INITIAL_BYTES {
             self.offset = len - INITIAL_BYTES;
@@ -90,6 +96,7 @@ impl JournalTail {
             }
             first = false;
             if let Some(e) = parse_line(line) {
+                self.profiles.record(&e);
                 self.events.push_back(e);
             }
         }
@@ -117,6 +124,12 @@ impl JournalTail {
     #[must_use]
     pub fn stats(&self, now: u64, window_hours: u32) -> AgentqStats {
         stats(self.events.iter(), now, window_hours)
+    }
+
+    /// What the runs seen so far say each resource costs.
+    #[must_use]
+    pub fn profiles(&self) -> WorkProfiles {
+        self.profiles.clone()
     }
 }
 
@@ -150,6 +163,7 @@ fn parse_line(line: &[u8]) -> Option<JournalEvent> {
             .and_then(|x| i32::try_from(x).ok()),
         wait_sec: num("waitSec"),
         hold_sec: num("holdSec"),
+        dur_sec: num("durSec"),
     })
 }
 
@@ -250,6 +264,110 @@ fn repo_entry<'a>(m: &'a mut BTreeMap<String, RepoStat>, repo: &str) -> &'a mut 
     })
 }
 
+/// What agentq's journal says each of its resources costs.
+///
+/// The figures come from the `durSec` agentq already records on every `done`
+/// event, and are kept per individual resource rather than per hold: a build
+/// that held `build:vitals,build:machine` is the same build as one that held
+/// `build:vitals` alone, and a reader asking what a build of vitals costs has
+/// to see both.
+///
+/// A profile outlives the window the timeline wants. [`JournalTail::trim`]
+/// drops events after [`KEEP_HOURS`], while what a resource costs is learned
+/// from weeks of runs, so samples are kept until
+/// [`WorkProfiles::MAX_SAMPLES`] newer ones replace them.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct WorkProfiles {
+    samples: HashMap<String, VecDeque<f64>>,
+}
+
+impl WorkProfiles {
+    /// Completed runs kept per resource.
+    ///
+    /// Forty is several days of every resource on this machine, and a median
+    /// over forty runs is not moved by one. Drawn from one weekend's worth of
+    /// a stale run either — which is why it is a count and not an age.
+    pub const MAX_SAMPLES: usize = 40;
+
+    /// Records one finished run, if this event is one that finished something.
+    fn record(&mut self, e: &JournalEvent) {
+        if e.event != "done" {
+            return;
+        }
+        // A run whose duration agentq did not write teaches nothing, and an
+        // unmeasured duration is not a fast one.
+        let (Some(sec), Some(resources)) = (e.dur_sec, e.resource.as_deref()) else {
+            return;
+        };
+        if !sec.is_finite() || sec <= 0.0 {
+            return;
+        }
+        for token in resources.split(',') {
+            let token = token.trim();
+            if token.is_empty() {
+                continue;
+            }
+            let queue = self.samples.entry(token.to_owned()).or_default();
+            if queue.len() == Self::MAX_SAMPLES {
+                queue.pop_front();
+            }
+            queue.push_back(sec);
+        }
+    }
+
+    /// Median seconds for a resource, and how many runs it rests on.
+    ///
+    /// A string naming several resources — agentq records a burst hold as
+    /// `build:vitals,build:machine` — is read left to right, and the first
+    /// token with any history answers. agentq writes the resource the work was
+    /// queued for first and the shared slot after it, so the first token is
+    /// the one that names the work; a row holding {"build:new","build:machine"}
+    /// gets the machine's figure rather than none only when its own resource
+    /// has never run.
+    #[must_use]
+    pub fn median_sec(&self, resources: &str) -> Option<(f64, u32)> {
+        for token in resources.split(',') {
+            let Some(queue) = self.samples.get(token.trim()) else {
+                continue;
+            };
+            if queue.is_empty() {
+                continue;
+            }
+            let mut sorted: Vec<f64> = queue.iter().copied().collect();
+            sorted.sort_by(f64::total_cmp);
+            let median = percentile(&sorted, 0.5)?;
+            return Some((median, u32::try_from(sorted.len()).unwrap_or(u32::MAX)));
+        }
+        None
+    }
+
+    /// How many resources have any history, for the prover to print.
+    #[must_use]
+    pub fn resources(&self) -> usize {
+        self.samples.len()
+    }
+}
+
+/// The profile for one agentq root, polled incrementally.
+///
+/// Process-wide on purpose. Three callers read the same journal without
+/// holding the [`Reader`](crate::Reader) that tails it for the timeline — the
+/// desktop's `get_agent_usage` command, the LAN server, and the `prove_*`
+/// examples — and each would otherwise re-parse the last [`INITIAL_BYTES`] on
+/// every refresh, the cost this module exists to avoid. Only the answer is
+/// cloned out.
+#[must_use]
+pub fn shared_profiles(root: &Path, now: u64) -> WorkProfiles {
+    static TAILS: OnceLock<Mutex<HashMap<PathBuf, JournalTail>>> = OnceLock::new();
+    let mut tails = TAILS
+        .get_or_init(|| Mutex::new(HashMap::new()))
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let tail = tails.entry(root.to_path_buf()).or_default();
+    tail.poll(&root.join("journal.jsonl"), now);
+    tail.profiles()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -320,6 +438,87 @@ mod tests {
         let _ = std::fs::remove_file(&p);
     }
 
+    /// A `done` line as agentq writes it: what ran, and how long it took.
+    fn finished(ts: &str, resource: &str, dur_sec: f64) -> String {
+        format!(
+            "{{\"ts\":\"{ts}\",\"event\":\"done\",\"resource\":\"{resource}\",\"durSec\":{dur_sec}}}\n"
+        )
+    }
+
+    #[test]
+    fn a_finished_run_teaches_the_next_one_of_the_same_resource_how_long_it_takes() {
+        let p =
+            std::env::temp_dir().join(format!("vitals-journal-prof-{}.jsonl", std::process::id()));
+        let now = parse_iso_ms("2026-10-17T04:00:00Z").unwrap();
+        std::fs::write(
+            &p,
+            format!(
+                "{}{}{}",
+                finished("2026-10-17T03:00:00Z", "build:vitals,build:machine", 60.0),
+                finished("2026-10-17T03:10:00Z", "build:vitals", 120.0),
+                finished("2026-10-17T03:20:00Z", "other:thing", 9.0),
+            ),
+        )
+        .unwrap();
+        let mut j = JournalTail::new();
+        j.poll(&p, now);
+        let profiles = j.profiles();
+        assert_eq!(
+            profiles.median_sec("build:vitals"),
+            Some((120.0, 2)),
+            "a burst hold and a plain one are the same build"
+        );
+        assert_eq!(
+            profiles.median_sec("build:brivio,build:machine"),
+            Some((60.0, 1)),
+            "the first token with any history answers, not the string as a whole"
+        );
+        assert_eq!(
+            profiles.median_sec("never:run"),
+            None,
+            "no history is no estimate, which is not an estimate of zero"
+        );
+        assert_eq!(profiles.resources(), 3);
+        let _ = std::fs::remove_file(&p);
+    }
+
+    #[test]
+    fn the_profile_keeps_the_newest_runs_and_counts_nothing_from_the_ones_that_measure_nothing() {
+        let p =
+            std::env::temp_dir().join(format!("vitals-journal-cap-{}.jsonl", std::process::id()));
+        let now = parse_iso_ms("2026-10-17T04:00:00Z").unwrap();
+        let mut text = String::new();
+        // Durations 1..=45 s in order, so the median names exactly which runs
+        // survived: the newest forty are 6..=45 s.
+        for i in 0..45 {
+            text.push_str(&finished(
+                &format!("2026-10-17T03:00:{i:02}Z"),
+                "build:agentq",
+                f64::from(i + 1),
+            ));
+        }
+        // An event that closed nothing, and a run whose duration agentq never
+        // wrote: neither may add a sample, and a zero would pull the median
+        // down as if a build had been instant.
+        text.push_str(&line(
+            "2026-10-17T03:30:00Z",
+            "start",
+            ",\"resource\":\"build:agentq\"",
+        ));
+        text.push_str(
+            "{\"ts\":\"2026-10-17T03:31:00Z\",\"event\":\"done\",\"resource\":\"build:agentq\"}\n",
+        );
+        std::fs::write(&p, &text).unwrap();
+        let mut j = JournalTail::new();
+        j.poll(&p, now);
+        assert_eq!(
+            j.profiles().median_sec("build:agentq"),
+            Some((26.0, 40)),
+            "the newest forty of forty-five runs, and nothing from an unmeasured event"
+        );
+        let _ = std::fs::remove_file(&p);
+    }
+
     #[test]
     fn stats_count_runs_failures_and_percentiles_inside_the_window_only() {
         let at = |s: &str| parse_iso_ms(s).unwrap();
@@ -334,6 +533,7 @@ mod tests {
             exit: None,
             wait_sec: w,
             hold_sec: h,
+            dur_sec: None,
         };
         let evs = [
             ev("2026-10-16T01:00:00Z", "start", Some(999.0), None), // outside 24 h

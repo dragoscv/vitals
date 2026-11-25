@@ -4,6 +4,7 @@ import type {
   AgentUsageKind,
   AgentUsageSnapshot,
   AgentqTicket,
+  AgentqWorkEstimate,
   AgentqWorkUsage,
   AgentsSnapshot,
 } from '@vitals/protocol';
@@ -67,9 +68,17 @@ export function makeWork(over: Partial<AgentqWorkUsage> = {}): AgentqWorkUsage {
     session: 'term-1',
     pid: 4242,
     startedMs: NOW - 120_000,
+    // No estimate by default: most work on a real machine has no history yet,
+    // and a fixture that invented one would draw a bar in every panel test.
+    estimate: null,
     usage: makeUsage('agentq', { processes: 2, cpu: 31.5 }),
     ...over,
   };
+}
+
+/** A measured or declared duration for [`makeWork`]. */
+export function makeEstimate(over: Partial<AgentqWorkEstimate> = {}): AgentqWorkEstimate {
+  return { expectedMs: 300_000, basis: 'measured', samples: 7, ...over };
 }
 
 export function makeSession(over: Partial<AgentSession> = {}): AgentSession {

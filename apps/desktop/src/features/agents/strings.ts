@@ -335,9 +335,17 @@ const en = {
     work: {
       title: 'What agentq is running',
       running: 'running {{ago}}',
+      eta: 'about {{left}} left',
+      etaOver: '{{over}} past the expected time',
+      etaLabel: 'Progress of {{label}}',
+      etaBasis: {
+        measured_one: 'the median of the last run of this resource',
+        measured_other: 'the median of the last {{count}} runs of this resource',
+        declared: 'what the job declared when it was launched',
+      },
       empty: 'Nothing is running through agentq right now.',
       footnote:
-        'One row per thing agentq is executing right now — a queue ticket it holds, a release run, a background job — measured from the same process table, so these rows add up to the agentq figure above. A process nobody recorded with agentq stays with whoever started it.',
+        'One row per thing agentq is executing right now — a queue ticket it holds, a release run, a background job — measured from the same process table, so these rows add up to the agentq figure above. A progress bar is drawn where agentq knows how long the work takes: the median of the runs of that resource its journal holds, or the expectation the launcher declared for a job. A row with no history gets no bar rather than a bar at zero. A process nobody recorded with agentq stays with whoever started it.',
     },
     workKind: {
       build: 'build',
@@ -706,9 +714,18 @@ const ro = {
     work: {
       title: 'Ce rulează agentq',
       running: 'rulează de {{ago}}',
+      eta: 'încă aproximativ {{left}}',
+      etaOver: 'cu {{over}} peste durata estimată',
+      etaLabel: 'Progresul pentru {{label}}',
+      etaBasis: {
+        measured_one: 'mediana ultimei rulări a acestei resurse',
+        measured_few: 'mediana ultimelor {{count}} rulări ale acestei resurse',
+        measured_other: 'mediana ultimelor {{count}} de rulări ale acestei resurse',
+        declared: 'ce a declarat jobul când a fost lansat',
+      },
       empty: 'Momentan nu rulează nimic prin agentq.',
       footnote:
-        'Un rând pentru fiecare lucru pe care agentq îl execută acum — un tichet de coadă ținut, o rulare de release, un job de fundal — măsurat din același tablou de procese, deci aceste rânduri se adună exact la cifra agentq de mai sus. Un proces pe care nimeni nu l-a înregistrat la agentq rămâne la cine l-a pornit.',
+        'Un rând pentru fiecare lucru pe care agentq îl execută acum — un tichet de coadă ținut, o rulare de release, un job de fundal — măsurat din același tablou de procese, deci aceste rânduri se adună exact la cifra agentq de mai sus. Bara de progres apare acolo unde agentq știe cât durează lucrul: mediana rulărilor acelei resurse din jurnalul lui, sau estimarea pe care a declarat-o lansatorul unui job. Un rând fără istoric nu primește bară, ci niciuna — nu una la zero. Un proces pe care nimeni nu l-a înregistrat la agentq rămâne la cine l-a pornit.',
     },
     workKind: {
       build: 'compilare',

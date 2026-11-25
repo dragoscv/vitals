@@ -9,8 +9,8 @@ import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { i18n, initI18n } from '@vitals/i18n';
 
-import { makeUsage, makeUsageSnapshot, makeWork } from './fixtures.test-utils';
-import { ResourcesPanel } from './ResourcesPanel';
+import { NOW, makeEstimate, makeUsage, makeUsageSnapshot, makeWork } from './fixtures.test-utils';
+import { AgentqWork, ResourcesPanel } from './ResourcesPanel';
 import { registerAgentsStrings } from './strings';
 
 beforeAll(async () => {
@@ -117,5 +117,67 @@ describe('ResourcesPanel', () => {
   it('draws no work list at all when agentq is executing nothing', () => {
     render(<ResourcesPanel usage={makeUsageSnapshot()} now={Date.now()} />);
     expect(screen.queryByText('What agentq is running')).toBeNull();
+  });
+});
+
+/**
+ * The ETA and its bar: agentq's own profiles, drawn on the row.
+ *
+ * `now` is the fixture's clock rather than the wall clock, because an elapsed
+ * time read against a real one would drift between the two assertions.
+ */
+describe('AgentqWork progress', () => {
+  it('scales the bar to the whole expected duration and prints the ETA beside it', () => {
+    render(
+      <AgentqWork
+        usage={makeUsageSnapshot({
+          work: [makeWork({ estimate: makeEstimate({ expectedMs: 300_000, samples: 12 }) })],
+        })}
+        now={NOW}
+      />,
+    );
+    const bar = screen.getByRole('progressbar', { name: 'Progress of build:vitals' });
+    expect(bar.getAttribute('aria-valuenow')).toBe('120000');
+    expect(bar.getAttribute('aria-valuemax')).toBe('300000');
+    // The spoken value carries the basis, because the number alone does not
+    // say whether the overrun is against a promise or against the usual.
+    expect(bar.getAttribute('aria-valuetext')).toBe(
+      'about 3m 00s left — the median of the last 12 runs of this resource',
+    );
+    expect(screen.getByText('about 3m 00s left')).toBeTruthy();
+  });
+
+  it('says how far past the estimate it is instead of a negative or zero ETA', () => {
+    render(
+      <AgentqWork
+        usage={makeUsageSnapshot({
+          work: [
+            makeWork({
+              startedMs: NOW - 400_000,
+              estimate: makeEstimate({ expectedMs: 300_000, basis: 'declared', samples: 0 }),
+            }),
+          ],
+        })}
+        now={NOW}
+      />,
+    );
+    const bar = screen.getByRole('progressbar', { name: 'Progress of build:vitals' });
+    // Full, not overshot: the track is the expected duration, so the value is
+    // clamped to it — `aria-valuenow` above `aria-valuemax` is invalid — and
+    // the overrun is the sentence beside the bar.
+    expect(bar.getAttribute('aria-valuenow')).toBe('300000');
+    expect(bar.getAttribute('aria-valuetext')).toBe(
+      '1m 40s past the expected time — what the job declared when it was launched',
+    );
+    expect(screen.getByText('1m 40s past the expected time')).toBeTruthy();
+  });
+
+  it('draws no bar for work nothing has measured', () => {
+    render(
+      <AgentqWork usage={makeUsageSnapshot({ work: [makeWork({ estimate: null })] })} now={NOW} />,
+    );
+    expect(screen.queryByRole('progressbar')).toBeNull();
+    // The row itself is still drawn: no estimate is not "nothing running".
+    expect(screen.getByText('build:vitals')).toBeTruthy();
   });
 });

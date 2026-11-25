@@ -17,10 +17,12 @@ use std::path::{Path, PathBuf};
 
 use serde_json::Value;
 use vitals_core::agents::{
-    AgentqCaller, AgentqJob, AgentqLease, AgentqMark, AgentqRelease, AgentqResource, AgentqTicket,
-    AgentqWorkKind, CloudDown, Liveness, MachineCap, ResourceKind,
+    AgentqCaller, AgentqEstimateBasis, AgentqJob, AgentqLease, AgentqMark, AgentqRelease,
+    AgentqResource, AgentqTicket, AgentqWorkEstimate, AgentqWorkKind, CloudDown, Liveness,
+    MachineCap, ResourceKind,
 };
 
+use crate::journal::WorkProfiles;
 use crate::time::{mtime_ms, parse_iso_ms};
 
 /// Heartbeat age after which agentq calls a ticket STALE.
@@ -450,6 +452,9 @@ pub struct Worker {
     pub command: Option<String>,
     pub session: Option<String>,
     pub started_ms: Option<u64>,
+    /// How long this is expected to take: what the launcher declared, or the
+    /// median of the runs of the same resource agentq's journal holds.
+    pub estimate: Option<AgentqWorkEstimate>,
 }
 
 /// The pid as an identity.
@@ -538,15 +543,16 @@ pub fn work_kind(resource: Option<&str>, command: Option<&str>) -> Option<Agentq
 /// holder of `build:vitals` is that build, not "some job".
 #[must_use]
 pub fn read_workers(root: &Path, probe: ProcStart<'_>, now: u64) -> Vec<Worker> {
+    let profiles = crate::journal::shared_profiles(root, now);
     let mut out: Vec<Worker> = Vec::new();
     let mut seen: std::collections::HashSet<u32> = std::collections::HashSet::new();
     let mut keep = |w: Worker| seen.insert(w.pid).then_some(w);
-    for w in ticket_workers(root, probe) {
+    for w in ticket_workers(root, probe, &profiles) {
         if let Some(w) = keep(w) {
             out.push(w);
         }
     }
-    for w in release_workers(root, probe) {
+    for w in release_workers(root, probe, &profiles) {
         if let Some(w) = keep(w) {
             out.push(w);
         }
@@ -559,8 +565,48 @@ pub fn read_workers(root: &Path, probe: ProcStart<'_>, now: u64) -> Vec<Worker> 
     out
 }
 
+/// The median of what this resource cost the last few times, when the journal
+/// holds any run of it.
+///
+/// The figure is agentq's own: every `done` event carries the seconds the work
+/// took, so the estimate is a measurement rather than a guess at one. A
+/// resource nobody has finished gets no estimate, and `None` is drawn as no
+/// bar — a made-up ETA reads exactly like a known one.
+fn measured(profiles: &WorkProfiles, resources: &str) -> Option<AgentqWorkEstimate> {
+    let (sec, samples) = profiles.median_sec(resources)?;
+    let expected_ms = (sec * 1000.0).round();
+    if !expected_ms.is_finite() || expected_ms <= 0.0 {
+        return None;
+    }
+    Some(AgentqWorkEstimate {
+        expected_ms: expected_ms as u64,
+        basis: AgentqEstimateBasis::Measured,
+        samples,
+    })
+}
+
+/// What a launcher said its own job would take: `job-start.ps1 -ExpectMin`.
+///
+/// agentq already calls a job `suspect` at twice this figure, so the page and
+/// agentq read the same number the same way.
+fn declared(expected_min: Option<f64>) -> Option<AgentqWorkEstimate> {
+    let minutes = expected_min?;
+    if !minutes.is_finite() || minutes <= 0.0 {
+        return None;
+    }
+    let expected_ms = (minutes * 60_000.0).round();
+    if !expected_ms.is_finite() || expected_ms <= 0.0 {
+        return None;
+    }
+    Some(AgentqWorkEstimate {
+        expected_ms: expected_ms as u64,
+        basis: AgentqEstimateBasis::Declared,
+        samples: 0,
+    })
+}
+
 /// The processes holding a queue ticket: the resource's actual work.
-fn ticket_workers(root: &Path, probe: ProcStart<'_>) -> Vec<Worker> {
+fn ticket_workers(root: &Path, probe: ProcStart<'_>, profiles: &WorkProfiles) -> Vec<Worker> {
     let Ok(rd) = fs::read_dir(root.join("queues")) else {
         return Vec::new();
     };
@@ -584,6 +630,7 @@ fn ticket_workers(root: &Path, probe: ProcStart<'_>) -> Vec<Worker> {
             let resource = s(&v, "resource")
                 .or_else(|| dir.file_name().and_then(|n| n.to_str()).map(unsafe_name));
             let command = s(&v, "cmd");
+            let estimate = resource.as_deref().and_then(|r| measured(profiles, r));
             out.push(Worker {
                 label: resource.clone().unwrap_or_else(|| "agentq".to_owned()),
                 kind: work_kind(resource.as_deref(), command.as_deref())
@@ -596,6 +643,7 @@ fn ticket_workers(root: &Path, probe: ProcStart<'_>) -> Vec<Worker> {
                 command,
                 session: s(&v, "session"),
                 started_ms: t(&v, "acquired").or_else(|| t(&v, "created")),
+                estimate,
             });
         }
     }
@@ -604,7 +652,7 @@ fn ticket_workers(root: &Path, probe: ProcStart<'_>) -> Vec<Worker> {
 
 /// The process running a release: agentq's own pipeline, whose children are
 /// the compiler and the packager of an installer.
-fn release_workers(root: &Path, probe: ProcStart<'_>) -> Vec<Worker> {
+fn release_workers(root: &Path, probe: ProcStart<'_>, profiles: &WorkProfiles) -> Vec<Worker> {
     let mut out = Vec::new();
     for file in json_files(&root.join("releases")) {
         let Some(v) = read_json(&file) else { continue };
@@ -621,17 +669,23 @@ fn release_workers(root: &Path, probe: ProcStart<'_>) -> Vec<Worker> {
         // not derived from it: a release run is a deploy whatever its command
         // and prose happen to say.
         let command = s(&v, "purpose");
+        // The resource the run holds, in agentq's own spelling: its journal
+        // names a release run `deploy:<repo>:<target>`, holds a ticket for it
+        // and records the run's duration against that name.
+        let resource = format!("deploy:{repo}:{target}");
+        let estimate = measured(profiles, &resource);
         out.push(Worker {
             label: format!("release {repo}:{target}"),
             kind: AgentqWorkKind::Deploy,
             pid,
             start_ms,
-            resource: None,
+            resource: Some(resource),
             repo: Some(repo),
             purpose: None,
             command,
             session: s(&v, "session"),
             started_ms: t(&v, "started"),
+            estimate,
         });
     }
     out
@@ -657,6 +711,7 @@ fn job_workers(root: &Path, probe: ProcStart<'_>, now: u64) -> Vec<Worker> {
                 command: job.command,
                 session: None,
                 started_ms: job.started_ms,
+                estimate: declared(job.expected_min),
             })
         })
         .collect()

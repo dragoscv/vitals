@@ -7,4 +7,10 @@ export type JournalEvent = { tsMs: number, event: string, resource: string | nul
 /**
  * purpose, reason or message — whichever the event carries.
  */
-text: string | null, exit: number | null, waitSec: number | null, holdSec: number | null, };
+text: string | null, exit: number | null, waitSec: number | null, holdSec: number | null, 
+/**
+ * How long the work took, recorded by agentq on the `done` event that
+ * closes it — the same figure the estimate for a later run of the same
+ * resource is drawn from. Absent on an event that closes nothing.
+ */
+durSec: number | null, };

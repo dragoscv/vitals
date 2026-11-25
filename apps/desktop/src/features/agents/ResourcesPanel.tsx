@@ -27,13 +27,23 @@ import type { AgentqWorkKind, AgentqWorkUsage, AgentUsageSnapshot } from '@vital
 import {
   EmptyState,
   InfoPopover,
+  ProgressBar,
   cn,
   formatBytes,
   formatPercent,
   formatThroughput,
 } from '@vitals/ui';
 
-import { repoName, since, usageRows, usageWork, workDetail, type UsageRow } from './model';
+import {
+  formatDuration,
+  repoName,
+  since,
+  usageRows,
+  usageWork,
+  workDetail,
+  workEta,
+  type UsageRow,
+} from './model';
 import { UsageMark } from './parts';
 import { AGENTS_NS } from './strings';
 
@@ -162,6 +172,22 @@ function WorkRow({ work, now }: { readonly work: AgentqWorkUsage; readonly now: 
   const u = work.usage;
   const detail = workDetail(work);
   const repo = repoName(work.repo);
+  const eta = workEta(work, now);
+  // Two readings of one figure, and the basis is spoken with it: an ETA past
+  // a launcher's promise and one past the usual for this resource are
+  // different news, so a client may not show the number without it.
+  const etaText =
+    eta === null
+      ? null
+      : eta.over
+        ? t('usage.work.etaOver', { over: formatDuration(eta.overMs) })
+        : t('usage.work.eta', { left: formatDuration(eta.remainingMs) });
+  const etaBasis =
+    eta === null
+      ? null
+      : eta.basis === 'measured'
+        ? t('usage.work.etaBasis.measured', { count: eta.samples })
+        : t('usage.work.etaBasis.declared');
   return (
     <m.li
       layout
@@ -197,6 +223,31 @@ function WorkRow({ work, now }: { readonly work: AgentqWorkUsage; readonly now: 
       </div>
       {detail !== null && (
         <p className="truncate text-2xs text-[var(--color-fg-subtle)]">{detail}</p>
+      )}
+      {eta !== null && (
+        // Scaled against the whole expected duration rather than against a
+        // percentage: the figure is a duration from the work's first moment,
+        // so the track is "what this usually takes" and the fill is "how much
+        // of that is spent" — the same scale on every row, and comparable
+        // across rows in a way a self-normalised bar is not.
+        <div className="mt-1.5 flex items-center gap-2">
+          <ProgressBar
+            size="sm"
+            tone={eta.over ? 'warn' : 'accent'}
+            className="flex-1"
+            // Clamped for the ARIA contract as well as the fill: past the
+            // estimate the bar is full, and `aria-valuenow` above
+            // `aria-valuemax` is an invalid state a screen reader may refuse
+            // to read at all. The overrun is in the text beside it.
+            value={Math.min(eta.elapsedMs, eta.expectedMs)}
+            max={eta.expectedMs}
+            label={t('usage.work.etaLabel', { label: work.label })}
+            valueText={`${etaText ?? ''} — ${etaBasis ?? ''}`}
+          />
+          <span className="shrink-0 text-2xs text-[var(--color-fg-muted)] tabular-nums">
+            {etaText}
+          </span>
+        </div>
       )}
     </m.li>
   );

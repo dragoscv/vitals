@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   NOW,
+  makeEstimate,
   makeSession,
   makeSnapshot,
   makeTicket,
@@ -23,6 +24,7 @@ import {
   resourceSlots,
   suggestions,
   usageWork,
+  workEta,
   workFor,
   workDetail,
 } from './model';
@@ -93,6 +95,51 @@ describe('agents model', () => {
     expect(eventTone('commit-failed')).toBe('danger');
     expect(eventTone('idle-yield')).toBe('warn');
     expect(eventTone('done')).toBe('ok');
+  });
+
+  it('reads the bar and the ETA off the one duration the estimate gives', () => {
+    // One figure, two readings: the bar is elapsed/expected and the ETA is
+    // expected-elapsed, so a refresh that lands late cannot make the bar move
+    // backwards or the ETA disagree with it.
+    const work = makeWork({ estimate: makeEstimate({ expectedMs: 300_000, samples: 12 }) });
+    const eta = workEta(work, NOW);
+    expect(eta).not.toBeNull();
+    expect(eta?.elapsedMs).toBe(120_000);
+    expect(eta?.expectedMs).toBe(300_000);
+    expect(eta?.remainingMs).toBe(180_000);
+    expect(eta?.over).toBe(false);
+    expect(eta?.overMs).toBe(0);
+    expect(eta?.basis).toBe('measured');
+    expect(eta?.samples).toBe(12);
+  });
+
+  it('reports the overrun once the estimate is passed, with nothing remaining', () => {
+    const work = makeWork({
+      startedMs: NOW - 400_000,
+      estimate: makeEstimate({ expectedMs: 300_000, basis: 'declared', samples: 0 }),
+    });
+    const eta = workEta(work, NOW);
+    expect(eta?.over).toBe(true);
+    expect(eta?.overMs).toBe(100_000);
+    expect(eta?.remainingMs).toBe(0);
+    // Whose figure it is travels with it: an overrun of a launcher's promise
+    // and one of the usual for this resource are different news.
+    expect(eta?.basis).toBe('declared');
+  });
+
+  it('has no progress to show without an estimate, a start, or a real duration', () => {
+    // No estimate is the common case: a resource nobody has finished has no
+    // history, and no bar is drawn for it rather than a bar sitting at zero.
+    expect(workEta(makeWork(), NOW)).toBeNull();
+    expect(workEta(makeWork({ startedMs: null, estimate: makeEstimate() }), NOW)).toBeNull();
+    expect(workEta(makeWork({ estimate: makeEstimate({ expectedMs: 0 }) }), NOW)).toBeNull();
+    expect(
+      workEta(makeWork({ estimate: makeEstimate({ expectedMs: Number.NaN }) }), NOW),
+    ).toBeNull();
+    // A clock that moved backwards mid-sample is not negative elapsed time.
+    expect(
+      workEta(makeWork({ startedMs: NOW + 5_000, estimate: makeEstimate() }), NOW)?.elapsedMs,
+    ).toBe(0);
   });
 });
 

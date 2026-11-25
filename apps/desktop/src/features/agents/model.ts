@@ -8,6 +8,7 @@ import type {
   AgentSession,
   AgentqAction,
   AgentqCaller,
+  AgentqEstimateBasis,
   AgentqJob,
   AgentqLease,
   AgentqResource,
@@ -97,6 +98,50 @@ export function usageWork(snapshot: AgentUsageSnapshot | null): readonly AgentqW
  */
 export function workDetail(work: AgentqWorkUsage): string | null {
   return work.purpose ?? work.command;
+}
+
+/**
+ * How far along a piece of agentq's work is against what is expected of it.
+ *
+ * `expectedMs` is a whole duration measured from the work's first moment, not
+ * a remaining time: the bar and the ETA are two readings of one figure, so
+ * they cannot drift apart as the clock moves, and a refresh that lands a
+ * second late cannot make the bar go backwards.
+ *
+ * Null when nothing knows. A resource agentq has never finished has no
+ * history, and a job whose launcher declared no expectation has no promise to
+ * draw; those rows get no bar rather than a bar at zero, exactly as an
+ * unmeasured figure gets a dash rather than a `0`.
+ */
+export interface WorkEta {
+  readonly elapsedMs: number;
+  readonly expectedMs: number;
+  /** Never negative: past the expectation the bar is full, not overshot. */
+  readonly remainingMs: number;
+  /** How far past the expectation it is; `0` while there is time left. */
+  readonly overMs: number;
+  readonly over: boolean;
+  /** Whose figure this is: a launcher's promise or the usual for this work. */
+  readonly basis: AgentqEstimateBasis;
+  /** Completed runs behind a measured figure; `0` for a declared one. */
+  readonly samples: number;
+}
+
+export function workEta(work: AgentqWorkUsage, now: number): WorkEta | null {
+  const estimate = work.estimate;
+  if (estimate === null || work.startedMs === null) return null;
+  if (!Number.isFinite(estimate.expectedMs) || estimate.expectedMs <= 0) return null;
+  const elapsedMs = Math.max(0, now - work.startedMs);
+  const over = elapsedMs > estimate.expectedMs;
+  return {
+    elapsedMs,
+    expectedMs: estimate.expectedMs,
+    remainingMs: over ? 0 : estimate.expectedMs - elapsedMs,
+    overMs: over ? elapsedMs - estimate.expectedMs : 0,
+    over,
+    basis: estimate.basis,
+    samples: estimate.samples,
+  };
 }
 
 /** Headline numbers for the overview strip. */

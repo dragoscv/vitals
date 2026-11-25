@@ -313,6 +313,10 @@ pub struct JournalEvent {
     pub exit: Option<i32>,
     pub wait_sec: Option<f64>,
     pub hold_sec: Option<f64>,
+    /// How long the work took, recorded by agentq on the `done` event that
+    /// closes it — the same figure the estimate for a later run of the same
+    /// resource is drawn from. Absent on an event that closes nothing.
+    pub dur_sec: Option<f64>,
 }
 
 /// Rollups over the journal window (`window_hours`).
@@ -496,6 +500,49 @@ pub enum AgentqWorkKind {
     Other,
 }
 
+/// Where an estimate of how long a piece of work takes came from.
+///
+/// Two figures answer the same question and mean different things: a launcher
+/// that says "expect 30 minutes" is stating a commitment, while the median of
+/// what this resource cost the last few times is a measurement. A row that
+/// shows an ETA has to be able to say which of the two it is showing, because
+/// an overrun against a promise and an overrun against the usual are
+/// different news.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "ts", ts(export, export_to = "core/"))]
+#[serde(rename_all = "camelCase")]
+pub enum AgentqEstimateBasis {
+    /// The launcher said so: `job-start.ps1 -ExpectMin`.
+    Declared,
+    /// The median of the complete runs agentq's own journal still holds.
+    Measured,
+}
+
+/// How long a piece of work is expected to take, and on whose authority.
+///
+/// No estimate is invented. A resource agentq has never finished has no
+/// history, and a row without an estimate draws no bar rather than a bar at
+/// zero — the same rule as every other unmeasured figure here.
+///
+/// `expected_ms` is a whole duration from the work's first moment, never a
+/// remaining time: one figure lets a client derive both the bar and the ETA,
+/// and the two then cannot disagree with each other as the clock moves.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(
+    feature = "ts",
+    ts(export, export_to = "core/", rename_all = "camelCase")
+)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentqWorkEstimate {
+    #[cfg_attr(feature = "ts", ts(type = "number"))]
+    pub expected_ms: u64,
+    pub basis: AgentqEstimateBasis,
+    /// Completed runs behind a measured figure; 0 for a declared one.
+    pub samples: u32,
+}
+
 /// One piece of agentq's work, with what it is costing right now.
 ///
 /// The numbers are the same measurements a client row carries, folded over
@@ -533,6 +580,12 @@ pub struct AgentqWorkUsage {
     /// or the job was launched.
     #[cfg_attr(feature = "ts", ts(type = "number | null"))]
     pub started_ms: Option<u64>,
+    /// How long this is expected to take, counted from the work's own first
+    /// moment.
+    ///
+    /// `None` when agentq has neither a declared expectation nor a completed
+    /// run of this resource to measure — an invented ETA reads as knowledge.
+    pub estimate: Option<AgentqWorkEstimate>,
     /// What this work is using, measured exactly like a client row — and
     /// summed from the same processes, so the agentq row is always the total
     /// of these and a breakdown can never disagree with it. `usage.kind` is
