@@ -6160,11 +6160,22 @@ while the drift went unseen. Re-posted, and generalised into
 `check-schedule-drift.ps1` plus `images.ps1 -VerifySchedule`, both `IN SYNC`; that
 fix is in `vmui`, which owns the images.
 
-Gaps, stated rather than implied: the profile is validated but not yet consumed by
-placement, so the four Windows lanes still serialise behind one `build:vitals`
-ticket and a full run costs the sum of its lanes rather than the longest one; a
-toolchain added to a lane needs that family rebaked; and the Linux lane is a
-second workspace rather than a second machine class.
+The profile is not only validated: `verify.ps1` now reads it and takes each lane's
+deadline from what that lane declares, because the constant it replaced (thirty
+minutes) was under two of the five budgets (rust sixty, android forty). A lane
+stopped by a number nobody chose reports nothing about the gate that was still
+working, which is the same failure as a red gate with no name. The same value sizes
+the caller's wait — the lane's budget plus twenty minutes for the queue and the
+workspace sync — so the inner deadline fires first and names the slow gate instead
+of an outer wait dying into a `(devcloud exit 3)` row. The order matters: one lane
+on this queue waited three minutes to be claimed, so a wait below the budget can
+never let a lane report.
+
+Gaps, stated rather than implied: the profile is read by the lane executor for its
+own deadline but not yet consumed by placement, so the four Windows lanes still
+serialise behind one `build:vitals` ticket and a full run costs the sum of its lanes
+rather than the longest one; a toolchain added to a lane needs that family rebaked;
+and the Linux lane is a second workspace rather than a second machine class.
 
 #### Verification log
 
@@ -6189,6 +6200,34 @@ second workspace rather than a second machine class.
   `OK vitals (5 lanes, keep 5, secrets 0)` with all five toolchain families
   present, exit 0. `images.ps1 -VerifySchedule` prints steps live 8 / declared 8,
   timeout live 9000 s / declared 9000 s, `IN SYNC`, exit 0.
+- The lane budgets are read, not assumed: with the profile present the executor
+  reports `checks -> 30, ts -> 40, rust -> 60, android -> 40, linux -> 30`, and a
+  lane name that is not in the file falls back to `missing -> 30`.
+- The first non-gate job on the same runner is the installer build, and it found
+  a defect that only a CI environment can produce: the Tauri CLI derives `--ci`
+  from the environment and accepts only `true` or `false`, while this runner sets
+  `CI=1`, so `build-installer.ps1` died in argument parsing —
+  `invalid value '1' for '--ci'` — before it compiled anything (job
+  `20261125-041845-51cb82`). A release on a GitHub runner never sees it because
+  Actions sets `CI=true`. Fixed at the source: the script sets `$env:CI = 'true'`.
+  Job `20261125-042058-4486ad` then built it: `Vitals_1.4.0_x64-setup.exe`,
+  6,007,995 bytes, `sha256 CF2339EE65DF1BB7…9C7C`, size rows `initial load
+215.7/216.0 KB`, `all assets 532.8/533.0 KB`, `hud 122.1/122.4 KB`, `mobile
+150.9/152.0 KB`, `installer 5,867.2/5,872.0 KB`, `Within budget.`,
+  `BUILD_EXIT=0 elapsed=319s`; downloaded and hashed here, `ARTEFACT_SHA` equal
+  to the manifest's `sha256`, `DOWNLOAD_EXIT=0`.
+- Installing that artefact on this machine produced the state the product calls
+  stuck, and it is worth writing down because nothing warns about it: the
+  published installer is `installMode: "both"`, and a silent `/S` install of a
+  `both` installer **chooses per-machine** — this machine ended up with
+  `C:\Program Files\Vitals` plus an `HKLM` registration, where 1.3.1 had been
+  `%LOCALAPPDATA%` plus `HKCU`. For that scope `crates/vitals-win/src/install.rs`
+  returns `UpdatePlan::NeedsApproval`, so every later update is a click and a UAC
+  prompt, which is exactly what `MigrationPlan::Migrate` exists to undo
+  (`migration_args()` = `/CurrentUser`). Reinstalled naming the scope:
+  `setup.exe /S /CurrentUser`, and the data directories were backed up and left
+  untouched (one file in `Roaming\Vitals`, ten files / 20.9 MB in
+  `Local\Vitals`).
 
 ## S13 — public beta 0.9.0-beta.1 (2026-09-28)
 

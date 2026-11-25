@@ -169,6 +169,10 @@ from ever reporting an exit code on 2026-11-25.
 **Honest state of the wiring.** agentq reads its own `cloudWorkspaces` table
 today, so this profile is validated and reviewed but not yet what places a job;
 the placement that consumes it is vmui ADR-0004's point 3 and is not implemented.
+What `verify.ps1` does consume is each lane's `timeoutMin`: the flag that governs
+a lane's gates, and the wait the caller gives the queue, are both that number, so
+a lane whose work is longer than a placement's default deadline is not killed by
+its own runner. Placement — which lane goes to which machine — is still agentq's.
 The validator is real: `node validate.mjs --selftest` proves it rejects an
 unbaked toolchain, a missing `repo`, a `concurrency: 1` with no reason, and a
 field from a future schema version.

@@ -103,6 +103,32 @@ $ErrorActionPreference = 'Continue'
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 
+# The repository declares what each lane needs in `.devcloud/profile.json`
+# (schema and validator: E:\gh\vmui\infra\devcloud\profile) so that placement does
+# not have to know this repository. Placement reads the toolchains and the machine
+# class; this script is a lane's only executor, so it reads the one field that
+# changes what happens here — how long the lane may take. The gate deadline used to
+# be the constant 30 minutes below, which is under what two of the five lanes
+# declare (rust 60, android 40): a lane killed by a number nobody chose reports
+# nothing about the gate that was still working.
+$laneProfile = $null
+$profileFile = Join-Path $root '.devcloud/profile.json'
+if (Test-Path $profileFile) {
+    try {
+        $laneProfile = (Get-Content $profileFile -Raw | ConvertFrom-Json).lanes
+    } catch {
+        Write-Host "  note: .devcloud/profile.json ignored ($($_.Exception.Message)); lanes use their fallback budget" -ForegroundColor Yellow
+    }
+}
+function Get-LaneBudget {
+    param([string]$Name, [int]$Fallback = 30)
+    if ($laneProfile) {
+        $mine = $laneProfile.PSObject.Properties[$Name]
+        if ($mine -and $mine.Value.timeoutMin) { return [int]$mine.Value.timeoutMin }
+    }
+    return $Fallback
+}
+
 # A cloud workspace keeps its toolchains outside the repository — the job's own
 # shell predates them, and a process does not see a variable added after it
 # started. scripts/ci/provision-cloud-workspace.ps1 writes this file for that
@@ -322,13 +348,22 @@ if ($cloudReachable) {
 $results = [System.Collections.Generic.List[object]]::new()
 
 foreach ($name in $cloudLanes) {
+    $budget = Get-LaneBudget $name
     $remote = @('pwsh', '-NoProfile', '-File', 'scripts/verify.ps1', '-Lane', $name, '-Where', 'local', '-LinuxClippy', 'off')
     if ($SkipBuild) { $remote += '-SkipBuild' }
     if ($SkipPerf) { $remote += '-SkipPerf' }
     if ($Force) { $remote += '-Force' }
     if ($name -eq 'android') { $remote += '-RequireAndroid' }
-    $call = @('run', '-Resource', 'build', '-Where', 'cloud', '-Ws', $Ws, '-Purpose', "verify.ps1 $name lane on the devcloud", '--') + $remote
-    Write-Host "  → $name on $Ws" -ForegroundColor Cyan
+    # How long this caller waits for the job: the lane's own budget plus the queue
+    # and the workspace sync around it. It has to exceed the lane budget, or the
+    # wait dies first and the caller reports an opaque `(devcloud exit 3)` row for a
+    # lane whose own deadline never had the chance to name the gate that was slow.
+    # Measured 2026-11-25 on this queue: a claim took 2.7 minutes for one lane.
+    $call = @('run', '-Resource', 'build', '-Where', 'cloud', '-Ws', $Ws, '-TimeoutMin', ($budget + 20), '-Purpose', "verify.ps1 $name lane on the devcloud", '--') + $remote
+    # The deadline is printed because it comes from the repository's own declaration
+    # now: a log that shows the budget is the difference between a lane that stopped
+    # and a lane that this number stopped.
+    Write-Host "  → $name on $Ws (budget $budget min)" -ForegroundColor Cyan
     Write-DevcloudStage "cloud lane '$name': submitted"
     $stream = [System.Collections.Generic.List[string]]::new()
     # A child process, not `& $agentq`, and for a measured reason: the cloud
@@ -384,12 +419,15 @@ foreach ($name in $cloudLanes) {
 
 $pending = [System.Collections.Generic.List[object]]::new()
 $jobs = [ordered]@{}
-if ((Test-Lane 'checks') -and ('checks' -notin $cloudLanes)) { $jobs['checks'] = Start-ThreadJob -ScriptBlock $runLane -ArgumentList $root, $checks }
-if ((Test-Lane 'rust') -and ('rust' -notin $cloudLanes)) { $jobs['rust'] = Start-ThreadJob -ScriptBlock $runLane -ArgumentList $root, $rust }
-if ((Test-Lane 'ts') -and ('ts' -notin $cloudLanes)) { $jobs['ts'] = Start-ThreadJob -ScriptBlock $runLane -ArgumentList $root, $ts }
-if ($linux.Count) { $jobs['linux'] = Start-ThreadJob -ScriptBlock $runLane -ArgumentList $root, $linux }
-if ($androidLane.Count -and ('android' -notin $cloudLanes)) { $jobs['android'] = Start-ThreadJob -ScriptBlock $runLane -ArgumentList $root, $androidLane }
+if ((Test-Lane 'checks') -and ('checks' -notin $cloudLanes)) { $jobs['checks'] = Start-ThreadJob -ScriptBlock $runLane -ArgumentList $root, $checks, (Get-LaneBudget 'checks') }
+if ((Test-Lane 'rust') -and ('rust' -notin $cloudLanes)) { $jobs['rust'] = Start-ThreadJob -ScriptBlock $runLane -ArgumentList $root, $rust, (Get-LaneBudget 'rust') }
+if ((Test-Lane 'ts') -and ('ts' -notin $cloudLanes)) { $jobs['ts'] = Start-ThreadJob -ScriptBlock $runLane -ArgumentList $root, $ts, (Get-LaneBudget 'ts') }
+if ($linux.Count) { $jobs['linux'] = Start-ThreadJob -ScriptBlock $runLane -ArgumentList $root, $linux, (Get-LaneBudget 'linux') }
+if ($androidLane.Count -and ('android' -notin $cloudLanes)) { $jobs['android'] = Start-ThreadJob -ScriptBlock $runLane -ArgumentList $root, $androidLane, (Get-LaneBudget 'android') }
 $jobs.Values | ForEach-Object { $pending.Add($_) }
+if ($jobs.Count) {
+    Write-Host "  running here: $(($jobs.Keys | ForEach-Object { "$_ $(Get-LaneBudget $_)m" }) -join ', ')" -ForegroundColor DarkGray
+}
 
 # Print each lane as it finishes, so a formatting failure is on screen in
 # seconds rather than after the four-minute Rust lane.

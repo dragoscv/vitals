@@ -68,6 +68,13 @@ if ($installer.Count -eq 0) {
     $cli = Join-Path $root 'apps/desktop/node_modules/@tauri-apps/cli/tauri.js'
     if (-not (Test-Path $cli)) { throw "the Tauri CLI is not installed at $cli (run pnpm install)" }
     $config = '{"bundle":{"createUpdaterArtifacts":false}}'
+    # The CLI derives its `--ci` from the environment and accepts only `true` or
+    # `false`; CI systems — and this repository's devcloud runner — set `CI=1`, so
+    # the build died in argument parsing with
+    # `error: invalid value '1' for '--ci' / possible values: true, false` before it
+    # compiled anything (job 20261125-041845-51cb82). A release on a GitHub runner
+    # never sees this because Actions sets `CI=true`.
+    $env:CI = 'true'
     Push-Location (Join-Path $root 'apps/desktop')
     try {
         & node $cli build --bundles $Bundles --config $config
