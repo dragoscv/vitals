@@ -27,7 +27,9 @@ function set(
   platform: Platform | null,
   agentq: boolean | null = null,
 ): void {
-  useNavVisibility.setState({ health, platform, agentq });
+  // `codwen` is reset too: it is a fourth fact of the same store, and a test
+  // that left it set would make the agentq cases below depend on file order.
+  useNavVisibility.setState({ health, platform, agentq, codwen: null });
 }
 
 afterEach(() => {

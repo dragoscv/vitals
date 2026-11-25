@@ -161,6 +161,16 @@ interface NavVisibility {
    */
   readonly agentq: boolean | null;
   /**
+   * Whether a Codwen account is stored, from `get_cloud_status`.
+   *
+   * The AI page's Projects tab shows a signed-in user their Codwen projects,
+   * so the page must stay reachable for someone with no agentq (and no AI
+   * client) who still has an account. `null` until the answer arrives, and
+   * treated as "not signed in": the page then shows only on the agentq fact,
+   * exactly as it did before the Projects tab existed.
+   */
+  readonly codwen: boolean | null;
+  /**
    * What this build runs on, from `get_capabilities`.
    *
    * `null` until the report arrives, and deliberately treated as "show
@@ -172,18 +182,23 @@ interface NavVisibility {
   readonly platform: Platform | null;
   readonly setHealth: (configured: boolean) => void;
   readonly setAgentq: (present: boolean) => void;
+  readonly setCodwen: (signedIn: boolean) => void;
   readonly setPlatform: (platform: Platform | null) => void;
 }
 
 export const useNavVisibility = create<NavVisibility>((set) => ({
   health: null,
   agentq: null,
+  codwen: null,
   platform: null,
   setHealth: (configured) => {
     set({ health: configured });
   },
   setAgentq: (present) => {
     set({ agentq: present });
+  },
+  setCodwen: (signedIn) => {
+    set({ codwen: signedIn });
   },
   setPlatform: (platform) => {
     set({ platform });
@@ -198,7 +213,9 @@ export const useNavVisibility = create<NavVisibility>((set) => ({
  * store's `null` means. Kept as a Partial rather than a second interface so
  * the store's own state satisfies it unchanged.
  */
-export type VisibilityState = Partial<Pick<NavVisibility, 'health' | 'platform' | 'agentq'>>;
+export type VisibilityState = Partial<
+  Pick<NavVisibility, 'health' | 'platform' | 'agentq' | 'codwen'>
+>;
 
 /**
  * Destinations whose backend commands are compiled only on Windows
@@ -230,17 +247,31 @@ export function routeSupported(id: RouteId, platform: Platform | null | undefine
   return platform === 'windows' || !windowsOnlyRoutes.includes(id);
 }
 
-/** Whether a route is shown, given the visibility state. */
+/**
+ * Whether a route is shown, given the visibility state.
+ *
+ * `state` may be a partial a caller assembled from the facts it subscribes to
+ * — `AppShell` builds one from health, platform and agentq. The Codwen fact is
+ * fed by a module the shell does not import, so when a caller omits it the
+ * live store is consulted rather than the route being hidden on a fact that
+ * was never passed.
+ */
 export function isRouteVisible(
   id: RouteId,
   state: VisibilityState = useNavVisibility.getState(),
 ): boolean {
   if (id === 'health') return state.health === true;
-  // Only a Windows build with no agentq has nothing to show here, and only
-  // once the probe has said so: `agentq === false` is that answer, `null` is
-  // "not asked yet". The collaboration page reads the same coordination
-  // directory, so it is shown on exactly the same fact.
-  if (id === 'agents' || id === 'collab') return state.agentq !== false;
+  // The AI page shows two things: agentq's local state and, on the Projects
+  // tab, the user's Codwen projects. It stays hidden only when agentq says it
+  // would be empty AND no Codwen account is stored — a signed-in user with no
+  // agentq still has their projects to see. `agentq === false` is that answer,
+  // `null` is "not asked yet" (treated as visible).
+  if (id === 'agents') {
+    return state.agentq !== false || (state.codwen ?? useNavVisibility.getState().codwen) === true;
+  }
+  // The collaboration page reads agentq's coordination directory alone, so a
+  // Codwen-only user still has nothing to see there.
+  if (id === 'collab') return state.agentq !== false;
   return routeSupported(id, state.platform);
 }
 
@@ -263,7 +294,15 @@ export function useVisibleNavItems(): readonly NavItem[] {
   const health = useNavVisibility((state) => state.health);
   const platform = useNavVisibility((state) => state.platform);
   const agentq = useNavVisibility((state) => state.agentq);
-  return useMemo(() => visibleNavItems({ health, platform, agentq }), [health, platform, agentq]);
+  // `codwen` is subscribed here as well as consulted: on a machine with no
+  // agentq the AI page appears only because of this fact, so a sidebar that
+  // did not re-render when the account probe answered would leave the entry
+  // missing until some other fact changed.
+  const codwen = useNavVisibility((state) => state.codwen);
+  return useMemo(
+    () => visibleNavItems({ health, platform, agentq, codwen }),
+    [health, platform, agentq, codwen],
+  );
 }
 
 /**

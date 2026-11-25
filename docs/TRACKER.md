@@ -4247,6 +4247,110 @@ code (service start type, handles/modules read-only, end process tree).
 
 ### Verification log
 
+### 2026-11-25 — S26-19: the collaboration page reads Codwen through one seam, and says what it cannot read
+
+The owner asked for a Vitals page showing the state of the Codwen projects, and for that page to be
+built here. The platform half that would answer it does not exist: `GET /v1/projects` is absent, the
+`projects:read` scope is not in `CODAI_SCOPES`, the schema and migration `0222` have neither a reader nor
+a writer, and no collector or incident opener runs (S26-18 and `docs/codwen-projects-page.md` §3.2 — every
+row ABSENT). The tab is therefore a read-client against a written contract, and the whole of that absence
+is contained in one place: `projectsApi.ts` knows the shape of the answer and nothing else does, so
+swapping the fixture for the real endpoint is one edit to `readProjects` while the hook, the model and the
+panel do not change.
+
+The fixture ships **only under `import.meta.env.DEV`**. In a packaged build a signed-in account gets
+`unavailable` and the tab says the projects could not be read; an account that is not signed in gets the
+sign-in state, which is the real read the Cloud tab already makes. The three things the brief forbids are
+the three the file is organised around: no probe of a project's URL, no write to project state, and no
+second list persisted as local truth. Readings follow this repository's rule as well — a component the
+fixture did not measure renders an em dash, never `0 ms`.
+
+The devcloud panel beside it shows the half this window can prove: how many cloud runs went out in the
+window, and which workspaces are marked down, with the reason where one was recorded. Heartbeat age,
+idle, queue depth and cost are named as not available yet rather than rendered as `0`, which is what the
+brief's §6.2 recommended and §6.3 made conditional on a read-only agentq document — that document now
+exists (S26-21), so the live half is unblocked but not yet wired.
+
+Running it found two defects, both in the new test rather than in the page, and both worth recording. The
+WCAG 2.2 AA scan failed with `[serious] color-contrast` at a ratio of 1.01: the fade-in was still running
+when axe read the screen, and Playwright counts an element at `opacity: 0` as visible, so the scan was
+measuring a nearly transparent layer composited onto the page background. Removing motion and waiting for
+the painted row fixed the cause. That fix then met a second trap: awaiting `document.getAnimations()`
+never returns on this screen, because three live pulses are Motion transitions with `repeat: Infinity`.
+The wait is now a bounded poll for the animations that can finish, since an infinite one is not something a
+contrast scan depends on.
+
+VERIFIED 2026-11-25 in the cloud, because browser tests never run on this workstation. The full gate on
+`ws-vitals-win` reports all 16 gates passed, wall 200.8 s (serial 146.4 s), `EXIT=0`, job
+`20261125-175048-177e`; `e2e/projects.spec.ts` reports 3 passed in 3.9 s, `exit 0`, job
+`20261125-175048-865b` / remote `20261125-175051-e9d448`, the a11y scan included at 2.6 s. The honest
+caveat is one a user meets: in a packaged build the list is unavailable by design until the platform
+ships `GET /v1/projects`, so the only proof of the list itself is the development path this suite
+exercises.
+
+### 2026-11-25 — S26-20: the dev server can be read without a browser
+
+`pnpm dev-server:cloud` (new `scripts/dev-server-cloud.ps1` and `scripts/dev-server-probe.ps1`)
+starts `pnpm --filter @vitals/desktop dev:vite` on the warm workspace, fetches the entry points and
+stops it again, so "does the dev server still serve every entry point?" is answerable without opening
+Vite on this workstation, which the owner's rule keeps free for other work.
+
+The probe asserts content rather than a status code: `/`, `/mobile.html` and `/hud.html` must each
+answer 200 **and** carry the root element, the port must be free again at the end, and the three are
+checked one at a time because Vite binds `localhost` as `::1` first. VERIFIED on `ws-vitals-win`: job
+`20261125-173323-b53f` → remote job `20261125-173327-389f64`, `exit 0` in 187.4 s wall (4.8 s remote),
+evidence `runs/20261125-173327-389f64.log` (1104 bytes) — three `[pass]` lines and
+`dev-server verdict: PASS (3/3 routes served, root element present, port released)`. Both traps are
+written down in `docs/devcloud.md`, in the new section that sits before the one explaining why a lane is
+a job rather than a copy of the script.
+
+### 2026-11-25 — S26-21: agentq answers with its status as a document, and the installed copy now does too
+
+The Projects tab needs the cloud half of its devcloud panel from agentq rather than from its own reading
+of `%USERPROFILE%\.codai\coord` (`docs/codwen-projects-page.md` §6.3), so `agentq-cloud.ps1` gained
+`-Status -Json`: one read-only document describing every workspace in the cloud registry — state,
+heartbeat age, idle seconds, queue depth, project and zone — plus the names of the workspaces it could
+not reach. Read-only in the sense that matters: `gcloud` reads only, nothing is started, resumed or
+queued, and the human `status` output is unchanged.
+
+The rule it is built on is this repository's own: a value that could not be measured is `null`, never
+`0`. A queue depth of `0` and "nobody measured it" are different facts, and a client that renders both
+as `0` reports a stopped workspace as healthy.
+
+Three things were needed to make it real, and the third is the one that is easy to skip: the suite
+(`ps/tests/test-agentq-cloud-status.ps1`, 23 assertions, offline — a `gcloud` shim on `PATH` answers the
+reads, so it pins the shape without a network or a real workspace), its registration in **both** maps
+(`ps/tests/run-all.ps1` and `ps/install.ps1`; the `install wiring` guard exists so that a suite the
+installed gate cannot run is impossible, and it is green at 19 assertions after the commit), and the
+install itself. The verb worked in the checkout and was absent from `~\.copilot\bin`, which is where the
+client calls it — "configured" is not "installed". Committed as `36a9591` in agentq, mirrored with
+`install.ps1 -SkipTests`, `install.ps1 -Check` reporting `in sync`.
+
+VERIFIED against the installed path, live: `~\.copilot\bin\agentq-cloud.ps1 -Status -Json` = exit 0,
+2464 characters of valid JSON, `v: 1`, 8 workspaces, `unavailable: []`, and `idleSec` `null` on the
+three suspended workspaces — the null rule visible in real data. HONEST CAVEAT: that mirror also carried
+two files another agent has uncommitted in the same clone (`ps/tests/test-agentq-doctor.ps1`,
+`ps/tests/test-install.ps1`); they are test files, they were installed as the checkout has them, and
+their owner's work was neither reverted nor committed by this slice.
+
+### 2026-11-25 — S26-22: the two packaging lanes, and why neither moved into the cloud
+
+The question was whether Tizen and Apple packaging can run as cloud lanes like everything else. Both
+reports are in `docs/research/` (`tizen-cloud-lane.md`, `ios-cloud-lane.md`, indexed in
+`docs/research/index.md`) and **this row changed nothing**: it records what the reports concluded.
+
+The Apple lane already exists — `scripts/ios-build.ps1` drives Windows → SSH → `vmui-mac` → XcodeGen →
+`xcodebuild`, and the cheapest proof that crosses every boundary is
+`pwsh -NoProfile -File scripts/ios-build.ps1 -Mode build`, whose pass condition is a content assertion
+(`VitalsMonitor.app/Watch/VitalsMonitorWatch.app` exists) rather than an exit code. Its trap is written
+down as well: the guest clock must be within 120 s, Apple's own NTP servers are unreachable from that
+network, and `time.google.com` answers.
+
+For Tizen the recommendation is a **release-time-only** lane — `scripts/tizen-cloud.ps1` modelled on
+`dev-server-cloud.ps1`, packaging the `.wgt` and gating on its SHA-256, off the per-push path — because
+the artefact is sideload-only, serves one device, and CI already compiles the app. That is a
+recommendation with a written recipe, not an implemented lane, and it is not on this slice's path.
+
 ### 2026-11-25 — S26-18: the Codwen projects page is specified, and the two halves the platform is still missing are named
 
 The owner asked for a Vitals page showing the state of the Codwen projects, and for the

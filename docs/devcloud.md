@@ -38,6 +38,24 @@ this process is not already holding the build ticket; `AGENTQ_WHERE=local`
 overrides it everywhere. `AGENTQ_CLOUD_STRICT=1` turns the fallback off, so a
 run that silently happened here cannot be mistaken for a run that did not.
 
+## Where a run's log lands
+
+A cloud lane that reaches the workspace leaves the whole job log in the
+repository it ran against, as `runs/<job-id>.log`. Writing it is part of the
+queue client (`agentq-cloud.ps1`), not of this repository: the same feature
+would also append one row to the repo's own run journal, but only to an
+existing `docs/RUNS.md` or `RUNS.md`, and vitals has neither, so here only the
+log lands.
+
+That directory is **ignored** — `/runs/` in `.gitignore` — because the log is
+machine-local evidence of a single run, not a source file, and `git status` in
+the shared clone has to stay clean so an agent does not commit a stray run by
+accident. Evidence is meant to be kept in the durable trail instead: the
+verification log in `docs/TRACKER.md`, which records the command, its real
+output and the date, is what a later reader cites. A file in `runs/` is for
+reading while the run is fresh; when a run's result matters beyond that, its
+command and output belong in the tracker.
+
 ## The end-to-end suite
 
 The Playwright suite in `apps/desktop/e2e/` drives a real Chromium, so it belongs
@@ -55,6 +73,37 @@ log back, so the exit code is the suite's. The HTML report is left on the
 workspace in the checkout's `apps/desktop/e2e-report/`. Chromium is not installed
 on a fresh workspace, so the first run needs `-InstallBrowsers`, which installs it
 as its own step.
+
+## A dev server, read without a browser
+
+A screen can be served, fetched and read with no browser and no Tauri host, and
+that is enough to catch a page that throws on mount, a Vite entry that stopped
+answering, or a port that is never bound. It belongs on the workspace for the
+same reason the Playwright suite does — a dev server plus the tooling around it
+is not something to leave running on a shared machine:
+
+```powershell
+pnpm dev-server:cloud                                       # the probe, on ws-vitals-win
+pwsh -NoProfile -File scripts/dev-server-cloud.ps1 -DryRun   # print the argv, submit nothing
+```
+
+`dev-server-cloud.ps1` submits exactly one job — `pwsh -NoProfile -File
+scripts/dev-server-probe.ps1` — and streams the log back, so the exit code is the
+probe's. The probe starts `pnpm --filter @vitals/desktop dev:vite`, waits for the
+port, fetches `/`, `/mobile.html` and `/hud.html` and requires the `#root`
+element in each, then stops the server **and its whole process tree** before it
+exits, so the job queued behind it finds the port free. No browser and no Tauri
+binary are involved: the screens render against the no-host fallback
+(`apps/desktop/src/shell/host.ts`).
+
+Two traps, both found by running it rather than by reading it:
+
+- **Vite binds `localhost`, and on Windows that name resolves to `::1` first.**
+  A probe that only tries `127.0.0.1` reports a healthy dev server as dead. The
+  probe tries every address the name resolves to.
+- **The three entries are checked one at a time, by value.** A first version
+  reused a loop variable whose case-insensitive overwrite made the probe fetch
+  `/` three times and report three passes.
 
 ## Why a lane is a job, not a copy of the script
 

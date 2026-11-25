@@ -23,6 +23,7 @@ const en = {
     jobs: 'Jobs & releases',
     journal: 'Journal',
     cloud: 'Cloud',
+    projects: 'Projects',
     insights: 'Insights',
   },
 
@@ -445,6 +446,7 @@ const ro = {
     jobs: 'Joburi și release-uri',
     journal: 'Jurnal',
     cloud: 'Cloud',
+    projects: 'Proiecte',
     insights: 'Statistici',
   },
 

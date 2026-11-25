@@ -14,6 +14,7 @@ import { Skeleton, useReducedMotion } from '@vitals/ui';
 import { DashboardScreen } from './features/dashboard';
 import { hasTauriHost } from './shell/host';
 import { isRouteVisible, routeIds, type RouteId } from './shell/navigation';
+import { useCodwenVisibility } from './features/agents/visibility';
 
 // Dashboard is eager: it is what the window opens on, so deferring it would
 // only add a flash of skeleton to the one screen whose load time is the
@@ -326,6 +327,11 @@ export function RouteView({
   /** Lets a screen send the user elsewhere — dashboard alerts do this. */
   readonly onNavigate?: (route: RouteId) => void;
 }) {
+  // The shell calls the other visibility probes in `AppShell`; the AI page's
+  // Codwen fact is fed here because `RouteView` is the one component in this
+  // module that is always mounted, and a signed-in user with no agentq must
+  // still reach the Projects tab (see features/agents/visibility.ts).
+  useCodwenVisibility();
   // Every route the user has opened stays mounted, hidden, for the rest of
   // the session.
   //

@@ -18,6 +18,7 @@ import { Badge, Button, EmptyState, Spinner } from '@vitals/ui';
 import { errorMessage } from '../../lib/commandError';
 import { hasTauriHost } from '../../shell/host';
 import { AGENTS_NS } from './strings';
+import { refreshCodwenVisibility } from './visibility';
 
 interface Host {
   readonly device_id: string;
@@ -93,6 +94,9 @@ export function CloudAccount() {
       await call<boolean>('finish_cloud_sign_in', { handle: a.handle });
       setAuth(null);
       await refresh();
+      // The AI page stays reachable for a signed-in user without agentq, so
+      // the sidebar's visibility fact follows the account at once.
+      await refreshCodwenVisibility();
     } catch (cause: unknown) {
       setError(errorMessage(cause));
       setAuth(null);
@@ -119,6 +123,7 @@ export function CloudAccount() {
       setError(errorMessage(cause));
     }
     await refresh();
+    await refreshCodwenVisibility();
   }
 
   if (!hasTauriHost()) return null;

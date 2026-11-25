@@ -48,6 +48,15 @@ test-results/
 # Agent scratch (globally gitignored convention)
 .copilot-tmp/
 
+# Cloud gate evidence. Every devcloud/e2e run leaves runs/<job-id>.log in the
+# repository root (agentq-cloud.ps1, its EVIDENCE feature), and without this the
+# shared clone would show an untracked runs/ in `git status` for ever — machine
+# local evidence of one run that an agent could commit by accident. The log is
+# worth reading while a run is fresh, but the durable trail is the verification
+# log in docs/TRACKER.md, not this directory. Root-anchored so a source folder
+# that happens to be called runs/ is still tracked.
+/runs/
+
 # Tauri
 apps/desktop/src-tauri/gen/
 apps/desktop/src-tauri/target/

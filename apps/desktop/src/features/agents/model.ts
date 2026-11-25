@@ -32,6 +32,7 @@ export type AgentsTab =
   | 'jobs'
   | 'journal'
   | 'cloud'
+  | 'projects'
   | 'insights';
 
 export const agentsTabs: readonly AgentsTab[] = [
@@ -47,6 +48,7 @@ export const agentsTabs: readonly AgentsTab[] = [
   'jobs',
   'journal',
   'cloud',
+  'projects',
   'insights',
 ];
 

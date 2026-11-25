@@ -408,5 +408,72 @@
       "pairAnother": "Pair another PC",
       "pairAnotherBody": "Open Vitals on that computer, go to Settings → Remote access, and scan its QR code with this phone."
     }
+  },
+  "projects": {
+    "title": "Codwen projects",
+    "loading": "Loading your Codwen projects",
+    "stale": "Showing the last list; the latest refresh failed.",
+    "lastChecked": "checked {{ago}} ago",
+    "neverChecked": "never checked",
+    "incidents_one": "{{count}} open incident",
+    "incidents_other": "{{count}} open incidents",
+    "detail": "Project detail",
+    "components": "Components",
+    "worst": "worst {{status}}",
+    "latency": "Latency",
+    "value": "Value",
+    "openIncidents": "Open incidents",
+    "noIncidents": "No open incident.",
+    "opened": "opened {{ago}} ago",
+    "notified": "Alert delivered",
+    "notNotified": "Alert not delivered",
+    "readOnly": "Read-only: Vitals lists your projects and their health from your Codwen account. It never changes a project, and never probes one itself.",
+    "status": {
+      "up": "Operational",
+      "degraded": "Degraded",
+      "down": "Down",
+      "unknown": "Not checked"
+    },
+    "visibility": {
+      "public": "Public",
+      "private": "Private"
+    },
+    "severity": {
+      "info": "Info",
+      "warning": "Warning",
+      "critical": "Critical"
+    },
+    "kpi": {
+      "total": "Projects",
+      "down": "Down",
+      "degraded": "Degraded",
+      "up": "Operational",
+      "incidents": "Open incidents"
+    },
+    "empty": {
+      "title": "No projects yet",
+      "body": "Your Codwen account has no projects yet. Create one on codwen.com and it will appear here."
+    },
+    "unavailable": {
+      "title": "Projects are not available yet",
+      "body": "Vitals can read your Codwen projects, but the endpoint that reports their health has not been released yet. This tab will fill in on its own once it is."
+    },
+    "error": {
+      "title": "Could not reach Codwen",
+      "body": "Vitals could not read your projects. Check your connection and try again."
+    },
+    "noHost": {
+      "title": "No data arriving",
+      "body": "Vitals cannot reach the component that reads your Codwen account. Restarting Vitals usually fixes this."
+    },
+    "devcloud": {
+      "title": "Devcloud workspaces",
+      "runs_one": "{{count}} cloud run in the last {{hours}} h",
+      "runs_other": "{{count}} cloud runs in the last {{hours}} h",
+      "healthy": "No cloud workspace is marked down.",
+      "down": "{{ws}} is unavailable until {{until}} — runs go local.",
+      "downReason": "Reason: {{reason}}",
+      "awaiting": "Live workspace status — heartbeat, idle or busy, queue depth and estimated cost — is not read yet: it needs a read-only agentq status verb. Until then those fields are not shown rather than guessed."
+    }
   }
 }

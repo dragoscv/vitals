@@ -43,9 +43,13 @@ describe('describeSchedule', () => {
   it('describes a row whose calendar was never measured without inventing a schedule', () => {
     // The calendar is an optional field too: absent means unmeasured, so a
     // logon-only schedule still describes as just the trigger.
-    const absent = { ...schedule({ atLogon: true }) } as unknown as TaskSchedule;
-    delete (absent as { calendar?: unknown }).calendar;
-    expect(describe_(absent)).toBe('At sign-in');
+    // The host omits the key entirely, so the value at the boundary is
+    // `undefined` rather than `null`. The field is required and readonly in the
+    // type, so the omission is taken through a mutable cast - which is also
+    // what makes `delete` legal.
+    const absent = { ...schedule({ atLogon: true }) } as { calendar?: unknown };
+    delete absent.calendar;
+    expect(describe_(absent as TaskSchedule)).toBe('At sign-in');
   });
 
   it('says nothing for a schedule whose triggers were all disabled', () => {

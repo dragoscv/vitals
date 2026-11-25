@@ -36,6 +36,7 @@ import { CloudAccount } from './CloudAccount';
 import { agentsTabs, headline, since, usageRows, type AgentsTab } from './model';
 import { Kpi } from './parts';
 import { MachineCard, QueuesPanel, WorktreesPanel, type RequestAction } from './QueuesPanel';
+import { ProjectsPanel } from './ProjectsPanel';
 import { AgentqWork, ResourcesInUse, ResourcesPanel } from './ResourcesPanel';
 import { SessionsPanel } from './SessionsPanel';
 import { AGENTS_NS } from './strings';
@@ -283,6 +284,9 @@ export function AgentsScreen({ source }: AgentsScreenProps): React.JSX.Element {
               </TabsContent>
               <TabsContent value="cloud">
                 <CloudPanel snapshot={s} account={<CloudAccount />} />
+              </TabsContent>
+              <TabsContent value="projects">
+                <ProjectsPanel snapshot={s} />
               </TabsContent>
               <TabsContent value="insights">
                 <InsightsPanel snapshot={s} />

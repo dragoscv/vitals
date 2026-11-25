@@ -7,6 +7,25 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- AI page → **Projects**: the Codwen projects pane, built against the contract
+  the platform has specified but does not serve yet. It is a read-client and
+  nothing more — it keeps no second list, invents no endpoint and persists
+  nothing. Whether a Codwen account is stored is the real read the Cloud tab
+  already makes; the project list itself is a fixture, and **only in a
+  development build**. A packaged build with an account signed in says the
+  projects could not be read rather than showing invented ones, which is also
+  what a signed-out one says, in its own words. Projects are listed
+  worst-first, each with what is wrong and since when, and a reading that was
+  never measured is a dash — a zero there would read as healthy. Beside them
+  sits the devcloud half this window can already prove: how many cloud runs
+  went out in the window, and which workspaces are marked down, with the reason
+  where one was recorded. The live half of a workspace — how long ago it
+  reported, whether it is busy, what is queued for it — is named as not
+  available yet rather than guessed at, and the read-only agentq status
+  document it will come from now exists.
+
 ## [1.4.0] — 2026-11-25
 
 ### Added

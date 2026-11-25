@@ -412,5 +412,74 @@
       "pairAnother": "Asociază alt PC",
       "pairAnotherBody": "Deschide Vitals pe acel calculator, mergi la Setări → Acces de la distanță și scanează codul QR cu acest telefon."
     }
+  },
+  "projects": {
+    "title": "Proiecte Codwen",
+    "loading": "Se încarcă proiectele tale Codwen",
+    "stale": "Se afișează ultima listă; ultima actualizare a eșuat.",
+    "lastChecked": "verificat acum {{ago}}",
+    "neverChecked": "niciodată verificat",
+    "incidents_one": "{{count}} incident deschis",
+    "incidents_few": "{{count}} incidente deschise",
+    "incidents_other": "{{count}} de incidente deschise",
+    "detail": "Detaliile proiectului",
+    "components": "Componente",
+    "worst": "cel mai grav {{status}}",
+    "latency": "Latență",
+    "value": "Valoare",
+    "openIncidents": "Incidente deschise",
+    "noIncidents": "Niciun incident deschis.",
+    "opened": "deschis acum {{ago}}",
+    "notified": "Alertă trimisă",
+    "notNotified": "Alertă netrimisă",
+    "readOnly": "Doar citire: Vitals îți listează proiectele și starea lor din contul tău Codwen. Nu modifică niciodată un proiect și nu îl testează singur.",
+    "status": {
+      "up": "Funcțional",
+      "degraded": "Degradat",
+      "down": "Căzut",
+      "unknown": "Neverificat"
+    },
+    "visibility": {
+      "public": "Public",
+      "private": "Privat"
+    },
+    "severity": {
+      "info": "Informare",
+      "warning": "Avertisment",
+      "critical": "Critic"
+    },
+    "kpi": {
+      "total": "Proiecte",
+      "down": "Căzute",
+      "degraded": "Degradate",
+      "up": "Funcționale",
+      "incidents": "Incidente deschise"
+    },
+    "empty": {
+      "title": "Niciun proiect încă",
+      "body": "Contul tău Codwen nu are încă proiecte. Creează unul pe codwen.com și va apărea aici."
+    },
+    "unavailable": {
+      "title": "Proiectele nu sunt încă disponibile",
+      "body": "Vitals poate citi proiectele tale Codwen, dar punctul final care raportează starea lor nu a fost lansat încă. Acest tab se va completa singur când va fi."
+    },
+    "error": {
+      "title": "Codwen nu a putut fi contactat",
+      "body": "Vitals nu a putut citi proiectele tale. Verifică conexiunea și încearcă din nou."
+    },
+    "noHost": {
+      "title": "Nu sosesc date",
+      "body": "Vitals nu poate ajunge la componenta care citește contul tău Codwen. Repornirea Vitals rezolvă de obicei problema."
+    },
+    "devcloud": {
+      "title": "Spații de lucru devcloud",
+      "runs_one": "{{count}} rulare în cloud în ultimele {{hours}} h",
+      "runs_few": "{{count}} rulări în cloud în ultimele {{hours}} h",
+      "runs_other": "{{count}} de rulări în cloud în ultimele {{hours}} h",
+      "healthy": "Niciun spațiu de lucru cloud nu este marcat indisponibil.",
+      "down": "{{ws}} este indisponibil până la {{until}} — rulările se fac local.",
+      "downReason": "Motiv: {{reason}}",
+      "awaiting": "Starea live a spațiilor de lucru — heartbeat, inactiv sau ocupat, adâncimea cozii și costul estimat — nu este citită încă: are nevoie de o comandă agentq de stare doar-citire. Până atunci câmpurile acelea nu sunt afișate, ci nu sunt ghicite."
+    }
   }
 }

@@ -4,6 +4,21 @@ Prepared 2026-11-25 in `E:\gh\vitals`. Every claim naming a file, symbol, route
 or field is **VERIFIED** by reading it, or **EXPECTED** (reasoned, not run).
 British spelling. No emoji.
 
+> **Status, 2026-11-25 later the same day.** A first cut of the page now exists:
+> the `Projects` tab of the AI agents page — `apps/desktop/src/features/agents/`
+> (`ProjectsPanel.tsx`, `projectsApi.ts`, `projectsModel.ts`, `useProjects.ts`,
+> `DevcloudPanel.tsx`, `visibility.ts`), ADR
+> `docs/adr/0050-cloud-agents-in-the-collaboration-view.md`, both locales and
+> `apps/desktop/e2e/projects.spec.ts` (tracker row S26-19). Read it before
+> building on it. Two things it deliberately does **not** do, both unchanged
+> from this brief: the project list is a fixture **in a development build only**
+> (`GET /v1/projects` and the `projects:read` scope still do not exist, so a
+> packaged build says the projects could not be read), and the devcloud panel
+> shows the local half only. §6.3 asked for a read-only agentq JSON verb before
+> the live half could follow; that verb now exists — `agentq-cloud.ps1 -Status
+-Json`, committed in agentq `36a9591` and installed — so heartbeat age, idle
+> and queue depth are unblocked.
+
 ## 1. Goal, implementer, scope
 
 **Goal.** Add a read-only **Projects** view to the Vitals desktop app showing a
