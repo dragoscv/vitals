@@ -951,14 +951,86 @@ mod tests {
         );
     }
 
+    /// Machine-wide busy fraction below which the machine is quiet enough
+    /// that nothing competes for the spinning core.
+    const QUIET_MACHINE_PERCENT: f32 = 25.0;
+
+    /// Share of the CPU the thread actually burned that the process must show.
+    ///
+    /// Not 1.0: the sampler's window and this thread's are a few microseconds
+    /// apart at both ends, and the kernel updates thread times on its clock
+    /// tick. Half of a figure that is itself measured leaves no room for the
+    /// sampler to lose CPU the scheduler really gave the thread.
+    const ATTRIBUTION_FLOOR: f64 = 0.5;
+
+    /// Stands in for a thread CPU time the kernel would not report.
+    ///
+    /// The spinner publishes its figure through an `AtomicU64`, which needs a
+    /// value; zero is a claim of its own ("this thread burned nothing") and a
+    /// test must not read a refusal as that claim.
+    const UNREADABLE: u64 = u64::MAX;
+
+    /// This thread's own consumed CPU time, in 100 ns units.
+    ///
+    /// The spinner measures itself, so nothing has to be opened or closed and
+    /// no other thread's time leaks in. The integration test
+    /// (`tests/overhead.rs`) reads the same figure for the test thread and
+    /// keeps its own copy: they are separate compilation units, and sharing
+    /// one helper would mean publishing a Windows-only function in the
+    /// crate's API for the sake of its tests.
+    ///
+    /// `None` when the kernel refuses the read: an unmeasured figure is
+    /// absent, never zero.
+    fn this_thread_cpu_100ns() -> Option<u64> {
+        use windows_sys::Win32::Foundation::FILETIME;
+        use windows_sys::Win32::System::Threading::{GetCurrentThread, GetThreadTimes};
+
+        // `FILETIME` is `Copy` with a zeroed `Default`, so the four
+        // out-parameters need no other preparation.
+        let (mut creation, mut exit) = (FILETIME::default(), FILETIME::default());
+        let (mut kernel, mut user) = (FILETIME::default(), FILETIME::default());
+
+        // SAFETY: the current-thread pseudo-handle is always valid and needs
+        // no closing, and every out-pointer references a live local for the
+        // duration of the call.
+        let ok = unsafe {
+            GetThreadTimes(
+                GetCurrentThread(),
+                &raw mut creation,
+                &raw mut exit,
+                &raw mut kernel,
+                &raw mut user,
+            )
+        };
+        if ok == 0 {
+            return None;
+        }
+
+        fn ticks(time: FILETIME) -> u64 {
+            (u64::from(time.dwHighDateTime) << 32) | u64::from(time.dwLowDateTime)
+        }
+        Some(ticks(kernel).saturating_add(ticks(user)))
+    }
+
     #[test]
     fn a_thread_spinning_one_core_is_attributed_to_its_own_process() {
         // The machine-total comparison above cannot catch under-counting: on
         // a quiet window a tenth of a small number is still within tolerance.
-        // A known load can. This test's own process spins one core, so its
-        // share must come out near 100 / cores, whatever else is running.
+        // A known load can: this test's own process spins a core, so the CPU
+        // that thread burned has to come back out against its own pid.
+        //
+        // The floor is the spinner's own CPU time rather than a fixed
+        // fraction of the machine. A fixed fraction asks the sampler to have
+        // received CPU the scheduler never handed the thread: GitHub's
+        // windows-latest runner has 4 logical processors and ran sixteen
+        // gates beside this one, so the share to beat was 10 % of the machine
+        // and the thread was given 0.29 of a core (2026-11-25, measured 7.31 %
+        // — while the same commit passed a quiet CI job's Rust tests twelve
+        // minutes earlier). What the sampler owes is the CPU the thread
+        // spent, whatever the scheduler gave it, and both sides of that
+        // comparison shrink together under load.
         use std::sync::Arc;
-        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
         let own = std::process::id();
         let cores = u32::try_from(logical_core_count()).unwrap_or(1).max(1);
@@ -966,19 +1038,26 @@ mod tests {
         let one_core = 100.0 / cores as f32;
 
         let stop = Arc::new(AtomicBool::new(false));
+        let spun = Arc::new(AtomicU64::new(UNREADABLE));
         let spinner = {
             let stop = Arc::clone(&stop);
+            let spun = Arc::clone(&spun);
             std::thread::spawn(move || {
+                let started = this_thread_cpu_100ns().unwrap_or(0);
                 while !stop.load(Ordering::Relaxed) {
                     std::hint::spin_loop();
                 }
+                let spent = this_thread_cpu_100ns().map(|end| end.saturating_sub(started));
+                spun.store(spent.unwrap_or(UNREADABLE), Ordering::Relaxed);
             })
         };
 
         let mut sampler = SystemSampler::new();
         sampler.sample().expect("prime");
+        let window = Instant::now();
         sleep(Duration::from_millis(2000));
         let sample = sampler.sample().expect("sample");
+        let window = window.elapsed();
         stop.store(true, Ordering::Relaxed);
         spinner.join().expect("spinner");
 
@@ -988,12 +1067,41 @@ mod tests {
             .find(|p| p.raw.key.pid.0 == own)
             .map(|p| p.cpu.get())
             .expect("the test process is in the snapshot");
-        // Lower bound only loosely: a machine at 100 % shares the spinning
-        // core with others. Other test threads may add CPU on top.
+        let machine_busy = sample.system.cpu.total.get();
+
+        // The share of the whole machine the spinner really burned: its own
+        // CPU time over the wall-clock window, expressed across every core.
+        let ticks = spun.load(Ordering::Relaxed);
+        if ticks == UNREADABLE {
+            // With no figure for what the thread burned there is nothing to
+            // hold the sampler to. Assert the one thing still measurable —
+            // a process that ran a busy thread is not invisible — rather
+            // than compare it against a zero this test invented.
+            assert!(
+                mine > 0.0,
+                "the process running the spinning thread shows no CPU at all"
+            );
+            return;
+        }
+        let spent = Duration::from_nanos(ticks.saturating_mul(100));
+        let earned = spent.as_secs_f64() / window.as_secs_f64() * f64::from(one_core);
+
         assert!(
-            mine > one_core * 0.4,
-            "own process at {mine:.2}% while spinning one of {cores} cores ({one_core:.2}%)"
+            f64::from(mine) >= earned * ATTRIBUTION_FLOOR,
+            "the process shows {mine:.2}% of the machine while its thread burned \
+             {earned:.2}% of it ({spent:?} of CPU over {window:?}, {cores} cores, \
+             machine {machine_busy:.1}% busy)"
         );
+        // On a machine with nothing else competing there is no contention to
+        // hide behind, so the full share of a core is owed and the old
+        // absolute bound still applies.
+        if machine_busy < QUIET_MACHINE_PERCENT {
+            assert!(
+                mine > one_core * 0.4,
+                "own process at {mine:.2}% while spinning one of {cores} cores \
+                 ({one_core:.2}%) on a machine only {machine_busy:.1}% busy"
+            );
+        }
     }
 
     #[test]
