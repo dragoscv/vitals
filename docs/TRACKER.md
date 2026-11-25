@@ -6228,6 +6228,26 @@ and the Linux lane is a second workspace rather than a second machine class.
   `setup.exe /S /CurrentUser`, and the data directories were backed up and left
   untouched (one file in `Roaming\Vitals`, ten files / 20.9 MB in
   `Local\Vitals`).
+- The whole set after that commit, on the tree the commit names
+  (`5568c6f`): `EXIT=0`, `All 16 gates passed in 159.7s (112.9s if run one after
+another)`, five cloud jobs on `ws-vitals-win` — `checks`
+  `20261125-045327-f119f3` (six gates, 30.7 s including a 13 s resume),
+  `rust` `20261125-045359-591509` (five gates, 61.8 s),
+  `ts` `20261125-045502-2f7ced` (three gates, 10.1 s),
+  `android` `20261125-045514-d77b51` (`-RequireAndroid`, 21.8 s) — plus the
+  Linux clippy lane on `ws-codai` (29.5 s). The budgets are visible in the
+  output, which is the point of the change: `running here: checks 30m`,
+  `rust 60m`, `ts 40m`, `android 40m`, `linux 30m`, all five read from
+  `.devcloud/profile.json` rather than the constant 30 they used to share. The
+  `ts` lane's 0.9 s for typecheck + lint + tests is a cache hit and says so —
+  `Cached: 21 cached, 21 total` — not a gate that did nothing.
+- The installed copy is the per-user one, verified rather than assumed: the
+  running process is `%LOCALAPPDATA%\Programs\Vitals\vitals-desktop.exe`
+  (FileVersion 1.4.0), the watchdog started itself (no `Run` key installs it),
+  and the settings survived — `HKCU\…\Run\Vitals` and `Run\VitalsWatchdog` were
+  rewritten to the new path at first launch. `plan(CurrentUser, _)` is
+  `UpdatePlan::Install`, so this copy updates silently, which was the whole
+  reason the scope was named.
 
 ## S13 — public beta 0.9.0-beta.1 (2026-09-28)
 
