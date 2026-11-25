@@ -4247,6 +4247,76 @@ code (service start type, handles/modules read-only, end process tree).
 
 ### Verification log
 
+### 2026-11-25 — S26-18: the Codwen projects page is specified, and the two halves the platform is still missing are named
+
+The owner asked for a Vitals page showing the state of the Codwen projects, and for the
+research and the notes to be prepared here, because the page itself will be built in
+another chat. `docs/codwen-projects-page.md` is that brief: the account flow that already
+works end to end (the device flow, the `vitals/codwen-api-key` credential target, the
+Rust commands, the 30 s cache and the 2 s event), the exact camelCase contract the page
+expects, its place as a tab of the AI agents page with its six states, the animation plan
+under the `LazyMotion strict` rule, the devcloud panel with the real home of each of its
+numbers, the one-source-of-truth architecture, a do-not-invent list, five open questions
+each with a recommendation, and the gate checklist.
+
+The half that matters is the table of what the platform serves today against what the
+owner's contract promises. `GET /v1/projects` and the `projects:read` scope do not exist
+(`apps/auth/src/scope-descriptions.ts:7` lists the scopes and neither is in it), and the
+`/v1/projects` route that does exist is the _tenant_ projects table
+(`routes/environments.ts:633`) — a different thing, which must not be merged with project
+health. Three further findings shape the next chat's work: the scope Vitals already asks
+for is `agents:read` and that is missing too; the schema and the migration for project
+health exist (`packages/db/src/schema/projects-health.ts`,
+`drizzle/0222_projects_health.sql`) with nothing reading or writing them; and the owner's
+own design documents for the SSOT are not on codai's main — they live in the codai slot
+`task-6`, which the implementing agent must read before writing any of it.
+
+### 2026-11-25 — S26-17: an unmeasured schedule is nothing, not a crash
+
+Launching the desktop app while it had been left on the Startup route crashed that
+screen: `TypeError: Cannot read properties of undefined (reading 'atLogon')`.
+`describeSchedule` guarded `schedule === null`, and the host may omit the key entirely —
+which is how an unmeasured schedule arrives, and what the e2e fake host sends — so the
+code reached `schedule.atLogon`. The error boundary caught it, which is why this was not a
+blank window but a page reading "This section stopped working". The defect was found by
+opening the page, not by a test.
+
+The guard is now `schedule == null`, the same treatment covers the optional `calendar`
+field, and the new test states the guarantee in words: `describes a row whose schedule was
+never measured as nothing, not a crash`. The evidence is a mutation rather than a green
+run: reverting the guard to `=== null` fails exactly that test with the reported stack,
+and restoring it passes. Full feature suite 141 files / 1479 tests, typecheck and prettier
+all clean.
+
+The same fix is proved in a browser, which is where the defect was found. The layout suite
+carried the exclusion this crash had forced: `startup` was the one route
+`content-layout.spec.ts` did not measure, because launching on it showed the boundary
+message instead of a table. That exclusion is gone, and the file reports 87 passed — six of
+them the `startup` row across English and Romanian at 900, 1280 and 1920 px — on the warm
+workspace, `[devcloud] exit 0`, job `20261125-100124-19d46f`.
+
+### 2026-11-25 — S26-16: the layout suite's route assertion waits for nobody
+
+The route assertion in `content-layout.spec.ts` could pass or fail on a race that has
+nothing to do with layout: `useSettings.hydrate()` finishes by restoring
+`route: settings.lastRoute` (`apps/desktop/src/settings/store.ts:103`), so a restore that
+lands after the spec clicked a route takes `aria-current` off the item it asserts on.
+
+The fix removes the race rather than waiting for it. The fake host takes a `lastRoute` and
+writes it into the `plugin:store|get` blob it already answers, so the restore is a no-op,
+the spec passes the route it is about to open, and a new guard test asserts that the
+persisted route is the route the app opens on. `openRoute` hands the route to that same
+store read as well, so a spec that navigates away from the persisted route is covered too:
+the fake host option is the app's own contract, stated by the spec that depends on it, and
+the seam in `support.ts` is what every other spec inherits. Two candidate waits were killed by
+measurement first: the sidebar node identity also changes on a route change, and `#root`'s
+first child swaps at 542 ms and at 1869 ms with no hydration involved — so no DOM moment
+marks hydration, and a wait would have been decoration.
+
+Honest caveat: the flake never reproduced naturally — more than 1440 executions across six
+cloud jobs, zero failures — so this is a fix by construction. The full suite in the cloud
+went from 184 to 185 passed on the same workspace, and that extra test is the guard.
+
 ### 2026-11-20 — S24-13: Home Assistant rejected every entity Vitals announced
 
 **Why this needed a container.** The MQTT half of S24-13 already had a proof
