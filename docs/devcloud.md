@@ -112,10 +112,13 @@ The gate definitions therefore exist once, and the only thing that crosses the
 machine boundary is a name. The lane prints one line per gate:
 
 ```
-LANE_RESULT|rust|rust: clippy|pass|10.6
+LANE_RESULT|rust|rust: clippy|pass|10.6|cloud:vitals-win
 ```
 
-and the caller rebuilds the summary table from those lines. A lane that never
+and the caller rebuilds the summary table from those lines, naming the workspace
+that ran each gate as the last field: the same gate can be answered by this
+machine, by `vitals-win`, or — for the Linux clippy lane — by `codai`, and a pass
+read without that name says only half of what happened. A lane that never
 reached a gate — a failed sync, a missing toolchain, a timeout — reports one
 row saying so rather than disappearing from the table.
 

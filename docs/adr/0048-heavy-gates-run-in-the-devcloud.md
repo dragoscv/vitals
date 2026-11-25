@@ -41,8 +41,13 @@ Concretely:
 - A cloud lane is the same script: the submission is
   `pwsh -NoProfile -File scripts/verify.ps1 -Lane <name> -Where local`. The gate
   definitions exist once; the boundary carries a name, not a copy.
-- Each lane reports its gates as `LANE_RESULT|<lane>|<gate>|<pass|fail>|<seconds>`,
-  and the caller rebuilds the same summary table from those lines. A lane that
+- Each lane reports its gates as
+  `LANE_RESULT|<lane>|<gate>|<pass|fail>|<seconds>|<where>`, and the caller
+  rebuilds the same summary table from those lines. The trailing field names the
+  workspace that answered (`local`, `cloud:vitals-win`, `cloud:codai` for the
+  Linux clippy gate, which is submitted from a lane that runs here), because one
+  gate can be answered by three different machines and a pass without that name
+  is only half the answer. A lane that
   failed before reaching a gate reports exactly that as a row, so a sync failure
   cannot be mistaken for a pass or silently dropped from the table.
 - **A lane waits for its gate's process, never for its output.** Each gate runs

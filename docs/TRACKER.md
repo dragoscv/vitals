@@ -6453,9 +6453,12 @@ The Linux clippy lane stays on `ws-codai`, because `vitals-core` has to keep
 compiling where `vitals-win` does not exist. A cloud lane is this same script
 invoked as `-Lane <name> -Where local`, so a gate is defined once and the machine
 boundary carries a name; each lane prints
-`LANE_RESULT|<lane>|<gate>|<pass|fail>|<seconds>` and the caller rebuilds its
-table from those lines, with a row for a lane that died before reaching a gate
-rather than a silent absence.
+`LANE_RESULT|<lane>|<gate>|<pass|fail>|<seconds>|<where>` and the caller rebuilds
+its table from those lines, with a row for a lane that died before reaching a
+gate rather than a silent absence. The last field names the workspace that
+answered — `local`, `cloud:vitals-win`, or `cloud:codai` for the Linux clippy
+gate, whose lane runs here but whose compile does not — so the summary column and
+the printed line agree with the machine instead of implying one.
 
 Two readers were waiting for a toolchain daemon instead of for their job, and one
 of them is why the android lane never returned. The workspace agent ended a step
@@ -6591,6 +6594,40 @@ another)`, five cloud jobs on `ws-vitals-win` — `checks`
   rewritten to the new path at first launch. `plan(CurrentUser, _)` is
   `UpdatePlan::Install`, so this copy updates silently, which was the whole
   reason the scope was named.
+
+### S26-27 - a gate log names the workspace, not just the lane (2026-11-25)
+
+`LANE_RESULT` carries a fifth field and the summary table a `Where` column. The
+line is read by a person and by the devcloud collector, and after the Linux lane
+moved to a second workspace a table of bare `Gate Passed Seconds` columns was
+ambiguous about the one thing that had changed: which machine answered. A pass
+from a workspace whose toolchain silently regressed must not read like a pass
+from this machine, and "it passed" was only half the answer.
+
+The placement travels with the result rather than being inferred by the reader.
+A gate may declare its own `Ws` - the Linux clippy gate is submitted to
+`ws-codai` from a lane that runs here - and otherwise the job's own environment
+decides, which is why the caller now passes `-Ws` down to the child lane: a child
+that has not been given a workspace must not report one. Field 5 is optional on
+read, so a stream from an older lane still parses and is reported as the cloud
+lane it came from rather than as unknown.
+
+#### Verification log
+
+- `pwsh -NoProfile -File scripts/verify.ps1` on this tree: `All 17 gates passed
+in 157.8s (83.7s if run one after another)`, `EXIT=0`, log
+  `.copilot-tmp/run-logs/20261125-223057-verify-placement.log`.
+- The field crosses the boundary instead of only being printed here: the
+  `checks` lane's own output in that log reads
+  `LANE_RESULT|checks|rust: format|pass|1.1|cloud:vitals-win` - five fields,
+  the workspace last.
+- The table gained the column: sixteen rows reading `cloud:vitals-win`, and
+  `rust: clippy (linux, devcloud)` reading `cloud:codai`. That last row is also
+  the proof that a per-gate declaration is read, because its lane ran here while
+  its compile did not.
+- The tracker's own gates still agree after the edit: `scripts/check-tracker.ps1`
+  prints `tracker: 0 problem(s)` and `scripts/check-drift.ps1` prints
+  `drift: 0 failure(s), 0 warning(s)`, both exit 0.
 
 ## S13 — public beta 0.9.0-beta.1 (2026-09-28)
 

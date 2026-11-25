@@ -29,7 +29,10 @@
     `AGENTQ_WHERE=local` is the opt-out. A cloud lane is this same script
     invoked inside the job as `-Lane <name> -Where local`, so every gate is
     still defined exactly once, and it prints one `LANE_RESULT` line per gate
-    for the summary table. The workstation is shared with other agents, so the
+    for the summary table, with the workspace that answered as its last field -
+    the same gate runs here and on the devcloud, and a pass from a workspace
+    whose toolchain regressed must not read like a pass from this machine. The
+    workstation is shared with other agents, so the
     default spends its CPU elsewhere; measured 2026-11-25: the four Windows
     lanes cost this machine nothing and finish in about the time the Rust lane
     alone took locally.
@@ -154,8 +157,22 @@ function Test-Lane([string]$Name) { $runEveryLane -or ($Name -in $Lane) }
 # silently reads 146. Format and parse are the same contract, so both name the
 # culture instead of inheriting one.
 $invariant = [System.Globalization.CultureInfo]::InvariantCulture
+
+# Where a gate ran travels with its result. The same gate runs here and on the
+# devcloud, so a "pass" from a workspace whose toolchain silently regressed must
+# not read like a "pass" from this machine - before this field, "which machine
+# answered?" was only answerable by reading the log around the line (S26-13).
+# A gate that reached a workspace of its own says so in $Record.Ws (the Linux
+# clippy gate goes to codai from a lane that runs here); otherwise the job's own
+# environment decides, and the caller passes -Ws down to the child lane so the
+# child cannot report a workspace it was not given.
+function Get-Placement($Record) {
+    if ($Record.PSObject.Properties['Ws'] -and $Record.Ws) { return "$($Record.Ws)" }
+    if ($env:DEVCLOUD_JOB_ID) { return "cloud:$Ws" }
+    'local'
+}
 function Format-LaneResult($Record, [string]$LaneName) {
-    'LANE_RESULT|{0}|{1}|{2}|{3}' -f $LaneName, $Record.Gate, $(if ($Record.Passed) { 'pass' } else { 'fail' }), $Record.Seconds.ToString('0.0', $invariant)
+    'LANE_RESULT|{0}|{1}|{2}|{3}|{4}' -f $LaneName, $Record.Gate, $(if ($Record.Passed) { 'pass' } else { 'fail' }), $Record.Seconds.ToString('0.0', $invariant), (Get-Placement $Record)
 }
 
 # A gate is a name and a line of PowerShell; a lane runs its gates in order and
@@ -216,6 +233,7 @@ $runLane = {
             Passed  = $ok
             Seconds = $secs
             Output  = $output
+            Ws      = $(if ($gate.ContainsKey('Ws')) { $gate.Ws } else { $null })
         }
     }
 }
@@ -289,9 +307,9 @@ if ((Test-Lane 'linux') -and ($LinuxClippy -ne 'off')) {
         # Single-quoted inner command: bash receives CI's argv unchanged, and
         # agentq cannot strip a `--` that is inside one argument.
         $cmd = "`$env:AGENTQ_CLOUD_STRICT='1'; & '$agentq' run -Resource build -Where cloud -Ws codai -Purpose 'verify.ps1 linux clippy' '--' bash -lc 'cargo clippy --workspace --lib --bins --tests --benches --exclude vitals-win -- -D warnings'"
-        $linux += @{ Name = 'rust: clippy (linux, devcloud)'; Script = $cmd }
+        $linux += @{ Name = 'rust: clippy (linux, devcloud)'; Script = $cmd; Ws = 'cloud:codai' }
     } elseif ($LinuxClippy -eq 'on') {
-        $linux += @{ Name = 'rust: clippy (linux, devcloud)'; Script = "Write-Host 'agentq is not installed: cannot reach the devcloud Linux workspace'; exit 1" }
+        $linux += @{ Name = 'rust: clippy (linux, devcloud)'; Script = "Write-Host 'agentq is not installed: cannot reach the devcloud Linux workspace'; exit 1"; Ws = 'cloud:codai' }
     } else {
         Write-Host '  note: Linux clippy skipped (no agentq); CI runs it' -ForegroundColor DarkGray
     }
@@ -353,7 +371,9 @@ $results = [System.Collections.Generic.List[object]]::new()
 
 foreach ($name in $cloudLanes) {
     $budget = Get-LaneBudget $name
-    $remote = @('pwsh', '-NoProfile', '-File', 'scripts/verify.ps1', '-Lane', $name, '-Where', 'local', '-LinuxClippy', 'off')
+    # -Ws is passed down so the child lane reports the workspace it actually ran on rather than its
+    # own default, which would be right only while every lane shared one workspace.
+    $remote = @('pwsh', '-NoProfile', '-File', 'scripts/verify.ps1', '-Lane', $name, '-Where', 'local', '-Ws', $Ws, '-LinuxClippy', 'off')
     if ($SkipBuild) { $remote += '-SkipBuild' }
     if ($SkipPerf) { $remote += '-SkipPerf' }
     if ($Force) { $remote += '-Force' }
@@ -396,15 +416,18 @@ foreach ($name in $cloudLanes) {
         $passed = $f[3] -eq 'pass'
         $colour = if ($passed) { 'Green' } else { 'Red' }
         $seconds = [double]::Parse($f[4], $invariant)
+        # Field 5 is the placement. A stream from a lane that predates the field has four of them and
+        # is reported as the cloud lane it came from rather than as unknown.
+        $place = if ($f.Count -gt 5) { $f[5] } else { "cloud:$Ws" }
         # Formatted, not left to `-f`'s own culture: the remote lane prints its
         # own table with a dot, and on a Romanian machine this line rendered the
         # same number as `1,1s` beside it. Two renderings of one measurement in
         # one log is how a number stops being greppable.
         $shown = $seconds.ToString('0.0', $invariant)
-        Write-Host ('  {0}  {1,-30} {2,6}s   [{3}]' -f $f[3].ToUpperInvariant(), $f[2], $shown, $name) -ForegroundColor $colour
+        Write-Host ('  {0}  {1,-30} {2,6}s   [{3} {4}]' -f $f[3].ToUpperInvariant(), $f[2], $shown, $name, $place) -ForegroundColor $colour
         # The whole remote log rather than a tail: the summary below reads the
         # annotations out of it, and a failing lane was already streamed here.
-        $results.Add([pscustomobject]@{ Gate = $f[2]; Passed = $passed; Seconds = $seconds; Output = @($stream); Streamed = $true })
+        $results.Add([pscustomobject]@{ Gate = $f[2]; Passed = $passed; Seconds = $seconds; Output = @($stream); Streamed = $true; Ws = $place })
         $reported++
     }
     if ($reported -eq 0) {
@@ -444,7 +467,8 @@ while ($pending.Count -gt 0) {
     foreach ($r in @(Receive-Job -Job $done)) {
         $colour = if ($r.Passed) { 'Green' } else { 'Red' }
         $status = if ($r.Passed) { 'PASS' } else { 'FAIL' }
-        Write-Host ('  {0}  {1,-30} {2,6:N1}s   [{3}]' -f $status, $r.Gate, $r.Seconds, $laneName) -ForegroundColor $colour
+        $gatePlace = Get-Placement $r
+        Write-Host ('  {0}  {1,-30} {2,6:N1}s   [{3} {4}]' -f $status, $r.Gate, $r.Seconds, $laneName, $gatePlace) -ForegroundColor $colour
         # A lane that ran somewhere else says what it found in a line the
         # caller can read back; this is that line, and the summary above is
         # still the answer for a human.
@@ -480,7 +504,10 @@ Write-DevcloudStage "wrapper: every lane finished, $($results.Count) gate result
 
 Write-Host ''
 Write-Host ('=' * 64) -ForegroundColor DarkGray
-$results | Select-Object Gate, Passed, Seconds | Format-Table -AutoSize
+# The workspace is a column rather than a footnote: with the Windows lanes on
+# the devcloud and the Linux clippy lane on a different workspace again, "it
+# passed" is only half the answer and the machine is the other half.
+$results | Select-Object Gate, Passed, Seconds, @{ Name = 'Where'; Expression = { Get-Placement $_ } } | Format-Table -AutoSize
 
 $failed = @($results | Where-Object { -not $_.Passed })
 $wall = [math]::Round($total.Elapsed.TotalSeconds, 1)
