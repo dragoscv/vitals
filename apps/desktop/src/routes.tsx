@@ -122,6 +122,7 @@ const StartupScreen = lazy(async () => ({ default: (await loadStartup()).Startup
 const StorageScreen = lazy(async () => ({ default: (await loadStorage()).StorageScreen }));
 const UsersScreen = lazy(async () => ({ default: (await loadUsers()).UsersScreen }));
 const AgentsScreen = lazy(async () => ({ default: (await loadAgents()).AgentsScreen }));
+const CollabScreen = lazy(async () => ({ default: (await loadAgents()).CollabScreen }));
 const HealthScreen = lazy(async () => ({ default: (await loadHealth()).HealthScreen }));
 
 /**
@@ -437,6 +438,8 @@ function RouteContent({
       return <ProcessesScreen />;
     case 'agents':
       return <AgentsScreen />;
+    case 'collab':
+      return <CollabScreen />;
     case 'network':
       return <ConnectionsScreen />;
     case 'startup':

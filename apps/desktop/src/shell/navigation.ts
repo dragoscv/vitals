@@ -45,6 +45,7 @@ import {
   HeartPulse,
   LayoutDashboard,
   ListTree,
+  MessagesSquare,
   Network,
   Server,
   Usb,
@@ -69,6 +70,7 @@ export const routeIds = [
   'performance',
   'processes',
   'agents',
+  'collab',
   'startup',
   'services',
   'appHistory',
@@ -119,6 +121,7 @@ export const navItems: readonly NavItem[] = [
   { id: 'performance', labelKey: 'nav.performance', icon: Activity, group: 'now' },
   { id: 'processes', labelKey: 'nav.processes', icon: ListTree, group: 'now' },
   { id: 'agents', labelKey: 'nav.agents', icon: Bot, group: 'now' },
+  { id: 'collab', labelKey: 'nav.collab', icon: MessagesSquare, group: 'now' },
   { id: 'startup', labelKey: 'nav.startup', icon: ClockArrowUp, group: 'machine' },
   { id: 'services', labelKey: 'nav.services', icon: Server, group: 'machine' },
   { id: 'storage', labelKey: 'nav.storage', icon: HardDrive, group: 'machine' },
@@ -235,8 +238,9 @@ export function isRouteVisible(
   if (id === 'health') return state.health === true;
   // Only a Windows build with no agentq has nothing to show here, and only
   // once the probe has said so: `agentq === false` is that answer, `null` is
-  // "not asked yet".
-  if (id === 'agents') return state.agentq !== false;
+  // "not asked yet". The collaboration page reads the same coordination
+  // directory, so it is shown on exactly the same fact.
+  if (id === 'agents' || id === 'collab') return state.agentq !== false;
   return routeSupported(id, state.platform);
 }
 

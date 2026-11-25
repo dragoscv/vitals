@@ -7,6 +7,10 @@ import type {
   AgentqWorkEstimate,
   AgentqWorkUsage,
   AgentsSnapshot,
+  CollabAgent,
+  CollabJob,
+  CollabSnapshot,
+  CollabThread,
 } from '@vitals/protocol';
 
 export const NOW = Date.parse('2026-10-17T03:30:00Z');
@@ -215,6 +219,76 @@ export function makeSnapshot(over: Partial<AgentsSnapshot> = {}): AgentsSnapshot
       runsPerHour: Array.from({ length: 24 }, () => 0),
     },
     sessions: [makeSession()],
+    ...over,
+  };
+}
+
+/** One present agent, as agentq's registry writes it. */
+export function makeCollabAgent(over: Partial<CollabAgent> = {}): CollabAgent {
+  return {
+    session: 'term-32064',
+    client: 'vscode-copilot',
+    model: 'codwen-1',
+    repo: 'vitals',
+    cwd: 'E:\\gh\\vitals',
+    host: 'DRAGOS',
+    user: 'vladu',
+    calls: 42,
+    lastVerb: 'run',
+    lastPurpose: 'cargo clippy',
+    firstSeenMs: NOW - 600_000,
+    lastSeenMs: NOW - 5_000,
+    live: true,
+    ...over,
+  };
+}
+
+/** One thread: an ask and, by default, no answer. */
+export function makeCollabThread(over: Partial<CollabThread> = {}): CollabThread {
+  return {
+    id: 'aaaaaaaa',
+    to: 'repo:vitals',
+    resource: 'build:vitals',
+    repo: 'agentq',
+    message: 'May I take build:vitals for the clippy run?',
+    state: 'open',
+    from: {
+      session: 'term-9',
+      repo: 'agentq',
+      user: 'vladu',
+      host: 'DRAGOS',
+      cwd: 'E:\\gh\\agentq',
+      pid: 77712,
+    },
+    answers: [],
+    askedAtMs: NOW - 60_000,
+    lastMs: NOW - 60_000,
+    ...over,
+  };
+}
+
+export function makeCollabJob(over: Partial<CollabJob> = {}): CollabJob {
+  return {
+    id: '20261125-050309-9c1b',
+    label: 'land-ownframes',
+    repo: 'codai',
+    command: 'pwsh -NoProfile -File land.ps1',
+    state: 'running',
+    exitCode: null,
+    startedMs: NOW - 120_000,
+    endedMs: null,
+    ...over,
+  };
+}
+
+export function makeCollab(over: Partial<CollabSnapshot> = {}): CollabSnapshot {
+  return {
+    takenAtMs: NOW - 1_000,
+    installed: true,
+    agents: [makeCollabAgent()],
+    threads: [makeCollabThread()],
+    jobs: [makeCollabJob()],
+    livenessMin: 30,
     ...over,
   };
 }

@@ -374,6 +374,106 @@ function tableData() {
   };
 }
 
+/**
+ * A plausible coordination directory for the collaboration page: one agent
+ * that has just called agentq, one that has gone quiet, an answered thread
+ * and a job still running.
+ *
+ * `now` is a parameter rather than read here so a test can pin the ages it
+ * asserts on. Field names and nullability mirror `CollabSnapshot` in
+ * `@vitals/protocol`, which is generated from the Rust reader.
+ */
+export function collabData(now: number = Date.now()): unknown {
+  return {
+    takenAtMs: now,
+    installed: true,
+    livenessMin: 30,
+    agents: [
+      {
+        session: '3f2a91c4',
+        client: 'copilotCli',
+        model: 'kodwen',
+        repo: 'brivio',
+        cwd: 'E:\\gh\\brivio',
+        host: 'DESKTOP-7F2',
+        user: 'vladu',
+        calls: 12,
+        lastVerb: 'run',
+        lastPurpose: 'the gate on the invoice slice',
+        firstSeenMs: now - 5_400_000,
+        lastSeenMs: now - 30_000,
+        live: true,
+      },
+      {
+        session: 'b7e0d155',
+        client: 'vscodeCopilot',
+        model: null,
+        repo: 'vitals',
+        cwd: 'E:\\gh\\vitals',
+        host: 'DESKTOP-7F2',
+        user: 'vladu',
+        calls: 3,
+        lastVerb: null,
+        lastPurpose: null,
+        firstSeenMs: null,
+        lastSeenMs: now - 900_000,
+        live: false,
+      },
+    ],
+    threads: [
+      {
+        id: '9c1d',
+        to: '3f2a91c4',
+        resource: 'build:brivio',
+        repo: 'brivio',
+        message: 'Holding the build ticket until the migration lands. Ping me when it is safe.',
+        state: 'open',
+        from: {
+          session: 'b7e0d155',
+          repo: 'vitals',
+          user: 'vladu',
+          host: 'DESKTOP-7F2',
+          cwd: 'E:\\gh\\vitals',
+          pid: 5123,
+        },
+        answers: [
+          {
+            session: '3f2a91c4',
+            repo: 'brivio',
+            user: 'vladu',
+            message: 'Landed. The ticket is yours.',
+            atMs: now - 60_000,
+          },
+        ],
+        askedAtMs: now - 180_000,
+        lastMs: now - 60_000,
+      },
+    ],
+    jobs: [
+      {
+        id: 'b41',
+        label: 'gate',
+        repo: 'brivio',
+        command: 'pnpm turbo run test',
+        state: 'running',
+        exitCode: null,
+        startedMs: now - 120_000,
+        endedMs: null,
+      },
+      {
+        id: 'a02',
+        label: 'typecheck',
+        repo: 'vitals',
+        command: 'pnpm typecheck',
+        state: 'done',
+        exitCode: 0,
+        startedMs: now - 3_600_000,
+        endedMs: now - 3_540_000,
+      },
+    ],
+  };
+}
+
 export interface FakeHostOptions {
   readonly locale: 'en' | 'ro';
   /**
@@ -385,6 +485,12 @@ export interface FakeHostOptions {
   readonly flicker?: boolean;
   /** The first AI-page snapshot; later ones are pushed with `pushAgents`. */
   readonly agents?: unknown;
+  /**
+   * The collaboration snapshot. Without it `get_collab` is refused like any
+   * other unimplemented command, and the page renders its failure state —
+   * which is worth testing, but is not the page.
+   */
+  readonly collab?: unknown;
 }
 
 /** Installs the fake host before the app's first script runs. */
@@ -396,6 +502,7 @@ export async function installFakeHost(page: Page, options: FakeHostOptions): Pro
     tables: tableData(),
     flicker: options.flicker === true,
     agents: options.agents ?? null,
+    collab: options.collab ?? null,
   };
   await page.addInitScript((d) => {
     type Handler = (event: { event: string; id: number; payload: unknown }) => void;
@@ -437,11 +544,17 @@ export async function installFakeHost(page: Page, options: FakeHostOptions): Pro
       find_cleanup_candidates: d.storage.candidates,
       default_dev_roots: ['C:\\Users\\developer\\source\\repos', 'D:\\work'],
       get_launch_options: { autostarted: false, quietRelaunch: false },
+      // The shell reveals the window two frames after paint (lib/ready.ts).
+      // A real host answers it; refusing it logged an error on every launch
+      // of every fake-host test, which is noise a console assertion cannot
+      // tell from a defect.
+      show_main_window: null,
       get_alerts: [],
       list_benchmarks: [],
       ...(d.agents === null
         ? {}
         : { subscribe_agents: { id: 1, snapshot: d.agents }, unsubscribe_agents: null }),
+      ...(d.collab === null ? {} : { get_collab: d.collab }),
       ...d.tables,
     };
 

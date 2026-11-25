@@ -6,56 +6,57 @@ change of mind is a new record that supersedes the old one.
 
 D-numbers refer to the decision table in [`../TRACKER.md`](../TRACKER.md).
 
-| ADR                                                        | Decision                                                   | Tracker        |
-| ---------------------------------------------------------- | ---------------------------------------------------------- | -------------- |
-| [0001](0001-embedded-lan-server-and-mobile-pwa.md)         | Phone access via an embedded LAN HTTP server and a PWA     | D1             |
-| [0002](0002-third-party-api-surface.md)                    | REST + SSE + WebSocket + Prometheus + loopback + SDK       | D2             |
-| [0003](0003-lan-security-model.md)                         | LAN security: off by default, scoped bearer tokens         | D3             |
-| [0004](0004-cli-samples-directly.md)                       | The CLI samples directly when the app is closed            | D4             |
-| [0005](0005-upgrade-to-latest-stable-in-slices.md)         | Upgrade everything to latest stable, in gated slices       | D5             |
-| [0006](0006-native-testing-permitted.md)                   | Native `tauri dev`/build runs are part of verification     | D6             |
-| [0007](0007-windows-only-honest-stubs.md)                  | Windows only; macOS and Linux stay honest trait stubs      | D7             |
-| [0008](0008-accept-the-nine-nice-to-haves.md)              | Accept all nine "nice-to-have" features                    | D8             |
-| [0009](0009-tracker-csv-plus-markdown.md)                  | Tracker as CSV (state) plus Markdown (reasoning)           | D9             |
-| [0010](0010-conventional-commits-per-slice-no-push.md)     | Conventional Commits per slice, explicit paths, no push    | D10            |
-| [0011](0011-dead-crates.md)                                | Implement `vitals-store`, delete `vitals-plugin`           | D11            |
-| [0012](0012-helper-stays-stubbed.md)                       | `apps/helper` stays stubbed; disk I/O from DiskCounters    | D12            |
-| [0013](0013-inert-settings.md)                             | Wire or delete every inert setting                         | D13            |
-| [0014](0014-separate-mobile-entry.md)                      | A separate lean `mobile.html` entry                        | D14            |
-| [0015](0015-mobile-scope.md)                               | Mobile scope includes process control and multi-machine    | D15            |
-| [0016](0016-palette-on-radix-dialog.md)                    | Command palette on Radix Dialog; remove `cmdk`             | D16            |
-| [0017](0017-motion-lazy-domanimation.md)                   | `motion/react-m` under `LazyMotion(domAnimation)`          | D17            |
-| [0018](0018-size-budget-raised-deliberately.md)            | Size budget raised deliberately, gate stays strict         | D18            |
-| [0019](0019-git-remote-never-push.md)                      | `origin` → `dragoscv/vitals`, never push from an agent     | D19            |
-| [0020](0020-updater-keys.md)                               | Updater fully wired; key generation is the user's step     | D20            |
-| [0021](0021-slice-order.md)                                | Slice order: tooling → truth → server → … → docs/CI        | D21            |
-| [0022](0022-accept-the-eleven-extras.md)                   | Accept all eleven extras                                   | D22            |
-| [0023](0023-resolver-3-and-edition-2024.md)                | Cargo resolver 3 and Rust edition 2024                     | S10-02         |
-| [0024](0024-dual-typescript-compilers.md)                  | TypeScript 7 for `tsc`, TypeScript 6 for ESLint            | S10-02         |
-| [0025](0025-nsis-per-machine.md)                           | NSIS installer, `perMachine` (scope superseded by 0038)    | S10-02         |
-| [0026](0026-panic-abort-in-release.md)                     | `panic = "abort"` in release                               | S10-02         |
-| [0027](0027-ts-rs-over-specta.md)                          | `ts-rs` over `specta` for generated bindings               | S10-02         |
-| [0028](0028-axum-for-the-lan-server.md)                    | axum for the LAN server                                    | S10-02         |
-| [0029](0029-no-service-worker.md)                          | No service worker in the mobile app                        | S10-02         |
-| [0030](0030-fluent-depth-redesign-and-view-transitions.md) | Fluent depth redesign; View Transitions for navigation     | S12            |
-| [0031](0031-public-release-and-distribution.md)            | Public beta from a public repository; channels             | S13            |
-| [0032](0032-lag-watchdog.md)                               | A lag watchdog that proposes, never ends on its own        | S12-32         |
-| [0033](0033-native-android-and-wear-os.md)                 | Native Android and Wear OS apps beside the PWA             | S15            |
-| [0034](0034-cpu-sensors-service.md)                        | CPU sensors through an optional PawnIO service             | S12-31         |
-| [0035](0035-on-device-monitor.md)                          | The phone and the watch monitor themselves                 | S15-04         |
-| [0036](0036-google-tv-app-and-pairing-codes.md)            | A Google TV app, and pairing by six-digit code             | S15-08         |
-| [0037](0037-play-and-github-android-flavours.md)           | A Play build without all-files access, a GitHub build      | S16-21         |
-| [0038](0038-nsis-both-scopes-and-unprompted-updates.md)    | NSIS `both`, and updates nobody has to approve             | DEV-3          |
-| [0039](0039-ai-agents-page-and-agentq.md)                  | An AI page that watches agentq and every AI client         | S18-01         |
-| [0040](0040-guided-disk-move.md)                           | Guided move of WSL and Docker Desktop disks                | S22-07         |
-| [0041](0041-apple-platforms.md)                            | Apple platforms: real macOS sampler, native iPhone app     | S23            |
-| [0042](0042-kodwen-rebrand.md)                             | The AI service is Kodwen; only its public name moved       | S25-01         |
-| [0043](0043-ai-usage-panel.md)                             | The AI page shows token usage, or a gap where unknown      | S25-03         |
-| [0044](0044-artefact-gates-decide-on-content.md)           | An artefact gate decides on content, not on a timestamp    | S24-19         |
-| [0045](0045-release-creation-without-a-commit-target.md)   | Release creation sends no commit target                    | S24-36         |
-| [0046](0046-a-hundred-percent-is-a-completed-release.md)   | 100 % is a completed Play release; a channel can be re-run | S24-41, S24-42 |
-| [0047](0047-codwen-rebrand.md)                             | The AI service is Codwen; only its public name moved again | S26-09, S26-10 |
-| [0048](0048-heavy-gates-run-in-the-devcloud.md)            | Heavy gates run on the devcloud; `-Where` decides          | S26-12         |
+| ADR                                                                  | Decision                                                    | Tracker        |
+| -------------------------------------------------------------------- | ----------------------------------------------------------- | -------------- |
+| [0001](0001-embedded-lan-server-and-mobile-pwa.md)                   | Phone access via an embedded LAN HTTP server and a PWA      | D1             |
+| [0002](0002-third-party-api-surface.md)                              | REST + SSE + WebSocket + Prometheus + loopback + SDK        | D2             |
+| [0003](0003-lan-security-model.md)                                   | LAN security: off by default, scoped bearer tokens          | D3             |
+| [0004](0004-cli-samples-directly.md)                                 | The CLI samples directly when the app is closed             | D4             |
+| [0005](0005-upgrade-to-latest-stable-in-slices.md)                   | Upgrade everything to latest stable, in gated slices        | D5             |
+| [0006](0006-native-testing-permitted.md)                             | Native `tauri dev`/build runs are part of verification      | D6             |
+| [0007](0007-windows-only-honest-stubs.md)                            | Windows only; macOS and Linux stay honest trait stubs       | D7             |
+| [0008](0008-accept-the-nine-nice-to-haves.md)                        | Accept all nine "nice-to-have" features                     | D8             |
+| [0009](0009-tracker-csv-plus-markdown.md)                            | Tracker as CSV (state) plus Markdown (reasoning)            | D9             |
+| [0010](0010-conventional-commits-per-slice-no-push.md)               | Conventional Commits per slice, explicit paths, no push     | D10            |
+| [0011](0011-dead-crates.md)                                          | Implement `vitals-store`, delete `vitals-plugin`            | D11            |
+| [0012](0012-helper-stays-stubbed.md)                                 | `apps/helper` stays stubbed; disk I/O from DiskCounters     | D12            |
+| [0013](0013-inert-settings.md)                                       | Wire or delete every inert setting                          | D13            |
+| [0014](0014-separate-mobile-entry.md)                                | A separate lean `mobile.html` entry                         | D14            |
+| [0015](0015-mobile-scope.md)                                         | Mobile scope includes process control and multi-machine     | D15            |
+| [0016](0016-palette-on-radix-dialog.md)                              | Command palette on Radix Dialog; remove `cmdk`              | D16            |
+| [0017](0017-motion-lazy-domanimation.md)                             | `motion/react-m` under `LazyMotion(domAnimation)`           | D17            |
+| [0018](0018-size-budget-raised-deliberately.md)                      | Size budget raised deliberately, gate stays strict          | D18            |
+| [0019](0019-git-remote-never-push.md)                                | `origin` → `dragoscv/vitals`, never push from an agent      | D19            |
+| [0020](0020-updater-keys.md)                                         | Updater fully wired; key generation is the user's step      | D20            |
+| [0021](0021-slice-order.md)                                          | Slice order: tooling → truth → server → … → docs/CI         | D21            |
+| [0022](0022-accept-the-eleven-extras.md)                             | Accept all eleven extras                                    | D22            |
+| [0023](0023-resolver-3-and-edition-2024.md)                          | Cargo resolver 3 and Rust edition 2024                      | S10-02         |
+| [0024](0024-dual-typescript-compilers.md)                            | TypeScript 7 for `tsc`, TypeScript 6 for ESLint             | S10-02         |
+| [0025](0025-nsis-per-machine.md)                                     | NSIS installer, `perMachine` (scope superseded by 0038)     | S10-02         |
+| [0026](0026-panic-abort-in-release.md)                               | `panic = "abort"` in release                                | S10-02         |
+| [0027](0027-ts-rs-over-specta.md)                                    | `ts-rs` over `specta` for generated bindings                | S10-02         |
+| [0028](0028-axum-for-the-lan-server.md)                              | axum for the LAN server                                     | S10-02         |
+| [0029](0029-no-service-worker.md)                                    | No service worker in the mobile app                         | S10-02         |
+| [0030](0030-fluent-depth-redesign-and-view-transitions.md)           | Fluent depth redesign; View Transitions for navigation      | S12            |
+| [0031](0031-public-release-and-distribution.md)                      | Public beta from a public repository; channels              | S13            |
+| [0032](0032-lag-watchdog.md)                                         | A lag watchdog that proposes, never ends on its own         | S12-32         |
+| [0033](0033-native-android-and-wear-os.md)                           | Native Android and Wear OS apps beside the PWA              | S15            |
+| [0034](0034-cpu-sensors-service.md)                                  | CPU sensors through an optional PawnIO service              | S12-31         |
+| [0035](0035-on-device-monitor.md)                                    | The phone and the watch monitor themselves                  | S15-04         |
+| [0036](0036-google-tv-app-and-pairing-codes.md)                      | A Google TV app, and pairing by six-digit code              | S15-08         |
+| [0037](0037-play-and-github-android-flavours.md)                     | A Play build without all-files access, a GitHub build       | S16-21         |
+| [0038](0038-nsis-both-scopes-and-unprompted-updates.md)              | NSIS `both`, and updates nobody has to approve              | DEV-3          |
+| [0039](0039-ai-agents-page-and-agentq.md)                            | An AI page that watches agentq and every AI client          | S18-01         |
+| [0040](0040-guided-disk-move.md)                                     | Guided move of WSL and Docker Desktop disks                 | S22-07         |
+| [0041](0041-apple-platforms.md)                                      | Apple platforms: real macOS sampler, native iPhone app      | S23            |
+| [0042](0042-kodwen-rebrand.md)                                       | The AI service is Kodwen; only its public name moved        | S25-01         |
+| [0043](0043-ai-usage-panel.md)                                       | The AI page shows token usage, or a gap where unknown       | S25-03         |
+| [0044](0044-artefact-gates-decide-on-content.md)                     | An artefact gate decides on content, not on a timestamp     | S24-19         |
+| [0045](0045-release-creation-without-a-commit-target.md)             | Release creation sends no commit target                     | S24-36         |
+| [0046](0046-a-hundred-percent-is-a-completed-release.md)             | 100 % is a completed Play release; a channel can be re-run  | S24-41, S24-42 |
+| [0047](0047-codwen-rebrand.md)                                       | The AI service is Codwen; only its public name moved again  | S26-09, S26-10 |
+| [0048](0048-heavy-gates-run-in-the-devcloud.md)                      | Heavy gates run on the devcloud; `-Where` decides           | S26-12         |
+| [0049](0049-agent-collaboration-reads-the-coordination-directory.md) | Agent collaboration is read from the coordination directory | S26-13         |
 
 ## Writing a new one
 

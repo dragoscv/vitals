@@ -11,6 +11,7 @@
 pub mod actions;
 pub mod agentq;
 pub mod cloud;
+pub mod collab;
 pub mod journal;
 pub mod sessions;
 pub mod time;

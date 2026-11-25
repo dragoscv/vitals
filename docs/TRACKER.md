@@ -175,6 +175,81 @@ CSV records the state.
 
 ## Verification log
 
+### 2026-11-25 — S26-13: the collaboration page reads what agentq's agents already write to each other
+
+The author asked for chat rooms between agents, or something even better, and for
+it to work both for the agents on this machine and for the ones running in the
+cloud, and then for all of it to be visible on a new Vitals page: who is talking,
+what they are making, what they share, their tips, recipes and findings, live,
+animated and ordered.
+
+**Room to talk in was not what was missing.** The agents here already have a
+channel, and it is `%USERPROFILE%\.codai\coord`: `agents/` holds a registry entry
+per agent (which machine, which repository, which verb, when it was last seen),
+`msgs/` holds one JSON file per conversation — the question, who asked it, and
+the answers nested under it — and `jobs/` holds the work in flight.
+`agentq-msgs.ps1` has written exactly that shape for months (Ask, Answer,
+Get-LiveAgents) and every agent in this workspace already uses it. What was
+missing is a reader that does not have to be an agentq prompt: the page.
+
+**Three candidate sources, one chosen.** A daemon RPC would mean agentq growing a
+server and a trust boundary; reading Codwen's Postgres would make a local page
+depend on the network and on a schema owned by another repository. The
+coordination directory is on this machine, is already the record of truth for
+these three questions, and needs nothing new written to it. ADR-0049 records the
+choice; ADR-0039 is its parent, because this is the same page family and the same
+read-only rule.
+
+**Read-only is the decision, not an omission.** The page cannot post a message,
+answer one or cancel a job. A viewer that can write into the channel agents
+coordinate through is a way to corrupt coordination from a UI, and agentq already
+puts every write behind its queue. Nothing in `collab.rs` creates, moves or
+removes a file; every `fs::write` in the crate is inside the test module.
+
+**A figure that cannot be measured is absent, here as everywhere.** An agent
+whose registry entry has never been seen is not offline, it is unknown:
+`last_seen` is `None` and the page draws an em dash rather than a zero or an
+invented heartbeat. Liveness is 30 minutes, the window `Get-LiveAgents` itself
+uses, so the page and the tools cannot disagree about who is present. A thread
+with no message in it is dropped rather than shown empty; a job that finished
+more than 24 hours ago is not listed as historic noise.
+
+**Two defects no test had a reason to see, found by opening the page.** First,
+the counts reached the screen as their own placeholders: the component passed
+`count` where the strings interpolate `{{present}}` and `{{running}}`, so the
+page would have told the user `{{present}} agents`. The test now asserts the
+rendered sentence. Second, the e2e fake host knew nothing about `get_collab` and
+answered a console error to `show_main_window`, so in the one environment that
+renders the page without a desktop shell it fell to its error state; both are
+answered now, and the layout spec covers `collab` like every other route.
+
+**What is not built.** The cloud half. This page reads this machine, so agents
+running in Codwen's cloud have no entry here and their conversations do not
+appear. ADR-0049 deliberately does not decide that half: a shared store, and a
+way for a cloud agent to write to it, is its own decision with its own trust
+question. The page names the directory it read, so an empty list is explained
+rather than mysterious.
+
+**Evidence.** `cargo clippy -p vitals-agents -p vitals-core --all-targets -- -D
+warnings` exit 0 in 36.9 s; `cargo test -p vitals-agents -p vitals-core` exit 0 in
+25.6 s; `cargo run -q -p vitals-agents --example prove_collab` exit 0 in 4 s,
+printing **9 present of 618 agents, 3 threads, 325 jobs (12 running)** against
+this machine's real coordination directory; `vitest run src/features/agents` exit
+0 (8 files, 61 tests); `pnpm typecheck` exit 0 in 10.3 s; `scripts/check-drift.ps1`
+exit 0 in 9.9 s (0 failure, 0 warning, 16 ts_rs files, 135 invokes, 135 commands,
+2 locales). Playwright: the new `e2e/collab.spec.ts` 2 passed; navigation, layout
+and a11y 86 passed; the `collab` case in `content-layout.spec.ts` 6 passed.
+`pnpm protocol:check` regenerates the bindings and compares them against HEAD, so
+it cannot be green before the commit that carries them; drift was instead shown
+absent by regenerating twice and hashing — 121 files, identical both times.
+
+These gates ran here rather than in the cloud, which is a departure from S26-12
+worth recording: between 06:14 and 06:21 UTC five consecutive submissions to
+`gs://dragos-devcloud-devcloud-jobs/jobs/` held only their `bundle` and `patch`
+objects — no `claimed`, no `stage`, no `log` — so the runner on `ws-vitals-win`
+was not picking jobs up at all. A lane that never starts is not a green lane, and
+the local run above is what answered instead.
+
 ### 2026-11-25 - S26-11: every agentq work row gets an ETA and a bar, from agentq's own numbers
 
 The author asked for a progress bar and an estimate of the time left on each row
@@ -5296,9 +5371,9 @@ defect was ever caught. New `e2e/fakeHost.ts` installs a stand-in
 `__TAURI_INTERNALS__` from Playwright (nothing in the app bundle): the
 Rust-written contract keyframe plus long en/ro data for Storage, Startup,
 Services, Installed apps, App history, Network, Users and Devices.
-`e2e/content-layout.spec.ts` visits all 13 routes (dashboard, performance,
-processes, agents, startup, services, appHistory, users, network, storage,
-installedApps, devices, benchmarks) at 900/1280/1920 px in en and ro and
+`e2e/content-layout.spec.ts` visits all 14 routes (dashboard, performance,
+processes, agents, collab, startup, services, appHistory, users, network,
+storage, installedApps, devices, benchmarks) at 900/1280/1920 px in en and ro and
 fails on text wider than its box without an ellipsis, text outside its
 container, or an ellipsis squeezed under 5 em; plus two wheel tests on
 Storage (idle clean-up card; folder list at its end).

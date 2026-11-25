@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { installFakeHost } from './fakeHost';
+import { collabData, installFakeHost } from './fakeHost';
 import { openRoute, routes } from './support';
 
 /**
@@ -123,7 +123,11 @@ for (const locale of locales) {
 
       for (const route of routes) {
         test(`${route.id} keeps every label inside its box`, async ({ page }) => {
-          await installFakeHost(page, { locale });
+          // The collaboration page is one of the screens this file exists for:
+          // it holds session ids, repository paths and a free-form message, in
+          // Romanian section headings. Without a snapshot it renders its empty
+          // state and none of that is measured.
+          await installFakeHost(page, { locale, collab: collabData() });
           await openRoute(page, route.id);
           // `settle` looks for the English crash text; this runs in Romanian too.
           await expect(

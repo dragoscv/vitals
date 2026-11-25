@@ -23,7 +23,7 @@ use std::time::{Duration, Instant};
 use parking_lot::{Condvar, Mutex};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
-use vitals_core::agents::{AgentqAction, AgentqStatus, AgentsSnapshot};
+use vitals_core::agents::{AgentqAction, AgentqStatus, AgentsSnapshot, CollabSnapshot};
 
 /// Event carrying the whole [`AgentsSnapshot`] each refresh.
 pub const AGENTS_EVENT: &str = "vitals://agents";
@@ -548,6 +548,27 @@ pub async fn get_agent_usage(
             .map(|root| vitals_agents::usage::read_owned(&root, &probe, taken_at_ms))
             .unwrap_or_default();
         vitals_agents::usage::rollup(&processes, &owned, &probe, taken_at_ms)
+    })
+    .await
+    .map_err(|e| e.to_string())
+}
+
+/// The collaboration view: who is present, what the agents are asking each
+/// other, and what work is in flight (ADR-0039, ADR-0049).
+///
+/// Read-only — the webview only ever wants the numbers, and agentq's own CLI
+/// remains the only writer. Async and on the blocking pool, exactly like
+/// `get_agent_usage`: the read opens hundreds of small files on a busy
+/// machine, which must not hold the webview. A machine with no coordination
+/// directory gets a snapshot that says so rather than an error.
+#[tauri::command]
+pub async fn get_collab() -> Result<CollabSnapshot, String> {
+    tauri::async_runtime::spawn_blocking(|| {
+        let now = vitals_agents::time::now_ms();
+        match vitals_agents::agentq::default_root() {
+            Some(root) => vitals_agents::collab::read(&root, now),
+            None => vitals_agents::collab::read(std::path::Path::new(""), now),
+        }
     })
     .await
     .map_err(|e| e.to_string())

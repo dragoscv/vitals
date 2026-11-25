@@ -868,6 +868,157 @@ pub struct AgentqStatus {
     pub windows: bool,
 }
 
+/// agentq's cross-agent channel, read from `coord` (ADR-0039).
+///
+/// The AI page answers "who is working"; this answers "what are they saying
+/// to each other and sharing". Both read the same coordination directory, and
+/// this one adds nothing to it: agentq's own CLI is the only writer, and the
+/// page that renders this is read-only.
+///
+/// # Unknown is `None`
+///
+/// A registry record whose field is missing, a message that somehow lacks an
+/// author, a job file with no start time — every such field is an `Option`,
+/// exactly as on [`AgentsSnapshot`]. A missing file is an empty list, never a
+/// fabricated row.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(
+    feature = "ts",
+    ts(export, export_to = "core/", rename_all = "camelCase")
+)]
+#[serde(rename_all = "camelCase")]
+pub struct CollabSnapshot {
+    /// Unix milliseconds at which the snapshot was assembled.
+    #[cfg_attr(feature = "ts", ts(type = "number"))]
+    pub taken_at_ms: u64,
+    /// Whether agentq's coordination directory exists here at all.
+    pub installed: bool,
+    /// Agents whose last call is inside the window, newest first.
+    pub agents: Vec<CollabAgent>,
+    /// One thread per directed message, newest activity first.
+    pub threads: Vec<CollabThread>,
+    /// Background jobs, running first, then newest.
+    pub jobs: Vec<CollabJob>,
+    /// Minutes within which an agent still counts as present. agentq uses the
+    /// same figure to say how many agents an address reaches
+    /// (`Get-LiveAgents` in `agentq-msgs.ps1`), so the page and the CLI cannot
+    /// disagree about who is here.
+    pub liveness_min: u32,
+}
+
+/// One AI agent from agentq's registry (`coord/agents/<session>.json`).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(
+    feature = "ts",
+    ts(export, export_to = "core/", rename_all = "camelCase")
+)]
+#[serde(rename_all = "camelCase")]
+pub struct CollabAgent {
+    pub session: String,
+    /// agentq's own word for the client: `vscode-copilot`, `copilot-cli`…
+    pub client: Option<String>,
+    pub model: Option<String>,
+    pub repo: Option<String>,
+    pub cwd: Option<String>,
+    pub host: Option<String>,
+    pub user: Option<String>,
+    pub calls: Option<u32>,
+    pub last_verb: Option<String>,
+    pub last_purpose: Option<String>,
+    #[cfg_attr(feature = "ts", ts(type = "number | null"))]
+    pub first_seen_ms: Option<u64>,
+    #[cfg_attr(feature = "ts", ts(type = "number | null"))]
+    pub last_seen_ms: Option<u64>,
+    /// Whether the last call is inside [`CollabSnapshot::liveness_min`].
+    pub live: bool,
+}
+
+/// Who sent a message: the subset of an agent a row needs to attribute it.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(
+    feature = "ts",
+    ts(export, export_to = "core/", rename_all = "camelCase")
+)]
+#[serde(rename_all = "camelCase")]
+pub struct CollabSender {
+    pub session: Option<String>,
+    pub repo: Option<String>,
+    pub user: Option<String>,
+    pub host: Option<String>,
+    pub cwd: Option<String>,
+    pub pid: Option<u32>,
+}
+
+/// One reply on a thread, carrying its own author and time.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(
+    feature = "ts",
+    ts(export, export_to = "core/", rename_all = "camelCase")
+)]
+#[serde(rename_all = "camelCase")]
+pub struct CollabAnswer {
+    pub session: Option<String>,
+    pub repo: Option<String>,
+    pub user: Option<String>,
+    pub message: String,
+    #[cfg_attr(feature = "ts", ts(type = "number | null"))]
+    pub at_ms: Option<u64>,
+}
+
+/// A directed message and its answers: one thread.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(
+    feature = "ts",
+    ts(export, export_to = "core/", rename_all = "camelCase")
+)]
+#[serde(rename_all = "camelCase")]
+pub struct CollabThread {
+    pub id: String,
+    /// The address the message was sent to: `repo:<name>`, `session:<id>`,
+    /// `slot:<repo>:<slot>`, `any` or `owner`.
+    pub to: String,
+    /// The resource the ask is about, when the sender named one.
+    pub resource: Option<String>,
+    pub repo: Option<String>,
+    pub message: String,
+    /// agentq's own word: `open` or `answered`.
+    pub state: Option<String>,
+    pub from: CollabSender,
+    pub answers: Vec<CollabAnswer>,
+    #[cfg_attr(feature = "ts", ts(type = "number | null"))]
+    pub asked_at_ms: Option<u64>,
+    /// The newest answer's time, or the ask's when there are none.
+    #[cfg_attr(feature = "ts", ts(type = "number | null"))]
+    pub last_ms: Option<u64>,
+}
+
+/// A background job, reduced to what says an agent is working.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(
+    feature = "ts",
+    ts(export, export_to = "core/", rename_all = "camelCase")
+)]
+#[serde(rename_all = "camelCase")]
+pub struct CollabJob {
+    pub id: String,
+    pub label: Option<String>,
+    pub repo: Option<String>,
+    pub command: Option<String>,
+    /// agentq's own word: `running`, `done`, `failed`, `killed`…
+    pub state: String,
+    pub exit_code: Option<i32>,
+    #[cfg_attr(feature = "ts", ts(type = "number | null"))]
+    pub started_ms: Option<u64>,
+    #[cfg_attr(feature = "ts", ts(type = "number | null"))]
+    pub ended_ms: Option<u64>,
+}
+
 #[cfg(test)]
 mod action_wire_tests {
     use super::AgentqAction;

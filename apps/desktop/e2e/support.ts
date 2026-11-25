@@ -36,6 +36,17 @@ export const routes = [
         .or(scope.getByRole('status').filter({ hasText: 'Vitals cannot reach the component' }))
         .first(),
   },
+  {
+    id: 'collab',
+    label: 'Agent collaboration',
+    // Same no-host argument as `agents`: the collaboration page replaces its
+    // whole body with the no-host status when there is no Tauri host.
+    landmark: (scope: Locator) =>
+      scope
+        .getByRole('heading', { level: 2, name: /^Agent collaboration/ })
+        .or(scope.getByRole('status').filter({ hasText: 'Vitals cannot reach the component' }))
+        .first(),
+  },
   { id: 'startup', label: 'Startup', landmark: heading('Startup apps') },
   { id: 'services', label: 'Services', landmark: heading('Services') },
   { id: 'appHistory', label: 'App history', landmark: heading('App history') },
