@@ -8,6 +8,11 @@
  * Nothing here invents a schedule: a task whose triggers could not be read,
  * or are all disabled, produces an empty string and the row shows nothing —
  * not "Unknown", which would look like a schedule called Unknown.
+ *
+ * The same is true of a row that never carried a schedule at all. The type
+ * says `TaskSchedule | null`, but a host that does not emit the field hands
+ * us `undefined`, which is the same unmeasured fact as `null` (see
+ * `StartupEntry.schedule`). Both describe as nothing; neither may throw.
  */
 
 import type { TFunction } from 'i18next';
@@ -74,22 +79,28 @@ function describeCalendar(calendar: TaskCalendar, t: TFunction): string {
  * middle of "At boot · Daily" reads as two sentences.
  */
 export function describeSchedule(
-  schedule: TaskSchedule | null,
+  schedule: TaskSchedule | null | undefined,
   t: TFunction,
   locale?: string,
 ): string {
-  if (schedule === null) return '';
+  // `== null` covers both `null` and `undefined`: an absent schedule is the
+  // same unmeasured fact whether the host sent `null` or omitted the field.
+  if (schedule == null) return '';
 
   const parts: string[] = [];
   if (schedule.atLogon) parts.push(t('schedule.atLogon'));
   if (schedule.atBoot) parts.push(t('schedule.atBoot'));
   // A non-positive or non-finite interval is not something the backend
   // sends; refusing it here keeps "every 0 min" off the screen regardless.
+  // An absent interval is `undefined`, which `Number.isFinite` already
+  // rejects, so a host that omits it cannot reach the formatter either.
   const every = schedule.repeatEverySecs;
   if (every !== null && Number.isFinite(every) && every > 0) {
     parts.push(describeInterval(every, t));
   }
-  if (schedule.calendar !== null) parts.push(describeCalendar(schedule.calendar, t));
+  // `!= null` for the same reason as the schedule above: the calendar is an
+  // optional field, so a host can omit it and hand us `undefined`.
+  if (schedule.calendar != null) parts.push(describeCalendar(schedule.calendar, t));
   for (const other of schedule.other) parts.push(t(`schedule.${other}`));
 
   const line = parts.join(t('schedule.joiner'));

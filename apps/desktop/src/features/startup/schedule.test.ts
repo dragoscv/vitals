@@ -25,13 +25,27 @@ function schedule(overrides: Partial<TaskSchedule> = {}): TaskSchedule {
   };
 }
 
-function describe_(value: TaskSchedule | null, locale = 'en'): string {
+function describe_(value: TaskSchedule | null | undefined, locale = 'en'): string {
   return describeSchedule(value, i18n.getFixedT(locale, STARTUP_NS), locale);
 }
 
 describe('describeSchedule', () => {
   it('says nothing for an entry without a schedule rather than inventing one', () => {
     expect(describe_(null)).toBe('');
+  });
+
+  it('describes a row whose schedule was never measured as nothing, not a crash', () => {
+    // A host that does not emit the field hands us `undefined`, not `null`;
+    // that is the same unmeasured fact and must read the same way.
+    expect(describe_(undefined)).toBe('');
+  });
+
+  it('describes a row whose calendar was never measured without inventing a schedule', () => {
+    // The calendar is an optional field too: absent means unmeasured, so a
+    // logon-only schedule still describes as just the trigger.
+    const absent = { ...schedule({ atLogon: true }) } as unknown as TaskSchedule;
+    delete (absent as { calendar?: unknown }).calendar;
+    expect(describe_(absent)).toBe('At sign-in');
   });
 
   it('says nothing for a schedule whose triggers were all disabled', () => {
