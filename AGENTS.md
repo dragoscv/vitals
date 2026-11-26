@@ -177,6 +177,23 @@ this is changed back, and which real failure a guard exists for.
 - Measure before optimising, and again after. If a change produced no
   measurable improvement, say so and revert it.
 
+## Scratch space
+
+Scratch that is not part of a deliverable goes in `E:\gh\.scratch`, never in the
+repo, never at a drive root and never in `%TEMP%`:
+
+```powershell
+pwsh -NoProfile -File "$env:USERPROFILE\.copilot\bin\scratch-dir.ps1" -Purpose '<why>'
+```
+
+It prints a timestamped directory and writes a `PURPOSE.txt` inside, so the next
+agent can tell who left it and why; `-Env` exports `$env:SCRATCH` instead. Use
+`agentq lease` when the work needs real repo semantics (builds, typecheck,
+gates). Two roots are swept daily at 04:50 by `codai-stray-reaper` — every drive
+root and `%TEMP%` — and anything older than its rule's age is deleted without
+asking: a folder nobody can attribute reads as litter. A hand-clone of a
+repository belongs in a leased slot, never beside one.
+
 ## Before you finish
 
 - `pwsh -NoProfile -File scripts/verify.ps1`
