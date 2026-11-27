@@ -718,3 +718,13 @@ jobs:
       # -Strict refuses to pass without having checked one.
       - name: Every required hardware feature is declared (aapt)
         run: pwsh -NoProfile -File ../../scripts/check-android-features.ps1 -RequireBuilt -Strict
+      # Newer 64-bit devices have 16 KB memory pages and Play requires support
+      # for them; whether a library can be loaded there lives in the ELF
+      # program headers inside the APK and nowhere in the source, so this reads
+      # what the assemble above produced. The second step is the first step's
+      # right to a green verdict: it writes a 4 KB-aligned and a 16 KB-aligned
+      # 64-bit library and asserts the verdicts differ.
+      - name: Native libraries are 16 KB aligned
+        run: pwsh -NoProfile -File ../../scripts/check-android-16k.ps1 -RequireBuilt -Strict
+      - name: The 16 KB check can fail (self-test)
+        run: pwsh -NoProfile -File ../../scripts/check-android-16k.ps1 -SelfTest

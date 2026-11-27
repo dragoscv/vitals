@@ -327,6 +327,14 @@ if (Test-Lane 'android') {
         $androidGate = 'pwsh -NoProfile -File scripts/check-android-features.ps1 -Build -RequireBuilt'
         if ($RequireAndroid) { $androidGate += ' -Strict' }
         $androidLane += @{ Name = 'android: features'; Script = $androidGate }
+        # Reads the APKs the gate above just assembled: the debug artefacts
+        # carry the same native libraries as the Play bundles, and a 64-bit one
+        # that is not 16 KB aligned cannot be loaded on a 16 KB-page device.
+        # -RequireBuilt is right here for the same reason it is above — a build
+        # has just run, so "found nothing" has to be red rather than green.
+        $android16k = 'pwsh -NoProfile -File scripts/check-android-16k.ps1 -RequireBuilt'
+        if ($RequireAndroid) { $android16k += ' -Strict' }
+        $androidLane += @{ Name = 'android: 16 KB alignment'; Script = $android16k }
     } else {
         Write-Host '  note: no gradlew.bat here (no Android SDK); the artefact gate is skipped, and CI runs it' -ForegroundColor DarkGray
     }
@@ -492,7 +500,14 @@ while ($pending.Count -gt 0) {
         # The artefact gate's own one-line result, so whether it had any APK to
         # check is visible in the run and not only inside the gate.
         if ($r.Gate -eq 'android: features') {
-            $r.Output | Select-String -Pattern '^android-features:' | ForEach-Object { Write-Host "        $($_.Line.Trim())" -ForegroundColor DarkGray }
+            # Anchored on the script's own prefix, not on '^android-features:':
+            # every line it prints starts with 'check-android-features:', so the
+            # old pattern matched nothing and the summary showed the verdict
+            # without any of the reasons behind it.
+            $r.Output | Select-String -Pattern 'check-android-features:' | ForEach-Object { Write-Host "        $($_.Line.Trim())" -ForegroundColor DarkGray }
+        }
+        if ($r.Gate -eq 'android: 16 KB alignment') {
+            $r.Output | Select-String -Pattern 'check-android-16k:' | ForEach-Object { Write-Host "        $($_.Line.Trim())" -ForegroundColor DarkGray }
         }
         $results.Add($r)
     }

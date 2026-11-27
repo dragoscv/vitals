@@ -695,6 +695,13 @@ jobs:
           for apk in "$out"/apk/*.apk; do
             if unzip -l "$apk" | grep -E -q 'META-INF/.*\.(RSA|EC|DSA)$'; then echo "::error::$apk carries a v1 signature; the upload key must not reach this job"; exit 1; fi
           done
+          # 16 KB page support, checked on the bytes Play and the GitHub
+          # releases will actually carry (ci.yml applies the same gate to the
+          # debug APKs, and -SelfTest there proves the gate can fail). pwsh
+          # ships on this runner image; the script reads the zip entries in
+          # memory rather than extracting them, because these bundles hold
+          # entries whose names collide case-insensitively.
+          pwsh -NoProfile -File "$GITHUB_WORKSPACE/scripts/check-android-16k.ps1" -Path "$out" -RequireBuilt -Strict
           ls -l "$out"/apk "$out"/play
 
       # Attested in `publish`, after signing: the signed bytes are what ships.
