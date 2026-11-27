@@ -128,6 +128,17 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   values, and a recognised key prefix with no label at all. Home directories are
   still replaced by `~`.
 
+- **Two RustSec advisories left the dependency list before it shipped**: `cookie`
+  0.18.3 (RUSTSEC-2026-0594, published 2026-11-23) and `url` 2.5.9
+  (RUSTSEC-2026-0592, 2026-11-20), plus the `form_urlencoded` that follows
+  `url`. Both crates are transitive — neither is named in any manifest or in
+  `crates/` or `apps/` — so no code path here reaches either one, but a
+  dependency list is a claim about what is installed, and "the advisory is not
+  reachable" is an argument a reader can only take on trust. Bumping it in the
+  release that would otherwise have carried the versions is the end of the
+  argument. `scripts/third-party-notices.ps1` was regenerated with them, which
+  is why its crate count moved.
+
 ## [1.4.0] — 2026-11-25
 
 ### Added

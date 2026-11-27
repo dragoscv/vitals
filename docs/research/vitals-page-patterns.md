@@ -396,15 +396,17 @@ What counts (VERIFIED, `check-size.ps1:11-25`): **INITIAL** = entry chunk the
 main window parses before the first screen (the startup-latency figure);
 **SHIPPED** = every `.js`/`.css` under `apps/desktop/dist/assets`; **INSTALLER**
 = the NSIS download; plus one budget per secondary entry (`hud.html`,
-`mobile.html`). Current numbers (VERIFIED, `size-budget.json`):
+`mobile.html`). The numbers below are a snapshot taken on 2026-11-27;
+`size-budget.json` is the source of truth, because every one of them is raised
+deliberately, one reviewable edit at a time (ADR 0018):
 
 | key                | bytes   | meaning           |
 | ------------------ | ------- | ----------------- |
-| `initialGzipBytes` | 221184  | entry chunk, gzip |
-| `shippedGzipBytes` | 548864  | all JS+CSS, gzip  |
-| `installerBytes`   | 6012928 | NSIS installer    |
-| `hudGzipBytes`     | 125296  | HUD entry         |
-| `mobileGzipBytes`  | 155648  | mobile entry      |
+| `initialGzipBytes` | 225280  | entry chunk, gzip |
+| `shippedGzipBytes` | 552960  | all JS+CSS, gzip  |
+| `installerBytes`   | 6062080 | NSIS installer    |
+| `hudGzipBytes`     | 130048  | HUD entry         |
+| `mobileGzipBytes`  | 158720  | mobile entry      |
 
 Measured after a production build:
 

@@ -76,7 +76,7 @@ below and is also installed as `sensors\PawnIO-Modules-COPYING.txt`.
 | [comfy-table](https://github.com/nukesor/comfy-table) | 8.0.1 | MIT |
 | [const-oid](https://github.com/RustCrypto/formats) | 0.10.2 | Apache-2.0 OR MIT |
 | [convert_case](https://github.com/rutrum/convert-case) | 0.10.0 | MIT |
-| [cookie](https://github.com/SergioBenitez/cookie-rs) | 0.18.2 | MIT OR Apache-2.0 |
+| [cookie](https://github.com/SergioBenitez/cookie-rs) | 0.18.3 | MIT OR Apache-2.0 |
 | [cookie_store](https://github.com/pfernie/cookie_store) | 0.22.1 | MIT OR Apache-2.0 |
 | [cpufeatures](https://github.com/RustCrypto/utils) | 0.2.17 | MIT OR Apache-2.0 |
 | [cpufeatures](https://github.com/RustCrypto/utils) | 0.3.1 | MIT OR Apache-2.0 |
@@ -126,7 +126,7 @@ below and is also installed as `sensors\PawnIO-Modules-COPYING.txt`.
 | [flume](https://github.com/zesterer/flume) | 0.12.0 | Apache-2.0 OR MIT |
 | [fnv](https://github.com/servo/rust-fnv) | 1.0.7 | Apache-2.0  OR  MIT |
 | [foldhash](https://github.com/orlp/foldhash) | 0.2.0 | Zlib |
-| [form_urlencoded](https://github.com/servo/rust-url) | 1.2.2 | MIT OR Apache-2.0 |
+| [form_urlencoded](https://github.com/servo/rust-url) | 1.2.3 | MIT OR Apache-2.0 |
 | [futures-channel](https://github.com/rust-lang/futures-rs) | 0.3.34 | MIT OR Apache-2.0 |
 | [futures-core](https://github.com/rust-lang/futures-rs) | 0.3.34 | MIT OR Apache-2.0 |
 | [futures-io](https://github.com/rust-lang/futures-rs) | 0.3.34 | MIT OR Apache-2.0 |
@@ -368,7 +368,7 @@ below and is also installed as `sensors\PawnIO-Modules-COPYING.txt`.
 | [untrusted](https://github.com/briansmith/untrusted) | 0.9.0 | ISC |
 | [ureq](https://github.com/algesten/ureq) | 3.4.2 | MIT OR Apache-2.0 |
 | [ureq-proto](https://github.com/algesten/ureq-proto) | 0.6.4 | MIT OR Apache-2.0 |
-| [url](https://github.com/servo/rust-url) | 2.5.8 | MIT OR Apache-2.0 |
+| [url](https://github.com/servo/rust-url) | 2.5.9 | MIT OR Apache-2.0 |
 | [urlpattern](https://github.com/denoland/rust-urlpattern) | 0.6.0 | MIT |
 | [utf8_iter](https://github.com/hsivonen/utf8_iter) | 1.0.4 | Apache-2.0 OR MIT |
 | [utf8-zero](https://github.com/algesten/utf8-zero) | 0.8.1 | MIT OR Apache-2.0 |
