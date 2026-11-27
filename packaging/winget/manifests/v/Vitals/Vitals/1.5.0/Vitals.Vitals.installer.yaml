@@ -1,0 +1,45 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.12.0.schema.json
+#
+# Installer fields mirror the published 1.3.0 manifest, which is the shape
+# scripts/ci/winget-user-scope.ps1 produces: Scope: user, InstallerSwitches
+# `Custom: /CurrentUser`, ElevationRequirement `elevatesSelf` and a per-user
+# DefaultInstallLocation. The update job writes the manifests, runs that script
+# and only then submits, so a hand-made set must match this or the next
+# `komac update` would publish a different shape than the previous version.
+#
+# InstallerType nullsoft: winget already uses `/S` as the silent switch for it,
+# which is why none is listed — only `Custom` is added, exactly as the script
+# leaves it. The installer does accept `/S` (chocolateyinstall.ps1 passes it).
+#
+# InstallerSha256 are TOKENS filled by packaging/fill-hashes.ps1 from the
+# release's SHA256SUMS.txt; the release has no assets yet.
+
+PackageIdentifier: Vitals.Vitals
+PackageVersion: 1.5.0
+InstallerLocale: en-US
+InstallerType: nullsoft
+Scope: user
+InstallModes:
+  - interactive
+  - silent
+  - silentWithProgress
+InstallerSwitches:
+  Custom: /CurrentUser
+UpgradeBehavior: install
+ProductCode: Vitals
+ReleaseDate: 2026-11-27
+AppsAndFeaturesEntries:
+  - Publisher: Dragos Catalin Vladulescu
+    ProductCode: Vitals
+ElevationRequirement: elevatesSelf
+InstallationMetadata:
+  DefaultInstallLocation: '%LocalAppData%\Programs\Vitals'
+Installers:
+  - Architecture: x64
+    InstallerUrl: https://github.com/dragoscv/vitals/releases/download/v1.5.0/Vitals_1.5.0_x64-setup.exe
+    InstallerSha256: __SHA256_X64__
+  - Architecture: arm64
+    InstallerUrl: https://github.com/dragoscv/vitals/releases/download/v1.5.0/Vitals_1.5.0_arm64-setup.exe
+    InstallerSha256: __SHA256_ARM64__
+ManifestType: installer
+ManifestVersion: 1.12.0

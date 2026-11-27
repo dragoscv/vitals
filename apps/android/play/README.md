@@ -82,6 +82,45 @@ Re-check these whenever a dependency that talks to the network is added, and
 whenever [ML Kit's disclosure](https://developers.google.com/ml-kit/android-data-disclosure)
 changes.
 
+### What to select in the Console
+
+The Console asks these in **Data collection and security**; the bold word is
+the value to choose.
+
+| Console question                                                      | Select                                                                                                                                                                                                                        |
+| --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Does your app collect or share any of the required user data types?   | **Yes**                                                                                                                                                                                                                       |
+| Is all of the user data collected by your app encrypted in transit?   | **Yes**                                                                                                                                                                                                                       |
+| Do you provide a way for users to request that their data is deleted? | **No** — there is no account and no server; the developer holds nothing and uninstalling the app deletes everything on the device. (If the Console insists on a URL for a "Yes", use the controller address in `PRIVACY.md`.) |
+
+Then, in **Data types**, declare exactly these and nothing else:
+
+| Data type                                                     | Collected or shared | Required or optional | Purpose           | Processed ephemerally |
+| ------------------------------------------------------------- | ------------------- | -------------------- | ----------------- | --------------------- |
+| App info and performance → **Diagnostics**                    | Collected           | Optional             | Analytics         | No                    |
+| **Device or other IDs**                                       | Collected           | Optional             | Analytics         | No                    |
+| Health and fitness → **Health info** (only if Q4 answers yes) | Collected           | Optional             | App functionality | No                    |
+
+- **Which code backs the rows.** ML Kit is `com.google.mlkit:barcode-scanning`
+  17.3.0 (`gradle/libs.versions.toml:21`, used at `app/build.gradle.kts:139`)
+  and runs only in `app/src/main/kotlin/app/vitals/phone/ui/add/QrScanner.kt`;
+  the Health read is HTTPS-only in
+  `core/src/main/kotlin/app/vitals/core/health/HealthClient.kt`
+  (`SchemePolicy.Secure`, `fetch` → `GET /api/v1/me/health`).
+- **Not shared.** ML Kit sends to Google as a service provider processing on
+  the developer's behalf, which Play counts as collection, not sharing.
+- **Optional** on both counts: the scanner runs only when the user opens it,
+  the Health tab only while a vmui is connected.
+- **Leave undeclared.** Play's "collect" test — transmitted off the device in a
+  way that allows you to access it — does not apply to anything that stays on
+  the phone: App activity → Installed apps and App interactions (the
+  launcher-icon list, and per-app screen time and data use under
+  `PACKAGE_USAGE_STATS`), and Location, Personal info, Financial info,
+  Messages, Photos and videos, Audio, Files and docs, Calendar, Contacts and
+  Web browsing, none of which the app reads. The pairing code and this device's
+  name reach only the user's own PC on the LAN
+  (`core/src/main/kotlin/app/vitals/core/pairing/PairingStore.kt`).
+
 ## Health declaration
 
 Play asks for a health declaration before an app that touches health data can
@@ -100,3 +139,46 @@ from a user's own server count as health and fitness data collected". If the
 answer is no, the Data safety form stays "not collected" and this table only
 needs the declaration above; if it is yes, the two extra Data safety rows
 already written here are what the form should say.
+
+### What to select in the Console (Health)
+
+The Console's health section ("App content" → "Health apps") takes these
+values; the `health_*` names are the strings the tab renders.
+
+| Console question                                         | Select                                                                                                                                                                                                                                                                                             |
+| -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Does your app access, collect, use or share health data? | **Yes** — the optional Health tab                                                                                                                                                                                                                                                                  |
+| Which health data is read?                               | Steps, distance, floors, active and total energy, heart rate, resting heart rate, HRV, blood oxygen, breathing rate, blood pressure, VO2 max, sleep, weight, body fat, resting energy, BMI, muscle, body water, and nutrition totals (`health_*` in `app/src/main/res/values/strings.xml:419-478`) |
+| Why is it read?                                          | **App functionality** only — to show the owner their own readings                                                                                                                                                                                                                                  |
+| Where does it come from?                                 | A vmui server the user runs; the app makes one request, `GET /api/v1/me/health` (`HealthClient.fetch`)                                                                                                                                                                                             |
+| Is it shared with third parties?                         | **No** — straight from the device to the user's own vmui                                                                                                                                                                                                                                           |
+| Is it used for advertising, analytics or research?       | **No**                                                                                                                                                                                                                                                                                             |
+| Is it required for the app to work?                      | **No** — optional, hidden until a vmui is connected                                                                                                                                                                                                                                                |
+| Is your app a medical device?                            | **No** — informational only, with no diagnosis, interpretation or advice, matching `TERMS.md` § "Health readings are not medical advice"                                                                                                                                                           |
+| Does the app use Health Connect?                         | **No** — the app neither reads nor writes Health Connect; readings come from the user's own vmui over `GET /api/v1/me/health`                                                                                                                                                                      |
+
+What keeps this outside MDR 2017/745 is question Q8 of
+`docs/legal/LAWYER-CHECKLIST.md`, and the copy it turns on is
+`health_not_medical` ("Not medical advice. Readings come from your vmui and may
+be incomplete.").
+
+## What a reviewer needs to exercise this
+
+The app ships no server of its own, so two things can only come from the owner,
+and the Console review step should name them rather than imply they are
+reachable:
+
+- **A demo vmui server and account** for the Health tab, to exercise the
+  "Health info" row and the health declaration end to end. Without a vmui the
+  tab stays hidden (`health_settings_body`, `app/src/main/res/values/strings.xml`)
+  and the reviewer cannot reach it. Supply the address and a pairing code or an
+  owner-approved token; the readings are the owner's own. This matches the iOS
+  review note, "A demo vmui address and account can be supplied on request"
+  (`apps/ios/store/listing.json`).
+- **A PC running Vitals** on the reviewer's network for the PC pane, the
+  widgets and the `specialUse` foreground service — paired by QR code or the
+  six-digit code, with remote access on in the PC's Settings.
+
+Everything else is reachable without an account: the device panes, the Apps
+tab (after the reviewer grants usage access), and the QR scanner with its ML
+Kit request.

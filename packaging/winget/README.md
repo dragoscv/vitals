@@ -14,6 +14,15 @@ release.
 
 ## winget
 
+> **The package already exists.** `Vitals.Vitals` is in
+> `microsoft/winget-pkgs` (1.0.1 … 1.3.0), so every release only _updates_ it
+> and nothing here is a "first" submission any more. To carry a version
+> forward by hand, use `komac update Vitals.Vitals …` or
+> `wingetcreate update Vitals.Vitals …` (see [../README.md](../README.md)).
+> The ready-to-fill set for 1.5.0 is in `manifests/v/Vitals/Vitals/1.5.0/`,
+> completed by [`../fill-hashes.ps1`](../fill-hashes.ps1). The section below
+> describes the original first submission and is kept for reference.
+
 ### First submission (by hand, once)
 
 The `winget` job in `release.yml` runs `komac update` (a pinned Komac binary,

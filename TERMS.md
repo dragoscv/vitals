@@ -34,7 +34,7 @@ consumer under Romanian or European Union law.
 
 ## Stability
 
-Version 1.0.0 was the first production release; the current release is 1.2.0,
+Version 1.0.0 was the first production release; the current release is 1.5.0,
 with macOS in preview. Features may still change, readings may be wrong on
 some hardware, and bugs can happen. Linux is not published yet. Please
 [report problems](SUPPORT.md).
@@ -139,7 +139,7 @@ a Uniunii Europene.
 ## Stabilitate
 
 Versiunea 1.0.0 a fost prima versiune de producție; versiunea curentă este
-1.2.0, cu macOS în previzualizare. Funcțiile se pot schimba în continuare,
+1.5.0, cu macOS în previzualizare. Funcțiile se pot schimba în continuare,
 unele valori pot fi greșite pe anumite componente hardware și pot apărea
 erori. Linux nu este publicat încă. Vă rugăm să
 [raportați problemele](SUPPORT.md).

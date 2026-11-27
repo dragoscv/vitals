@@ -20,7 +20,7 @@ never as zero.
 | Website         | <https://vitals.dragoscatalin.ro>                                                     |
 | Source          | <https://github.com/dragoscv/vitals>                                                  |
 | Microsoft Store | <https://apps.microsoft.com/detail/9P95RK5VMGPJ> (listed as "Vitals: System Monitor") |
-| Status          | 1.0, stable on Windows                                                                |
+| Status          | 1.5.0, stable on Windows                                                              |
 | Contact         | dragoscv12@gmail.com                                                                  |
 
 **Platforms**
@@ -31,7 +31,11 @@ never as zero.
   each GitHub release; Google Play listings come later.
 - Google TV and Samsung TVs (Tizen) — watch the Windows PCs on your home
   network from the TV.
-- macOS and Linux — not published, and no dated plans.
+- macOS 13+ — published in preview: a notarised download and the Mac App
+  Store edition.
+- iPhone (iOS 18+) — a preview app on the App Store; it watches a paired
+  Windows PC or Mac over the local network.
+- Linux — not published, and no dated plans.
 
 **What it does**
 
@@ -79,7 +83,7 @@ raportează apare ca necunoscută, niciodată ca zero.
 | Site            | <https://vitals.dragoscatalin.ro>                                           |
 | Cod sursă       | <https://github.com/dragoscv/vitals>                                        |
 | Microsoft Store | <https://apps.microsoft.com/detail/9P95RK5VMGPJ> („Vitals: System Monitor”) |
-| Stadiu          | 1.0, stabil pe Windows                                                      |
+| Stadiu          | 1.5.0, stabil pe Windows                                                    |
 | Contact         | dragoscv12@gmail.com                                                        |
 
 **Platforme**
@@ -90,7 +94,11 @@ raportează apare ca necunoscută, niciodată ca zero.
   sunt atașate fiecărei versiuni de pe GitHub; Google Play urmează mai târziu.
 - Google TV și televizoare Samsung (Tizen) — urmărești de pe televizor
   PC-urile Windows din rețeaua de acasă.
-- macOS și Linux — nepublicate și fără planuri datate.
+- macOS 13+ — publicat în previzualizare: o descărcare notarizată și ediția
+  din Mac App Store.
+- iPhone (iOS 18+) — o aplicație în previzualizare în App Store; urmărește
+  un PC Windows sau un Mac asociat, prin rețeaua locală.
+- Linux — nepublicat și fără planuri datate.
 
 **Ce face**
 

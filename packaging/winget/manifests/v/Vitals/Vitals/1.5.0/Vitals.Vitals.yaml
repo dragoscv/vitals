@@ -1,0 +1,20 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.version.1.12.0.schema.json
+#
+# Hand-prepared manifest set for the 1.5.0 catch-up.
+#
+# This is NOT a first submission: Vitals.Vitals is already in
+# microsoft/winget-pkgs (1.0.1 … 1.3.0). 1.4.0 was never pushed, and the
+# channels sit at 1.3.x, so this set carries a released version forward by
+# hand. The update job in .github/workflows/release.yml runs `komac update`,
+# which also only ever updates the existing package.
+#
+# The installer hashes are TOKENS, not values: the v1.5.0 release is waiting
+# on the owner's approval, so its installers do not exist yet. A wrong hash is
+# worse than a missing one. `packaging/fill-hashes.ps1` fills them from the
+# release's own SHA256SUMS.txt once the assets are published.
+
+PackageIdentifier: Vitals.Vitals
+PackageVersion: 1.5.0
+DefaultLocale: en-US
+ManifestType: version
+ManifestVersion: 1.12.0
