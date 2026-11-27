@@ -6863,6 +6863,49 @@ default branch`). Published with `git push origin refs/tags/v1.5.0`.
   `TAURI_SIGNING_PRIVATE_KEY` exists only in CI; the installer artefact itself is
   complete and is what was installed.
 
+### S24-09 — the 16 KB alignment check exists, and the fixture is what proved it did (2026-11-27)
+
+Google Play requires 16 KB memory page support, and that property is in none of
+the places a reviewer would look for it: not the source, not the Gradle files,
+not the merged manifest. It is the `p_align` of the `PT_LOAD` segments inside
+each `.so` in the built archive. S24-09 named the check as outstanding while
+nothing in the repository performed it — `rg` over the workflows, the release
+scripts and the Gradle configuration found no alignment check at all, which is
+how the row came to be audited in the first place.
+
+`scripts/check-android-16k.ps1` now performs it, and is wired in three places:
+the `Android (apps)` CI job (on the debug APKs the job has just assembled), the
+release lane's `Collect` step (on the bundles Play receives), and `verify.ps1`'s
+android lane. Measured on the shipped 1.5.0 artefacts — the `android-unsigned`
+artefact of release run 45959255091:
+
+    check-android-16k: vitals-android.aab: 10 native libraries — 5 64-bit, 5 32-bit exempt, 0 unclassified
+    check-android-16k: vitals-tv.aab: 8 native libraries — 4 64-bit, 4 32-bit exempt, 0 unclassified
+    check-android-16k: vitals-wear.aab: 8 native libraries — 4 64-bit, 4 32-bit exempt, 0 unclassified
+    check-android-16k: 26 64-bit library/libraries across 6 archive(s) are all aligned to at least 16384 bytes, out of 52 native libraries read
+
+Two details of how it was built are worth keeping.
+
+**The check's own negative case caught a real defect.** The rule recognising an
+entry path was written for the APK layout (`lib/<abi>/x.so`) and so matched
+nothing inside an `.aab`, whose entries are `base/lib/<abi>/x.so`. It reported a
+bundle carrying ten native libraries as compliant. The `-SelfTest` fixture — a
+4 KB-aligned library that must be refused and a 16 KB-aligned one that must be
+accepted, both synthetic, one field apart — failed on the first run, and now
+runs as its own CI step, so the same mistake cannot return quietly. A gate that
+cannot fail is not a gate, and this one is only believed because it has been
+seen to fail.
+
+**The archives are read through the zip API, never extracted.** Copying these
+bundles' contents to disk fails on Windows — `Exception calling
+"ExtractToDirectory" ... The file '...\res\-m.xml' already exists` — because two
+entries differ only in case. The same reason is why the ELF program headers are
+parsed inside the script rather than handed to an alignment tool by path.
+
+The gate also refuses two ways of passing vacuously: a bundle that carries
+native libraries but no 64-bit one, and any ABI the script does not classify.
+Both would otherwise be silent exemptions, and both are failures here.
+
 ## S13 — public beta 0.9.0-beta.1 (2026-09-28)
 
 Decided with the owner (ADR 0031): public repository, beta version, no code
