@@ -7095,13 +7095,13 @@ expectations:
 Then the five channel jobs, each read from the channel rather than from the
 job's colour:
 
-| channel     | the job said | what the channel says now                                                                                           |
-| ----------- | ------------ | ------------------------------------------------------------------------------------------------------------------- |
-| npm         | success      | `@vitals-app/client` 1.5.0                                                                                          |
-| Scoop       | success      | `bucket/vitals.json` carries `"version": "1.5.0"`                                                                   |
-| Chocolatey  | success      | 1.5.0 accepted (submitted 22:06:11Z) and queued for moderation, so the feed still answers 1.3.0 to a "latest" query |
-| Google Play | success      | the production track at a 1% rollout, read from CI, because the local ADC cannot authenticate against the Play API  |
-| winget      | **failure**  | pull request `microsoft/winget-pkgs#491438`, opened by hand                                                         |
+| channel     | the job said | what the channel says now                                                                                                                             |
+| ----------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| npm         | success      | `@vitals-app/client` 1.5.0                                                                                                                            |
+| Scoop       | success      | `bucket/vitals.json` carries `"version": "1.5.0"`                                                                                                     |
+| Chocolatey  | success      | 1.5.0 accepted (submitted 22:06:11Z) and queued for moderation, so the feed still answers 1.3.0 to a "latest" query                                   |
+| Google Play | success      | three uploads, each answered `status: completed` on the production track, read from CI because the local ADC cannot authenticate against the Play API |
+| winget      | **failure**  | pull request `microsoft/winget-pkgs#491438`, opened by hand                                                                                           |
 
 **The winget failure was not the manifest.** `komac update --dry-run` produced a
 valid manifest, `scripts/ci/winget-user-scope.ps1` rewrote it to `Scope: user`
@@ -7139,6 +7139,22 @@ Chocolatey OData entry for `Id eq 'vitals' and Version eq '1.5.0'`; and
 `gh api repos/microsoft/winget-pkgs/pulls/491438`. Three of the five channel
 claims are read from the channel's own API, Play's from CI, and none of them is
 inferred from a green tick.
+
+Two leftovers from that pass were closed the same evening. The Play upload steps
+were calling the pinned action's deprecated input — CI printed
+`WARNING!! 'track' is deprecated and will be removed in a future release. Please
+migrate to 'tracks'` — and the action at that exact commit declares **both**
+`track:` and `tracks:`, so all six steps now pass `tracks:` (`f36a0be`). A tag
+run executes the workflow as it stands **at that tag**, so the 1.5.0 run went on
+using the old input and the change takes effect from the next tag. Separately,
+`#485058` — the 1.3.1 submission the validation bot is still waiting on for
+author feedback — was commented as superseded by `#491438` rather than closed,
+because that repository belongs to the maintainers to close.
+
+Verification: `rg -n 'track:' .github/workflows/release.yml` returns no
+deprecated input and six `tracks:`; the file still parses as YAML; and
+`scripts/check-drift.ps1` reports `drift: 0 failure(s), 0 warning(s) — checked
+16 ts_rs files, 136 invokes, 136 commands, 2 locales`.
 
 ### S24-10 — the macOS battery reader needed two clippy fixes before the Apple job would compile it (2026-11-27)
 
