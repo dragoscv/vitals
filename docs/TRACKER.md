@@ -6969,6 +6969,38 @@ installers before their manifests can carry hashes
 `SHA256SUMS.txt`). `v1.4.0` published successfully on 2026-11-25, so a 1.4.0
 channel catch-up is possible on its own, without waiting for 1.5.0.
 
+### S24-10 — the macOS battery reader needed two clippy fixes before the Apple job would compile it (2026-11-27)
+
+The row's Mac half was written the same day and was honest about its own state:
+`crates/vitals-macos/src/power.rs` reads `IOPSCopyPowerSourcesInfo`, every field
+it cannot read stays `None`, and the file was rustfmt-clean with eleven unit
+tests — but it had never been compiled, because the only place that builds
+macOS code is CI's `Apple (macOS + iOS)` job, and the first run it appeared in
+was cancelled by a later push.
+
+The next run failed that job, and the failure was worth reading instead of
+guessing at: `Clippy (macOS crates)` stopped it with six errors, all in this one
+new file — five `clippy::doc_markdown` ("item in documentation is missing
+backticks") for a bare `IOKit` in doc comments, and one
+`clippy::cast_possible_wrap` on `buffer.len() as CFIndex`. The crate sits behind
+`#![cfg(target_os = "macos")]`, so on this Windows machine the whole file
+compiles out and no local gate can see any of them: not `cargo clippy
+--workspace`, not the devcloud Linux lane. That is the trap this row was sitting
+in — a platform module can be rustfmt-clean, unit-tested, and still fail the one
+gate that ever builds it.
+
+Fixed in `9f94eef` (chore(macos), no behaviour change): the five identifiers are
+quoted and `buffer.len().cast_signed()` replaces the `as` cast. CI run
+46065172038 then reports `Clippy (macOS crates)` success, `Test (macOS sampler,
+real machine)` success and `Test (Mac App Store flavour)` success — the eleven
+unit tests execute on macOS now.
+
+What that gate cannot answer, and what the row still lists as open: whether the
+numbers are right on a Mac that has a battery (that needs the owner's vmui-mac),
+and how a battery reading should appear in the menu bar, where there is no tray
+title to write — `TrayMetric` has no `Battery` variant, and the menu-bar readout
+is the tray icon itself.
+
 ## S13 — public beta 0.9.0-beta.1 (2026-09-28)
 
 Decided with the owner (ADR 0031): public repository, beta version, no code
