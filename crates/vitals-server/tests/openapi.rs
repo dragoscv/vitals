@@ -177,3 +177,69 @@ fn the_document_is_openapi_3_1_and_says_the_two_things_that_matter() {
         "the null-is-unmeasured rule must be stated in info.description"
     );
 }
+
+/// `(line, value)` for every example in a document that shows the version this
+/// build reports under a JSON `"version"` key, in both spellings the documents
+/// use: `"version":"1.5.0"` and `"version": "1.5.0"`.
+///
+/// Only a three-part numeric value counts. The `modelVersion` beside it is a
+/// different contract (`vitals_core::MODEL_VERSION`, and that one IS allowed to
+/// differ), and the `"version" : "1.0"` of an Xcode strings file is a schema
+/// revision, not a semantic version at all.
+fn version_examples(document: &str) -> Vec<(usize, String)> {
+    let mut found = Vec::new();
+    for (index, line) in document.lines().enumerate() {
+        let mut rest = line;
+        while let Some(start) = rest.find("\"version\"") {
+            // Search forward from just after the key, so the loop always makes
+            // progress and cannot spin on a line that has the key and nothing
+            // that looks like a value.
+            let after_key = &rest[start + "\"version\"".len()..];
+            rest = after_key;
+            let Some(colon) = after_key.find(':') else {
+                continue;
+            };
+            let Some(quoted) = after_key[colon + 1..].trim_start().strip_prefix('"') else {
+                continue;
+            };
+            let Some(end) = quoted.find('"') else {
+                continue;
+            };
+            let value = &quoted[..end];
+            let numeric = value.matches('.').count() == 2
+                && value
+                    .split('.')
+                    .all(|part| !part.is_empty() && part.bytes().all(|b| b.is_ascii_digit()));
+            if numeric {
+                found.push((index + 1, value.to_owned()));
+            }
+        }
+    }
+    found
+}
+
+#[test]
+fn every_version_example_in_the_readme_is_the_current_one() {
+    // The README states the version three times — the attach pipe's hello
+    // reply, the port file, and the health reply — and all three had been wrong
+    // for three releases (1.1.1 and 1.2.0 while the app reported 1.5.0), with
+    // nothing failing, because the only reader of a sample transcript is the
+    // human copying it. `CARGO_PKG_VERSION` is the workspace version every
+    // crate inherits, so this needs no maintenance: the bump that moves the
+    // manifest moves the assertion with it.
+    let found = version_examples(README);
+    assert!(
+        found.len() >= 3,
+        "only {} version example(s) extracted from docs/api/README.md — the walk no longer matches its shape: {found:?}",
+        found.len()
+    );
+    let wrong: Vec<_> = found
+        .iter()
+        .filter(|(_, value)| value != env!("CARGO_PKG_VERSION"))
+        .collect();
+    assert!(
+        wrong.is_empty(),
+        "docs/api/README.md shows a version that is not this build's {}: {wrong:?}",
+        env!("CARGO_PKG_VERSION")
+    );
+}

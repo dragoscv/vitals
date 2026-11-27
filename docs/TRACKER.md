@@ -6862,6 +6862,25 @@ default branch`). Published with `git push origin refs/tags/v1.5.0`.
   signing step — `A public key has been found, but no private key` — because
   `TAURI_SIGNING_PRIVATE_KEY` exists only in CI; the installer artefact itself is
   complete and is what was installed.
+- A third defect of the same kind was found by reading rather than by a gate,
+  after the tag had already moved: every version example in the API
+  documentation named a release from months earlier. `docs/api/README.md`
+  showed `1.2.0` in the hello transcript, `1.1.1` in the port file and `1.2.0`
+  in the health response, and `crates/vitals-ipc/src/attach.rs` showed `0.1.0`.
+  These are now held by an assertion — `every_version_example_in_the_readme_is_the_current_one`
+  in `crates/vitals-server/tests/openapi.rs` walks every `"version": "x.y.z"`
+  example in the `include_str!`-ed README and compares it with the version this
+  build reports — so the class cannot recur silently. Mutation-proofed in both
+  directions: a stale example fails with `docs/api/README.md shows a version
+that is not this build's 1.5.0: [(144, "1.2.0")]`, and an example whose key is
+  not `version` trips the anti-vacuity guard with `only 2 version example(s)
+extracted from docs/api/README.md - the walk no longer matches its shape`.
+  The remaining deliberate skip is recorded in the same change: the repo-wide
+  version scans (`scripts/check-drift.ps1` check 10, `scripts/release-doctor.mjs`
+  row 3, `scripts/version.ps1`) were left alone, because their documented scope
+  is manifest slots bound to `-Version`, and a repo-wide quoted-version scan
+  matches some thirty legitimate literals (manifests, fixtures, `brand.json`,
+  `idle-budget.json`) — the gates' own headers forbid that for being noise.
 
 ### S24-09 — the 16 KB alignment check exists, and the fixture is what proved it did (2026-11-27)
 

@@ -27,7 +27,7 @@
 //!
 //! ```text
 //! → {"op":"hello"}
-//! ← {"status":"ok","version":"0.1.0","modelVersion":1}
+//! ← {"status":"ok","version":"1.5.0","modelVersion":1}
 //! → {"op":"snapshot"}
 //! ← <Frame>              (a keyframe of the complete current state)
 //! → {"op":"subscribe"}
