@@ -53,6 +53,7 @@ const en = {
       trayMetricCpuTemperature: 'CPU temperature',
       trayMetricMemory: 'Memory usage',
       trayMetricNetwork: 'Network traffic',
+      trayMetricBattery: 'Battery charge',
       taskbarLoad: 'Show CPU load on the taskbar button',
       taskbarLoadHint:
         'While the window is open, its taskbar button fills with the current CPU load, in your Windows accent colour — amber above 75 %, red above 90 %.',
@@ -364,6 +365,7 @@ const ro = {
       trayMetricCpuTemperature: 'Temperatura procesorului',
       trayMetricMemory: 'Utilizarea memoriei',
       trayMetricNetwork: 'Trafic de rețea',
+      trayMetricBattery: 'Nivelul bateriei',
       taskbarLoad: 'Arată încărcarea procesorului pe butonul din bara de activități',
       taskbarLoadHint:
         'Cât fereastra este deschisă, butonul ei din bara de activități se umple cu încărcarea procesorului, în culoarea de accent a Windows — galben peste 75 %, roșu peste 90 %.',

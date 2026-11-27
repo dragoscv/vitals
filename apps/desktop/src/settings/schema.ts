@@ -22,7 +22,14 @@ export type SamplingRate = (typeof samplingRates)[number];
  * the icon carry a reading. A fill rather than digits, because 32 px cannot
  * hold two legible digits at 100% scaling — the tooltip carries the numbers.
  */
-export const trayMetrics = ['off', 'cpu', 'cpuTemperature', 'memory', 'network'] as const;
+export const trayMetrics = [
+  'off',
+  'cpu',
+  'cpuTemperature',
+  'memory',
+  'network',
+  'battery',
+] as const;
 export type TrayMetric = (typeof trayMetrics)[number];
 
 function isTrayMetric(value: unknown): value is TrayMetric {

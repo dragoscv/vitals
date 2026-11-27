@@ -63,6 +63,7 @@ pub enum TrayMetric {
     CpuTemperature,
     Memory,
     Network,
+    Battery,
 }
 
 /// Localised text for everything the tray shows.
@@ -222,6 +223,7 @@ impl Tray {
             2 => TrayMetric::CpuTemperature,
             3 => TrayMetric::Memory,
             4 => TrayMetric::Network,
+            5 => TrayMetric::Battery,
             _ => TrayMetric::Off,
         }
     }
@@ -563,8 +565,9 @@ fn memory_percent(system: &SystemMetrics) -> u8 {
 
 /// The value the icon should carry, or `None` for the plain mark.
 ///
-/// Two of the four readings are not percentages, so each states its scale
-/// here rather than leaving the reader to guess what a full icon means.
+/// Three of these are percentages already — CPU, memory and battery charge —
+/// and two are not, so each states its scale here rather than leaving the
+/// reader to guess what a full icon means.
 #[must_use]
 pub fn value_for(metric: TrayMetric, system: &SystemMetrics) -> Option<u8> {
     match metric {
@@ -580,6 +583,11 @@ pub fn value_for(metric: TrayMetric, system: &SystemMetrics) -> Option<u8> {
         }),
         TrayMetric::Memory => Some(memory_percent(system)),
         TrayMetric::Network => Some(network_percent(system)),
+        // A charge is a percentage already, and it is the reading this fill was
+        // shaped for. A machine with no battery — a desktop — has no value
+        // here, so it draws the plain mark rather than a full icon; that is the
+        // same rule as every other reading the OS cannot report.
+        TrayMetric::Battery => system.battery.as_ref().map(|b| round_percent(b.charge.0)),
     }
 }
 
@@ -761,5 +769,43 @@ mod tests {
         let mut system = vitals_core::fixtures::system();
         system.memory.total = vitals_core::units::Bytes(0);
         assert_eq!(memory_percent(&system), 0);
+    }
+
+    #[test]
+    fn the_battery_metric_draws_the_charge_it_has_and_plain_mark_where_there_is_no_battery() {
+        let mut system = vitals_core::fixtures::system();
+        assert_eq!(
+            value_for(TrayMetric::Battery, &system),
+            None,
+            "a desktop with no battery must draw the plain mark, not a full icon"
+        );
+        system.battery = Some(vitals_core::metrics::BatteryMetrics {
+            charge: vitals_core::units::Percent(37.4),
+            charging: false,
+            time_remaining_secs: None,
+            power: None,
+            health: None,
+            cycle_count: None,
+            temperature: None,
+        });
+        assert_eq!(value_for(TrayMetric::Battery, &system), Some(37));
+    }
+
+    #[test]
+    fn every_metric_the_webview_offers_is_a_name_the_deserialiser_knows() {
+        // The option list lives in the webview and the variants live here. A
+        // name this enum does not know is rejected at runtime, the webview
+        // swallows that error by design, and the icon silently keeps its
+        // previous reading — so the two lists have to be checked against each
+        // other somewhere, and this is that place.
+        assert_eq!(
+            serde_json::from_str::<TrayMetric>("\"off\"").expect("off must deserialise"),
+            TrayMetric::Off
+        );
+        for name in ["cpu", "cpuTemperature", "memory", "network", "battery"] {
+            let parsed: TrayMetric = serde_json::from_str(&format!("\"{name}\""))
+                .unwrap_or_else(|error| panic!("{name} must deserialise: {error}"));
+            assert_ne!(parsed, TrayMetric::Off, "{name} fell back to the default");
+        }
     }
 }

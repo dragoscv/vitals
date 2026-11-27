@@ -86,6 +86,7 @@ const trayMetricLabels = {
   cpuTemperature: 'settings.general.trayMetricCpuTemperature',
   memory: 'settings.general.trayMetricMemory',
   network: 'settings.general.trayMetricNetwork',
+  battery: 'settings.general.trayMetricBattery',
 } as const;
 
 export function GeneralPanel() {
