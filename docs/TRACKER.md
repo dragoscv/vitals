@@ -7017,6 +7017,54 @@ installers before their manifests can carry hashes
 `SHA256SUMS.txt`). `v1.4.0` published successfully on 2026-11-25, so a 1.4.0
 channel catch-up is possible on its own, without waiting for 1.5.0.
 
+### S26-28 continued — four red Verifys, and three of them were the gate measuring the runner (2026-11-27)
+
+Every red `Verify` named one test and stopped there, and the ladder is worth
+writing down because the product was never the defect: each rung was an
+assertion about **time**, made on a shared runner whose speed nobody controls.
+
+| run           | tree      | what the runner reported                                                                                            | repaired by                                                                                                                  |
+| ------------- | --------- | ------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `45959255091` | `b4399d3` | `Test timed out in 15000ms` — the walk of `src/features/` in `styles.test.ts`, one read at a time                   | a parallel read and a budget, the shape that file's own sibling test already carried                                         |
+| `46064235669` | `2b6de8a` | `AssertionError: expected 56.01068500000001 to be less than 50` — a per-tick budget averaged over twenty iterations | `73d39d8`: the fastest iteration is the intrinsic cost; the mean of a micro-benchmark on a loaded runner measures the runner |
+| `46066435471` | `73d39d8` | `TestingLibraryElementError: Unable to find an accessible element with the role "region" and name "CPU"`            | `7c8b450`                                                                                                                    |
+| `46069661247` | `ff13371` | carried everything above plus the diagnostic below                                                                  | —                                                                                                                            |
+
+Both figures for `46066435471` are read from the run itself, not inferred:
+`Test Files 1 failed | 148 passed (149)`, `Tests 1 failed | 1518 passed (1519)`,
+and the annotated line above. That query exists in exactly one place,
+`DashboardScreen.test.tsx`, and the defect was the helper's wait rather than
+the screen: it awaited `getByRole('heading', { name: 'Dashboard' })` before
+running its synchronous widget queries, and that heading does not depend on
+hydration at all — `DashboardScreen` renders its skeletons while
+`!layoutController.hydrated || snapshot.pending`. So the await proved nothing,
+and under load the queries below ran against the skeleton tree, which has no
+widget regions and therefore no region named CPU. The helper now waits for the
+state its await can actually observe — the skeleton's `aria-busy` has to be
+gone — which holds for every layout in the file, including the GPU-only and
+alerts-only cases, unlike waiting for one particular widget. That wait carries
+a 10 s bound, and the distinction matters: a bound on **how long to wait for a
+liveness event** is not an assertion about how fast the machine is, and if
+hydration never happens the test still fails, loudly, with that name.
+
+**The name was in the job log after all, and one earlier claim of mine was
+wrong.** Reading only the run's console summary (`gh run view --log`, the last
+lines of each step) hid it, and I recorded that the log "could not say which of
+the 1519 tests had failed". The full job log does say it:
+`gh run view --job <id> --log` carries the runner's own `##[error]` annotation
+of the failing assertion, and that is how the third failure was identified.
+`scripts/verify.ps1` still prints the failing ts test's line when that gate
+goes red (`ff13371`), because the console summary a reader looks at first is the
+one place it was missing — but the why in that comment overstated the case and
+now records the correction.
+
+One pattern is worth naming for the next release: **a tag was moved four
+times**, and each move was a repair to a test that only a loaded runner could
+break. None of the four was found by reading the suite; three were found by
+reading the failing run instead of re-running it, which is also why re-running
+was never tried — the same luck that times out once passes next time, and a
+green re-run would have left all three defects in place.
+
 ### S24-10 — the macOS battery reader needed two clippy fixes before the Apple job would compile it (2026-11-27)
 
 The row's Mac half was written the same day and was honest about its own state:

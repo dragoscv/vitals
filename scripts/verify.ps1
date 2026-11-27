@@ -500,9 +500,12 @@ while ($pending.Count -gt 0) {
         # A failing ts gate printed only the last thirty lines, and those are the
         # vitest summary: the one line a reader needs — the name of the failing
         # test and the assertion it made — sits just above them and was cut off.
-        # The release run of 2026-11-27 failed this gate and the log could not say
-        # which of the 1519 tests had failed, which cost a whole investigation
-        # cycle; this is that answer, printed where the failure is reported.
+        # Two release runs on 2026-11-27 stopped here, and the console summary
+        # they left could not say which of the 1519 tests had failed. The full
+        # job log can (`gh run view --job <id> --log` carries the runner's own
+        # annotation of the assertion), which is how the second one was named —
+        # but the summary is what gets read first, so the answer is printed here
+        # as well rather than only being recoverable later.
         if ((-not $r.Passed) -and ($r.Gate -like 'ts: typecheck*')) {
             $r.Output |
                 Select-String -Pattern 'FAIL |AssertionError|expected\b.*\bto be\b|\.test\.tsx?:\d+' |
