@@ -107,6 +107,11 @@ const loadHealth = once(async () => {
   m.registerHealthStrings();
   return m;
 });
+const loadTracking = once(async () => {
+  const m = await import('./features/tracking');
+  m.registerTrackingStrings();
+  return m;
+});
 
 const ConnectionsScreen = lazy(async () => ({
   default: (await loadConnections()).ConnectionsScreen,
@@ -125,6 +130,7 @@ const UsersScreen = lazy(async () => ({ default: (await loadUsers()).UsersScreen
 const AgentsScreen = lazy(async () => ({ default: (await loadAgents()).AgentsScreen }));
 const CollabScreen = lazy(async () => ({ default: (await loadAgents()).CollabScreen }));
 const HealthScreen = lazy(async () => ({ default: (await loadHealth()).HealthScreen }));
+const TrackingScreen = lazy(async () => ({ default: (await loadTracking()).TrackingScreen }));
 
 /**
  * What each section needs before its first paint: its chunk, then a
@@ -149,6 +155,7 @@ const preloaders: readonly (() => Promise<unknown>)[] = [
   async () => (await loadStorage()).prefetchStorage(),
   async () => (await loadDevices()).prefetchSensors(),
   async () => (await loadBenchmarks()).prefetchBenchmarks(),
+  loadTracking,
 ];
 
 /**
@@ -462,6 +469,8 @@ function RouteContent({
       return <DevicesScreen />;
     case 'benchmarks':
       return <BenchmarksScreen />;
+    case 'tracking':
+      return <TrackingScreen />;
     case 'appHistory':
       return <AppHistoryScreen />;
     case 'users':

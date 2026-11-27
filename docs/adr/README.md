@@ -58,6 +58,7 @@ D-numbers refer to the decision table in [`../TRACKER.md`](../TRACKER.md).
 | [0048](0048-heavy-gates-run-in-the-devcloud.md)                      | Heavy gates run on the devcloud; `-Where` decides           | S26-12         |
 | [0049](0049-agent-collaboration-reads-the-coordination-directory.md) | Agent collaboration is read from the coordination directory | S26-13         |
 | [0050](0050-cloud-agents-in-the-collaboration-view.md)               | Agents in Codwen's cloud appear beside the local ones       | S26-19         |
+| [0051](0051-tracking-reads-the-tracker-index.md)                     | Tracking draws agentq's tracker index, read-only            | S26-32         |
 
 ## Writing a new one
 

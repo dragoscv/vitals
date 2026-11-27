@@ -7305,6 +7305,17 @@ detail. The tallies are the scanner's own `countsByStatus`, summed per
 repository and again across the index: the page draws the linter's numbers
 rather than recounting them, so the two cannot disagree about a tracker.
 
+Two things only the real index could show, and both changed the page. The
+scanner records the branch as `refs/heads/main` — the symbolic ref — so eleven
+characters of prefix were about to be drawn on every card; `shortRef` now drops
+that prefix and nothing else, leaving a detached head's sha and a bare name
+exactly as recorded. And the command the empty state offers must not be
+`--scan --all`: that form walks `~/gh`, which on this machine is
+`C:\Users\…\gh` and does not exist, so the tool silently falls back to scanning
+every directory in the home folder and writes an index of the wrong thing. The
+string in the window is the tool's own first usage form, `--scan <dir> [<dir> …]`,
+which is also what the neighbouring `tools/track.mjs` prints first.
+
 Read-only is by construction: no command writes, no row has an action, and
 nothing is cached. The one fact read from anywhere else is locality — whether a
 Codwen account is stored, the same read the Cloud tab already makes — drawn as a
@@ -7329,15 +7340,30 @@ the dated research snapshot it declares itself to be.
 
 Verification: `pnpm typecheck` exit 0 (7 of 7 tasks); `tsc --noEmit -p
 tsconfig.json` exit 0 with all six tracking files in the program (proven with
-`--listFiles`, 6 matches); `vitest run` exit 0 — 150 files, 1539 tests passed, of
-which the new `model.test.ts` is 20 and non-vacuous by mutation (removing `done`
+`--listFiles`, 6 matches); `vitest run` exit 0 — 150 files, 1540 tests passed, of
+which the new `model.test.ts` is 21 and non-vacuous by mutation (removing `done`
 from `CLOSED_STATUSES` fails exactly `counts open rows as everything that is not
-done, dropped or deferred`, 1 failed / 19 passed, restored to 20/20); `eslint`
+done, dropped or deferred`, 1 failed / 19 passed, restored green); `eslint`
 exit 0 and `prettier --check` exit 0 on the touched paths; `scripts/check-drift.ps1`
-exit 0 with `drift: 0 failure(s), 0 warning(s) - checked 16 ts_rs files, 137
+exit 0 with `drift: 0 failure(s), 0 warning(s) — checked 16 ts_rs files, 137
 invokes, 137 commands, 2 locales, 3 shipped icon binaries`; `cargo clippy -p
 vitals-desktop --all-targets -- -D warnings` exit 0 in 40.7 s; `scripts/check-tracker.ps1`
-exit 0. The whole of `scripts/verify.ps1` was not run for this slice — its
+exit 0 with `tracker: 0 problem(s)`.
+
+The read path was proved against real files rather than a fixture, because a
+fixture cannot show that the scanner's own output survives the trip. The page's
+parser, imported from `features/tracking/model.ts` and not re-implemented, was
+run over the index this machine already holds — 2 repositories, 2 trackers, 393
+rows, 52 open, 1 drift finding, **0 rows dropped** — and over a fresh three-repo
+scan (`--scan E:\gh\vitals E:\gh\agentq E:\gh\brivio`, into a scratch
+`AGENTQ_HOME` so the shared index was not overwritten): 3 repositories, 71
+trackers, 6,910 rows, 1,091 open, 0 rows dropped, 93% of it inside one 5.4 MB
+file. Both print the numbers the screen would draw; the script is
+`.copilot-tmp/prove-tracking.mjs`. That run is also what caught the two defects
+above — the `refs/heads/` prefix and the `--all` fallback — which no fixture
+would have.
+
+The whole of `scripts/verify.ps1` was not run for this slice — its
 tracker gate, the frontend lanes and the desktop crate's clippy were run on their
 own instead — so the release and Android lanes are unmeasured here.
 

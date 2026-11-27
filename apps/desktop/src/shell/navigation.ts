@@ -44,6 +44,7 @@ import {
   HardDrive,
   HeartPulse,
   LayoutDashboard,
+  ListChecks,
   ListTree,
   MessagesSquare,
   Network,
@@ -80,6 +81,7 @@ export const routeIds = [
   'installedApps',
   'devices',
   'benchmarks',
+  'tracking',
   'health',
 ] as const;
 
@@ -131,6 +133,8 @@ export const navItems: readonly NavItem[] = [
   { id: 'appHistory', labelKey: 'nav.appHistory', icon: Gauge, group: 'more' },
   { id: 'users', labelKey: 'nav.users', icon: Users, group: 'more' },
   { id: 'benchmarks', labelKey: 'nav.benchmarks', icon: Cpu, group: 'more' },
+  // After the first nine, so Ctrl+1…9 never shifts when it appears.
+  { id: 'tracking', labelKey: 'nav.tracking', icon: ListChecks, group: 'more' },
   // Last, after the first nine, so Ctrl+1…9 never shifts when it appears.
   // Hidden until a vmui connection exists — see `useNavVisibility`.
   { id: 'health', labelKey: 'nav.health', icon: HeartPulse, group: 'more' },

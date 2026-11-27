@@ -518,6 +518,42 @@ fn agentq_status() -> AgentqStatus {
     vitals_agents::actions::status(None)
 }
 
+/// The cross-repo tracker index, as written by agentq's own
+/// `node tools/tracker-lint.mjs --scan`.
+///
+/// Read-only and returned verbatim: the file is a rebuildable *view* of the
+/// per-repo trackers, produced by a JavaScript tool on this machine, so its
+/// shape is not ours to re-derive. The Tracking feature types it on the
+/// frontend (`features/tracking/model.ts`), exactly as `get_cloud_status`
+/// types its answer at the call site.
+///
+/// `null` is the honest answer when no scan has run yet — the index file is
+/// simply absent on a fresh machine. That is a normal state, not an error, so
+/// a missing file and an unreadable one both resolve to `null` and the page
+/// shows its empty state (which names the command that fills it) rather than
+/// a failure banner.
+///
+/// `async` on purpose: reading a file is I/O, and a plain `fn` command would
+/// run it on the thread that pumps every window's messages
+/// (`scripts/check-drift.ps1`, rule 7).
+#[tauri::command]
+pub async fn get_tracker_index() -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(|| {
+        let Some(root) = vitals_agents::agentq::default_root() else {
+            return serde_json::Value::Null;
+        };
+        let path = root.join("trackers").join("index.json");
+        let Ok(text) = std::fs::read_to_string(&path) else {
+            return serde_json::Value::Null;
+        };
+        // PowerShell writes a BOM; serde_json refuses it (`agentq::read_json`
+        // does the same for every other coord file).
+        serde_json::from_str(text.trim_start_matches('\u{feff}')).unwrap_or(serde_json::Value::Null)
+    })
+    .await
+    .map_err(|e| e.to_string())
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentqActionResult {

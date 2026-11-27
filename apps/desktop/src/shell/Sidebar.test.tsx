@@ -103,7 +103,7 @@ describe('Sidebar', () => {
       'devices',
       'network',
     ]);
-    expect(ids('More')).toEqual(['appHistory', 'users', 'benchmarks']);
+    expect(ids('More')).toEqual(['appHistory', 'users', 'benchmarks', 'tracking']);
     // Document order across groups is the flat order, so arrows and
     // Ctrl+1…9 agree with what the eye sees.
     expect(navButtons().map((b) => b.dataset['navItem'])).toEqual(navItems.map((i) => i.id));
@@ -121,7 +121,7 @@ describe('Sidebar', () => {
     const more = within(screen.getByRole('group', { name: 'More' }))
       .getAllByRole('button')
       .map((b) => b.dataset['navItem']);
-    expect(more).toEqual(['appHistory', 'users', 'benchmarks', 'health']);
+    expect(more).toEqual(['appHistory', 'users', 'benchmarks', 'tracking', 'health']);
 
     act(() => {
       useNavVisibility.getState().setHealth(false);

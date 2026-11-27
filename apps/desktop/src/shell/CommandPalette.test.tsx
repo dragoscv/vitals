@@ -39,8 +39,9 @@ function options(): HTMLElement[] {
 describe('CommandPalette', () => {
   it('lists every section plus the actions', () => {
     renderPalette();
-    // Fourteen routes and three actions.
-    expect(options()).toHaveLength(17);
+    // Fifteen routes (Health is hidden until vmui is connected) and three
+    // actions.
+    expect(options()).toHaveLength(18);
     expect(screen.getByRole('option', { name: /Processes/ })).toBeTruthy();
     expect(screen.getByRole('option', { name: /Why is my PC slow/ })).toBeTruthy();
   });

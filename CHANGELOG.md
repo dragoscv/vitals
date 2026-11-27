@@ -7,6 +7,24 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **Tracking** — one page for every plan on the machine, read from the index
+  `agentq`'s `tools/tracker-lint.mjs --scan` writes after reading each
+  repository's own tracker. Repositories, their trackers and their rows, with
+  the per-status tallies and the drift findings the scanner recorded, so a
+  question that used to mean opening eight repositories is answered in one
+  place. It is a **view and nothing else**: it holds no second copy of any
+  tracker, writes to nothing, and cannot mark a row — the file each repository
+  owns stays the source of truth, and the page says which scan it is drawing
+  and how long ago it ran. A machine with no scan yet is told the command that
+  produces one rather than shown an empty list, and a status the scanner could
+  not map onto the canonical vocabulary is displayed as the raw token it found
+  instead of being quietly dropped. The page is honest about where it is
+  running too: read from a local scan it says local-only, and the header turns
+  to the Codwen account only for the fact that one is stored, which is the same
+  read the Cloud tab already makes.
+
 ## [1.5.0] — 2026-11-27
 
 ### Added
