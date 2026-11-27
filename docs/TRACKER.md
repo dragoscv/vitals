@@ -6906,6 +6906,50 @@ The gate also refuses two ways of passing vacuously: a bundle that carries
 native libraries but no 64-bit one, and any ABI the script does not classify.
 Both would otherwise be silent exemptions, and both are failures here.
 
+### S26-28 continued — the release run stopped before the release, on a walk that measured the runner (2026-11-27)
+
+The tag's run (45959255091, `v1.5.0` -> `b4399d3`) is `completed/failure`, and the
+job that failed is `Verify`. Everything downstream is `skipped` — SBOM, the
+build matrix, sign + notarise, rehearse publish, Publish, Chocolatey, Scoop,
+winget, Google Play, npm — so the failure's cost is not the red mark: **nothing
+was published, no `SHA256SUMS.txt` exists, and the channel manifests therefore have
+no hashes to carry.** The state of the release is "tagged, not released".
+
+- The verdict line is a test budget, not a defect in the assertion:
+  `FAIL ts: typecheck + lint + tests 877.2s [ts local]`,
+  `Test Files 1 failed | 148 passed (149)`, `Tests 1 failed | 1518 passed (1519)`,
+  `Error: Test timed out in 15000ms. ❯ src/styles.test.ts:338:3`. It is the test
+  that walks `src/features/` and reads every `.tsx` it finds.
+- The same gate passed in the cloud lane minutes earlier, on the same commit
+  (`All 16 gates passed in 830.8s`, job `20261127-073133-e04ac9`), and it passed
+  again in CI on `main` afterwards. A 15 s limit that holds on one machine and
+  not another is measuring the machine: the walk read the files **one at a time**,
+  and this whole file runs in **1.39 s locally** (26/26). The ts gate took 877 s
+  on that runner, which is what a loaded runner does to a filesystem walk.
+- The house had already met this exact class **in this exact file**: the sibling
+  test below carries `60_000` with a comment naming the incident it came from
+  ("~400 serial reads timed out at 15 s on the loaded release Verify runner
+  (v1.2.0, run 40700651708)"). So the fix is the sibling's shape rather than a
+  new idea: read the tree in parallel and give the test a budget. The expectation
+  is untouched — the same two paths, in the same order, must be the only hits.
+- A gate that fails on the machine rather than on the code is not a gate this
+  release can pass, and re-running it would have been a coin toss rather than a
+  repair: the same luck that timed out once passes next time. So the tag moves a
+  third time, to this fix, rather than being re-run over the flake.
+- Only the walk changed. `rg -n "recursive: true" --glob '*.test.ts*'` now
+  returns nothing, and the three remaining `readdirSync` walkers in the desktop
+  package (`mobile/boundary.test.ts`, `hud/boundary.test.ts`,
+  `features/processes/strings.test.ts`) each walk only their own small subtree,
+  so they are not the same risk.
+
+Publishing is still two facts away from done, and neither is a code change: the
+`release` environment has 2 protection rules and needs the owner's approval
+before `Publish` will run, and the three channels need the release's real
+installers before their manifests can carry hashes
+(`packaging/fill-hashes.ps1`, which verifies a downloaded installer against
+`SHA256SUMS.txt`). `v1.4.0` published successfully on 2026-11-25, so a 1.4.0
+channel catch-up is possible on its own, without waiting for 1.5.0.
+
 ## S13 — public beta 0.9.0-beta.1 (2026-09-28)
 
 Decided with the owner (ADR 0031): public repository, beta version, no code
