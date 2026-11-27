@@ -1403,7 +1403,7 @@ jobs:
           serviceAccountJson: ${{ steps.gcp.outputs.credentials_file_path }}
           packageName: app.vitals
           releaseFiles: play/vitals-android.aab
-          track: ${{ steps.track.outputs.phone }}
+          tracks: ${{ steps.track.outputs.phone }}
           status: ${{ steps.track.outputs.status }}
           userFraction: ${{ steps.track.outputs.fraction }}
           whatsNewDirectory: whatsnew
@@ -1414,7 +1414,7 @@ jobs:
           serviceAccountJson: ${{ steps.gcp.outputs.credentials_file_path }}
           packageName: app.vitals
           releaseFiles: play/vitals-android.aab
-          track: ${{ steps.track.outputs.phone }}
+          tracks: ${{ steps.track.outputs.phone }}
           status: ${{ steps.track.outputs.status }}
           userFraction: ${{ steps.track.outputs.fraction }}
           whatsNewDirectory: whatsnew
@@ -1430,7 +1430,7 @@ jobs:
           serviceAccountJson: ${{ steps.gcp.outputs.credentials_file_path }}
           packageName: app.vitals
           releaseFiles: play/vitals-wear.aab
-          track: ${{ steps.track.outputs.wear }}
+          tracks: ${{ steps.track.outputs.wear }}
           status: ${{ steps.track.outputs.status }}
           userFraction: ${{ steps.track.outputs.fraction }}
           whatsNewDirectory: whatsnew
@@ -1441,7 +1441,7 @@ jobs:
           serviceAccountJson: ${{ steps.gcp.outputs.credentials_file_path }}
           packageName: app.vitals
           releaseFiles: play/vitals-wear.aab
-          track: ${{ steps.track.outputs.wear }}
+          tracks: ${{ steps.track.outputs.wear }}
           status: ${{ steps.track.outputs.status }}
           userFraction: ${{ steps.track.outputs.fraction }}
           whatsNewDirectory: whatsnew
@@ -1455,7 +1455,7 @@ jobs:
           serviceAccountJson: ${{ steps.gcp.outputs.credentials_file_path }}
           packageName: app.vitals
           releaseFiles: play/vitals-tv.aab
-          track: ${{ steps.track.outputs.tv }}
+          tracks: ${{ steps.track.outputs.tv }}
           status: ${{ steps.track.outputs.status }}
           userFraction: ${{ steps.track.outputs.fraction }}
           whatsNewDirectory: whatsnew
@@ -1466,7 +1466,7 @@ jobs:
           serviceAccountJson: ${{ steps.gcp.outputs.credentials_file_path }}
           packageName: app.vitals
           releaseFiles: play/vitals-tv.aab
-          track: ${{ steps.track.outputs.tv }}
+          tracks: ${{ steps.track.outputs.tv }}
           status: ${{ steps.track.outputs.status }}
           userFraction: ${{ steps.track.outputs.fraction }}
           whatsNewDirectory: whatsnew
