@@ -7204,6 +7204,59 @@ macOS sampler already publishes the charge, and the tray now has a way to show
 it. What remains open in this row is unchanged and owner-only: numbers from a
 Mac that has a battery.
 
+### S26-31 — the firewall prompt drew Windows' generic icon, because the shipped binaries had no icon at all (2026-11-28)
+
+The report was about the Windows Defender Firewall prompt that appears the
+first time `vitals serve` binds a socket: it drew the blank generic application
+icon instead of the mark. The prompt was not the defect. The binaries it names
+had no icon to draw, and no version block either.
+
+`rustc` writes no resource section of its own, and the only package in the
+workspace with anything embedding one was `apps/desktop`, where `tauri-build`
+does it from `bundle.icon` in `tauri.conf.json`. The three console binaries had
+nothing. Read off the 1.5.0 artefacts: `vitals.exe`, `vitals-watchdog.exe` and
+`vitals-sensors.exe` all hashed `368864D5D68274FA…` and carried no
+`ProductName`, no `FileDescription` and no version at all, while
+`vitals-desktop.exe` hashed `9B8A59FECDD6FDD3…`. That difference is Windows'
+default icon, drawn wherever a binary is listed: the firewall prompt, Explorer,
+Task Manager.
+
+Fixed with a `build.rs` in each of the three packages, which embeds
+`apps/desktop/src-tauri/icons/icon.ico` — the same artefact the desktop embeds,
+through the same resource id `tauri-build` uses — and names the product
+`Vitals` rather than `vitals-cli`, a crate name no user has seen. The
+description stays each package's own sentence, which is the more useful line
+when the version block is read. `tauri-winres` was already in the tree as a
+build dependency of `tauri-build`, so this added no crate, no download and no
+licence; `scripts/third-party-notices.ps1 -Check` still reports the notices
+current, because a build dependency is not a shipped one.
+
+The three scripts are byte-identical deliberately: one fact stated three times
+drifts, so `scripts/check-drift.ps1` gained an eleventh section that reads all
+three, compares their hashes, requires each to embed the icon and name the
+product, requires each manifest to declare the build dependency, and requires
+`tauri.conf.json` to name the same icon it hands the desktop. `apps/helper` is
+not among them: nothing installs it and it is not in the installed tree, so no
+user's firewall prompt can name it.
+
+What the fix does not reach: the artefacts published for 1.5.0 still contain
+the three iconless binaries, so this ships with the next release. The first run
+of `cargo clippy -p vitals-cli -p vitals-watchdog -p vitals-sensors
+--all-targets -- -D warnings` rejected the new scripts with
+`clippy::manual_assert` on `if !icon.is_file() { panic!(…) }`; the check is an
+`assert!` now, which is also why the guard's mutation test was re-run after it.
+
+Verification: `cargo build` of the three packages exit 0 (202.3 s, log
+`.copilot-tmp/build-logs/20261128-004943-cargo-build-p-vitals-cli-p-vitals-watchd.log`);
+the icon readout of the rebuilt binaries reports `9B8A59FECDD6FDD3…` plus
+`ProductName Vitals`, version `1.5.0` and each package's own description for all
+four; `cargo clippy … -D warnings` exit 0; `cargo fmt --all -- --check` exit 0;
+`scripts/check-drift.ps1` exit 0 with `drift: 0 failure(s)` and
+`3 shipped icon binaries`; section 11 proven non-vacuous by two mutations —
+renaming one script away reports 2 failures, and pointing one script at another
+icon and another product name reports 3 (does not embed, does not name the
+product, drifted apart) — with the restored tree back at 0 failures.
+
 ## S13 — public beta 0.9.0-beta.1 (2026-09-28)
 
 Decided with the owner (ADR 0031): public repository, beta version, no code

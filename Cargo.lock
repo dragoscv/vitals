@@ -5941,6 +5941,7 @@ dependencies = [
  "crossterm",
  "serde",
  "serde_json",
+ "tauri-winres",
  "tokio",
  "ureq",
  "vitals-core",
@@ -6078,6 +6079,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.11.0",
+ "tauri-winres",
  "windows 0.62.2",
  "windows-service",
 ]
@@ -6129,6 +6131,7 @@ dependencies = [
  "anyhow",
  "serde",
  "serde_json",
+ "tauri-winres",
  "tauri-winrt-notification 0.8.1",
  "tracing",
  "tracing-subscriber",

@@ -38,6 +38,11 @@
                   example left at 1.2.0.0 after the bump to 1.3.0, and the
                   workflow_dispatch command in msix.yml left at the previous
                   version after the bump to 1.3.1.
+             11. A shipped executable that Windows draws with its generic application
+                        icon because nothing embedded one. It compiles, every test passes,
+                        and the mark is missing only in a dialog that draws it — Explorer,
+                        Task Manager, and the firewall prompt `vitals serve` raises.
+                        Shipped: 1.5.0's CLI, watchdog and sensors helper, all three.
 
     Exit code is the number of hard failures. Warnings do not fail the gate.
 
@@ -657,13 +662,85 @@ if (-not $currentVersion) {
     }
 }
 
+# ── 11. the shipped console binaries carry the brand icon ──────────────
+
+# rustc writes no resource section into a binary, so a program that never runs
+# a resource compiler is drawn with Windows' generic application icon. The
+# desktop app the user double-clicks is covered by tauri-build; the executable
+# below it is not, and neither are the two helpers the installer ships beside
+# it. Nothing in the source says so — the crate compiles, every test passes, and
+# the defect is visible only to a user who opens a dialog that draws the icon.
+# 1.5.0 shipped all three of them, and the first report was the firewall prompt
+# `vitals serve` raises when it binds a socket.
+#
+# The three build scripts are byte-identical on purpose. Each copy carries two
+# facts — the icon path and the product name — and a copy that drifts is a
+# binary that shows no mark or names the wrong product, silently. Comparing
+# three hashes here is cheaper than noticing that in a release.
+#
+# The name is checked against bundle.productName in tauri.conf.json, the same
+# string the desktop binary carries, and the icon against bundle.icon, so all
+# four executables are pinned to one artefact and one name.
+
+$iconRelative = 'apps/desktop/src-tauri/icons/icon.ico'
+$iconFile = Join-Path $root ($iconRelative -replace '/', [IO.Path]::DirectorySeparatorChar)
+$iconConfFile = Join-Path $root 'apps/desktop/src-tauri/tauri.conf.json'
+# tauri.conf.json lists the file relative to src-tauri (bundle.icon), so the
+# leaf is what both forms have in common.
+$iconLeaf = [IO.Path]::GetFileName($iconRelative)
+
+if (-not (Test-Path -LiteralPath $iconFile)) {
+    $failures.Add("${iconRelative}: the brand icon the shipped executables embed is missing — brand/scripts/build.mjs regenerates it")
+}
+
+$productName = ''
+if (Test-Path -LiteralPath $iconConfFile) {
+    $confText = [IO.File]::ReadAllText($iconConfFile)
+    $productName = [regex]::Match($confText, '"productName"\s*:\s*"([^"]+)"').Groups[1].Value
+    if (-not $productName) {
+        $failures.Add('tauri.conf.json: no bundle productName, so the name the firewall prompt shows cannot be checked')
+    }
+    if ($confText -cnotmatch ('"[^"]*' + [regex]::Escape($iconLeaf) + '"')) {
+        $failures.Add("tauri.conf.json: bundle.icon does not list $iconLeaf, so $iconRelative is not the artefact the desktop embeds")
+    }
+} else {
+    $failures.Add('tauri.conf.json: missing, so the product name and the icon the desktop embeds cannot be checked')
+}
+
+$iconBinaries = @('apps/cli', 'apps/watchdog', 'crates/vitals-sensors')
+$iconBuildScriptHashes = [ordered]@{}
+foreach ($iconPackage in $iconBinaries) {
+    $iconBuildScript = Join-Path $root "$iconPackage/build.rs"
+    if (-not (Test-Path -LiteralPath $iconBuildScript)) {
+        $failures.Add("${iconPackage}/build.rs: missing, so this executable ships with Windows' generic application icon (copy the body from crates/vitals-sensors/build.rs)")
+        continue
+    }
+    $iconBuildSource = [IO.File]::ReadAllText($iconBuildScript)
+    if ($iconBuildSource -cnotmatch [regex]::Escape($iconRelative)) {
+        $failures.Add("${iconPackage}/build.rs: does not embed $iconRelative")
+    }
+    if ($productName -and ($iconBuildSource -cnotmatch [regex]::Escape('"' + $productName + '"'))) {
+        $failures.Add("${iconPackage}/build.rs: does not name the product $productName, so the firewall prompt would show this crate's own name")
+    }
+    $iconManifest = Join-Path $root "$iconPackage/Cargo.toml"
+    if (Test-Path -LiteralPath $iconManifest) {
+        if ([IO.File]::ReadAllText($iconManifest) -cnotmatch '(?ms)^\[build-dependencies\][\s\S]*?tauri-winres') {
+            $failures.Add("${iconPackage}/Cargo.toml: [build-dependencies] does not declare tauri-winres, so build.rs cannot compile")
+        }
+    }
+    $iconBuildScriptHashes[$iconPackage] = (Get-FileHash -LiteralPath $iconBuildScript -Algorithm SHA256).Hash
+}
+if (@($iconBuildScriptHashes.Values | Select-Object -Unique).Count -gt 1) {
+    $failures.Add("the icon build scripts have drifted apart ($($iconBuildScriptHashes.Keys -join ', ')) — keep them byte-identical, they carry one fact each")
+}
+
 # ── Report ─────────────────────────────────────────────────────────────
 
 foreach ($w in $warnings) { Write-Host "warn  $w" -ForegroundColor Yellow }
 foreach ($f in $failures) { Write-Host "FAIL  $f" -ForegroundColor Red }
 
 Write-Host ''
-Write-Host ("drift: {0} failure(s), {1} warning(s) — checked {2} ts_rs files, {3} invokes, {4} commands, {5} locales" -f
-    $failures.Count, $warnings.Count, $tsFiles.Count, $invoked.Count, $registered.Count, $locales.Count)
+Write-Host ("drift: {0} failure(s), {1} warning(s) — checked {2} ts_rs files, {3} invokes, {4} commands, {5} locales, {6} shipped icon binaries" -f
+    $failures.Count, $warnings.Count, $tsFiles.Count, $invoked.Count, $registered.Count, $locales.Count, $iconBinaries.Count)
 
 exit $failures.Count

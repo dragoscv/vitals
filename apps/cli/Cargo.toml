@@ -38,5 +38,11 @@ vitals-macos = { workspace = true }
 [dev-dependencies]
 vitals-core = { workspace = true, features = ["fixtures"] }
 
+[build-dependencies]
+# The icon Windows draws in the firewall prompt, in Explorer and in Task Manager
+# (see build.rs). Already in the tree through tauri-build, so no new download and
+# no new licence: rustc writes no resource section of its own.
+tauri-winres = "0.3.6"
+
 [lints]
 workspace = true
