@@ -26,6 +26,7 @@ mod frame;
 mod hostinfo;
 mod input;
 mod mach;
+mod power;
 mod sampler;
 
 pub use actions::{resume, set_priority, suspend, terminate};

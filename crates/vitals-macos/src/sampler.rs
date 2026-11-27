@@ -133,7 +133,11 @@ impl SystemSampler {
             // (guideline 2.5.1 risk); an empty list means "not measured".
             gpus: Vec::new(),
             power_draw: None,
-            battery: None,
+            // Read on the tick, not behind the sensor cache: `IOPSCopyPowerSourcesInfo`
+            // is an in-process call over a cached dictionary, far cheaper than
+            // the thermal reads that cache exists for, and caching it would only
+            // make the charge figure stale by up to five seconds.
+            battery: crate::power::battery(),
             fans: fans(),
         };
 
