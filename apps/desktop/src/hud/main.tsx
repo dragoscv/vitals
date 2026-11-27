@@ -4,8 +4,10 @@ import { createRoot } from 'react-dom/client';
 import { i18n, initI18n, isSupportedLocale, type Locale } from '@vitals/i18n';
 
 import { installGlobalErrorLogging, reportToLog } from '../lib/logToFile';
+import { ErrorBoundary } from './ErrorBoundary';
 import { HudApp } from './HudApp';
 import { applyOverlayTheme } from './lib/theme';
+import { RootError } from './RootError';
 import './styles.css';
 
 /**
@@ -42,7 +44,11 @@ async function bootstrap(): Promise<void> {
 
   createRoot(container).render(
     <StrictMode>
-      <HudApp locale={i18n.language} />
+      {/* At the root: one throw anywhere in the overlay unmounts the tree and
+          leaves an empty window on top of the user's screen with no way back. */}
+      <ErrorBoundary fallback={(error, retry) => <RootError error={error} onRetry={retry} />}>
+        <HudApp locale={i18n.language} />
+      </ErrorBoundary>
     </StrictMode>,
   );
 }

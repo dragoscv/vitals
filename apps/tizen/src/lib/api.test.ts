@@ -2,6 +2,7 @@ import { VitalsError } from '@vitals/client';
 import { describe, expect, it } from 'vitest';
 
 import { controlFailure } from './api';
+import { DASH } from './format';
 
 describe('controlFailure', () => {
   it('learns the pairing is read-only only from a token refusal, not from Windows refusing', () => {
@@ -31,5 +32,13 @@ describe('controlFailure', () => {
       key: 'control.failed',
       values: { status: 418 },
     });
+  });
+
+  it('shows the dash, not a zero, when the failure carried no HTTP status', () => {
+    // No status means the transport gave up — "That did not work (0)" would
+    // report a code the PC never sent.
+    const outcome = controlFailure(new VitalsError('http', 'x'));
+    expect(outcome.values).toEqual({ status: DASH });
+    expect(outcome.values?.status).not.toBe(0);
   });
 });

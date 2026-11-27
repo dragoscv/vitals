@@ -9,6 +9,7 @@
 import { isVitalsError } from '@vitals/client';
 import type { MachineSample, SensorLine } from '@vitals/protocol';
 
+import { DASH } from './format';
 import type { Pairing } from './pairing';
 
 export class HttpError extends Error {
@@ -71,6 +72,10 @@ export function controlFailure(error: unknown): ControlOutcome {
     case 'internal':
       return { key: 'control.internal', values: { reason: detail.message }, readOnly: false };
     default:
-      return { key: 'control.failed', values: { status: error.status ?? 0 }, readOnly: false };
+      // No status means the failure came from the transport, not an HTTP
+      // reply — the same fact as an unmeasured metric, so it reads as the
+      // dash. `?? 0` here printed "That did not work (0)", a status code the
+      // PC never sent.
+      return { key: 'control.failed', values: { status: error.status ?? DASH }, readOnly: false };
   }
 }

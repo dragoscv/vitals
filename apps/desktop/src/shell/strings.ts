@@ -163,6 +163,9 @@ const en = {
       browse: 'Browse…',
       test: 'Test',
       volume: 'Volume',
+      audioFiles: 'Audio files',
+      errorInvalidSensitivity:
+        'The saved "when to warn" setting is not one this copy knows. Choose one below to replace it.',
       stateChecking: 'Checking the watchdog…',
       stateRunning: 'Running, and starts when you sign in.',
       stateStopped:
@@ -193,6 +196,7 @@ const en = {
         'Off by default. Windows may ask you to allow Vitals through the firewall the first time.',
       status: 'Server',
       listening: 'Listening on port {{port}}',
+      listeningOn: 'Listening on {{address}}:{{port}}',
       pairTitle: 'Pair a device',
       interface: 'Network adapter',
       interfaceHint:
@@ -289,6 +293,9 @@ const en = {
   sampler: {
     errorTitle: 'A reading failed',
     errorBody: 'Vitals kept the last good numbers. {{detail}}',
+  },
+  stale: {
+    banner: 'Readings stopped updating at {{time}}. These are the last values received.',
   },
 } as const;
 
@@ -468,6 +475,9 @@ const ro = {
       browse: 'Răsfoiește…',
       test: 'Testează',
       volume: 'Volum',
+      audioFiles: 'Fișiere audio',
+      errorInvalidSensitivity:
+        'Setarea salvată pentru momentul avertizării nu este cunoscută de această versiune. Alege una mai jos ca s-o înlocuiești.',
       stateChecking: 'Se verifică watchdog-ul…',
       stateRunning: 'Rulează și pornește când te autentifici.',
       stateStopped: 'Nu rulează. Pornește la următoarea autentificare sau când îl activezi aici.',
@@ -498,6 +508,7 @@ const ro = {
         'Dezactivat implicit. Windows îți poate cere să permiți Vitals prin firewall prima dată.',
       status: 'Server',
       listening: 'Ascultă pe portul {{port}}',
+      listeningOn: 'Ascultă pe {{address}}:{{port}}',
       pairTitle: 'Asociază un dispozitiv',
       interface: 'Adaptor de rețea',
       interfaceHint:
@@ -589,6 +600,10 @@ const ro = {
   sampler: {
     errorTitle: 'O măsurătoare a eșuat',
     errorBody: 'Vitals a păstrat ultimele valori bune. {{detail}}',
+  },
+  stale: {
+    banner:
+      'Citirile au încetat să se actualizeze la {{time}}. Acestea sunt ultimele valori primite.',
   },
   routeError: {
     title: 'Această secțiune a încetat să funcționeze',

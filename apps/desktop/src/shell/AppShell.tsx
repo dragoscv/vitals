@@ -23,6 +23,7 @@ import { usePlatformVisibility } from './platform';
 import { RouteError } from './RouteError';
 import { Sidebar } from './Sidebar';
 import type { ShortcutActions } from './shortcuts';
+import { StaleBanner } from './StaleBanner';
 import { TitleBar } from './TitleBar';
 import { useSamplerToasts } from './useSamplerToasts';
 import { useShortcuts } from './useShortcuts';
@@ -231,6 +232,10 @@ export function AppShell({ version }: AppShellProps) {
     <TooltipProvider>
       <div className="flex h-full flex-col">
         <TitleBar>{sectionName}</TitleBar>
+
+        {/* Above the content and below the title bar: a whole-app fact, not a
+            property of the screen you happen to be on. */}
+        <StaleBanner />
 
         <div className="flex min-h-0 flex-1">
           <Sidebar

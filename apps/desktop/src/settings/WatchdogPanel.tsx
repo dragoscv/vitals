@@ -22,6 +22,19 @@ function fileName(path: string): string {
   return path.split(/[\\/]/).pop() ?? path;
 }
 
+/**
+ * The backend answers with a stable key when it refuses a stored setting it
+ * cannot read, rather than guessing at a language — `watchdog.rs` holds the
+ * other half of that contract. Anything unrecognised is shown as it arrived,
+ * which keeps a failure nobody predicted legible instead of swallowing it.
+ */
+function WatchdogErrorText({ message }: { readonly message: string }) {
+  const { t } = useTranslation(SHELL_NS);
+  if (message === 'invalidSensitivity')
+    return <>{t('settings.watchdog.errorInvalidSensitivity')}</>;
+  return <>{message}</>;
+}
+
 export function WatchdogPanel({ api = tauriWatchdogApi }: { readonly api?: WatchdogApi }) {
   const { t, i18n } = useTranslation(SHELL_NS);
   const { config, status, busy, error, update, test, pickFile } = useWatchdog(api);
@@ -107,7 +120,7 @@ export function WatchdogPanel({ api = tauriWatchdogApi }: { readonly api?: Watch
               options={soundOptions}
               onValueChange={(key) => {
                 const sound = soundFromKey(key, config.sound);
-                if (sound === null) pickFile();
+                if (sound === null) pickFile(t('settings.watchdog.audioFiles'));
                 else update({ sound });
               }}
             />
@@ -116,7 +129,7 @@ export function WatchdogPanel({ api = tauriWatchdogApi }: { readonly api?: Watch
               variant="secondary"
               size="sm"
               disabled={locked || !config.enabled}
-              onClick={pickFile}
+              onClick={() => pickFile(t('settings.watchdog.audioFiles'))}
             >
               {t('settings.watchdog.browse')}
             </Button>
@@ -154,7 +167,7 @@ export function WatchdogPanel({ api = tauriWatchdogApi }: { readonly api?: Watch
       </p>
       {error !== null && (
         <p className="text-2xs text-[var(--color-danger-text)]" role="alert">
-          {error}
+          <WatchdogErrorText message={error} />
         </p>
       )}
     </SettingsSection>

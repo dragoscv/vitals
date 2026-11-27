@@ -29,9 +29,6 @@ const en = {
     unknownCapacity: 'Capacity not reported',
     label: '{{mount}} {{label}}',
     scanHint: 'A scan reads every folder on the drive, several at once, and counts every file.',
-    fast: 'Fast discovery available',
-    fastHint:
-      'This drive supports reading its file index directly, which finds folders in seconds. Sizes still come from the full walk, so the scan is not instant.',
     empty: 'No drives reported.',
   },
 
@@ -399,9 +396,6 @@ const ro = {
     label: '{{mount}} {{label}}',
     scanHint:
       'O scanare citește fiecare folder de pe unitate, mai multe deodată, și numără fiecare fișier.',
-    fast: 'Descoperire rapidă disponibilă',
-    fastHint:
-      'Această unitate permite citirea directă a indexului de fișiere, ceea ce găsește folderele în câteva secunde. Dimensiunile vin tot din parcurgerea completă, deci scanarea nu este instantanee.',
     empty: 'Nu au fost raportate unități.',
   },
 

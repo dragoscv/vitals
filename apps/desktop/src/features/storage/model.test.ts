@@ -73,7 +73,6 @@ function volume(overrides: Partial<Volume> = {}): Volume {
     kind: 'nvme',
     total: 100 * GB,
     available: 25 * GB,
-    strategy: 'directoryWalk',
     ...overrides,
   };
 }

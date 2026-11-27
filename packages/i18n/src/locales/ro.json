@@ -189,6 +189,16 @@
     "enable": "Activează",
     "learnMore": "Află mai multe"
   },
+  "error": {
+    "details": "Detalii",
+    "kind": {
+      "accessDenied": "Windows nu a permis asta. Pornirea Vitals ca administrator rezolvă de obicei.",
+      "notFound": "Nu mai există — poate a fost șters sau redenumit.",
+      "unsupported": "Această versiune de Vitals nu poate face asta pe acest calculator.",
+      "refused": "Sistemul a refuzat cererea.",
+      "internal": "Ceva a mers greșit în Vitals."
+    }
+  },
   "common": {
     "search": "Caută",
     "cancel": "Anulează",
@@ -349,8 +359,12 @@
       "live": "Conectat",
       "connecting": "Se conectează…",
       "reconnecting": "Se reconectează…",
-      "unreachable": "Inaccesibil"
+      "unreachable": "Inaccesibil",
+      "unauthorised": "Împerechere expirată"
     },
+    "pairAgain": "Împerechează din nou",
+    "pairExpiredBody": "Calculatorul nu mai acceptă cheia acestui telefon. Deschide Vitals pe PC și scanează un cod nou.",
+    "stale": "Ultima citire acum {{ago}}",
     "machines": {
       "title": "Calculatoare",
       "cpu": "Procesor",

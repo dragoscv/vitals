@@ -141,11 +141,7 @@ impl Source {
                 // (`vitals ps --json > file`, a CI log) must not collect
                 // escape bytes, and `NO_COLOR` is the convention the rest of
                 // these tools follow.
-                if note_is_styled() {
-                    eprintln!("\x1b[2m(sampling directly — Vitals is not running)\x1b[0m");
-                } else {
-                    eprintln!("(sampling directly — Vitals is not running)");
-                }
+                eprintln!("{}", sampling_note(note_is_styled()));
                 Direct::new().map(|d| Self::Direct(Box::new(d)))
             }
         }
@@ -727,6 +723,19 @@ fn note_is_styled() -> bool {
     )
 }
 
+/// The note itself, its escape bytes present only when styling is allowed.
+///
+/// Split from [`note_is_styled`] so the exact bytes a redirected run would
+/// have written can be asserted: `style_enabled` decides, and this shows what
+/// that decision produces.
+const fn sampling_note(styled: bool) -> &'static str {
+    if styled {
+        "\x1b[2m(sampling directly — Vitals is not running)\x1b[0m"
+    } else {
+        "(sampling directly — Vitals is not running)"
+    }
+}
+
 /// How long a local sensor read is reused.
 ///
 /// One read is a WMI round trip plus a walk of the sensor service's pipe —
@@ -857,7 +866,7 @@ mod cache_tests {
 
 #[cfg(test)]
 mod tests {
-    use super::style_enabled;
+    use super::{sampling_note, style_enabled};
 
     #[test]
     fn the_direct_sampling_note_is_styled_only_on_a_terminal_without_no_color() {
@@ -870,5 +879,20 @@ mod tests {
             !style_enabled(false, false),
             "a redirected stream must not collect escape bytes"
         );
+    }
+
+    #[test]
+    fn the_note_carries_escape_bytes_exactly_when_styling_is_on() {
+        // Case 1: a terminal with no NO_COLOR — styled, so the dim escape is
+        // present and the reset closes it.
+        assert!(style_enabled(false, true));
+        assert!(sampling_note(true).starts_with("\x1b[2m"));
+        assert!(sampling_note(true).ends_with("\x1b[0m"));
+        // Case 2: NO_COLOR set, even with stderr a terminal — plain.
+        assert!(!style_enabled(true, true));
+        assert!(!sampling_note(false).contains('\u{1b}'));
+        // Case 3: stderr a pipe — plain, so a redirected run writes no escapes.
+        assert!(!style_enabled(false, false));
+        assert!(!sampling_note(false).contains('\u{1b}'));
     }
 }

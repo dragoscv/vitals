@@ -19,6 +19,7 @@ import {
   reconcileAutostart,
 } from './lib/settingsSync';
 import { useHud } from './lib/useHud';
+import { reportFailure } from './lib/reportFailure';
 import { reportSuccess } from './lib/reportSuccess';
 import { takeUpdateOutcome } from './lib/updater';
 import { checkBrokerAddress } from './settings/mqtt/address';
@@ -186,21 +187,30 @@ function useDriveScheduleSync(
   settings: ReturnType<typeof useSettings.getState>['settings'],
   hydrated: boolean,
 ): void {
+  const { t } = useTranslation();
   const { driveCleanupSchedules, driveCleanupProfiles, locale } = settings;
 
   useEffect(() => {
     if (!hydrated) return;
-    // Lazy: the clean-up module stays out of the first paint.
-    void import('./features/storage/drivecleanup/schedule').then((m) =>
-      m.pushDriveSchedules(driveCleanupSchedules, driveCleanupProfiles),
+    // Lazy: the clean-up module stays out of the first paint. A failed load or
+    // push is surfaced rather than swallowed, so the schedules are not
+    // silently left unapplied.
+    void reportFailure(
+      import('./features/storage/drivecleanup/schedule').then((m) =>
+        m.pushDriveSchedules(driveCleanupSchedules, driveCleanupProfiles),
+      ),
+      t('common.error'),
     );
-  }, [hydrated, driveCleanupSchedules, driveCleanupProfiles]);
+  }, [t, hydrated, driveCleanupSchedules, driveCleanupProfiles]);
 
   useEffect(() => {
-    void import('./features/storage/drivecleanup/schedule').then((m) =>
-      m.pushScheduleStrings(m.toastFor(locale), locale),
+    void reportFailure(
+      import('./features/storage/drivecleanup/schedule').then((m) =>
+        m.pushScheduleStrings(m.toastFor(locale), locale),
+      ),
+      t('common.error'),
     );
-  }, [locale]);
+  }, [t, locale]);
 }
 
 /**
@@ -327,20 +337,25 @@ function useMqttAutoStart(hydrated: boolean): void {
 function useUpdateOutcome(): void {
   const { t } = useTranslation();
   useEffect(() => {
-    void takeUpdateOutcome().then(async (outcome) => {
-      if (outcome === null) return;
-      if (outcome.kind === 'installed') {
-        await reportSuccess(
-          t('settings.about.update.installedToast', { version: outcome.version }),
-        );
-        return;
-      }
-      const { toast } = await import('@vitals/ui/toast');
-      toast.error(t('settings.about.update.failedToast', { version: outcome.version }), {
-        id: 'update-outcome',
-        description: t('settings.about.update.failedToastHint'),
-      });
-    });
+    // A read failure here would otherwise leave the outcome of the last
+    // update invisible, which is the exact defect this hook exists to fix.
+    void reportFailure(
+      takeUpdateOutcome().then(async (outcome) => {
+        if (outcome === null) return;
+        if (outcome.kind === 'installed') {
+          await reportSuccess(
+            t('settings.about.update.installedToast', { version: outcome.version }),
+          );
+          return;
+        }
+        const { toast } = await import('@vitals/ui/toast');
+        toast.error(t('settings.about.update.failedToast', { version: outcome.version }), {
+          id: 'update-outcome',
+          description: t('settings.about.update.failedToastHint'),
+        });
+      }),
+      t('common.error'),
+    );
   }, [t]);
 }
 

@@ -5,7 +5,7 @@ All notable changes to Vitals are recorded here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.5.0] — 2026-11-27
 
 ### Added
 
@@ -46,6 +46,85 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   or when a status leaves the vocabulary the file actually uses. Four rows were
   added by hand with nothing watching them; this is the gate that would have
   said so.
+
+- **The command line grew the rest of the machine**: `vitals sensors` and
+  `vitals history` read what the window reads, `vitals alerts` lists what the
+  alert engine has raised, and `vitals completions` prints a completion script
+  for the shell you name. `--source` chooses where the numbers come from —
+  attach to a running app, or sample directly — and says which one happened on
+  stderr, so `--json` stays parseable. `vitals top` prints one snapshot and
+  exits 0 when stdout is not a terminal, because a pipe is not a place to draw
+  an alternate screen. `vitals serve --json` prints the port, scope, token,
+  pairing code and URL as one object before it starts serving, so a script that
+  let the server generate a token can still learn it, and `--control` is
+  refused: a headless server holds no pairing to grant it. A PID given to a
+  process action is resolved to PID plus start time from a fresh sample, so a
+  recycled PID is never hit. All of it is written down in `docs/cli.md`.
+
+- **The window says when its numbers are old.** When the sampler's stream stops
+  — a stalled sample, a machine that slept, a workspace that stopped answering —
+  the shell puts a banner under the title bar saying how long ago the last
+  reading was, and asks the backend for a keyframe instead of waiting for a
+  delta that may never come. The phone shows the same age against the machine it
+  is watching, and the TV dims what it cannot vouch for.
+
+### Changed
+
+- **A refusal is a sentence in your language, not a debug string.** The
+  command-error kinds — denied, not found, unsupported, refused, internal — map
+  to sentences in English and Romanian, and the raw text the backend sent stays
+  available under **Details** rather than being replaced by a polite nothing. A
+  refusal that names a setting is a stable key now rather than a Rust `{:?}`
+  (the watchdog's "when to warn" was the last one), and the file dialog the
+  watchdog asks for is named in the language the reader is using instead of a
+  hard-coded `Audio`.
+
+- **A reading that was never taken is a dash, everywhere.** The phone and the
+  television printed a fabricated `0` for memory they could not read and for a
+  status they did not have; both print a dash now, and the same rule holds in
+  the storage, agents and benchmark windows. Zero is a measurement.
+
+- **The phone says the pairing expired instead of retrying forever.** A `401`
+  marks the pairing unauthorised and stops the retry loop, with a sentence and a
+  way to pair again. A `403` is deliberately not treated as a dead key: a scope
+  refusal is not a revoked credential.
+
+- **`PID` is translated, and the phone's active tab is readable.** The diagnosis
+  dialog and the phone's process list printed a hard-coded English `PID`; both
+  read `process.pid`. The mobile active tab uses the readable accent rather than
+  the fill accent, which measured 4.08:1 on the subtle background in the light
+  theme, below the 4.5:1 a small label needs — and the accessibility scan's
+  allowance for it is gone, so putting it back fails a test rather than passing
+  quietly.
+
+### Fixed
+
+- **An unmeasured sampling schedule is nothing, not a crash** — a machine that
+  reports no supported interval left the schedule blank and the settings restore
+  step dereferenced it.
+
+- **The AI page's cloud-status refresh survives a re-render.** It is a property
+  holding a function, so the effect no longer restarts on every render and
+  cannot drop an in-flight read.
+
+- **A blank screen is not an error message.** The phone, the TV and the HUD each
+  mount their own error boundary, so a component that throws shows a sentence
+  and a way to retry instead of leaving an empty surface. Each is a local copy,
+  because those roots are fenced off from the shell: the HUD is a 220×96 overlay
+  and has no business carrying the window's bundle.
+
+### Security
+
+- **A half-sent request cannot hold a connection open.** The LAN server wraps
+  every accepted socket in a five-second request-head deadline, because axum 0.8
+  exposes no header-read timeout and a slowloris is what one is for. An accept
+  error backs off and keeps accepting rather than ending the server.
+
+- **Redaction covers the places a credential actually hides**: the userinfo of a
+  URL (`scheme://user:pass@host` becomes `scheme://[redacted]@host`, which a git
+  remote or a webhook carries), `pwd`, `cookie`, `credential` and `session`
+  values, and a recognised key prefix with no label at all. Home directories are
+  still replaced by `~`.
 
 ## [1.4.0] — 2026-11-25
 

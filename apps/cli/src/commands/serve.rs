@@ -15,6 +15,7 @@ use vitals_core::alerts::Alert;
 use vitals_server::state::ServerLock;
 use vitals_server::{ApiState, FrameSource, PairingDesk, Scope, Token, TokenSet};
 
+use crate::exit;
 use crate::source::Direct;
 
 /// What the caller asked for.
@@ -23,13 +24,37 @@ pub struct Options {
     pub port: u16,
     /// `None` generates one.
     pub token: Option<String>,
-    /// Grant `control` scope to the token. Off by default: a token in a
-    /// shell history is a remote kill switch for the machine.
+    /// Asked to grant `control` scope. Refused in [`run`] before anything is
+    /// bound: a headless server has no way to confirm ending a critical
+    /// process, so it cannot honestly offer the ability. Kept as a field so
+    /// the flag is still parsed and its refusal is explicit.
     pub control: bool,
     /// Publish to this MQTT broker. `None` leaves MQTT off entirely.
     pub mqtt: Option<String>,
     /// Seconds between MQTT publishes; the crate's default when `None`.
     pub mqtt_interval: Option<u64>,
+    /// Print a machine-readable description of the running server on stdout
+    /// (port, scope, token, LAN URL, pairing code) instead of leaving a
+    /// script to scrape the human notes off stderr.
+    pub json: bool,
+}
+
+/// The one-line JSON object `vitals serve --json` prints once it is listening.
+///
+/// `token` is included on purpose: a script that let the server generate one
+/// has no other way to learn it, and stdout is the channel the caller chose
+/// rather than a log file — the same reason the human path prints it to
+/// stderr and never `tracing`.
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ServeInfo {
+    port: u16,
+    scope: &'static str,
+    token: String,
+    generated: bool,
+    /// The LAN pairing URL, when an interface was found to build one from.
+    url: Option<String>,
+    pairing_code: String,
 }
 
 /// Builds the token set, and returns the secret beside it: the set keeps only
@@ -47,24 +72,18 @@ pub fn tokens(options: &Options) -> (TokenSet, String, Option<String>) {
         .or_else(|| generated.clone())
         .unwrap_or_default();
     let set = TokenSet {
-        tokens: vec![Token::new(
-            &secret,
-            scope(options),
-            "vitals serve",
-            unix_now(),
-        )],
+        tokens: vec![Token::new(&secret, scope(), "vitals serve", unix_now())],
     };
     (set, secret, generated)
 }
 
-/// The scope both the token and the TV pairing code grant: one switch, so a
-/// TV can never end up with more than the command line asked for.
-fn scope(options: &Options) -> Scope {
-    if options.control {
-        Scope::Control
-    } else {
-        Scope::Read
-    }
+/// The scope both the token and the TV pairing code grant.
+///
+/// Always read: `--control` is refused in [`run`] before this is reached, so
+/// a token this server mints can never be a remote kill switch — which is
+/// exactly what a token sitting in a shell history would be.
+const fn scope() -> Scope {
+    Scope::Read
 }
 
 fn unix_now() -> i64 {
@@ -110,6 +129,19 @@ pub(crate) fn machine_host() -> String {
 /// # Errors
 /// No sampler on this platform, or the port could not be bound.
 pub fn run(options: &Options) -> Result<()> {
+    // A headless server cannot act on a process: it has no window a person
+    // can confirm in, and the controller below is deliberately `NoControl`.
+    // Accepting `--control` and scoping a token to it promised an ability the
+    // server does not have (every control request answered 501), so refuse
+    // outright rather than mint a read-only token under a control label.
+    // Exit code 4 — a control action was refused.
+    if options.control {
+        return Err(exit::control_refused(anyhow::anyhow!(
+            "serve --control is refused: a headless server cannot act on processes. \
+             Pair the phone with the desktop app to end, freeze or re-prioritise one."
+        )));
+    }
+
     // Fail before binding a port if this platform cannot sample at all. The
     // real sampler is built on its own thread below: `SystemSampler` holds a
     // PDH query with raw pointers and is not `Send`.
@@ -122,7 +154,7 @@ pub fn run(options: &Options) -> Result<()> {
     // token comes from the command line), so a TV paired here is forgotten
     // on exit, exactly like the generated token.
     let desk = Arc::new(PairingDesk::new(Arc::new(|_| {})));
-    let code = desk.create(scope(options));
+    let code = desk.create(scope());
 
     let state = ApiState {
         frames: frames.clone(),
@@ -130,8 +162,8 @@ pub fn run(options: &Options) -> Result<()> {
         // Control is deliberately not wired: the CLI has no UI to confirm
         // ending a critical process, and a headless controller answering a
         // LAN request is exactly the surface the desktop keeps behind a
-        // Settings toggle. `--control` scopes the token; acting still needs
-        // the desktop.
+        // Settings toggle. `--control` is refused in `run`, so a token this
+        // server mints is read-only and can never reach a controller at all.
         controller: Arc::new(vitals_server::control::NoControl),
         assets: None,
         host: Arc::new(host_info),
@@ -171,7 +203,20 @@ pub fn run(options: &Options) -> Result<()> {
             .with_context(|| format!("binding 0.0.0.0:{}", options.port))?;
         let port = handle.addr.port();
 
-        announce(port, &secret, generated.as_deref(), options.control);
+        announce(port, &secret, generated.as_deref());
+        if options.json {
+            let info = ServeInfo {
+                port,
+                scope: "read",
+                token: secret.clone(),
+                generated: generated.is_some(),
+                url: vitals_server::interfaces()
+                    .first()
+                    .map(|iface| vitals_server::pairing_url(iface.address, port, &secret)),
+                pairing_code: code.code.clone(),
+            };
+            println!("{}", serde_json::to_string(&info)?);
+        }
         // stderr, like the token above, never `tracing`: a code is a
         // credential for five minutes and must not reach a log file.
         eprintln!(
@@ -225,17 +270,8 @@ fn sample_forever(frames: &FrameSource, alerts: &ServerLock<Vec<Alert>>) {
     }
 }
 
-fn announce(port: u16, secret: &str, generated: Option<&str>, control: bool) {
-    let scope = if control { "control" } else { "read" };
-    eprintln!("serving on 0.0.0.0:{port}  scope: {scope}");
-    if control {
-        // The controller is `NoControl` (see `run`): every control request
-        // answers 501. Saying "scope: control" alone read as a promise.
-        eprintln!(
-            "note: this headless server cannot act on processes; control requests answer 501. \
-             Pair the phone with the desktop app for that."
-        );
-    }
+fn announce(port: u16, secret: &str, generated: Option<&str>) {
+    eprintln!("serving on 0.0.0.0:{port}  scope: read");
     if let Some(secret) = generated {
         eprintln!("generated token (shown once, not stored): {secret}");
         eprintln!("pass --token next time to keep the same pairing");
@@ -333,6 +369,7 @@ mod tests {
             control: false,
             mqtt: None,
             mqtt_interval: None,
+            json: false,
         });
         assert_eq!(generated, None);
         assert_eq!(secret, "abc");
@@ -340,16 +377,19 @@ mod tests {
     }
 
     #[test]
-    fn without_a_token_one_is_generated_and_control_only_when_asked() {
+    fn without_a_token_one_is_generated_and_scoped_read_only() {
         let (set, _, generated) = tokens(&Options {
             port: 0,
             token: None,
-            control: true,
+            control: false,
             mqtt: None,
             mqtt_interval: None,
+            json: false,
         });
         let secret = generated.expect("generated");
         assert!(secret.len() >= 40, "256 bits base64url");
-        assert_eq!(set.scope_for(&secret), Some(Scope::Control));
+        // Never `Control`: `--control` is refused in `run` before a token is
+        // ever minted, so no token this server hands out can kill a process.
+        assert_eq!(set.scope_for(&secret), Some(Scope::Read));
     }
 }

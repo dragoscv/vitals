@@ -1,8 +1,8 @@
-import type { Alert } from '@vitals/protocol';
+import type { Alert, Frame } from '@vitals/protocol';
 import { renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { StreamHandler } from '@vitals/client';
+import { VitalsError, type StreamHandler } from '@vitals/client';
 
 import { ALERTS_POLL_MS, LiveMachine, type MobileClient, useLiveMachines } from './live';
 import type { Pairing } from './pairing';
@@ -195,5 +195,107 @@ describe('LiveMachine alerts', () => {
     machine.close();
     await vi.advanceTimersByTimeAsync(ALERTS_POLL_MS * 3);
     expect(fake.alerts).toHaveBeenCalledTimes(1);
+  });
+});
+
+/** A client whose stream only records that it was opened, and its teardown. */
+function probeClient(host: MobileClient['host'], closed: () => void): MobileClient {
+  return {
+    health: () => Promise.resolve({ ok: true, version: '0', modelVersion: 1 }),
+    host,
+    control: () => Promise.resolve(),
+    alerts: () => Promise.resolve([]),
+    stream: () => closed,
+  };
+}
+
+describe('LiveMachine token state', () => {
+  it('marks the pairing unauthorised on a 401 and stops retrying', async () => {
+    const closed = vi.fn();
+    const machine = new LiveMachine(
+      probeClient(() => Promise.reject(new VitalsError('unauthorised', 'no token')), closed),
+    );
+    machine.start();
+    await settle();
+
+    expect(machine.get().state).toBe('unauthorised');
+    // The guarantee, not just the label: the dead key's stream is torn down
+    // so it cannot reconnect forever behind "Reconnecting…".
+    expect(closed).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not treat a 403 as a dead key, because a refusal is retryable', async () => {
+    const closed = vi.fn();
+    const machine = new LiveMachine(
+      probeClient(() => Promise.reject(new VitalsError('forbidden', 'read-only')), closed),
+    );
+    machine.start();
+    await settle();
+
+    expect(machine.get().state).not.toBe('unauthorised');
+    expect(closed).not.toHaveBeenCalled();
+    machine.close();
+  });
+});
+
+function keyframeWithMemory(total: number, used: number): Frame {
+  return {
+    seq: 1,
+    timestampMs: 1_000,
+    elapsedMs: 1_000,
+    payload: {
+      kind: 'keyframe',
+      system: {
+        cpu: { total: 5, perCore: [5], kernel: 0 },
+        memory: { used, total },
+        disks: [],
+        networks: [],
+        gpus: [],
+        powerDraw: null,
+        battery: null,
+        fans: [],
+      },
+      processes: [],
+    },
+  } as unknown as Frame;
+}
+
+describe('LiveMachine memory history', () => {
+  function machineWith(handler: (h: StreamHandler) => void): LiveMachine {
+    return new LiveMachine({
+      health: () => Promise.resolve({ ok: true, version: '0', modelVersion: 1 }),
+      host: () => Promise.resolve(null),
+      control: () => Promise.resolve(),
+      alerts: () => Promise.resolve([]),
+      stream: (h) => {
+        handler(h);
+        return () => {};
+      },
+    });
+  }
+
+  it('records a gap, not a false zero, when the PC reported no memory total', () => {
+    let handler: StreamHandler | undefined;
+    const machine = machineWith((h) => {
+      handler = h;
+    });
+    machine.start();
+    handler?.onFrame(keyframeWithMemory(0, 0));
+
+    const last = machine.get().memoryHistory.at(-1);
+    expect(last !== undefined && Number.isNaN(last)).toBe(true);
+    machine.close();
+  });
+
+  it('records a real percentage when memory was reported', () => {
+    let handler: StreamHandler | undefined;
+    const machine = machineWith((h) => {
+      handler = h;
+    });
+    machine.start();
+    handler?.onFrame(keyframeWithMemory(16, 4));
+
+    expect(machine.get().memoryHistory.at(-1)).toBe(25);
+    machine.close();
   });
 });

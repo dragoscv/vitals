@@ -125,6 +125,13 @@ async function installHub(): Promise<void> {
     // state rather than silently rendering stale rows.
     if (lastSeq > 0 && frame.seq > lastSeq + 1) {
       for (const listener of listeners) listener.onGap?.(frame.seq - lastSeq - 1);
+      // A gap means one or more deltas never landed, so the map on screen is
+      // missing changes no later delta repeats — the client would keep showing
+      // values that never update again. Deltas are only valid against a shared
+      // baseline, so the only way back is a fresh keyframe: ask for one rather
+      // than wait up to thirty ticks for the periodic one. Fire-and-forget; an
+      // older backend without the command still recovers on its own.
+      invoke('request_keyframe').catch(() => undefined);
     }
     lastSeq = frame.seq;
 

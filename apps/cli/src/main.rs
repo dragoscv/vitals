@@ -16,6 +16,7 @@
 mod client;
 mod commands;
 mod discovery;
+mod exit;
 mod fold;
 mod render;
 mod source;
@@ -24,7 +25,7 @@ mod sse;
 use std::time::Duration;
 
 use anyhow::Result;
-use clap::{Parser, Subcommand, ValueEnum};
+use clap::{CommandFactory, Parser, Subcommand, ValueEnum};
 
 use crate::source::{Preference, Source};
 
@@ -175,8 +176,10 @@ enum Commands {
         /// omitted.
         #[arg(long)]
         token: Option<String>,
-        /// Give the token control scope (end/suspend/resume/priority) rather
-        /// than read-only.
+        /// Refused. A headless server cannot act on processes — there is no
+        /// one to confirm ending a critical one — so this exits 4 with an
+        /// explanation instead of minting a token it cannot honour. Pair the
+        /// phone with the desktop app for that.
         #[arg(long)]
         control: bool,
         /// Publish to an MQTT broker with Home Assistant discovery, e.g.
@@ -188,31 +191,79 @@ enum Commands {
         #[arg(long)]
         mqtt_interval: Option<u64>,
     },
+    /// Print a shell completion script for this CLI.
+    ///
+    /// Redirect it to the file your shell reads, for example
+    /// `vitals completions bash > /etc/bash_completion.d/vitals`.
+    Completions {
+        /// The shell to generate for.
+        #[arg(value_enum)]
+        shell: clap_complete::Shell,
+    },
+    /// Every sensor reading this machine can make.
+    ///
+    /// A sensor that could not be measured is absent from the list, never a
+    /// zero reading. `--json` prints the same array `/api/v1/sensors` serves.
+    Sensors,
+    /// Machine-wide samples from the desktop app's history store.
+    ///
+    /// History belongs to the desktop, so a direct sampler has none to give
+    /// and says so rather than inventing a flat line (exit code 5).
+    History {
+        /// How many seconds back to include.
+        #[arg(short, long, default_value_t = 300)]
+        seconds: u32,
+    },
+    /// Alerts currently raised, from the same engine the desktop evaluates.
+    Alerts,
 }
 
-fn main() -> Result<()> {
+fn main() {
+    let code = match run() {
+        Ok(()) => exit::OK,
+        Err(error) => {
+            // `{:?}` keeps anyhow's whole chain, the same shape the standard
+            // `Termination` impl printed before this function existed, so a
+            // reader still sees the cause behind the context.
+            eprintln!("Error: {error:?}");
+            exit::code_for(&error)
+        }
+    };
+    std::process::exit(code);
+}
+
+fn run() -> Result<()> {
     let cli = Cli::parse();
 
-    if let Commands::Serve {
-        port,
-        token,
-        control,
-        mqtt,
-        mqtt_interval,
-    } = &cli.command
-    {
-        // `serve` never attaches: an instance that proxied the desktop
-        // would go dark when the window closed, silently.
-        return commands::serve::run(&commands::serve::Options {
-            port: *port,
-            token: token.clone(),
-            control: *control,
-            mqtt: mqtt.clone(),
-            mqtt_interval: *mqtt_interval,
-        });
+    match &cli.command {
+        Commands::Serve {
+            port,
+            token,
+            control,
+            mqtt,
+            mqtt_interval,
+        } => {
+            // `serve` never attaches: an instance that proxied the desktop
+            // would go dark when the window closed, silently.
+            return commands::serve::run(&commands::serve::Options {
+                port: *port,
+                token: token.clone(),
+                control: *control,
+                mqtt: mqtt.clone(),
+                mqtt_interval: *mqtt_interval,
+                json: cli.json,
+            });
+        }
+        // Printed from the definition alone, so it must not wait on a source
+        // that this machine may not have.
+        Commands::Completions { shell } => {
+            print_completions(*shell);
+            return Ok(());
+        }
+        _ => {}
     }
 
-    let mut source = Source::discover(&cli.preference())?;
+    let mut source = Source::discover(&cli.preference()).map_err(exit::link_failure)?;
     eprintln!("{}", source.describe());
 
     match cli.command {
@@ -223,6 +274,9 @@ fn main() -> Result<()> {
             commands::top::run(&mut source, Duration::from_millis(interval), cli.json)
         }
         Commands::Info => commands::info::run(&mut source, cli.json),
+        Commands::Sensors => commands::sensors::run(&source, cli.json),
+        Commands::History { seconds } => commands::history::run(&source, seconds, cli.json),
+        Commands::Alerts => commands::alerts::run(&mut source, cli.json),
         Commands::Eco { pid, off } => commands::eco::run(&mut source, pid, !off, cli.json),
         Commands::Kill { pid } => {
             commands::act::run(&mut source, pid, commands::act::Action::Kill, cli.json)
@@ -248,8 +302,17 @@ fn main() -> Result<()> {
         // Takes the source rather than borrowing it: the MCP server owns it
         // for the life of the session.
         Commands::Mcp => commands::mcp::run(source),
-        Commands::Serve { .. } => unreachable!("handled above"),
+        // Both return before a source is discovered, above.
+        Commands::Serve { .. } | Commands::Completions { .. } => {
+            unreachable!("handled before the source was discovered")
+        }
     }
+}
+
+/// Writes a completion script for `shell` to stdout.
+fn print_completions(shell: clap_complete::Shell) {
+    let mut command = Cli::command();
+    clap_complete::generate(shell, &mut command, "vitals", &mut std::io::stdout());
 }
 
 #[cfg(test)]

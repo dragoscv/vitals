@@ -66,9 +66,13 @@ pub const REDACTED: &str = "[redacted]";
 /// Keys whose values are identifiers a client needs verbatim to act (a
 /// ticket to break, a lease to release) and that never hold a path or a
 /// secret. Everything else is scrubbed.
-const IDENTIFIER_KEYS: &[&str] = &[
-    "id", "leaseId", "runId", "session", "sha", "resource", "slot",
-];
+///
+/// `session` is deliberately **not** here. agentq session values are opaque
+/// ids (`s-<32 chars>`), not names: an id can be replayed to act on a
+/// session, so it is a credential, and it is scrubbed by [`redact_text`]
+/// like any other opaque run. A short, plainly-a-name value survives —
+/// [`looks_like_a_credential`] is what decides, not the key.
+const IDENTIFIER_KEYS: &[&str] = &["id", "leaseId", "runId", "sha", "resource", "slot"];
 
 /// The snapshot as JSON with every free-text field scrubbed.
 ///
@@ -119,7 +123,47 @@ fn scrub(text: &mut String) {
 /// Replaces home directories with `~` and credentials with [`REDACTED`].
 #[must_use]
 pub fn redact_text(text: &str) -> String {
-    redact_secrets(&redact_home(text))
+    redact_secrets(&redact_home(&redact_url_userinfo(text)))
+}
+
+/// Strips the userinfo (`user:pass@`) out of any URL, leaving the scheme and
+/// host intact: `scheme://user:pass@host` becomes `scheme://[redacted]@host`.
+///
+/// A credential is routinely embedded in a remote URL — a git remote, a
+/// webhook, a database DSN — and it is the one secret that survives
+/// whitespace splitting, because the whole URL is a single token. Handled
+/// here, before [`redact_secrets`], where the surrounding prose cannot
+/// confuse it.
+fn redact_url_userinfo(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut copied = 0;
+    let mut search = 0;
+    while let Some(at) = text[search..].find("://").map(|i| search + i) {
+        // The authority runs to the first `/`, `?`, `#` or whitespace.
+        let authority_start = at + 3;
+        let authority_end = text[authority_start..]
+            .find(['/', '?', '#'])
+            .map_or(text.len(), |i| authority_start + i);
+        let authority = &text[authority_start..authority_end];
+        // Split on the LAST `@` in the authority: a password may contain `@`.
+        let Some(userinfo_end) = authority.rfind('@') else {
+            search = authority_end;
+            continue;
+        };
+        let userinfo_start = authority_start;
+        let userinfo_end = authority_start + userinfo_end;
+        if userinfo_end == userinfo_start {
+            // `scheme://@host` — nothing to hide, but skip past the `@`.
+            search = userinfo_end + 1;
+            continue;
+        }
+        out.push_str(&text[copied..userinfo_start]);
+        out.push_str(REDACTED);
+        copied = userinfo_end;
+        search = authority_end;
+    }
+    out.push_str(&text[copied..]);
+    out
 }
 
 /// `C:\Users\<name>`, `C:/Users/<name>`, `/Users/<name>` and
@@ -176,10 +220,14 @@ const SECRET_NAMES: &[&str] = &[
     "token",
     "secret",
     "password",
+    "pwd",
     "passwd",
     "apikey",
     "api_key",
     "api-key",
+    "cookie",
+    "credential",
+    "session",
     "bearer",
     "authorization",
 ];
@@ -337,6 +385,65 @@ mod tests {
     }
 
     #[test]
+    fn a_credential_embedded_in_a_url_loses_only_its_userinfo() {
+        // A git remote or webhook carries the token as userinfo, and the
+        // whole URL is one whitespace-free token, so nothing else catches it.
+        assert_eq!(
+            redact_text("git remote add origin https://alice:hunter2@example.com/repo.git"),
+            "git remote add origin https://[redacted]@example.com/repo.git"
+        );
+        // A password may itself contain `@`; the LAST one is the separator.
+        assert_eq!(
+            redact_text("fetch https://user:p@ss@host:5432/db"),
+            "fetch https://[redacted]@host:5432/db"
+        );
+        // A token as the whole userinfo, and no path at all.
+        assert_eq!(
+            redact_text("https://ghp_0123456789abcdefABCDEF@example.com"),
+            "https://[redacted]@example.com"
+        );
+    }
+
+    #[test]
+    fn a_url_without_userinfo_is_left_untouched() {
+        let text = "see https://example.com/a/b?c=d and https://other.test:8443/x";
+        assert_eq!(redact_text(text), text);
+    }
+
+    #[test]
+    fn pwd_cookie_credential_and_session_announce_a_secret() {
+        assert_eq!(redact_text("pwd=hunter2 run"), "pwd=[redacted] run");
+        assert_eq!(
+            redact_text("cookie=abcdef123456 end"),
+            "cookie=[redacted] end"
+        );
+        assert_eq!(
+            redact_text("credential=abcdef123456 end"),
+            "credential=[redacted] end"
+        );
+        assert_eq!(
+            redact_text("session=s-0123456789abcdefghijklmnopqrstuvwxyz end"),
+            "session=[redacted] end"
+        );
+        assert_eq!(
+            redact_text("--session abc123 end"),
+            "--session [redacted] end"
+        );
+    }
+
+    #[test]
+    fn a_session_id_is_scrubbed_as_a_secret_not_passed_through_as_a_name() {
+        // agentq session values are opaque ids that can be replayed to act on
+        // a session, so a credential-shaped one is hidden even though a short
+        // plainly-a-name value would survive.
+        assert_eq!(
+            redact_text("s-0123456789abcdefghijklmnopqrstuvwxyz"),
+            REDACTED
+        );
+        assert_eq!(redact_text("nightly"), "nightly");
+    }
+
+    #[test]
     fn shas_uuids_and_ordinary_words_survive() {
         let text = "git push origin 0123456789abcdef0123456789abcdef01234567 \
                     0b058ac1-1111-2222-3333-444455556666 pnpm test";
@@ -400,8 +507,10 @@ mod tests {
             json.contains("t-0123456789abcdefghijklmnopqrstuvwxyz"),
             "{json}"
         );
+        // A session id is a secret, not a name, so it is scrubbed even though
+        // the ticket id beside it is kept for a client to break the ticket.
         assert!(
-            json.contains("s-0123456789abcdefghijklmnopqrstuvwxyz"),
+            !json.contains("s-0123456789abcdefghijklmnopqrstuvwxyz"),
             "{json}"
         );
         assert!(json.contains(r#""leaseId":"46b5f311""#), "{json}");

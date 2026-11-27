@@ -134,6 +134,38 @@ describe('WatchdogPanel', () => {
     expect(localStorage.getItem('vitals.watchdog')).toBeNull();
   });
 
+  it('shows a sentence for a refused setting, not the key the backend sent', async () => {
+    // The backend refuses a stored value it cannot read with a stable key,
+    // because it does not know the user's language. Showing the key would put
+    // `invalidSensitivity` in front of someone who just wants their watchdog on.
+    // It is an `Error` carrying a `kind`, which is both what the rule about
+    // rejection reasons asks for and what the panel's own reader expects: the
+    // kind selects the sentence, the message is what the backend said.
+    const refusal = Object.assign(new Error('invalidSensitivity'), { kind: 'refused' as const });
+    const a = api({ save: vi.fn(() => Promise.reject(refusal)) });
+    render(<WatchdogPanel api={a} />);
+    await screen.findByText('Running, and starts when you sign in.');
+
+    fireEvent.click(screen.getByRole('switch'));
+
+    await screen.findByText(
+      'The saved "when to warn" setting is not one this copy knows. Choose one below to replace it.',
+    );
+    expect(screen.queryByText('invalidSensitivity')).toBeNull();
+  });
+
+  it('asks the dialog for audio files in the language the user is reading', async () => {
+    // The system dialog draws the filter name itself, so it cannot be
+    // translated after the fact: the name has to be passed in already localised.
+    const a = api({ pickFile: vi.fn(() => Promise.resolve(null)) });
+    render(<WatchdogPanel api={a} />);
+    await screen.findByText('Running, and starts when you sign in.');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Browse…' }));
+
+    await waitFor(() => expect(a.pickFile).toHaveBeenCalledWith('Audio files'));
+  });
+
   it('plays the chosen sound when Test is pressed', async () => {
     const a = api();
     render(<WatchdogPanel api={a} />);

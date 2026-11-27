@@ -61,6 +61,15 @@ const RUN_VALUE: &str = "VitalsWatchdog";
 const EXE: &str = "vitals-watchdog.exe";
 const SENSITIVITIES: [&str; 3] = ["relaxed", "normal", "sensitive"];
 
+/// The key the panel turns into a sentence when the stored sensitivity is one
+/// this build does not know — a config written by a newer version, say.
+///
+/// A key, not the value: `{:?}` of a config field is a Rust debug string, which
+/// nobody reading the screen can act on, and it would also pin the panel's copy
+/// to a Rust enum spelling. `settings/watchdog.ts` and the panel are the other
+/// halves of this contract.
+const INVALID_SENSITIVITY: &str = "invalidSensitivity";
+
 fn config_path() -> Option<std::path::PathBuf> {
     std::env::var_os("APPDATA").map(|d| {
         std::path::PathBuf::from(d)
@@ -73,7 +82,7 @@ fn config_path() -> Option<std::path::PathBuf> {
 fn validate(config: &WatchdogConfig) -> CommandResult<()> {
     if !SENSITIVITIES.contains(&config.sensitivity.as_str()) {
         return Err(CommandError::Refused {
-            message: format!("unknown sensitivity {:?}", config.sensitivity),
+            message: INVALID_SENSITIVITY.into(),
         });
     }
     if config.volume > 100 {
@@ -450,6 +459,18 @@ mod tests {
         let mut loud = config("normal", WatchdogSound::Silent);
         loud.volume = 101;
         assert!(validate(&loud).is_err());
+    }
+
+    /// The panel turns this key into a sentence in the user's language, so the
+    /// refusal must not drift back into a debug string: `unknown sensitivity
+    /// "extreme"` leaks a Rust `{:?}` and cannot be translated at all.
+    #[test]
+    fn an_unknown_sensitivity_is_refused_with_a_key_the_panel_can_translate() {
+        let error = validate(&config("extreme", WatchdogSound::Default)).expect_err("refused");
+        let CommandError::Refused { message } = error else {
+            panic!("an unsupported sensitivity is a refusal, not a fault: {error:?}");
+        };
+        assert_eq!(message, INVALID_SENSITIVITY);
     }
 
     /// A fresh directory per test, so parallel tests never share a file.

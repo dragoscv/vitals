@@ -8,12 +8,13 @@
  * downsamples — a week at one-second resolution would be 600k rows crossing
  * IPC to draw a 600-pixel line.
  *
- * # Polling is tied to the mount
+ * # Polling is tied to the mount, and to visibility
  *
  * The store is written once a second by the sampler, but a chart of the last
  * day does not change visibly in under a minute, so the widget re-queries on a
- * 60 s timer and only while it is rendered. A user who removes the widget from
- * their layout must not keep paying for a SQLite read they cannot see.
+ * 60 s timer only while it is rendered and only while the window is visible. A
+ * user who removes the widget from their layout, or minimises the window, must
+ * not keep paying for a SQLite read they cannot see.
  */
 
 import { useEffect, useMemo, useState } from 'react';
@@ -117,6 +118,7 @@ export function useMachineHistory(
   range: HistoryRange,
   enabled: boolean,
   source?: HistorySource,
+  doc: Document = document,
 ): MachineHistoryState {
   const [fallback] = useState<HistorySource | null>(() =>
     source === undefined ? createTauriHistorySource() : null,
@@ -155,13 +157,32 @@ export function useMachineHistory(
         });
     };
 
-    read();
-    const timer = setInterval(read, HISTORY_POLL_MS);
+    // Paused while the window is hidden, like every other poll in this app: a
+    // minimised dashboard must not keep opening the SQLite store 60 times a
+    // minute for a chart nobody can see. Returning to the window reads at once.
+    let timer: ReturnType<typeof setInterval> | null = null;
+    const start = (): void => {
+      if (timer !== null) return;
+      read();
+      timer = setInterval(read, HISTORY_POLL_MS);
+    };
+    const stop = (): void => {
+      if (timer !== null) clearInterval(timer);
+      timer = null;
+    };
+    const onVisibility = (): void => {
+      if (doc.visibilityState === 'visible') start();
+      else stop();
+    };
+    onVisibility();
+    doc.addEventListener('visibilitychange', onVisibility);
+
     return () => {
       cancelled = true;
-      clearInterval(timer);
+      stop();
+      doc.removeEventListener('visibilitychange', onVisibility);
     };
-  }, [range, enabled, active]);
+  }, [range, enabled, active, doc]);
 
   const series = useMemo(() => seriesFromSamples(samples), [samples]);
 

@@ -1,8 +1,12 @@
 //! The routes, the auth layer, and the server lifecycle.
 
 use std::convert::Infallible;
+use std::future::Future as _;
+use std::io;
 use std::net::SocketAddr;
+use std::pin::Pin;
 use std::sync::Arc;
+use std::task::{Context, Poll};
 use std::time::Duration;
 
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
@@ -12,10 +16,13 @@ use axum::middleware::{self, Next};
 use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
+use axum::serve::Listener;
 use axum::{Json, Router};
 use futures_util::StreamExt as _;
 use serde::{Deserialize, Serialize};
+use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio::net::TcpListener;
+use tokio::net::TcpStream;
 use tokio::sync::{Semaphore, oneshot, watch};
 use tokio_stream::wrappers::BroadcastStream;
 
@@ -96,9 +103,12 @@ pub async fn serve_on(state: ApiState, addr: SocketAddr) -> std::io::Result<Serv
     // loopback bypass applies, so the connect info must be attached here;
     // without it the extractor fails and every guarded route answers 500.
     let app = router_with_closing(state, closing.subscribe())
-        .into_make_service_with_connect_info::<SocketAddr>();
+        .into_make_service_with_connect_info::<PeerAddr>();
     tokio::spawn(async move {
-        let served = axum::serve(listener, app)
+        // Served through `GuardedListener`, not the bare `TcpListener`, so
+        // every accepted socket carries the header-read deadline that a
+        // slowloris needs; see `SlowlorisGuard`.
+        let served = axum::serve(GuardedListener { inner: listener }, app)
             .with_graceful_shutdown(async {
                 let _ = stop_rx.await;
             })
@@ -113,6 +123,185 @@ pub async fn serve_on(state: ApiState, addr: SocketAddr) -> std::io::Result<Serv
         stop: Some(stop_tx),
         closing,
     })
+}
+
+// ── Connection admission ───────────────────────────────────────────────
+
+/// How long a client has to send a complete request head.
+///
+/// axum 0.8 does not expose hyper's `http1_header_read_timeout`: its `serve`
+/// builds the connection internally, so the deadline has no public knob and
+/// adding `hyper`/`hyper-util` to this crate to reach one is out of
+/// proportion to the risk. The equivalent is enforced on the accepted stream
+/// instead — a connection that has not sent `\r\n\r\n` within this window is
+/// failed, which is the slowloris the setting exists to stop.
+const HEAD_READ_TIMEOUT: Duration = Duration::from_secs(5);
+
+/// The TCP listener, wrapping every accepted socket in a [`SlowlorisGuard`].
+///
+/// Used by [`serve_on`] in place of the bare `TcpListener`, whose `Io` is a
+/// plain `TcpStream` with no head deadline.
+#[derive(Debug)]
+struct GuardedListener {
+    inner: TcpListener,
+}
+
+impl Listener for GuardedListener {
+    type Io = SlowlorisGuard<TcpStream>;
+    type Addr = SocketAddr;
+
+    async fn accept(&mut self) -> (Self::Io, Self::Addr) {
+        loop {
+            match self.inner.accept().await {
+                Ok((stream, addr)) => {
+                    return (SlowlorisGuard::new(stream, HEAD_READ_TIMEOUT), addr);
+                }
+                // Transient — a peer that vanished mid-handshake, or EMFILE
+                // under load. Back off briefly and keep accepting, as axum's
+                // own listener does. There is no accept error that should
+                // end the server.
+                Err(error) => {
+                    tracing::warn!(%error, "accept failed; retrying");
+                    tokio::time::sleep(Duration::from_millis(50)).await;
+                }
+            }
+        }
+    }
+
+    fn local_addr(&self) -> io::Result<Self::Addr> {
+        self.inner.local_addr()
+    }
+}
+
+/// The peer address, as a local type so `ConnectInfo` can be wired for a
+/// custom listener.
+///
+/// axum implements `Connected<IncomingStream<'_, TcpListener>>` for
+/// `SocketAddr` only for its own `TcpListener`, and the orphan rule refuses
+/// the same impl in this crate (foreign trait, foreign self type). A local
+/// newtype is the standard way out: the self type is ours, so the impl is
+/// legal, and the extractor reads the same `SocketAddr` underneath.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct PeerAddr(pub(crate) SocketAddr);
+
+/// Without this, extracting `ConnectInfo` for a connection this listener
+/// produced fails and every guarded route answers 500 — the peer address is
+/// what decides the loopback bypass.
+impl axum::extract::connect_info::Connected<axum::serve::IncomingStream<'_, GuardedListener>>
+    for PeerAddr
+{
+    fn connect_info(stream: axum::serve::IncomingStream<'_, GuardedListener>) -> Self {
+        Self(*stream.remote_addr())
+    }
+}
+
+/// An accepted connection that must complete its request head before a
+/// deadline, or be dropped — a slowloris holds a socket by dribbling a byte
+/// at a time and never finishing the head, so no handler ever runs and the
+/// in-flight cap never sees it.
+///
+/// Generic over the IO so a test can drive it with an in-memory stream.
+#[derive(Debug)]
+struct SlowlorisGuard<S> {
+    inner: S,
+    /// Armed when the connection is accepted; disarmed once the head is in.
+    /// A boxed `Sleep` is `Unpin`, so the guard stays `Unpin` and hyper can
+    /// poll it from its own pinned future.
+    deadline: Pin<Box<tokio::time::Sleep>>,
+    /// Set once `\r\n\r\n` has been seen: stop enforcing.
+    head_complete: bool,
+    /// How many bytes of the `\r\n\r\n` sequence have matched at the tail of
+    /// the stream so far — zero, or 1–3 mid-sequence. A rolling match keeps
+    /// the detector allocation-free and correct across read boundaries.
+    matched: u8,
+}
+
+impl<S> SlowlorisGuard<S> {
+    fn new(inner: S, timeout: Duration) -> Self {
+        Self {
+            inner,
+            deadline: Box::pin(tokio::time::sleep(timeout)),
+            head_complete: false,
+            matched: 0,
+        }
+    }
+
+    /// Advances the end-of-head detector over `bytes`.
+    fn scan(&mut self, bytes: &[u8]) {
+        for &byte in bytes {
+            self.matched = match (self.matched, byte) {
+                // `\r\n\r\n` complete.
+                (3, b'\n') => {
+                    self.head_complete = true;
+                    break;
+                }
+                // The third byte of the pattern.
+                (2, b'\r') => 3,
+                // A `\r` starts a fresh candidate in every other state.
+                (_, b'\r') => 1,
+                (1, b'\n') => 2,
+                _ => 0,
+            };
+        }
+    }
+}
+
+impl<S: AsyncRead + Unpin> AsyncRead for SlowlorisGuard<S> {
+    fn poll_read(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<io::Result<()>> {
+        let this = self.get_mut();
+        if !this.head_complete {
+            // Poll the timer on every read, even one with no data: a client
+            // sending nothing leaves the socket read `Pending` forever, so a
+            // clock check reached only when bytes arrive would never fire.
+            if this.deadline.as_mut().poll(cx).is_ready() {
+                return Poll::Ready(Err(io::Error::new(
+                    io::ErrorKind::TimedOut,
+                    "the request head did not arrive within the header read timeout",
+                )));
+            }
+        }
+        let before = buf.filled().len();
+        let poll = Pin::new(&mut this.inner).poll_read(cx, buf);
+        if poll.is_ready() && !this.head_complete {
+            let filled = buf.filled();
+            this.scan(&filled[before..]);
+        }
+        poll
+    }
+}
+
+impl<S: AsyncWrite + Unpin> AsyncWrite for SlowlorisGuard<S> {
+    fn poll_write(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<io::Result<usize>> {
+        Pin::new(&mut self.get_mut().inner).poll_write(cx, buf)
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        Pin::new(&mut self.get_mut().inner).poll_flush(cx)
+    }
+
+    fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        Pin::new(&mut self.get_mut().inner).poll_shutdown(cx)
+    }
+
+    fn is_write_vectored(&self) -> bool {
+        self.inner.is_write_vectored()
+    }
+
+    fn poll_write_vectored(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        bufs: &[std::io::IoSlice<'_>],
+    ) -> Poll<io::Result<usize>> {
+        Pin::new(&mut self.get_mut().inner).poll_write_vectored(cx, bufs)
+    }
 }
 
 /// Builds the router. Public so tests can drive it without a socket.
@@ -324,6 +513,11 @@ impl Granted {
 /// The server writes no access log, and the alternative is that the phone
 /// cannot stream at all.
 ///
+/// The query string is honoured **only on the two stream routes**
+/// ([`stream`] and [`websocket`]). A plain REST call can set an
+/// `Authorization` header, so it must: allowing the weaker form everywhere
+/// widened the log/history footprint of every token for no capability.
+///
 /// The loopback decision is made on the **peer** address of the connection,
 /// never on which listener accepted it: a `0.0.0.0` listener receives
 /// loopback connections too, and a `127.0.0.1` listener cannot receive any
@@ -331,9 +525,15 @@ impl Granted {
 async fn authorise(State(state): State<ApiState>, request: Request, next: Next) -> Response {
     let peer = request
         .extensions()
-        .get::<ConnectInfo<SocketAddr>>()
-        .map(|ConnectInfo(addr)| *addr);
-    let presented = bearer(&request).or_else(|| query_token(&request));
+        .get::<ConnectInfo<PeerAddr>>()
+        .map(|ConnectInfo(addr)| addr.0);
+    let presented = bearer(&request).or_else(|| {
+        if accepts_query_token(&request) {
+            query_token(&request)
+        } else {
+            None
+        }
+    });
     // A valid token wins over the bypass: it can carry what the tokenless
     // grant does not (control, the AI page), and it stays revocable.
     let by_token = presented
@@ -358,6 +558,15 @@ async fn authorise(State(state): State<ApiState>, request: Request, next: Next) 
     // Missing and wrong tokens get deliberately identical answers: telling
     // a caller that a token exists but is wrong is a free oracle.
     unauthorised("a bearer token is required")
+}
+
+/// Whether this route may take the token from the query string.
+///
+/// Exactly the browser streaming APIs: `EventSource` and `WebSocket` cannot
+/// set an `Authorization` header. Every other route has a header-capable
+/// client, so it does not get the weaker channel.
+fn accepts_query_token(request: &Request) -> bool {
+    matches!(request.uri().path(), "/api/v1/stream" | "/api/v1/ws")
 }
 
 /// The scope a tokenless caller at `peer` is granted, if any.
@@ -388,8 +597,8 @@ fn loopback_grant(state: &ApiState, peer: Option<SocketAddr>) -> Option<Scope> {
 async fn pair_guard(request: Request, next: Next) -> Response {
     let peer = request
         .extensions()
-        .get::<ConnectInfo<SocketAddr>>()
-        .map(|ConnectInfo(addr)| *addr);
+        .get::<ConnectInfo<PeerAddr>>()
+        .map(|ConnectInfo(addr)| addr.0);
     let from_loopback = peer.is_some_and(|addr| addr.ip().is_loopback());
     if from_loopback && !is_local_caller(&request) {
         return (
@@ -1180,12 +1389,13 @@ pub fn mime_for(path: &str) -> &'static str {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use std::net::SocketAddr;
     use std::sync::Arc;
+    use std::time::Duration;
 
-    use super::{handle_control, loopback_grant};
+    use super::{SlowlorisGuard, handle_control, loopback_grant};
     use crate::auth::{Scope, TokenSet};
     use crate::state::{ApiState, FrameSource, ServerLock};
 
@@ -1273,5 +1483,38 @@ mod tests {
         let s = state(None);
         let reply = handle_control(&s, Scope::Control, "not json {");
         assert!(reply.contains("could not read the request"), "{reply}");
+    }
+
+    #[tokio::test]
+    async fn a_connection_that_never_completes_its_head_is_failed_at_the_deadline() {
+        use tokio::io::AsyncReadExt as _;
+        // The slowloris shape: the socket is open, the head never ends, and
+        // the client then goes silent — so the read must be woken by the
+        // timer, not merely checked when bytes arrive.
+        let (server_io, _client) = tokio::io::duplex(64);
+        let mut guard = SlowlorisGuard::new(server_io, Duration::from_millis(40));
+        let mut buf = [0_u8; 16];
+        let error = guard.read(&mut buf).await.expect_err("the read must fail");
+        assert_eq!(error.kind(), std::io::ErrorKind::TimedOut);
+    }
+
+    #[tokio::test]
+    async fn a_completed_head_disarms_the_deadline_for_the_rest_of_the_connection() {
+        use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+        let (server_io, mut client) = tokio::io::duplex(256);
+        let mut guard = SlowlorisGuard::new(server_io, Duration::from_millis(40));
+        client
+            .write_all(b"GET / HTTP/1.1\r\nHost: x\r\n\r\n")
+            .await
+            .unwrap();
+        let mut buf = [0_u8; 64];
+        let n = guard.read(&mut buf).await.unwrap();
+        assert_eq!(&buf[..n], b"GET / HTTP/1.1\r\nHost: x\r\n\r\n");
+        // Past the deadline: a completed head must keep working — a streamed
+        // response is one request held open for minutes.
+        tokio::time::sleep(Duration::from_millis(80)).await;
+        client.write_all(b"BODY").await.unwrap();
+        let n = guard.read(&mut buf).await.unwrap();
+        assert_eq!(&buf[..n], b"BODY");
     }
 }

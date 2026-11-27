@@ -43,7 +43,6 @@ function volume(overrides: Partial<Volume> = {}): Volume {
     kind: 'nvme',
     total: 100 * GB,
     available: 25 * GB,
-    strategy: 'directoryWalk',
     ...overrides,
   };
 }
@@ -305,11 +304,6 @@ describe('StorageScreen', () => {
     await mount(makeSource({ volumes: [volume({ total: 0, available: 0 })] }));
     expect(screen.getByText('Capacity not reported')).toBeTruthy();
     expect(screen.queryByRole('meter')).toBeNull();
-  });
-
-  it('marks a drive that supports fast discovery', async () => {
-    await mount(makeSource({ volumes: [volume({ strategy: 'mftAssisted' })] }));
-    expect(screen.getByText('Fast discovery available')).toBeTruthy();
   });
 
   it('invites a scan before one has run, without a spinner', async () => {

@@ -401,24 +401,30 @@ jobs:
       # A `.wgt` is a zip of the bundle with config.xml at its root; a TV only
       # installs one that `tizen package` signed, which needs Tizen Studio and
       # a certificate profile (docs/distribution.md). Where those exist the
-      # signed package is built; where they do not - a hosted runner - the same
-      # archive is assembled unsigned, so CI always produces a `.wgt`. The step
-      # says which one it made; the artifact carries it either way.
+      # signed package is produced by the release lane, scripts/tizen-package.ps1
+      # — the same script a release runs — so CI and a release sign the widget
+      # one way rather than two. Where the SDK or the profile is absent - a
+      # hosted runner - the same archive is assembled unsigned, so CI always
+      # produces a `.wgt`. The step says which one it made; the artifact carries
+      # it either way.
       - name: Build the .wgt
         shell: pwsh
         run: |
           $dist = Join-Path $PWD 'apps\tizen\dist'
-          $signed = Join-Path $dist 'Vitals.wgt'
           $unsigned = Join-Path $dist 'Vitals-unsigned.wgt'
-          Remove-Item $signed, $unsigned -ErrorAction SilentlyContinue
+          Get-ChildItem $dist -Filter *.wgt -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
           $tizen = Join-Path $env:USERPROFILE 'tizen-studio\tools\ide\bin\tizen.bat'
-          if (Test-Path $tizen) {
-            pwsh -NoProfile -File apps/tizen/scripts/tv-deploy.ps1 -NoInstall
-            if ($LASTEXITCODE -ne 0) { throw "tizen packaging exited $LASTEXITCODE" }
-            Write-Host 'built a signed .wgt with Tizen Studio'
+          $profile = Join-Path $env:USERPROFILE 'tizen-studio-data\profile\profiles.xml'
+          if ((Test-Path $tizen) -and (Test-Path $profile)) {
+            # -SkipBuild: the step above built the bundle. -OutDir: the signed
+            # .wgt lands beside it so the artifact upload collects both, and the
+            # script asserts the archive is actually signed before it hands it back.
+            pwsh -NoProfile -File scripts/tizen-package.ps1 -SkipBuild -OutDir $dist
+            if ($LASTEXITCODE -ne 0) { throw "tizen-package.ps1 exited $LASTEXITCODE" }
+            Write-Host 'built a signed .wgt with scripts/tizen-package.ps1 (Tizen Studio + signing profile present)'
           } else {
             Compress-Archive -Path (Join-Path $dist '*') -DestinationPath $unsigned -Force
-            Write-Host 'built an UNSIGNED .wgt: Tizen Studio is absent, so a TV will not install it, but the archive layout and the bundle are checked'
+            Write-Host 'built an UNSIGNED .wgt: Tizen Studio or the signing profile is absent, so a TV will not install it, but the archive layout and the bundle are checked'
           }
           $made = @(Get-ChildItem $dist -Filter *.wgt)
           if ($made.Count -eq 0) { throw 'no .wgt produced' }

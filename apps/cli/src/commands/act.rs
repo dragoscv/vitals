@@ -17,6 +17,7 @@ use vitals_core::ids::{Pid, ProcessKey};
 use vitals_server::ControlRequest;
 
 use super::eco::resolve;
+use crate::exit;
 use crate::source::Source;
 
 /// Scheduling priority, spelt as the control endpoint parses it.
@@ -101,7 +102,9 @@ pub struct Outcome {
 pub fn run(source: &mut Source, pid: u32, action: Action, json: bool) -> Result<()> {
     let view = source.snapshot()?;
     let key = resolve(&view.processes(), pid)?;
-    source.control(action.request(key))?;
+    source
+        .control(action.request(key))
+        .map_err(exit::control_refused)?;
 
     let outcome = Outcome {
         pid: key.pid,

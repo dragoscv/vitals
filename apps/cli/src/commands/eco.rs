@@ -13,6 +13,7 @@ use vitals_core::ids::{Pid, ProcessKey};
 use vitals_core::process::Process;
 use vitals_server::ControlRequest;
 
+use crate::exit;
 use crate::source::Source;
 
 /// Finds the key for `pid` in a process list, or explains why not.
@@ -25,6 +26,7 @@ pub fn resolve(list: &[Process], pid: u32) -> Result<ProcessKey> {
         .find(|p| p.key.pid.get() == pid)
         .map(|p| p.key)
         .with_context(|| format!("no process with PID {pid} in the current sample"))
+        .map_err(exit::not_found)
 }
 
 /// The request the command sends, built separately so its shape is testable
@@ -50,7 +52,9 @@ pub struct Outcome {
 pub fn run(source: &mut Source, pid: u32, enabled: bool, json: bool) -> Result<()> {
     let view = source.snapshot()?;
     let key = resolve(&view.processes(), pid)?;
-    source.control(request(key, enabled))?;
+    source
+        .control(request(key, enabled))
+        .map_err(exit::control_refused)?;
 
     let state = source.efficiency_mode(key)?;
     let outcome = Outcome {

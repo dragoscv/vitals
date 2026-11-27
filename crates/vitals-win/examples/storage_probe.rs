@@ -16,9 +16,10 @@
 use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicBool;
 
+use vitals_win::storage::mft::is_available;
 use vitals_win::storage::{
-    CellKind, Detail, ScanControl, ScanOptions, ScanProgress, ScanResult, ScanStrategy,
-    find_cleanup_candidates, icicle, largest_directories, scan_directory, strategy_for, treemap,
+    CellKind, Detail, ScanControl, ScanOptions, ScanProgress, ScanResult, find_cleanup_candidates,
+    icicle, largest_directories, scan_directory, treemap,
 };
 
 fn human(bytes: u64) -> String {
@@ -36,17 +37,14 @@ fn human(bytes: u64) -> String {
     }
 }
 
-fn print_strategy() {
-    match strategy_for('C') {
-        ScanStrategy::MftAssisted => {
-            println!("strategy: MFT enumeration available (elevated) for volume discovery");
-        }
-        ScanStrategy::DirectoryWalk => {
-            println!(
-                "strategy: directory walk only — MFT enumeration needs elevation, \
-                 so whole-volume discovery is unavailable in this process"
-            );
-        }
+fn print_probe() {
+    if is_available('C') {
+        println!("probe: C: can be opened for a direct read (this process is elevated)");
+    } else {
+        println!(
+            "probe: C: cannot be opened for a direct read (needs elevation); \
+             Vitals walks folders to size them either way"
+        );
     }
 }
 
@@ -277,7 +275,7 @@ fn main() {
 
     println!("Vitals storage probe");
     println!("root: {}", root.display());
-    print_strategy();
+    print_probe();
     println!();
 
     let cancel = AtomicBool::new(false);

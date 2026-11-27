@@ -11,7 +11,7 @@ name: MSIX
 # of the submission cannot be built at all, and an x64-only package leaves
 # every ARM64 machine running the x64 build under emulation.
 #
-#   gh workflow run msix.yml -f version=1.4.0.0
+#   gh workflow run msix.yml -f version=1.5.0.0
 #
 # The packages land in the run's artefacts; nothing is uploaded to a bucket.
 on:

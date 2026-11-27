@@ -92,6 +92,13 @@ export function MobileApp({
             pairings={pairings}
             machines={machines}
             onOpen={open}
+            onPairAgain={(id) => {
+              // A key the PC refuses cannot be repaired from the phone; drop
+              // the pairing so the Machines tab offers the fresh-code hint
+              // again and a re-scan can replace it.
+              update(pairings.filter((p) => p.id !== id));
+              if (selectedId === id) setSelectedId(undefined);
+            }}
             pairFailed={pairFailed}
           />
         )}
@@ -198,7 +205,10 @@ function TabButton({
         aria-current={active ? 'page' : undefined}
         className={cn(
           'flex min-h-[56px] w-full flex-col items-center justify-center gap-0.5 text-2xs font-medium [&_svg]:size-5',
-          active ? 'text-[var(--color-accent)]' : 'text-[var(--color-fg-muted)]',
+          // `--color-accent-text`, not `--color-accent`: the fill accent
+          // measured 4.08:1 on the light theme, below the 4.5:1 AA floor for
+          // a label this size. The theme file tunes this token for text.
+          active ? 'text-[var(--color-accent-text)]' : 'text-[var(--color-fg-muted)]',
         )}
       >
         {icon}

@@ -4,7 +4,7 @@
 //! panic in the render, because a terminal left in raw mode after `top` dies
 //! is the single most annoying thing a CLI can do to a user.
 
-use std::io::{Write, stdout};
+use std::io::{IsTerminal, Write, stdout};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
@@ -47,6 +47,13 @@ pub fn run(source: &mut Source, interval: Duration, json: bool) -> Result<()> {
         return run_json(source, interval);
     }
 
+    // A pipe has no alternate screen to enter and no keyboard to listen on.
+    // `vitals top | grep …`, or a CI log, wants one frame: entering raw mode
+    // here fails outright, and a redraw loop would never end anyway.
+    if !stdout().is_terminal() {
+        return run_once(source);
+    }
+
     let mut guard = TerminalGuard::enter()?;
     let quit = spawn_key_listener();
     let mut out = stdout();
@@ -65,6 +72,22 @@ pub fn run(source: &mut Source, interval: Duration, json: bool) -> Result<()> {
     }
 
     guard.leave()?;
+    Ok(())
+}
+
+/// One frame for a non-interactive caller, then exit.
+///
+/// `snapshot` rather than a single tick: the first sample only primes the
+/// rate baselines and reports 0 % CPU for every process, which would make
+/// `vitals top > file` a table of zeros.
+fn run_once(source: &mut Source) -> Result<()> {
+    let alerts = source.alerts().ok().map(|a| a.len());
+    let view = source.snapshot()?;
+    println!("{}", render::summary_line(&view.system, alerts));
+    println!(
+        "{}",
+        render::processes(&render::top_by_cpu(view.processes(), ROWS))
+    );
     Ok(())
 }
 

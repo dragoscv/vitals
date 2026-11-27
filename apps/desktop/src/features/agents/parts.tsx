@@ -11,8 +11,12 @@ import * as m from 'motion/react-m';
 import { AnimatePresence } from 'motion/react';
 import {
   Bot,
+  CircleCheck,
+  CirclePause,
+  Clock,
   Code2,
   Cpu,
+  LoaderCircle,
   ShieldAlert,
   Sparkles,
   Terminal,
@@ -84,19 +88,32 @@ const STATE_TONE: Record<SessionState, string> = {
 };
 
 /**
+ * A shape per state, so the chip is not read by colour alone. Pairs with
+ * `STATE_TONE`: the icon carries the same meaning as the tint, for anyone
+ * who cannot distinguish the hues.
+ */
+const STATE_ICON: Record<SessionState, LucideIcon> = {
+  working: LoaderCircle,
+  waiting: Clock,
+  idle: CirclePause,
+  ended: CircleCheck,
+};
+
+/**
  * A state chip that morphs between states: the label cross-fades and the
  * pill re-tints in place instead of the row re-rendering a new badge.
  */
 export function StateChip({ state }: { readonly state: SessionState }) {
   const { t } = useTranslation(AGENTS_NS);
   const tone = STATE_TONE[state];
+  const Icon = STATE_ICON[state];
   return (
     <m.span
       className="relative inline-flex h-6 items-center gap-1.5 overflow-hidden rounded-full border px-2.5 text-2xs font-medium"
       animate={{ borderColor: tone, color: tone }}
       transition={{ duration: 0.35 }}
     >
-      <span className="relative flex size-2" aria-hidden>
+      <span className="relative flex size-3 items-center justify-center" aria-hidden>
         {state === 'working' && (
           <m.span
             className="absolute inset-0 rounded-full"
@@ -105,7 +122,7 @@ export function StateChip({ state }: { readonly state: SessionState }) {
             transition={{ duration: 1.4, repeat: Infinity, ease: 'easeOut' }}
           />
         )}
-        <span className="relative size-2 rounded-full" style={{ background: tone }} />
+        <Icon className="relative size-3" />
       </span>
       <AnimatePresence mode="popLayout" initial={false}>
         <m.span

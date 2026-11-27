@@ -182,7 +182,7 @@ export function ProcessesScreen({
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-medium">{displayName(p)}</span>
                       <span className="tnum block text-2xs text-[var(--color-fg-muted)]">
-                        PID {p.key.pid}
+                        {t('process.pid')} {p.key.pid}
                       </span>
                     </span>
                     <span className="tnum w-14 shrink-0 text-right text-sm">

@@ -10,12 +10,20 @@ export interface MachinesScreenProps {
   readonly pairings: readonly Pairing[];
   readonly machines: ReadonlyMap<string, LiveMachine>;
   readonly onOpen: (id: string) => void;
+  /** Forgets a pairing whose key the PC no longer accepts. */
+  readonly onPairAgain: (id: string) => void;
   /** Set when the URL carried a token the PC would not accept. */
   readonly pairFailed: boolean;
 }
 
 /** Every paired PC, one card each. */
-export function MachinesScreen({ pairings, machines, onOpen, pairFailed }: MachinesScreenProps) {
+export function MachinesScreen({
+  pairings,
+  machines,
+  onOpen,
+  onPairAgain,
+  pairFailed,
+}: MachinesScreenProps) {
   const { t } = useTranslation();
 
   if (pairings.length === 0) {
@@ -43,6 +51,7 @@ export function MachinesScreen({ pairings, machines, onOpen, pairFailed }: Machi
             pairing={pairing}
             machine={machines.get(pairing.id)}
             onOpen={onOpen}
+            onPairAgain={onPairAgain}
           />
         ))}
       </div>
@@ -54,11 +63,13 @@ function LiveCard({
   pairing,
   machine,
   onOpen,
+  onPairAgain,
 }: {
   readonly pairing: Pairing;
   readonly machine: LiveMachine | undefined;
   readonly onOpen: (id: string) => void;
+  readonly onPairAgain: (id: string) => void;
 }) {
   const live = useLive(machine);
-  return <MachineCard pairing={pairing} live={live} onOpen={onOpen} />;
+  return <MachineCard pairing={pairing} live={live} onOpen={onOpen} onPairAgain={onPairAgain} />;
 }

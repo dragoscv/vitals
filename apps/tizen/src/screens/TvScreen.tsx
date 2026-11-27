@@ -15,8 +15,12 @@ export function TvScreen() {
   const lang = i18n.language;
   const live = useDeviceLive(true);
   const s = live.snapshot;
+  // A total of zero is "not reported", never "no memory": leaving `used` null
+  // makes the line print dashes rather than a confident "0 B of 0 B".
   const used =
-    s.memoryTotal !== null && s.memoryAvailable !== null ? s.memoryTotal - s.memoryAvailable : null;
+    s.memoryTotal !== null && s.memoryTotal > 0 && s.memoryAvailable !== null
+      ? s.memoryTotal - s.memoryAvailable
+      : null;
   const memoryPct =
     used !== null && s.memoryTotal !== null && s.memoryTotal > 0
       ? (used / s.memoryTotal) * 100

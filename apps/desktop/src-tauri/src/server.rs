@@ -145,10 +145,7 @@ impl LanServer {
         self.running
             .lock()
             .as_ref()
-            .and_then(|h| match h.addr.ip() {
-                std::net::IpAddr::V4(v4) if !v4.is_unspecified() => Some(v4),
-                _ => None,
-            })
+            .and_then(|h| lan_bound_adapter(h.addr))
     }
 
     /// The loopback listener's port, if it is up.
@@ -309,30 +306,101 @@ fn tokens_path() -> PathBuf {
     data_dir().join("lan-tokens.json")
 }
 
+/// Where an unreadable token file is moved aside so it is not silently lost.
+fn backup_path(path: &std::path::Path) -> PathBuf {
+    let mut name = path
+        .file_name()
+        .map(std::ffi::OsStr::to_os_string)
+        .unwrap_or_default();
+    name.push(".bak");
+    path.with_file_name(name)
+}
+
+/// The temp file a save writes through before renaming it over the live file.
+///
+/// A sibling of the target, in the same directory, so the rename that follows
+/// is atomic — `rename` cannot cross a filesystem, and a temp in `/tmp` would
+/// silently become a copy. The PID keeps two writers from colliding on the
+/// name; the rename is what serialises them.
+fn temp_sibling(path: &std::path::Path) -> PathBuf {
+    let mut name = path
+        .file_name()
+        .map(std::ffi::OsStr::to_os_string)
+        .unwrap_or_default();
+    name.push(format!(".{}.tmp", std::process::id()));
+    path.with_file_name(name)
+}
+
+/// Writes `bytes` to `path` without ever exposing a half-written file.
+///
+/// A plain `std::fs::write` truncates the live file and then streams into it,
+/// so a crash, a full disk or a killed process mid-write leaves a truncated
+/// JSON document — and the token set is the only record of every paired
+/// device. Writing a sibling temp first and renaming it over the target is
+/// atomic on both NTFS and POSIX, so a reader sees the old file or the new
+/// one and never a fragment.
+fn write_atomically(path: &std::path::Path, bytes: &[u8]) -> std::io::Result<()> {
+    let tmp = temp_sibling(path);
+    std::fs::write(&tmp, bytes)?;
+    if let Err(error) = std::fs::rename(&tmp, path) {
+        // Do not leave the temp behind when the rename failed: its whole
+        // purpose is the atomic replace, and a stranded temp is litter.
+        let _ = std::fs::remove_file(&tmp);
+        return Err(error);
+    }
+    Ok(())
+}
+
 /// Reads the token set. A file from before tokens were hashed is rewritten
 /// hashed immediately, so no secret outlives the first launch of this build.
 fn load_tokens() -> TokenSet {
-    let Ok(bytes) = std::fs::read(tokens_path()) else {
+    load_tokens_from(&tokens_path())
+}
+
+/// Reads the token set at `path`, preserving an unreadable file rather than
+/// discarding it.
+///
+/// `unwrap_or_default()` here used to turn any parse error into "no tokens"
+/// and the next save overwrote the file: one bad byte silently unpaired every
+/// phone. A parse error now keeps the bytes as a `.bak` beside the live file
+/// — the prefixes a user needs to recognise their pairings are still
+/// recoverable — and only then starts from an empty set.
+fn load_tokens_from(path: &std::path::Path) -> TokenSet {
+    let Ok(bytes) = std::fs::read(path) else {
         return TokenSet::default();
     };
-    let tokens: TokenSet = serde_json::from_slice(&bytes).unwrap_or_default();
-    if bytes.windows(9).any(|w| w == b"\"secret\"") {
-        save_tokens(&tokens);
+    match serde_json::from_slice::<TokenSet>(&bytes) {
+        Ok(tokens) => {
+            if bytes.windows(9).any(|w| w == b"\"secret\"") {
+                save_tokens_to(path, &tokens);
+            }
+            tokens
+        }
+        Err(error) => {
+            let bak = backup_path(path);
+            tracing::warn!(%error, ?path, ?bak, "LAN token file is unreadable; keeping a .bak copy and starting fresh");
+            if let Err(rename) = std::fs::rename(path, &bak) {
+                tracing::warn!(%rename, ?path, "could not keep a .bak copy of the unreadable token file");
+            }
+            TokenSet::default()
+        }
     }
-    tokens
 }
 
 /// Writes the token set. Failure is logged, not surfaced: the tokens still
 /// work for this session, and the user will simply have to pair again after a
 /// restart — a nuisance, not a reason to refuse the pairing.
 fn save_tokens(tokens: &TokenSet) {
-    let path = tokens_path();
+    save_tokens_to(&tokens_path(), tokens);
+}
+
+fn save_tokens_to(path: &std::path::Path, tokens: &TokenSet) {
     if let Some(dir) = path.parent() {
         let _ = std::fs::create_dir_all(dir);
     }
     match serde_json::to_vec_pretty(tokens) {
         Ok(bytes) => {
-            if let Err(error) = std::fs::write(&path, bytes) {
+            if let Err(error) = write_atomically(path, &bytes) {
                 tracing::warn!(%error, "could not persist LAN tokens");
             }
         }
@@ -472,6 +540,10 @@ fn parse_priority(value: &str) -> Option<vitals_win::Priority> {
 pub struct LanStatus {
     pub running: bool,
     pub port: Option<u16>,
+    /// The address the listener actually bound, so the UI can show what a
+    /// phone must reach. `None` when it listens on every interface (or is
+    /// off) — the same fact `bound_adapter` reports.
+    pub bound_address: Option<std::net::Ipv4Addr>,
     pub interfaces: Vec<Interface>,
     pub tokens: Vec<TokenSummary>,
 }
@@ -513,6 +585,7 @@ pub fn get_lan_status(server: tauri::State<'_, LanServer>) -> LanStatus {
         // never actually turn it on. `is_running` stays the sampler's gate.
         running: server.port().is_some(),
         port: server.port(),
+        bound_address: server.bound_adapter(),
         interfaces: vitals_server::interfaces(),
         tokens: server
             .tokens
@@ -531,9 +604,10 @@ pub fn get_lan_status(server: tauri::State<'_, LanServer>) -> LanStatus {
 /// socket is bound to **that address only**: a phone on the home Wi-Fi is
 /// the audience, and listening on `0.0.0.0` also answered on the VPN, the
 /// Hyper-V switch, a mobile hotspot and any other network the PC happened to
-/// join. `None` keeps the every-interface bind, because without a choice
-/// there is no adapter we could prove is the right one — and advertising
-/// still uses the best guess, the same one `create_pairing` puts in the QR.
+/// join. With no choice the best guess is bound instead — the same adapter
+/// `create_pairing` puts in the QR — never `0.0.0.0`. Only a machine with no
+/// LAN address at all falls back to an every-interface bind, the one case
+/// where it is the only way to be reachable.
 #[tauri::command]
 pub async fn start_lan_server(
     app: tauri::AppHandle,
@@ -550,7 +624,10 @@ pub async fn start_lan_server(
     let state = server.api_state(&app, Some(embedded_assets(app.clone())), None);
 
     let port = port.unwrap_or(DEFAULT_PORT);
-    let bound = match address {
+    // Never `0.0.0.0` unless the machine genuinely has no LAN address: an
+    // every-interface bind also answers on the VPN and the Hyper-V switch.
+    let bind = bind_address_for(address, default_route_address());
+    let bound = match bind {
         Some(adapter) => {
             vitals_server::serve_on(state, std::net::SocketAddr::from((adapter, port))).await
         }
@@ -568,12 +645,41 @@ pub async fn start_lan_server(
     // that failed to start would point every phone at a closed port.
     start_advertising(
         &server,
-        address,
+        bind,
         bound,
         &app.package_info().version.to_string(),
     );
 
     Ok(bound)
+}
+
+/// The address the LAN listener binds.
+///
+/// `chosen` is what the user picked in Settings and always wins. With no
+/// choice the best guess is the highest-scored interface — the same address
+/// `create_pairing` puts in the QR — deliberately **not** `0.0.0.0`, because
+/// binding every interface also exposes the server on the VPN, the Hyper-V
+/// switch and any hotspot the machine has joined. `None` only when there is
+/// no LAN address at all, where every-interface is the only way to be reached.
+fn bind_address_for(
+    chosen: Option<std::net::Ipv4Addr>,
+    best: Option<std::net::Ipv4Addr>,
+) -> Option<std::net::Ipv4Addr> {
+    chosen.or(best)
+}
+
+/// The highest-scored adapter's address, or `None` when there is no candidate.
+fn default_route_address() -> Option<std::net::Ipv4Addr> {
+    vitals_server::interfaces().first().map(|i| i.address)
+}
+
+/// The IPv4 address a listener is bound to, or `None` when it listens on
+/// every interface. Split out so the rule is testable without a socket.
+fn lan_bound_adapter(addr: std::net::SocketAddr) -> Option<std::net::Ipv4Addr> {
+    match addr.ip() {
+        std::net::IpAddr::V4(v4) if !v4.is_unspecified() => Some(v4),
+        _ => None,
+    }
 }
 
 /// Announces the running server over `mDNS`, or explains why it could not.
@@ -965,5 +1071,167 @@ mod tests {
         if let Some(mut h) = server.local.lock().take() {
             h.stop();
         }
+    }
+
+    fn token_set(secrets: &[&str]) -> TokenSet {
+        TokenSet {
+            tokens: secrets.iter().map(|s| token(s)).collect(),
+        }
+    }
+
+    fn temp_dir(tag: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("vitals-tokens-{tag}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn a_token_save_is_written_through_a_temp_file_and_renamed_into_place() {
+        // A plain write truncates the live file and streams into it, so a
+        // crash mid-write leaves a truncated document — and the token set is
+        // the only record of every paired device. The save must go through a
+        // sibling temp and rename it over the target.
+        let dir = temp_dir("atomic");
+        let live = dir.join("lan-tokens.json");
+        save_tokens_to(&live, &token_set(&["aaaaaaaa-one"]));
+        let good = std::fs::read(&live).unwrap();
+
+        // Plant the half-written file a crash would leave, where it would
+        // land: in the temp. The live file must be untouched and still parse.
+        let stray = temp_sibling(&live);
+        std::fs::write(&stray, b"{\"tokens\": [{\"prefix\": \"aa").unwrap();
+        assert_eq!(
+            std::fs::read(&live).unwrap(),
+            good,
+            "a stray temp must not touch the live file"
+        );
+        assert!(serde_json::from_slice::<TokenSet>(&std::fs::read(&live).unwrap()).is_ok());
+
+        // A normal save writes through that same temp path and renames it over
+        // the live file, so the temp is gone afterwards — something a save
+        // that wrote the live file directly could never achieve.
+        save_tokens_to(&live, &token_set(&["bbbbbbbb-two"]));
+        assert!(
+            !stray.exists(),
+            "the temp must have been renamed into place, not left behind"
+        );
+        let after: TokenSet = serde_json::from_slice(&std::fs::read(&live).unwrap()).unwrap();
+        assert_eq!(after.tokens.len(), 1);
+        assert_eq!(after.tokens[0].prefix, "bbbbbbbb");
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn a_save_that_cannot_rename_leaves_the_previous_file_and_no_temp() {
+        // The rename is the only step that touches the live file. When it
+        // fails — here the destination is a directory — nothing may be
+        // stranded and the previous file must survive intact.
+        let dir = temp_dir("rename-fail");
+        let blocked = dir.join("blocked.json");
+        std::fs::create_dir(&blocked).unwrap();
+        assert!(write_atomically(&blocked, b"{\"tokens\":[]}").is_err());
+        assert!(
+            std::fs::read_dir(&dir).unwrap().all(|e| !e
+                .unwrap()
+                .file_name()
+                .to_string_lossy()
+                .ends_with(".tmp")),
+            "a failed save must not leave a temp file behind"
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn an_unreadable_token_file_is_kept_as_a_bak_copy_rather_than_discarded() {
+        // `unwrap_or_default` dropped the only record of every pairing and the
+        // next save overwrote it: one bad byte silently unpaired every phone.
+        let dir = temp_dir("corrupt");
+        let live = dir.join("lan-tokens.json");
+        std::fs::write(&live, b"this is not token json {[}").unwrap();
+
+        let tokens = load_tokens_from(&live);
+        assert!(tokens.tokens.is_empty());
+
+        let bak = backup_path(&live);
+        assert_eq!(
+            std::fs::read(&bak).unwrap(),
+            b"this is not token json {[}",
+            "the unreadable file must be preserved for recovery"
+        );
+        assert!(
+            !live.exists(),
+            "it was moved aside so it is not re-read and lost again"
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn a_readable_token_file_loads_its_tokens_and_is_not_backed_up() {
+        // The guard above must not swallow a good file.
+        let dir = temp_dir("good");
+        let live = dir.join("lan-tokens.json");
+        save_tokens_to(&live, &token_set(&["aaaaaaaa-one", "bbbbbbbb-two"]));
+        let tokens = load_tokens_from(&live);
+        assert_eq!(tokens.tokens.len(), 2);
+        assert_eq!(tokens.tokens[0].prefix, "aaaaaaaa");
+        assert!(
+            !backup_path(&live).exists(),
+            "a readable file is not backed up"
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn with_no_choice_the_lan_server_binds_the_best_adapter_not_every_interface() {
+        let best = std::net::Ipv4Addr::new(192, 168, 1, 20);
+        assert_eq!(bind_address_for(None, Some(best)), Some(best));
+        assert_ne!(
+            bind_address_for(None, Some(best)),
+            Some(std::net::Ipv4Addr::UNSPECIFIED),
+            "the default bind must never be 0.0.0.0 when an adapter is known"
+        );
+        // The user's pick always wins over the guess.
+        let chosen = std::net::Ipv4Addr::new(10, 0, 0, 5);
+        assert_eq!(bind_address_for(Some(chosen), Some(best)), Some(chosen));
+        // Only a machine with no LAN address at all falls back to every
+        // interface, which `serve` then binds as 0.0.0.0.
+        assert_eq!(bind_address_for(None, None), None);
+    }
+
+    #[test]
+    fn the_bound_address_accessor_reports_the_adapter_and_never_every_interface() {
+        assert_eq!(
+            lan_bound_adapter("192.168.1.20:7331".parse().unwrap()),
+            Some(std::net::Ipv4Addr::new(192, 168, 1, 20))
+        );
+        assert_eq!(lan_bound_adapter("0.0.0.0:7331".parse().unwrap()), None);
+    }
+
+    #[test]
+    fn the_status_carries_the_address_the_listener_is_bound_to() {
+        let status = LanStatus {
+            running: true,
+            port: Some(7331),
+            bound_address: Some(std::net::Ipv4Addr::new(192, 168, 1, 20)),
+            interfaces: Vec::new(),
+            tokens: Vec::new(),
+        };
+        let json = serde_json::to_value(&status).unwrap();
+        assert_eq!(json["boundAddress"], "192.168.1.20");
+
+        // Every-interface: null, and the UI falls back to the port alone.
+        let unbound = LanStatus {
+            running: true,
+            port: Some(7331),
+            bound_address: None,
+            interfaces: Vec::new(),
+            tokens: Vec::new(),
+        };
+        assert_eq!(
+            serde_json::to_value(&unbound).unwrap()["boundAddress"],
+            serde_json::Value::Null
+        );
     }
 }

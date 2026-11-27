@@ -97,6 +97,37 @@ if ($Set) {
   if (-not [regex]::IsMatch($text, $tizenPattern)) { throw "$tizenXml has no <widget ... version=...> to set" }
   [IO.File]::WriteAllText($tizenXml, [regex]::Replace($text, $tizenPattern, ('${1}' + $Set + '${3}'), 1))
 
+  # The Store version is a FOUR-part literal - the product version with a
+  # trailing .0 - and it is only ever pasted by a human into an MSIX build, so
+  # no compiler and no test sees it. scripts/check-drift.ps1 pins every literal
+  # bound to a `-Version` argument or a `version=` workflow input against it,
+  # and that gate has fired twice: the 1.3.0 bump missed one example and the
+  # 1.3.1 release commit updated three of the five and missed the other two.
+  # Rewriting them here is what makes the bump unable to leave one behind; the
+  # gate stays as the check that it did not, and it deliberately still reads
+  # Cargo.toml directly so it never depends on this having run.
+  $storeVersion = (($Set -split '[-+]')[0]) + '.0'
+  # Same shape as the gate's: the binding prefix is captured so that only the
+  # number moves, and `e.g. 0.9.0.0` or `(e.g. 1.3.0.0)` - illustrations of the
+  # form, with no `-Version` in front of them - are left alone.
+  $boundVersion = '(?<![A-Za-z0-9_])((?:-Version\s+|version=))\d+\.\d+\.\d+\.\d+'
+  $boundRoots = @('packaging', 'scripts', '.github/workflows')
+  $boundExtensions = @('.ps1', '.psm1', '.psd1', '.yml', '.yaml', '.json', '.xml', '.nuspec', '.md', '.mjs', '.js', '.sh')
+  $rewritten = 0
+  $rewrittenFiles = @()
+  foreach ($file in @(Get-ChildItem -Path ($boundRoots | ForEach-Object { Join-Path $root $_ }) -Recurse -File -ErrorAction SilentlyContinue |
+    Where-Object { $boundExtensions -contains $_.Extension })) {
+    $text = [IO.File]::ReadAllText($file.FullName)
+    if (-not [regex]::IsMatch($text, $boundVersion)) { continue }
+    $new = [regex]::Replace($text, $boundVersion, ('${1}' + $storeVersion))
+    if ($new -ne $text) {
+      [IO.File]::WriteAllText($file.FullName, $new)
+      $rewritten++
+      $rewrittenFiles += ([IO.Path]::GetRelativePath($root, $file.FullName) -replace '\\', '/')
+    }
+  }
+  Write-Host ("Store version {0} written into {1} bound example(s): {2}" -f $storeVersion, $rewritten, ($rewrittenFiles -join ', '))
+
   Get-Versions | Format-Table -AutoSize | Out-String | Write-Host
   Write-Host "Now run: cargo update --workspace (refreshes Cargo.lock)"
   exit 0

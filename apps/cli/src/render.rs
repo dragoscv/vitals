@@ -5,9 +5,12 @@
 //! into a zero — that is the one rule the whole project is built on.
 
 use comfy_table::{ContentArrangement, Table, presets};
+use vitals_core::MachineSample;
+use vitals_core::alerts::{Alert, AlertKind, AlertValue, Severity};
 use vitals_core::metrics::SystemMetrics;
 use vitals_core::process::{Process, ProcessState};
 use vitals_core::provider::HostInfo;
+use vitals_core::remote::SensorLine;
 use vitals_core::units::{Bytes, BytesPerSec, Percent};
 
 /// What an unmeasured reading looks like.
@@ -198,6 +201,127 @@ pub fn top_by_cpu(mut list: Vec<Process>, n: usize) -> Vec<Process> {
     list
 }
 
+/// The sensor table `vitals sensors` prints. Every reading here is real: a
+/// sensor the machine could not read is simply absent from the list, which is
+/// why nothing in a row is ever dashed.
+pub fn sensors(lines: &[SensorLine]) -> String {
+    let mut t = table();
+    t.set_header(["Key", "Label", "Value", "Unit", "Source", "Quality"]);
+    for line in lines {
+        t.add_row([
+            line.key.clone(),
+            line.label.clone(),
+            format!("{:.2}", line.value),
+            line.unit.clone(),
+            line.source.clone(),
+            line.quality.clone(),
+        ]);
+    }
+    t.to_string()
+}
+
+/// The alert table `vitals alerts` prints.
+///
+/// `title` and `cause` are i18n keys the desktop renders in the user's
+/// language; the CLI has no locale to render them with, so it names the
+/// condition instead and shows the alert's own values beside it.
+pub fn alerts(list: &[Alert]) -> String {
+    let mut t = table();
+    t.set_header(["Severity", "Kind", "Subject", "Values"]);
+    for alert in list {
+        let values = alert
+            .values
+            .iter()
+            .map(|(key, value)| format!("{key}={}", alert_value(value)))
+            .collect::<Vec<_>>()
+            .join(", ");
+        t.add_row([
+            severity(alert.severity).to_owned(),
+            alert_kind(alert.kind).to_owned(),
+            alert.subject.clone(),
+            values,
+        ]);
+    }
+    t.to_string()
+}
+
+/// The history table `vitals history` prints — one row per stored sample.
+///
+/// The optional columns (GPU, temperature, power) dash when the machine did
+/// not report them for that sample, exactly as the summary does.
+pub fn history(samples: &[MachineSample]) -> String {
+    let mut t = table();
+    t.set_header([
+        "Time",
+        "CPU %",
+        "Kernel %",
+        "Mem used",
+        "Mem total",
+        "Disk R",
+        "Disk W",
+        "Net RX",
+        "Net TX",
+        "GPU %",
+        "Temp",
+        "Power",
+    ]);
+    for sample in samples {
+        t.add_row([
+            sample.ts.to_string(),
+            format!("{:.1}", sample.cpu_percent),
+            format!("{:.1}", sample.cpu_kernel_percent),
+            bytes(Bytes(sample.memory_used)),
+            bytes(Bytes(sample.memory_total)),
+            rate(BytesPerSec(sample.disk_read_bps)),
+            rate(BytesPerSec(sample.disk_write_bps)),
+            rate(BytesPerSec(sample.net_rx_bps)),
+            rate(BytesPerSec(sample.net_tx_bps)),
+            opt(sample.gpu_percent, |v| format!("{v:.1}")),
+            opt(sample.cpu_temp_c, |v| format!("{v:.0} °C")),
+            opt(sample.power_draw_w, |v| format!("{v:.1} W")),
+        ]);
+    }
+    t.to_string()
+}
+
+const fn severity(value: Severity) -> &'static str {
+    match value {
+        Severity::Info => "info",
+        Severity::Warning => "warning",
+        Severity::Critical => "critical",
+    }
+}
+
+/// A human name for each condition. The wire name is camelCase and the
+/// desktop's name is an i18n key; this is the third spelling, for a table
+/// read in a terminal.
+const fn alert_kind(kind: AlertKind) -> &'static str {
+    match kind {
+        AlertKind::CpuSustained => "cpu-sustained",
+        AlertKind::CpuThrottled => "cpu-throttled",
+        AlertKind::MemoryPressure => "memory-pressure",
+        AlertKind::MemoryCommit => "memory-commit",
+        AlertKind::DiskSaturated => "disk-saturated",
+        AlertKind::DiskLatency => "disk-latency",
+        AlertKind::DiskSpace => "disk-space",
+        AlertKind::DiskHealth => "disk-health",
+        AlertKind::GpuThrottled => "gpu-throttled",
+        AlertKind::ThermalCpu => "thermal-cpu",
+        AlertKind::NetworkErrors => "network-errors",
+        AlertKind::BatteryLow => "battery-low",
+        AlertKind::BatteryHealth => "battery-health",
+        AlertKind::Custom => "custom",
+        AlertKind::ServiceStopped => "service-stopped",
+    }
+}
+
+fn alert_value(value: &AlertValue) -> String {
+    match value {
+        AlertValue::Number(n) => format!("{n}"),
+        AlertValue::Text(s) => s.clone(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -265,5 +389,67 @@ mod tests {
         let text = processes(&[fixtures::process("a.exe", 7, 3.0)]);
         assert_eq!(text.lines().count(), 2, "{text}");
         assert!(text.contains("a.exe"));
+    }
+
+    #[test]
+    fn a_sensor_row_prints_the_reading_it_was_given() {
+        // Built by hand rather than through a fixture: this table's job is to
+        // show the exact fields it is handed, and a fixture would only prove
+        // it can print the fixture.
+        let line = SensorLine {
+            key: "cpu.package.temp".into(),
+            label: "CPU package".into(),
+            value: 41.5,
+            unit: "°C".into(),
+            source: "wmi".into(),
+            quality: "good".into(),
+        };
+        let text = sensors(&[line]);
+        assert!(text.contains("CPU package"), "{text}");
+        assert!(text.contains("41.50"), "{text}");
+        assert!(text.contains("wmi"), "{text}");
+    }
+
+    #[test]
+    fn an_alert_row_names_its_condition_and_keeps_its_values() {
+        let alert: Alert = serde_json::from_value(serde_json::json!({
+            "kind": "diskSpace",
+            "severity": "warning",
+            "subject": "C:",
+            "title": "dashboard.alert.diskSpace.title",
+            "cause": "dashboard.alert.diskSpace.low",
+            "values": { "freeGb": 3.0, "mount": "C:" },
+            "route": null,
+            "sinceSample": 4
+        }))
+        .expect("a valid alert fixture");
+        let text = alerts(&[alert]);
+        assert!(text.contains("warning"), "{text}");
+        assert!(text.contains("disk-space"), "{text}");
+        assert!(text.contains("freeGb=3"), "{text}");
+        assert!(text.contains("mount=C:"), "{text}");
+    }
+
+    #[test]
+    fn an_unmeasured_history_field_is_a_dash_not_a_zero() {
+        let sample: MachineSample = serde_json::from_value(serde_json::json!({
+            "ts": 1_700_000_000i64,
+            "cpuPercent": 12.5,
+            "cpuKernelPercent": 3.0,
+            "memoryUsed": 8_589_934_592u64,
+            "memoryTotal": 17_179_869_184u64,
+            "diskReadBps": 0,
+            "diskWriteBps": 0,
+            "netRxBps": 0,
+            "netTxBps": 0,
+            "gpuPercent": null,
+            "cpuTempC": null,
+            "powerDrawW": null
+        }))
+        .expect("a valid sample fixture");
+        let text = history(&[sample]);
+        assert!(text.contains("12.5"), "{text}");
+        // GPU, temperature and power were not reported: three dashes, no zero.
+        assert_eq!(text.matches(DASH).count(), 3, "{text}");
     }
 }

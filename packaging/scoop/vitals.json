@@ -7,7 +7,7 @@
   "notes": [
     "Vitals is installed as a portable copy. Settings live in %APPDATA%\\Vitals and survive 'scoop uninstall'.",
     "Update with 'scoop update vitals'. The app's own updater installs the full per-machine version instead, so prefer Scoop for updates.",
-    "This package is the desktop app only. The 'vitals' command line is a separate download: vitals-cli_<version>_<arch>.zip, from the same GitHub release (it is not inside the installer yet)."
+    "This package is the desktop app only. The 'vitals' command line is a separate download: vitals-cli_<version>_<arch>.zip, from the same GitHub release. That zip is a portable vitals.exe (plus LICENSE and THIRD_PARTY_NOTICES.md), not something Scoop installs, and it is not inside the installer yet. See docs/cli.md."
   ],
   "architecture": {
     "64bit": {

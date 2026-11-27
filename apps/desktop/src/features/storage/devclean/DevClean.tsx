@@ -700,7 +700,12 @@ function idleText(project: Project, t: T): string {
     case 'active':
       return t('dev.project.active');
     case 'idle':
-      return t('dev.project.idle', { count: project.idleDays ?? 0 });
+      // `idleKey` returns 'idle' only when `idleDays` is known, so the null
+      // branch is unreachable; render the unknown phrase rather than a false
+      // "Idle 0 days" if the invariant ever changes.
+      return project.idleDays === null
+        ? t('dev.project.idleUnknown')
+        : t('dev.project.idle', { count: project.idleDays });
   }
 }
 

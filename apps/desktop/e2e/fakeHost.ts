@@ -89,7 +89,6 @@ function storageData() {
         kind: 'nvme',
         total: 1000 * GIB,
         available: 120 * GIB,
-        strategy: 'mftAssisted',
       },
       {
         mount: 'D:\\',
@@ -98,7 +97,6 @@ function storageData() {
         kind: 'ssd',
         total: 2000 * GIB,
         available: 900 * GIB,
-        strategy: 'directoryWalk',
       },
       {
         mount: 'E:\\',
@@ -107,7 +105,6 @@ function storageData() {
         kind: 'removable',
         total: 64 * GIB,
         available: 63 * GIB,
-        strategy: 'directoryWalk',
       },
     ],
     snapshot: {
@@ -504,6 +501,23 @@ export interface FakeHostOptions {
    * which is worth testing, but is not the page.
    */
   readonly collab?: unknown;
+  /**
+   * The verdict `diagnose` answers with. Without it the diagnosis dialog shows
+   * its "could not reach the measurement engine" failure state, which is an
+   * honest state but not the one its accessibility is judged on.
+   */
+  readonly diagnosis?: unknown;
+  /**
+   * Pairings to seed into `localStorage` before the phone page boots. Shape
+   * mirrors `Pairing` in src/mobile/lib/pairing.ts.
+   *
+   * The phone reads its paired PCs from `localStorage`
+   * (`vitals.mobile.pairings.v1`), not through the Tauri host, so this is the
+   * one fixture that reaches it: without a pairing the page can only ever show
+   * its empty state. Seeded from here rather than mocked inside a spec so a
+   * page's fixtures stay in one place.
+   */
+  readonly pairings?: readonly unknown[];
 }
 
 /** Installs the fake host before the app's first script runs. */
@@ -517,6 +531,8 @@ export async function installFakeHost(page: Page, options: FakeHostOptions): Pro
     flicker: options.flicker === true,
     agents: options.agents ?? null,
     collab: options.collab ?? null,
+    diagnosis: options.diagnosis ?? null,
+    pairings: options.pairings ?? null,
   };
   await page.addInitScript((d) => {
     type Handler = (event: { event: string; id: number; payload: unknown }) => void;
@@ -550,6 +566,14 @@ export async function installFakeHost(page: Page, options: FakeHostOptions): Pro
         }),
       );
 
+    // The phone page reads its pairings from localStorage, not the Tauri host;
+    // seeding here is what lets it render a machine card rather than its empty
+    // state. Runs before the app's own scripts, like everything in this seam.
+    // Key mirrors `PAIRINGS_KEY` in src/mobile/lib/pairing.ts.
+    if (d.pairings !== null) {
+      window.localStorage.setItem('vitals.mobile.pairings.v1', JSON.stringify(d.pairings));
+    }
+
     const answers: Record<string, unknown> = {
       get_volumes: d.storage.volumes,
       scan_storage: d.storage.snapshot,
@@ -569,6 +593,7 @@ export async function installFakeHost(page: Page, options: FakeHostOptions): Pro
         ? {}
         : { subscribe_agents: { id: 1, snapshot: d.agents }, unsubscribe_agents: null }),
       ...(d.collab === null ? {} : { get_collab: d.collab }),
+      ...(d.diagnosis === null ? {} : { diagnose: d.diagnosis }),
       ...d.tables,
     };
 

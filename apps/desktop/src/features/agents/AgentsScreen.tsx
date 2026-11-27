@@ -30,6 +30,7 @@ import {
   TabsTrigger,
 } from '@vitals/ui';
 
+import { CommandErrorNotice } from '../../lib/CommandErrorNotice';
 import { CloudPanel, InsightsPanel, JobsPanel, JournalPanel } from './ActivityPanels';
 import { ActionsPanel } from './ActionsPanel';
 import { CloudAccount } from './CloudAccount';
@@ -83,7 +84,11 @@ export function AgentsScreen({ source }: AgentsScreenProps): React.JSX.Element {
       toast.error(t('action.failed', { output: res.output.slice(-200) }));
       return false;
     } catch (cause: unknown) {
-      toast.error(t('action.failed', { output: String(cause) }));
+      // A rejection here is a bare `CommandError` or a Tauri argument error,
+      // not agentq's own `{ ok, output }` result: `String(cause)` printed
+      // "[object Object]" for the former. The notice reads the kind and shows
+      // the sentence, with the raw text kept behind Details.
+      toast.error(<CommandErrorNotice error={cause} />);
       return false;
     } finally {
       setBusy(false);
@@ -103,9 +108,18 @@ export function AgentsScreen({ source }: AgentsScreenProps): React.JSX.Element {
         killed?: number;
         freedMB?: number;
       };
+      // A missing field means agentq did not report it, which is not the
+      // same fact as a measured zero. Interpolate the em dash (via `replace`,
+      // so the count stays out of i18next's plural handling) rather than
+      // claiming "0 terminals".
+      const dash = t('field.unset');
       return dryRun
-        ? t('action.reapPreviewResult', { count: r.reapable ?? 0, mb: r.reapableMB ?? 0 })
-        : t('action.reapResult', { killed: r.killed ?? 0, mb: r.freedMB ?? 0 });
+        ? t('action.reapPreviewResult', {
+            replace: { count: r.reapable ?? dash, mb: r.reapableMB ?? dash },
+          })
+        : t('action.reapResult', {
+            replace: { killed: r.killed ?? dash, mb: r.freedMB ?? dash },
+          });
     } catch {
       return t('action.done');
     }
@@ -197,7 +211,7 @@ export function AgentsScreen({ source }: AgentsScreenProps): React.JSX.Element {
       )}
       {state.error !== null && (
         <p role="alert" className="text-2xs text-[var(--color-danger-text)]">
-          {state.error}
+          <CommandErrorNotice error={state.error} />
         </p>
       )}
 

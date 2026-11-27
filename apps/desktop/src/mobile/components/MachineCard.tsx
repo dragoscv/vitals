@@ -7,9 +7,11 @@ import {
   primaryGpu,
   type Alert,
   type Severity,
+  type SystemMetrics,
 } from '@vitals/protocol';
 import {
   Badge,
+  Button,
   Card,
   Skeleton,
   cn,
@@ -19,7 +21,14 @@ import {
   formatThroughput,
 } from '@vitals/ui';
 
-import type { ConnectionState, LiveState } from '../lib/live';
+import {
+  formatAgo,
+  readingAgeMs,
+  STALE_AFTER_MS,
+  useNow,
+  type ConnectionState,
+  type LiveState,
+} from '../lib/live';
 import type { Pairing } from '../lib/pairing';
 import { MOBILE_ALERTS_NS } from '../strings';
 import { Sparkline } from './Sparkline';
@@ -28,6 +37,8 @@ export interface MachineCardProps {
   readonly pairing: Pairing;
   readonly live: LiveState;
   readonly onOpen: (id: string) => void;
+  /** Forgets the dead pairing so a fresh code can be scanned. */
+  readonly onPairAgain?: (id: string) => void;
 }
 
 const TONE: Record<ConnectionState, 'ok' | 'warn' | 'danger' | 'neutral'> = {
@@ -35,6 +46,9 @@ const TONE: Record<ConnectionState, 'ok' | 'warn' | 'danger' | 'neutral'> = {
   connecting: 'neutral',
   reconnecting: 'warn',
   unreachable: 'danger',
+  // A revoked key is not the network's fault and will not fix itself, so it
+  // reads with the same urgency as an unreachable PC but a different action.
+  unauthorised: 'danger',
 };
 
 const SEVERITY_ICON: Readonly<Record<Severity, typeof Info>> = {
@@ -50,10 +64,11 @@ const SEVERITY_TONE: Readonly<Record<Severity, string>> = {
 };
 
 /** One paired PC at a glance. The whole card is the tap target. */
-export function MachineCard({ pairing, live, onOpen }: MachineCardProps) {
+export function MachineCard({ pairing, live, onOpen, onPairAgain }: MachineCardProps) {
   const { t, i18n } = useTranslation();
   const locale = i18n.language;
   const system = live.snapshot?.system;
+  const now = useNow();
 
   // gpus[0] was wrong: the kernel enumerates a virtual display first on
   // this machine, so the card showed a dash beside a GPU at 17 %. The shared
@@ -61,6 +76,12 @@ export function MachineCard({ pairing, live, onOpen }: MachineCardProps) {
   const gpu = system === undefined ? undefined : (primaryGpu(system) ?? undefined);
   const nic = system === undefined ? undefined : busiestNic(system);
   const temperature = system === undefined ? null : headlineTemperature(system);
+  // A reading that has gone quiet is the last one received, not a live view,
+  // so an older-than-2×-tick figure is labelled rather than passed off as
+  // current. Suppressed while unauthorised: the panel below already explains
+  // why nothing is arriving.
+  const age = readingAgeMs(live, now);
+  const stale = live.state !== 'unauthorised' && age !== null && age >= STALE_AFTER_MS;
 
   return (
     <Card className="overflow-hidden">
@@ -75,7 +96,13 @@ export function MachineCard({ pairing, live, onOpen }: MachineCardProps) {
           <Badge tone={TONE[live.state]}>{t(`mobile.connection.${live.state}`)}</Badge>
         </div>
 
-        {system === undefined ? (
+        {stale && (
+          <p className="mt-2 text-2xs text-[var(--color-warn-text)]">
+            {t('mobile.stale', { ago: formatAgo(age) })}
+          </p>
+        )}
+
+        {live.state === 'unauthorised' ? null : system === undefined ? (
           <div className="mt-4 space-y-3" aria-busy="true">
             <Skeleton className="h-8 w-full" />
             <Skeleton className="h-8 w-full" />
@@ -92,8 +119,10 @@ export function MachineCard({ pairing, live, onOpen }: MachineCardProps) {
             <Trace
               label={t('mobile.machines.memory')}
               value={t('mobile.machines.memoryOf', {
-                used: formatBytes(system.memory.used, locale),
-                total: formatBytes(system.memory.total, locale),
+                // A total of zero is "not reported", never "no memory", so the
+                // line reads "— of —" rather than a false "0 B of 0 B".
+                used: formatBytes(memoryReported(system) ? system.memory.used : null, locale),
+                total: formatBytes(memoryReported(system) ? system.memory.total : null, locale),
               })}
               history={live.memoryHistory}
               stroke="var(--color-chart-memory)"
@@ -130,6 +159,17 @@ export function MachineCard({ pairing, live, onOpen }: MachineCardProps) {
           </div>
         )}
       </button>
+      {/* Outside the button: a revoked key needs its own action, and a button
+          inside a button is invalid HTML browsers repair by dropping the
+          inner one. */}
+      {live.state === 'unauthorised' && onPairAgain !== undefined && (
+        <div className="border-t border-[var(--color-border-subtle)] p-4">
+          <p className="text-2xs text-[var(--color-fg-muted)]">{t('mobile.pairExpiredBody')}</p>
+          <Button className="mt-3" variant="primary" onClick={() => onPairAgain(pairing.id)}>
+            {t('mobile.pairAgain')}
+          </Button>
+        </div>
+      )}
       {/* Outside the button: an alert row can itself be a tap target, and a
           button inside a button is invalid HTML that browsers repair by
           dropping the inner one. */}
@@ -138,6 +178,11 @@ export function MachineCard({ pairing, live, onOpen }: MachineCardProps) {
       )}
     </Card>
   );
+}
+
+/** `total > 0` is the only signal the phone has that memory was measured at all. */
+function memoryReported(system: SystemMetrics): boolean {
+  return system.memory.total > 0;
 }
 
 /**

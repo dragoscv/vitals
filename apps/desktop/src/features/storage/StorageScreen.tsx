@@ -488,12 +488,6 @@ function Volumes({
                     tone={percent >= 90 ? 'danger' : percent >= 75 ? 'warn' : 'accent'}
                   />
                 )}
-
-                {volume.strategy === 'mftAssisted' && (
-                  <Badge tone="info" className="mt-1.5" title={t('volumes.fastHint')}>
-                    {t('volumes.fast')}
-                  </Badge>
-                )}
               </button>
               {/* Not on network or optical drives: nothing the wizard does
                 applies to a share or a disc. */}

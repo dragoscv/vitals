@@ -617,11 +617,17 @@ async fn path_traversal_is_refused() {
 }
 
 #[tokio::test]
-async fn a_token_in_the_query_works_for_streams_that_cannot_set_headers() {
-    // EventSource and WebSocket in a browser cannot send an Authorization
-    // header. Without this the phone cannot stream at all.
+async fn a_token_in_the_query_is_honoured_only_on_the_stream_routes() {
+    // EventSource and WebSocket in a browser cannot set an Authorization
+    // header, so the two stream routes accept the token in the query string.
+    // A plain REST call can set the header, and a query string is the weaker
+    // place for a secret — it lands in logs, history and `Referer` — so REST
+    // requires the header and refuses the query token. Asserting the stream
+    // side here keeps the pair honest: tightening REST must not break the
+    // phone's only way to stream.
     let h = start().await;
     h.frames.publish(Arc::new(frame(1)));
+
     let (status, _) = request(
         &h.base,
         "GET",
@@ -630,7 +636,26 @@ async fn a_token_in_the_query_works_for_streams_that_cannot_set_headers() {
         None,
     )
     .await;
-    assert_eq!(status, 200);
+    assert_eq!(
+        status, 401,
+        "a query token must not authenticate a REST route"
+    );
+
+    // The SSE route still streams on a query token.
+    let _stream = open_stream(&h.base, READ_TOKEN).await;
+
+    // And the WebSocket handshake still upgrades on a query token.
+    let addr = h.base.trim_start_matches("http://");
+    let head = format!(
+        "GET /api/v1/ws?token={READ_TOKEN} HTTP/1.1\r\nHost: {addr}\r\n\
+         Connection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Version: 13\r\n\
+         Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\r\n"
+    );
+    assert_eq!(
+        raw(&h.base, &head).await,
+        101,
+        "the ws handshake must still accept the query token"
+    );
 }
 
 #[tokio::test]

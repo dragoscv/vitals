@@ -1,21 +1,17 @@
 //! Win32 declarations this crate's binding features do not expose.
 //!
-//! Two symbols this crate's enabled binding features do not reach:
-//! `windows-sys` gates `CreateFileW` behind `Win32_Security` and
-//! `DeviceIoControl` behind `Win32_System_IO`, neither of which is enabled.
-//!
-//! They are wrapped here rather than declared at their call sites for a
-//! specific reason: `sensors::battery` already declares both, with `isize`
-//! handles instead of pointers. Two `extern` blocks naming one symbol with
-//! different signatures trips `clashing_extern_declarations`, and the lint is
-//! right to fire — a genuine ABI disagreement between two declarations of the
-//! same import is undefined behaviour waiting to happen. Keeping the whole
+//! `windows-sys` gates `CreateFileW` behind `Win32_Security`, which is not
+//! enabled. It is wrapped here rather than declared at its call site for a
+//! specific reason: `sensors::battery` already declares `CreateFileW`, with
+//! `isize` handles instead of pointers. Two `extern` blocks naming one symbol
+//! with different signatures trips `clashing_extern_declarations`, and the
+//! lint is right to fire — a genuine ABI disagreement between two declarations
+//! of the same import is undefined behaviour waiting to happen. Keeping the
 //! surface in one place makes that easy to see and easy to reconcile.
 //!
 //! `CreateFileW` therefore comes from the `windows` crate, which is already a
 //! dependency with the required feature, so there is no second declaration at
-//! all. `DeviceIoControl` has no reachable binding and is declared under a
-//! distinct Rust name bound to the real symbol via `link_name`.
+//! all.
 
 use std::ffi::c_void;
 
@@ -24,22 +20,6 @@ use windows::Win32::Storage::FileSystem::{
     FILE_CREATION_DISPOSITION, FILE_FLAGS_AND_ATTRIBUTES, FILE_SHARE_MODE,
 };
 use windows_sys::Win32::Foundation::HANDLE;
-
-#[link(name = "kernel32")]
-unsafe extern "system" {
-    /// Sends a control code directly to a device driver.
-    #[link_name = "DeviceIoControl"]
-    pub fn device_io_control(
-        device: HANDLE,
-        control_code: u32,
-        in_buffer: *const c_void,
-        in_size: u32,
-        out_buffer: *mut c_void,
-        out_size: u32,
-        bytes_returned: *mut u32,
-        overlapped: *mut c_void,
-    ) -> i32;
-}
 
 /// `OPEN_EXISTING` — fail rather than create.
 pub const OPEN_EXISTING: u32 = 3;

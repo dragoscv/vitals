@@ -22,6 +22,31 @@ export function isCommandError(value: unknown): value is CommandErrorShape {
 }
 
 /**
+ * The backend's classification of a rejection, or `null` for anything else a
+ * command rejected with.
+ *
+ * Read here, beside the shape it belongs to, so a screen never reaches into a
+ * bare object and reads a field that may not be there. The kind is mapped to a
+ * sentence in the component that shows it: this module carries no user-facing
+ * text, which is why the mapping is not here.
+ */
+export function errorKind(error: unknown): CommandErrorShape['kind'] | null {
+  if (!isCommandError(error)) return null;
+  // A payload from a newer backend could carry a kind this build does not know;
+  // returning it would put an untranslatable value on screen, so it reads as "no
+  // kind" and the raw message is shown instead.
+  return KINDS.includes(error.kind) ? error.kind : null;
+}
+
+const KINDS: readonly CommandErrorShape['kind'][] = [
+  'access-denied',
+  'not-found',
+  'unsupported',
+  'refused',
+  'internal',
+];
+
+/**
  * Tauri's own rejection for a command that is not in `generate_handler!`:
  * the bare string `Command <name> not found`.
  *

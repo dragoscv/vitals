@@ -49,7 +49,13 @@ export interface LanState {
   dismissCode(): void;
 }
 
-const EMPTY: LanStatus = { running: false, port: null, interfaces: [], tokens: [] };
+const EMPTY: LanStatus = {
+  running: false,
+  port: null,
+  boundAddress: null,
+  interfaces: [],
+  tokens: [],
+};
 
 function message(error: unknown): string {
   if (error instanceof Error) return error.message;

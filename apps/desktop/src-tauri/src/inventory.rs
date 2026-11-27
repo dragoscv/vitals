@@ -1694,11 +1694,6 @@ pub struct VolumeDto {
     pub kind: &'static str,
     pub total: u64,
     pub available: u64,
-    /// Which scanner applies to this drive letter right now.
-    ///
-    /// Reported so the UI can tell the user a whole-volume scan will take
-    /// minutes before they start one, instead of after.
-    pub strategy: &'static str,
 }
 
 /// Lists mounted volumes with their capacity.
@@ -1724,20 +1719,13 @@ pub async fn get_volumes() -> CommandResult<Vec<VolumeDto>> {
 fn collect_volumes() -> Vec<VolumeDto> {
     vitals_win::disk::enumerate_volumes()
         .into_iter()
-        .map(|volume| {
-            let letter = volume.mount.chars().next().unwrap_or('?');
-            VolumeDto {
-                strategy: match vitals_win::storage::strategy_for(letter) {
-                    vitals_win::storage::ScanStrategy::MftAssisted => "mftAssisted",
-                    vitals_win::storage::ScanStrategy::DirectoryWalk => "directoryWalk",
-                },
-                kind: disk_kind(volume.kind),
-                mount: volume.mount,
-                label: volume.label,
-                file_system: volume.file_system,
-                total: volume.total.0,
-                available: volume.available.0,
-            }
+        .map(|volume| VolumeDto {
+            kind: disk_kind(volume.kind),
+            mount: volume.mount,
+            label: volume.label,
+            file_system: volume.file_system,
+            total: volume.total.0,
+            available: volume.available.0,
         })
         .collect()
 }

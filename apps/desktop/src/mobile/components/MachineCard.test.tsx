@@ -56,6 +56,9 @@ describe('MachineCard', () => {
       cpuHistory: [10, 12.5],
       memoryHistory: [25, 25],
       alerts: null,
+      // Fresh, so the card is not dressed with the stale chip in a test about
+      // absent hardware.
+      lastFrameAtMs: Date.now(),
     };
     render(<MachineCard pairing={pairing} live={live} onOpen={() => {}} />);
 
@@ -90,6 +93,7 @@ describe('MachineCard', () => {
       cpuHistory: [10, 12.5],
       memoryHistory: [25, 25],
       alerts: null,
+      lastFrameAtMs: Date.now(),
     };
     render(<MachineCard pairing={pairing} live={live} onOpen={() => {}} />);
     expect(screen.getByText('17%')).toBeTruthy();
@@ -103,9 +107,80 @@ describe('MachineCard', () => {
       cpuHistory: [],
       memoryHistory: [],
       alerts: null,
+      lastFrameAtMs: null,
     };
     render(<MachineCard pairing={pairing} live={live} onOpen={() => {}} />);
     expect(screen.getByText('Reconnecting…')).toBeTruthy();
+  });
+});
+
+describe('MachineCard memory, pairing and staleness', () => {
+  it('prints an em dash, not a false zero, when the PC did not report memory', () => {
+    // A memory total of 0 means "not reported", never "using none"; the card
+    // must not show a confident "0 B of 0 B" beside a real CPU figure.
+    const live: LiveState = {
+      state: 'live',
+      snapshot: {
+        system: system({ memory: { used: 0, total: 0 } as SystemMetrics['memory'] }),
+        processes: new Map(),
+        seq: 1,
+        timestampMs: 0,
+      },
+      cpuHistory: [],
+      memoryHistory: [],
+      alerts: null,
+      lastFrameAtMs: Date.now(),
+    };
+    render(<MachineCard pairing={pairing} live={live} onOpen={() => {}} />);
+    expect(screen.getByText('— of —')).toBeTruthy();
+    expect(screen.queryByText('0 B of 0 B')).toBeNull();
+  });
+
+  it('says the pairing expired and offers to pair again when the key is dead', () => {
+    const onPairAgain = vi.fn();
+    const live: LiveState = {
+      state: 'unauthorised',
+      snapshot: null,
+      cpuHistory: [],
+      memoryHistory: [],
+      alerts: null,
+      lastFrameAtMs: null,
+    };
+    render(
+      <MachineCard pairing={pairing} live={live} onOpen={() => {}} onPairAgain={onPairAgain} />,
+    );
+    // The state is named on the card, the reason is spelled out, and the one
+    // action that fixes it is a real button.
+    expect(screen.getByText('Pairing expired')).toBeTruthy();
+    expect(screen.getByText(/no longer accepts the phone's key/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Pair again' }));
+    expect(onPairAgain).toHaveBeenCalledWith(pairing.id);
+  });
+
+  it('shows how old the newest reading is once it is older than twice the tick', () => {
+    const live: LiveState = {
+      state: 'reconnecting',
+      snapshot: { system: system({}), processes: new Map(), seq: 1, timestampMs: 0 },
+      cpuHistory: [],
+      memoryHistory: [],
+      alerts: null,
+      lastFrameAtMs: Date.now() - 5_000,
+    };
+    render(<MachineCard pairing={pairing} live={live} onOpen={() => {}} />);
+    expect(screen.getByText('Last reading 5s ago')).toBeTruthy();
+  });
+
+  it('leaves the stale chip off a fresh reading', () => {
+    const live: LiveState = {
+      state: 'live',
+      snapshot: { system: system({}), processes: new Map(), seq: 1, timestampMs: 0 },
+      cpuHistory: [],
+      memoryHistory: [],
+      alerts: null,
+      lastFrameAtMs: Date.now(),
+    };
+    render(<MachineCard pairing={pairing} live={live} onOpen={() => {}} />);
+    expect(screen.queryByText(/Last reading/)).toBeNull();
   });
 });
 
@@ -116,6 +191,7 @@ describe('MachineCard alerts strip', () => {
     cpuHistory: [],
     memoryHistory: [],
     alerts: null,
+    lastFrameAtMs: null,
   };
 
   const diskSpace: Alert = {

@@ -1,8 +1,9 @@
 //! Directory traversal: parallel, and one system call per folder batch.
 //!
 //! The portable path: no elevation, works on every filesystem Windows can
-//! mount, and correct on a subtree rather than only on a whole volume. See
-//! [`super::mft`] for the elevated whole-volume path.
+//! mount, and correct on a subtree rather than only on a whole volume. It is
+//! also the only path — [`super::mft`] no longer enumerates anything, it only
+//! probes whether a volume could be opened for a direct read.
 //!
 //! # Why it is shaped like this
 //!

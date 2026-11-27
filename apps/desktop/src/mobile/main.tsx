@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 
 import { initI18n } from '@vitals/i18n';
 
+import { ErrorBoundary, RootError } from './components/ErrorBoundary';
 import { followSystemTheme } from './lib/theme';
 import { MobileApp, storedLocale } from './MobileApp';
 import { registerMobileStrings } from './strings';
@@ -26,7 +27,11 @@ async function bootstrap(): Promise<void> {
 
   createRoot(container).render(
     <StrictMode>
-      <MobileApp />
+      {/* At the root: without it one failing render unmounts the whole tree
+          and the phone is left white with no way back. */}
+      <ErrorBoundary fallback={(error, retry) => <RootError error={error} onRetry={retry} />}>
+        <MobileApp />
+      </ErrorBoundary>
     </StrictMode>,
   );
 }

@@ -81,4 +81,31 @@ describe('the metrics hub', () => {
     emit(frame(8, { kind: 'keyframe', system, processes: [proc(1), proc(2)] }));
     expect(sizes).toEqual([2]);
   });
+
+  it('asks for a fresh keyframe when it detects a dropped delta, so the picture heals itself', async () => {
+    await metrics.subscribeToMetrics({ onSnapshot: () => undefined });
+    emit(frame(1, { kind: 'keyframe', system, processes: [proc(1)] }));
+    // The start-up request is the baseline; only the gap should ask again.
+    invoke.mockClear();
+
+    // seq 2 never arrives, so the delta folded on top of seq 1 is missing a
+    // change no later delta repeats. Without a resync the map stays wrong.
+    emit(frame(3, { kind: 'delta', system, changed: [proc(2)], exited: [] }));
+
+    expect(invoke).toHaveBeenCalledWith('request_keyframe');
+  });
+
+  it('tells a subscriber how many frames were dropped, before it resyncs', async () => {
+    const gaps: number[] = [];
+    await metrics.subscribeToMetrics({
+      onSnapshot: () => undefined,
+      onGap: (missed) => gaps.push(missed),
+    });
+    emit(frame(1, { kind: 'keyframe', system, processes: [proc(1)] }));
+
+    // 2 and 3 are lost, the next frame is 4.
+    emit(frame(4, { kind: 'delta', system, changed: [], exited: [] }));
+
+    expect(gaps).toEqual([2]);
+  });
 });

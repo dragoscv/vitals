@@ -25,8 +25,6 @@
  * total reports how many entries it could not include.
  */
 
-export type ScanStrategyKey = 'mftAssisted' | 'directoryWalk';
-
 export type DiskKindKey = 'hdd' | 'ssd' | 'nvme' | 'removable' | 'network' | 'optical' | 'unknown';
 
 export type SkipReasonKey = 'accessDenied' | 'reparsePoint' | 'cancelled' | 'vanished' | 'osError';
@@ -64,7 +62,6 @@ export interface Volume {
   readonly kind: DiskKindKey;
   readonly total: number;
   readonly available: number;
-  readonly strategy: ScanStrategyKey;
 }
 
 export interface DirectoryEntry {

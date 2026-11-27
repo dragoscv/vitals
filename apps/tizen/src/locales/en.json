@@ -270,6 +270,8 @@
     "limits": "A TV web app may read only what Samsung’s system information API offers: load, memory, storage, network and screen. Temperatures and per-app figures are not available to it."
   },
   "common": {
-    "dash": "—"
+    "dash": "—",
+    "error": "Something went wrong",
+    "retry": "Retry"
   }
 }

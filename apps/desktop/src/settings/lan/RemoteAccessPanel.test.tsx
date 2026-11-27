@@ -7,11 +7,18 @@ import { registerShellStrings } from '../../shell/strings';
 import type { LanApi, LanStatus, Pairing, PairingCode, PairingCodeStatus } from './api';
 import { RemoteAccessPanel } from './RemoteAccessPanel';
 
-const OFF: LanStatus = { running: false, port: null, interfaces: [], tokens: [] };
+const OFF: LanStatus = {
+  running: false,
+  port: null,
+  boundAddress: null,
+  interfaces: [],
+  tokens: [],
+};
 
 const RUNNING: LanStatus = {
   running: true,
   port: 7331,
+  boundAddress: '192.168.1.20',
   interfaces: [
     { name: 'Wi-Fi', address: '192.168.1.20', score: 40, virtualised: false },
     { name: 'vEthernet (WSL)', address: '172.30.96.1', score: -95, virtualised: true },
@@ -70,13 +77,22 @@ describe('RemoteAccessPanel', () => {
     expect(screen.queryByRole('img', { name: /pairing qr/i })).toBeNull();
   });
 
-  it('shows the listening port and the adapter choice once running', async () => {
+  it('shows the address the server bound and the adapter choice once running', async () => {
     render(<RemoteAccessPanel api={fakeApi({}, RUNNING)} />);
 
-    expect(await screen.findByText(/listening on port 7331/i)).toBeTruthy();
+    // The real bound address, not just the port: it is what a phone must
+    // reach, and it is how "cannot connect" is diagnosed.
+    expect(await screen.findByText(/listening on 192\.168\.1\.20:7331/i)).toBeTruthy();
     // Both adapters are offered, named, so the user can tell the Wi-Fi from
     // the WSL bridge — picking the wrong one is the failure this prevents.
     expect(screen.getByRole('combobox', { name: /network adapter/i })).toBeTruthy();
+  });
+
+  it('falls back to the port alone when the listener is bound to every interface', async () => {
+    const unbound: LanStatus = { ...RUNNING, boundAddress: null };
+    render(<RemoteAccessPanel api={fakeApi({}, unbound)} />);
+
+    expect(await screen.findByText(/listening on port 7331/i)).toBeTruthy();
   });
 
   it('defaults a new pairing to read-only', async () => {

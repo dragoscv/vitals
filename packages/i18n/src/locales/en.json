@@ -187,6 +187,16 @@
     "enable": "Enable",
     "learnMore": "Learn more"
   },
+  "error": {
+    "details": "Details",
+    "kind": {
+      "accessDenied": "Windows would not allow that. Running Vitals as an administrator usually fixes it.",
+      "notFound": "That is no longer there — it may have been removed or renamed.",
+      "unsupported": "This copy of Vitals cannot do that on this computer.",
+      "refused": "The system refused the request.",
+      "internal": "Something went wrong inside Vitals."
+    }
+  },
   "common": {
     "search": "Search",
     "cancel": "Cancel",
@@ -346,8 +356,12 @@
       "live": "Live",
       "connecting": "Connecting…",
       "reconnecting": "Reconnecting…",
-      "unreachable": "Unreachable"
+      "unreachable": "Unreachable",
+      "unauthorised": "Pairing expired"
     },
+    "pairAgain": "Pair again",
+    "pairExpiredBody": "This computer no longer accepts the phone's key. Open Vitals on the PC and scan a fresh code.",
+    "stale": "Last reading {{ago}} ago",
     "machines": {
       "title": "Machines",
       "cpu": "CPU",

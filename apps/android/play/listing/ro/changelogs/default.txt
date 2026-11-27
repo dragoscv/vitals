@@ -1,3 +1,5 @@
-Vitals 1.4.0
-• Kodwen se numește acum Codwen. Autentificarea și sesiunile agenților vin de pe codwen.com, iar o cheie salvată de o versiune mai veche este mutată singură
-• O sesiune pe care o versiune mai veche o numea Kodwen apare tot ca Codwen, nu ca unealtă necunoscută
+Vitals 1.5.0
+• Când PC-ul pe care îl urmărești nu mai trimite citiri, aplicația spune cât de vechi sunt, în loc să tacă
+• O citire pe care PC-ul nu o poate raporta apare ca o liniuță, nu ca un zero
+• Dacă asocierea nu mai este validă, aplicația spune asta și îți propune să asociezi din nou, în loc să reîncerce la nesfârșit
+• Dacă un ecran nu se încarcă, primești o propoziție și o cale de a reîncerca, nu un ecran gol

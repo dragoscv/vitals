@@ -3,10 +3,13 @@
 //! so `--json` stays pipeable.
 
 pub mod act;
+pub mod alerts;
 pub mod eco;
+pub mod history;
 pub mod info;
 pub mod mcp;
 pub mod ps;
 pub mod report;
+pub mod sensors;
 pub mod serve;
 pub mod top;

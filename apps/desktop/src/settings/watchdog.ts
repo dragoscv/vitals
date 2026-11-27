@@ -75,7 +75,13 @@ export interface WatchdogApi {
   status(): Promise<WatchdogStatus>;
   save(config: WatchdogConfig): Promise<WatchdogStatus>;
   test(sound: WatchdogSound, volume: number): Promise<void>;
-  pickFile(): Promise<string | null>;
+  /**
+   * `filter` names the file type in the system dialog. It is a parameter
+   * rather than a literal here because the dialog is the one place a string
+   * cannot be translated after the fact — the name is drawn by Windows, so it
+   * has to arrive already in the user's language.
+   */
+  pickFile(filter: string): Promise<string | null>;
 }
 
 export const tauriWatchdogApi: WatchdogApi = {
@@ -91,12 +97,12 @@ export const tauriWatchdogApi: WatchdogApi = {
     const { invoke } = await import('@tauri-apps/api/core');
     await invoke<void>('test_watchdog_sound', { sound, volume });
   },
-  async pickFile() {
+  async pickFile(filter) {
     const { open } = await import('@tauri-apps/plugin-dialog');
     const picked = await open({
       multiple: false,
       directory: false,
-      filters: [{ name: 'Audio', extensions: [...audioExtensions] }],
+      filters: [{ name: filter, extensions: [...audioExtensions] }],
     });
     return typeof picked === 'string' ? picked : null;
   },
@@ -175,7 +181,7 @@ export interface WatchdogState {
   readonly error: string | null;
   readonly update: (patch: Partial<WatchdogConfig>) => void;
   readonly test: () => void;
-  readonly pickFile: () => void;
+  readonly pickFile: (filter: string) => void;
 }
 
 export function useWatchdog(api: WatchdogApi = tauriWatchdogApi): WatchdogState {
@@ -243,14 +249,17 @@ export function useWatchdog(api: WatchdogApi = tauriWatchdogApi): WatchdogState 
     api.test(config.sound, config.volume).catch((failure: unknown) => setError(describe(failure)));
   }, [api, config.sound, config.volume]);
 
-  const pickFile = useCallback(() => {
-    api
-      .pickFile()
-      .then((path) => {
-        if (path !== null) update({ sound: { kind: 'file', value: path } });
-      })
-      .catch((failure: unknown) => setError(describe(failure)));
-  }, [api, update]);
+  const pickFile = useCallback(
+    (filter: string) => {
+      api
+        .pickFile(filter)
+        .then((path) => {
+          if (path !== null) update({ sound: { kind: 'file', value: path } });
+        })
+        .catch((failure: unknown) => setError(describe(failure)));
+    },
+    [api, update],
+  );
 
   return { config, status, busy, error, update, test, pickFile };
 }

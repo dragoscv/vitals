@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 
 import { bytes, celsius, count, duration, ghz, percent, rate, rpm, watts } from '../../lib/format';
 import { isStale, type LiveState } from '../../lib/live';
+import { memoryUsage } from '../../lib/memory';
 import { Bar, Hint, InfoRow, Panel, Ring, Spark, StaleBadge } from '../../ui/components';
 import { Palette, Thresholds } from '../../ui/theme';
 
@@ -24,6 +25,9 @@ export function NowTab({ state }: { state: LiveState }) {
     );
   const { cpu, memory } = system;
   const memPct = memoryPercent(system);
+  // `null` when the PC reported no memory total; `bytes(null)` then prints the
+  // em dash instead of a false "0 B of 0 B".
+  const usage = memoryUsage(memory);
 
   return (
     <>
@@ -99,8 +103,8 @@ export function NowTab({ state }: { state: LiveState }) {
           <InfoRow
             label={t('metric.memory')}
             value={t('memory.usedOf', {
-              used: bytes(memory.used, lang),
-              total: bytes(memory.total, lang),
+              used: bytes(usage?.used ?? null, lang),
+              total: bytes(usage?.total ?? null, lang),
             })}
           />
           <InfoRow label={t('memory.available')} value={bytes(memory.available, lang)} />

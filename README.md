@@ -28,7 +28,7 @@ from a terminal.
 | iPhone (iOS 18+)           | [Vitals: System Monitor](https://apps.apple.com/app/id6827931747) on the App Store                                                                                            | Preview        |
 | Linux                      | —                                                                                                                                                                             | No dated plans |
 
-> **Status: 1.2.0, stable on Windows.** Every section works against live data on
+> **Status: 1.5.0, stable on Windows.** Every section works against live data on
 > Windows — there are no placeholder screens left. The Windows sampler was
 > cross-checked against Windows' own counters during development and stays
 > inside a 30 ms-per-sample budget that CI enforces. macOS has a real sampler
@@ -177,15 +177,23 @@ cargo install --git https://github.com/dragoscv/vitals vitals-cli
 ```powershell
 vitals top              # live, like the app's process list
 vitals ps --top 10      # one shot; add --json to pipe it
-vitals info             # the machine
+vitals sensors          # temperatures, fans, battery
+vitals history -s 600   # the last ten minutes from the app's history store
+vitals alerts           # what the alert engine has raised
+vitals info --source local   # read this machine directly, ignoring a running app
 vitals report --duration 30
 vitals serve            # headless LAN server on :7331, token printed once
+vitals completions powershell > vitals-completions.ps1
 ```
 
 When the desktop app is running the CLI attaches to it — over its private
 named pipe first, then its loopback API — and sees the same numbers. When it
-is not, the CLI samples the machine itself. Every flag is listed in the
-[command-line guide](https://vitals.dragoscatalin.ro/guides/cli/).
+is not, the CLI samples the machine itself; `--source` chooses which, and the
+source actually used is printed on stderr so `--json` stays parseable. Piped
+into another program, `vitals top` prints one snapshot and exits instead of
+drawing a live screen. Every flag is listed in the
+[command-line guide](https://vitals.dragoscatalin.ro/guides/cli/) and the
+repository's [`docs/cli.md`](docs/cli.md).
 
 ## Planned
 

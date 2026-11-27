@@ -57,17 +57,20 @@ Gratuit și open source (MIT). Disponibil în română și engleză.
 
 ## Ce e nou în această versiune (≤ 1500 caractere)
 
-Ce e nou în 1.4.0
+Ce e nou în 1.5.0
 
-• Kodwen se numește acum Codwen: pagina Agenți AI se conectează la contul tău Codwen de la auth.codwen.com și îți citește sesiunile de la ai.codwen.com. Fiecare mențiune a produsului folosește noul nume, iar o cheie salvată de o versiune anterioară este mutată prima dată când e folosită, ca nimeni să nu fie delogat de actualizare
+• Când citirile nu mai vin — o măsurătoare blocată, un calculator care a adormit, un PC care nu mai răspunde — fereastra îți spune acum de cât timp nu a primit nimic și cere valorile actuale, în loc să aștepte o schimbare care poate să nu vină niciodată
+• Un refuz se citește acum ca o propoziție în limba ta, cu textul tehnic păstrat sub Detalii
+• O citire pe care calculatorul nu a făcut-o apare ca o liniuță, nu ca un zero, pe fiecare ecran
+• Dacă un ecran nu se încarcă, primești o propoziție simplă și o cale de a reîncerca, nu o fereastră goală
+• Accesul la distanță rezistă la o conexiune care nu termină niciodată de trimis cererea
+
+Nou în 1.4.0:
+• Kodwen se numește acum Codwen: pagina Agenți AI se conectează la contul tău Codwen de la auth.codwen.com și îți citește sesiunile de la ai.codwen.com. O cheie salvată de o versiune anterioară este mutată singură, ca nimeni să nu fie delogat de actualizare
 
 Nou în 1.3.1:
-• Home Assistant: integrarea MQTT creează acum citirile pe care le anunță. În 1.3.0, Home Assistant respingea fiecare anunț, așa că nu apărea nimic; disponibilitatea călătorește acum cu fiecare citire, astfel încât un PC care dispare apare ca indisponibil, nu ca o valoare veche
-• O citire pe care hardware-ul nu o poate raporta nu mai ajunge ca zero: memoria și temperatura plăcii video, bateria, activitatea discurilor și numerele de procesor pe care mașina nu le poate măsura rămân acum absente, pe fiecare ecran
-
-Nou în 1.3.0:
-• Pagina Agenți AI: conectează-te la propriul cont și vezi agenții care rulează pe celelalte calculatoare ale tale. Pagina arată ce a consumat fiecare sesiune — tokeni de intrare, de ieșire, din cache și de raționament, numărul de cereri, costul și viteza — și spune clar când un client nu înregistrează consum
-• Sănătate (opțional): conectezi un server vmui pe care îl rulezi tu și îți citești rezumatul de sănătate și nutriție. Ținut doar în memorie, niciodată scris pe disc, iar pagina rămâne ascunsă până o conectezi
+• Home Assistant: integrarea MQTT creează citirile pe care le anunță, astfel încât un PC care dispare apare ca indisponibil, nu ca o valoare veche
+• O citire pe care hardware-ul nu o poate raporta nu mai ajunge ca zero: memoria și temperatura plăcii video, bateria, activitatea discurilor și numerele de procesor rămân acum absente, pe fiecare ecran
 
 ## Funcții (până la 20, ≤ 200 caractere fiecare)
 

@@ -181,7 +181,9 @@ function ToolbarButton({
       {...(pressed !== undefined && { 'aria-pressed': pressed })}
       onClick={onClick}
       className={cn(
-        'grid size-5 place-items-center rounded text-[var(--color-fg-muted)]',
+        // size-6 (24 px), not size-5: a 20 px button misses the WCAG 2.2
+        // target size (2.5.8) by 4 px and is hard to hit on a HiDPI overlay.
+        'grid size-6 place-items-center rounded text-[var(--color-fg-muted)]',
         'hover:bg-[rgb(255_255_255/0.1)] hover:text-[var(--color-fg-default)]',
         'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--color-accent)]',
       )}

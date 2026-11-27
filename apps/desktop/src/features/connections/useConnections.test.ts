@@ -21,6 +21,19 @@ vi.mock('../../shell/host', () => ({
 
 const empty = { connections: [], byProcess: [] };
 
+/** A document whose visibility the test controls (see useAgents.test.ts). */
+function fakeDocument(initial: DocumentVisibilityState) {
+  const target = new EventTarget();
+  let state = initial;
+  Object.defineProperty(target, 'visibilityState', { get: () => state });
+  const doc = target as unknown as Document;
+  const become = (next: DocumentVisibilityState): void => {
+    state = next;
+    target.dispatchEvent(new Event('visibilitychange'));
+  };
+  return { doc, become };
+}
+
 beforeEach(() => {
   hasHost.value = false;
 });
@@ -160,5 +173,36 @@ describe('useConnections', () => {
     // A timer surviving unmount keeps the whole closure alive and keeps
     // reading socket tables for a screen nobody is looking at.
     expect(reader.mock.calls.length).toBe(afterUnmount);
+  });
+
+  it('stops polling while the window is hidden and resumes when it is shown', async () => {
+    vi.useFakeTimers();
+    const reader = vi.fn().mockResolvedValue(empty);
+    const { doc, become } = fakeDocument('visible');
+
+    renderHook(() => useConnections(reader, doc));
+    await vi.waitFor(() => {
+      expect(reader).toHaveBeenCalledTimes(1);
+    });
+
+    await act(async () => {
+      become('hidden');
+      await Promise.resolve();
+    });
+    const whileHidden = reader.mock.calls.length;
+
+    await act(async () => {
+      vi.advanceTimersByTime(POLL_INTERVAL_MS * 3);
+      await Promise.resolve();
+    });
+    // A hidden screen must not keep reading a socket table nobody can see.
+    expect(reader.mock.calls.length).toBe(whileHidden);
+
+    await act(async () => {
+      become('visible');
+      await Promise.resolve();
+    });
+    // Returning reads at once, so the table is not stale on the way back.
+    expect(reader.mock.calls.length).toBe(whileHidden + 1);
   });
 });

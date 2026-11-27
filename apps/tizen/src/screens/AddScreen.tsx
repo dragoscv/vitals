@@ -13,6 +13,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { normaliseAddress } from '../lib/address';
+import { DASH } from '../lib/format';
 import { cleanCode, isCode, pairWithCode, pairWithToken, type PairRefusal } from '../lib/pairing';
 import { useApp, usePairings } from '../ui/app-context';
 import { setBackHandler } from '../ui/back';
@@ -288,7 +289,9 @@ export function AddScreen() {
       {busy && <Hint>{t('pairing.checking')}</Hint>}
       {error !== null && (
         <p className="outcome tone-danger" role="alert">
-          {t(`pairing.${error.reason}`, { status: error.status ?? 0 })}
+          {/* A refusal with no HTTP status is not a 0: the dash keeps the
+              sentence honest instead of inventing a status code. */}
+          {t(`pairing.${error.reason}`, { status: error.status ?? DASH })}
         </p>
       )}
     </div>

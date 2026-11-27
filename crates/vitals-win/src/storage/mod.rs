@@ -4,18 +4,17 @@
 //! how fast is it moving bytes". This module answers "which folder is 40 GB
 //! and why", which needs a walk of the namespace rather than a counter read.
 //!
-//! # The two scanners
+//! # The scanner
 //!
 //! - [`scan`] — bulk directory-information queries on parallel workers.
 //!   Works on any path, any filesystem, no elevation, and returns sizes.
-//! - [`mft`] — `FSCTL_ENUM_USN_DATA`. Reads the entire NTFS namespace in
-//!   seconds, but needs elevation and **returns no sizes at all**, because a
-//!   USN record does not carry one. See that module for why, and for why
-//!   inferring one would be fabrication.
 //!
-//! The consequence: the fast path accelerates *discovery*, not measurement.
-//! [`scan`] remains the source of every byte figure, and nothing here
-//! silently substitutes one for the other.
+//! [`mft`] used to offer a second, "fast" path that read the NTFS master file
+//! table directly. That is gone: a USN record carries no file size, so it
+//! could never size a folder, and sizing folders is the expensive half of a
+//! scan. The module is kept only for [`mft::is_available`], a probe that
+//! reports whether the process could open a volume for a direct read. Every
+//! byte figure and every folder comes from [`scan`].
 //!
 //! # What the numbers mean
 //!
@@ -55,7 +54,6 @@ pub use cleanup::{
 };
 pub use layout::{Cell, CellKind, Detail, icicle, treemap};
 pub use managed::{ManagedTool, tool_for};
-pub use mft::{MftEntry, VolumeNamespace};
 pub use protect::{Protection, Rules, Vetted, vet};
 pub use recycle::{Holder, HolderKind, Outcome, holders_of, recycle};
 pub use scan::{LargeFile, ScanControl, ScanOptions, ScanProgress, ScanResult, scan_directory};
@@ -64,31 +62,6 @@ pub use sizing::{
     round_up_to_cluster, top_n_by,
 };
 pub use tree::{Amount, Node, NodeId, SizeTree};
-
-/// Which scanning strategy is usable right now.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ScanStrategy {
-    /// MFT enumeration is available for whole-volume discovery. Sizes still
-    /// come from the directory walk.
-    MftAssisted,
-    /// Directory walk only.
-    DirectoryWalk,
-}
-
-/// Reports which strategy applies to a drive letter.
-///
-/// Attempts the real volume open rather than inspecting the process token: an
-/// elevated process on a non-NTFS volume still cannot enumerate an MFT, and a
-/// capability check that answers a proxy question will eventually answer it
-/// wrongly.
-#[must_use]
-pub fn strategy_for(letter: char) -> ScanStrategy {
-    if mft::is_available(letter) {
-        ScanStrategy::MftAssisted
-    } else {
-        ScanStrategy::DirectoryWalk
-    }
-}
 
 /// One entry in a largest-folders list, ready for a treemap or table.
 #[derive(Debug, Clone)]
@@ -209,17 +182,6 @@ pub fn size_of(path: &Path, cancel: Option<&AtomicBool>) -> Option<Bytes> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn strategy_is_reported_honestly_for_the_system_volume() {
-        // Unelevated this must be DirectoryWalk. Asserting the *agreement*
-        // rather than a fixed value keeps the test meaningful in both cases.
-        let strategy = strategy_for('C');
-        assert_eq!(
-            strategy == ScanStrategy::MftAssisted,
-            mft::is_available('C')
-        );
-    }
 
     #[test]
     fn largest_directories_are_returned_in_descending_order() {

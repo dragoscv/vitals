@@ -393,7 +393,10 @@ const DeviceRow = forwardRef<
       {device.status === 'problem' && (
         <p className="text-2xs text-[var(--color-warn-text)]">
           {t('tree.problem', {
-            code: device.problemCode ?? 0,
+            // `problemCode` is `number | null`: null means Windows did not
+            // report one, which is not the same fact as code 0. Show an em
+            // dash rather than inventing a code.
+            code: device.problemCode ?? '—',
             message: device.problem ?? '',
           })}
         </p>

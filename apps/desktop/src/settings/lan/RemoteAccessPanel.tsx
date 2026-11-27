@@ -142,7 +142,18 @@ export function RemoteAccessPanel({ api, codePollMs }: RemoteAccessPanelProps = 
         {running && lan.status?.port != null && (
           <SettingsRow label={t('settings.remote.status')}>
             {() => (
-              <Badge tone="ok">{t('settings.remote.listening', { port: lan.status?.port })}</Badge>
+              <Badge tone="ok">
+                {/* The address the server actually bound, not the one the QR
+                    will guess: they differ when the user picked a specific
+                    adapter, and showing the real one is what makes "my phone
+                    cannot connect" debuggable. */}
+                {lan.status?.boundAddress != null
+                  ? t('settings.remote.listeningOn', {
+                      address: lan.status.boundAddress,
+                      port: lan.status.port,
+                    })
+                  : t('settings.remote.listening', { port: lan.status?.port })}
+              </Badge>
             )}
           </SettingsRow>
         )}

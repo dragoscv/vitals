@@ -57,17 +57,20 @@ Free and open source (MIT). Available in English and Romanian.
 
 ## What's new in this version (≤ 1500 characters)
 
-What's new in 1.4.0
+What's new in 1.5.0
 
-• Kodwen is now Codwen: the AI agents page signs in to your own Codwen account at auth.codwen.com and reads your sessions from ai.codwen.com. Every mention of the product follows the new name, and a key saved by an earlier version is moved across the first time it is used, so nobody is signed out by the update
+• When the readings stop arriving — a stalled sample, a machine that went to sleep, a PC that stopped answering — the window now says how long ago the last one was and asks for the current numbers, instead of waiting for a change that may never come
+• A refusal now reads as a sentence in your own language, with the technical wording kept under Details
+• A reading the computer never took is a dash, not a zero, on every screen
+• If a screen fails to load, you get a plain sentence and a way to try again, not a blank window
+• Remote access resists a connection that never finishes sending its request
+
+New in 1.4.0:
+• Kodwen is now Codwen: the AI agents page signs in to your own Codwen account at auth.codwen.com and reads your sessions from ai.codwen.com. A key saved by an earlier version is moved across by itself, so nobody is signed out by the update
 
 New in 1.3.1:
-• Home Assistant: the MQTT integration now creates the readings it announces. In 1.3.0 Home Assistant rejected every announcement, so nothing appeared; availability now travels with each reading, so a PC that goes away shows as unavailable instead of a stale number
-• A reading the hardware cannot report no longer arrives as a zero: graphics memory and temperature, a battery, disk activity and processor counts the machine cannot measure now stay absent, on every screen
-
-New in 1.3.0:
-• AI agents page: sign in to your own account to see the agents running on your other computers. The page shows what each session actually used — input, output, cached and reasoning tokens, the number of requests, the cost and the speed — and says plainly when a client records no usage
-• Health (opt-in): connect a vmui server you run yourself and read your own health and nutrition summary. Held in memory only, never written to disk, and the page stays hidden until you connect it
+• Home Assistant: the MQTT integration creates the readings it announces, so a PC that goes away shows as unavailable instead of a stale number
+• A reading the hardware cannot report no longer arrives as a zero: graphics memory and temperature, a battery, disk activity and processor counts stay absent, on every screen
 
 ## Features (up to 20, ≤ 200 characters each)
 

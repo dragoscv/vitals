@@ -242,13 +242,16 @@ export function JournalPanel({
       {rows.length === 0 ? (
         <EmptyState title={t('journal.empty')} />
       ) : (
-        <div
-          ref={parent}
-          className="table-scroll min-h-[18rem] flex-1 overflow-auto"
-          role="log"
-          aria-label={t('tab.journal')}
-        >
-          <div style={{ height: virt.getTotalSize(), position: 'relative' }}>
+        // A browsable, filterable list of entries, not a live region: the
+        // panel is re-rendered wholesale on each push and the virtualiser
+        // recycles nodes, so `aria-live` would announce every scroll. The
+        // rows carry `listitem` so the shape is exposed to assistive tech.
+        <div ref={parent} className="table-scroll min-h-[18rem] flex-1 overflow-auto">
+          <div
+            role="list"
+            aria-label={t('tab.journal')}
+            style={{ height: virt.getTotalSize(), position: 'relative' }}
+          >
             {virt.getVirtualItems().map((v) => {
               const e = rows[v.index];
               if (e === undefined) return null;
@@ -256,6 +259,7 @@ export function JournalPanel({
               return (
                 <div
                   key={v.key}
+                  role="listitem"
                   className="absolute inset-x-0 flex items-center gap-2 border-b border-[var(--color-border-subtle)] px-2 text-2xs"
                   style={{ height: v.size, transform: `translateY(${String(v.start)}px)` }}
                 >

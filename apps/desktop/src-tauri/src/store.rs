@@ -184,21 +184,104 @@ fn export_flight_recording(app: &tauri::AppHandle) -> FlightRecording {
     }
 }
 
-/// Writes the recording to `path`, which the user chose in a save dialog.
+/// Writes the recording to a file the user picks in a native save dialog.
 ///
-/// Done here rather than in the webview so the filesystem plugin does not
-/// need write access to arbitrary paths, and so a two-minute recording is
-/// serialised once instead of crossing the IPC boundary and back.
+/// The dialog is shown **here, in Rust**, and the path never crosses the IPC
+/// boundary: a compromised webview can ask for an export but cannot name the
+/// destination, so it cannot be made to write anywhere it likes — the old
+/// signature took a `path: String` straight from the webview. Doing the write
+/// on this side also means a two-minute recording is serialised once, not
+/// crossing the IPC boundary and back.
+///
+/// Returns the chosen path, or `None` when the user cancelled — a normal
+/// outcome, not an error.
 #[tauri::command]
-pub async fn write_flight_recording(app: tauri::AppHandle, path: String) -> CommandResult<()> {
+pub async fn write_flight_recording(app: tauri::AppHandle) -> CommandResult<Option<String>> {
     off_main("flight recording export", move || {
+        let Some(path) = pick_recording_path(&app)? else {
+            return Ok(None);
+        };
         let recording = export_flight_recording(&app);
-        let json = serde_json::to_vec_pretty(&recording).map_err(|e| CommandError::Internal {
-            message: format!("serialising the recording: {e}"),
-        })?;
-        std::fs::write(&path, json).map_err(|e| CommandError::Internal {
-            message: format!("writing {path}: {e}"),
-        })
+        write_recording(&path, &recording)?;
+        Ok(Some(path.display().to_string()))
     })
     .await
+}
+
+/// Shows the save dialog and returns the file the user chose.
+///
+/// The default name is built here, not passed in, so the webview cannot steer
+/// the destination. `None` means the dialog was cancelled. The blocking API
+/// is for exactly this context — it must not run on the main thread, which is
+/// why it is called from `off_main`'s blocking worker.
+fn pick_recording_path(app: &tauri::AppHandle) -> CommandResult<Option<std::path::PathBuf>> {
+    use tauri_plugin_dialog::DialogExt as _;
+    let picked = app
+        .dialog()
+        .file()
+        .set_file_name(format!("vitals-recording-{}.json", now_secs()))
+        .add_filter("JSON", &["json"])
+        .blocking_save_file();
+    match picked {
+        None => Ok(None),
+        Some(file) => file
+            .into_path()
+            .map(Some)
+            .map_err(|e| CommandError::Internal {
+                message: format!("the save dialog returned an unusable path: {e}"),
+            }),
+    }
+}
+
+/// Serialises the recording and writes it to `path`, which Rust chose.
+fn write_recording(path: &std::path::Path, recording: &FlightRecording) -> CommandResult<()> {
+    let json = serde_json::to_vec_pretty(recording).map_err(|e| CommandError::Internal {
+        message: format!("serialising the recording: {e}"),
+    })?;
+    std::fs::write(path, json).map_err(|e| CommandError::Internal {
+        message: format!("writing {}: {e}", path.display()),
+    })
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_flight_recording_command_takes_no_destination_from_the_webview() {
+        // Pins the security property at compile time: the destination comes
+        // from the native save dialog in Rust, so the command's only input is
+        // the app handle. Reintroducing the `path: String` parameter this
+        // closes stops this compiling.
+        fn only_app_handle<F, Fut>(_: F)
+        where
+            F: FnOnce(tauri::AppHandle) -> Fut,
+        {
+        }
+        only_app_handle(write_flight_recording);
+    }
+
+    #[test]
+    fn a_recording_written_to_a_rust_chosen_path_is_readable_json() {
+        let dir = std::env::temp_dir().join(format!("vitals-flight-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("recording.json");
+        let recording = FlightRecording {
+            app_version: "9.9.9".into(),
+            exported_at: 1_700_000_000,
+            host: None,
+            frames: vec![FlightFrame {
+                seq: 1,
+                ts: 2,
+                frame: serde_json::json!({ "cpu": 12.5 }),
+            }],
+        };
+        write_recording(&path, &recording).unwrap();
+        let back: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        assert_eq!(back["appVersion"], "9.9.9");
+        assert_eq!(back["frames"][0]["frame"]["cpu"], 12.5);
+        std::fs::remove_dir_all(&dir).ok();
+    }
 }

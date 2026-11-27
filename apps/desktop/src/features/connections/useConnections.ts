@@ -84,7 +84,10 @@ export function prefetchConnections(): Promise<void> {
   return prefetch(PREFETCH_KEY, readConnections, 30_000);
 }
 
-export function useConnections(reader?: ConnectionsReader): ConnectionsState {
+export function useConnections(
+  reader?: ConnectionsReader,
+  doc: Document = document,
+): ConnectionsState {
   // An injected reader replaces the host check entirely, rather than being
   // consulted after it. The earlier version defaulted the argument and then
   // short-circuited on `hasTauriHost()`, so in a test — where there is no
@@ -150,16 +153,35 @@ export function useConnections(reader?: ConnectionsReader): ConnectionsState {
       };
     }
 
-    void load();
-    const timer = setInterval(() => {
+    // Polling stops while the window is hidden: the socket table is only read
+    // by this screen, and a minimise must not keep paying for a read nobody
+    // can see. Visibility resumes it, with an immediate read so the table is
+    // not stale on return.
+    let timer: ReturnType<typeof setInterval> | null = null;
+    const start = (): void => {
+      if (timer !== null) return;
       void load();
-    }, POLL_INTERVAL_MS);
+      timer = setInterval(() => {
+        void load();
+      }, POLL_INTERVAL_MS);
+    };
+    const stop = (): void => {
+      if (timer !== null) clearInterval(timer);
+      timer = null;
+    };
+    const onVisibility = (): void => {
+      if (doc.visibilityState === 'visible') start();
+      else stop();
+    };
+    onVisibility();
+    doc.addEventListener('visibilitychange', onVisibility);
 
     return () => {
       mounted.current = false;
-      clearInterval(timer);
+      stop();
+      doc.removeEventListener('visibilitychange', onVisibility);
     };
-  }, [load, injected]);
+  }, [load, injected, doc]);
 
   return { snapshot, pending, error, updatedAt, refresh };
 }

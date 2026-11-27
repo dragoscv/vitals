@@ -15,29 +15,16 @@ export async function clearHistory(): Promise<void> {
 /**
  * Writes the flight recording to a file the user chooses.
  *
- * A save dialog rather than a fixed path: this exists to be attached to a bug
- * report, so it must land somewhere the reporter can find it. Cancelling the
- * dialog is a normal outcome, not an error.
+ * Rust shows the save dialog and writes the file itself, so the destination
+ * never crosses the IPC boundary and a compromised webview cannot be made to
+ * write to an arbitrary path. It also serialises the two-minute recording
+ * once rather than routing the bytes through the webview.
  *
- * Rust does the writing. Routing the bytes through the webview would mean
- * granting the filesystem plugin write access to arbitrary paths for one
- * feature, and serialising a two-minute recording twice.
+ * Returns the chosen path, or `null` when the dialog was cancelled — a normal
+ * outcome, not an error.
  */
 export async function exportFlightRecording(): Promise<string | null> {
   if (!hasTauriHost()) return null;
-
-  const [{ invoke }, { save }] = await Promise.all([
-    import('@tauri-apps/api/core'),
-    import('@tauri-apps/plugin-dialog'),
-  ]);
-
-  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const path = await save({
-    defaultPath: `vitals-recording-${stamp}.json`,
-    filters: [{ name: 'JSON', extensions: ['json'] }],
-  });
-  if (path === null) return null;
-
-  await invoke<void>('write_flight_recording', { path });
-  return path;
+  const { invoke } = await import('@tauri-apps/api/core');
+  return invoke<string | null>('write_flight_recording');
 }

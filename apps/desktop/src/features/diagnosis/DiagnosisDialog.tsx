@@ -372,6 +372,9 @@ function Verdict({
   readonly onShowProcess: (pid: number) => void;
 }): React.JSX.Element {
   const { t } = useTranslation(DASHBOARD_NS);
+  // `process.pid` lives in the shared bundle rather than in this screen's
+  // namespace, and the label must read the same here as in the process list.
+  const { t: tShared } = useTranslation();
   const colors = useThemeColors();
   const verdict = diagnosis.verdict;
 
@@ -427,7 +430,9 @@ function Verdict({
               >
                 <span className="min-w-0 truncate">
                   <span className="font-medium">{c.name}</span>
-                  <span className="ml-1.5 text-2xs text-[var(--color-fg-muted)]">PID {c.pid}</span>
+                  <span className="ml-1.5 text-2xs text-[var(--color-fg-muted)]">
+                    {tShared('process.pid')} {c.pid}
+                  </span>
                 </span>
                 <span className="ml-auto shrink-0 tabular-nums">
                   <span className="font-medium">

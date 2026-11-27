@@ -9,7 +9,7 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 
-import type { ControlRequest, VitalsClient } from '@vitals/client';
+import { isVitalsError, type ControlRequest, type VitalsClient } from '@vitals/client';
 import type { Alert, Frame } from '@vitals/protocol';
 
 import { fold, type Snapshot } from './frames';
@@ -18,7 +18,19 @@ import type { Pairing } from './pairing';
 /** The subset of `VitalsClient` the phone uses; a test hands in a plain object. */
 export type MobileClient = Pick<VitalsClient, 'health' | 'host' | 'stream' | 'control' | 'alerts'>;
 
-export type ConnectionState = 'connecting' | 'live' | 'reconnecting' | 'unreachable';
+export type ConnectionState =
+  | 'connecting'
+  | 'live'
+  | 'reconnecting'
+  | 'unreachable'
+  /**
+   * The PC answered 401: this phone's key is no longer accepted, so the
+   * pairing was revoked or replaced on the PC. Distinct from `unreachable`
+   * (the PC never answered) because the two ask the user for different
+   * things — a scan of a fresh code, not patience — and because retrying a
+   * dead key is pointless.
+   */
+  | 'unauthorised';
 
 /** How many readings a card's sparkline remembers — about a minute at 1 Hz. */
 export const HISTORY_LENGTH = 60;
@@ -32,6 +44,19 @@ export const HISTORY_LENGTH = 60;
  */
 export const ALERTS_POLL_MS = 15_000;
 
+/**
+ * The PC's nominal sampling tick, in milliseconds.
+ *
+ * The phone has no settings of its own and cannot read the PC's, so it
+ * assumes the default 1 Hz the sampler runs at — the same "1000 ms nominal
+ * tick" the dashboard's gap detector is written against. Used only to decide
+ * when a reading is old, never to pace anything.
+ */
+export const SAMPLE_INTERVAL_MS = 1_000;
+
+/** How old the newest reading must be before a card calls it stale: 2× the tick. */
+export const STALE_AFTER_MS = SAMPLE_INTERVAL_MS * 2;
+
 /** Everything a screen needs about one PC. Immutable; a new object per frame. */
 export interface LiveState {
   readonly state: ConnectionState;
@@ -44,6 +69,13 @@ export interface LiveState {
    * about a PC it has not asked.
    */
   readonly alerts: readonly Alert[] | null;
+  /**
+   * The phone's clock when the last frame arrived, or `null` before the
+   * first. The frame carries the PC's wall clock, which the phone cannot
+   * compare against its own without assuming the two machines agree on the
+   * time; recording receipt measures age without clock skew.
+   */
+  readonly lastFrameAtMs: number | null;
 }
 
 const INITIAL: LiveState = {
@@ -52,7 +84,43 @@ const INITIAL: LiveState = {
   cpuHistory: [],
   memoryHistory: [],
   alerts: null,
+  lastFrameAtMs: null,
 };
+
+/** How long the newest reading has been silent, or `null` before the first one. */
+export function readingAgeMs(live: LiveState, now: number): number | null {
+  return live.lastFrameAtMs === null ? null : Math.max(0, now - live.lastFrameAtMs);
+}
+
+/**
+ * A compact age, matching the desktop's `since()`: `5s`, `1m 05s`, `2h 03m`.
+ *
+ * Duplicated rather than imported because the phone must not pull the
+ * desktop bundle (see `boundary.test.ts`), and it is eight lines.
+ */
+export function formatAgo(ms: number): string {
+  const s = Math.floor(Math.max(0, ms) / 1000);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  if (h > 0) return `${h}h ${String(m).padStart(2, '0')}m`;
+  if (m > 0) return `${m}m ${String(sec).padStart(2, '0')}s`;
+  return `${s}s`;
+}
+
+/**
+ * A clock that ticks, so a card re-renders and shows a reading ageing even
+ * while nothing else changes. Without it a stale card — no frames arriving —
+ * would never re-render and the "last reading" chip would never appear.
+ */
+export function useNow(intervalMs: number = SAMPLE_INTERVAL_MS): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), intervalMs);
+    return () => clearInterval(timer);
+  }, [intervalMs]);
+  return now;
+}
 
 /**
  * Consecutive failed attempts before a PC is called unreachable rather than
@@ -92,6 +160,38 @@ export class LiveMachine {
         if (attempt + 1 >= UNREACHABLE_AFTER) this.set({ ...this.current, state: 'unreachable' });
       },
     });
+    // In parallel, never before: the stream is what shows a live PC fastest,
+    // and the probe only ever downgrades a key the PC has already refused.
+    void this.verifyToken();
+  }
+
+  /**
+   * One authenticated probe, because the SSE transport cannot see a status
+   * code.
+   *
+   * A revoked token answers 401 to every authenticated request, but a browser
+   * reports an `EventSource` failure only as "error", so the stream would
+   * reconnect behind "Reconnecting…" forever with no way to tell a network
+   * problem from a dead key. `/host` is the cheapest authenticated read; a
+   * 403 is a legitimate refusal (a read-only token, or Windows saying no) and
+   * is deliberately not this state.
+   */
+  private async verifyToken(): Promise<void> {
+    try {
+      await this.client.host();
+    } catch (error) {
+      // Closed while this was in flight (unpaired, re-paired): a late reply
+      // must not resurrect a machine nobody is watching.
+      if (this.stop === undefined) return;
+      if (isVitalsError(error) && error.kind === 'unauthorised') {
+        this.set({ ...this.current, state: 'unauthorised' });
+        // Stop the stream: a dead key will never open, and retrying it
+        // forever is the loop this state exists to end.
+        this.close();
+      }
+      // Any other failure is the network's business; the stream's own retry
+      // covers it and `/host` is not worth surfacing on its own.
+    }
   }
 
   /** Closes the stream and cancels reconnects. */
@@ -148,13 +248,17 @@ export class LiveMachine {
   private apply(frame: Frame): void {
     const snapshot = fold(this.current.snapshot, frame);
     const memory = snapshot.system.memory;
-    const memoryPercent = memory.total > 0 ? (memory.used / memory.total) * 100 : 0;
+    // A total of zero is "not reported", never "no memory". Dividing would
+    // print 0 %, which the sparkline draws as the floor and a reader takes
+    // for an idle machine; NaN breaks the line instead (see Sparkline).
+    const memoryPercent = memory.total > 0 ? (memory.used / memory.total) * 100 : Number.NaN;
     this.set({
       ...this.current,
       state: 'live',
       snapshot,
       cpuHistory: push(this.current.cpuHistory, snapshot.system.cpu.total),
       memoryHistory: push(this.current.memoryHistory, memoryPercent),
+      lastFrameAtMs: Date.now(),
     });
   }
 

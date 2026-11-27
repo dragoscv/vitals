@@ -26,7 +26,7 @@ The signed `IntelMSR`, `AMDFamily17` and `LpcIO` module binaries are embedded
 unmodified. Their complete source is at the link above; the licence text is
 below and is also installed as `sensors\PawnIO-Modules-COPYING.txt`.
 
-## Rust crates (396)
+## Rust crates (397)
 
 | Component | Version | Licence |
 | --- | --- | --- |
@@ -68,6 +68,7 @@ below and is also installed as `sensors\PawnIO-Modules-COPYING.txt`.
 | [chrono](https://github.com/chronotope/chrono) | 0.4.45 | MIT OR Apache-2.0 |
 | [clap](https://github.com/clap-rs/clap) | 4.6.7 | MIT OR Apache-2.0 |
 | [clap_builder](https://github.com/clap-rs/clap) | 4.6.7 | MIT OR Apache-2.0 |
+| [clap_complete](https://github.com/clap-rs/clap) | 4.6.12 | MIT OR Apache-2.0 |
 | [clap_derive](https://github.com/clap-rs/clap) | 4.6.7 | MIT OR Apache-2.0 |
 | [clap_lex](https://github.com/clap-rs/clap) | 1.1.0 | MIT OR Apache-2.0 |
 | [cmov](https://github.com/RustCrypto/utils) | 0.5.4 | Apache-2.0 OR MIT |

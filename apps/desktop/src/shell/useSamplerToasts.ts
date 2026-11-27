@@ -16,6 +16,7 @@ import { useTranslation } from 'react-i18next';
 
 import type { toast as Toast } from '@vitals/ui/toast';
 
+import { reportFailure } from '../lib/reportFailure';
 import { hasTauriHost } from './host';
 import { SHELL_NS } from './strings';
 
@@ -41,21 +42,26 @@ export function useSamplerToasts(): void {
       });
     };
 
-    void import('@tauri-apps/api/event').then(async ({ listen }) => {
-      const stop = await listen<string>(SAMPLER_ERROR_EVENT, (event) => {
-        const detail = event.payload;
-        if (seen.has(detail)) return;
-        seen.add(detail);
-        toastError(t('sampler.errorTitle'), {
-          description: t('sampler.errorBody', { detail }),
-          // Stable id so a repeat of the same message updates in place
-          // rather than stacking, even if it slips past the set above.
-          id: `sampler:${detail}`,
+    // If the event module or the listener setup fails, every later sampler
+    // error would be silent — surface it rather than losing the channel.
+    void reportFailure(
+      import('@tauri-apps/api/event').then(async ({ listen }) => {
+        const stop = await listen<string>(SAMPLER_ERROR_EVENT, (event) => {
+          const detail = event.payload;
+          if (seen.has(detail)) return;
+          seen.add(detail);
+          toastError(t('sampler.errorTitle'), {
+            description: t('sampler.errorBody', { detail }),
+            // Stable id so a repeat of the same message updates in place
+            // rather than stacking, even if it slips past the set above.
+            id: `sampler:${detail}`,
+          });
         });
-      });
-      if (cancelled) stop();
-      else unlisten = stop;
-    });
+        if (cancelled) stop();
+        else unlisten = stop;
+      }),
+      t('sampler.errorTitle'),
+    );
 
     return () => {
       cancelled = true;

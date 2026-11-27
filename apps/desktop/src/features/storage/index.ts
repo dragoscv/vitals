@@ -19,7 +19,6 @@ export {
   type DiskKindKey,
   type SafetyKey,
   type ScanSnapshot,
-  type ScanStrategyKey,
   type SkipReasonKey,
   type SkippedPath,
   type Volume,

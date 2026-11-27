@@ -1,3 +1,5 @@
-Vitals 1.4.0
-• Kodwen is now Codwen. Sign-in and agent sessions come from codwen.com, and a key saved by an earlier version is moved across by itself
-• A session an older release named Kodwen still reads as Codwen, not as an unknown tool
+Vitals 1.5.0
+• When the PC you are watching stops sending readings, the app says how old they are instead of going silent
+• A reading the PC cannot report shows as a dash, not as a zero
+• If the pairing is no longer valid, the app says so and offers to pair again, instead of retrying forever
+• If a screen fails to load, you get a sentence and a way to try again, not an empty screen

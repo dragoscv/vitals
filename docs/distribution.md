@@ -124,6 +124,20 @@ download shows a warning. The private key lives only in repository secrets
 and on the maintainer's machine under `%USERPROFILE%\.tauri`, never in the
 repository (`docs/releasing.md`).
 
+## The command line (`vitals`)
+
+The CLI is distributed as a plain zip, not an installer:
+`vitals-cli_<version>_<arch>.zip`. `release.yml` builds it in the `Build CLI`
+step and attaches it to the same GitHub release as the desktop installers. It
+contains `vitals.exe`, `LICENSE` and `THIRD_PARTY_NOTICES.md`.
+
+It is deliberately **not inside the NSIS installer**: the installer and the
+Scoop package are the desktop app only, so a headless server or a CI runner can
+have the CLI without a GUI install. The Scoop manifest names the zip as a
+separate download rather than unpacking a second archive into a package built
+around the installer. `docs/cli.md` documents install, every subcommand and the
+exit-code table.
+
 ## Samsung TVs (Tizen): sideload only
 
 The Tizen app (`apps/tizen`) is a web app packaged as a **`.wgt`**, and it is

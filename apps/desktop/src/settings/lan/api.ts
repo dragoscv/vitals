@@ -26,6 +26,8 @@ export interface TokenSummary {
 export interface LanStatus {
   readonly running: boolean;
   readonly port: number | null;
+  /** The address the listener bound, or null when it listens on every interface. */
+  readonly boundAddress: string | null;
   readonly interfaces: readonly Interface[];
   readonly tokens: readonly TokenSummary[];
 }
@@ -96,7 +98,8 @@ export const tauriLanApi: LanApi = {
  * is checking — without pretending a socket exists.
  */
 export const noHostLanApi: LanApi = {
-  status: () => Promise.resolve({ running: false, port: null, interfaces: [], tokens: [] }),
+  status: () =>
+    Promise.resolve({ running: false, port: null, boundAddress: null, interfaces: [], tokens: [] }),
   start: () => Promise.reject(new Error('no host')),
   stop: () => Promise.resolve(),
   pair: () => Promise.reject(new Error('no host')),
