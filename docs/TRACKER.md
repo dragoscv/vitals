@@ -7083,7 +7083,8 @@ expectations:
 
 - The owner approved the `release` environment (its `pending_deployments` is
   back to zero), `Publish` concluded `success`, and **`v1.5.0` is a public
-  release with nineteen assets**, created `2026-11-27T21:20:23Z` and not a
+  release with twenty assets** — the nineteen build artefacts plus `latest.json`,
+  the updater manifest — created `2026-11-27T21:20:23Z` and not a
   draft. That is the read-back S24-36 was waiting for, so the row closes.
 - This machine was updated from the published artefact rather than from a local
   build: `Vitals_1.5.0_x64-setup.exe` downloaded from the release, its SHA-256
@@ -7133,7 +7134,7 @@ the listing as a Store visitor.
 
 Verification: `gh run view 46069661247 --json jobs` (Publish success, winget the
 only failure, four channels success); `gh release view v1.5.0 --json assets`
-(nineteen); the downloaded installer's `Get-FileHash` against `SHA256SUMS.txt`;
+(twenty: the nineteen build artefacts and `latest.json`); the downloaded installer's `Get-FileHash` against `SHA256SUMS.txt`;
 `npm view @vitals-app/client version`; the Scoop bucket's raw JSON; the
 Chocolatey OData entry for `Id eq 'vitals' and Version eq '1.5.0'`; and
 `gh api repos/microsoft/winget-pkgs/pulls/491438`. Three of the five channel
