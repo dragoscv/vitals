@@ -1,8 +1,8 @@
-//! Battery state from IOKit's `IOPowerSources`.
+//! Battery state from `IOKit`'s `IOPowerSources`.
 //!
 //! macOS exposes a live battery reading through Core Foundation only — there
 //! is no `sysctl` for it and `sysinfo` carries none — so this is a small
-//! hand-written binding to three IOKit functions and a handful of Core
+//! hand-written binding to three `IOKit` functions and a handful of Core
 //! Foundation accessors, in the same style as [`crate::input`]'s CoreGraphics
 //! call.
 //!
@@ -10,7 +10,7 @@
 //!
 //! * **Every object it creates is released.** `IOPSCopyPowerSourcesInfo` and
 //!   `IOPSCopyPowerSourcesList` both hand back a `+1` reference, and the keys
-//!   are `CFString`s created here because the IOKit keys are C strings that
+//!   are `CFString`s created here because the `IOKit` keys are C strings that
 //!   the header requires be converted before use. This runs once a second for
 //!   as long as the machine is on, so a missing `CFRelease` is a leak that
 //!   grows forever, not a tidiness issue — [`Owned`] makes the release
@@ -121,7 +121,7 @@ impl Drop for Owned {
 
 /// Copies a Rust C string into a `+1` `CFString`.
 ///
-/// The IOKit keys are C strings (`kIOPSCurrentCapacityKey` and friends), and
+/// The `IOKit` keys are C strings (`kIOPSCurrentCapacityKey` and friends), and
 /// the header is explicit that they must be converted before use: a
 /// `CFDictionaryGetValue` matches by `CFEqual`, so a raw `char *` would find
 /// nothing and every reading would come back absent.
@@ -217,7 +217,7 @@ fn dict_string_equals(dict: CFDictionaryRef, key: CFTypeRef, expected: &CStr) ->
         CFStringGetCString(
             value,
             buffer.as_mut_ptr(),
-            buffer.len() as CFIndex,
+            buffer.len().cast_signed(),
             CF_STRING_ENCODING_UTF8,
         )
     };
@@ -251,7 +251,7 @@ fn dict_source_state(dict: CFDictionaryRef, key: CFTypeRef) -> SourceState {
     }
 }
 
-/// One power source as IOKit reported it, with no Core Foundation types left.
+/// One power source as `IOKit` reported it, with no Core Foundation types left.
 ///
 /// Plain data, so the mapping to [`BatteryMetrics`] can be tested on a machine
 /// with no battery.
