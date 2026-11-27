@@ -6459,6 +6459,44 @@ is written up in `docs/releasing.md`.
 - **Not verified, and therefore not claimed:** the repaired `Publish release`
   itself. It can only run from a tag carrying the fix, and no such run exists yet.
 
+### 2026-11-27 — the release gate failed twice on wall-clock budgets, and the estimator was the defect
+
+The 1.5.0 tag has now stopped at `Verify` twice, each time on an absolute
+time assertion in the TypeScript suite with the other 1518 tests green:
+
+- `apps/desktop/src/styles.test.ts:338` — a walk that read the tree one file at a
+  time inside the default 15 s budget (fixed by reading the tree in parallel,
+  `949af18`).
+- `apps/desktop/src/features/processes/performance.test.ts:115` — the mean of
+  twenty `buildRows` calls for a keystroke query measured
+  `56.01068500000001` ms against a budget of 50, in a file whose own header says
+  the budget is "deliberately generous — CI runners are shared and a tight
+  threshold produces flaky failures that get muted, which is worse than no test".
+
+What settled it was a measurement rather than an argument. On the development
+machine the **fastest** of those same twenty iterations costs **0.497 ms** —
+one hundred times inside the budget — while the same code measured 56 ms as a
+mean on the runner. The gate was measuring the runner: that job spent 610.8 s in
+the ts lane and 190.71 s creating happy-dom environments for 149 test files.
+
+The fix (`73d39d8`) asserts each of the file's three budgets against `Math.min`
+of the per-iteration durations instead of the mean. A regression that matters —
+a quadratic scan — raises every iteration, including the fastest one, so the
+guard keeps the failure it exists for and loses only the flake. It was made
+non-vacuous the way this repository asks: with the budget temporarily set to
+`0.001` the test fails with `expected 0.496599999999944 to be less than 0.001`,
+and then passes again once the budget is restored.
+
+The honest limit is unchanged and worth saying out loud: the fail threshold is
+still 50 ms, so a twofold regression is not caught and an order-of-magnitude one
+is. That was already true before this change; the estimator removes the flake
+without pretending to add sensitivity.
+
+With the fix on `main`, the tag was re-cut from `2b6de8a` to `73d39d8` (delete,
+push, `release-preflight.mjs` green, annotated, on the default branch) so the
+new run executes a workflow file from a commit that contains the fix — the
+recovery path ADR 0045 records as the only one available.
+
 ### 2026-11-20 — S24-37 to S24-40: the release path itself, hardened after it failed
 
 The 403 in S24-36 was a defect in the publish step, and the useful question after
