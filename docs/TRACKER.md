@@ -7075,6 +7075,71 @@ reading the failing run instead of re-running it, which is also why re-running
 was never tried — the same luck that times out once passes next time, and a
 green re-run would have left all three defects in place.
 
+### S26-28 continued — the release published, and each channel was read back rather than assumed (2026-11-27)
+
+The tag's fifth run (`46069661247`, `ff13371`) carried every earlier green, and
+the two facts the previous entry left open are now facts rather than
+expectations:
+
+- The owner approved the `release` environment (its `pending_deployments` is
+  back to zero), `Publish` concluded `success`, and **`v1.5.0` is a public
+  release with nineteen assets**, created `2026-11-27T21:20:23Z` and not a
+  draft. That is the read-back S24-36 was waiting for, so the row closes.
+- This machine was updated from the published artefact rather than from a local
+  build: `Vitals_1.5.0_x64-setup.exe` downloaded from the release, its SHA-256
+  equal to the line `SHA256SUMS.txt` carries, installed with `/S /CurrentUser`
+  (exit 0), FileVersion and ProductVersion 1.5.0 at
+  `%LOCALAPPDATA%\Programs\Vitals\vitals-desktop.exe`, the uninstall key in
+  HKCU alone, and the running process reporting 1.5.0 with its local API on 7330.
+
+Then the five channel jobs, each read from the channel rather than from the
+job's colour:
+
+| channel     | the job said | what the channel says now                                                                                           |
+| ----------- | ------------ | ------------------------------------------------------------------------------------------------------------------- |
+| npm         | success      | `@vitals-app/client` 1.5.0                                                                                          |
+| Scoop       | success      | `bucket/vitals.json` carries `"version": "1.5.0"`                                                                   |
+| Chocolatey  | success      | 1.5.0 accepted (submitted 22:06:11Z) and queued for moderation, so the feed still answers 1.3.0 to a "latest" query |
+| Google Play | success      | the production track at a 1% rollout, read from CI, because the local ADC cannot authenticate against the Play API  |
+| winget      | **failure**  | pull request `microsoft/winget-pkgs#491438`, opened by hand                                                         |
+
+**The winget failure was not the manifest.** `komac update --dry-run` produced a
+valid manifest, `scripts/ci/winget-user-scope.ps1` rewrote it to `Scope: user`
+with `Custom: /CurrentUser` and `%LocalAppData%\Programs\Vitals`, and both
+`InstallerSha256` values match `SHA256SUMS.txt` byte for byte; the step that
+failed is the submission: `Error: 0: dragoscv does not have the correct
+permissions to execute CreateRef` followed by `failed to create branch
+Vitals.Vitals-1.5.0-51997FFA…`. A contributor's submission goes through their own
+fork, `dragoscv/winget-pkgs` exists and was last pushed at the 1.3.1 attempt, and
+`WINGET_TOKEN` was last updated 2026-09-28 — so the reading that fits every fact
+is an expired or under-scoped personal access token rather than anything in the
+workflow. Everything the CI path would have done was therefore done here with
+the local `gh` token (scopes `repo`, `workflow`, `gist`, `read:org`), with the
+same pinned Komac 2.16.0 checked against its SHA-256, and it produced
+**microsoft/winget-pkgs#491438**. Rotating `WINGET_TOKEN` is a credential action
+and belongs to the owner; the workflow needs no change, and `#485058` — the 1.3.1
+submission left unanswered after the validation bot asked for an update — is
+superseded by the new one.
+
+**The Store half is staged on purpose.** Partner Center has no credentials in
+this repository, so the 1.5.0 Store submission is hand work rather than a job.
+Submission 8 (`1152921505702529570`, product `9P95RK5VMGPJ`) holds both 1.5.0
+MSIX packages with the step reading `Validated`, the 1.3.0 pairs superseded, and
+both listings byte-identical to `packaging/msix/listing/*.md` (en-us 2838
+characters, ro-ro 3223; FNV-1a `ea1d6402` and `460baff9`). What is left is one
+button, `Submit for certification`, and it is deliberately not pressed: it starts
+a review cycle that cannot be withdrawn, so the owner presses it after reading
+the listing as a Store visitor.
+
+Verification: `gh run view 46069661247 --json jobs` (Publish success, winget the
+only failure, four channels success); `gh release view v1.5.0 --json assets`
+(nineteen); the downloaded installer's `Get-FileHash` against `SHA256SUMS.txt`;
+`npm view @vitals-app/client version`; the Scoop bucket's raw JSON; the
+Chocolatey OData entry for `Id eq 'vitals' and Version eq '1.5.0'`; and
+`gh api repos/microsoft/winget-pkgs/pulls/491438`. Three of the five channel
+claims are read from the channel's own API, Play's from CI, and none of them is
+inferred from a green tick.
+
 ### S24-10 — the macOS battery reader needed two clippy fixes before the Apple job would compile it (2026-11-27)
 
 The row's Mac half was written the same day and was honest about its own state:
