@@ -57,8 +57,12 @@ Gratuit și open source (MIT). Disponibil în română și engleză.
 
 ## Ce e nou în această versiune (≤ 1500 caractere)
 
-Ce e nou în 1.5.0
+Ce e nou în 1.5.1
 
+• Fiecare unealtă Vitals arată acum marca Vitals și versiunea ei. Linia de comandă, serviciul de senzori și watchdog-ul ajungeau fără niciuna, așa că Windows desena propria pictogramă generică și îți propunea un program fără nume și fără pictogramă
+• Ce iese din pipeline este verificat față de aplicația din care a fost construit, așa că o unealtă care își pierde marca sau versiunea oprește versiunea publicată, în loc să ajungă la tine
+
+Nou în 1.5.0:
 • Când citirile nu mai vin — o măsurătoare blocată, un calculator care a adormit, un PC care nu mai răspunde — fereastra îți spune acum de cât timp nu a primit nimic și cere valorile actuale, în loc să aștepte o schimbare care poate să nu vină niciodată
 • Un refuz se citește acum ca o propoziție în limba ta, cu textul tehnic păstrat sub Detalii
 • O citire pe care calculatorul nu a făcut-o apare ca o liniuță, nu ca un zero, pe fiecare ecran
@@ -67,10 +71,6 @@ Ce e nou în 1.5.0
 
 Nou în 1.4.0:
 • Kodwen se numește acum Codwen: pagina Agenți AI se conectează la contul tău Codwen de la auth.codwen.com și îți citește sesiunile de la ai.codwen.com. O cheie salvată de o versiune anterioară este mutată singură, ca nimeni să nu fie delogat de actualizare
-
-Nou în 1.3.1:
-• Home Assistant: integrarea MQTT creează citirile pe care le anunță, astfel încât un PC care dispare apare ca indisponibil, nu ca o valoare veche
-• O citire pe care hardware-ul nu o poate raporta nu mai ajunge ca zero: memoria și temperatura plăcii video, bateria, activitatea discurilor și numerele de procesor rămân acum absente, pe fiecare ecran
 
 ## Funcții (până la 20, ≤ 200 caractere fiecare)
 

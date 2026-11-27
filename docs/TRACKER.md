@@ -7447,6 +7447,45 @@ them); `scripts/check-drift.ps1`, `scripts/check-tracker.ps1` and
 proven at the next tag, not before it: a pipeline step cannot be verified from
 a workstation, only its controls can.
 
+### S26-35 — release 1.5.1: the mark and the version reach every tool, and the pipeline reads both back (2026-11-28)
+
+The repair in S26-31 and the gate in S26-34 reach a user only through a release,
+and the defect they answer was visible on a machine that already had Vitals
+installed: the Windows Firewall prompt, asking whether to allow a program whose
+icon was blank and whose publisher was empty. Waiting for the next feature
+release would have left that prompt in every installer built from `main`, so
+1.5.1 is a patch release cut from `main` as it stands — which also makes this
+tag the first run of the readback job S26-34 introduces, and therefore the first
+release whose evidence comes from the published bytes rather than from the build
+that produced them.
+
+`scripts/version.ps1 -Set 1.5.1` wrote the version in all fourteen places it is
+held and the four-part Store literal into the three files bound to a `-Version`
+argument or a workflow-dispatch `version=` input. `cargo update --workspace`
+refreshed the sixteen workspace entries in `Cargo.lock` and moved no third-party
+crate, which is what distinguishes this release from 1.5.0: no advisory work, so
+no dependency or size surface moved with it. The CHANGELOG section names what a
+person gets — the mark and the version block in every tool, and a pipeline that
+reads both back off the artefacts before publishing them. The MS Store
+what-is-new block was rewritten in both languages, with the 1.3.1 entry dropped
+to stay under Partner Center's 1500-character limit (1298 en, 1386 ro), and the
+Play release notes say plainly, in both languages, that nothing changes on the
+phone this release. The two Apple listings stay HELD, which
+`scripts/check-apple-hold.mjs` enforces while App Store Connect is still
+reviewing them.
+
+Verification: `scripts/version.ps1 -Check 1.5.1` exit 0 with every manifest at
+1.5.1, and `node scripts/release-doctor.mjs --version 1.5.1 --offline` OK for
+the manifests, the dated CHANGELOG section, the version literals, both MSIX
+what-is-new blocks and both Play changelogs, HELD for the two Apple listings and
+UNKNOWN for the two live store surfaces — with exactly two STALE rows, the tag
+and the tracker row, which is what a release looks like immediately before it is
+tagged. `scripts/check-tracker.ps1` 0 problem(s) over 346 records;
+`scripts/check-drift.ps1` 0 failure(s) 0 warning(s); `pnpm format:check` and
+`cargo fmt --all -- --check` exit 0. NOT VERIFIED at the time of writing, and
+recorded here in the commit that reads it back: the tag, its Verify job, the
+publish job, the new readback job and every channel's own state.
+
 ## S13 — public beta 0.9.0-beta.1 (2026-09-28)
 
 Decided with the owner (ADR 0031): public repository, beta version, no code

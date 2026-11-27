@@ -16,10 +16,10 @@
   emulation.
 
 .EXAMPLE
-  agentq run -Where cloud -Ws vitals-win -- pwsh -NoProfile -File packaging/msix/build-and-upload.ps1 -Version 1.5.0.0
+  agentq run -Where cloud -Ws vitals-win -- pwsh -NoProfile -File packaging/msix/build-and-upload.ps1 -Version 1.5.1.0
 
 .EXAMPLE
-  pwsh -NoProfile -File packaging/msix/build-and-upload.ps1 -Version 1.5.0.0 -NoUpload
+  pwsh -NoProfile -File packaging/msix/build-and-upload.ps1 -Version 1.5.1.0 -NoUpload
 #>
 param(
   [Parameter(Mandatory)][string]$Version,

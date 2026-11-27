@@ -7,6 +7,22 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.5.1] — 2026-11-28
+
+### Fixed
+
+- The brand mark and the version block now reach **every** Windows binary Vitals
+  ships. `vitals-cli.exe`, `vitals-sensors.exe` and `vitals-watchdog.exe` were
+  linked without a resource compiler, so Windows drew them with its own generic
+  icon and their Properties dialog carried no product, publisher, version or
+  copyright at all. The visible half of that is the Windows Firewall prompt,
+  which asked whether to allow a program with a blank icon and an empty
+  publisher. `vitals-desktop.exe` was never affected — `tauri-build` compiles a
+  resource for it — and the same resource is now compiled for the other three,
+  from the same product name, publisher, copyright and icon, out of one script
+  per crate. `scripts/check-drift.ps1` fails if those strings stop matching
+  `tauri.conf.json`, or if the three scripts drift apart.
+
 ### Added
 
 - **Tracking** — one page for every plan on the machine, read from the index
@@ -24,6 +40,15 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   running too: read from a local scan it says local-only, and the header turns
   to the Codwen account only for the fact that one is stored, which is the same
   read the Cloud tab already makes.
+
+- **A release reads back what it shipped, not what it built.**
+  `scripts/check-binary-identity.ps1` reads the mark, the product, the publisher
+  and the version out of a finished artefact — an installer, a CLI zip, an MSIX
+  — and the new `readback` job in `.github/workflows/release.yml` downloads the
+  published Windows assets from the release itself and checks those. No hash is
+  pinned: the reference is a binary built in the same run, because the bytes of
+  an icon inside a binary are not the bytes of the `.ico` it was drawn from.
+  The Store route runs the same script before it uploads a package.
 
 ## [1.5.0] — 2026-11-27
 

@@ -1,5 +1,3 @@
-Vitals 1.5.0
-• Când PC-ul pe care îl urmărești nu mai trimite citiri, aplicația spune cât de vechi sunt, în loc să tacă
-• O citire pe care PC-ul nu o poate raporta apare ca o liniuță, nu ca un zero
-• Dacă asocierea nu mai este validă, aplicația spune asta și îți propune să asociezi din nou, în loc să reîncerce la nesfârșit
-• Dacă un ecran nu se încarcă, primești o propoziție și o cale de a reîncerca, nu un ecran gol
+Vitals 1.5.1
+• Această versiune este pentru aplicația Windows cu care vorbește telefonul: fiecare unealtă Vitals arată acum marca Vitals și versiunea, așa că Windows nu îți mai propune un program fără nume și fără pictogramă
+• Pe telefon nu se schimbă nimic în această versiune; o citire pe care PC-ul nu o măsoară rămâne o liniuță, niciodată un zero

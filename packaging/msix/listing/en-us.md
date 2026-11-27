@@ -57,8 +57,12 @@ Free and open source (MIT). Available in English and Romanian.
 
 ## What's new in this version (≤ 1500 characters)
 
-What's new in 1.5.0
+What's new in 1.5.1
 
+• Every Vitals tool now shows the Vitals mark and its own version. The command line, the sensors service and the lag watchdog used to arrive without either, so Windows drew its own generic icon and offered a nameless program with a blank icon
+• What leaves the pipeline is checked against the app it was built from, so a tool that loses its mark or its version stops the release instead of reaching you
+
+New in 1.5.0:
 • When the readings stop arriving — a stalled sample, a machine that went to sleep, a PC that stopped answering — the window now says how long ago the last one was and asks for the current numbers, instead of waiting for a change that may never come
 • A refusal now reads as a sentence in your own language, with the technical wording kept under Details
 • A reading the computer never took is a dash, not a zero, on every screen
@@ -67,10 +71,6 @@ What's new in 1.5.0
 
 New in 1.4.0:
 • Kodwen is now Codwen: the AI agents page signs in to your own Codwen account at auth.codwen.com and reads your sessions from ai.codwen.com. A key saved by an earlier version is moved across by itself, so nobody is signed out by the update
-
-New in 1.3.1:
-• Home Assistant: the MQTT integration creates the readings it announces, so a PC that goes away shows as unavailable instead of a stale number
-• A reading the hardware cannot report no longer arrives as a zero: graphics memory and temperature, a battery, disk activity and processor counts stay absent, on every screen
 
 ## Features (up to 20, ≤ 200 characters each)
 

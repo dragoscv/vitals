@@ -1,5 +1,3 @@
-Vitals 1.5.0
-• When the PC you are watching stops sending readings, the app says how old they are instead of going silent
-• A reading the PC cannot report shows as a dash, not as a zero
-• If the pairing is no longer valid, the app says so and offers to pair again, instead of retrying forever
-• If a screen fails to load, you get a sentence and a way to try again, not an empty screen
+Vitals 1.5.1
+• This release is for the Windows app the phone talks to: every Vitals tool now shows the Vitals mark and its own version, so Windows no longer offers you a nameless program with a blank icon
+• Nothing changes on the phone this release; a reading the PC does not measure still arrives as a dash, never as a zero
