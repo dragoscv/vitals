@@ -7039,6 +7039,21 @@ and how a battery reading should appear in the menu bar, where there is no tray
 title to write — `TrayMetric` has no `Battery` variant, and the menu-bar readout
 is the tray icon itself.
 
+The menu-bar half of that answered itself the same day, and the answer was that
+it needed no new API. The icon already carries a **level**: `render()` fills a
+rounded tile from the bottom in proportion to the chosen reading, which is the
+shape a battery gauge has. So the charge is now a first-class option —
+`TrayMetric::Battery`, `value_for` returning the charge as a percentage,
+`battery` in the webview's `trayMetrics`, and `Battery charge` / `Nivelul
+bateriei` in both locales. A machine with no battery draws the plain mark, the
+same rule every unreadable reading follows, and it behaves identically on
+Windows and macOS because the number is drawn into the bitmap instead of being
+set as a title: there is still no `set_title` call in the tree, and none is
+needed. The variant also makes `power.rs` reachable rather than written — the
+macOS sampler already publishes the charge, and the tray now has a way to show
+it. What remains open in this row is unchanged and owner-only: numbers from a
+Mac that has a battery.
+
 ## S13 — public beta 0.9.0-beta.1 (2026-09-28)
 
 Decided with the owner (ADR 0031): public repository, beta version, no code
