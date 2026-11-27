@@ -67,9 +67,23 @@ async function renderDashboard(
       onNavigate={options.onNavigate as never}
     />,
   );
-  // Layout hydration is a promise; without flushing it the screen is still
-  // showing skeletons and every query below would fail for the wrong reason.
-  await screen.findByRole('heading', { name: 'Dashboard' });
+  // Layout hydration is a promise, and the heading does not wait for it: the
+  // screen renders its skeletons until `hydrated` is true (`!hydrated ||
+  // pending` in DashboardScreen), so awaiting the heading proved nothing and
+  // the synchronous queries below could still run against the skeleton tree.
+  // That is what happened on the loaded release Verify runner of 2026-11-27 —
+  // `Unable to find an accessible element with the role "region" and name
+  // "CPU"`, on a commit whose whole suite passed everywhere else. The
+  // skeleton's own `aria-busy` is the state this wait can actually observe,
+  // and unlike a particular widget it holds for every layout in this file.
+  await vi.waitFor(
+    () => {
+      expect(document.querySelector('[aria-busy="true"]')).toBeNull();
+    },
+    // A liveness bound, not a speed assertion: hydration is a promise and a
+    // state update, and if it never happens the test must still fail — loud.
+    { timeout: 10_000 },
+  );
   return { ...view, backend, collector };
 }
 
