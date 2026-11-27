@@ -7030,6 +7030,16 @@ assertion about **time**, made on a shared runner whose speed nobody controls.
 | `46066435471` | `73d39d8` | `TestingLibraryElementError: Unable to find an accessible element with the role "region" and name "CPU"`            | `7c8b450`                                                                                                                    |
 | `46069661247` | `ff13371` | carried everything above plus the diagnostic below                                                                  | —                                                                                                                            |
 
+**The fifth attempt was green.** `46069661247` (`ff13371`) passed `Verify` —
+conclusion `success`, the gates step from 21:22:55 to 21:35:38 (12.7 min, all
+sixteen gates) and the performance budget to 21:37:08 — with `Build (android)`
+and `SBOM` already green, so the release went on to the four platform builds
+and then to `publish`, which waits for the owner to approve the `release`
+environment. Nothing in the product changed between the red run and this one:
+the trees differ by a test helper, a diagnostic and documentation, which is the
+whole point of the rung above. The gate was the last thing standing between the
+tag and the channels, and it was standing on the runner's speed.
+
 Both figures for `46066435471` are read from the run itself, not inferred:
 `Test Files 1 failed | 148 passed (149)`, `Tests 1 failed | 1518 passed (1519)`,
 and the annotated line above. That query exists in exactly one place,
