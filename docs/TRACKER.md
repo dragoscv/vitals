@@ -687,6 +687,16 @@ duplicate-key check outside development. The decision is to keep the negative re
 instead of applying a speculative fix: no key in the desktop app can produce a
 duplicate, so a change would be a guess with no failing case to test against.
 
+Re-probed on 2026-11-27 at 1.5.0, because the row is a negative result and a
+negative result is only worth what its last attempt is worth: the same tool was
+run against the debug desktop build on this machine for 140 s with a reload,
+and its own line came back (so the subscription was live rather than silent).
+The whole console held Vite's connecting and connected lines, the React DevTools
+notice, one dev-only "IPC custom protocol failed, Tauri will now use the
+postMessage interface instead" warning and one "Couldn't find callback id" left
+by the reload. No duplicate-key warning. Nothing changed in the conclusion, and
+the row stays closed without a speculative fix.
+
 ### Verification
 
 - Layout read live out of the dev window's accessibility tree (1282×820, 998 px pane):

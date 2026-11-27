@@ -497,6 +497,18 @@ while ($pending.Count -gt 0) {
         if ($r.Gate -like 'ts: typecheck*') {
             $r.Output | Select-String -Pattern '^\s*(Tasks|Cached):' | ForEach-Object { Write-Host "        $($_.Line.Trim())" -ForegroundColor DarkGray }
         }
+        # A failing ts gate printed only the last thirty lines, and those are the
+        # vitest summary: the one line a reader needs — the name of the failing
+        # test and the assertion it made — sits just above them and was cut off.
+        # The release run of 2026-11-27 failed this gate and the log could not say
+        # which of the 1519 tests had failed, which cost a whole investigation
+        # cycle; this is that answer, printed where the failure is reported.
+        if ((-not $r.Passed) -and ($r.Gate -like 'ts: typecheck*')) {
+            $r.Output |
+                Select-String -Pattern 'FAIL |AssertionError|expected\b.*\bto be\b|\.test\.tsx?:\d+' |
+                Select-Object -First 12 |
+                ForEach-Object { Write-Host "        $($_.Line.Trim())" -ForegroundColor Red }
+        }
         # The artefact gate's own one-line result, so whether it had any APK to
         # check is visible in the run and not only inside the gate.
         if ($r.Gate -eq 'android: features') {
