@@ -6809,6 +6809,60 @@ times, but got 0 times` — the stop-retrying half is guarded separately from
   change. It is the one budget still red, and it belongs to whoever is adding
   to the main window.
 
+### S26-28 — release 1.5.0: the tag was cut twice, because two CI jobs found real defects (2026-11-27)
+
+The first pushed tree for 1.5.0 (`b90bc2e`) was tagged and its release run started,
+and then CI on that same commit went red on two jobs. Neither was a flake, so the
+tag was deleted and re-cut rather than published over.
+
+- `Supply chain` failed on `cargo audit --deny warnings` with two advisories
+  published days earlier, both on crates this binary only receives transitively:
+  `cookie` 0.18.2 (RUSTSEC-2026-0594, 2026-11-23, private cookie nonces can
+  repeat in processes that fork) and `url` 2.5.8 (RUSTSEC-2026-0592, 2026-11-20,
+  a stack overflow in `Url::origin()` on nested `blob:` URLs). Neither is named
+  in any manifest and no code here calls either —
+  `rg -n "^cookie|^url" --glob '**/Cargo.toml'` and
+  `rg -n "cookie::|^\s*use\s+url\b|url::Url" crates apps` both exit 1 with no
+  matches — but a dependency list is a claim about what is installed, and
+  "the advisory is not reachable" is an argument a reader can only take on
+  trust. Bumped with `cargo update -p cookie --precise 0.18.3` and
+  `cargo update -p url --precise 2.5.9` (`form_urlencoded` 1.2.2 -> 1.2.3 follows
+  `url`), which is the first third-party version to move in this release;
+  `cargo audit --deny warnings` then exits 0 over 673 crate dependencies.
+- That bump made `THIRD_PARTY_NOTICES.md` stale, which is the expected
+  side effect and not a second defect: `-Check` printed `is stale: run
+scripts/third-party-notices.ps1`. Regenerated (`wrote … (397 crates, 104 npm
+packages)`), `-Check` afterwards prints `is current`, exit 0.
+- `Build installer` failed on the size budget: the new NSIS measured 5,905.5 KB
+  against 5,872.0 KB (100.6%) in run 45955409788. `installerBytes` is raised to
+  5,920.0 KB with that measurement written into `size-budget.json`'s own comment.
+  The local rebuild afterwards measured **5,908.4 KB of 5,920.0 KB** and
+  `scripts/check-size.ps1` printed `Within budget.`, exit 0, with the other four
+  classes at 219.0/220.0, 538.9/540.0, 126.5/127.0 and 154.2/155.0 KB.
+- One stale snapshot of these numbers lived in prose:
+  `docs/research/vitals-page-patterns.md` §3c quoted all five budget values from
+  before the 1.5.0 raises, so the table was corrected and the section now says
+  `size-budget.json` is the source of truth.
+- The repaired tree was verified in the cloud before the tag moved, in three
+  jobs: `20261127-071942-92bd88` (checks, 7/7 pass), `20261127-072645-93a5ee`
+  (rust: clippy, 1970 tests, bindings, target size — 4/4), and
+  `20261127-073133-e04ac9` (the remaining gates incl. typecheck/lint/tests,
+  frontend bundle, size budget, android features). Full verify:
+  `All 16 gates passed in 830.8s (280.8s if run one after another)`, exit 0.
+- The tag was then deleted and re-cut on the repair commit:
+  `v1.5.0` -> `b4399d3`, `scripts/release-preflight.mjs --version 1.5.0` exit 0
+  (`all checks passed: every manifest says the tag, the CHANGELOG closed this
+version with a fresh [Unreleased] above it, and the tag is annotated and on the
+default branch`). Published with `git push origin refs/tags/v1.5.0`.
+- The workstation copy was moved to 1.5.0 from the locally built installer
+  (`Vitals_1.5.0_x64-setup.exe`, 5.77 MiB) with `/S /CurrentUser` and
+  `__COMPAT_LAYER=RunAsInvoker`; the per-user exe at
+  `%LOCALAPPDATA%\Programs\Vitals\vitals-desktop.exe` now reports FileVersion
+  **1.5.0** (it was 1.4.0). The local build's only failure is the updater
+  signing step — `A public key has been found, but no private key` — because
+  `TAURI_SIGNING_PRIVATE_KEY` exists only in CI; the installer artefact itself is
+  complete and is what was installed.
+
 ## S13 — public beta 0.9.0-beta.1 (2026-09-28)
 
 Decided with the owner (ADR 0031): public repository, beta version, no code
