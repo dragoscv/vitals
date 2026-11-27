@@ -138,6 +138,44 @@ separate download rather than unpacking a second archive into a package built
 around the installer. `docs/cli.md` documents install, every subcommand and the
 exit-code table.
 
+### A Windows binary that ships needs a `build.rs`
+
+`rustc` writes no resource section of its own. A Windows process takes its icon,
+its product name, its file version and its publisher from that section, so a
+binary compiled without one is drawn with the generic application icon and its
+"Properties → Details" is empty — in Explorer, in Task Manager, and in the
+Defender Firewall prompt a server raises the first time it binds a port. 1.5.0
+shipped exactly that: `vitals.exe` in the CLI zip, and the watchdog and sensor
+binaries inside the installer, all with no icon and no version at all, while
+`vitals-desktop.exe` was fine — because Tauri runs a resource compiler for that
+binary (`tauri-build`, from `bundle.icon`, `productName`, `publisher` and
+`copyright` in `apps/desktop/src-tauri/tauri.conf.json`).
+
+So every crate with an executable that reaches a user carries a `build.rs` that
+embeds the resource — `apps/cli`, `apps/watchdog` and `crates/vitals-sensors`
+today, all three with the same code, and `tauri-winres` as a build dependency
+(already in the tree through `tauri-build`, so no new crate and no new licence).
+The icon is the file the desktop app uses, so one mark is regenerated in one
+place; the strings are held to `tauri.conf.json` rather than written twice.
+
+Two gates hold this, at the two ends where it can break:
+
+- `scripts/check-drift.ps1` fails if the three `build.rs` files stop naming the
+  icon, the product, the publisher or the copyright — a source-side check, so it
+  runs on every commit, in `verify.ps1`.
+- `scripts/check-binary-identity.ps1` reads the identity back **off the built
+  artefacts**: the installer and the CLI zip in both Windows legs of
+  `release.yml` (against the desktop binary as the icon reference), the
+  published assets again in the `readback` job after the release, and both MSIX
+  packages in `packaging/msix/build-and-upload.ps1`. A source test cannot catch
+  this class of defect — the source was correct-looking all along; only the
+  bytes can say what a user will see.
+
+For the same reason `apps/helper` is **not shipped**: its service host is still
+a stub that exits at startup, and nothing packages `vitals-helper.exe`. It stays
+in the tree as the place the elevated helper will live, and the gates above are
+what will hold it to the same identity when it does ship.
+
 ## Samsung TVs (Tizen): sideload only
 
 The Tizen app (`apps/tizen`) is a web app packaged as a **`.wgt`**, and it is

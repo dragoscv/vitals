@@ -84,6 +84,20 @@ New-Item -ItemType Directory -Force -Path $out | Out-Null
 Get-ChildItem (Join-Path $root 'target\msix') -Filter *.msix | Copy-Item -Destination $out
 Get-ChildItem $out | ForEach-Object { "{0} {1:N0} B {2}" -f $_.Name, $_.Length, (Get-FileHash $_.FullName).Hash }
 
+# Read the packages back the way the Store does: the manifest's version and
+# display name, and the payload's own resource blocks. Without this a Store
+# package can carry a binary with no icon and no version — how 1.5.0 shipped
+# the CLI — and nothing says so until a person sees it in Task Manager.
+#
+# The icon comparison is skipped: the reference is the desktop binary Tauri
+# compiles the mark into, these are two packages of two architectures, and the
+# version block is the half that cannot be faked by a host.
+$binaryIdentity = Join-Path $root 'scripts\check-binary-identity.ps1'
+if (-not (Test-Path -LiteralPath $binaryIdentity)) { throw "missing $binaryIdentity" }
+$releaseVersion = ($Version -split '\.')[0..2] -join '.'
+pwsh -NoProfile -File $binaryIdentity -Path $out -Version $releaseVersion -SkipIcon
+if ($LASTEXITCODE -ne 0) { throw "a Store package is not the product ($LASTEXITCODE)" }
+
 if ($NoUpload) {
   Write-Host "packages in $out (not uploaded)"
   exit 0

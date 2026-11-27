@@ -42,6 +42,15 @@ fn main() {
     // name a user reads in the firewall prompt is the product, so say so; the
     // description stays this package's own, which is the more useful line.
     resource.set("ProductName", "Vitals");
+    // What the firewall prompt and the file's Properties dialog show under the
+    // name. tauri-build reads these two from tauri.conf.json for the desktop
+    // binary; a console binary has no such config, so they are stated here and
+    // scripts/check-drift.ps1 holds them to the same words.
+    resource.set("CompanyName", "Dragos Catalin Vladulescu");
+    resource.set(
+        "LegalCopyright",
+        "MIT © 2026 Dragos Catalin Vladulescu and Vitals contributors",
+    );
     resource.set_icon(&icon.display().to_string());
     if let Err(error) = resource.compile() {
         panic!("embedding the Vitals icon into this binary failed: {error}");

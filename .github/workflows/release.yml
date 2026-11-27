@@ -541,6 +541,35 @@ jobs:
 
           Get-ChildItem $out -File | ForEach-Object { "  $($_.Name)  $([math]::Round($_.Length/1MB,1)) MB" }
 
+      # The defect this exists for: 1.5.0 shipped `vitals.exe`,
+      # `vitals-watchdog.exe` and `vitals-sensors.exe` with no icon and no
+      # version block at all, because `rustc` writes no resource section of its
+      # own and nothing in the pipeline read the artefacts back. A source test
+      # cannot see it — the source was identical to the desktop's, which was
+      # fine only because Tauri runs a resource compiler for that binary. A
+      # person met it first in the firewall prompt `vitals serve` raises.
+      #
+      # The reference icon is the desktop binary this leg just built, so the
+      # installer and the CLI zip have to agree with it; no hash is pinned,
+      # which means regenerating the brand mark does not invalidate this.
+      - name: Every shipped binary carries the mark, the product and the version
+        if: matrix.platform.os == 'windows'
+        shell: pwsh
+        env:
+          TARGET: ${{ matrix.platform.target }}
+          PLATFORM: ${{ matrix.platform.name }}
+        run: |
+          $setup = Get-ChildItem "dist/$env:PLATFORM" -Filter '*-setup.exe' -File | Select-Object -First 1
+          if ($null -eq $setup) { throw "no installer in dist/$env:PLATFORM" }
+          $zip = Get-ChildItem "dist/$env:PLATFORM" -Filter 'vitals-cli_*.zip' -File | Select-Object -First 1
+          if ($null -eq $zip) { throw "no CLI zip in dist/$env:PLATFORM" }
+          pwsh -NoProfile -File scripts/check-binary-identity.ps1 `
+            -Path "dist/$env:PLATFORM" `
+            -Version $env:VERSION `
+            -Reference "target/$env:TARGET/release/vitals-desktop.exe" `
+            -Only "$($setup.Name),$($zip.Name)"
+          if ($LASTEXITCODE -ne 0) { throw "a shipped binary is not the product ($LASTEXITCODE)" }
+
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: vitals-${{ matrix.platform.name }}
@@ -1710,3 +1739,58 @@ jobs:
             return
           }
           throw "choco push exited $code"
+
+  # Reads the mark, the product, the publisher and the version back off what was
+  # actually published, rather than trusting the leg that produced it: the
+  # installers and the CLI zips are the bytes a user downloads, and 1.5.0 put
+  # three console binaries into them with no icon and no version block while
+  # every job was green.
+  #
+  # A Windows host on purpose — reading an executable's icon and version block
+  # is a Win32 question, and `publish` runs on Linux.
+  #
+  # The icon comparison is skipped here and only here: its reference is the
+  # desktop binary Tauri compiles, which is not itself a published file. The
+  # build legs compare the icon; this job checks that what shipped still names
+  # the product, the publisher and the version.
+  #
+  # It runs after publication, so a red line here cannot withhold the release:
+  # it is the audit of it, and the report it writes is read by a person.
+  readback:
+    name: Read the published Windows artefacts back
+    needs: [plan, publish]
+    if: >-
+      !cancelled() &&
+      needs.plan.outputs.is_release == 'true' &&
+      needs.publish.result == 'success'
+    runs-on: windows-latest
+    timeout-minutes: 20
+    env:
+      VERSION: ${{ needs.plan.outputs.version }}
+      TAG: ${{ needs.plan.outputs.tag }}
+      REPOSITORY: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Download what was published
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $names = @(
+            "Vitals_$($env:VERSION)_x64-setup.exe", "Vitals_$($env:VERSION)_arm64-setup.exe",
+            'Vitals_x64-setup.exe', 'Vitals_arm64-setup.exe',
+            "vitals-cli_$($env:VERSION)_x64.zip", "vitals-cli_$($env:VERSION)_arm64.zip"
+          )
+          $patterns = @()
+          foreach ($name in $names) { $patterns += @('--pattern', $name) }
+          gh release download $env:TAG --repo $env:REPOSITORY @patterns --dir published --clobber
+          if ($LASTEXITCODE -ne 0) { throw "gh release download exited $LASTEXITCODE; a promised asset is missing from the release" }
+          Get-ChildItem published -File | ForEach-Object { "  $($_.Name)  $([math]::Round($_.Length/1MB,1)) MB" }
+
+      - name: Every published binary names the product, the publisher and this version
+        shell: pwsh
+        run: |
+          $names = (Get-ChildItem published -File | Where-Object { $_.Extension -in '.exe', '.zip' } | ForEach-Object { $_.Name }) -join ','
+          pwsh -NoProfile -File scripts/check-binary-identity.ps1 -Path published -Version $env:VERSION -SkipIcon -Only $names
+          if ($LASTEXITCODE -ne 0) { throw "a published artefact is not the product ($LASTEXITCODE)" }

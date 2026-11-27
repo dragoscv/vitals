@@ -680,7 +680,12 @@ if (-not $currentVersion) {
 #
 # The name is checked against bundle.productName in tauri.conf.json, the same
 # string the desktop binary carries, and the icon against bundle.icon, so all
-# four executables are pinned to one artefact and one name.
+# four executables are pinned to one artefact and one name. The publisher and
+# the copyright are held the same way, against bundle.publisher and
+# bundle.copyright: tauri-build fills both into the desktop binary from that
+# file, and a console binary has no config of its own to read, so the words are
+# written into the resource by each build script and compared here. An empty
+# publisher is what the firewall prompt shows as a blank name.
 
 $iconRelative = 'apps/desktop/src-tauri/icons/icon.ico'
 $iconFile = Join-Path $root ($iconRelative -replace '/', [IO.Path]::DirectorySeparatorChar)
@@ -694,17 +699,27 @@ if (-not (Test-Path -LiteralPath $iconFile)) {
 }
 
 $productName = ''
+$publisher = ''
+$copyright = ''
 if (Test-Path -LiteralPath $iconConfFile) {
     $confText = [IO.File]::ReadAllText($iconConfFile)
     $productName = [regex]::Match($confText, '"productName"\s*:\s*"([^"]+)"').Groups[1].Value
     if (-not $productName) {
         $failures.Add('tauri.conf.json: no bundle productName, so the name the firewall prompt shows cannot be checked')
     }
+    $publisher = [regex]::Match($confText, '"publisher"\s*:\s*"([^"]+)"').Groups[1].Value
+    if (-not $publisher) {
+        $failures.Add('tauri.conf.json: no bundle publisher, so the name the firewall prompt and the file Properties dialog show cannot be checked')
+    }
+    $copyright = [regex]::Match($confText, '"copyright"\s*:\s*"([^"]+)"').Groups[1].Value
+    if (-not $copyright) {
+        $failures.Add('tauri.conf.json: no bundle copyright, so the copyright the shipped binaries carry cannot be checked')
+    }
     if ($confText -cnotmatch ('"[^"]*' + [regex]::Escape($iconLeaf) + '"')) {
         $failures.Add("tauri.conf.json: bundle.icon does not list $iconLeaf, so $iconRelative is not the artefact the desktop embeds")
     }
 } else {
-    $failures.Add('tauri.conf.json: missing, so the product name and the icon the desktop embeds cannot be checked')
+    $failures.Add('tauri.conf.json: missing, so the product name, the publisher and the icon the desktop embeds cannot be checked')
 }
 
 $iconBinaries = @('apps/cli', 'apps/watchdog', 'crates/vitals-sensors')
@@ -721,6 +736,12 @@ foreach ($iconPackage in $iconBinaries) {
     }
     if ($productName -and ($iconBuildSource -cnotmatch [regex]::Escape('"' + $productName + '"'))) {
         $failures.Add("${iconPackage}/build.rs: does not name the product $productName, so the firewall prompt would show this crate's own name")
+    }
+    if ($publisher -and ($iconBuildSource -cnotmatch [regex]::Escape('"' + $publisher + '"'))) {
+        $failures.Add("${iconPackage}/build.rs: does not set CompanyName to $publisher, so the firewall prompt shows no publisher at all")
+    }
+    if ($copyright -and ($iconBuildSource -cnotmatch [regex]::Escape('"' + $copyright + '"'))) {
+        $failures.Add("${iconPackage}/build.rs: does not set LegalCopyright to '$copyright'")
     }
     $iconManifest = Join-Path $root "$iconPackage/Cargo.toml"
     if (Test-Path -LiteralPath $iconManifest) {
