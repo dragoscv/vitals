@@ -1,0 +1,35 @@
+{
+  "$schema": "https://codwen.com/schemas/tracker.schema.json#/$defs/trackerRegistry",
+  "version": 1,
+  "repo": "vitals",
+  "trackers": [
+    {
+      "id": "slices",
+      "file": "docs/tracker.csv",
+      "format": "csv",
+      "columns": {
+        "id": "id",
+        "group": "slice",
+        "title": "title",
+        "status": "status",
+        "evidence": "verification",
+        "notes": "detail",
+        "category": "category",
+        "decision": "decision"
+      },
+      "idPattern": "^S\\d{1,2}-\\d{2}$",
+      "groupPattern": "^S\\d{1,2}$",
+      "status": {
+        "map": {
+          "done": "done",
+          "in-progress": "in-progress",
+          "doing": "in-progress",
+          "blocked": "blocked",
+          "dropped": "dropped"
+        }
+      },
+      "index": { "kind": "plan", "order": 0 }
+    }
+  ],
+  "narrative": ["docs/TRACKER.md"]
+}
