@@ -7571,6 +7571,17 @@ CI figure exactly — `all assets (gzip) 546.7 KB of 547.0 KB budget (99.9%)`,
 `Within budget`, exit 0 — which is the number the CI gate reported and the
 reason the ceiling moved rather than the assets being trimmed.
 
+The re-run answered the point of the whole row. Run `46096442294` at
+`358f2d86` completed its `Verify` job green on 2026-11-28 — the same job that
+was red on the first push — with `Plan`, `Build (android)`, `SBOM`,
+`Build (macos-universal)` and `Build (linux-x64)` also green while the two
+Windows builds were still running. `Publish` was still to come and waits on the
+owner's approval of the `release` environment, which is not an agent action, so
+the row stays `in-progress` until artefacts exist to read back. Main then
+advanced by a docs-only commit, and the doctor still reads the tag as `OK`,
+because the row compares the paths the gates read rather than the trees: `1
+commit(s) after v1.5.1 touch no gate path`.
+
 ### S26-36 — the doctor reads the version prose back, because a hand fix lasted one bump (2026-11-28)
 
 The doctor checked every surface that HOLDS the version — the manifests, the
