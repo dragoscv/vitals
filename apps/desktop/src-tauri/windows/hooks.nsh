@@ -35,6 +35,29 @@
   Sleep 500
 !macroend
 
+; The shortcuts a per-user installation has to create for itself after a
+; migration from a per-machine copy: the template skips every shortcut on
+; /UPDATE, so the per-user copy an old elevated app updates itself into would
+; otherwise have none - while the all-users Start menu entry it points away
+; from disappears when that copy is removed. Each is created only when
+; missing, so an ordinary per-user update never touches a shortcut the user
+; moved or pinned. Called from both the run-time and the compile-time branch
+; of NSIS_HOOK_POSTINSTALL.
+!macro VitalsPerUserShortcuts
+  ${IfNot} ${FileExists} "$SMPROGRAMS\${PRODUCTNAME}.lnk"
+    CreateShortcut "$SMPROGRAMS\${PRODUCTNAME}.lnk" "$INSTDIR\${MAINBINARYNAME}.exe"
+    !insertmacro SetLnkAppUserModelId "$SMPROGRAMS\${PRODUCTNAME}.lnk"
+  ${EndIf}
+  ; A desktop shortcut only for someone who had one: the old copy's lived on
+  ; the public desktop.
+  ReadEnvStr $1 PUBLIC
+  ${If} ${FileExists} "$1\Desktop\${PRODUCTNAME}.lnk"
+  ${AndIfNot} ${FileExists} "$DESKTOP\${PRODUCTNAME}.lnk"
+    CreateShortcut "$DESKTOP\${PRODUCTNAME}.lnk" "$INSTDIR\${MAINBINARYNAME}.exe"
+    !insertmacro SetLnkAppUserModelId "$DESKTOP\${PRODUCTNAME}.lnk"
+  ${EndIf}
+!macroend
+
 !macro NSIS_HOOK_POSTINSTALL
   DetailPrint "Registering Vitals..."
 
@@ -43,10 +66,25 @@
   ; The template's own "AllUsers" value cannot say this: it is written on
   ; every install, including the passive /UPDATE an elevated old app starts.
   ; Only a real install writes it; an update leaves whatever was there.
-  ${If} $MultiUser.InstallMode == "AllUsers"
-  ${AndIf} $UpdateMode <> 1
-    WriteRegStr SHCTX "${UNINSTKEY}" "VitalsScopeChosen" "1"
-  ${EndIf}
+  ;
+  ; ADR 0053: only a `both` build includes MultiUser.nsh, so only that build
+  ; has $MultiUser.InstallMode to read. In a `currentUser` or `perMachine`
+  ; build makensis warns 6000 once per use and every comparison against the
+  ; variable is false — which for the shortcut block below would silently skip
+  ; the migration, so the scope is taken from the define instead.
+  ; `${INSTALLMODE}` is defined after this file is included and before the
+  ; macro is inserted, so the test below sees the real value.
+  !if "${INSTALLMODE}" == "both"
+    ${If} $MultiUser.InstallMode == "AllUsers"
+    ${AndIf} $UpdateMode <> 1
+      WriteRegStr SHCTX "${UNINSTKEY}" "VitalsScopeChosen" "1"
+    ${EndIf}
+  !else if "${INSTALLMODE}" == "perMachine"
+    ; Every copy this build makes is an all-users one, whoever ran it.
+    ${If} $UpdateMode <> 1
+      WriteRegStr SHCTX "${UNINSTKEY}" "VitalsScopeChosen" "1"
+    ${EndIf}
+  !endif
 
   ; DEV-3 (ADR 0038): a 1.0.0-1.0.3 copy lived in Program Files only. When
   ; such a copy updates without administrator rights, the app runs this
@@ -55,20 +93,16 @@
   ; and the all-users one (pointing at the old copy) goes when the user
   ; removes that copy. Created here only when missing, so an ordinary
   ; per-user update never touches a shortcut the user moved or pinned.
-  ${If} $MultiUser.InstallMode == "CurrentUser"
-    ${IfNot} ${FileExists} "$SMPROGRAMS\${PRODUCTNAME}.lnk"
-      CreateShortcut "$SMPROGRAMS\${PRODUCTNAME}.lnk" "$INSTDIR\${MAINBINARYNAME}.exe"
-      !insertmacro SetLnkAppUserModelId "$SMPROGRAMS\${PRODUCTNAME}.lnk"
+  ;
+  ; Same split as above: a `both` build decides at run time, every other
+  ; build knows its scope when it is compiled.
+  !if "${INSTALLMODE}" == "both"
+    ${If} $MultiUser.InstallMode == "CurrentUser"
+      !insertmacro VitalsPerUserShortcuts
     ${EndIf}
-    ; A desktop shortcut only for someone who had one: the old copy's lived
-    ; on the public desktop.
-    ReadEnvStr $1 PUBLIC
-    ${If} ${FileExists} "$1\Desktop\${PRODUCTNAME}.lnk"
-    ${AndIfNot} ${FileExists} "$DESKTOP\${PRODUCTNAME}.lnk"
-      CreateShortcut "$DESKTOP\${PRODUCTNAME}.lnk" "$INSTDIR\${MAINBINARYNAME}.exe"
-      !insertmacro SetLnkAppUserModelId "$DESKTOP\${PRODUCTNAME}.lnk"
-    ${EndIf}
-  ${EndIf}
+  !else if "${INSTALLMODE}" == "currentUser"
+    !insertmacro VitalsPerUserShortcuts
+  !endif
 !macroend
 
 !macro NSIS_HOOK_PREUNINSTALL
@@ -122,8 +156,9 @@
     ; not switch off sensors the user enabled.
     ;
     ; S21-06: `uninstall` needs administrator rights. A per-machine
-    ; uninstaller has them; a per-user one (installMode both, ADR 0038)
-    ; usually does not, and until 1.0.4 it fell through to sc.exe, which
+    ; uninstaller has them; a per-user one (the default, installMode
+    ; currentUser) usually does not, and until 1.0.4 it fell through to
+    ; sc.exe, which
     ; failed the same way and left a SYSTEM service and its Program Files
     ; folder behind for an app that was gone. The helper answers
     ; NOT_ELEVATED (5) without touching anything, so that exit code is the

@@ -2,7 +2,9 @@
 
 - Status: Accepted; the install mode is superseded by
   [0038](0038-nsis-both-scopes-and-unprompted-updates.md) — "none at run
-  time" was false for updates (DEV-3)
+  time" was false for updates (DEV-3) — and then by
+  [0053](0053-nsis-per-user-default.md), which makes the default
+  `currentUser` so a per-user copy can update itself with no prompt at all
 - Date: 2026-09-10
 - Tracker: S10-02
 

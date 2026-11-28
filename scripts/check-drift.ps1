@@ -43,6 +43,12 @@
                         and the mark is missing only in a dialog that draws it — Explorer,
                         Task Manager, and the firewall prompt `vitals serve` raises.
                         Shipped: 1.5.0's CLI, watchdog and sensors helper, all three.
+            12. Our copy of Tauri's NSIS installer template drifting, beyond the one
+                        deliberate line, from the template the installed CLI embeds. No
+                        compiler sees either side; the copy exists so a per-user install
+                        lands in %LOCALAPPDATA%\Programs\Vitals rather than in the
+                        directory the app keeps its data in, and a Tauri upgrade would
+                        otherwise leave it silently stale.
 
     Exit code is the number of hard failures. Warnings do not fail the gate.
 
@@ -766,13 +772,134 @@ if (@($iconBuildScriptHashes.Values | Select-Object -Unique).Count -gt 1) {
     $failures.Add("the icon build scripts have drifted apart ($($iconBuildScriptHashes.Keys -join ', ')) — keep them byte-identical, they carry one fact each")
 }
 
+# ── 12. our NSIS template against the one Tauri embeds ─────────────────
+
+# bundle.windows.nsis.template points at our own copy of the template Tauri
+# compiles into its bundler, because Tauri's hard-codes %LOCALAPPDATA%\<product
+# name> for a currentUser install — the directory this app also keeps its data
+# in. A copy of a template that lives INSIDE someone else's binary drifts the
+# moment that binary is upgraded: nothing in the tree compiles against it, and
+# a stale copy silently loses whatever Tauri changed upstream (a placeholder
+# the bundler now substitutes, a macro the installer macros expect). So the
+# copy is compared line for line against the installed CLI, and exactly one
+# line is allowed to differ.
+$templateLines = 0
+$nsiRel = 'apps/desktop/src-tauri/windows/installer.nsi'
+$nsiFile = Join-Path $root ($nsiRel -replace '/', [IO.Path]::DirectorySeparatorChar)
+
+# The bundler reads the path from tauri.conf.json, relative to src-tauri.
+$nsiConfText = if (Test-Path -LiteralPath $iconConfFile) { [IO.File]::ReadAllText($iconConfFile) } else { '' }
+$nsiDeclared = [regex]::Match($nsiConfText, '"template"\s*:\s*"([^"]+)"').Groups[1].Value
+$nsiExpected = 'windows/installer.nsi'
+if (-not $nsiDeclared) {
+    $failures.Add('tauri.conf.json: bundle.windows.nsis.template is not set, so a currentUser install lands in %LOCALAPPDATA%\Vitals — the directory the app keeps its data in')
+} elseif ($nsiDeclared -cne $nsiExpected) {
+    $failures.Add("tauri.conf.json: bundle.windows.nsis.template is '$nsiDeclared', but $nsiRel is the file this check compares")
+}
+
+if (-not (Test-Path -LiteralPath $nsiFile)) {
+    $failures.Add("${nsiRel}: missing, so every installer this repository builds falls back to Tauri's template and installs into the app's data directory")
+} else {
+    # The version the tree actually resolved, so a second copy left in the pnpm
+    # store by an upgrade cannot be compared by accident.
+    $nsiCliPkg = Join-Path $root 'apps/desktop/node_modules/@tauri-apps/cli/package.json'
+    $nsiCliVersion = ''
+    if (Test-Path -LiteralPath $nsiCliPkg) {
+        $nsiCliVersion = [regex]::Match([IO.File]::ReadAllText($nsiCliPkg), '"version"\s*:\s*"([^"]+)"').Groups[1].Value
+    }
+
+    $nsiNatives = @()
+    $nsiPnpm = Join-Path $root 'node_modules/.pnpm'
+    if (Test-Path -LiteralPath $nsiPnpm) {
+        foreach ($nsiDir in Get-ChildItem -LiteralPath $nsiPnpm -Directory -Filter '@tauri-apps+cli-*' -ErrorAction SilentlyContinue) {
+            if ($nsiCliVersion -and -not $nsiDir.Name.EndsWith("@$nsiCliVersion")) { continue }
+            foreach ($nsiNode in Get-ChildItem -LiteralPath $nsiDir.FullName -Recurse -Filter '*.node' -ErrorAction SilentlyContinue) {
+                $nsiNatives += $nsiNode.FullName
+            }
+        }
+    }
+
+    $nsiEmbedded = $null
+    if ($nsiNatives.Count -eq 0) {
+        $nsiCliLink = Join-Path $root 'apps/desktop/node_modules/@tauri-apps/cli'
+        if (Test-Path -LiteralPath $nsiCliLink) {
+            $failures.Add("the Tauri CLI is installed but the native module carrying the installer template was not found under node_modules/.pnpm (version '$nsiCliVersion'), so $nsiRel cannot be compared")
+        } else {
+            $warnings.Add("the Tauri CLI is not installed, so $nsiRel was not compared against the template Tauri ships (run pnpm install)")
+        }
+    } else {
+        $nsiText = [Text.Encoding]::Latin1.GetString([IO.File]::ReadAllBytes($nsiNatives[0]))
+        # The template is one string in .rodata: it starts at Tauri's first line
+        # and ends at the terminating NUL. Locating it by its first two lines is
+        # what makes this check cheap; a failure to locate it is reported as a
+        # failure, never as a pass, because a bundler that embeds its template
+        # differently would leave the comparison silently worthless.
+        $nsiMatch = [regex]::Match($nsiText, 'Unicode true\r?\nManifestDPIAware true\r?\n')
+        if (-not $nsiMatch.Success) {
+            $failures.Add("the installer template could not be found inside $($nsiNatives[0]) — Tauri changed how it embeds the template, so re-derive $nsiRel from the new bundler")
+        } else {
+            $nsiStart = $nsiMatch.Index
+            # [char]0, not a string: a culture-sensitive IndexOf treats U+0000 as
+            # an ignorable weight and answers with the start index, which read
+            # as a zero-length template.
+            $nsiEnd = $nsiText.IndexOf([char]0, $nsiStart)
+            if ($nsiEnd -lt 0 -or ($nsiEnd - $nsiStart) -lt 20000 -or ($nsiEnd - $nsiStart) -gt 200000) {
+                $failures.Add("the installer template inside $($nsiNatives[0]) has an implausible length; re-derive $nsiRel from the new bundler")
+            } else {
+                $nsiEmbedded = $nsiText.Substring($nsiStart, $nsiEnd - $nsiStart)
+                if ($nsiEmbedded -cnotmatch [regex]::Escape('{{install_mode}}')) {
+                    $failures.Add("the string found inside $($nsiNatives[0]) is not the installer template (no {{install_mode}} in it); re-derive $nsiRel from the new bundler")
+                    $nsiEmbedded = $null
+                }
+            }
+        }
+    }
+
+    if ($null -ne $nsiEmbedded) {
+        $nsiOursAll = [IO.File]::ReadAllText($nsiFile) -split "\r?\n"
+        # Our provenance header is comments only; everything after it is the
+        # template. Its absence is the failure this check exists to prevent —
+        # a maintainer who does not know the file is derived edits it and the
+        # next upgrade overwrites the reasoning with nothing.
+        $nsiFirstCode = 0
+        while ($nsiFirstCode -lt $nsiOursAll.Count -and $nsiOursAll[$nsiFirstCode].StartsWith(';')) { $nsiFirstCode++ }
+        if ($nsiFirstCode -lt 5) {
+            $failures.Add("${nsiRel}: the header explaining that this file is derived from Tauri's template is missing or shortened")
+        }
+        $nsiOurs = @($nsiOursAll[$nsiFirstCode..($nsiOursAll.Count - 1)])
+        $nsiTheirs = @($nsiEmbedded -split "\r?\n")
+
+        if ($nsiOurs.Count -ne $nsiTheirs.Count) {
+            $failures.Add("${nsiRel}: $($nsiOurs.Count) lines against $($nsiTheirs.Count) in the template Tauri ships — a Tauri upgrade changed the installer; re-derive the file (docs/adr/0053-nsis-per-user-default.md)")
+        } else {
+            $nsiTemplate = '      StrCpy $INSTDIR "$LOCALAPPDATA\${PRODUCTNAME}"'
+            $nsiOursExpected = '      StrCpy $INSTDIR "$LOCALAPPDATA\Programs\${PRODUCTNAME}"'
+            $nsiDiff = @()
+            for ($nsiLine = 0; $nsiLine -lt $nsiTheirs.Count; $nsiLine++) {
+                if ($nsiTheirs[$nsiLine] -cne $nsiOurs[$nsiLine]) { $nsiDiff += $nsiLine }
+            }
+            if ($nsiDiff.Count -eq 0) {
+                $failures.Add("${nsiRel}: identical to the template Tauri ships, so a per-user install would land in %LOCALAPPDATA%\Vitals — the deliberate change was lost")
+            } elseif ($nsiDiff.Count -gt 1) {
+                foreach ($nsiLine in $nsiDiff) {
+                    $failures.Add("${nsiRel}:$($nsiLine + 1) differs from the template Tauri ships — only the currentUser install directory may differ, so re-derive the file")
+                }
+            } elseif ($nsiTheirs[$nsiDiff[0]] -cne $nsiTemplate -or -not $nsiOurs[$nsiDiff[0]].StartsWith($nsiOursExpected)) {
+                $failures.Add("${nsiRel}:$($nsiDiff[0] + 1) is the one line that may differ, and it is not the currentUser install directory: $($nsiOurs[$nsiDiff[0]].Trim())")
+            } else {
+                $templateLines = $nsiTheirs.Count
+            }
+        }
+    }
+}
+
 # ── Report ─────────────────────────────────────────────────────────────
 
 foreach ($w in $warnings) { Write-Host "warn  $w" -ForegroundColor Yellow }
 foreach ($f in $failures) { Write-Host "FAIL  $f" -ForegroundColor Red }
 
 Write-Host ''
-Write-Host ("drift: {0} failure(s), {1} warning(s) — checked {2} ts_rs files, {3} invokes, {4} commands, {5} locales, {6} shipped icon binaries" -f
-    $failures.Count, $warnings.Count, $tsFiles.Count, $invoked.Count, $registered.Count, $locales.Count, $iconBinaries.Count)
+Write-Host ("drift: {0} failure(s), {1} warning(s) — checked {2} ts_rs files, {3} invokes, {4} commands, {5} locales, {6} shipped icon binaries, {7} installer-template lines" -f
+    $failures.Count, $warnings.Count, $tsFiles.Count, $invoked.Count, $registered.Count, $locales.Count, $iconBinaries.Count, $templateLines)
 
 exit $failures.Count

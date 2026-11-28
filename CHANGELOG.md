@@ -14,6 +14,12 @@ The first release to carry the changes below. A 1.5.1 tag was cut on
 under that number; its fixes are here, and every surface that names the version
 moved with them.
 
+### Changed
+
+- The Windows installer installs per-user by default, into
+  `%LOCALAPPDATA%\Programs\Vitals`, and never raises a UAC prompt. The app's
+  data still lives in `%LOCALAPPDATA%\Vitals`.
+
 ### Fixed
 
 - The brand mark and the version block now reach **every** Windows binary Vitals

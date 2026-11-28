@@ -11,10 +11,10 @@
 
     So this runs that hand proof as one command. It copies the installer to a
     second Windows machine over ssh, installs it silently for the current user
-    (/S /CurrentUser, which is the switch that keeps an installMode:"both"
-    installer per-user and therefore unelevated), then reads back, for every
-    shipped binary, the icon resource hash, ProductName and FileVersion, and
-    relays the pass/fail table.
+    (/S, plus /CurrentUser which is redundant for the shipped
+    installMode:"currentUser" setup and is what keeps a "both" or "perMachine"
+    build per-user), then reads back, for every shipped binary, the icon
+    resource hash, ProductName and FileVersion, and relays the pass/fail table.
 
     It reuses scripts/check-binary-identity.ps1 rather than re-implementing the PE
     resource read: that parsing is subtle, the gate already owns it, and one copy
@@ -44,9 +44,10 @@
     like this break, and base64 removes the question.
 
     This is a manual, second-machine proof, not a CI gate: it installs software on
-    someone's machine. Run it when a release is cut, once per installer scope
-    (per-user with the default, per-machine with an elevated copy), and when the
-    icon, the version sources or the resource build scripts change.
+    someone's machine. Run it when a release is cut, and when the icon, the version
+    sources or the resource build scripts change. The shipped setup has one scope --
+    installMode:"currentUser" -- so this proves a per-user install; a machine-wide
+    one has to be built as "both" or "perMachine" and installed elevated first.
 
 .EXAMPLE
     pwsh -NoProfile -File scripts/prove-hardware.ps1 -Installer .copilot-tmp/release/Vitals_1.5.1_x64-setup.exe
@@ -84,7 +85,9 @@ param(
 
     # The install directory on the target. Empty means the per-user install
     # directory of the app, resolved on the target as
-    # "$env:LOCALAPPDATA\Programs\Vitals".
+    # "$env:LOCALAPPDATA\Programs\Vitals". That is the install folder, distinct
+    # from the app's data folder ("$env:LOCALAPPDATA\Vitals"), and it is created
+    # only by an install, so its presence is evidence something was installed.
     [string]$InstallDir = '',
 
     # Run the payload on this machine instead of over ssh. This is how the

@@ -284,7 +284,7 @@ fn ensure_hook_target_is_admin_only(our_exe: &Path) -> Result<()> {
             return Err(Error::Refused(format!(
                 "{} can be changed by accounts that are not administrators, so pointing \
                  Task Manager at it would let them run programs as administrator; \
-                 reinstall Vitals for all users to use this setting",
+                 this setting needs a copy installed for all users under Program Files",
                 path.display()
             )));
         }
@@ -311,9 +311,9 @@ fn hook_location_problem(exe: &Path, program_files: &Path) -> Option<String> {
     }
     let folder = exe.parent().unwrap_or(exe).display().to_string();
     Some(format!(
-        "Vitals can replace Task Manager only when it is installed for all users in Program \
-         Files; this copy runs from {folder}, where a program running as you could swap it \
-         and be started as administrator"
+        "Vitals can replace Task Manager only from a copy installed for all users under \
+         Program Files, or from the Microsoft Store; this copy runs from {folder}, where a \
+         program running as you could swap it and be started as administrator"
     ))
 }
 
@@ -1209,6 +1209,36 @@ mod tests {
         assert!(hook_location_problem(exe, Path::new(PF)).is_some());
         let exe = Path::new(r"C:\Program Files\..\Users\ana\vitals-desktop.exe");
         assert!(hook_location_problem(exe, Path::new(PF)).is_some());
+    }
+
+    #[test]
+    fn the_per_user_default_install_folder_is_refused() {
+        // `%LOCALAPPDATA%\Programs\Vitals` is where the shipped setup puts a
+        // per-user copy since 1.6.0, and "Programs" is one word away from
+        // "Program Files": a prefix test, or one that looked for "Program",
+        // would accept it. The account that owns the folder can replace what
+        // it holds, and can undo any ACL we tightened on it, so hardening it
+        // is not an option either.
+        let exe = Path::new(r"C:\Users\ana\AppData\Local\Programs\Vitals\vitals-desktop.exe");
+        let reason = hook_location_problem(exe, Path::new(PF))
+            .expect("a per-user install folder must not own the hook");
+        assert!(reason.contains("Program Files"), "{reason}");
+        assert!(
+            reason.contains(r"C:\Users\ana\AppData\Local\Programs\Vitals"),
+            "{reason}"
+        );
+    }
+
+    #[test]
+    fn the_store_copy_under_program_files_is_accepted_by_location() {
+        // The route that exists for someone who chose a per-user copy of the
+        // desktop build: the MSIX package installs under
+        // `Program Files\WindowsApps`, which is admin-only, so the location
+        // rule accepts it and the ACL rule confirms it.
+        let exe = Path::new(
+            r"C:\Program Files\WindowsApps\VitalsSystemMonitor_1.6.0.0_x64__abc\vitals-desktop.exe",
+        );
+        assert_eq!(hook_location_problem(exe, Path::new(PF)), None);
     }
 
     #[test]

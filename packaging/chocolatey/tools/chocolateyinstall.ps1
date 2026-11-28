@@ -20,9 +20,11 @@ $packageArgs = @{
   checksum64     = $checksum64
   checksumType64 = 'sha256'
   # NSIS silent install. The installer's own hooks close a running Vitals
-  # first, so an upgrade never leaves half-old files behind. /CurrentUser
-  # (ADR 0038): a per-user copy updates itself on quit without a UAC
-  # prompt; a Program Files copy cannot, because the app runs unelevated.
+  # first, so an upgrade never leaves half-old files behind. The shipped setup
+  # is installMode currentUser (ADR 0053), so /S is already a per-user install
+  # that updates itself on quit without a UAC prompt; /CurrentUser is kept
+  # because it is what keeps a `both` build per-user, where a Program Files
+  # copy could not update itself (the app runs unelevated).
   silentArgs     = '/S /CurrentUser'
   validExitCodes = @(0)
   softwareName   = 'Vitals*'

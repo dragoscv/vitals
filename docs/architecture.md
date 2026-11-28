@@ -90,8 +90,9 @@ packages/
 - Only `vitals-win` and `apps/desktop/src-tauri` see Windows types.
 - The release profile is `panic = "abort"` (ADR 0026); a panic on the
   sampler thread is a crash, not a frozen window.
-- The installer is NSIS with `installMode: both`; updates run without a UAC prompt for a per-user
-  copy and after a click for a Program Files copy (ADR 0025, ADR 0038).
+- The installer is NSIS with `installMode: currentUser`: every install is per user and raises no UAC
+  prompt, and updates install themselves with nobody present (ADR 0038, whose install-mode half
+  ADR 0053 supersedes; an all-users package is a deliberate `both` build).
 
 ## What is persisted, and what listens
 

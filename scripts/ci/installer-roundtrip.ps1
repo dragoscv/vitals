@@ -36,20 +36,25 @@
         deliberately leaves alone) and its child never exits, so
         Start-Process -Wait on it hangs.
 
-    Passes:
+        Passes:
 
-      1. machine  `setup.exe /S /AllUsers` -> Program Files, everything on,
-                  launch, uninstall, all gone.
-      2. user     `setup.exe /S /CurrentUser` -> %LOCALAPPDATA%\Programs\
-                  Vitals, HKCU uninstall entry, launch, the sensors service
-                  installed from the per-user copy's helper (S21-06),
-                  uninstall, gone - the SYSTEM service and Program Files\
-                  Vitals Sensors included.
-      3. upgrade  -Previous (the last published release) installed per
-                  machine, a settings file written, then -Setup over it:
+            1. machine  `setup.exe /S /AllUsers` -> Program Files, everything on,
+                                    launch, uninstall, all gone. Needs a `both` or `perMachine`
+                                    build: the shipped `installMode` is `currentUser` (ADR
+                                    0053), whose setup ignores `/AllUsers` and installs for one
+                                    user, so this pass is reported as skipped there rather than
+                                    failed.
+            2. user     `setup.exe /S /CurrentUser` -> the per-user install
+                                    directory `%LOCALAPPDATA%\Programs\Vitals`, HKCU
+                                    uninstall entry, launch, the sensors service installed from
+                                    the per-user copy's helper (S21-06), uninstall, gone - the
+                                    SYSTEM service and Program Files\Vitals Sensors included.
+            3. upgrade  -Previous (the last published release) installed per
+                                    machine, a settings file written, then -Setup over it:
                   the executable reports the new version, the install
                   directory is the same, the settings file is untouched,
-                  and an enabled watchdog survives the update.
+                                    and an enabled watchdog survives the update. Also needs a
+                                    `both` or `perMachine` build, for the same reason as 1.
 
     Must run elevated (pass 1 and 3 install per machine; GitHub's Windows
     runners are elevated). Exit code is the number of failed assertions.
@@ -109,9 +114,25 @@ function Assert-True {
 }
 function Note([string]$Message) { Write-Host "note  $Message" -ForegroundColor Yellow; $notes.Add($Message) }
 
+# The scope the shipped configuration installs: a `currentUser` setup (the
+# default since ADR 0053) writes for one user only and ignores `/AllUsers`, so
+# the passes that need a Program Files copy are skipped rather than failed. Its
+# per-user copy lands in `%LOCALAPPDATA%\Programs\Vitals`, the same folder the
+# `both` template's per-user half chooses
+# (`$LOCALAPPDATA\Programs\${PRODUCTNAME}`).
+$configPath = Join-Path $PSScriptRoot '..\..\apps\desktop\src-tauri\tauri.conf.json'
+if (-not (Test-Path -LiteralPath $configPath)) {
+    # The sparse checkout that runs this in CI must carry the file. Guessing a
+    # scope here would test one build while believing it was testing another.
+    Write-Host "installer-roundtrip cannot tell which scope this build installs: $configPath is missing" -ForegroundColor Red
+    exit 2
+}
+$installMode = (Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json).bundle.windows.nsis.installMode
+$machineScope = $installMode -in @('both', 'perMachine')
+
 $principal = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
 if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-    Write-Host 'installer-roundtrip must run elevated: two passes install per machine' -ForegroundColor Red
+    Write-Host 'installer-roundtrip must run elevated: the machine pass and the sensors service both need it' -ForegroundColor Red
     exit 2
 }
 
@@ -321,7 +342,11 @@ foreach ($k in $runKey, $approvedKey) { if (-not (Test-Path $k)) { New-Item -Pat
 
 # ── 1. Machine: install, everything on, uninstall ──────────────────────────
 
-if ('machine' -in $Pass) {
+if ('machine' -in $Pass -and -not $machineScope) {
+    Note "machine: installMode is '$installMode', whose setup installs for one user and ignores /AllUsers; pass skipped"
+}
+
+if ('machine' -in $Pass -and $machineScope) {
     Write-Host "`n== machine pass"
     Reset-Machine
     $exe = Join-Path $machineDir 'vitals-desktop.exe'
@@ -364,6 +389,15 @@ if ('user' -in $Pass) {
     Assert-True ($null -ne (Find-Shortcut $exe)) 'a Start Menu shortcut targets the per-user executable'
     if (Test-Path $exe) {
         Test-Launch $exe
+        # The machine pass runs the caller's hook too. For a `currentUser`
+        # build that pass is skipped, so this is where the idle budget still
+        # gets measured -- against a per-user copy rather than a Program Files
+        # one, which is the only copy such a build installs.
+        if ($WhileInstalled) {
+            & pwsh -NoProfile -File $WhileInstalled -Exe $exe
+            Assert-True ($LASTEXITCODE -eq 0) "$(Split-Path -Leaf $WhileInstalled) passes against the installed app (exit $LASTEXITCODE)"
+            $global:LASTEXITCODE = 0
+        }
         # S21-06: a per-user copy whose owner turned sensors on. Before this
         # pass covered it, its uninstaller could not remove the service.
         Enable-Sensors $userDir
@@ -377,7 +411,13 @@ if ('user' -in $Pass) {
 
 # ── 3. Upgrade: the previous release, then this one over it ────────────────
 
-if ('upgrade' -in $Pass) {
+if ('upgrade' -in $Pass -and -not $machineScope) {
+    # The base copy has to be per machine for this to say anything: a
+    # `currentUser` setup cannot install over one under Program Files.
+    Note "upgrade: installMode is '$installMode'; the upgrade-over-per-machine pass needs a 'both' or 'perMachine' build, skipped"
+}
+
+if ('upgrade' -in $Pass -and $machineScope) {
     Write-Host "`n== upgrade pass"
     if (-not $Previous -or -not (Test-Path $Previous)) {
         Note 'upgrade: no -Previous installer given; pass skipped'

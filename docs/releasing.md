@@ -170,6 +170,24 @@ own the same proof runs from a checkout —
 elevated and interactive (the release build refuses the webview debugging
 port, so the quit goes through the tray menu).
 
+### Check the suite under load before tagging (a soak, not a benchmark)
+
+A test that awaits a debounced host push, or a cold lazy chunk, passes on an
+idle runner and fails on a busy one — the 1.6.0 Verify gate failed on exactly
+one such widget test. The day before you tag, pin every core and run the
+desktop suite under the load:
+
+```powershell
+pwsh -NoProfile -File scripts/check-suite-under-load.ps1
+```
+
+It starts `max(2, cores - 2)` CPU saturators (30 on a 32-core machine), measures
+the load they actually produce, and refuses to report on a run that did not
+saturate the machine. A few minutes is normal; `-Filter <substring>` and
+`-DurationSec <seconds>` check one feature quickly. This is a soak check, not a
+speed benchmark: a failure is a test waiting on something longer than its
+timeout, so await the real condition rather than raising the timeout.
+
 ### If `publish` fails with 403 "Resource not accessible by integration"
 
 Recognise it by the shape, not by the token: `POST /releases` answered 403 and
@@ -509,22 +527,26 @@ removal checks cannot pass vacuously (QA2-2):
 | Start with Windows  | HKCU `Run\Vitals` = `<exe> --minimized` + `StartupApproved\Run`                                                                                       | both values gone                                                        |
 | Lag watchdog        | HKCU `Run\VitalsWatchdog` = `"<install>\watchdog\vitals-watchdog.exe"`, process started                                                               | value gone, process gone                                                |
 
-Then a **per-user** pass (`/S /CurrentUser` into
-`%LOCALAPPDATA%\Programs\Vitals`, HKCU uninstall entry) and an **upgrade**
-pass: the newest published release whose version differs from the build,
+Then a **per-user** pass (`/S /CurrentUser` into the per-user directory —
+`%LOCALAPPDATA%\Programs\Vitals` for the shipped `currentUser` build and for a
+`both` one too — with an HKCU uninstall
+entry) and an **upgrade** pass: the newest published release whose version
+differs from the build,
 then the new installer over it; the version moves, the install stays per
 machine, a settings file survives, and the first launch restores an
-enabled watchdog.
+enabled watchdog. The machine and upgrade passes describe a `both` or
+`perMachine` build, so `installer-roundtrip.ps1` reads `installMode` and
+reports them as skipped for a `currentUser` one rather than failing them.
 
-While the per-machine copy is installed, `scripts/ci/idle-budget.ps1`
-measures the app at rest (PERF-1): launched `--minimized` (tray only, what
-Start with Windows runs) and with the dashboard visible, 60 s to settle,
-then three 40 s windows over the app plus every WebView2 child. CPU is
-reported as a percentage of one core, memory as private bytes and working
-set; the median of the three is compared with `idle-budget.json` and the
-table goes to the run summary. Budgets are the measured median plus 50 %;
-raise them in a reviewed diff, never to make CI pass
-(`idle-budget.ps1 -Update` rewrites them from a run).
+`scripts/ci/idle-budget.ps1` measures the app at rest (PERF-1): launched
+`--minimized` (tray only, what Start with Windows runs) and with the dashboard
+visible, 60 s to settle, then three 40 s windows over the app plus every
+WebView2 child. It runs against the freshly installed copy — the per-user one
+when the build is `currentUser`. CPU is reported as a percentage of one core,
+memory as private bytes and working set; the median of the three is compared
+with `idle-budget.json` and the table goes to the run summary. Budgets are the
+measured median plus 50 %; raise them in a reviewed diff, never to make CI
+pass (`idle-budget.ps1 -Update` rewrites them from a run).
 
 `scripts/ci/roundtrip-proof.ps1` runs all of it on a Windows machine you
 own (the devcloud `vitals-win` workspace): it builds the installer, fetches
@@ -819,10 +841,14 @@ leave `PUBLISH_NPM` off until then.
 ### Installing per user, unattended (Windows)
 
 The setup is NSIS with `installMode: "both"` and a manifest that asks for
-`highest`, so installing it **per user, from a script, with nobody at the
-console** needs two things and not one — the scope switch _and_ the
-compatibility layer. The app's own one-click move does both; a script that
-copies only half of it stops on a consent prompt that no one will answer:
+`user`, so installing it **per user, from a script, with nobody at the
+console** is one step — `/S` — and the compatibility layer below is not
+needed. On an administrator's account too: a `currentUser` setup asks for
+nothing and starts no consent prompt.
+
+A package built with `installMode: "both"` or `"perMachine"` is different — its
+manifest asks for `highest`, so a silent per-user install there needs two
+things and not one, the scope switch _and_ the compatibility layer:
 
 - **`/CurrentUser` alone is not enough.** The manifest still asks for
   elevation, so the unanswered prompt returns `ERROR_CANCELLED`, and
@@ -857,8 +883,8 @@ Test-Path 'C:\Program Files\Vitals'                                            #
 (Get-Item "$env:LOCALAPPDATA\Programs\Vitals\vitals-desktop.exe").VersionInfo.ProductVersion
 ```
 
-An `InstallLocation` under `%LOCALAPPDATA%\Programs\Vitals`, no `HKLM` entry and
-no Program Files folder is what `install.rs` classifies as
+An `InstallLocation` under `%LOCALAPPDATA%\Programs\Vitals`, with no `HKLM`
+entry and no Program Files folder, is what `install.rs` classifies as
 `InstallScope::CurrentUser`. An `HKLM` entry beside the `HKCU` one means the
 running copy is still the machine-wide one, so every release will keep asking
 for a prompt. **Check the installer's SHA-256 against an independent download**

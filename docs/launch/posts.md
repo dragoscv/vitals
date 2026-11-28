@@ -55,6 +55,10 @@ Links used below:
 > - It can replace Task Manager (Ctrl+Shift+Esc), but only when installed
 >   under Program Files with a folder ordinary accounts can't write to, since
 >   that hook runs as you whenever anyone opens Task Manager.
+> - It installs for your account alone: the setup asks for no administrator
+>   rights, never raises a UAC prompt — not even on an administrator's own
+>   machine — and `/S` is a complete silent install. An all-users copy is a
+>   deliberate choice, which is what the Microsoft Store package is.
 > - A LAN API (off by default, token-paired by QR code) with SSE/WebSocket
 >   streams, a Prometheus endpoint, a TypeScript SDK and a CLI
 >   (`vitals ps --json`, `vitals kill <pid>`) — every action takes a PID plus

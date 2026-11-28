@@ -109,14 +109,17 @@ expected.
 
 ## Silent install
 
-The installer asks one question: install for you only, or for everyone on this PC. To script it:
+The installer asks nothing: it installs for the current user, and that is the only scope this package
+has. To script it:
 
 ```powershell
-.\Vitals_x64-setup.exe /S /CurrentUser
+.\Vitals_x64-setup.exe /S
 ```
 
-`/CurrentUser` installs to `%LOCALAPPDATA%\Programs\Vitals` with no administrator prompt.
-`/AllUsers` installs to `Program Files` for everyone and needs administrator rights.
+`/S` installs under `%LOCALAPPDATA%\Programs\Vitals` and never raises an administrator prompt, on any account.
+A build made with `installMode: "both"` is the kind that offers a choice, and there `/CurrentUser`
+keeps the install per user while `/AllUsers` puts it in `Program Files` and needs administrator
+rights. For everyone on one PC, the Microsoft Store build is the supported route.
 
 ## Updates
 
@@ -125,11 +128,15 @@ is found it is downloaded, its signature is verified, and it is installed when y
 An update with a missing or wrong signature is refused. You can turn the check off in
 **Settings → About**. The Microsoft Store build is updated by the Store instead.
 
-Installed for you only, an update needs no administrator approval. Installed for everyone, Windows
-asks an administrator to approve each update, so Vitals does not install it on quit, where nobody
-would see the prompt. Choose **Restart to update** in **Settings → About** or in the tray menu
-instead. Copies installed by Vitals 1.0.3 or earlier move to a per-user install on their next
-update, and **Settings → About** then offers to remove the old copy in `Program Files`.
+Installed for you only — every copy this package creates — an update needs no administrator
+approval. A copy an older release installed for everyone under `Program Files` still needs an
+administrator to approve each update, so Vitals does not install it on quit, where nobody would see
+the prompt: choose **Restart to update** in **Settings → About** or in the tray menu instead. Copies
+installed by Vitals 1.0.3 or earlier move to a per-user install on their next update, and
+**Settings → About** then offers to remove the old copy in `Program Files`. The same holds for a
+copy an administrator installed for everyone from a later release: an unelevated setup never writes
+`Program Files`, so the new per-user copy appears beside the old one, and the offer to remove it is
+how the all-users copy goes away.
 
 ## Uninstall
 

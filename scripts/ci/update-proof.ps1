@@ -23,7 +23,9 @@
       5. The installed executable now reports -To.
 
     Against a published release (-From/-To on GitHub) it must run elevated:
-    1.0.0-1.0.3 installers are per-machine only.
+    releases up to 1.5.x were `both`, and this installs the base copy per
+    machine under Program Files. A release built as `currentUser` (ADR 0053)
+    cannot install there, so drive that one through -Local instead.
 
     -Local proves DEV-3 instead, and must NOT run elevated: -Dir holds two
     installers and a latest.json built by update-proof-build.ps1 (throwaway
@@ -83,7 +85,7 @@ if ($Local) {
     exit $LASTEXITCODE
 }
 if (-not $elevated) {
-    Write-Host 'update-proof must run elevated: the installer is perMachine' -ForegroundColor Red
+    Write-Host 'update-proof must run elevated: it installs the base copy per machine under Program Files' -ForegroundColor Red
     exit 2
 }
 

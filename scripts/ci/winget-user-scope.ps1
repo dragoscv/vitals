@@ -5,8 +5,9 @@
 .DESCRIPTION
     `komac update` carries installer fields forward from the previous
     manifest, and 1.0.0-1.0.3 were published as `Scope: machine` with
-    `ElevationRequirement: elevatesSelf` and a Program Files location. Since
-    ADR 0038 the installer is `installMode: both`, and the copy winget should
+    `ElevationRequirement: elevatesSelf` and a Program Files location. The
+    default installer is now `installMode: currentUser` (ADR 0038 chose
+    `both`; this supersedes its install-mode half), and the copy winget should
     install is the per-user one: it updates itself on quit without a UAC
     prompt. Left alone, Komac would publish the machine scope forever, so the
     release job writes the manifests to a folder, runs this, then submits.
@@ -48,10 +49,13 @@ else {
     $lines.Insert($at + 1, 'Scope: user')
 }
 
-# ElevationRequirement stays `elevatesSelf`: the `both` setup requests
-# `highest`, so an administrator still sees one UAC prompt even with
-# /CurrentUser (a standard user sees none). Dropping the key also fails the
-# winget validator's consistency check against earlier versions (PR #454976).
+# ElevationRequirement stays `elevatesSelf` although a `currentUser` setup
+# never elevates: dropping the key fails the winget validator's consistency
+# check against earlier versions (PR #454976), and the field only says what an
+# installer of this id may do.
+# `/CurrentUser` is kept for the same reason of continuity. It is redundant
+# for a `currentUser` setup -- NSIS ignores an argument it does not parse --
+# and is what keeps a `both` build per-user if this ever ships as one again.
 Remove-Key 'InstallerSwitches'
 $at = Find-Key 'Scope'
 $lines.Insert($at + 1, 'InstallerSwitches:')

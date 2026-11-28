@@ -1,6 +1,6 @@
 # 0038 — NSIS `both`, and updates nobody has to approve
 
-- Status: Accepted (supersedes the install-mode half of [0025](0025-nsis-per-machine.md))
+- Status: Accepted (supersedes the install-mode half of [0025](0025-nsis-per-machine.md)); its own install-mode half is superseded by [0053](0053-nsis-per-user-default.md) — the default is now `currentUser`, so the silent update this record secured is the shipped behaviour and the scope choice is not offered
 - Date: 2026-10-17
 - Tracker: DEV-3
 
@@ -61,6 +61,10 @@ Options weighed (asked twice, the second time with the evidence below):
   `AllUsers` value cannot tell the two apart: every setup writes it,
   including the passive update an elevated 1.0.3 starts, which would
   otherwise turn a legacy copy into a "chosen" one that never migrates.
+  Since 0053 the hook reads the scope only in a `both` build: a
+  `currentUser` or `perMachine` build has no `MultiUser.nsh`, so the scope is
+  taken from `${INSTALLMODE}` at compile time — which also made a
+  `perMachine` build write this marker for the first time.
 - **Legacy copies move to a per-user install.** It is the only way they ever
   update again without a prompt. The setup's post-install hook gives the new
   copy a Start menu shortcut (and a desktop one if the old copy had one), the

@@ -16,7 +16,7 @@
 .EXAMPLE
   pwsh -NoProfile -File packaging/msix/sparse/register-sparse-package.ps1 `
     -PackagePath target/msix-sparse/Vitals_sparse_1.5.1.0_neutral.msix `
-    -ExternalLocation "$env:LOCALAPPDATA\Vitals"
+    -ExternalLocation "$env:LOCALAPPDATA\Programs\Vitals"
 .EXAMPLE
   # Remove it again after the spike:
   pwsh -NoProfile -File packaging/msix/sparse/register-sparse-package.ps1 -Unregister

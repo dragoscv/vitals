@@ -8188,6 +8188,133 @@ of it reached a channel and 1.6.0 is where it ships.
   `rust: target size budget` on the shared build machine own cargo cache
   (26.57 GB of target/debug against a 24.00 GB budget), not this tree.
 
+### S26-60 - the installer installs per-user, and the program lands in Programs rather than in the folder its data lives in (2026-11-28)
+
+The instruction was to make the default install raise no UAC prompt and to say
+so in the docs. The first attempt flipped `installMode` to `currentUser` and
+stopped there, which put the program in `%LOCALAPPDATA%\Vitals` — the folder
+it keeps its settings, history and logs in. The owner rejected that: the
+install directory must not be the data folder, because the documentation
+tells the user to delete the data folder to start over.
+
+- **The scope.** `bundle.windows.nsis.installMode` is `currentUser`, so the
+  setup asks for `RequestExecutionLevel user`, raises no `consent.exe`, and
+  `/S` is a complete unattended install.
+- **The directory.** Tauri's own template hard-codes
+  `StrCpy $INSTDIR "$LOCALAPPDATA\${PRODUCTNAME}"` for that branch, so
+  `apps/desktop/src-tauri/windows/installer.nsi` is a copy of the template
+  Tauri 2.12 embeds, changed on one line to
+  `$LOCALAPPDATA\Programs\${PRODUCTNAME}`, and
+  `bundle.windows.nsis.template` points at it. The per-machine branch is
+  untouched: a `both` build still installs for everyone into Program Files,
+  and the data directory is still `%LOCALAPPDATA%\Vitals`.
+  The folder is a literal because the alternative is unavailable: Tauri's
+  `MultiUser.nsh` resolves `FOLDERID_UserProgramFiles` through
+  `GetKnownFolderPath`, but that macro is defined only in that file, which
+  also brings `MULTIUSER_EXECUTIONLEVEL Highest` and the install-mode page —
+  the prompt being removed. The literal is the shell's default and the macro's
+  own fallback, so a default machine and the per-user half of a `both` install
+  (which has used `Programs` since 1.5.x) resolve to the same folder, and an
+  upgrade from one of those updates in place.
+- **The guard.** A copy of a file Tauri ships rots on the next upgrade in
+  silence, so `scripts/check-drift.ps1` gained check 12: it pulls the template
+  out of the installed CLI's platform package, strips this file's provenance
+  header, requires the same line count and exactly one differing line whose
+  text is the approved one, and fails when the two are identical — the shape a
+  lost change takes.
+- **The Task Manager replacement cannot follow.** Nothing about the hook is
+  fixable from a per-user copy: Task Manager auto-elevates, so whatever the
+  `Debugger` value names runs with an administrator token, and a folder its
+  own user can rewrite — including its ACL — can never be trusted with that.
+  The refusal now says so and names the two routes that do work, an all-users
+  copy under `%ProgramFiles%\Vitals` and the Store copy under
+  `Program Files\WindowsApps`; the settings panel already explained both in
+  each locale. Two tests pin the rule rather than the wording: the default
+  per-user path is refused, the Store path passes the location check.
+- **The mode reaches the install hooks, and it took a compile to notice.**
+  `windows/hooks.nsh` guarded its scope marker and 0038's migration shortcut
+  block with `$MultiUser.InstallMode`, a variable only a `both` build has —
+  `MultiUser.nsh` is included in that branch alone. A `currentUser` build
+  therefore compiled with `warning 6000: unknown variable/constant
+"MultiUser.InstallMode" detected, ignoring` once per use, and both
+  comparisons were false: the marker was never written (harmless) and the
+  shortcut block was **skipped in exactly the mode the migration now
+  produces**, leaving a migrated copy with no Start menu entry. The hook
+  branches on `${INSTALLMODE}` at compile time instead, reads the variable
+  only where it exists, and a `perMachine` build — which had the same warning
+  and never wrote the marker at all — now writes it.
+- **The ripple.** Every claim that named the install directory moved:
+  distribution, releasing, store identity, both site locales, the scoop and
+  winget manifests, the CI scripts that resolve the per-user copy, the MSIX
+  sparse registration helper and two Rust module docs. Every data-directory
+  path was left alone, including the `install.log` probe that exists to prove
+  the sensor helper writes nothing there.
+
+#### Verification log
+
+- `scripts/check-drift.ps1`: `drift: 0 failure(s), 0 warning(s) — checked 16
+ts_rs files, 144 invokes, 144 commands, 2 locales, 3 shipped icon binaries,
+979 installer-template lines`.
+- Five mutations of `installer.nsi` and `tauri.conf.json` — the change lost,
+  an extra line, the header removed, a different line changed, the config
+  pointing elsewhere — each exit 1 with its own message, and both files come
+  back byte-identical by SHA256 afterwards.
+- `makensis` on a rendered copy of the script (per-user, the changed line,
+  uncompressed so the literal is greppable): exit 0, 18,170,028 bytes, and the
+  output carries `Programs\Vitals` as ASCII and as UTF-16.
+- The compiled installer's own manifest, read out of those 18,170,028 bytes,
+  carries `<requestedExecutionLevel level="asInvoker" uiAccess="false"/>` and
+  no `requireAdministrator` anywhere: the point of the change is in the
+  artefact, not only in the configuration that produced it. A copy with the
+  per-machine branch selected (`INSTALLMODE perMachine`) does carry
+  `requireAdministrator`, so the comparison is not vacuous.
+- The installer compiles in all three modes from the same render —
+  `currentUser` exit 0 and 18,169,792 bytes, `both` exit 0 and 18,191,100,
+  `perMachine` exit 0 and 18,165,680 — with **zero** `warning 6000` in each,
+  against two in the `currentUser` arm before the hooks fix (both logs kept
+  under `.copilot-tmp`). The scope-marker literal reaches each installer's own
+  string table in the `both` and `perMachine` builds; in the `currentUser`
+  build it appears only in the embedded desktop binary's payload, which
+  carries the same Rust constant — so absence from the UTF-16 table is the
+  discriminating signal, not the raw byte search that first fooled me.
+- The compile-time split is proved by mutation, not inferred: with
+  `!error "MUTANT"` injected inside the `currentUser` arm of a copy of the
+  hook file, the `currentUser` build exits 1 with the error reported and the
+  `both` build still exits 0, leaving the live `hooks.nsh` unchanged by
+  SHA256.
+- The test that guards the hook's migration shortcuts
+  (`updates.rs::the_hooks_still_give_a_migrated_copy_its_shortcuts`) asserted
+  the presence of `$MultiUser.InstallMode == "CurrentUser"`, a string that
+  after this fix is compiled only in a `both` build — it would have passed
+  with the per-user arm deleted. It now pins the guarantee instead: the
+  compile-time `currentUser` arm exists, the macro is inserted, the shortcut
+  is created, and no line reads the both-only variable outside a `both` arm
+  (comment lines excluded, because the prose above states the same words).
+  Three mutations, applied to the real file and rolled back by SHA256, each
+  turn it red: the arm deleted, a read moved out of its `both` arm, and both
+  reads removed while the marker writes stay — `test result: FAILED` for each,
+  against `1 passed` before them.
+- `cargo test` passing was not enough: the rust lane runs
+  `cargo clippy --all-targets -- -D warnings`, and the first version of that
+  test failed it (`clippy::needless_continue` on the comment-skip branch,
+  `exit 101` in the lane). Rewritten without the `continue`;
+  `cargo clippy -p vitals-desktop --all-targets -- -D warnings` is clean.
+- `pnpm format:check` exit 0; `cargo fmt --all -- --check` exit 0;
+  `scripts/check-tracker.ps1` 0 problem(s).
+- `cargo test -p vitals-win --lib actions::taskmgr`: 17 passed, 0 failed,
+  including the two new tests — the per-user default folder is refused, the
+  Store copy is accepted by location.
+- `rg -n LOCALAPPDATA` over the repository, excluding `target`, `node_modules`
+  and the trackers: every remaining hit is a data-directory path, the
+  uninstaller's `RmDir /r "$LOCALAPPDATA\${BUNDLEID}"`, or a WindowsApps path
+  that was already right. No claim anywhere still names the old per-user
+  install folder.
+- Open: the bundler's own build (it needs a clean tree) and a real per-user
+  install and uninstall on vivobook, which needs the published 1.6.0
+  artefacts. Separately noticed and not introduced here: the Romanian NSIS
+  translation is incomplete — `makensis` warns 6040 for twenty strings, so a
+  Romanian-language setup shows those twenty in English.
+
 ## S13 — public beta 0.9.0-beta.1 (2026-09-28)
 
 Decided with the owner (ADR 0031): public repository, beta version, no code

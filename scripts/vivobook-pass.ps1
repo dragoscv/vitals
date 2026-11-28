@@ -110,12 +110,18 @@ W '--- the install ---'
 foreach ($k in 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Vitals', 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Vitals') {
   if (Test-Path $k) { $u = Get-ItemProperty $k; W "  $k => $($u.DisplayVersion) @ $($u.InstallLocation)" } else { W "  $k => absent" }
 }
-foreach ($p in "$env:LOCALAPPDATA\Programs\Vitals\vitals-desktop.exe", "$env:ProgramFiles\Vitals\vitals-desktop.exe") {
+# `currentUser` (ADR 0053) installs into %LOCALAPPDATA%\Programs\Vitals, the
+# same folder the per-user half of a `both` build lands in; %LOCALAPPDATA%\Vitals
+# is the app's data folder, not an install.
+foreach ($p in "$env:LOCALAPPDATA\Programs\Vitals\vitals-desktop.exe", "$env:LOCALAPPDATA\Vitals\vitals-desktop.exe", "$env:ProgramFiles\Vitals\vitals-desktop.exe") {
   $version = if (Test-Path $p) { (Get-Item $p).VersionInfo.ProductVersion } else { 'absent' }
   W "  $p => $version"
 }
 W '--- SEC-2 state: the helper and its log ---'
-$helper = "$env:LOCALAPPDATA\Programs\Vitals\sensors\vitals-sensors.exe"
+$helper = @(
+  "$env:LOCALAPPDATA\Programs\Vitals\sensors\vitals-sensors.exe",
+  "$env:LOCALAPPDATA\Vitals\sensors\vitals-sensors.exe"
+) | Where-Object { Test-Path $_ } | Select-Object -First 1
 $helperVersion = if (Test-Path $helper) { (& $helper version 2>&1 | Select-Object -First 1) } else { 'absent' }
 W "  helper => $helperVersion"
 $log = Join-Path $env:ProgramFiles 'Vitals Sensors\install.log'
@@ -151,7 +157,8 @@ if (-not $SkipSensors) {
 `$ErrorActionPreference = 'Continue'
 `$admin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 "elevated: `$admin (SEC-2 is an elevated operation)"
-`$install = "`$env:LOCALAPPDATA\Programs\Vitals"
+`$install = @("`$env:LOCALAPPDATA\Programs\Vitals", "`$env:LOCALAPPDATA\Vitals") | Where-Object { Test-Path "`$_\sensors" } | Select-Object -First 1
+if (-not `$install) { throw 'no per-user install with a sensors folder' }
 Get-ChildItem "`$install\sensors" -Force | Select-Object Name, Length | Format-Table -AutoSize | Out-String
 `$helper = Get-ChildItem "`$install\sensors" -Filter '*sensors*.exe' | Select-Object -First 1
 if (-not `$helper) { throw 'no sensors helper in the per-user install' }
@@ -211,7 +218,10 @@ $admin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
 W "task shell elevated=$admin (the app inherits this token)"
 Get-Process vitals-desktop -ErrorAction SilentlyContinue | ForEach-Object { W "stopping pid=$($_.Id)"; $_ | Stop-Process -Force }
 Start-Sleep -Seconds 6
-Start-Process -FilePath "$env:LOCALAPPDATA\Programs\Vitals\vitals-desktop.exe"
+$exe = @("$env:LOCALAPPDATA\Programs\Vitals\vitals-desktop.exe", "$env:LOCALAPPDATA\Vitals\vitals-desktop.exe", "$env:ProgramFiles\Vitals\vitals-desktop.exe") | Where-Object { Test-Path $_ } | Select-Object -First 1
+if (-not $exe) { W 'NO INSTALLED APP FOUND'; W 'ELEV-APP-DONE'; exit 1 }
+W "starting $exe"
+Start-Process -FilePath $exe
 for ($i = 0; $i -lt 30; $i++) { Start-Sleep -Seconds 2; if (Get-Process vitals-desktop -ErrorAction SilentlyContinue) { break } }
 $p = Get-Process vitals-desktop -ErrorAction SilentlyContinue | Select-Object -First 1
 if ($p) { W "app pid=$($p.Id)" } else { W 'APP NOT RUNNING' }

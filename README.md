@@ -242,10 +242,11 @@ GitHub whether there is a newer version, downloads it in the background,
 verifies its minisign signature, and installs it when you quit, or after ten
 minutes away from the PC while Vitals is only in the tray (never during a
 Windows restart or sign-out, which would cut the setup off). Nothing is
-installed while you are using the app. Turn it off in Settings → About. A
-per-user install updates silently; one installed for everyone asks an
-administrator to approve each update, so use **Settings → About → Restart to
-update** there.
+installed while you are using the app. Turn it off in Settings → About. The
+installer installs for the current user only, so an update installs silently,
+with no administrator prompt on any account. A copy an older release installed
+for everyone still asks an administrator to approve each update, so use
+**Settings → About → Restart to update** there.
 
 **Windows will show a SmartScreen warning on first run.** That is expected:
 the builds are not yet signed with a commercial code-signing certificate.

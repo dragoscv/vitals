@@ -682,9 +682,12 @@ pub fn set_auto_update(
 }
 
 /// The scope switch (`/CurrentUser` or `/AllUsers`) every setup this
-/// process starts carries, so the updater never guesses which half of an
-/// `installMode: both` install to update. Also what the plugin builder in
-/// `lib.rs` is given, which covers the Settings panel's own download.
+/// process starts carries, so a `both`- or `perMachine`-built setup is told
+/// which half to update rather than guessing. The shipped setup is
+/// `installMode: currentUser`, where the switch is redundant — it is harmless
+/// and keeps one code path for both kinds of package. Also what the plugin
+/// builder in `lib.rs` is given, which covers the Settings panel's own
+/// download.
 #[must_use]
 pub fn scope_args() -> Vec<&'static str> {
     #[cfg(windows)]
@@ -1256,13 +1259,16 @@ mod config_guard {
     }
 
     #[test]
-    fn the_installer_offers_both_scopes_so_a_per_user_copy_exists_to_update_unprompted() {
-        // perMachine forces every update through UAC (os error 1223 when
-        // nobody answers); currentUser would orphan every 1.0.0-1.0.3 copy.
+    fn the_default_installer_is_per_user_so_no_update_ever_raises_a_prompt() {
+        // currentUser is what makes an unattended update possible: the
+        // template then asks for `RequestExecutionLevel user`, so the
+        // passive setup the app starts on quit runs without `consent.exe`
+        // even on an administrator's account. perMachine forces every
+        // update through UAC (os error 1223 when nobody answers).
         assert_eq!(
             conf()["bundle"]["windows"]["nsis"]["installMode"],
-            "both",
-            "ADR 0038"
+            "currentUser",
+            "ADR 0053, superseding the install-mode half of ADR 0038"
         );
     }
 
@@ -1279,8 +1285,34 @@ mod config_guard {
     #[test]
     fn the_hooks_still_give_a_migrated_copy_its_shortcuts() {
         let hooks = include_str!("../windows/hooks.nsh");
-        assert!(hooks.contains(r#"$MultiUser.InstallMode == "CurrentUser""#));
+        // The migration happens in a currentUser build, so the shortcut block
+        // must be reached there — through a compile-time arm, because
+        // $MultiUser.InstallMode does not exist in that build and reading it
+        // compiled to warning 6000 and a comparison that was always false,
+        // silently skipping the block (ADR 0053).
+        assert!(hooks.contains(r#"!else if "${INSTALLMODE}" == "currentUser""#));
+        assert!(hooks.contains("!insertmacro VitalsPerUserShortcuts"));
         assert!(hooks.contains(r#"CreateShortcut "$SMPROGRAMS\${PRODUCTNAME}.lnk""#));
+
+        // ... and the both-only variable is read only where MultiUser.nsh
+        // defines it. Comments are skipped: the prose above states the rule in
+        // those same words.
+        let mut inside_both = false;
+        let mut reads = 0;
+        for line in hooks.lines() {
+            let trimmed = line.trim();
+            if trimmed.starts_with("!if ") || trimmed.starts_with("!else if ") {
+                inside_both = trimmed.contains(r#""both""#);
+            } else if trimmed.starts_with("!endif") {
+                inside_both = false;
+            } else if !trimmed.starts_with(';') && trimmed.contains("$MultiUser.InstallMode") {
+                assert!(inside_both, "read outside a both arm: {trimmed}");
+                reads += 1;
+            }
+        }
+        // One per scope the hook has to tell apart; adding an arm means
+        // updating this number on purpose.
+        assert_eq!(reads, 2, "the two guarded scope reads are still there");
     }
 
     #[test]

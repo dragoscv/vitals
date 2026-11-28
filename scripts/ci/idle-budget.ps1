@@ -41,7 +41,10 @@
     pass.
 
 .PARAMETER Exe
-    The installed executable. Defaults to the per-machine install.
+    The installed executable. Defaults to the per-user install
+    (%LOCALAPPDATA%\Programs\Vitals), which is what the shipped installMode
+    (currentUser, ADR 0053) produces; pass the Program Files copy for a `both`
+    build.
 
 .EXAMPLE
     pwsh -NoProfile -File scripts/ci/idle-budget.ps1
@@ -49,7 +52,7 @@
 #>
 [CmdletBinding()]
 param(
-    [string]$Exe = (Join-Path $env:ProgramFiles 'Vitals\vitals-desktop.exe'),
+    [string]$Exe = (Join-Path $env:LOCALAPPDATA 'Programs\Vitals\vitals-desktop.exe'),
     [int]$SettleSeconds = 60,
     [int]$WindowSeconds = 40,
     [int]$Windows = 3,

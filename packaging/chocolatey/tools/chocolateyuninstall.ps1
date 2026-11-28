@@ -1,8 +1,9 @@
 $ErrorActionPreference = 'Stop'
 
-# Finds the uninstaller the NSIS installer registered, rather than guessing
-# a path: a per-machine install normally lands in Program Files, but the
-# user may have chosen another directory.
+# Finds the uninstaller the NSIS installer registered, rather than guessing a
+# path: a per-machine install (releases up to 1.5.x) lands in Program Files, a
+# per-user one under %LOCALAPPDATA%, and the user may have chosen another
+# directory in between.
 [array]$keys = Get-UninstallRegistryKey -SoftwareName 'Vitals*'
 
 if ($keys.Count -eq 0) {

@@ -17,7 +17,8 @@
       5. Quitting through the app's own command starts the setup, and
          consent.exe never appears while it runs (a UAC prompt would).
       6. The per-user executable then reports -To. For legacy, the copy now
-         runs from %LOCALAPPDATA%\Programs\Vitals, is registered under HKCU,
+            runs from the per-user install (%LOCALAPPDATA%\Programs\Vitals), is
+            registered under HKCU,
          and Start-with-Windows (if set) names it.
 #>
 [CmdletBinding()]
@@ -48,7 +49,31 @@ function Get-Reg([string]$Hive) {
 }
 
 $Dir = [IO.Path]::GetFullPath($Dir)
-$userExe = Join-Path $env:LOCALAPPDATA 'Programs\Vitals\vitals-desktop.exe'
+# Which per-user directory an installer uses is a property of that installer,
+# not of this checkout: a `both` setup (up to 1.5.x) lands in
+# `%LOCALAPPDATA%\Programs\Vitals` through MultiUser.nsh, and a `currentUser`
+# one takes the same `$LOCALAPPDATA\Programs\<product>` (ADR 0053). The
+# artefacts here are downloaded releases, so probe instead of assuming.
+$userDirs = @(
+    (Join-Path $env:LOCALAPPDATA 'Programs\Vitals'),
+    (Join-Path $env:LOCALAPPDATA 'Vitals')
+)
+function Get-UserDir {
+    foreach ($d in $userDirs) { if (Test-Path (Join-Path $d 'vitals-desktop.exe')) { return $d } }
+    # Nothing installed yet: the first candidate is where a per-user setup
+    # lands (`%LOCALAPPDATA%\Programs\Vitals`).
+    return $userDirs[0]
+}
+# The directory the updated copy ended up in, found by the version it reports
+# rather than by what this checkout's configuration would have chosen.
+function Get-UpdatedUserExe([string]$Version) {
+    foreach ($d in $userDirs) {
+        $e = Join-Path $d 'vitals-desktop.exe'
+        if ((Test-Path $e) -and ((Get-Item $e).VersionInfo.ProductVersion -like "$Version*")) { return $e }
+    }
+    return $userExe
+}
+$userExe = Join-Path (Get-UserDir) 'vitals-desktop.exe'
 $machineExe = Join-Path $env:ProgramFiles 'Vitals\vitals-desktop.exe'
 $log = Join-Path $env:LOCALAPPDATA 'Vitals\logs\vitals.log'
 
@@ -86,10 +111,12 @@ try {
     # ── 3. The copy to be updated ────────────────────────────────────────
     Get-Process vitals-desktop -ErrorAction SilentlyContinue | Stop-Process -Force
     if ($Scope -eq 'user') {
-        # The `both` setup asks for `highest`, so started plainly by an
-        # administrator it raises UAC, and in a task nobody can answer it is
-        # cancelled ("The operation was canceled by the user", 2026-10-18).
-        # RunAsInvoker is what the updater itself uses for a per-user copy.
+        # A `both` or `perMachine` setup asks for `highest`, so started plainly
+        # by an administrator it raises UAC, and in a task nobody can answer it
+        # is cancelled ("The operation was canceled by the user", 2026-10-18).
+        # RunAsInvoker is what the updater itself uses for a per-user copy. A
+        # `currentUser` setup asks for `user` and needs neither the layer nor
+        # the switch; both are harmless there, and they keep this one path.
         $env:__COMPAT_LAYER = 'RunAsInvoker'
         try { $p = Start-Process -FilePath $fromSetup -ArgumentList '/S', '/CurrentUser' -PassThru -Wait }
         finally { Remove-Item Env:__COMPAT_LAYER -ErrorAction SilentlyContinue }
@@ -139,6 +166,7 @@ try {
             # copy of the setup has a random name, so it cannot be waited on.
             while ((Get-Date) -lt $deadline) {
                 if (Get-Process consent -ErrorAction SilentlyContinue) { $consentSeen = $true; break }
+                $userExe = Get-UpdatedUserExe $To
                 $relaunched = Get-Process vitals-desktop -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $userExe }
                 if ($relaunched -and ((Get-Item $userExe).VersionInfo.ProductVersion -like "$To*")) { break }
                 Start-Sleep -Milliseconds 250
@@ -168,8 +196,8 @@ try {
     Stop-Job $server -ErrorAction SilentlyContinue; Remove-Job $server -Force -ErrorAction SilentlyContinue
     if ($Uninstall) {
         Get-Process vitals-desktop -ErrorAction SilentlyContinue | Stop-Process -Force
-        $un = Join-Path $env:LOCALAPPDATA 'Programs\Vitals\uninstall.exe'
-        if (Test-Path $un) { Start-Process -FilePath $un -ArgumentList '/S' -Wait }
+        $un = $userDirs | ForEach-Object { Join-Path $_ 'uninstall.exe' } | Where-Object { Test-Path $_ } | Select-Object -First 1
+        if ($un) { Start-Process -FilePath $un -ArgumentList '/S' -Wait }
     }
 }
 

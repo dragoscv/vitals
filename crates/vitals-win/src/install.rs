@@ -1,16 +1,23 @@
 //! Which kind of installation this copy of Vitals is, and how an update over
 //! it can run without a UAC prompt nobody is there to answer (DEV-3).
 //!
-//! The installer is NSIS with `installMode: "both"` (ADR 0038): one setup
-//! that installs either for everyone (`Program Files`, `HKLM`) or for the
-//! current user (`%LOCALAPPDATA%\Programs`, `HKCU`). The template asks for
-//! `RequestExecutionLevel highest`, so on an administrator's account every
-//! start of the setup raises UAC — including the passive update the app
-//! starts on quit. For a per-user installation that prompt is pure noise:
-//! nothing it writes needs administrator rights. Starting the setup with the
-//! `RunAsInvoker` compatibility layer (inherited through the environment by
-//! the `ShellExecuteW` the updater plugin makes) runs it with the caller's
-//! token instead, and `/CurrentUser` tells it which half to update.
+//! The installer is NSIS with `installMode: "currentUser"` (ADR 0038, whose
+//! install-mode half ADR 0053 supersedes): the setup installs for the current
+//! user alone — the program in `%LOCALAPPDATA%\Programs\Vitals`, its data in
+//! `%LOCALAPPDATA%\Vitals`, `HKCU` — and its template asks for
+//! `RequestExecutionLevel user`, so it raises no UAC prompt, not even on an
+//! administrator's account, and the passive update the app starts on quit
+//! runs with nobody there to answer.
+//!
+//! A package built with `installMode: "both"` or `"perMachine"` is the other
+//! case: its template asks for `RequestExecutionLevel highest`, so on an
+//! administrator's account every start of the setup raises UAC — including
+//! the passive update. For a per-user installation that prompt is pure noise:
+//! nothing it writes needs administrator rights. Starting such a setup with
+//! the `RunAsInvoker` compatibility layer (inherited through the environment
+//! by the `ShellExecuteW` the updater plugin makes) runs it with the caller's
+//! token instead, and `/CurrentUser` tells it which half to update. That is
+//! what `current_scope` and `installer_args` below are for.
 //!
 //! Proven on a real machine before this was written: an NSIS stub with
 //! `RequestExecutionLevel highest`, started from an unelevated interactive

@@ -112,15 +112,18 @@ Este de așteptat.
 
 ## Instalare silențioasă
 
-Programul de instalare pune o singură întrebare: doar pentru tine sau pentru toți utilizatorii
-acestui PC. Pentru scripturi:
+Programul de instalare nu întreabă nimic: instalează pentru utilizatorul curent, iar acesta este
+singurul mod pe care îl are acest pachet. Pentru scripturi:
 
 ```powershell
-.\Vitals_x64-setup.exe /S /CurrentUser
+.\Vitals_x64-setup.exe /S
 ```
 
-`/CurrentUser` instalează în `%LOCALAPPDATA%\Programs\Vitals`, fără cerere de administrator.
-`/AllUsers` instalează în `Program Files` pentru toți și are nevoie de drepturi de administrator.
+`/S` instalează în `%LOCALAPPDATA%\Programs\Vitals` și nu cere niciodată drepturi de administrator, pe niciun
+cont. O versiune construită cu `installMode: "both"` este cea care oferă o alegere, iar acolo
+`/CurrentUser` păstrează instalarea doar pentru tine, în timp ce `/AllUsers` o pune în
+`Program Files` și are nevoie de drepturi de administrator. Pentru toți utilizatorii aceluiași PC,
+ruta susținută este versiunea din Microsoft Store.
 
 ## Actualizări
 
@@ -130,12 +133,17 @@ aplicația sau după zece minute în care nu folosești PC-ul și Vitals e doar 
 pornește niciodată cât timp Windows repornește sau te deconectează, pentru că instalarea ar fi întreruptă. O actualizare cu semnătură lipsă sau greșită este refuzată. Poți dezactiva verificarea
 din **Setări → Despre**. Versiunea din Microsoft Store este actualizată de Store.
 
-Instalată doar pentru tine, o actualizare nu cere aprobarea unui administrator. Instalată pentru
-toți, Windows cere aprobarea unui administrator la fiecare actualizare, așa că Vitals nu o
-instalează la închidere, unde nimeni n-ar vedea cererea. Alege **Repornește pentru actualizare** din
+Instalată doar pentru tine — fiecare copie creată de acest pachet — o actualizare nu cere aprobarea
+unui administrator. O copie pe care o versiune mai veche a instalat-o pentru toți, în
+`Program Files`, încă cere aprobarea unui administrator la fiecare actualizare, așa că Vitals nu o
+instalează la închidere, unde nimeni n-ar vedea cererea: alege **Repornește pentru actualizare** din
 **Setări → Despre** sau din meniul din bara de sistem. Copiile instalate de Vitals 1.0.3 sau mai
 vechi trec la o instalare pentru utilizatorul curent la următoarea actualizare, iar **Setări →
-Despre** oferă apoi ștergerea copiei vechi din `Program Files`.
+Despre** oferă apoi ștergerea copiei vechi din `Program Files`. Același lucru este valabil și pentru
+o copie instalată pentru toți de un administrator dintr-o versiune mai nouă: un program de instalare
+fără elevare nu scrie niciodată în `Program Files`, așa că noua copie pentru utilizatorul curent
+apare lângă cea veche, iar oferta de a o șterge pe cea veche este felul în care copia pentru toți
+dispare.
 
 ## Dezinstalare
 

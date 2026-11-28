@@ -59,17 +59,17 @@ wingetcreate new "$base/Vitals_${v}_x64-setup.exe" "$base/Vitals_${v}_arm64-setu
 Komac and wingetcreate both detect most installer fields from the file. Check
 that the generated manifests say:
 
-| Field                                  | Value                                 |
-| -------------------------------------- | ------------------------------------- |
-| `PackageIdentifier`                    | `Vitals.Vitals`                       |
-| `Publisher`                            | `Dragos Catalin Vladulescu`           |
-| `PackageName`                          | `Vitals`                              |
-| `License`                              | `MIT`                                 |
-| `InstallerType`                        | `nullsoft`                            |
-| `Scope`                                | `user` (installMode `both`, ADR 0038) |
-| `InstallerSwitches.Silent`             | `/S`                                  |
-| `InstallerSwitches.SilentWithProgress` | `/S`                                  |
-| `InstallerSwitches.Custom`             | `/CurrentUser`                        |
+| Field                                  | Value                                       |
+| -------------------------------------- | ------------------------------------------- |
+| `PackageIdentifier`                    | `Vitals.Vitals`                             |
+| `Publisher`                            | `Dragos Catalin Vladulescu`                 |
+| `PackageName`                          | `Vitals`                                    |
+| `License`                              | `MIT`                                       |
+| `InstallerType`                        | `nullsoft`                                  |
+| `Scope`                                | `user` (default `installMode: currentUser`) |
+| `InstallerSwitches.Silent`             | `/S`                                        |
+| `InstallerSwitches.SilentWithProgress` | `/S`                                        |
+| `InstallerSwitches.Custom`             | `/CurrentUser`                              |
 
 | `Architecture` | `x64` and `arm64`, one installer each |
 | `ReleaseNotesUrl` | `https://github.com/dragoscv/vitals/releases/tag/v<ver>` |
@@ -82,8 +82,7 @@ The release job therefore never lets Komac submit directly: it runs
 with `scripts/ci/winget-user-scope.ps1` (`Scope: user`,
 `InstallerSwitches.Custom: /CurrentUser`, `%LocalAppData%\Programs\Vitals`;
 `ElevationRequirement: elevatesSelf` stays, because the validator rejects a
-version that drops it and an administrator still sees one prompt), prints
-it, and then runs `komac submit
+version that drops it), prints it, and then runs `komac submit
 <dir> --yes`. The script is idempotent, so later releases pass through it
 unchanged. To do the same by hand, run those three commands locally.
 

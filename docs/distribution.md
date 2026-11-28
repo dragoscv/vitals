@@ -224,12 +224,33 @@ The version every binary is held to comes from the installer's own version
 block, so the caller does not restate it.
 
 **When to run it.** When a release is cut, and when the icon, the version
-sources or the three `build.rs` files change. Run it **once per installer
-scope**. The command above proves the per-user scope end to end: `installMode`
-is `both`, so the script passes `/S /CurrentUser`, which is what keeps the
-install per-user and therefore unelevated. The per-machine scope is the same
-installer with a bare `/S` and a UAC prompt, so install it once from an elevated
-shell (`…setup.exe /S`) and then prove what landed, with nothing copied or run:
+sources or the three `build.rs` files change. This installer has one scope:
+`installMode` is `currentUser`, so it is per-user and unelevated however it is
+started — on an administrator's account too — and the `/S /CurrentUser` the
+script still passes is redundant rather than what keeps it per-user. To prove a
+machine-wide copy, build one with `installMode: "both"` or `"perMachine"`
+explicitly, install it once from an elevated shell (`…setup.exe /S`) and then
+prove what landed, with nothing copied or run:
+
+**The trade-off, plainly.** Per-user by default is what makes an unattended
+install and a silent self-update possible at all: no administrator, no
+`consent.exe`, nothing for anyone to answer on a desktop the app has just left.
+The visible cost is that the shipped setup can no longer install for everyone — an
+all-users copy needs `installMode: "both"` or `"perMachine"` built deliberately,
+or the MSIX/Store package, which is the supported machine-wide route. The
+default (per-user) install lands in `%LOCALAPPDATA%\Programs\Vitals`, and a
+per-machine (`both`) install lands in `%ProgramFiles%\Vitals`; either way the
+app's data always stays in `%LOCALAPPDATA%\Vitals`, the folder it keeps its
+settings, history and logs in. One feature assumes an all-users copy and is
+therefore out
+of reach for the default install: the Task Manager replacement, which refuses
+any executable an ordinary account could swap and says so
+(`crates/vitals-win/src/actions/taskmgr.rs`).
+
+An existing all-users copy is not upgraded in place, because an unelevated
+setup cannot write to Program Files: it installs the new copy under `Programs`
+and offers once, behind one prompt that follows a click, to remove the old one
+(ADR 0038).
 
 ```powershell
 pwsh -NoProfile -File scripts/prove-hardware.ps1 `
