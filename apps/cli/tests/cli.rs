@@ -40,6 +40,7 @@ fn help_lists_every_subcommand_the_cli_defines() {
         "sensors",
         "history",
         "alerts",
+        "widget",
     ] {
         assert!(
             help.lines()
@@ -208,6 +209,197 @@ fn history_from_a_direct_sampler_exits_five() {
     assert!(
         stderr.contains("history"),
         "the message must name what is missing:\n{stderr}"
+    );
+}
+
+// ── widget ─────────────────────────────────────────────────────────────
+
+/// A widget action with no app behind it must say so and exit 6.
+///
+/// 6, not 3: nothing was ever reached, but the source that exists here —
+/// this machine's own sampler — cannot own a window. The two codes are a
+/// script's "start the app" and "stop asking a source that cannot do it".
+#[test]
+fn widget_action_without_a_running_app_exits_six_with_a_clear_message() {
+    for args in [
+        vec!["--source", "local", "widget", "--kind", "cpu"],
+        vec!["--source", "local", "widget", "--list"],
+        vec!["--source", "local", "widget", "--close", "w1"],
+    ] {
+        let out = vitals(&args);
+        assert_eq!(out.status.code(), Some(6), "{args:?}: {out:?}");
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        assert!(!stderr.contains("panicked"), "{args:?}: {stderr}");
+        assert!(
+            stderr.contains("widget"),
+            "{args:?}: the message must name the feature:\n{stderr}"
+        );
+        assert!(
+            out.stdout.is_empty(),
+            "{args:?}: a failed run must print nothing on stdout: {out:?}"
+        );
+    }
+}
+
+#[test]
+fn widget_refuses_a_bad_action_at_parse_time_with_a_usage_error() {
+    // Exit 2 is clap's: nothing was asked of any app.
+    for args in [
+        vec!["widget"],
+        vec!["widget", "--kind", "cpu", "--close", "w1"],
+        vec!["widget", "--list", "--kind", "cpu"],
+        vec!["widget", "--kind", "gpu"],
+        vec!["widget", "--kind", "cpu", "--size", "colossal"],
+        vec!["widget", "--kind", "cpu", "--layout", "spiral"],
+        vec!["widget", "--list", "--size", "large"],
+    ] {
+        let out = vitals(&args);
+        assert_eq!(out.status.code(), Some(2), "{args:?}: {out:?}");
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        assert!(!stderr.contains("panicked"), "{args:?}: {stderr}");
+    }
+}
+
+/// A host that answers every action with the widgets it was told to hold.
+#[cfg(windows)]
+struct FixtureHost {
+    widgets: std::sync::Mutex<Vec<vitals_ipc::attach::WidgetInfo>>,
+}
+
+#[cfg(windows)]
+impl vitals_ipc::attach::WidgetHost for FixtureHost {
+    fn widgets(
+        &self,
+        action: &vitals_ipc::attach::WidgetAction,
+    ) -> Result<vitals_ipc::attach::WidgetsReply, String> {
+        use vitals_ipc::attach::{WidgetAction, WidgetInfo, WidgetsReply};
+        let mut held = self.widgets.lock().expect("widget list lock");
+        match action {
+            WidgetAction::List => {}
+            WidgetAction::Open {
+                kind, size, layout, ..
+            } => {
+                let id = format!("w{}", held.len() + 1);
+                held.push(WidgetInfo {
+                    id: id.clone(),
+                    kind: *kind,
+                    size: *size,
+                    layout: *layout,
+                });
+                return Ok(WidgetsReply::ok(held.clone(), Some(id)));
+            }
+            WidgetAction::Close { id } => {
+                let before = held.len();
+                held.retain(|widget| widget.id != *id);
+                let removed = (held.len() < before).then(|| id.clone());
+                return Ok(WidgetsReply::ok(held.clone(), removed));
+            }
+        }
+        Ok(WidgetsReply::ok(held.clone(), None))
+    }
+}
+
+/// Binds an attach pipe that is this test's own, so the assertions can run
+/// even while a real desktop app is attached on its own per-user pipe.
+///
+/// `AttachServer` and the CLI both resolve the pipe from `USERNAME`, so the
+/// fixture picks the account name and hands it to the child process. The name
+/// is letters and digits only, which makes the crate's sanitiser the identity
+/// and the two sides agree on `vitals-<name>` without either library having to
+/// expose the rule. The tests run in parallel in one process, so each fixture
+/// carries its own tag: a shared name would make the second bind fail and the
+/// test would skip while looking green.
+#[cfg(windows)]
+fn fixture_server(tag: &str) -> Option<(vitals_ipc::attach::AttachServer, String)> {
+    debug_assert!(tag.chars().all(|c| c.is_ascii_alphanumeric()), "a safe tag");
+    let user = format!("vitest{}{tag}", std::process::id());
+    let name = format!("vitals-{user}");
+    let server = vitals_ipc::attach::AttachServer::start(&name, "0.0.0-test".to_owned()).ok()?;
+    Some((server, user))
+}
+
+/// The real binary, pointed at the fixture's pipe through the account name the
+/// pipe name is derived from.
+#[cfg(windows)]
+fn vitals_as(args: &[&str], user: &str) -> Output {
+    Command::new(env!("CARGO_BIN_EXE_vitals"))
+        .args(args)
+        .env("USERNAME", user)
+        .output()
+        .expect("spawn the vitals binary")
+}
+
+#[cfg(windows)]
+#[test]
+fn widget_open_then_list_then_close_against_a_host_that_answers() {
+    use vitals_ipc::attach::WidgetHost;
+
+    let Some((server, user)) = fixture_server("open") else {
+        eprintln!("skipped: the test's own attach pipe could not be bound");
+        return;
+    };
+    server.set_widget_host(std::sync::Arc::new(FixtureHost {
+        widgets: std::sync::Mutex::new(Vec::new()),
+    }) as std::sync::Arc<dyn WidgetHost>);
+
+    let out = vitals_as(&["widget", "--kind", "cpu", "--json"], &user);
+    assert!(out.status.success(), "{out:?}");
+    let opened: serde_json::Value =
+        serde_json::from_slice(&out.stdout).expect("--json prints only JSON on stdout");
+    assert_eq!(opened["action"], "open", "{opened}");
+    assert_eq!(opened["id"], "w1", "{opened}");
+    assert_eq!(
+        opened["widgets"][0],
+        serde_json::json!({"id":"w1","kind":"cpu","size":"small","layout":"stack"}),
+        "{opened}"
+    );
+
+    // The defaults a bare `--kind` documents must be what the app was told.
+    let out = vitals_as(&["widget", "--list"], &user);
+    assert!(out.status.success(), "{out:?}");
+    let listed = String::from_utf8(out.stdout).expect("utf-8");
+    assert!(listed.contains("w1"), "{listed}");
+    assert!(
+        listed.contains("cpu") && listed.contains("small") && listed.contains("stack"),
+        "the open defaults reached the host:\n{listed}"
+    );
+
+    let out = vitals_as(&["widget", "--close", "w1", "--json"], &user);
+    assert!(out.status.success(), "{out:?}");
+    let closed: serde_json::Value =
+        serde_json::from_slice(&out.stdout).expect("--json prints only JSON");
+    assert_eq!(closed["action"], "close", "{closed}");
+    assert_eq!(closed["id"], "w1", "{closed}");
+    assert_eq!(closed["widgets"], serde_json::json!([]), "{closed}");
+
+    // Closing it twice is not a failure: the state asked for already holds.
+    let out = vitals_as(&["widget", "--close", "w1"], &user);
+    assert!(out.status.success(), "{out:?}");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("no widget is open"), "{stderr}");
+}
+
+/// The case the brief calls out: an app is attached and has no widget
+/// handler, so the request is understood and refused.
+#[cfg(windows)]
+#[test]
+fn widget_against_a_host_without_a_handler_exits_six_with_the_apps_own_words() {
+    let Some((_server, user)) = fixture_server("refuse") else {
+        eprintln!("skipped: the test's own attach pipe could not be bound");
+        return;
+    };
+
+    let out = vitals_as(&["widget", "--kind", "cpu"], &user);
+    assert_eq!(out.status.code(), Some(6), "{out:?}");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(!stderr.contains("panicked"), "{stderr}");
+    assert!(
+        stderr.contains("does not offer widgets"),
+        "the app's own refusal must reach the user:\n{stderr}"
+    );
+    assert!(
+        out.stdout.is_empty(),
+        "a refused action must not print a result: {out:?}"
     );
 }
 

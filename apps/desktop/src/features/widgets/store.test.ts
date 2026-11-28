@@ -4,9 +4,26 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { KeyedBackend } from '@/settings/persistence';
 
 import type { WidgetWindowSpec } from './model';
-import { MAX_WIDGETS } from './model';
-import { useWidgets } from './store';
-import type { WidgetBridge, WidgetEdit, WidgetMove } from './windows';
+import { defaultPosition, MAX_WIDGETS } from './model';
+import { useWidgets, type WidgetStoreOptions } from './store';
+import {
+  createScreenSource,
+  type ScreenRect,
+  type WidgetBridge,
+  type WidgetEdit,
+  type WidgetMove,
+} from './windows';
+
+// The warnings this feature reports are part of its contract — a widget that
+// could not be brought back, or a screen list that could not be learned, has to
+// say so, because silence there is indistinguishable from "nothing to do".
+const { warned } = vi.hoisted(() => ({ warned: [] as unknown[][] }));
+
+vi.mock('@/lib/logToFile', () => ({
+  reportToLog: (...args: unknown[]) => {
+    warned.push(args);
+  },
+}));
 
 /**
  * The registry is the only thing standing between a user's widget layout and
@@ -25,6 +42,7 @@ function placed(id: string): Record<string, unknown> {
     layout: 'stack',
     opacity: 1,
     alwaysOnTop: true,
+    remoteConnectionId: null,
     clickThrough: false,
     x: 40,
     y: 40,
@@ -99,8 +117,13 @@ function harness(stored: unknown = [], live?: (specs: readonly WidgetWindowSpec[
   } satisfies Harness;
 }
 
-function mount(options: { backend: KeyedBackend; bridge: WidgetBridge }) {
+function mount(options: WidgetStoreOptions) {
   return renderHook(() => useWidgets(options));
+}
+
+/** A screen source a test controls, so no host and no browser are needed. */
+function screenSource(...screens: readonly ScreenRect[]) {
+  return createScreenSource(() => Promise.resolve(screens));
 }
 
 beforeEach(() => {
@@ -117,6 +140,7 @@ it('restores the stored layout so a restart does not lose the widgets', async ()
       layout: 'ring',
       opacity: 0.5,
       alwaysOnTop: false,
+      remoteConnectionId: null,
       clickThrough: true,
       x: 400,
       y: 120,
@@ -259,6 +283,7 @@ it('mirrors a flag flipped inside the widget so the settings screen agrees', asy
       layout: 'stack',
       opacity: 1,
       alwaysOnTop: true,
+      remoteConnectionId: null,
       clickThrough: true,
       x: 10,
       y: 20,
@@ -317,5 +342,190 @@ describe('the empty layout', () => {
 
     const first = io.saved[0] as readonly { id: string }[];
     expect(first.map((widget) => widget.id)).toEqual(['cpu-1']);
+  });
+});
+
+describe('the grid a dragged widget lands on', () => {
+  const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  it('stores the snapped position, not the raw pointer coordinate', async () => {
+    const io = harness();
+    const { result } = mount(io);
+    await waitFor(() => {
+      expect(result.current.hydrated).toBe(true);
+    });
+    act(() => {
+      result.current.add('cpu', 'cpu-1');
+    });
+
+    act(() => {
+      io.emitMoved({ id: 'cpu-1', x: 103, y: 207 });
+    });
+
+    expect(result.current.widgets[0]).toMatchObject({ x: 104, y: 208 });
+
+    // And the snapped value is what is persisted, so a restart agrees with the
+    // screen rather than re-deriving a different position from the raw one.
+    await waitFor(() => {
+      const last = io.saved.at(-1) as readonly { x: number; y: number }[];
+      expect(last[0]).toMatchObject({ x: 104, y: 208 });
+    });
+  });
+
+  it('schedules no write when a later move lands on the same grid cell', async () => {
+    // The point of snapping, beyond two widgets lining up: every tick of a drag
+    // after the first rounds to the cell the widget is already in, so a slow
+    // drag does not turn into one disk write per frame.
+    const io = harness();
+    const { result } = mount(io);
+    await waitFor(() => {
+      expect(result.current.hydrated).toBe(true);
+    });
+    act(() => {
+      result.current.add('cpu', 'cpu-1');
+    });
+
+    act(() => {
+      io.emitMoved({ id: 'cpu-1', x: 103, y: 207 });
+    });
+    await waitFor(() => {
+      expect(io.saved.length).toBeGreaterThan(0);
+    });
+    await sleep(300);
+    const writes = io.saved.length;
+
+    // 105 and 209 round to the same 104/208, so nothing changed.
+    act(() => {
+      io.emitMoved({ id: 'cpu-1', x: 105, y: 209 });
+    });
+    await sleep(400);
+
+    expect(io.saved).toHaveLength(writes);
+  });
+});
+
+describe('the cascade for a new widget', () => {
+  it('does not drop a new widget on one that is already placed', async () => {
+    // The two widgets sit on the first two cascade slots, then the first is
+    // removed: the list length is one, so the index-based default would land the
+    // newcomer on slot one — which the survivor already occupies.
+    const first = defaultPosition(0);
+    const second = defaultPosition(1);
+    const io = harness([
+      { ...placed('cpu-1'), x: first.x, y: first.y },
+      { ...placed('mem-1'), x: second.x, y: second.y },
+    ]);
+    const { result } = mount(io);
+    await waitFor(() => {
+      expect(result.current.hydrated).toBe(true);
+    });
+
+    act(() => {
+      result.current.remove('cpu-1');
+    });
+    act(() => {
+      result.current.add('cpu', 'cpu-2');
+    });
+
+    const added = result.current.widgets.find((widget) => widget.id === 'cpu-2');
+    expect(added).toBeDefined();
+    expect({ x: added?.x, y: added?.y }).not.toEqual({ x: second.x, y: second.y });
+    // And it went to the first slot, so the cascade still fills in order.
+    expect({ x: added?.x, y: added?.y }).toEqual({ x: first.x, y: first.y });
+  });
+});
+
+describe('a widget whose screen is gone', () => {
+  const LAPTOP: ScreenRect = { x: 0, y: 0, width: 1920, height: 1080 };
+
+  it('comes back onto a screen on its own, without anyone asking', async () => {
+    const io = harness([{ ...placed('ghost-1'), x: 9000, y: 9000 }]);
+    const { result } = mount({ ...io, screens: screenSource(LAPTOP) });
+
+    // 1920 - 280 = 1640; 1080 - 170 = 910 for a medium widget.
+    await waitFor(() => {
+      expect(result.current.widgets[0]).toMatchObject({ x: 1640, y: 910 });
+    });
+
+    // Persisted, so the recovery survives a restart rather than being applied
+    // again on every open.
+    await waitFor(() => {
+      const last = io.saved.at(-1) as readonly { id: string; x: number }[];
+      expect(last[0]).toMatchObject({ id: 'ghost-1', x: 1640 });
+    });
+  });
+
+  it('can also be asked for, and asking twice changes nothing the second time', async () => {
+    const io = harness([{ ...placed('ghost-1'), x: 9000, y: 9000 }]);
+    const { result } = mount({ ...io, screens: screenSource(LAPTOP) });
+    await waitFor(() => {
+      expect(result.current.widgets[0]).toMatchObject({ x: 1640, y: 910 });
+    });
+    await waitFor(() => {
+      expect(io.saved.length).toBeGreaterThan(0);
+    });
+    const writes = io.saved.length;
+
+    act(() => {
+      result.current.bringAllOnScreen();
+    });
+    const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+    await sleep(400);
+
+    expect(result.current.widgets[0]).toMatchObject({ x: 1640, y: 910 });
+    expect(io.saved).toHaveLength(writes);
+  });
+
+  it('leaves a widget that is already on a screen exactly where it is', async () => {
+    const io = harness([{ ...placed('cpu-1'), x: 40, y: 40 }]);
+    const { result } = mount({ ...io, screens: screenSource(LAPTOP) });
+    await waitFor(() => {
+      expect(result.current.hydrated).toBe(true);
+    });
+    await waitFor(() => {
+      expect(io.saved.length).toBeGreaterThan(0);
+    });
+    const writes = io.saved.length;
+
+    act(() => {
+      result.current.bringAllOnScreen();
+    });
+    await waitFor(() => {
+      expect(result.current.widgets[0]).toMatchObject({ x: 40, y: 40 });
+    });
+
+    const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+    await sleep(400);
+
+    // Nothing moved, so nothing was written: the action must not rewrite the
+    // file just because it was called.
+    expect(io.saved).toHaveLength(writes);
+  });
+
+  it('moves nothing when no screen could be learned', async () => {
+    const io = harness([{ ...placed('ghost-1'), x: 9000, y: 9000 }]);
+    const { result } = mount({ ...io, screens: screenSource() });
+    await waitFor(() => {
+      expect(result.current.hydrated).toBe(true);
+    });
+
+    warned.length = 0;
+    act(() => {
+      result.current.bringAllOnScreen();
+    });
+
+    // An empty answer is not a licence to guess: a widget merely sitting on
+    // another monitor must not be flung somewhere else on a guess.
+    await waitFor(() => {
+      expect(warned).toHaveLength(1);
+    });
+    expect(result.current.widgets[0]).toMatchObject({ x: 9000, y: 9000 });
+
+    // And it says why. Without this assertion the guard is invisible: with it
+    // removed the outcome is the same, so nothing else could tell a reader that
+    // the branch still runs.
+    expect(warned[0]?.[0]).toBe('warn');
+    expect(warned[0]?.[2]).toBe('widgets');
+    expect(String(warned[0]?.[1])).toContain('no screens known');
   });
 });

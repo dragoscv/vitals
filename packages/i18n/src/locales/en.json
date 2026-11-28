@@ -430,11 +430,13 @@
     "subtitle": "Small always-on-top panels, each watching one thing.",
     "add": "Add a widget",
     "limit": "Up to {{count}} at once.",
+    "loading": "Loading widgets",
     "preview": "Preview",
     "unavailable": "This widget is not on screen.",
     "onScreen": "On screen",
     "offScreen": "Not on screen",
     "position": "at {{x}}, {{y}}",
+    "bringBack": "Show it again",
     "size": {
       "label": "Size",
       "small": "Small",
@@ -461,9 +463,31 @@
     "collapse": "Show the main reading only",
     "remove": "Remove the {{kind}} widget",
     "removeLabel": "Remove",
+    "source": {
+      "label": "Machine",
+      "thisMachine": "This machine"
+    },
+    "sourceFor": "Machine shown by the {{kind}} widget",
     "empty": {
       "title": "No widgets placed",
       "body": "Add one and it opens as a small panel that stays on top. Drag it wherever you want it."
+    },
+    "machines": {
+      "title": "Other machines",
+      "subtitle": "Watch a machine on your network over the LAN, so a widget keeps showing its readings while this window is closed.",
+      "empty": "No machines added yet.",
+      "name": "Name",
+      "address": "Address",
+      "token": "Key",
+      "tokenHint": "The access key that machine was given. Copy it from that machine's network screen.",
+      "key": "Key {{prefix}}…",
+      "add": "Add machine",
+      "remove": "Remove {{name}}",
+      "error": {
+        "name": "Give this machine a name you will recognise.",
+        "address": "Enter the address that machine shows, such as 192.168.1.20:7331.",
+        "token": "Enter the machine's access key. It is shown once, on that machine."
+      }
     },
     "kind": {
       "cpu": "CPU",
@@ -478,12 +502,19 @@
       "cpuTemperature": "CPU temperature",
       "diskTemperature": "Disk temperature",
       "download": "Download",
+      "fanSpeed": "Fan speed",
       "gpuTemperature": "GPU temperature",
       "hottest": "Hottest",
+      "powerDraw": "Power draw",
       "read": "Read",
       "temperature": "Temperature",
       "upload": "Upload",
       "write": "Write"
+    },
+    "remote": {
+      "loading": "Connecting to {{name}}…",
+      "unreachable": "Cannot reach {{name}}.",
+      "unauthorised": "{{name}} did not accept this widget's key."
     },
     "toolbar": {
       "pin": "Keep on top",

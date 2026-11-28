@@ -16,6 +16,9 @@ pub mod attach;
 pub mod frame_buffer;
 pub mod protocol;
 
-pub use attach::{AttachClient, AttachServer, FrameStream};
+pub use attach::{
+    AttachClient, AttachServer, FrameStream, WidgetAction, WidgetHost, WidgetInfo, WidgetKind,
+    WidgetLayout, WidgetSize, WidgetsReply,
+};
 pub use frame_buffer::{FrameBuffer, FrameReader, FrameWriter};
 pub use protocol::{Command, CommandResult, Handshake};

@@ -71,6 +71,26 @@ belongs to the desktop, so a direct sampler has none to give and exits 5. `alert
 conditions the alert engine has raised, each with its severity, the condition, the subject and the
 alert's values.
 
+## Widgets
+
+```powershell
+vitals widget --kind cpu
+vitals widget --list
+vitals widget --close w3
+```
+
+A widget is a window, so only the desktop app can draw one: every `widget` command attaches to the
+running app, and there is no direct-sampler equivalent. `--kind` opens one showing `cpu`, `memory`,
+`disk`, `network`, `thermal` or `overview`; `--list` prints the widgets that are open, each with the
+id `--close` takes. An open also accepts `--size small|medium|large` (default `small`) and
+`--layout stack|split|ring` (default `stack`; `ring` is drawn only for `cpu` and `memory`), and an
+optional `--x`/`--y` position in pixels — without one the app cascades the widget to a free spot.
+Exactly one of `--kind`, `--close` and `--list` is required. `--json` prints the action, the
+resulting widget list and, for an open or close, the affected id.
+
+When no app answers the exit code is 3; when an app answers and will not do it — a build older than
+this command, or one with no widget handler — it is 6.
+
 ## Efficiency mode
 
 ```powershell
@@ -174,37 +194,39 @@ data the table shows, and a value that was never measured is `null` or omitted, 
 
 `--source`, `--attach` and `--no-attach` cannot be combined.
 
-| Command                         | Options                                                                                                                                                                                                                                             |
-| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `vitals ps`                     | `-f`, `--filter <TEXT>`: only processes whose name contains it. `-n`, `--top <N>`: the N highest consumers (0, the default, means all).                                                                                                             |
-| `vitals top`                    | `-i`, `--interval <MS>`: refresh interval in milliseconds, default 1000.                                                                                                                                                                            |
-| `vitals info`                   | None.                                                                                                                                                                                                                                               |
-| `vitals eco <PID>`              | `--off`: restore normal scheduling instead of turning efficiency mode on.                                                                                                                                                                           |
-| `vitals kill <PID>`             | None. Ends the process.                                                                                                                                                                                                                             |
-| `vitals suspend <PID>`          | None. Freezes the process until `vitals resume`.                                                                                                                                                                                                    |
-| `vitals resume <PID>`           | None.                                                                                                                                                                                                                                               |
-| `vitals priority <PID> <LEVEL>` | `idle`, `below-normal`, `normal`, `above-normal`, `high` or `realtime`.                                                                                                                                                                             |
-| `vitals report`                 | `-d`, `--duration <SECONDS>`: how long to record, default 60. `-o`, `--output <PATH>`: where to write the JSON.                                                                                                                                     |
-| `vitals sensors`                | None. Every sensor reading the machine can make.                                                                                                                                                                                                    |
-| `vitals history`                | `-s`, `--seconds <N>`: how far back to look, default 300.                                                                                                                                                                                           |
-| `vitals alerts`                 | None. What the alert engine has raised.                                                                                                                                                                                                             |
-| `vitals mcp`                    | None. Serve the machine over MCP on standard input and output (read-only).                                                                                                                                                                          |
-| `vitals completions <SHELL>`    | `bash`, `elvish`, `fish`, `powershell` or `zsh`.                                                                                                                                                                                                    |
-| `vitals serve`                  | `-p`, `--port <PORT>`: default 7331. `--token <TOKEN>`: use this token instead of generating one. `--json`: print the server object and keep serving. `--mqtt <URL>`, `--mqtt-interval <N>`: publish to MQTT. `--control` is refused (exit code 4). |
+| Command                         | Options                                                                                                                                                                                                                                                  |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `vitals ps`                     | `-f`, `--filter <TEXT>`: only processes whose name contains it. `-n`, `--top <N>`: the N highest consumers (0, the default, means all).                                                                                                                  |
+| `vitals top`                    | `-i`, `--interval <MS>`: refresh interval in milliseconds, default 1000.                                                                                                                                                                                 |
+| `vitals info`                   | None.                                                                                                                                                                                                                                                    |
+| `vitals eco <PID>`              | `--off`: restore normal scheduling instead of turning efficiency mode on.                                                                                                                                                                                |
+| `vitals kill <PID>`             | None. Ends the process.                                                                                                                                                                                                                                  |
+| `vitals suspend <PID>`          | None. Freezes the process until `vitals resume`.                                                                                                                                                                                                         |
+| `vitals resume <PID>`           | None.                                                                                                                                                                                                                                                    |
+| `vitals priority <PID> <LEVEL>` | `idle`, `below-normal`, `normal`, `above-normal`, `high` or `realtime`.                                                                                                                                                                                  |
+| `vitals report`                 | `-d`, `--duration <SECONDS>`: how long to record, default 60. `-o`, `--output <PATH>`: where to write the JSON.                                                                                                                                          |
+| `vitals sensors`                | None. Every sensor reading the machine can make.                                                                                                                                                                                                         |
+| `vitals history`                | `-s`, `--seconds <N>`: how far back to look, default 300.                                                                                                                                                                                                |
+| `vitals alerts`                 | None. What the alert engine has raised.                                                                                                                                                                                                                  |
+| `vitals widget`                 | `--kind <cpu\|memory\|disk\|network\|thermal\|overview>`: open a widget. `--size <small\|medium\|large>`, `--layout <stack\|split\|ring>`, `--x <N>`, `--y <N>`: its shape and position. `--close <ID>`: close one. `--list`: the widgets that are open. |
+| `vitals mcp`                    | None. Serve the machine over MCP on standard input and output (read-only).                                                                                                                                                                               |
+| `vitals completions <SHELL>`    | `bash`, `elvish`, `fish`, `powershell` or `zsh`.                                                                                                                                                                                                         |
+| `vitals serve`                  | `-p`, `--port <PORT>`: default 7331. `--token <TOKEN>`: use this token instead of generating one. `--json`: print the server object and keep serving. `--mqtt <URL>`, `--mqtt-interval <N>`: publish to MQTT. `--control` is refused (exit code 4).      |
 
 `serve` never attaches to the desktop app, so a headless server does not go dark when the window
 closes.
 
 ## Exit codes
 
-| Code | Meaning                                                                                               |
-| ---- | ----------------------------------------------------------------------------------------------------- |
-| 0    | Success.                                                                                              |
-| 1    | An error that is not one of the codes below.                                                          |
-| 2    | A usage error (bad arguments), reported by the argument parser.                                       |
-| 3    | Could not reach the app (no attach pipe, nothing at `--attach`), or this machine has no sampler.      |
-| 4    | A control action was refused — read-only scope, a protected process, or a headless `serve --control`. |
-| 5    | The named thing was not found: a PID absent from the sample, or data the source does not keep.        |
+| Code | Meaning                                                                                                                                                                         |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0    | Success.                                                                                                                                                                        |
+| 1    | An error that is not one of the codes below.                                                                                                                                    |
+| 2    | A usage error (bad arguments), reported by the argument parser.                                                                                                                 |
+| 3    | Could not reach the app (no attach pipe, nothing at `--attach`), or this machine has no sampler.                                                                                |
+| 4    | A control action was refused — read-only scope, a protected process, or a headless `serve --control`.                                                                           |
+| 5    | The named thing was not found: a PID absent from the sample, or data the source does not keep.                                                                                  |
+| 6    | The app is running and heard the request, but cannot carry it out — an older build that does not know the message, or one whose UI does not serve it over the transport in use. |
 
 A script can branch on these without reading English off standard error, for example
 `if ($LASTEXITCODE -eq 3) { 'is Vitals running?' }`.

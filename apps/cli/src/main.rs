@@ -216,6 +216,20 @@ enum Commands {
     },
     /// Alerts currently raised, from the same engine the desktop evaluates.
     Alerts,
+    /// List, open or close widgets on the running app.
+    ///
+    /// Widgets are windows, so only the app that owns them can do this: the
+    /// command always asks the running Vitals over its attach pipe, and there
+    /// is no direct-sampler equivalent. An open names the reading, its size
+    /// (`small` by default) and its layout (`stack` by default); a position
+    /// is optional and the app cascades to a free spot without one.
+    ///
+    /// Exactly one of `--kind`, `--close` and `--list` is required. An
+    /// unknown name for any of them is a usage error (exit 2). When no app
+    /// answers the exit code is 3; when an app answers and will not do it —
+    /// a build older than this message, or one with no widget handler — it is
+    /// 6, so a script can tell "start the app" from "upgrade it".
+    Widget(commands::widget::Widget),
 }
 
 fn main() {
@@ -277,6 +291,7 @@ fn run() -> Result<()> {
         Commands::Sensors => commands::sensors::run(&source, cli.json),
         Commands::History { seconds } => commands::history::run(&source, seconds, cli.json),
         Commands::Alerts => commands::alerts::run(&mut source, cli.json),
+        Commands::Widget(args) => commands::widget::run(&mut source, &args, cli.json),
         Commands::Eco { pid, off } => commands::eco::run(&mut source, pid, !off, cli.json),
         Commands::Kill { pid } => {
             commands::act::run(&mut source, pid, commands::act::Action::Kill, cli.json)
@@ -450,6 +465,60 @@ mod tests {
                 assert_eq!(mqtt_interval, None);
             }
             other => panic!("expected Serve, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn widget_parses_the_three_actions_and_the_open_options() {
+        let cli = Cli::try_parse_from([
+            "vitals", "widget", "--kind", "cpu", "--size", "large", "--layout", "ring", "--x",
+            "10", "--y", "20",
+        ])
+        .unwrap();
+        match cli.command {
+            Commands::Widget(args) => {
+                assert_eq!(args.kind, Some(commands::widget::Kind::Cpu));
+                assert_eq!(args.size, Some(commands::widget::Size::Large));
+                assert_eq!(args.layout, Some(commands::widget::Layout::Ring));
+                assert_eq!(args.x, Some(10.0));
+                assert_eq!(args.y, Some(20.0));
+                assert!(!args.list);
+            }
+            other => panic!("expected Widget, got {other:?}"),
+        }
+
+        let cli = Cli::try_parse_from(["vitals", "widget", "--close", "w3"]).unwrap();
+        assert!(matches!(
+            cli.command,
+            Commands::Widget(commands::widget::Widget {
+                close: Some(ref id),
+                ..
+            }) if id == "w3"
+        ));
+
+        let cli = Cli::try_parse_from(["vitals", "widget", "--list", "--json"]).unwrap();
+        assert!(cli.json);
+        assert!(matches!(
+            cli.command,
+            Commands::Widget(commands::widget::Widget { list: true, .. })
+        ));
+    }
+
+    #[test]
+    fn widget_refuses_a_missing_action_a_second_action_and_an_unknown_name() {
+        for args in [
+            vec!["vitals", "widget"],
+            vec!["vitals", "widget", "--kind", "cpu", "--close", "w1"],
+            vec!["vitals", "widget", "--list", "--kind", "cpu"],
+            vec!["vitals", "widget", "--kind", "gpu"],
+            vec!["vitals", "widget", "--kind", "cpu", "--size", "huge"],
+            vec!["vitals", "widget", "--kind", "cpu", "--layout", "grid"],
+            vec!["vitals", "widget", "--list", "--size", "large"],
+        ] {
+            assert!(
+                Cli::try_parse_from(&args).is_err(),
+                "{args:?} should be refused"
+            );
         }
     }
 }

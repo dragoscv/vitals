@@ -4,7 +4,8 @@
 //! parsing English off stderr: it could not reach a Vitals to ask (is the app
 //! even running?), its request was refused (Windows protects this process),
 //! or the thing it named does not exist (that PID is gone). Those get codes
-//! 3, 4 and 5; anything else is 1, and clap's own usage errors stay at 2.
+//! 3, 4 and 5; a source that is running but cannot do what was asked gets 6;
+//! anything else is 1, and clap's own usage errors stay at 2.
 //!
 //! The code is carried on the error itself, not decided by matching its
 //! message: a message is prose that gets reworded, and a `contains("refused")`
@@ -28,6 +29,12 @@ pub const CONTROL_REFUSED: i32 = 4;
 /// The named thing was not found: a PID absent from the sample, or data the
 /// source does not keep (history on a direct sampler).
 pub const NOT_FOUND: i32 = 5;
+/// The app is running and heard the request, but cannot carry it out — an
+/// older build that does not know the message, or one whose UI does not
+/// serve this over the transport in use. Distinct from [`LINK_FAILURE`] on
+/// purpose: "there is no app to ask" and "the app said no" need different
+/// handling in a script (`start the app` versus `upgrade it`).
+pub const UNSUPPORTED: i32 = 6;
 
 /// An error carrying the exit code its call site chose.
 ///
@@ -75,6 +82,11 @@ pub fn not_found<E: Into<anyhow::Error>>(error: E) -> anyhow::Error {
     tag(NOT_FOUND, error)
 }
 
+/// The source heard the request and cannot carry it out.
+pub fn unsupported<E: Into<anyhow::Error>>(error: E) -> anyhow::Error {
+    tag(UNSUPPORTED, error)
+}
+
 /// The exit code an error should produce.
 ///
 /// Walks the whole `anyhow` chain, so a tagged error wrapped in `.context(…)`
@@ -107,6 +119,17 @@ mod tests {
             code_for(&control_refused(anyhow::anyhow!("x"))),
             CONTROL_REFUSED
         );
+        assert_eq!(code_for(&unsupported(anyhow::anyhow!("x"))), UNSUPPORTED);
+    }
+
+    #[test]
+    fn a_source_that_cannot_do_it_is_not_reported_as_an_unreachable_one() {
+        // The two are a script's "start the app" and "upgrade the app": the
+        // codes must not collide, and neither may be the generic 1.
+        assert_ne!(UNSUPPORTED, LINK_FAILURE);
+        assert_ne!(UNSUPPORTED, FAILURE);
+        assert_ne!(UNSUPPORTED, CONTROL_REFUSED);
+        assert_ne!(UNSUPPORTED, NOT_FOUND);
     }
 
     #[test]

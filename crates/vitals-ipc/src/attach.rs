@@ -187,7 +187,7 @@ fn listener_options(name: Name<'static>) -> io::Result<ListenerOptions<'static>>
 // ── Protocol ─────────────────────────────────────────────────────────────
 
 /// What a client may ask for. One line each, `{"op":"…"}`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "kebab-case")]
 pub enum Request {
     /// Version check. Answered with [`Hello`].
@@ -196,6 +196,199 @@ pub enum Request {
     Subscribe,
     /// One complete frame, then the connection closes.
     Snapshot,
+    /// List, open or close a widget on the running app. Answered with
+    /// [`WidgetsReply`] or an [`ErrorReply`], then the connection closes.
+    ///
+    /// ## Wire shape
+    ///
+    /// The request is `{"op":"widget","action":<WidgetAction>}`; the action
+    /// is itself tagged with `verb` (kebab-case):
+    ///
+    /// ```text
+    /// {"op":"widget","action":{"verb":"list"}}
+    /// {"op":"widget","action":{"verb":"open","kind":"cpu","size":"small","layout":"stack"}}
+    /// {"op":"widget","action":{"verb":"open","kind":"memory","size":"medium","layout":"ring","x":100.0,"y":40.0}}
+    /// {"op":"widget","action":{"verb":"close","id":"w3"}}
+    /// ```
+    ///
+    /// `x`/`y` are omitted when absent, so an app that cascades a new widget
+    /// to a free spot is told nothing and decides for itself. The reply is one
+    /// line and always carries the full resulting list:
+    ///
+    /// ```text
+    /// {"status":"ok","widgets":[{"id":"w3","kind":"cpu","size":"small","layout":"stack"}],"id":"w3"}
+    /// ```
+    ///
+    /// `id` names the widget an `open` created, or the one a `close` removed;
+    /// it is absent for `list` and for a `close` of an id that was not open.
+    ///
+    /// ## An older app
+    ///
+    /// The protocol carries no per-message version: an app built before this
+    /// message fails to parse the unknown `op` and answers an [`ErrorReply`]
+    /// naming the parse failure rather than a [`WidgetsReply`]. There is no
+    /// magic number to negotiate, so the client treats *any* error in place of
+    /// a reply as "the app did not carry the request out" — a distinct,
+    /// explicit failure from "there is no app to ask" (no pipe at all).
+    Widget { action: WidgetAction },
+}
+
+/// What a [`Request::Widget`] asks the app to do.
+///
+/// Tagged with `verb` so all three operations share one message shape.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "verb", rename_all = "kebab-case")]
+pub enum WidgetAction {
+    /// The widgets the app currently has open.
+    List,
+    /// Open a widget and report the full list afterwards. The app assigns the
+    /// id and returns it in [`WidgetsReply::id`].
+    Open {
+        kind: WidgetKind,
+        size: WidgetSize,
+        layout: WidgetLayout,
+        /// Logical left, omitted to let the app cascade to a free spot.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        x: Option<f64>,
+        /// Logical top, omitted to let the app cascade to a free spot.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        y: Option<f64>,
+    },
+    /// Close the widget with this id. Closing an id that is not open is not an
+    /// error: [`WidgetsReply::id`] is simply absent.
+    Close { id: String },
+}
+
+impl WidgetAction {
+    /// The verb, exactly as it is written on the wire.
+    #[must_use]
+    pub const fn verb(&self) -> &'static str {
+        match self {
+            Self::List => "list",
+            Self::Open { .. } => "open",
+            Self::Close { .. } => "close",
+        }
+    }
+}
+
+/// What a widget shows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum WidgetKind {
+    Cpu,
+    Memory,
+    Disk,
+    Network,
+    Thermal,
+    Overview,
+}
+
+impl WidgetKind {
+    /// The wire spelling, identical to what serde writes.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Cpu => "cpu",
+            Self::Memory => "memory",
+            Self::Disk => "disk",
+            Self::Network => "network",
+            Self::Thermal => "thermal",
+            Self::Overview => "overview",
+        }
+    }
+}
+
+/// How large a widget window is.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum WidgetSize {
+    Small,
+    Medium,
+    Large,
+}
+
+impl WidgetSize {
+    /// The wire spelling, identical to what serde writes.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Small => "small",
+            Self::Medium => "medium",
+            Self::Large => "large",
+        }
+    }
+}
+
+/// How a widget lays its reading out. `ring` is only ever drawn for `cpu` and
+/// `memory`; the app downgrades it for any other kind.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum WidgetLayout {
+    Stack,
+    Split,
+    Ring,
+}
+
+impl WidgetLayout {
+    /// The wire spelling, identical to what serde writes.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Stack => "stack",
+            Self::Split => "split",
+            Self::Ring => "ring",
+        }
+    }
+}
+
+/// One open widget, as the app reports it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WidgetInfo {
+    pub id: String,
+    pub kind: WidgetKind,
+    pub size: WidgetSize,
+    pub layout: WidgetLayout,
+}
+
+/// The app's answer to a [`Request::Widget`].
+///
+/// Always the full, current list, whatever the action was, so `open` and
+/// `close` are answered with the state they produced rather than a bare
+/// acknowledgement.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WidgetsReply {
+    pub status: String,
+    pub widgets: Vec<WidgetInfo>,
+    /// The widget an `open` created, or the one a `close` removed. Absent for
+    /// `list`, and for a `close` of an id that was not open.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+}
+
+impl WidgetsReply {
+    /// A successful reply carrying `widgets`, naming `id` when one was acted
+    /// on.
+    #[must_use]
+    pub fn ok(widgets: Vec<WidgetInfo>, id: Option<String>) -> Self {
+        Self {
+            status: "ok".to_owned(),
+            widgets,
+            id,
+        }
+    }
+}
+
+/// Answers widget requests on behalf of the running app.
+///
+/// The pipe carries the request but owns no windows: only the app can open or
+/// close one, so the server forwards to a handler the app registers with
+/// [`AttachServer::set_widget_host`]. Until one is registered a widget request
+/// is answered with an error rather than left unanswered.
+pub trait WidgetHost: Send + Sync + 'static {
+    /// Lists, opens or closes. `Err` is the message the client's user sees.
+    fn widgets(&self, action: &WidgetAction) -> Result<WidgetsReply, String>;
 }
 
 /// Reply to [`Request::Hello`].
@@ -386,6 +579,24 @@ struct Shared {
     /// before cloning a frame.
     clients: AtomicUsize,
     stopping: AtomicBool,
+    /// The app's widget handler. `None` until the app registers one, when a
+    /// widget request is answered with an error.
+    host: HostSlot,
+}
+
+/// The app's widget handler, set once after `start`.
+///
+/// A named newtype so [`Shared`] can keep its derived `Debug`: a trait object
+/// is not `Debug`, and the handler is nobody's business in a debug line.
+#[derive(Default)]
+struct HostSlot(Mutex<Option<Arc<dyn WidgetHost>>>);
+
+impl std::fmt::Debug for HostSlot {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("HostSlot")
+            .field("registered", &self.0.lock().is_some())
+            .finish()
+    }
 }
 
 /// Decrements the client count however the handler exits.
@@ -446,6 +657,15 @@ impl AttachServer {
     #[must_use]
     pub fn has_clients(&self) -> bool {
         self.shared.clients.load(Ordering::Relaxed) > 0
+    }
+
+    /// Registers the app's widget handler.
+    ///
+    /// The pipe can carry a widget request but cannot open a window; only the
+    /// app can, so only the app can answer. Until a handler is registered a
+    /// widget request is refused with an error rather than left unanswered.
+    pub fn set_widget_host(&self, host: Arc<dyn WidgetHost>) {
+        *self.shared.host.0.lock() = Some(host);
     }
 
     /// True when a client is waiting and the server holds no complete view
@@ -589,6 +809,9 @@ fn serve_connection(conn: Stream, shared: &Arc<Shared>, version: &str) -> io::Re
                 )?,
                 Ok(Request::Snapshot) => return serve_snapshot(reader.get_mut(), shared),
                 Ok(Request::Subscribe) => return serve_subscribe(reader.get_mut(), shared),
+                Ok(Request::Widget { action }) => {
+                    return serve_widget(reader.get_mut(), shared, &action);
+                }
                 Err(error) => {
                     write_error(reader.get_mut(), &error.to_string())?;
                     return Err(error.into());
@@ -645,6 +868,26 @@ fn serve_subscribe(out: &mut Stream, shared: &Shared) -> io::Result<()> {
     }
 }
 
+/// Answers one widget request from the app's handler, or refuses it.
+///
+/// One request per connection, like `snapshot`. An app that registered no
+/// handler — an older build, or one that has not wired widgets up yet — is
+/// told so in words, so the client can report a failure distinct from "the app
+/// is not running".
+fn serve_widget(out: &mut Stream, shared: &Shared, action: &WidgetAction) -> io::Result<()> {
+    let host = shared.host.0.lock().clone();
+    let Some(host) = host else {
+        return write_error(
+            out,
+            "this build of Vitals does not offer widgets over the attach pipe",
+        );
+    };
+    match host.widgets(action) {
+        Ok(reply) => write_line(out, &reply),
+        Err(message) => write_error(out, &message),
+    }
+}
+
 // ── Client ───────────────────────────────────────────────────────────────
 
 /// The CLI's end of the pipe.
@@ -675,8 +918,8 @@ impl AttachClient {
         Ok((client, hello))
     }
 
-    fn send(&mut self, request: Request) -> io::Result<()> {
-        write_line(self.stream.get_mut(), &request)
+    fn send(&mut self, request: &Request) -> io::Result<()> {
+        write_line(self.stream.get_mut(), request)
     }
 
     fn read_line(&mut self) -> io::Result<Option<String>> {
@@ -717,7 +960,7 @@ impl AttachClient {
     /// # Errors
     /// The connection failed or the reply was not a `Hello`.
     pub fn hello(&mut self) -> io::Result<Hello> {
-        self.send(Request::Hello)?;
+        self.send(&Request::Hello)?;
         let line = self
             .read_line()?
             .ok_or_else(|| io::Error::new(io::ErrorKind::UnexpectedEof, "closed before hello"))?;
@@ -736,9 +979,39 @@ impl AttachClient {
     /// The app had nothing complete within a few seconds (paused?), or the
     /// connection failed.
     pub fn snapshot(mut self) -> io::Result<Frame> {
-        self.send(Request::Snapshot)?;
+        self.send(&Request::Snapshot)?;
         self.read_frame()?
             .ok_or_else(|| io::Error::new(io::ErrorKind::UnexpectedEof, "closed before a frame"))
+    }
+
+    /// One widget listing, opening or closing. Consumes the connection.
+    ///
+    /// # Errors
+    /// The app did not answer with a [`WidgetsReply`]: an [`ErrorReply`] in
+    /// its place (an older build that does not understand the message, or a
+    /// refusal) becomes [`ProtocolError::Server`], and a closed connection
+    /// becomes an unexpected-EOF error. The caller decides how to report the
+    /// difference between "the app refused" and "there is no app".
+    pub fn widget(mut self, action: WidgetAction) -> io::Result<WidgetsReply> {
+        self.send(&Request::Widget { action })?;
+        let line = self
+            .read_line()?
+            .ok_or_else(|| io::Error::new(io::ErrorKind::UnexpectedEof, "closed before a reply"))?;
+        match serde_json::from_str::<WidgetsReply>(&line) {
+            Ok(reply) => Ok(reply),
+            Err(reply_error) => {
+                // Not a reply: the server's error object, or noise. Report the
+                // server's words when it has some.
+                if let Ok(error) = serde_json::from_str::<ErrorReply>(&line) {
+                    return Err(ProtocolError::Server(error.message).into());
+                }
+                Err(ProtocolError::Malformed {
+                    line: line.trim().to_owned(),
+                    reason: reply_error,
+                }
+                .into())
+            }
+        }
     }
 
     /// Streams frames until the app goes away. Consumes the connection.
@@ -746,7 +1019,7 @@ impl AttachClient {
     /// # Errors
     /// The connection failed.
     pub fn subscribe(mut self) -> io::Result<FrameStream> {
-        self.send(Request::Subscribe)?;
+        self.send(&Request::Subscribe)?;
         Ok(FrameStream { client: self })
     }
 }
@@ -818,6 +1091,130 @@ mod tests {
                 .unwrap()
                 .contains("modelVersion")
         );
+    }
+
+    #[test]
+    fn a_widget_request_round_trips_with_the_field_names_the_app_parses() {
+        // The exact shapes the app is written against, pinned so a rename
+        // fails here rather than silently sending a field the app ignores.
+        let cases = [
+            (
+                WidgetAction::List,
+                serde_json::json!({"op":"widget","action":{"verb":"list"}}),
+            ),
+            (
+                WidgetAction::Open {
+                    kind: WidgetKind::Cpu,
+                    size: WidgetSize::Small,
+                    layout: WidgetLayout::Stack,
+                    x: None,
+                    y: None,
+                },
+                serde_json::json!({
+                    "op":"widget",
+                    "action":{"verb":"open","kind":"cpu","size":"small","layout":"stack"}
+                }),
+            ),
+            (
+                WidgetAction::Open {
+                    kind: WidgetKind::Memory,
+                    size: WidgetSize::Medium,
+                    layout: WidgetLayout::Ring,
+                    x: Some(100.0),
+                    y: Some(40.5),
+                },
+                serde_json::json!({
+                    "op":"widget",
+                    "action":{"verb":"open","kind":"memory","size":"medium","layout":"ring","x":100.0,"y":40.5}
+                }),
+            ),
+            (
+                WidgetAction::Close { id: "w3".into() },
+                serde_json::json!({"op":"widget","action":{"verb":"close","id":"w3"}}),
+            ),
+        ];
+        for (action, expected) in cases {
+            let request = Request::Widget {
+                action: action.clone(),
+            };
+            assert_eq!(serde_json::to_value(&request).unwrap(), expected);
+            // The accessor the CLI prints from must be the tag on the wire,
+            // or an `open` would print one verb and send another.
+            assert_eq!(
+                serde_json::to_value(&action).unwrap()["verb"],
+                action.verb(),
+                "{action:?}"
+            );
+            // And back: a line the client wrote decodes to the same request.
+            let decoded: Request = serde_json::from_value(expected).unwrap();
+            assert_eq!(decoded, request);
+        }
+    }
+
+    #[test]
+    fn the_widget_wire_spellings_are_the_literals_the_app_compares() {
+        // `as_str` is what the CLI renders and what the app matches; serde is
+        // what crosses the wire. A mismatch would show `cpu` and send `Cpu`.
+        for kind in [
+            WidgetKind::Cpu,
+            WidgetKind::Memory,
+            WidgetKind::Disk,
+            WidgetKind::Network,
+            WidgetKind::Thermal,
+            WidgetKind::Overview,
+        ] {
+            assert_eq!(
+                serde_json::to_value(kind).unwrap(),
+                serde_json::Value::String(kind.as_str().to_owned())
+            );
+        }
+        for size in [WidgetSize::Small, WidgetSize::Medium, WidgetSize::Large] {
+            assert_eq!(
+                serde_json::to_value(size).unwrap(),
+                serde_json::Value::String(size.as_str().to_owned())
+            );
+        }
+        for layout in [WidgetLayout::Stack, WidgetLayout::Split, WidgetLayout::Ring] {
+            assert_eq!(
+                serde_json::to_value(layout).unwrap(),
+                serde_json::Value::String(layout.as_str().to_owned())
+            );
+        }
+    }
+
+    #[test]
+    fn a_widgets_reply_names_a_widget_only_when_one_was_acted_on() {
+        let listed = WidgetsReply::ok(
+            vec![WidgetInfo {
+                id: "w3".into(),
+                kind: WidgetKind::Cpu,
+                size: WidgetSize::Small,
+                layout: WidgetLayout::Stack,
+            }],
+            None,
+        );
+        let value = serde_json::to_value(&listed).unwrap();
+        assert!(value.get("id").is_none(), "a list carries no id: {value}");
+        assert_eq!(value["status"], "ok");
+        assert_eq!(value["widgets"][0]["id"], "w3");
+        assert_eq!(value["widgets"][0]["layout"], "stack");
+
+        let opened = WidgetsReply::ok(vec![], Some("w4".into()));
+        let value = serde_json::to_value(&opened).unwrap();
+        assert_eq!(value["id"], "w4");
+        // And the reply the app builds decodes back into the same shape.
+        let decoded: WidgetsReply = serde_json::from_value(value).unwrap();
+        assert_eq!(decoded, opened);
+    }
+
+    #[test]
+    fn an_unknown_operation_is_malformed_not_misread_as_a_widget_request() {
+        // The rejection an older build produces for a message it was not
+        // written against: the line fails to decode and is not guessed at.
+        let mut decoder = Decoder::default();
+        let got = decoder.push(b"{\"op\":\"widgets\"}\n");
+        assert_eq!(got.len(), 1);
+        assert!(matches!(got[0], Err(ProtocolError::Malformed { .. })));
     }
 
     #[test]

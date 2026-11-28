@@ -137,14 +137,18 @@ function Ring({
   label,
   value,
 }: {
-  readonly percent: number;
+  /** 0–100, or `null` when nothing has been measured yet. */
+  readonly percent: number | null;
   readonly stroke: string;
   readonly label: string;
   readonly value: string;
 }): React.JSX.Element {
   const r = 26;
   const circumference = 2 * Math.PI * r;
-  const clamped = Math.min(100, Math.max(0, percent));
+  // `null` draws the track and nothing else. An arc pinned at zero would be a
+  // reading — "this machine is using none of it" — and the honest one is that
+  // nothing has been measured yet, which the em dash in `value` already says.
+  const filled = percent === null ? 0 : Math.min(100, Math.max(0, percent));
   return (
     <div className="relative grid size-[68px] shrink-0 place-items-center">
       <svg viewBox="0 0 64 64" className="size-[68px]" aria-hidden="true">
@@ -164,7 +168,7 @@ function Ring({
           stroke={stroke}
           strokeWidth="5"
           strokeLinecap="round"
-          strokeDasharray={`${((clamped / 100) * circumference).toFixed(2)} ${circumference.toFixed(2)}`}
+          strokeDasharray={`${((filled / 100) * circumference).toFixed(2)} ${circumference.toFixed(2)}`}
           // Start at twelve o'clock rather than three, which is where every
           // other gauge in the product starts.
           transform="rotate(-90 32 32)"
@@ -229,8 +233,12 @@ export function WidgetPreview({
   // travel.
   const morph = morphTransition(reduced);
 
+  // The ring is drawn whenever the layout asks for it, even before the reading
+  // has a percentage: a widget placed on a screen seconds after boot must show
+  // "—" inside a gauge, not an empty panel that looks broken until the first
+  // sample arrives.
   const body =
-    spec.layout === 'ring' && lead !== null && lead.percent !== null ? (
+    spec.layout === 'ring' && lead !== null ? (
       <Ring
         percent={lead.percent}
         stroke={TONE_COLOUR[lead.tone]}
@@ -248,7 +256,14 @@ export function WidgetPreview({
         'flex h-full w-full flex-col gap-1.5 overflow-hidden rounded-xl border px-3 py-2',
         'text-[var(--color-fg-default)] select-none',
         spec.style === 'glass'
-          ? 'border-[rgb(255_255_255/0.16)] bg-[rgb(20_20_24/0.55)]'
+          ? // 0.84, not 0.55, and measured rather than guessed: at 0.55 the
+            // muted label over a white wallpaper came out at 1.64:1 and the
+            // default text at 3.51:1 — both under WCAG AA. Muted text needs 0.84
+            // and default text 0.63 to clear 4.5:1 over the worst case, so the
+            // single value that keeps every label legible is the larger one.
+            // A translucent panel can never be guaranteed against an arbitrary
+            // wallpaper; `plain` is the style that is.
+            'border-[rgb(255_255_255/0.16)] bg-[rgb(20_20_24/0.84)]'
           : 'border-[rgb(255_255_255/0.08)] bg-[rgb(20_20_24/0.92)]',
         'motion-reduce:transition-none',
         className,

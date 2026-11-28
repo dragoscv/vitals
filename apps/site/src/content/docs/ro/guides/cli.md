@@ -71,6 +71,27 @@ departe în urmă să privească (implicit 300) — istoricul aparține aplicaț
 eșantionator direct nu are ce să dea și iese cu codul 5. `alerts` listează condițiile pe care le-a
 ridicat motorul de alerte, fiecare cu severitatea, condiția, subiectul și valorile alertei.
 
+## Widgeturi
+
+```powershell
+vitals widget --kind cpu
+vitals widget --list
+vitals widget --close w3
+```
+
+Un widget este o fereastră, așa că doar aplicația desktop o poate desena: fiecare comandă `widget`
+se atașează la aplicația pornită și nu are echivalent pe un eșantionator direct. `--kind` deschide
+unul care arată `cpu`, `memory`, `disk`, `network`, `thermal` sau `overview`; `--list` afișează
+widgeturile deschise, fiecare cu id-ul pe care îl ia `--close`. O deschidere acceptă în plus
+`--size small|medium|large` (implicit `small`) și `--layout stack|split|ring` (implicit `stack`;
+`ring` este desenat doar pentru `cpu` și `memory`) și o poziție opțională `--x`/`--y` în pixeli —
+fără ea, aplicația așază widgetul într-un loc liber. Exact una dintre `--kind`, `--close` și
+`--list` este obligatorie. `--json` afișează acțiunea, lista rezultată de widgeturi și, pentru o
+deschidere sau o închidere, id-ul afectat.
+
+Când nu răspunde nicio aplicație, codul de ieșire este 3; când o aplicație răspunde și nu vrea să o
+facă — o versiune mai veche decât această comandă sau una fără handler de widgeturi — este 6.
+
 ## Modul de eficiență
 
 ```powershell
@@ -192,6 +213,7 @@ date ca tabelul, iar o valoare care nu a fost măsurată niciodată este `null` 
 | `vitals sensors`                | Niciuna. Fiecare citire de senzor pe care o poate face calculatorul.                                                                                                                                                                                               |
 | `vitals history`                | `-s`, `--seconds <N>`: cât de departe în urmă, implicit 300.                                                                                                                                                                                                       |
 | `vitals alerts`                 | Niciuna. Ce a ridicat motorul de alerte.                                                                                                                                                                                                                           |
+| `vitals widget`                 | `--kind <cpu\|memory\|disk\|network\|thermal\|overview>`: deschide un widget. `--size <small\|medium\|large>`, `--layout <stack\|split\|ring>`, `--x <N>`, `--y <N>`: forma și poziția lui. `--close <ID>`: închide unul. `--list`: widgeturile deschise.          |
 | `vitals mcp`                    | Niciuna. Servește calculatorul prin MCP pe intrarea și ieșirea standard (doar-citire).                                                                                                                                                                             |
 | `vitals completions <SHELL>`    | `bash`, `elvish`, `fish`, `powershell` sau `zsh`.                                                                                                                                                                                                                  |
 | `vitals serve`                  | `-p`, `--port <PORT>`: implicit 7331. `--token <TOKEN>`: folosește acest token în loc să genereze unul. `--json`: afișează obiectul serverului și continuă să servească. `--mqtt <URL>`, `--mqtt-interval <N>`: publică pe MQTT. `--control` este refuzat (cod 4). |
@@ -201,14 +223,15 @@ odată cu fereastra.
 
 ## Coduri de ieșire
 
-| Cod | Semnificație                                                                                                          |
-| --- | --------------------------------------------------------------------------------------------------------------------- |
-| 0   | Succes.                                                                                                               |
-| 1   | O eroare care nu este niciuna dintre cele de mai jos.                                                                 |
-| 2   | O eroare de utilizare (argumente greșite), raportată de parserul de argumente.                                        |
-| 3   | Aplicația nu a putut fi atinsă (niciun canal de atașare, nimic la `--attach`) sau calculatorul nu are eșantionator.   |
-| 4   | O acțiune de control a fost refuzată — acces doar-citire, un proces protejat sau un `serve --control` fără interfață. |
-| 5   | Elementul numit nu a fost găsit: un PID absent din eșantion sau date pe care sursa nu le păstrează.                   |
+| Cod | Semnificație                                                                                                                                                                     |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0   | Succes.                                                                                                                                                                          |
+| 1   | O eroare care nu este niciuna dintre cele de mai jos.                                                                                                                            |
+| 2   | O eroare de utilizare (argumente greșite), raportată de parserul de argumente.                                                                                                   |
+| 3   | Aplicația nu a putut fi atinsă (niciun canal de atașare, nimic la `--attach`) sau calculatorul nu are eșantionator.                                                              |
+| 4   | O acțiune de control a fost refuzată — acces doar-citire, un proces protejat sau un `serve --control` fără interfață.                                                            |
+| 5   | Elementul numit nu a fost găsit: un PID absent din eșantion sau date pe care sursa nu le păstrează.                                                                              |
+| 6   | Aplicația rulează și a auzit cererea, dar nu o poate îndeplini — o versiune mai veche care nu cunoaște mesajul sau una a cărei interfață nu o servește prin transportul folosit. |
 
 Un script poate alege pe baza acestor coduri fără să citească text englez de pe ieșirea de erori, de
 exemplu `if ($LASTEXITCODE -eq 3) { 'rulează Vitals?' }`.

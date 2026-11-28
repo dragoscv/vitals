@@ -42,6 +42,7 @@ const SPEC: WidgetWindowSpec = {
   layout: 'stack',
   opacity: 1,
   alwaysOnTop: true,
+  remoteConnectionId: null,
   clickThrough: false,
   x: 40,
   y: 40,
@@ -368,6 +369,6 @@ describe('a widget whose spec arrives', () => {
     });
     // The glass style is a lighter fill; if it were ignored the two styles would
     // be indistinguishable and the setting would be decorative.
-    expect(document.querySelector('[class*="bg-[rgb(20_20_24/0.55)]"]')).not.toBeNull();
+    expect(document.querySelector('[class*="bg-[rgb(20_20_24/0.84)]"]')).not.toBeNull();
   });
 });

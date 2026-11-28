@@ -82,6 +82,32 @@ direct sampler has none to give and exits 5.
 The conditions the alert engine has raised, with severity, the condition, the
 subject and the alert's values.
 
+### `vitals widget`
+
+List, open or close widgets on the running app. A widget is a window, so only
+the desktop app can draw one: the command always attaches to the running
+Vitals, and a direct sampler has no equivalent. Exactly one of `--kind`,
+`--close` and `--list` is required.
+
+| Flag                 | Meaning                                                                                                  |
+| -------------------- | -------------------------------------------------------------------------------------------------------- |
+| `--kind <kind>`      | Open a widget: `cpu`, `memory`, `disk`, `network`, `thermal` or `overview`.                              |
+| `--size <size>`      | `small` (default), `medium` or `large`. Requires `--kind`.                                               |
+| `--layout <layout>`  | `stack` (default), `split` or `ring`. Requires `--kind`.                                                 |
+| `--x <n>`, `--y <n>` | Logical position in pixels from the screen's left and top; omitted, the app cascades. Requires `--kind`. |
+| `--close <id>`       | Close the widget with this id, as `--list` reports it.                                                   |
+| `--list`             | List the widgets that are open.                                                                          |
+| `--json`             | Machine-readable output for any of the above.                                                            |
+
+`--size`, `--layout`, `--x` and `--y` only mean something for an open; beside
+`--list` or `--close` they are refused (exit 2), as is naming two actions at
+once. `--layout ring` is drawn only for `cpu` and `memory`, and the app
+downgrades it for any other kind. When no app answers the exit code is 3; when
+an app answers and will not do it — an older build that does not know the
+message, or a host that never registered a widget handler — it is 6. `--json`
+prints the action, the resulting widget list and, for an open or close, the
+affected id.
+
 ### Process actions
 
 These take a PID as `vitals ps` shows it. The PID is resolved to a full key
@@ -153,14 +179,15 @@ vitals completions powershell > vitals-completions.ps1
 
 ## Exit codes
 
-| Code | Meaning                                                                                                                      |
-| ---- | ---------------------------------------------------------------------------------------------------------------------------- |
-| 0    | Success.                                                                                                                     |
-| 1    | An error that is not one of the codes below.                                                                                 |
-| 2    | A usage error (bad arguments), reported by the argument parser.                                                              |
-| 3    | Could not reach the app (no attach pipe, nothing at `--attach`), or this machine has no sampler.                             |
-| 4    | A control action was refused — read-only scope, a protected process, or a headless `serve --control`.                        |
-| 5    | The named thing was not found: a PID absent from the sample, or data the source does not keep (history on a direct sampler). |
+| Code | Meaning                                                                                                                                                                        |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 0    | Success.                                                                                                                                                                       |
+| 1    | An error that is not one of the codes below.                                                                                                                                   |
+| 2    | A usage error (bad arguments), reported by the argument parser.                                                                                                                |
+| 3    | Could not reach the app (no attach pipe, nothing at `--attach`), or this machine has no sampler.                                                                               |
+| 4    | A control action was refused — read-only scope, a protected process, or a headless `serve --control`.                                                                          |
+| 5    | The named thing was not found: a PID absent from the sample, or data the source does not keep (history on a direct sampler).                                                   |
+| 6    | The app is running and heard the request, but cannot carry it out: an older build that does not know the message, or one whose UI does not serve it over the transport in use. |
 
 A script driving `vitals` can branch on these without reading English off
 stderr, for example `if ($LASTEXITCODE -eq 3) { 'is Vitals running?' }`.

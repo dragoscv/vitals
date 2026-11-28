@@ -16,7 +16,10 @@ use interprocess::local_socket::traits::Stream as _;
 use vitals_core::fixtures;
 use vitals_core::ids::Pid;
 use vitals_core::sample::{Frame, FramePayload, FrameSeq};
-use vitals_ipc::attach::{AttachClient, AttachServer, ProtocolError};
+use vitals_ipc::attach::{
+    AttachClient, AttachServer, ProtocolError, WidgetAction, WidgetHost, WidgetInfo, WidgetKind,
+    WidgetLayout, WidgetSize, WidgetsReply,
+};
 
 static NEXT: AtomicU32 = AtomicU32::new(0);
 
@@ -348,4 +351,164 @@ fn the_pipe_grants_only_system_administrators_and_its_owner_never_everyone() {
         assert!(!sddl.contains(forbidden), "pipe grants {forbidden}: {sddl}");
     }
     assert!(sddl.contains(";;;SY)"), "SYSTEM missing: {sddl}");
+}
+
+// ── Widgets ──────────────────────────────────────────────────────────────
+
+/// A miniature of the app's widget list: enough to tell an `open` from a
+/// `close` and to notice that a request never arrived.
+struct RecordingHost {
+    actions: std::sync::Mutex<Vec<WidgetAction>>,
+    widgets: std::sync::Mutex<Vec<WidgetInfo>>,
+    next_id: std::sync::atomic::AtomicU32,
+}
+
+impl RecordingHost {
+    fn new() -> Arc<Self> {
+        Arc::new(Self {
+            actions: std::sync::Mutex::new(Vec::new()),
+            widgets: std::sync::Mutex::new(Vec::new()),
+            next_id: std::sync::atomic::AtomicU32::new(1),
+        })
+    }
+
+    fn seen(&self) -> Vec<WidgetAction> {
+        self.actions.lock().expect("lock").clone()
+    }
+}
+
+impl WidgetHost for RecordingHost {
+    fn widgets(&self, action: &WidgetAction) -> Result<WidgetsReply, String> {
+        self.actions.lock().expect("lock").push(action.clone());
+        let mut open = self.widgets.lock().expect("lock");
+        match action {
+            WidgetAction::List => Ok(WidgetsReply::ok(open.clone(), None)),
+            WidgetAction::Open {
+                kind, size, layout, ..
+            } => {
+                let id = format!(
+                    "w{}",
+                    self.next_id
+                        .fetch_add(1, std::sync::atomic::Ordering::SeqCst)
+                );
+                open.push(WidgetInfo {
+                    id: id.clone(),
+                    kind: *kind,
+                    size: *size,
+                    layout: *layout,
+                });
+                Ok(WidgetsReply::ok(open.clone(), Some(id)))
+            }
+            WidgetAction::Close { id } => {
+                open.retain(|w| &w.id != id);
+                Ok(WidgetsReply::ok(open.clone(), Some(id.clone())))
+            }
+        }
+    }
+}
+
+/// A host that refuses, so the client can be shown an error rather than a
+/// reply — the shape an older app produces.
+struct RefusingHost;
+
+impl WidgetHost for RefusingHost {
+    fn widgets(&self, _action: &WidgetAction) -> Result<WidgetsReply, String> {
+        Err("this build of Vitals does not offer widgets".to_owned())
+    }
+}
+
+fn cpu_small() -> WidgetAction {
+    WidgetAction::Open {
+        kind: WidgetKind::Cpu,
+        size: WidgetSize::Small,
+        layout: WidgetLayout::Stack,
+        x: None,
+        y: None,
+    }
+}
+
+#[test]
+fn a_widget_request_reaches_the_host_and_its_answer_reaches_the_cli() {
+    let name = unique_name();
+    let server = AttachServer::start(&name, "t".into()).expect("bind");
+    let host = RecordingHost::new();
+    server.set_widget_host(host.clone());
+
+    let (client, _) = AttachClient::connect(&name).expect("connect");
+    let opened = client.widget(cpu_small()).expect("open answered");
+    assert_eq!(opened.status, "ok");
+    assert_eq!(opened.id.as_deref(), Some("w1"));
+    assert_eq!(opened.widgets.len(), 1);
+    assert_eq!(opened.widgets[0].kind, WidgetKind::Cpu);
+    assert_eq!(opened.widgets[0].size, WidgetSize::Small);
+    assert_eq!(opened.widgets[0].layout, WidgetLayout::Stack);
+
+    // A second connection: the app is still serving, and the widget it opened
+    // is still there to be listed.
+    let (client, _) = AttachClient::connect(&name).expect("connect");
+    let listed = client.widget(WidgetAction::List).expect("list answered");
+    assert!(
+        listed.id.is_none(),
+        "a list names no single widget: {:?}",
+        listed.id
+    );
+    assert_eq!(listed.widgets.len(), 1);
+
+    let (client, _) = AttachClient::connect(&name).expect("connect");
+    let closed = client
+        .widget(WidgetAction::Close { id: "w1".into() })
+        .expect("close answered");
+    assert_eq!(closed.id.as_deref(), Some("w1"));
+    assert!(closed.widgets.is_empty(), "{:?}", closed.widgets);
+
+    assert_eq!(
+        host.seen(),
+        vec![
+            cpu_small(),
+            WidgetAction::List,
+            WidgetAction::Close { id: "w1".into() },
+        ],
+        "every request must arrive once, in the order the CLI sent them"
+    );
+}
+
+#[test]
+fn a_widget_request_with_no_host_registered_is_refused_not_left_hanging() {
+    // An app built before this message answers an error; so must a build with
+    // no handler wired up. Either way the CLI sees a failure, never a hang.
+    let name = unique_name();
+    let _server = AttachServer::start(&name, "t".into()).expect("bind");
+    let started = Instant::now();
+    let (client, _) = AttachClient::connect(&name).expect("connect");
+    let error = client.widget(WidgetAction::List).expect_err("no host");
+    let inner = error
+        .get_ref()
+        .and_then(|e| e.downcast_ref::<ProtocolError>())
+        .expect("a protocol error, not a transport failure");
+    assert!(
+        matches!(inner, ProtocolError::Server(m) if m.contains("does not offer widgets")),
+        "{inner}"
+    );
+    assert!(started.elapsed() < Duration::from_secs(5));
+}
+
+#[test]
+fn a_host_that_refuses_is_reported_with_its_own_words_and_the_server_keeps_serving() {
+    let name = unique_name();
+    let server = AttachServer::start(&name, "t".into()).expect("bind");
+    server.set_widget_host(Arc::new(RefusingHost));
+
+    let (client, _) = AttachClient::connect(&name).expect("connect");
+    let error = client.widget(cpu_small()).expect_err("refused");
+    let inner = error
+        .get_ref()
+        .and_then(|e| e.downcast_ref::<ProtocolError>())
+        .expect("a protocol error");
+    assert!(
+        matches!(inner, ProtocolError::Server(m) if m.contains("does not offer widgets")),
+        "{inner}"
+    );
+
+    let (_client, hello) = AttachClient::connect(&name).expect("still serving");
+    assert_eq!(hello.status, "ok");
 }

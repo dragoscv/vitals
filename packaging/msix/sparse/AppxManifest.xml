@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  SPARSE PACKAGE SKELETON — a shape, not a working artefact.
+
+  This grants the unpackaged Vitals install package identity so the Windows 11
+  widget board could activate a widget provider (docs/research/
+  windows-widgets-sparse-package-2026-11-28.md). It is NOT ready to install:
+
+    * {{IDENTITY_NAME}} / {{PUBLISHER}} / {{PUBLISHER_DISPLAY_NAME}} must be
+      filled in, and PUBLISHER must equal the Subject of the certificate that
+      signs the package (docs: "Grant package identity ... manually").
+    * {{WIDGET_CLSID}} must be a real CLSID, and vitals-widget-provider.exe must
+      register a class factory for it (CoRegisterClassObject, CLSCTX_LOCAL_SERVER).
+    * The package must be signed by a certificate trusted on the target machine,
+      or Add-AppxPackage fails with CERT_E_UNTRUSTEDROOT (0x800B0109).
+
+  The EXECUTABLES live in the external location (the Vitals install directory),
+  not in this package. Registration binds them:
+      Add-AppxPackage -Path <signed>.msix -ExternalLocation <install dir>
+  so every package-relative path below resolves inside <install dir>.
+
+  Do NOT ship this. It exists to make the spike in the research note concrete.
+-->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
+  xmlns:com="http://schemas.microsoft.com/appx/manifest/com/windows10"
+  xmlns:uap10="http://schemas.microsoft.com/appx/manifest/uap/windows10/10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap uap3 com uap10 rescap">
+
+  <!-- ProcessorArchitecture is "neutral": one identity package, all architectures. -->
+  <Identity
+    Name="{{IDENTITY_NAME}}"
+    Publisher="{{PUBLISHER}}"
+    Version="{{VERSION}}"
+    ProcessorArchitecture="neutral" />
+
+  <Properties>
+    <DisplayName>Vitals: System Monitor</DisplayName>
+    <PublisherDisplayName>{{PUBLISHER_DISPLAY_NAME}}</PublisherDisplayName>
+    <!-- Path resolves inside the external location; /nv skips path validation. -->
+    <Logo>Assets\StoreLogo.png</Logo>
+    <Description>See what your computer is actually doing.</Description>
+    <!-- Required: lets the manifest reference the app's own install directory. -->
+    <uap10:AllowExternalContent>true</uap10:AllowExternalContent>
+  </Properties>
+
+  <Resources>
+    <Resource Language="en-us" />
+    <Resource Language="ro-ro" />
+  </Resources>
+
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.19041.0" MaxVersionTested="10.0.26100.0" />
+    <!--
+      Only if the provider is FRAMEWORK-DEPENDENT. Remove for self-contained
+      (binaries carried app-local). Version and channel must match the WASDK the
+      provider links — do not copy a sample's experimental value.
+      https://learn.microsoft.com/en-us/windows/apps/windows-app-sdk/deploy-packaged-apps
+    -->
+    <PackageDependency
+      Name="{{WASDK_FRAMEWORK_PACKAGE}}"
+      Publisher="CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US"
+      MinVersion="{{WASDK_MIN_VERSION}}" />
+  </Dependencies>
+
+  <Capabilities>
+    <!-- Both required for Win32 compatibility in a sparse package. -->
+    <rescap:Capability Name="runFullTrust" />
+    <rescap:Capability Name="unvirtualizedResources" />
+  </Capabilities>
+
+  <Applications>
+    <!--
+      The main app runs as a Win32 process with package identity, no
+      virtualisation (uap10:RuntimeBehavior="win32App").
+    -->
+    <Application
+      Id="VitalsSparse"
+      Executable="vitals-desktop.exe"
+      uap10:TrustLevel="mediumIL"
+      uap10:RuntimeBehavior="win32App">
+      <uap:VisualElements
+        AppListEntry="none"
+        DisplayName="Vitals"
+        Description="System monitor and task manager"
+        BackgroundColor="transparent"
+        Square150x150Logo="Assets\Square150x150Logo.png"
+        Square44x44Logo="Assets\Square44x44Logo.png" />
+
+      <Extensions>
+        <!--
+          (1) COM server. The board activates this CLSID with CoCreateInstance.
+          ExeServer.Executable is package-relative and resolves to the external
+          location; the provider exe must register the class factory for the
+          same CLSID at startup and then block until shutdown.
+        -->
+        <com:Extension Category="windows.comServer">
+          <com:ComServer>
+            <com:ExeServer
+              Executable="vitals-widget-provider.exe"
+              DisplayName="Vitals widget provider">
+              <com:Class Id="{{WIDGET_CLSID}}" DisplayName="Vitals widget provider" />
+            </com:ExeServer>
+          </com:ComServer>
+        </com:Extension>
+
+        <!--
+          (2) Widget provider registration. Name must be exactly
+          "com.microsoft.windows.widgets". One <Definition> per widget.
+        -->
+        <uap3:Extension Category="windows.appExtension">
+          <uap3:AppExtension
+            Name="com.microsoft.windows.widgets"
+            DisplayName="Vitals"
+            Id="VitalsWidget"
+            PublicFolder="Public">
+            <uap3:Properties>
+              <WidgetProvider>
+                <ProviderIcons>
+                  <Icon Path="Assets\StoreLogo.png" />
+                </ProviderIcons>
+                <Activation>
+                  <!-- Must match the com:Class Id above. -->
+                  <CreateInstance ClassId="{{WIDGET_CLSID}}" />
+                </Activation>
+                <Definitions>
+                  <Definition
+                    Id="Vitals_Overview"
+                    DisplayName="Vitals overview"
+                    Description="Processor, memory and disk at a glance."
+                    AllowMultiple="false">
+                    <Capabilities>
+                      <Capability><Size Name="small" /></Capability>
+                      <Capability><Size Name="medium" /></Capability>
+                      <Capability><Size Name="large" /></Capability>
+                    </Capabilities>
+                    <ThemeResources>
+                      <Icons>
+                        <Icon Path="Assets\WidgetIcon.png" />
+                      </Icons>
+                      <Screenshots>
+                        <!-- 300 x 304 px, transparent rounded corners. -->
+                        <Screenshot Path="Assets\WidgetScreenshot.png" DisplayAltText="Vitals widget preview" />
+                      </Screenshots>
+                    </ThemeResources>
+                  </Definition>
+                </Definitions>
+              </WidgetProvider>
+            </uap3:Properties>
+          </uap3:AppExtension>
+        </uap3:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+</Package>

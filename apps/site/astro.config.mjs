@@ -122,6 +122,7 @@ export default defineConfig({
           label: 'Guides',
           translations: { ro: 'Ghiduri' },
           items: [
+            'guides/widgets',
             'guides/remote-access',
             'guides/cli',
             'guides/integrations',

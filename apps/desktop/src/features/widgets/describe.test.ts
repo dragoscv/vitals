@@ -133,6 +133,38 @@ suite('describing a widget', () => {
     expect(description.readings[1]?.value).toBe('61°C');
   });
 
+  it('shows the fastest fan and the package power draw, named so it can be told apart', () => {
+    // Board headers are the chip's numbering (`CPU_FAN`, `SYS_FAN2`) and mean
+    // nothing to a reader, so the single number worth showing is the fastest
+    // fan, with the header's name beside it.
+    const system = makeSystem({
+      fans: [
+        { name: 'Fan 1', rpm: 900 },
+        { name: 'Fan 2', rpm: 1467 },
+      ],
+      powerDraw: 62.5,
+    });
+
+    const description = describe('thermal', input({ system }), 'en');
+    const fan = description.readings.find((entry) => entry.id === 'thermal-fan');
+    const power = description.readings.find((entry) => entry.id === 'thermal-power');
+
+    expect(fan?.value).toBe('1,467 rpm');
+    expect(fan?.detail).toBe('Fan 2');
+    expect(power?.value).toBe('62.5 W');
+  });
+
+  it('reports a machine with no tachometer and no power sensor as unmeasured, never as zero', () => {
+    // An empty fan list means no header reported a speed — a platform that
+    // cannot read one must not read as "a fan spinning at 0 rpm".
+    const system = makeSystem({ fans: [], powerDraw: null });
+
+    const description = describe('thermal', input({ system }), 'en');
+
+    expect(description.readings.find((entry) => entry.id === 'thermal-fan')?.value).toBe('—');
+    expect(description.readings.find((entry) => entry.id === 'thermal-power')?.value).toBe('—');
+  });
+
   it('reports the hottest disk temperature rather than the first disk', () => {
     const system = makeSystem({
       disks: [{ temperature: 30 }, { temperature: 55 }],

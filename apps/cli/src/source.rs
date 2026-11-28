@@ -27,11 +27,12 @@ use vitals_core::ids::ProcessKey;
 use vitals_core::provider::HostInfo;
 use vitals_core::remote::SensorLine;
 use vitals_core::sample::Frame;
-use vitals_ipc::attach::{AttachClient, FrameStream};
+use vitals_ipc::attach::{AttachClient, FrameStream, ProtocolError, WidgetAction, WidgetsReply};
 use vitals_server::ControlRequest;
 
 use crate::client::Client;
 use crate::discovery;
+use crate::exit;
 use crate::fold::View;
 use crate::sse::Events;
 
@@ -419,6 +420,72 @@ impl Source {
         }
         Direct::efficiency_mode(key)
     }
+
+    /// Runs one widget action against the desktop over the attach pipe and
+    /// returns its reply.
+    ///
+    /// Unlike [`Source::next_frame`], this is a request/response exchange:
+    /// the caller gets the widgets the desktop would draw, or a refusal, and
+    /// nothing left to drain. Only the pipe carries it — the local HTTP API
+    /// answers for another machine and does not expose widget actions, and a
+    /// direct sampler has no widgets at all.
+    ///
+    /// The two failures a caller must tell apart are separated here: a
+    /// refusal (`UNSUPPORTED`, 6) comes from an app that is running and
+    /// answered — an older build, or a host with no widget support — while a
+    /// missing app (`LINK_FAILURE`, 3) means the attach was never made.
+    ///
+    /// # Errors
+    /// The source cannot carry a widget action, Vitals is not running, or the
+    /// desktop refused the action — reported to the user with the app's own
+    /// words.
+    pub fn widget(&mut self, action: WidgetAction) -> Result<WidgetsReply> {
+        let kind = self.kind();
+        let pipe = match self {
+            Self::Piped(p) => p.pipe.clone(),
+            Self::Attached(_) | Self::Direct(_) => {
+                return Err(exit::unsupported(anyhow::anyhow!(
+                    "widgets are windows, and only the attach pipe reaches the desktop \
+                     that owns them; this source is {kind}"
+                )));
+            }
+        };
+        let (client, _) = AttachClient::connect(&pipe).map_err(|error| {
+            exit::link_failure(anyhow::Error::new(error).context("Vitals is not running"))
+        })?;
+        client
+            .widget(action)
+            .map_err(|error| match protocol_cause(&error) {
+                // The desktop heard the request and would not carry it out: an
+                // older build that does not understand the message, no widget
+                // host registered, or two ends that disagree on the version.
+                // The sentence comes before the app's own words, which are
+                // kept in the chain: an older app answers with a parser error
+                // quoting the request, and that alone does not read as "your
+                // app is too old".
+                Some(_) => exit::unsupported(
+                    anyhow::Error::new(error)
+                        .context("the app did not carry the widget action out"),
+                ),
+                // Nothing on the other end of the pipe: closed, or never there.
+                None => exit::link_failure(
+                    anyhow::Error::new(error)
+                        .context("sending a widget action over the attach pipe"),
+                ),
+            })
+    }
+}
+
+/// The attach-protocol failure an I/O error is carrying, when it carries one.
+///
+/// `AttachClient` reports a reply it could not use as an `io::Error` with the
+/// [`ProtocolError`] as its source, because that is the type every transport
+/// call returns. Reading it back is what separates "the app answered and
+/// refused" from "the pipe broke".
+fn protocol_cause(error: &std::io::Error) -> Option<&ProtocolError> {
+    error
+        .get_ref()
+        .and_then(|inner| inner.downcast_ref::<ProtocolError>())
 }
 
 // ── Direct sampling ────────────────────────────────────────────────────

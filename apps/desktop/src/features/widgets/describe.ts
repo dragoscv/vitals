@@ -23,10 +23,12 @@ import {
 } from '@vitals/protocol';
 import {
   formatBytes,
+  formatCount,
   formatFrequency,
   formatPercent,
   formatTemperature,
   formatThroughput,
+  formatWatts,
 } from '@vitals/ui';
 
 import type { WidgetKind } from './model';
@@ -232,6 +234,19 @@ function thermalDescription(input: WidgetInput, locale: string): WidgetDescripti
   const cpuTemp = system?.cpu.temperature ?? null;
   const gpuTemp = system === null ? null : (primaryGpu(system)?.temperature ?? null);
   const headline = system === null ? null : headlineTemperature(system);
+  // The board's fans and the package's power draw, which the protocol carries
+  // and no widget showed: a machine at 90 °C reads very differently next to
+  // "2,400 rpm" than next to nothing at all.
+  //
+  // The busiest fan rather than the first: header numbering is the chip's
+  // (`CPU_FAN`, `SYS_FAN2`) and means nothing to the reader, so the honest
+  // single number is the fastest one, named so they can tell which is which.
+  // An empty list is "no fan reports a speed", never 0 rpm — the sampler
+  // leaves out a header with no tachometer rather than inventing a zero.
+  const fan = (system?.fans ?? []).reduce<SystemMetrics['fans'][number] | undefined>(
+    (best, entry) => (best === undefined || entry.rpm > best.rpm ? entry : best),
+    undefined,
+  );
   const hottestDisk = (system?.disks ?? []).reduce<number | null>(
     (best, disk) =>
       disk.temperature === null
@@ -279,6 +294,25 @@ function thermalDescription(input: WidgetInput, locale: string): WidgetDescripti
         detail: null,
         trace: [],
         tone: 'disk',
+      }),
+      reading({
+        id: 'thermal-fan',
+        labelKey: 'widgets.reading.fanSpeed',
+        value:
+          fan === undefined ? formatCount(null, locale) : `${formatCount(fan.rpm, locale)} rpm`,
+        percent: null,
+        detail: fan?.name ?? null,
+        trace: [],
+        tone: 'neutral',
+      }),
+      reading({
+        id: 'thermal-power',
+        labelKey: 'widgets.reading.powerDraw',
+        value: formatWatts(system?.powerDraw ?? null, locale),
+        percent: null,
+        detail: null,
+        trace: [],
+        tone: 'thermal',
       }),
     ],
   };

@@ -12,6 +12,7 @@ use vitals_core::process::{Process, ProcessState};
 use vitals_core::provider::HostInfo;
 use vitals_core::remote::SensorLine;
 use vitals_core::units::{Bytes, BytesPerSec, Percent};
+use vitals_ipc::attach::WidgetInfo;
 
 /// What an unmeasured reading looks like.
 pub const DASH: &str = "—";
@@ -240,6 +241,24 @@ pub fn alerts(list: &[Alert]) -> String {
             alert_kind(alert.kind).to_owned(),
             alert.subject.clone(),
             values,
+        ]);
+    }
+    t.to_string()
+}
+
+/// The widget table `vitals widget --list` prints.
+///
+/// Every field comes off the app's own report, with the wire spellings the
+/// user can feed straight back to `--kind`, `--size` and `--layout`.
+pub fn widgets(list: &[WidgetInfo]) -> String {
+    let mut t = table();
+    t.set_header(["ID", "Kind", "Size", "Layout"]);
+    for widget in list {
+        t.add_row([
+            widget.id.clone(),
+            widget.kind.as_str().to_owned(),
+            widget.size.as_str().to_owned(),
+            widget.layout.as_str().to_owned(),
         ]);
     }
     t.to_string()

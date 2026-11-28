@@ -8125,6 +8125,37 @@ its emptiness rather than through its handle. The gate therefore went on printin
 0 problems on the mutant; the guard is now `-ne $null` and the mutant exits 1. The
 comment in both files records why, so the next reader does not simplify it back.
 
+### S26-52 — widgets: one window per widget, reachable from the command line (2026-11-28)
+
+Rows S26-52, S26-53, S26-54, S26-55, S26-56, S26-57, S26-58. The request was a Windows 11 board widget;
+the board cannot carry one, so the overlay the request actually describes is
+what these rows are. Each id has its own row in `docs/tracker.csv`.
+
+- **CLI and protocol.** `vitals widget list|add|remove` over a protocol crate
+  shared with the desktop server, with a distinct exit code for a verb this
+  build does not know.
+- **Remote machines and the accent.** A widget window cannot read the settings
+  file, so both are asked for as events and answered by the main window.
+- **Readings.** The thermal widget gained the fastest fan and the package power
+  draw, with an em dash where a machine cannot measure one.
+- **Defects.** The glass panel was 1.64:1 over white and is now 0.84; a ring
+  with no percentage yet no longer renders as an empty panel.
+- **Text.** Sixteen strings the window already used were in neither locale.
+- **Docs.** A widgets guide in both languages, and the sparse-package note
+  that answers whether the board is reachable at all.
+
+#### Verification log
+
+- `pnpm exec vitest run src/features/widgets src/widgets` from `apps/desktop`:
+  15 files, 155 tests, exit 0.
+- `pnpm exec tsc --noEmit`, `pnpm exec eslint src --max-warnings 0` and
+  `pnpm exec prettier --check`: exit 0 each.
+- `scripts/check-drift.ps1`: 0 failure(s), 0 warning(s) - 16 ts_rs files, 144
+  invokes, 144 commands, 2 locales, 3 shipped icon binaries.
+- `scripts/check-tracker.ps1`: 0 problem(s).
+- Not run here: the Astro site build, and any sparse package built or
+  registered on a real machine. Both are stated in their own rows.
+
 ## S13 — public beta 0.9.0-beta.1 (2026-09-28)
 
 Decided with the owner (ADR 0031): public repository, beta version, no code

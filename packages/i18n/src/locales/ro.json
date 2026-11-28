@@ -435,10 +435,12 @@
     "add": "Adaugă un widget",
     "limit": "Cel mult {{count}} deodată.",
     "preview": "Previzualizare",
+    "loading": "Se încarcă widgeturile",
     "unavailable": "Acest widget nu este pe ecran.",
     "onScreen": "Pe ecran",
     "offScreen": "Nu este pe ecran",
     "position": "la {{x}}, {{y}}",
+    "bringBack": "Arată-l din nou",
     "size": {
       "label": "Mărime",
       "small": "Mic",
@@ -465,9 +467,31 @@
     "collapse": "Arată doar valoarea principală",
     "remove": "Elimină widgetul {{kind}}",
     "removeLabel": "Elimină",
+    "source": {
+      "label": "Mașină",
+      "thisMachine": "Această mașină"
+    },
+    "sourceFor": "Mașina afișată de widgetul {{kind}}",
     "empty": {
       "title": "Niciun widget plasat",
       "body": "Adaugă unul și se deschide ca un panou mic, care rămâne deasupra. Trage-l unde vrei."
+    },
+    "machines": {
+      "title": "Alte mașini",
+      "subtitle": "Urmărește o mașină din rețeaua locală, ca widgetul să arate valorile ei și când această fereastră este închisă.",
+      "empty": "Nicio mașină adăugată încă.",
+      "name": "Nume",
+      "address": "Adresă",
+      "token": "Cheie",
+      "tokenHint": "Cheia de acces primită de acea mașină. Copiaz-o din ecranul de rețea al acelei mașini.",
+      "key": "Cheie {{prefix}}…",
+      "add": "Adaugă mașina",
+      "remove": "Elimină {{name}}",
+      "error": {
+        "name": "Dă acestei mașini un nume pe care îl vei recunoaște.",
+        "address": "Introdu adresa afișată de acea mașină, de exemplu 192.168.1.20:7331.",
+        "token": "Introdu cheia de acces a mașinii. Se afișează o singură dată, pe acea mașină."
+      }
     },
     "kind": {
       "cpu": "Procesor",
@@ -479,6 +503,8 @@
     },
     "reading": {
       "activity": "Activitate",
+      "fanSpeed": "Turație ventilator",
+      "powerDraw": "Consum",
       "cpuTemperature": "Temperatura procesorului",
       "diskTemperature": "Temperatura discului",
       "download": "Descărcare",
@@ -488,6 +514,11 @@
       "temperature": "Temperatură",
       "upload": "Încărcare",
       "write": "Scriere"
+    },
+    "remote": {
+      "loading": "Se conectează la {{name}}…",
+      "unreachable": "Nu se poate ajunge la {{name}}.",
+      "unauthorised": "{{name}} nu a acceptat cheia acestui widget."
     },
     "toolbar": {
       "pin": "Ține deasupra",

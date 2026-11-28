@@ -63,6 +63,18 @@ export interface WidgetInstance {
   /** Logical screen coordinates of the window's top-left corner. */
   readonly x: number;
   readonly y: number;
+  /**
+   * The other machine whose readings this widget shows, or `null` for this
+   * one.
+   *
+   * A machine's identity, not its address: the address and its token live in
+   * the remote registry (`remote.ts`), so moving a pairing to a new port does
+   * not rewrite every widget that watches it. A widget whose machine is gone
+   * from that registry keeps its record and shows an honest "unreachable"
+   * rather than silently falling back to this machine, which would be a widget
+   * confidently showing the wrong computer's numbers.
+   */
+  readonly remoteConnectionId: string | null;
 }
 
 /** The list of placed widgets, as persisted. */
@@ -198,6 +210,7 @@ export function addWidget(
       clickThrough: false,
       x: position.x,
       y: position.y,
+      remoteConnectionId: null,
     },
   ];
 }
@@ -226,8 +239,20 @@ export function sameWidget(a: WidgetInstance, b: WidgetInstance): boolean {
     a.alwaysOnTop === b.alwaysOnTop &&
     a.clickThrough === b.clickThrough &&
     a.x === b.x &&
-    a.y === b.y
+    a.y === b.y &&
+    a.remoteConnectionId === b.remoteConnectionId
   );
+}
+
+/**
+ * Whether a widget shows another machine.
+ *
+ * Named once so no renderer has to remember that "no machine" is `null` rather
+ * than an empty string: a record parsed from a hand-edited file could hold
+ * either, and `parseWidgets` normalises the empty one away.
+ */
+export function isRemoteWidget(widget: WidgetInstance): boolean {
+  return widget.remoteConnectionId !== null;
 }
 
 /** Whether two registries are identical, in order and content. */
@@ -300,6 +325,13 @@ function asCoordinate(value: unknown, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 }
 
+/** A stored machine id, or `null` for anything that is not a usable one. */
+function asConnectionId(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed === '' ? null : trimmed;
+}
+
 /**
  * Reads a persisted registry, keeping every widget that can be drawn.
  *
@@ -351,6 +383,10 @@ export function parseWidgets(value: unknown): WidgetRegistry {
       clickThrough: asBoolean(record['clickThrough'], false),
       x: asCoordinate(record['x'], position.x),
       y: asCoordinate(record['y'], position.y),
+      // Trimmed and dropped when empty: `""` would be a machine id that
+      // matches nothing and reads as "remote but unknown", which is a worse
+      // lie than "this machine".
+      remoteConnectionId: asConnectionId(record['remoteConnectionId']),
     });
   }
 

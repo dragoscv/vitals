@@ -28,6 +28,7 @@ function spec(overrides: Partial<Parameters<typeof WidgetPreview>[0]['spec']> = 
     layout: 'stack' as const,
     opacity: 1,
     alwaysOnTop: true,
+    remoteConnectionId: null,
     clickThrough: false,
     x: 0,
     y: 0,
@@ -67,6 +68,17 @@ describe('the morph a user who asked for less motion gets', () => {
 });
 
 describe('what a widget shows', () => {
+  it('draws the reading inside the ring before there is a percentage to fill it', () => {
+    // A widget placed seconds after boot has no percentage yet. The ring must
+    // still exist and show "—": an empty panel reads as a broken widget rather
+    // than as an unmeasured one, and the track with no arc is the honest
+    // picture of "nothing measured yet".
+    const { container } = show('cpu', EMPTY_WIDGET_INPUT, { layout: 'ring' });
+
+    expect(container.querySelector('svg')).not.toBeNull();
+    expect(container.querySelectorAll('circle')).toHaveLength(2);
+    expect(container.querySelector('svg')?.parentElement?.textContent).toContain('—');
+  });
   it('names itself from its content kind so a reader knows what it is watching', () => {
     show('cpu', { ...EMPTY_WIDGET_INPUT });
 

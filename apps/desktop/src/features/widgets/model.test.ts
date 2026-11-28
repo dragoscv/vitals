@@ -29,6 +29,7 @@ function aWidget(overrides: Partial<WidgetInstance> = {}): WidgetInstance {
     layout: 'ring',
     opacity: 1,
     alwaysOnTop: true,
+    remoteConnectionId: null,
     clickThrough: false,
     x: 80,
     y: 80,

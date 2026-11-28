@@ -528,6 +528,10 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     // Before the sampler, so the first tick can already see whether a CLI
     // is waiting (it is managed state the sampler looks up per tick).
     ipc::start(app.handle());
+    // `vitals widget` asks the app to list, open or close a widget over that
+    // pipe. Registered after `start`, because that is what binds the pipe the
+    // handler is registered on.
+    ipc::set_widget_host(app.handle(), widgets::pipe_host(app.handle().clone()));
     let handle = sampling::spawn(app.handle().clone());
     app.manage(handle);
     tray::install(app.handle())?;

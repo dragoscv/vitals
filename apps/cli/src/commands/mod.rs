@@ -13,3 +13,4 @@ pub mod report;
 pub mod sensors;
 pub mod serve;
 pub mod top;
+pub mod widget;

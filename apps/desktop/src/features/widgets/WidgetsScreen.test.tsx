@@ -11,20 +11,37 @@
  *
  * The backend is injected because the read has to be held open: without that
  * every render here is already hydrated and "the controls wait for the stored
- * layout" is untestable.
+ * layout" is untestable. The machine list is injected the same way, because a
+ * widget's source is the one setting that decides whether the card talks to a
+ * network at all.
  */
 
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { act } from 'react';
-import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { i18n, initI18n } from '@vitals/i18n';
 import type { KeyedBackend } from '@/settings/persistence';
 
 import { makeSystem } from '../dashboard/test-fixtures';
 import { INITIAL_SYSTEM_SNAPSHOT, createManualSystemSource } from '../dashboard/useSystemSnapshot';
-import { MAX_WIDGETS, toWindowSpec, type WidgetInstance, type WidgetWindowSpec } from './model';
-import { WIDGET_EDIT_EVENT, type WidgetBridge } from './windows';
+import type { MachineEntry } from './MachinesPanel';
+import {
+  MAX_WIDGETS,
+  toWindowSpec,
+  widgetKinds,
+  type WidgetInstance,
+  type WidgetKind,
+  type WidgetWindowSpec,
+} from './model';
+import { setRemoteConnections } from './remote';
+import { makeSummary, scriptedFetch } from './remote.fixtures';
+import {
+  WIDGET_EDIT_EVENT,
+  createScreenSource,
+  type ScreenRect,
+  type WidgetBridge,
+} from './windows';
 import { WidgetsScreen } from './WidgetsScreen';
 
 beforeAll(async () => {
@@ -33,6 +50,13 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   await i18n.changeLanguage('en');
+});
+
+afterEach(() => {
+  // The remote registry is module state, so a machine registered by one test
+  // would otherwise be polled by the next one's widget.
+  setRemoteConnections([]);
+  vi.unstubAllGlobals();
 });
 
 /** One stored widget, complete enough to survive `parseWidgets`. */
@@ -49,12 +73,24 @@ function stored(
     layout: kind === 'cpu' ? 'ring' : 'stack',
     opacity: 1,
     alwaysOnTop: true,
+    remoteConnectionId: null,
     clickThrough: false,
     x: 40,
     y: 40,
     ...overrides,
   };
 }
+
+/** A machine a widget can be pointed at. */
+const RIG: MachineEntry = {
+  id: 'rig',
+  label: 'Rig',
+  baseUrl: 'http://rig:7331',
+  token: 'shared-secret',
+};
+
+/** One monitor, big enough to hold a widget at 40, 40. */
+const LAPTOP: ScreenRect = { x: 0, y: 0, width: 1920, height: 1080 };
 
 /** A backend holding `value`, optionally holding the answer back. */
 function memoryBackend(value: unknown, gate?: Promise<void>): KeyedBackend {
@@ -119,8 +155,18 @@ function harness(): Harness {
   };
 }
 
+interface ShowOptions {
+  readonly registry: unknown;
+  /** Holds the stored widget layout back, so the pre-hydration state is observable. */
+  readonly gate?: Promise<void>;
+  /** The machines the widget sources may point at. Absent means none configured. */
+  readonly machines?: readonly MachineEntry[];
+  /** Where the monitors are, for the bring-back action. Absent uses the real one. */
+  readonly screens?: ReturnType<typeof createScreenSource>;
+}
+
 /** The screen wired to a machine reporting one CPU at half load. */
-function show(registry: unknown, gate?: Promise<void>): Harness {
+function showWith(options: ShowOptions): Harness {
   const io = harness();
   const source = createManualSystemSource({
     ...INITIAL_SYSTEM_SNAPSHOT,
@@ -130,14 +176,61 @@ function show(registry: unknown, gate?: Promise<void>): Harness {
     pending: false,
   });
   render(
-    <WidgetsScreen source={source} bridge={io.bridge} backend={memoryBackend(registry, gate)} />,
+    <WidgetsScreen
+      source={source}
+      bridge={io.bridge}
+      backend={memoryBackend(options.registry, options.gate)}
+      {...(options.machines !== undefined && {
+        machinesBackend: memoryBackend(options.machines),
+      })}
+      {...(options.screens !== undefined && { screens: options.screens })}
+    />,
   );
   return io;
 }
 
-/** The add buttons, in the order the content kinds are declared. */
-function addButtons(): HTMLButtonElement[] {
-  return [...screen.getByRole('group', { name: 'Add a widget' }).querySelectorAll('button')];
+/** The screen wired to a machine reporting one CPU at half load, with no machines. */
+function show(registry: unknown, gate?: Promise<void>): Harness {
+  return showWith({ registry, ...(gate !== undefined && { gate }) });
+}
+
+/**
+ * The gallery's place buttons.
+ *
+ * Named rather than found by container: the machines panel below the list has
+ * its own submit button, so "every button on the screen" would make a test
+ * about placing a widget pass or fail on an unrelated form.
+ */
+function placeTiles(): HTMLButtonElement[] {
+  return screen.getAllByRole('button', { name: /Add a widget/u });
+}
+
+/**
+ * The tile for one kind.
+ *
+ * Its accessible name is the tile's own heading followed by the button's own
+ * text, because the button is labelled by both — so "CPU Add a widget" rather
+ * than a name invented for the test.
+ */
+function placeTile(kind: WidgetKind): HTMLButtonElement {
+  return screen.getByRole('button', {
+    name: `${i18n.t(`widgets.kind.${kind}`)} ${i18n.t('widgets.add')}`,
+  });
+}
+
+/**
+ * The list row holding one widget, so an assertion cannot match a neighbour.
+ *
+ * Awaited, because the list does not exist until the stored layout has been
+ * read: looking for a card immediately after rendering would be asking about a
+ * screen that has not opened yet.
+ */
+async function cardFor(label: string): Promise<HTMLElement> {
+  const row = (await screen.findByRole('button', { name: `Remove the ${label} widget` })).closest(
+    'li',
+  );
+  if (row === null) throw new Error(`the ${label} card is not in a list row`);
+  return row;
 }
 
 /** The segment labels one control offers, in order. */
@@ -159,14 +252,14 @@ describe('the widget settings screen', () => {
 
     // The read is held open: adding now would write over a layout that has not
     // arrived yet, and the user would lose a widget they already placed.
-    expect(addButtons().every((button) => button.disabled)).toBe(true);
+    expect(placeTiles().every((button) => button.disabled)).toBe(true);
 
     await act(async () => {
       hold.release();
     });
 
     await waitFor(() => {
-      expect(addButtons().every((button) => !button.disabled)).toBe(true);
+      expect(placeTiles().every((button) => !button.disabled)).toBe(true);
     });
   });
 
@@ -174,7 +267,7 @@ describe('the widget settings screen', () => {
     show(Array.from({ length: MAX_WIDGETS }, (_, index) => stored('cpu', `cpu-${index + 1}`)));
 
     await waitFor(() => {
-      expect(addButtons().every((button) => button.disabled)).toBe(true);
+      expect(placeTiles().every((button) => button.disabled)).toBe(true);
     });
     expect(screen.getByText(`Up to ${MAX_WIDGETS} at once.`)).toBeDefined();
   });
@@ -265,8 +358,10 @@ describe('the widget settings screen', () => {
     });
 
     // The row survives: a refusal is reported, not used as a licence to delete
-    // the user's configuration.
-    expect(screen.getByRole('heading', { name: 'CPU' })).toBeDefined();
+    // the user's configuration, and it still says which widget it is. Scoped to
+    // the card, because the gallery above carries the same kind name as a tile.
+    const card = await cardFor('CPU');
+    expect(within(card).getByRole('heading', { name: 'CPU' })).toBeDefined();
   });
 
   it('describes a widget through the same reading list the window shows', async () => {
@@ -291,6 +386,138 @@ describe('the widget settings screen', () => {
     });
 
     expect(io.synced.at(-1)).toEqual([toWindowSpec(stored('cpu', 'cpu-1'))]);
+  });
+
+  it('offers every kind in the gallery and places the one whose tile was pressed', async () => {
+    const io = show([]);
+
+    await waitFor(() => {
+      expect(placeTiles().every((button) => !button.disabled)).toBe(true);
+    });
+
+    // One tile per kind the model knows. A gallery offering fewer would cap the
+    // feature at whatever the screen happened to remember.
+    expect(placeTiles()).toHaveLength(widgetKinds.length);
+
+    fireEvent.click(placeTile('thermal'));
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Remove the Thermals widget' })).toBeDefined();
+    });
+    // And it went through the controller rather than beside it: the host was
+    // handed the record the model builds, so id minting and the write happen
+    // once, in one place. The write is debounced, so this waits for the host
+    // rather than for the click.
+    await waitFor(() => {
+      expect(io.synced.at(-1)?.map((spec) => spec.kind)).toEqual(['thermal']);
+    });
+  });
+
+  it('points a widget at the machine the user picked, and back at this computer', async () => {
+    const io = showWith({ registry: [stored('cpu', 'cpu-1')], machines: [RIG] });
+
+    const picker = await waitFor(() =>
+      screen.getByRole('radiogroup', {
+        name: i18n.t('widgets.sourceFor', { kind: i18n.t('widgets.kind.cpu') }),
+      }),
+    );
+
+    fireEvent.click(within(picker).getByRole('radio', { name: RIG.label }));
+
+    await waitFor(() => {
+      expect(io.synced.at(-1)?.[0]?.remoteConnectionId).toBe(RIG.id);
+    });
+
+    // Back to this computer must CLEAR the id. Storing the sentinel, or leaving
+    // the old id behind, would sign the card "This machine" while it was still
+    // polling a LAN address.
+    fireEvent.click(
+      within(picker).getByRole('radio', { name: i18n.t('widgets.source.thisMachine') }),
+    );
+
+    await waitFor(() => {
+      expect(io.synced.at(-1)?.[0]?.remoteConnectionId).toBeNull();
+    });
+  });
+
+  it('draws the reading from the machine a widget watches, not this computer', async () => {
+    // Two machines reporting different numbers: 12 % on the far one, 50 % here.
+    // The assertion is not that a percentage appears but WHICH percentage does.
+    const far = makeSystem({ cpu: { total: 12, temperature: 40 } });
+    const net = scriptedFetch(
+      ...Array.from({ length: 6 }, () => ({
+        status: 200,
+        body: JSON.stringify(makeSummary(far)),
+      })),
+    );
+    vi.stubGlobal('fetch', net.impl);
+
+    showWith({
+      registry: [stored('cpu', 'cpu-1', { remoteConnectionId: RIG.id })],
+      machines: [RIG],
+    });
+
+    const card = await cardFor('CPU');
+    await waitFor(() => {
+      expect(within(card).getAllByText('12%').length).toBeGreaterThan(0);
+    });
+
+    expect(within(card).queryByText('50%')).toBeNull();
+    expect(net.calls[0]).toBe(`${RIG.baseUrl}/api/v1/summary`);
+  });
+
+  it('keeps showing this computer while no machine has been chosen', async () => {
+    const net = scriptedFetch({ status: 200, body: '{}' });
+    vi.stubGlobal('fetch', net.impl);
+
+    showWith({ registry: [stored('cpu', 'cpu-1')], machines: [RIG] });
+
+    const card = await cardFor('CPU');
+    await waitFor(() => {
+      expect(within(card).getAllByText('50%').length).toBeGreaterThan(0);
+    });
+
+    expect(within(card).queryByText('12%')).toBeNull();
+    // A configured machine is not a polled machine: a widget with no source
+    // asks nobody for anything, which is what keeps the default offline.
+    expect(net.calls).toEqual([]);
+  });
+
+  it('offers to bring the widgets back on screen, dead until the layout has arrived', async () => {
+    const hold = deferred();
+    let asked = 0;
+    const screens = createScreenSource(() => {
+      asked += 1;
+      return Promise.resolve([LAPTOP]);
+    });
+    showWith({ registry: [stored('cpu', 'cpu-1')], gate: hold.promise, screens });
+
+    const button = screen.getByRole<HTMLButtonElement>('button', {
+      name: i18n.t('widgets.bringBack'),
+    });
+    // Asking before the stored list has been read would move widgets that have
+    // not been loaded yet, so the action waits for the same hydration as the
+    // rest of the screen.
+    expect(button.disabled).toBe(true);
+
+    await act(async () => {
+      hold.release();
+    });
+
+    await waitFor(() => {
+      expect(button.disabled).toBe(false);
+    });
+    // The store runs one pass of its own the moment it hydrates; the button has
+    // to ask a second time rather than lean on that pass having happened.
+    await waitFor(() => {
+      expect(asked).toBe(1);
+    });
+
+    fireEvent.click(button);
+
+    await waitFor(() => {
+      expect(asked).toBe(2);
+    });
   });
 });
 

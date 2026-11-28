@@ -26,3 +26,45 @@ body,
 #root {
   height: 100%;
 }
+
+/*
+ * Contrast of the widget surfaces, measured rather than assumed.
+ *
+ * A widget panel is translucent and floats over an arbitrary desktop, so its
+ * contrast is only meaningful once the fill is composited over a wallpaper.
+ * `.copilot-tmp/widgets/contrast.mjs` computes the dark-theme tokens from their
+ * oklch values, composites both fills over the two extremes (pure white and
+ * pure black) and reports the WCAG ratio. Measured:
+ *
+ *   plain  rgb(20 20 24 / 0.92) over white -> rgb(39 39 43)
+ *     --color-fg-default 12.90:1  --color-fg-muted 6.02:1   both pass AA
+ *   glass  rgb(20 20 24 / 0.55) over white -> rgb(126 126 128)
+ *     --color-fg-default  3.51:1  --color-fg-muted 1.64:1   both FAIL AA
+ *   glass  rgb(20 20 24 / 0.55) over black -> rgb(11 11 13)
+ *     --color-fg-default 16.99:1  --color-fg-muted 7.93:1   both pass AA
+ *
+ * So the plain fill passes over every wallpaper, and the glass fill passes over
+ * a dark one and fails over a light one. A translucent panel cannot in general
+ * guarantee contrast over an arbitrary wallpaper — that is arithmetic, not a
+ * choice — so the two things this window can do about it are to keep its own
+ * controls off the translucent layer and to say plainly what the fixed value
+ * would have to be.
+ *
+ * The first is done here: the hover toolbar is backed by `--color-bg-overlay`
+ * (0.90 alpha), which lifts its worst case from 1.64:1 to 6.54:1 over a white
+ * wallpaper in the glass style and 7.18:1 in the plain one. The panels this
+ * stylesheet's window draws itself — the "not on screen" notice and the crash
+ * screen — use the same token for the same reason.
+ *
+ * The second is a number for the file that owns the panel fill
+ * (`features/widgets/WidgetPreview.tsx`, which this window does not edit): at
+ * 0.55 the glass fill needs a white wallpaper to be avoided entirely. Holding
+ * `--color-fg-muted` above 4.5:1 against pure white requires the fill to be at
+ * least 0.84 alpha; `--color-fg-default` alone would need 0.63. Until then the
+ * reading is legible on the plain style and depends on the wallpaper in the
+ * glass one — a limitation of the style, recorded here rather than papered over
+ * with a hard-coded colour that would only move the problem.
+ *
+ * `--color-fg-subtle` is deliberately absent from this window: at 4.44:1 on the
+ * plain fill it is below AA for normal text, and the widget draws nothing in it.
+ */

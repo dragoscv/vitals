@@ -25,6 +25,7 @@ import { createKeyedBackend, type KeyedBackend } from '@/settings/persistence';
 
 import {
   addWidget,
+  geometryFor,
   newWidgetId,
   parseWidgets,
   removeWidget,
@@ -35,7 +36,15 @@ import {
   type WidgetKind,
   type WidgetRegistry,
 } from './model';
-import { tauriWidgetBridge, type WidgetBridge } from './windows';
+import {
+  bringOnScreen,
+  createScreenSource,
+  nextCascadePosition,
+  snapToGrid,
+  tauriWidgetBridge,
+  type ScreenSource,
+  type WidgetBridge,
+} from './windows';
 
 const KEY = 'widgets';
 const WRITE_DEBOUNCE_MS = 250;
@@ -51,16 +60,28 @@ export interface WidgetController {
   add: (kind: WidgetKind, id?: string) => void;
   remove: (id: string) => void;
   update: (id: string, patch: Partial<Omit<WidgetInstance, 'id' | 'kind'>>) => void;
+  /**
+   * Brings every widget back onto a screen, for the case where the monitor a
+   * widget lived on has gone. A no-op — no write, no push — when they are all
+   * already reachable, or when no screen could be learned at all.
+   */
+  bringAllOnScreen: () => void;
   reset: () => void;
 }
 
 export interface WidgetStoreOptions {
   readonly backend?: KeyedBackend;
   readonly bridge?: WidgetBridge;
+  /** Where a widget may be brought back to; injected so a test needs no host. */
+  readonly screens?: ScreenSource;
 }
 
 export function useWidgets(options: WidgetStoreOptions = {}): WidgetController {
-  const { backend = createKeyedBackend(KEY), bridge = tauriWidgetBridge } = options;
+  const {
+    backend = createKeyedBackend(KEY),
+    bridge = tauriWidgetBridge,
+    screens = createScreenSource(),
+  } = options;
 
   const [widgets, setWidgets] = useState<WidgetRegistry>([]);
   const [hydrated, setHydrated] = useState(false);
@@ -71,9 +92,11 @@ export function useWidgets(options: WidgetStoreOptions = {}): WidgetController {
   // and the effects read `.current` when they need it.
   const backendRef = useRef(backend);
   const bridgeRef = useRef(bridge);
+  const screensRef = useRef(screens);
   useEffect(() => {
     backendRef.current = backend;
     bridgeRef.current = bridge;
+    screensRef.current = screens;
   });
 
   useEffect(() => {
@@ -156,7 +179,17 @@ export function useWidgets(options: WidgetStoreOptions = {}): WidgetController {
   useEffect(() => {
     if (!hydrated) return;
     return bridgeRef.current.onMoved((move) => {
-      setWidgets((current) => updateWidget(current, move.id, { x: move.x, y: move.y }));
+      // Snapped on the way in, so the stored position is one two widgets can
+      // share a row on rather than the raw pointer coordinate. When the snap
+      // changes nothing — the common case for every tick after the first, and
+      // for a drag that ended on the grid — `updateWidget` answers with the
+      // SAME array, React bails out, and neither the debounced write nor the
+      // debounced push is scheduled. That is what keeps a slow drag from
+      // writing the file once per frame.
+      setWidgets((current) => {
+        const snapped = snapToGrid({ x: move.x, y: move.y });
+        return updateWidget(current, move.id, { x: snapped.x, y: snapped.y });
+      });
     });
   }, [hydrated, bridgeRef]);
 
@@ -175,10 +208,15 @@ export function useWidgets(options: WidgetStoreOptions = {}): WidgetController {
   useEffect(() => {
     if (!hydrated) return;
     return bridgeRef.current.onChanged((spec) => {
+      // Snapped here too, for the same reason as a move: this is the other
+      // path a position reported by the host can enter through, and a widget
+      // that reached the grid by dragging must not leave it by having a flag
+      // flipped. Two entry points, one invariant.
+      const snapped = snapToGrid({ x: spec.x, y: spec.y });
       setWidgets((current) =>
         updateWidget(current, spec.id, {
-          x: spec.x,
-          y: spec.y,
+          x: snapped.x,
+          y: snapped.y,
           opacity: spec.opacity,
           alwaysOnTop: spec.alwaysOnTop,
           clickThrough: spec.clickThrough,
@@ -192,7 +230,15 @@ export function useWidgets(options: WidgetStoreOptions = {}): WidgetController {
       const next = addWidget(current, kind, id ?? newWidgetId());
       // The same array at the cap, so a click that could not add anything does
       // not schedule a write that would rewrite the file identically.
-      return sameRegistry(current, next) ? current : next;
+      if (sameRegistry(current, next)) return current;
+      // `addWidget` places the newcomer at the cascade step matching the list
+      // length, which collides after a removal: remove the second of three and
+      // the next widget lands on the third. Move it to the first cascade slot
+      // nothing occupies — the same cascade rule, made to survive a removal.
+      const added = next.at(-1);
+      if (added === undefined) return next;
+      const position = nextCascadePosition(current);
+      return updateWidget(next, added.id, { x: position.x, y: position.y });
     });
   }, []);
 
@@ -204,9 +250,63 @@ export function useWidgets(options: WidgetStoreOptions = {}): WidgetController {
     setWidgets((current) => updateWidget(current, id, patch));
   }, []);
 
+  // Async, because the host is: the screens are asked for, and the answer is
+  // applied when it arrives. Called once when the overlay opens, after the
+  // stored positions are hydrated, so a widget left on a monitor that is no
+  // longer attached comes back before the user sees it missing.
+  //
+  // A widget is only patched when the answer differs from where it is, so the
+  // common case — every widget already on a screen — returns the same array,
+  // writes nothing, and pushes nothing. With no screens learned at all the
+  // action does nothing and says so in the log: an empty answer is not a
+  // licence to guess a coordinate system, and a wrong move would lose a widget
+  // that was merely on another monitor today.
+  const bringAllOnScreen = useCallback(() => {
+    void screensRef.current
+      .screens()
+      .then((available) => {
+        if (available.length === 0) {
+          reportToLog(
+            'warn',
+            new Error('no screens known; widgets left where they are'),
+            'widgets',
+          );
+          return;
+        }
+        setWidgets((current) => {
+          let next = current;
+          for (const widget of current) {
+            const { width, height } = geometryFor(widget.size);
+            const target = bringOnScreen({ x: widget.x, y: widget.y, width, height }, available);
+            if (target.x !== widget.x || target.y !== widget.y) {
+              next = updateWidget(next, widget.id, { x: target.x, y: target.y });
+            }
+          }
+          return next;
+        });
+      })
+      .catch((error: unknown) => {
+        reportToLog('warn', error, 'widgets');
+      });
+  }, []);
+
   const reset = useCallback(() => {
     setWidgets([]);
   }, []);
 
-  return { widgets, hydrated, open, add, remove, update, reset };
+  // The recovery runs by itself, once, as soon as the stored layout has been
+  // read. Left to a button in the settings screen it would only help a user who
+  // already suspected a widget was missing, which is exactly the situation this
+  // feature exists to remove. Running it here also means a widget whose monitor
+  // was unplugged comes back before the overlay is ever opened.
+  //
+  // Once, because the guard is `hydrated`, which flips a single time. Nothing
+  // is scheduled when the pass finds every widget reachable, so an ordinary
+  // start does not write the file.
+  useEffect(() => {
+    if (!hydrated) return;
+    bringAllOnScreen();
+  }, [hydrated, bringAllOnScreen]);
+
+  return { widgets, hydrated, open, add, remove, update, bringAllOnScreen, reset };
 }

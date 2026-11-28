@@ -20,18 +20,36 @@ use std::sync::Arc;
 
 use tauri::Manager;
 use vitals_core::sample::Frame;
-use vitals_ipc::AttachServer;
+use vitals_ipc::{AttachServer, WidgetHost};
 
 /// Managed state wrapping the listener. `None` when the pipe could not be
 /// bound — the app keeps working; only attaching does not.
-#[derive(Debug)]
 pub struct AttachPipe {
     /// Taken by [`Self::stop`], so [`Self::restart`] can tell a stopped pipe
     /// from a running one. A `Mutex` because managed state is shared by
     /// reference; uncontended, the sampler's per-tick check stays cheap.
     server: parking_lot::Mutex<Option<AttachServer>>,
+    /// The handler that answers `vitals widget` requests, kept here rather than
+    /// only on the server so a rebind does not lose it: every `AttachServer`
+    /// starts with no host, so after `restart` a widget request would otherwise
+    /// be refused for the rest of the session.
+    host: parking_lot::Mutex<Option<Arc<dyn WidgetHost>>>,
     name: String,
     version: String,
+}
+
+// Derived would not work: the trait object the host slot holds is not `Debug`,
+// and what the host *is* is not worth printing anyway — only whether there is
+// one.
+impl std::fmt::Debug for AttachPipe {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AttachPipe")
+            .field("name", &self.name)
+            .field("version", &self.version)
+            .field("listening", &self.server.lock().is_some())
+            .field("widgetHost", &self.host.lock().is_some())
+            .finish()
+    }
 }
 
 impl AttachPipe {
@@ -44,23 +62,49 @@ impl AttachPipe {
     }
 
     fn start_named(name: String, version: &str) -> Self {
-        Self {
-            server: parking_lot::Mutex::new(Self::bind(&name, version)),
+        let pipe = Self {
+            server: parking_lot::Mutex::new(None),
+            host: parking_lot::Mutex::new(None),
             name,
             version: version.to_owned(),
-        }
+        };
+        pipe.bind();
+        pipe
     }
 
-    fn bind(name: &str, version: &str) -> Option<AttachServer> {
-        match AttachServer::start(name, version.to_owned()) {
+    /// Starts a server and attaches the stored widget host to it.
+    ///
+    /// Does not touch `self.server`; the caller owns that lock, and this takes
+    /// it (through the host slot), so taking it here too would deadlock.
+    fn start_server(&self) -> Option<AttachServer> {
+        let server = match AttachServer::start(&self.name, self.version.clone()) {
             Ok(server) => {
-                tracing::info!(pipe = %name, "attach pipe listening");
+                tracing::info!(pipe = %self.name, "attach pipe listening");
                 Some(server)
             }
             Err(error) => {
-                tracing::warn!(pipe = %name, %error, "attach pipe not started");
+                tracing::warn!(pipe = %self.name, %error, "attach pipe not started");
                 None
             }
+        };
+        if let (Some(server), Some(host)) = (&server, self.host.lock().clone()) {
+            server.set_widget_host(host);
+        }
+        server
+    }
+
+    fn bind(&self) {
+        let server = self.start_server();
+        *self.server.lock() = server;
+    }
+
+    /// Installs the handler that answers `vitals widget` requests.
+    ///
+    /// Applied to the running server, and remembered for any later rebind.
+    pub fn set_widget_host(&self, host: Arc<dyn WidgetHost>) {
+        *self.host.lock() = Some(Arc::clone(&host));
+        if let Some(server) = self.server.lock().as_ref() {
+            server.set_widget_host(host);
         }
     }
 
@@ -96,14 +140,14 @@ impl AttachPipe {
 
     /// Binds again after [`Self::stop`]; a no-op while running.
     pub fn restart(&self) {
-        let mut server = self.server.lock();
-        if server.is_none() {
-            *server = Self::bind(&self.name, &self.version);
+        let mut slot = self.server.lock();
+        if slot.is_none() {
+            *slot = self.start_server();
             // The old accept thread drops its listener only once it has
             // woken and seen the stop; until then the name can still be held.
-            if server.is_none() {
+            if slot.is_none() {
                 std::thread::sleep(std::time::Duration::from_millis(250));
-                *server = Self::bind(&self.name, &self.version);
+                *slot = self.start_server();
             }
         }
     }
@@ -113,6 +157,16 @@ impl AttachPipe {
 pub fn start(app: &tauri::AppHandle) {
     let version = app.package_info().version.to_string();
     app.manage(AttachPipe::start(&version));
+}
+
+/// Registers the handler that answers `vitals widget` on the attach pipe.
+///
+/// A no-op when the pipe was never bound, which is the same state as a request
+/// arriving: the app keeps working and only attaching does not.
+pub fn set_widget_host(app: &tauri::AppHandle, host: Arc<dyn WidgetHost>) {
+    if let Some(pipe) = app.try_state::<AttachPipe>() {
+        pipe.set_widget_host(host);
+    }
 }
 
 /// Stops accepting. Existing `top` sessions see their stream end.
@@ -134,6 +188,7 @@ pub fn restart(app: &tauri::AppHandle) {
 mod tests {
     use super::*;
     use vitals_ipc::attach::AttachClient;
+    use vitals_ipc::attach::{WidgetAction, WidgetsReply};
 
     fn unique_name(tag: &str) -> String {
         format!("vitals-test-{tag}-{}", std::process::id())
@@ -171,5 +226,45 @@ mod tests {
         pipe.restart();
         assert!(pipe.server.lock().is_some());
         assert!(AttachClient::connect(&name).is_ok());
+    }
+
+    /// The guarantee: a widget host is still answering after the rebind that
+    /// follows a declined update — `vitals widget` does not work once per
+    /// session. Every `AttachServer` starts with no host of its own, so this
+    /// only holds because the pipe keeps the handler as well as the listener.
+    #[test]
+    fn a_widget_host_installed_before_an_update_answers_after_the_rebind() {
+        struct Answers;
+
+        impl WidgetHost for Answers {
+            fn widgets(&self, action: &WidgetAction) -> Result<WidgetsReply, String> {
+                if matches!(action, WidgetAction::List) {
+                    Ok(WidgetsReply::ok(Vec::new(), None))
+                } else {
+                    Err("this test only asks for a list".to_owned())
+                }
+            }
+        }
+
+        let name = unique_name("widget-host");
+        let pipe = AttachPipe::start_named(name.clone(), "9.9.9");
+        pipe.set_widget_host(Arc::new(Answers));
+
+        let (client, _) = AttachClient::connect(&name).unwrap();
+        assert_eq!(
+            client.widget(WidgetAction::List).unwrap().status,
+            "ok",
+            "the host installed at startup answers"
+        );
+
+        pipe.stop();
+        pipe.restart();
+
+        let (client, _) = AttachClient::connect(&name).unwrap();
+        assert_eq!(
+            client.widget(WidgetAction::List).unwrap().status,
+            "ok",
+            "and it is still the one answering after the rebind"
+        );
     }
 }
