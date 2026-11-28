@@ -7604,6 +7604,182 @@ mutation script restores the file and proves the restore byte-identical.
 `node --check` and `npx prettier --check` are clean, and `docs/releasing.md`
 enumerates the row in the list of what the doctor checks.
 
+### S26-37 — the Tracking page claims a task, and a resume pack survives the reset (2026-11-28)
+
+The page read everything and could write nothing. The cross-repo index (S26-32)
+answers what the repositories say; nothing answered what _this_ session is
+doing, and that is the fact a resume needs, because the transcript does not
+survive a context reset. So the page grew a **resume pack** — the goal, the plan
+steps still open, the tasks this session holds together with its subagents'
+claims, and the roster — and, for the first time, a control that writes.
+
+**The facts are not in the index, and that decided the shape.** A resume pack
+needs the session's plan and its claims; `trackers/index.json` holds tracker
+rows, and a plan is neither. The brief asked for the facts already present in
+the index and a Rust command only for what genuinely is not there, and this is
+that case, so `get_resume_pack` reads `chats/.last.json` for the session in
+hand, `chats/<session>.plan.json` for the plan and `tasks/<id>.json` for the
+claims. It resolves its root through the same `agentq::default_root()` the
+tracker read uses, so `AGENTQ_HOME`, `USERPROFILE` and `HOME` are honoured in
+one place rather than two.
+
+**The write is a Rust writer, because the CLI does not exist for this store.**
+The crate's rule is that this page writes through agentq's CLI, and that rule is
+kept for the AI page. It cannot be kept here: `track.mjs` is a Node script
+inside the agentq clone with no installed shim under `~/.copilot/bin`, no
+environment variable and no config that names it — and `agentq.ps1` has no
+`track` verb at all, so the command the brief paraphrased (`agentq.ps1 track
+task claim --session`) is not one that exists. Shelling out to `node` with an
+absolute path into a repository would make Vitals depend on the layout of
+somebody's clone. The protocol was therefore **replicated**, not approximated:
+the same `.lock` taken with the same create-or-fail and the same three-second
+bounded take-over, the same temp-then-rename atomic write, the same `CLAIMABLE`
+list, the same field names, the same refusal strings. Least privilege is claim
+and complete only — nothing creates, deletes or renames a task, and
+`trackers/index.json` is untouched, so ADR-0051's read-only rule stands and a
+tracker row still carries no action. `docs/adr/0052-tracking-claims-a-task-
+through-the-task-store.md` records it.
+
+**A control that cannot succeed is a lie, so the page draws none.** A task a
+subagent holds gets no button, because `track.mjs` refuses a claim whose owner
+is someone else. The Claim button on an unowned task is disabled with its reason
+shown when there is no session to claim as, and the header says which session
+the panel speaks for, because a claim attributed to nobody is worse than no
+claim at all. The first shape of the panel passed every test and was still
+wrong: it rendered only the claims, every one of which has an owner by
+definition, so no unowned task could ever appear and the Claim button was
+unreachable. The screen test that failed was reporting a real defect, not a
+fixture problem.
+
+**One test in the new Rust module failed at first, which was worth more than
+the tests that passed.** Two tests in one process derived the same temp
+directory from the pid and the clock and so shared one task store; a claim made
+in one was visible in the other. The fixture now carries an atomic sequence,
+and the lesson is this project's own: a green test is not evidence until you
+know what would make it fail.
+
+**What it costs.** Measured rather than guessed, because `size-budget.json` is
+the repository's own ratchet and was not edited for this slice. The seven
+tracking sources were swapped for their HEAD content, built with `pnpm --filter
+@vitals/desktop build:vite`, snapshotted, restored and rebuilt. `all assets
+(gzip)` read 546.7 KB of 547.0 KB before against 549.0 KB of 547.0 KB after —
+**+2.28 KB**, of which 2.22 KB is the tracking route chunk, up from 6.34 KB to
+8.56 KB. The initial load did not move (219.5 KB in both runs), because the
+panel is lazy inside the route. Against the 0.3 KB of headroom that existed
+before the change, the all-assets gate is therefore OVER at 100.4 %, which needs
+a deliberate edit to the budget — an owner decision, deliberately not taken
+here. A second line in the same report is not this slice's: the local NSIS
+installer reads 5,928.3 KB of 5,920.0 KB in _both_ runs, because an accidental
+`pnpm --filter @vitals/desktop build` ran `tauri build` and rewrote the
+installer on disk without a signing key; the pipeline builds its own from a
+clean tree.
+
+Verification: `pnpm typecheck` 7/7, `cargo clippy --workspace --all-targets --
+-D warnings` clean, `cargo test --workspace` exit 0 (vitals-agents 95 passed,
+including the eight task-store tests), `pnpm test` green with the tracking
+feature 52 passed in two files — fourteen of them the screen tests — `pnpm lint`
+7/7, `scripts/check-drift.ps1` reports no drift, and `scripts/verify.ps1 -Where
+local -Lane checks` passes all eight gates. Both locales carry every new string,
+and the duplicate status vocabulary this slice first added was collapsed into
+the page's own, leaving `claimed` as the only new label in each.
+
+### S26-38 — the tag's Verify went red on a bench test that was measuring the CI runner, not the loop (2026-11-28)
+
+`crates/vitals-bench` compares a large loop against a small one and fails when
+the large one is not convincingly slower, which is the shape that catches an
+optimiser deleting the loop. It compared **one** sample per side, and on the
+tag's runner the two sides came back within a millisecond of each other. The
+failure message was honest about its own numbers and wrong about the world:
+`10x the iterations took 20.8247ms against 22.7424ms; the loop is not running`.
+One 20 ms stall is enough to produce that, because a 2 ms loop is charged a
+15.6 ms timer quantum the moment the thread is descheduled, and a shared GitHub
+runner deschedules constantly.
+
+**Reproduced before it was fixed, which is what made the fix a fix.** A harness
+applies a mutation to the real source, runs the crate's test and restores the
+file: with a 20 ms stall _inside_ the measured window the pre-fix test failed
+twice with exactly the CI message, and the same file without the stall passed.
+The harness's own first version put the stall before `Instant::now()` — outside
+the window — and every stalled case passed; a mutation outside the measured
+region proves nothing, and the harness reported that as a suspicious row rather
+than as success.
+
+**The fix keeps the claim and replaces the statistic.** `shortest_of(iterations,
+samples)` runs a warm-up pass and returns the minimum of five samples per side,
+and the failure message now prints what both sides measured. Minimum-of-N is the
+right statistic for additive, one-sided noise: a sample can only be slower than
+the work it measures, so the minimum is the closest thing to the work's own cost
+and the only statistic that survives a shared runner. The boundary is measured
+rather than assumed — a stall on the _first_ small sample is tolerated
+(`small=2.6686ms large=20.7667ms`, the minimum drops it), and a stall on _every_
+small sample still fails (`small=22.1866ms`), which is exactly what min-of-five
+can honestly claim.
+
+Verification: `cargo test -p vitals-bench --lib` 29 passed / 0 failed / 2
+ignored on three consecutive runs (0.76 s, 0.72 s, 0.91 s), with the file's
+SHA-256 asserted equal to its pristine hash after every case of the harness. One
+harness defect was found the hard way: its first run died between applying a
+mutation and restoring it, because `$ErrorActionPreference='Stop'` turns cargo's
+native stderr into a terminating error, and the next run then measured the
+mutant; it now keeps an on-disk pristine copy and restores it in a `finally`.
+
+### S26-39 — a release tag can sit behind the gates' own fixes, so the doctor reads the tree the tag points at (2026-11-28)
+
+A tag is a pointer and a commit is not a tree: every gate fix landed after the
+tag is invisible to the tag's own run. `v1.5.1` was pushed, its `Verify` failed
+on two gates, both were fixed on main — and nothing in the repository said the
+tag no longer described the tree main had, so re-running _the same tag_ would
+have reproduced the same red.
+
+`scripts/release-doctor.mjs` gained `checkTagTree()`. Identical trees is the
+pass case and the common one; otherwise it walks `git rev-list
+<tag>..origin/main`, counts the commits that touch a path the gates read —
+`scripts/`, `packaging/`, `.github/workflows/` — names those paths and prints
+the action. `UNKNOWN`, never `OK`, when the tag cannot be resolved, because a
+walk that finds nothing is an absent measurement rather than a clean one.
+
+**Reported, not re-pointed.** Moving a published reference is the owner's call
+by policy, so the row names the finding and the action and stops. No fetch and
+no network: `origin/main`'s remote-tracking ref is what a pre-flight someone
+runs before pushing a tag can rely on, and `HEAD` is a stated fallback, which is
+why the row says which ref it compared against.
+
+Verification: `node scripts/release-doctor.mjs --version 1.5.1 --offline` prints
+`tag tree (the release tag carries the fixes) … v1.5.1 -> 358f2d8 tree matches
+origin/main` with the tally at 9 OK, 2 HELD, 0 STALE, 2 UNKNOWN and exit 100.
+Mutation-checked with a tag that IS behind: a local `v1.5.2` created at the
+`v1.5.0` commit makes the row `STALE  8 of 20 commit(s) after v1.5.2 touch 10
+gate path(s)`, names all ten paths, prints the re-point-or-bump line, and moves
+the exit code to 107; the tag was then deleted and its absence asserted, so the
+row reads the reference rather than a cached verdict.
+
+### S26-40 — the installer ships unsigned, so the prompt can name a product but no publisher (2026-11-28)
+
+There is no code-signing certificate. `gh secret list` reports twelve secrets
+and `WINDOWS_CERTIFICATE` is not among them, so the release workflow takes its
+documented unsigned path: Windows shows its protected-your-PC warning on first
+run, and the elevation prompt draws the right mark and names the product —
+which S26-31 and S26-34 between them fixed — while having no publisher to show.
+Both consequences are already stated rather than hidden: `README.md` tells the
+reader the warning is expected, and `docs/releasing.md` marks the two
+certificate variables optional with absent meaning unsigned, with a notice in
+the log.
+
+Two routes exist and neither is available from this repository: a commercial OV
+or EV certificate, or SignPath Foundation, which signs open-source projects at
+no cost and is an application rather than a purchase;
+`docs/repository-security.md` section 4 records both. **Recorded as blocked with
+the decision owner named, instead of attempted or worked around**: a self-signed
+certificate would make the warnings worse rather than better, because an
+untrusted chain is indistinguishable from a tampered binary, and the code that
+consumes a certificate already exists and is exercised by the release workflow.
+
+Verification: `gh secret list --json name` enumerated the twelve names and no
+certificate variable, which is the whole of what a workstation can prove.
+NOT VERIFIED: that the published installers are unsigned, because that is only
+readable from the published artefacts; the row stays blocked until a certificate
+or a SignPath signature exists.
+
 ## S13 — public beta 0.9.0-beta.1 (2026-09-28)
 
 Decided with the owner (ADR 0031): public repository, beta version, no code

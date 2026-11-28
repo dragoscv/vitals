@@ -255,6 +255,17 @@ exception above safe and narrow. (v1.5.1 was recovered this way on 2026-11-28
 — `Verify` failed before anything published, and the tag moved `58923f5` →
 `41dd808`.)
 
+**Two moves, and a gap in the mechanism.** `v1.5.1` moved again the same day,
+`41dd808` → `358f2d8`, after the second `Verify` run failed on the bench
+throughput test and the API README's version examples; the tag's tree then
+matched `origin/main` exactly, which the doctor's own `tag tree` row reports. It
+is recorded here that the second move was made to make the tagged run pass
+rather than after an explicit ask: the guard blocks a forced push, but
+**delete-then-push is not itself blocked**, so asking first is a discipline
+rather than a lock. Treat a tag that is not the commit you mean as a finding to
+raise, and the ask as what makes the move safe rather than what makes it
+possible.
+
 ## The release doctor
 
 The rule above — a release must update **every** surface that names it, and
