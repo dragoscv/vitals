@@ -7339,16 +7339,30 @@ advertised there either; and `docs/research/vitals-page-patterns.md` stays as
 the dated research snapshot it declares itself to be.
 
 Verification: `pnpm typecheck` exit 0 (7 of 7 tasks); `tsc --noEmit -p
-tsconfig.json` exit 0 with all six tracking files in the program (proven with
-`--listFiles`, 6 matches); `vitest run` exit 0 — 150 files, 1540 tests passed, of
-which the new `model.test.ts` is 21 and non-vacuous by mutation (removing `done`
-from `CLOSED_STATUSES` fails exactly `counts open rows as everything that is not
-done, dropped or deferred`, 1 failed / 19 passed, restored green); `eslint`
+tsconfig.json` exit 0 with all seven tracking files in the program (proven with
+`--listFiles`, 7 matches); `vitest run` exit 0 — 151 files, 1548 tests passed, of
+which the new files are 21 model cases and 8 that render the screen itself, both
+non-vacuous by mutation (removing `done` from `CLOSED_STATUSES` fails exactly
+`counts open rows as everything that is not done, dropped or deferred`, 1 failed
+/ 19 passed; drawing `repo.git.branch` instead of `shortRef(repo.git.branch)`
+fails exactly the card test, 1 failed / 7 passed; both restored green); `eslint`
 exit 0 and `prettier --check` exit 0 on the touched paths; `scripts/check-drift.ps1`
 exit 0 with `drift: 0 failure(s), 0 warning(s) — checked 16 ts_rs files, 137
 invokes, 137 commands, 2 locales, 3 shipped icon binaries`; `cargo clippy -p
 vitals-desktop --all-targets -- -D warnings` exit 0 in 40.7 s; `scripts/check-tracker.ps1`
 exit 0 with `tracker: 0 problem(s)`.
+
+The screen is tested separately from the model because a tested parser says
+nothing about what a person reads. Eight cases render it through its own
+`source` prop, so none of them needs a Tauri host: no host (which must draw its
+own state and read nothing), no scan yet (the scanner command, and never
+`--all`), a real-shaped index (both repositories, the branch without its
+`refs/heads` prefix, the short head, the rows, the clean warnings line), a
+drifting repository (the count reported, and the healthy line gone), a failed
+read (the message kept rather than an empty catalogue), the account badge from
+both answers plus an unanswered read staying local-only, and Reload re-reading
+exactly once. Assertions are made against the translation keys rather than
+English prose, so a wording change cannot fail a test about behaviour.
 
 The read path was proved against real files rather than a fixture, because a
 fixture cannot show that the scanner's own output survives the trip. The page's
