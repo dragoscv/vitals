@@ -56,6 +56,15 @@ export const routes = [
   { id: 'installedApps', label: 'Installed apps', landmark: heading('Installed apps') },
   { id: 'devices', label: 'Devices & sensors', landmark: heading('Devices & sensors') },
   { id: 'benchmarks', label: 'Benchmarks', landmark: heading('Benchmarks') },
+  {
+    id: 'tracking',
+    label: 'Tracking',
+    // The screen draws its own level-2 <h2> in every state — only the body
+    // switches, and the no-host state replaces the body alone — so the
+    // heading proves the screen rendered rather than the shell around an
+    // empty slot.
+    landmark: heading('Tracking'),
+  },
 ] as const;
 
 /**
