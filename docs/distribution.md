@@ -171,6 +171,16 @@ Two gates hold this, at the two ends where it can break:
   this class of defect — the source was correct-looking all along; only the
   bytes can say what a user will see.
 
+  It also runs in the `checks` lane of `scripts/verify.ps1`, against the same
+  binaries a local `tauri build` leaves under `target/release`
+  (`vitals-desktop.exe` as the icon reference, so the CLI, the watchdog and the
+  sensors helper are compared to the mark the desktop carries). There it reads
+  only what is already there: nothing is built and no network is touched, and
+  when no binary is present — or the only ones are older than the last change to
+  the version sources, so they report a version the tree no longer declares — it
+  prints one `binary identity: skipped` line and exits 0, so the table never
+  depends on a build. CI's release job checks the whole published set regardless.
+
   The last two call sites pass `-SkipIcon`: a Store package carries an x64 and
   an ARM64 binary and one host cannot draw both marks, and the readback job's
   reference is not itself a published file. That switch drops the **reference**

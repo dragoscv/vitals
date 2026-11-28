@@ -41,6 +41,20 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   comparison, and a release that reads its own artefacts back no longer trips on
   the half it was told not to check.
 
+- The benchmark suite no longer reports a red gate because a machine was busy.
+  `vitals-bench`'s throughput test timed one 200 000-iteration window and one
+  2 000 000-iteration window, once each, and asked the second to be at least
+  twice the first — but the smaller window takes about 2 ms, well under the
+  15.6 ms quantum Windows schedules on, so a single descheduling inside it
+  measured the scheduler instead of the loop. On a two-core CI runner that read
+  as "the loop is not running" on a loop that was running, and it stopped the
+  release at its verify step. The test now times each side five times and keeps
+  the shortest, after a warm-up, and its failure message reports both minima at
+  their best of five, so the number it prints is the number it judged. Five
+  samples were enough to discard a stall of one quantum in the first sample and
+  not enough to hide a loop that really did stop working — both directions are
+  measured, not assumed.
+
 ### Added
 
 - **Tracking** — one page for every plan on the machine, read from the index

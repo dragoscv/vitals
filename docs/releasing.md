@@ -201,6 +201,60 @@ old commit, so no consumer can be holding it. Do it before the release is
 public, never after. (v1.3.1 was recovered this way — the tag moved `cf2949e` →
 `36bf23d`.)
 
+## Moving a release tag
+
+A release tag is immutable by policy, and the ruleset enforces it. Moving one
+is sanctioned in exactly one case, and only with the owner's word:
+
+**When it is allowed.** The tagged run failed _before anything was published_
+— `Verify` red, or a build leg that never reached `publish` — so no artefact,
+no release and no channel entry ever referred to that commit; and the tag is
+hours old, not days, so no consumer can be holding it. Both must hold. **If
+anything was published, the tag is not moved** — bump the patch version and
+cut a new tag instead, because every download and `SHA256SUMS.txt` is already
+keyed to the commit the tag points at, and a verification against the moved
+tag would then disagree with the file a user has.
+
+**Who approves.** The owner, explicitly, _before_ the push. This is not a call
+an agent makes alone — ask with the reason and wait for the answer. The local
+safety guard blocks `git push --force` and `--force-with-lease` with no
+override and no consent file, so the ask is also what unblocks the mechanism.
+
+**The mechanism is delete-then-push, never a forced push.** Point the local
+tag at the intended commit first and confirm it peels there, then delete the
+remote ref and push the tag as a fresh creation:
+
+```powershell
+git tag -f -a v1.5.1 -m "Vitals 1.5.1" <sha-with-the-fix>
+git rev-parse 'v1.5.1^{commit}'          # must print <sha-with-the-fix>
+
+git push origin :refs/tags/v1.5.1        # delete, so the push below is a creation
+git push origin refs/tags/v1.5.1
+```
+
+**Prove where the remote tag landed.** A push that exited 0 says the ref
+moved, not that it moved to the commit you meant:
+
+```powershell
+git ls-remote origin 'refs/tags/v1.5.1^{}'
+```
+
+**Read `Bypassed rule violations for refs/tags/...` in the push output.** It
+means the push succeeded against a ruleset that would refuse a non-admin: the
+pushing account holds bypass permission, so a policy protecting the tag for
+everyone else was silently overridden for this one push. The same attempt
+without bypass answers `Cannot delete this tag` and `Cannot create ref due to
+creations being restricted`. It is not an error, but it is the signal to open
+the tag ruleset deliberately and be sure the move is the one intended.
+
+`v1.5.0` and every previously published tag are never moved. Their artefacts,
+stable-named copies and checksum manifests already reference the commits they
+point at, so a published tag is part of a contract a consumer may be checking;
+a tag that never published has no such contract, which is what makes the
+exception above safe and narrow. (v1.5.1 was recovered this way on 2026-11-28
+— `Verify` failed before anything published, and the tag moved `58923f5` →
+`41dd808`.)
+
 ## The release doctor
 
 The rule above — a release must update **every** surface that names it, and

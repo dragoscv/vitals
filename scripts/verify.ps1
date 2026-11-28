@@ -242,6 +242,37 @@ $runLane = {
 # rebuilding them from text keeps each gate's variables inside the job.
 $forceFlag = if ($Force) { '--force' } else { '' }
 
+# The shipped-artefact identity gate reads the icon and the version block back
+# off the binaries a release ships - the only place that defect is visible, and
+# the reason it reached a user in 1.5.0 rather than a build failure. It belongs
+# in the fast lane because it only reads files: it never builds and never needs
+# the network, and it skips when nothing has been built, so the table never
+# depends on an artefact existing. A binary built before the last change to the
+# files its version block comes from carries a version the tree no longer
+# declares - a stale build, not a wrong one - so only newer binaries are handed
+# over; CI's release job checks the whole published set regardless. The size
+# budget below draws its own freshness line differently (any source change can
+# move a size) because this gate reads what a version change alone can move.
+$identityVersion = [regex]::Match([IO.File]::ReadAllText((Join-Path $root 'Cargo.toml')), '(?m)^\[workspace\.package\][\s\S]*?^version\s*=\s*"([^"]+)"').Groups[1].Value
+$identityLastChange = git log -1 --format=%cI -- Cargo.toml apps/desktop/src-tauri/tauri.conf.json 2>$null
+$identityBuilt = @()
+if ($identityVersion -and $identityLastChange) {
+    $identityBuilt = @('vitals-desktop.exe', 'vitals.exe', 'vitals-watchdog.exe', 'vitals-sensors.exe' | Where-Object {
+            $exe = Join-Path $root "target/release/$_"
+            (Test-Path -LiteralPath $exe) -and ((Get-Item -LiteralPath $exe).LastWriteTime -gt [datetime]$identityLastChange)
+        })
+}
+$identityScript = if ($identityBuilt.Count) {
+    # -Only names the set, because target/release also holds every build script
+    # and the test binaries; the desktop binary is the icon reference the others
+    # are compared against, and is named whenever it is among them.
+    $identityCall = "-Path target/release -Version $identityVersion -Only '$($identityBuilt -join ',')'"
+    $identityCall += if ($identityBuilt -contains 'vitals-desktop.exe') { ' -Reference target/release/vitals-desktop.exe' } else { ' -SkipIcon' }
+    "pwsh -NoProfile -File scripts/check-binary-identity.ps1 $identityCall"
+} else {
+    "Write-Output 'binary identity: skipped - no Windows binary here is built from the current sources (build one with pnpm --filter @vitals/desktop tauri build to check it; CI checks the released artefacts)'"
+}
+
 $checks = @(
     @{ Name = 'rust: format'; Script = 'cargo fmt --all -- --check' }
     @{ Name = 'contracts: no drift'; Script = 'pwsh -NoProfile -File scripts/check-drift.ps1' }
@@ -253,6 +284,9 @@ $checks = @(
     # that moves them would advertise a version App Store Connect is not
     # reviewing. Pure file reads, so it costs the fast lane nothing.
     @{ Name = 'apple: listing held'; Script = 'node scripts/check-apple-hold.mjs' }
+    # Reads the bytes of the already-built binaries and skips when there are
+    # none (the decision is made above). A file read, so it stays in this lane.
+    @{ Name = 'artefacts: binary identity'; Script = $identityScript }
     @{ Name = 'ts: format'; Script = 'pnpm format:check' }
     # CI's supply-chain job runs this; without it here a new crate passed
     # every local gate and failed on GitHub (S12-36, 2026-09-28).

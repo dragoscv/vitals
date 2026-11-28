@@ -406,23 +406,51 @@ mod tests {
         assert_ne!(cpu_kernel(1_000, 1), cpu_kernel(2_000, 1));
     }
 
+    /// Time `iterations` of the kernel `samples` times and keep the shortest.
+    ///
+    /// The shortest run is the least-interrupted one, and it is the only
+    /// statistic that survives a busy machine. [`cpu_kernel`] puts a `sqrt` on
+    /// the dependency chain, so it costs roughly ten nanoseconds an iteration:
+    /// the smaller window in the test below is therefore a couple of
+    /// milliseconds, well under the 15.6 ms quantum Windows schedules on. A
+    /// single descheduling inside that window doubles or triples it, and one
+    /// sample then measures the scheduler rather than the loop — which is how
+    /// this test came to fail on a two-core CI runner (release run 46092175270)
+    /// while passing everywhere else. Keeping the minimum of several samples
+    /// leaves the claim intact and removes the dependence on machine load.
+    fn shortest_of(iterations: u64, samples: u32) -> Duration {
+        let mut shortest = Duration::MAX;
+        for _ in 0..samples {
+            let start = Instant::now();
+            black_box(cpu_kernel(black_box(iterations), 1));
+            shortest = shortest.min(start.elapsed());
+        }
+        shortest
+    }
+
     #[test]
     fn cpu_kernel_scales_with_iteration_count() {
         // Ten times the work must take meaningfully longer. A loop that has
         // been deleted takes the same near-zero time whatever it is asked
         // for, so this catches the failure the black_boxes exist to prevent
         // without depending on any absolute speed.
-        let small = Instant::now();
-        black_box(cpu_kernel(black_box(200_000), 1));
-        let small = small.elapsed();
+        //
+        // Both sides are the shortest of several samples, for the reason given
+        // on `shortest_of`. The claim is unchanged; what changes is that it is
+        // now a claim about the loop instead of about the scheduler.
+        const SAMPLES: u32 = 5;
 
-        let large = Instant::now();
-        black_box(cpu_kernel(black_box(2_000_000), 1));
-        let large = large.elapsed();
+        // Warm the code path once, so neither window contains the first-touch
+        // cost of the pages the kernel reads and writes.
+        black_box(cpu_kernel(black_box(200_000), 1));
+
+        let small = shortest_of(200_000, SAMPLES);
+        let large = shortest_of(2_000_000, SAMPLES);
 
         assert!(
             large > small * 2,
-            "10x the iterations took {large:?} against {small:?}; the loop is not running"
+            "10x the iterations took {large:?} against {small:?} at their shortest of \
+             {SAMPLES} samples; the loop is not running"
         );
     }
 

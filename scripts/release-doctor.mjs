@@ -482,7 +482,114 @@ function checkTag() {
   ok('git tag', expected, `${tag} -> ${commit.slice(0, 7)} (${source})`);
 }
 
-// 9. the tracker row for the release. This repository's convention is one row
+// 9. the release tag's tree against origin/main. The release builds the TAG's
+// tree, not main's, so a gate-relevant fix that lands on main after the tag is
+// silently absent from everything the gates do — the tag's own Verify job runs
+// the old tree, fails, and the tag has to be re-pointed afterwards. That is
+// exactly what happened on 2026-11-28: v1.5.1 pointed at 58923f5, two
+// gate-relevant commits (f94be78, 41dd808) landed on main after it, the tag's
+// Verify job went red on the old tree, and the tag was re-pointed at 41dd808.
+// Nothing pre-flight warned that the tag was stale, so this row does.
+//
+// Everything read here is local — the tag, its peeled commit and origin/main
+// come from the repository — so `--offline` costs nothing. HEAD is used only
+// when origin/main is genuinely absent, and the row names the ref it compared.
+// A missing tag, or no way to reach main at all, is UNKNOWN, never OK: an
+// unverifiable claim is not a passing one.
+const GATE_PATHS = [/^scripts\//, /^packaging\//, /^\.github\/workflows\//];
+
+function checkTagTree() {
+  const label = 'tag tree (the release tag carries the fixes)';
+  const expected = `${tag} is not behind origin/main on the paths the gates read`;
+  // Without the tag there is nothing to compare against main.
+  let tagged;
+  try {
+    tagged = git(['rev-parse', '--verify', '--quiet', `${tag}^{commit}`]).trim();
+  } catch {
+    unknown(label, expected, `no tag ${tag} to compare against main`);
+    return;
+  }
+  // The remote-tracking ref is enough — no fetch, no network. HEAD is a stated
+  // fallback, taken only when origin/main is genuinely absent.
+  let refName = 'origin/main';
+  let base = '';
+  try {
+    base = git(['rev-parse', '--verify', '--quiet', 'origin/main']).trim();
+  } catch {
+    base = '';
+  }
+  if (!base) {
+    try {
+      base = git(['rev-parse', '--verify', '--quiet', 'HEAD']).trim();
+      refName = 'HEAD (origin/main absent)';
+    } catch {
+      base = '';
+    }
+  }
+  if (!base) {
+    unknown(label, expected, 'no origin/main and no HEAD to compare against');
+    return;
+  }
+  // Identical trees is the pass case ahead of the commit walk: the tag's tree
+  // is exactly what main has, so no gate-relevant fix can be missing.
+  const taggedTree = git(['rev-parse', `${tagged}^{tree}`]).trim();
+  const baseTree = git(['rev-parse', `${base}^{tree}`]).trim();
+  if (taggedTree === baseTree) {
+    ok(label, expected, `${tag} -> ${tagged.slice(0, 7)} tree matches ${refName}`);
+    return;
+  }
+  // Commits on the base the tag's history does not carry, with the paths each
+  // touches. A commit touching a gate path (scripts/, packaging/,
+  // .github/workflows/) is a fix the release gates will never see.
+  let listed;
+  try {
+    listed = git(['rev-list', `${tagged}..${base}`]).trim();
+  } catch {
+    unknown(label, expected, `could not enumerate commits between ${tag} and ${refName}`);
+    return;
+  }
+  const commits = listed ? listed.split('\n').filter(Boolean) : [];
+  const paths = new Set();
+  let offending = 0;
+  for (const commit of commits) {
+    let files;
+    try {
+      files = git(['show', '--pretty=format:', '--name-only', commit]).trim();
+    } catch {
+      files = '';
+    }
+    const hits = files
+      .split('\n')
+      .map((f) => f.trim())
+      .filter((f) => f && GATE_PATHS.some((re) => re.test(f)));
+    if (hits.length > 0) {
+      offending += 1;
+      for (const f of hits) paths.add(f);
+    }
+  }
+  if (paths.size === 0) {
+    ok(
+      label,
+      expected,
+      commits.length === 0
+        ? `${tag} -> ${tagged.slice(0, 7)} is not behind ${refName}`
+        : `${commits.length} commit(s) after ${tag} touch no gate path`,
+    );
+    return;
+  }
+  const sorted = [...paths].sort();
+  stale(
+    label,
+    expected,
+    `${offending} of ${commits.length} commit(s) after ${tag} touch ${sorted.length} gate path(s)`,
+  );
+  details.push(`  gate paths changed after ${tag}: ${sorted.join(', ')}`);
+  details.push(
+    `  fix: re-point ${tag} at ${refName} (${base.slice(0, 7)}) and re-tag, or bump the patch version and tag that`,
+  );
+}
+
+// 10. the tracker row for the release. This repository's convention is one row
 // per release (S16-12, S19-04, S24-17, S24-24 …), recorded in docs/tracker.csv.
 function checkTracker() {
   if (!exists('docs/tracker.csv')) {
@@ -547,7 +654,7 @@ function parseCsv(text) {
   return rows;
 }
 
-// 10. the surfaces that need a live store. Reported, never skipped and never
+// 11. the surfaces that need a live store. Reported, never skipped and never
 // guessed — scripts/check-store-listing.mjs is what reads them, with a key.
 function checkLiveStores() {
   unknown(
@@ -573,6 +680,7 @@ checkNamedProse();
 checkApple('apps/ios/store/listing.json', 'Apple listing (iPhone)');
 checkApple('apps/desktop/store/macos-listing.json', 'Apple listing (Mac)');
 checkTag();
+checkTagTree();
 checkTracker();
 checkLiveStores();
 
