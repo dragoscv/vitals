@@ -1,0 +1,28 @@
+/*
+ * Widget stylesheet.
+ *
+ * Mirrors `hud/styles.css`. The Tailwind entry has to be told where this tree
+ * lives, or the classes used inside a widget window are never generated and
+ * the window renders unstyled in a production build while looking right in
+ * development (where every class exists because the main window asked for it).
+ */
+
+@import '@vitals/ui/styles.css';
+
+@source '../widgets';
+@source '../hud';
+@source '../../../../packages/ui/src';
+
+/*
+ * The main theme paints the document surface. A widget floats over someone's
+ * desktop and must stay transparent all the way down, exactly like the HUD.
+ */
+html,
+body,
+#root {
+  background: transparent;
+}
+
+#root {
+  height: 100%;
+}

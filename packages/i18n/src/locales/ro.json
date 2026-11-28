@@ -19,6 +19,7 @@
     "devices": "Dispozitive și senzori",
     "benchmarks": "Teste de performanță",
     "tracking": "Urmărire",
+    "widgets": "Widgeturi pe desktop",
     "health": "Sănătate",
     "settings": "Setări"
   },
@@ -426,6 +427,76 @@
       "themeFollows": "Urmează setarea de luminos sau întunecat a telefonului.",
       "pairAnother": "Asociază alt PC",
       "pairAnotherBody": "Deschide Vitals pe acel calculator, mergi la Setări → Acces de la distanță și scanează codul QR cu acest telefon."
+    }
+  },
+  "widgets": {
+    "title": "Widgeturi pe desktop",
+    "subtitle": "Panouri mici, mereu deasupra, fiecare urmărind un singur lucru.",
+    "add": "Adaugă un widget",
+    "limit": "Cel mult {{count}} deodată.",
+    "preview": "Previzualizare",
+    "unavailable": "Acest widget nu este pe ecran.",
+    "onScreen": "Pe ecran",
+    "offScreen": "Nu este pe ecran",
+    "position": "la {{x}}, {{y}}",
+    "size": {
+      "label": "Mărime",
+      "small": "Mic",
+      "medium": "Mediu",
+      "large": "Mare"
+    },
+    "style": {
+      "label": "Stil",
+      "plain": "Simplu",
+      "glass": "Sticlă"
+    },
+    "layout": {
+      "label": "Aranjare",
+      "stack": "Vertical",
+      "split": "Împărțit",
+      "ring": "Inel"
+    },
+    "opacity": "Opacitate {{percent}} %",
+    "alwaysOnTop": "Ține deasupra",
+    "alwaysOnTopHint": "Rămâne deasupra celorlalte ferestre, inclusiv a aplicațiilor pe tot ecranul.",
+    "clickThrough": "Clicuri prin fereastră",
+    "clickThroughHint": "Clicurile trec la ce este în spate. Acest ecran este calea de a le opri.",
+    "expand": "Arată toate valorile",
+    "collapse": "Arată doar valoarea principală",
+    "remove": "Elimină widgetul {{kind}}",
+    "removeLabel": "Elimină",
+    "empty": {
+      "title": "Niciun widget plasat",
+      "body": "Adaugă unul și se deschide ca un panou mic, care rămâne deasupra. Trage-l unde vrei."
+    },
+    "kind": {
+      "cpu": "Procesor",
+      "memory": "Memorie",
+      "disk": "Disc",
+      "network": "Rețea",
+      "thermal": "Temperaturi",
+      "overview": "Prezentare generală"
+    },
+    "reading": {
+      "activity": "Activitate",
+      "cpuTemperature": "Temperatura procesorului",
+      "diskTemperature": "Temperatura discului",
+      "download": "Descărcare",
+      "gpuTemperature": "Temperatura plăcii video",
+      "hottest": "Cea mai ridicată",
+      "read": "Citire",
+      "temperature": "Temperatură",
+      "upload": "Încărcare",
+      "write": "Scriere"
+    },
+    "toolbar": {
+      "pin": "Ține deasupra",
+      "unpin": "Nu mai ține deasupra",
+      "clickThrough": "Lasă clicurile să treacă",
+      "clickThroughOff": "Oprește trecerea clicurilor",
+      "clickThroughHint": "Clicurile trec la ce este în spate. Oprește din setările acestui widget.",
+      "settings": "Deschide setările acestui widget",
+      "close": "Închide acest widget"
     }
   },
   "projects": {

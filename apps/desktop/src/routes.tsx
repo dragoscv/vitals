@@ -112,6 +112,10 @@ const loadTracking = once(async () => {
   m.registerTrackingStrings();
   return m;
 });
+// No string registration: this screen's strings live in the shared locale
+// package, because the overlay window that renders the widgets themselves
+// loads `@vitals/i18n` directly and has nowhere to call a register from.
+const loadWidgets = once(async () => await import('./features/widgets'));
 
 const ConnectionsScreen = lazy(async () => ({
   default: (await loadConnections()).ConnectionsScreen,
@@ -131,6 +135,7 @@ const AgentsScreen = lazy(async () => ({ default: (await loadAgents()).AgentsScr
 const CollabScreen = lazy(async () => ({ default: (await loadAgents()).CollabScreen }));
 const HealthScreen = lazy(async () => ({ default: (await loadHealth()).HealthScreen }));
 const TrackingScreen = lazy(async () => ({ default: (await loadTracking()).TrackingScreen }));
+const WidgetsScreen = lazy(async () => ({ default: (await loadWidgets()).WidgetsScreen }));
 
 /**
  * What each section needs before its first paint: its chunk, then a
@@ -156,6 +161,8 @@ const preloaders: readonly (() => Promise<unknown>)[] = [
   async () => (await loadDevices()).prefetchSensors(),
   async () => (await loadBenchmarks()).prefetchBenchmarks(),
   loadTracking,
+  // chunk only: the previews read the live stream, which is already open
+  loadWidgets,
 ];
 
 /**
@@ -471,6 +478,8 @@ function RouteContent({
       return <BenchmarksScreen />;
     case 'tracking':
       return <TrackingScreen />;
+    case 'widgets':
+      return <WidgetsScreen />;
     case 'appHistory':
       return <AppHistoryScreen />;
     case 'users':

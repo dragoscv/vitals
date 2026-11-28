@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Vitals widget</title>
+    <style>
+        /*
+        Same rule as the HUD: the window is transparent, so nothing may paint a
+        background. The widget panel draws its own translucent surface, and it
+        is sized to the content — a background here would put an opaque
+        rectangle the size of the window behind it.
+      */
+        :root {
+            color-scheme: dark;
+        }
+
+        html,
+        body,
+        #root {
+            margin: 0;
+            height: 100%;
+            background: transparent;
+        }
+
+        body {
+            /* A widget is a readout, not a document. A drag that selects the
+           number it is dragging looks like a bug, and an accidental text
+           selection stays highlighted after the drop. */
+            user-select: none;
+            -webkit-user-select: none;
+            overflow: hidden;
+            cursor: default;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="root"></div>
+    <script type="module" src="/src/widgets/main.tsx"></script>
+</body>
+
+</html>

@@ -46,6 +46,9 @@ pub mod updates;
 pub mod users;
 pub mod watchdog;
 pub mod webview_log;
+// The desktop widget windows: one chromeless overlay per widget instance,
+// created on demand. See `widgets` for why the list lives on this side.
+pub mod widgets;
 
 use tauri::Manager;
 
@@ -461,6 +464,14 @@ fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
         // overlay that a race had already opened.
         hud::toggle_hud,
         hud::set_hud_visible,
+        // The desktop widgets. The main window owns the list and pushes it
+        // with `sync_widgets` after any edit; the rest are what a widget's
+        // own toolbar calls, and what the settings screen listens for.
+        widgets::sync_widgets,
+        widgets::get_widget,
+        widgets::close_widget,
+        widgets::set_widget_flags,
+        widgets::focus_widget_settings,
         // The AI page (ADR-0039). The reader thread runs only while a
         // subscription is live; actions go through agentq's own CLI.
         agents::subscribe_agents,
@@ -500,6 +511,10 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     // still being measured.
     #[cfg(windows)]
     app.manage(startup_impact::StartupImpactStore::new());
+    // Before the main window can call `sync_widgets`: the command answers
+    // `Internal` rather than panicking while this is missing, but a first
+    // paint that asked for widgets would then have none.
+    app.manage(widgets::Widgets::default());
     // The machine name every outbound alert carries, read once at startup:
     // the backend already knows it and the webview does not have to be told.
     // An empty name is used rather than a placeholder when the platform has no
@@ -593,6 +608,14 @@ fn on_run_event(app: &tauri::AppHandle, event: tauri::RunEvent) {
 /// A system monitor that stops monitoring because a window was closed by
 /// reflex is the failure this prevents; Quit lives in the tray menu.
 fn on_window_event(window: &tauri::Window, event: &tauri::WindowEvent) {
+    // A widget window answers for itself first, and the answer is also
+    // "this window is not the main window": close-to-tray would hide a
+    // widget on Alt+F4, and a hidden widget is unreachable — the settings
+    // screen lists the widgets that exist, not the ones on disk, so nothing
+    // would ever bring it back.
+    if widgets::handle_window_event(window.app_handle(), window, event) {
+        return;
+    }
     if let tauri::WindowEvent::CloseRequested { api, .. } = event
         && tray::hide_instead_of_closing(window.app_handle(), window)
     {

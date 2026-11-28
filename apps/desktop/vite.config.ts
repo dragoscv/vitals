@@ -52,16 +52,18 @@ export default defineConfig(({ command }) => ({
     // VITALS_SOURCEMAPS=1 to get them back for a debugging build.
     sourcemap: command !== 'build' || process.env.VITALS_SOURCEMAPS === '1',
     rolldownOptions: {
-      // Three pages, one build: `index.html` is the desktop webview,
-      // `mobile.html` is what a phone loads from the LAN server, and
-      // `hud.html` is the always-on-top overlay. All land in `dist`, which
-      // is Tauri's `frontendDist`, so the phone is served the exact build
-      // the desktop is running and the overlay is loaded from the same
-      // bundle rather than a second copy of React.
+      // Four pages, one build: `index.html` is the desktop webview,
+      // `mobile.html` is what a phone loads from the LAN server, `hud.html`
+      // is the always-on-top overlay and `widget.html` is the same idea for
+      // a single metric. All land in `dist`, which is Tauri's
+      // `frontendDist`, so the phone is served the exact build the desktop
+      // is running and the overlays are loaded from the same bundle rather
+      // than a second copy of React.
       input: {
         index: path.resolve(import.meta.dirname, 'index.html'),
         mobile: path.resolve(import.meta.dirname, 'mobile.html'),
         hud: path.resolve(import.meta.dirname, 'hud.html'),
+        widget: path.resolve(import.meta.dirname, 'widget.html'),
       },
       output: {
         // Split React into its own chunk so a UI-only change does not
@@ -128,6 +130,7 @@ export default defineConfig(({ command }) => ({
         'src/main.tsx',
         'src/hud/main.tsx',
         'src/mobile/main.tsx',
+        'src/widgets/main.tsx',
       ],
       // A floor, not a target. Raise it when it is comfortably exceeded;
       // never lower it to make a run pass.

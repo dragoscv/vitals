@@ -7966,6 +7966,123 @@ release run was held on the release environment approval, the new fast-lane row 
 `scripts/verify.ps1` named a script that was untracked at that moment, and two
 untracked scratch files sat in the repository root.
 
+### S26-49 — a Vitals widget is a window of its own, so several can be placed with different content, style and layout (2026-11-28)
+
+S26-47 found the Windows 11 widgets board cannot carry what was asked for, so this
+is the overlay that request describes. `apps/desktop/src/widgets/**` is a second
+webview entry (`widget.html`) that renders one spec it reads from the host: six
+content kinds — cpu, memory, disk, network, thermal and a compact overview — each
+offered two or three layouts from ring, stack and split with ring restricted to
+the kinds whose number is a percentage, two styles (plain and glass), a per-widget
+opacity floor of 0.25, always-on-top and click-through flags, and a compact or
+expanded body that morphs on click. On the Rust side
+`apps/desktop/src-tauri/src/widgets.rs` creates one borderless window per instance,
+applies a move without a round trip, and serves five commands behind a capability
+that grants no remote permission: `sync_widgets`, `get_widget`, `close_widget`,
+`set_widget_flags` and `focus_widget_settings`. The settings screen lists, adds,
+edits and removes widgets, previews each card with the same component the window
+renders, and a widget opens its own row there from its toolbar.
+
+Four decisions are worth the reader's time. **One window per widget** rather than
+one overlay carrying several panels, because the request is to place widgets where
+the user wants them and a single overlay would make every widget share one
+rectangle and one click-through setting. **The preview is the window's own
+component**, so a settings card cannot describe something the window does not
+show. **The spec is mirrored by hand in TypeScript and pinned by a Rust test**
+rather than generated, because `ts-rs` cannot express the optional fields without
+changing a wire shape other clients already read. **The morph animates height and
+opacity, never the `layout` prop**, because layout animations need `domMax` while
+the widget entry loads `domAnimation` under `LazyMotion` in strict mode; motion is
+read through `MotionConfig` with `reducedMotion` set to `user`, so someone who
+asked for less motion gets the state change with no animation, and no timer is
+left running while the window is idle. The list persists in the existing settings
+store under the key `widgets`, and the window subscribes to the frame stream the
+app already receives: no second persistence mechanism and no second sampler.
+
+Three defects in this slice were found by the repository's own gates, not by
+reading it. `scripts/check-drift.ps1` scans file text for command names, so it
+read the words of a comment in `windows.ts` as a real call, and the first version
+of the bridge assembled each command name at runtime — which hid all five names
+from the same scan, leaving one of them reported as unreachable. Every method now
+names its command as a literal in a closure. `prettier` rejected three of the new
+files, and `eslint` rejected an `as HTMLInputElement` assertion in a test in favour
+of a type argument. A mutation that survived showed the push-dedupe guard in the
+store was unreachable — the registry identity already covered that case — so the
+guard was deleted rather than the test weakened, and the guarantee now rests on
+the debounce, proved by a test that collapses three edits into one push.
+
+A fourth came from the desktop suite, and it is the one worth reading: **a new
+destination is a change to two tests that enumerate the navigation on purpose.**
+`Sidebar.test.tsx` asserts the exact order inside each group (so a designer cannot
+quietly reorder the sidebar) and `CommandPalette.test.tsx` asserts how many
+options the palette lists — eighteen became nineteen. Both were updated, because
+the route is the feature and the assertions are the contract, but the second one
+is why the count and its comment sit next to each other: the number is only
+meaningful with the sentence that derives it. The full desktop suite —
+1663 tests in 159 files — is green with the destination in place.
+
+Eight mutations in the TypeScript trees were applied, each observed killing the
+test that claims the guarantee, and reverted: the frame roll-up returning a copy
+instead of the same object, the settings debounce set to zero, the morph duration
+made unconditional (which is what the reduced-motion test exists for), the drag
+slop raised to a million pixels, the hydration term dropped from the add button,
+`layoutsFor` replaced by a literal, a one-second `setInterval` added inside the
+frame subscription, and `preventDefault` added to the widget window's own
+`keydown`. That last pair is the reason the list is eight and not six: the first
+version of the timer test measured Testing Library's own `waitFor` poll rather
+than the product — a polling mutant survived it — so the spy is now armed around
+the mount and read before any `waitFor`, and a re-run of the mutant fails with
+`Number of calls: 1`. Installing fake timers after mount, the obvious repair,
+does not work: it cannot reach an interval created under real timers.
+
+`widgets.rs` carries the same obligation: five mutations there (snake-case one
+wire key, drop the window-label prefix, compare the x coordinate exactly, drop
+the width term from validity, set the epsilon to zero) each turned its own test
+red with exit 101, the file was restored byte-for-byte afterwards, and the module
+ran green unmutated (5 passed). `cargo clippy --workspace --all-targets -- -D
+warnings` exits 0 on this tree, so the five lint errors the slice had — two
+`collapsible_if`, one `collapsible_match`, two `assertions_on_constants` — are
+gone rather than silenced.
+
+The window costs what a second webview entry costs, and the size budget had to
+be told so rather than widened blindly: `initialGzipBytes` 219.5 → 221.4 KB,
+`shippedGzipBytes` 549.0 → 561.9 KB, `hudGzipBytes` 126.6 → 127.8 KB and
+`mobileGzipBytes` 154.3 → 155.6 KB, plus a new `widgetGzipBytes` entry at
+165.0 KB. Of the 12.9 KB the shipped number grew, 10.4 KB is this entry's own
+files (`widget.html` 0.6, `widget.js` 2.7, the widgets chunk 2.5, `WidgetPreview`
+4.6) and the rest is widget copy landing in the shared locale chunk — which is
+why the other three numbers moved although no code of theirs changed. Every
+ceiling is the next whole KiB rather than the script's 5 percent, and the reason
+for each sits in the budget file's history comment, where the next person to hit
+the gate will read it.
+
+The cloud lanes agreed with the local ones on everything except one gate, and
+that one is machine state rather than this slice. On `ws-vitals-win` the
+`checks` lane passed 9/9 in 21.3 s and the `ts` lane 3/3 in 53.4 s (after the
+two navigation-enumeration expectations below were fixed), and `rust: perf
+budget` passed against the real machine — full sample median 1.5114 ms of the
+30 ms budget, worst 1.6831 ms, and enumeration median 625.9 µs of the 20 ms
+budget. `rust: target size budget` fails there at `target/debug` 24.72 GB
+against a 24.00 GB budget, and it fails for the workspace rather than for the
+code: `deps` alone is 19.21 GB and `examples` 2.76 GB, while the gate's own
+`-Prune` — which `scripts/verify.ps1:319` already passes — reports `Pruned 0
+incremental units … 0 MB`, so there is nothing for it to free. The same
+workspace reported the identical 24.72 GB in the earlier run that day, the
+local tree measures 16.21 GB and passes, and this slice adds no dependency at
+all: `Cargo.lock`, `Cargo.toml` and `targetDebugBytes` are untouched. Clearing
+it means `cargo clean` on a shared workspace that other lanes keep warm, or
+raising a repository-wide budget to fit one machine's cache — both owner
+decisions, so it is reported here and left alone.
+
+Writing the row for this slice also found a hole in the tracker gate, which is
+worth knowing about rather than fixing quietly: the final field of a row can
+lose its closing quote and `scripts/check-tracker.ps1` still reports `0
+problem(s)` and exits 0, because it counts rows and columns and never asks
+whether the CSV is well formed. Verified by removing that quote and re-running
+the gate (`TRACKER_EXIT_ON_MUTANT=0`), then restoring the file byte-for-byte
+(same SHA-256). A reader with a strict CSV parser sees the last field of the
+file swallow everything after the missing quote; the gate does not.
+
 ## S13 — public beta 0.9.0-beta.1 (2026-09-28)
 
 Decided with the owner (ADR 0031): public repository, beta version, no code

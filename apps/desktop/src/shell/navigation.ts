@@ -44,6 +44,7 @@ import {
   HardDrive,
   HeartPulse,
   LayoutDashboard,
+  LayoutGrid,
   ListChecks,
   ListTree,
   MessagesSquare,
@@ -82,6 +83,7 @@ export const routeIds = [
   'devices',
   'benchmarks',
   'tracking',
+  'widgets',
   'health',
 ] as const;
 
@@ -135,6 +137,9 @@ export const navItems: readonly NavItem[] = [
   { id: 'benchmarks', labelKey: 'nav.benchmarks', icon: Cpu, group: 'more' },
   // After the first nine, so Ctrl+1…9 never shifts when it appears.
   { id: 'tracking', labelKey: 'nav.tracking', icon: ListChecks, group: 'more' },
+  // After the first nine too, and above Health: placing a widget is an
+  // everyday action, whereas Health needs a vmui connection to exist at all.
+  { id: 'widgets', labelKey: 'nav.widgets', icon: LayoutGrid, group: 'more' },
   // Last, after the first nine, so Ctrl+1…9 never shifts when it appears.
   // Hidden until a vmui connection exists — see `useNavVisibility`.
   { id: 'health', labelKey: 'nav.health', icon: HeartPulse, group: 'more' },

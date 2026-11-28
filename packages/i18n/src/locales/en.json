@@ -19,6 +19,7 @@
     "devices": "Devices & sensors",
     "benchmarks": "Benchmarks",
     "tracking": "Tracking",
+    "widgets": "Desktop widgets",
     "health": "Health",
     "settings": "Settings"
   },
@@ -422,6 +423,76 @@
       "themeFollows": "Follows your phone's light or dark setting.",
       "pairAnother": "Pair another PC",
       "pairAnotherBody": "Open Vitals on that computer, go to Settings → Remote access, and scan its QR code with this phone."
+    }
+  },
+  "widgets": {
+    "title": "Desktop widgets",
+    "subtitle": "Small always-on-top panels, each watching one thing.",
+    "add": "Add a widget",
+    "limit": "Up to {{count}} at once.",
+    "preview": "Preview",
+    "unavailable": "This widget is not on screen.",
+    "onScreen": "On screen",
+    "offScreen": "Not on screen",
+    "position": "at {{x}}, {{y}}",
+    "size": {
+      "label": "Size",
+      "small": "Small",
+      "medium": "Medium",
+      "large": "Large"
+    },
+    "style": {
+      "label": "Style",
+      "plain": "Plain",
+      "glass": "Glass"
+    },
+    "layout": {
+      "label": "Layout",
+      "stack": "Stack",
+      "split": "Split",
+      "ring": "Ring"
+    },
+    "opacity": "Opacity {{percent}}%",
+    "alwaysOnTop": "Keep on top",
+    "alwaysOnTopHint": "Stays above other windows, including fullscreen applications.",
+    "clickThrough": "Click-through",
+    "clickThroughHint": "Clicks pass through to whatever is behind. This screen is how you turn it back off.",
+    "expand": "Show every reading",
+    "collapse": "Show the main reading only",
+    "remove": "Remove the {{kind}} widget",
+    "removeLabel": "Remove",
+    "empty": {
+      "title": "No widgets placed",
+      "body": "Add one and it opens as a small panel that stays on top. Drag it wherever you want it."
+    },
+    "kind": {
+      "cpu": "CPU",
+      "memory": "Memory",
+      "disk": "Disk",
+      "network": "Network",
+      "thermal": "Thermals",
+      "overview": "Overview"
+    },
+    "reading": {
+      "activity": "Activity",
+      "cpuTemperature": "CPU temperature",
+      "diskTemperature": "Disk temperature",
+      "download": "Download",
+      "gpuTemperature": "GPU temperature",
+      "hottest": "Hottest",
+      "read": "Read",
+      "temperature": "Temperature",
+      "upload": "Upload",
+      "write": "Write"
+    },
+    "toolbar": {
+      "pin": "Keep on top",
+      "unpin": "Stop keeping it on top",
+      "clickThrough": "Let clicks pass through",
+      "clickThroughOff": "Stop clicks passing through",
+      "clickThroughHint": "Clicks pass through to whatever is behind. Turn it off from this widget's settings.",
+      "settings": "Open this widget's settings",
+      "close": "Close this widget"
     }
   },
   "projects": {
