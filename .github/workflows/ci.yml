@@ -597,9 +597,12 @@ jobs:
   # Windows, the watchdog), uninstalls it and proves all of it is gone; then
   # a per-user install and an upgrade over the previous release (QA-1,
   # QA-2, QA2-2). While the per-machine copy is installed it also measures
-  # the app's idle CPU and memory against idle-budget.json (PERF-1). Hosted
+  # the app's idle CPU and memory against idle-budget.json (PERF-1) -- from the
+  # per-user copy when the shipped configuration is installMode currentUser,
+  # which it is (ADR 0053), and from the per-machine one otherwise. Hosted
   # Windows runners are elevated and have a desktop, which the per-machine
-  # passes and the webview need. No checkout of build output: scripts only.
+  # passes and the webview need. No checkout of build output: scripts only,
+  # plus the config that says which scope the setup installs.
   installer-roundtrip:
     name: Installer round trip
     needs: build
@@ -610,6 +613,7 @@ jobs:
         with:
           sparse-checkout: |
             scripts/ci
+            apps/desktop/src-tauri/tauri.conf.json
             idle-budget.json
           sparse-checkout-cone-mode: false
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
@@ -641,7 +645,8 @@ jobs:
           $setup = @(Get-ChildItem installer -Filter *-setup.exe)
           if ($setup.Count -ne 1) { throw "expected one *-setup.exe, found $($setup.Count)" }
           $previous = @(Get-ChildItem previous -Filter *-setup.exe)[0].FullName
-          # idle-budget runs inside the machine pass, against the installed app.
+          # idle-budget runs inside the install pass (the per-machine one, or
+          # the per-user one for a currentUser build), against the installed app.
           $idle = Join-Path $env:RUNNER_TEMP 'idle-budget-ci.ps1'
           Set-Content -Path $idle -Encoding utf8NoBOM -Value @(
             'param([string]$Exe)'
