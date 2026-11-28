@@ -486,6 +486,13 @@ if (Test-Path $tracker) {
     $fieldCounts = [System.Collections.Generic.List[int]]::new()
     $fields = 1
     $inQuotes = $false
+    # A missing closing quote is the one shape this loop cannot report through a
+    # field count: it does not shift a row's columns, it swallows every row after
+    # it, so the counts below describe a shorter file instead of a wrong one and
+    # the checks further down quietly see fewer rows. The line is carried so the
+    # message can say where to look.
+    $line = 1
+    $quoteOpenLine = 1
     $text = Get-Content -LiteralPath $tracker -Raw
     for ($i = 0; $i -lt $text.Length; $i++) {
         $c = $text[$i]
@@ -493,13 +500,17 @@ if (Test-Path $tracker) {
             if ($c -eq '"') {
                 if ($i + 1 -lt $text.Length -and $text[$i + 1] -eq '"') { $i = $i + 1 } else { $inQuotes = $false }
             }
+            elseif ($c -eq "`n") { $line = $line + 1 }
             continue
         }
-        if ($c -eq '"') { $inQuotes = $true }
+        if ($c -eq '"') { $inQuotes = $true; $quoteOpenLine = $line }
         elseif ($c -eq ',') { $fields = $fields + 1 }
-        elseif ($c -eq "`n") { $fieldCounts.Add($fields); $fields = 1 }
+        elseif ($c -eq "`n") { $fieldCounts.Add($fields); $fields = 1; $line = $line + 1 }
     }
     if ($fieldCounts.Count -eq 0 -or $fields -gt 1) { $fieldCounts.Add($fields) }
+    if ($inQuotes) {
+        $failures.Add("docs/tracker.csv: the file ends inside a quoted field opened on line $quoteOpenLine — a closing quote is missing, so the rest of the file was swallowed into that one field and the checks below describe a shorter file than exists")
+    }
 
     # Record 0 is the header; row N of Import-Csv is record N+1.
     for ($r = 0; $r -lt $fieldCounts.Count; $r++) {

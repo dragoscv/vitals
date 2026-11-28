@@ -8074,14 +8074,56 @@ it means `cargo clean` on a shared workspace that other lanes keep warm, or
 raising a repository-wide budget to fit one machine's cache — both owner
 decisions, so it is reported here and left alone.
 
-Writing the row for this slice also found a hole in the tracker gate, which is
-worth knowing about rather than fixing quietly: the final field of a row can
-lose its closing quote and `scripts/check-tracker.ps1` still reports `0
-problem(s)` and exits 0, because it counts rows and columns and never asks
-whether the CSV is well formed. Verified by removing that quote and re-running
-the gate (`TRACKER_EXIT_ON_MUTANT=0`), then restoring the file byte-for-byte
-(same SHA-256). A reader with a strict CSV parser sees the last field of the
-file swallow everything after the missing quote; the gate does not.
+Writing the row for this slice also found a hole in the tracker gate: the final
+field of a row could lose its closing quote while `scripts/check-tracker.ps1`
+still reported `0 problem(s)` and exited 0. Verified by removing that quote and
+re-running the gate (`TRACKER_EXIT_ON_MUTANT=0`), then restoring the file
+byte-for-byte (same SHA-256). It is repaired in the slice below.
+
+### S26-50 — both CSV readers report a missing closing quote, which used to hide every record after it (2026-11-28)
+
+A row of `docs/tracker.csv` whose closing quote is lost used to pass both gates:
+`check-tracker.ps1` printed `0 problem(s)` and `check-drift.ps1` printed `0
+failure(s)`, both exiting 0 on a file whose tail was no longer being read at all.
+
+The cause is structural rather than a check somebody forgot to write. An
+unterminated quote does not shift a row's columns; it swallows the rest of the
+file into that one field, so the arity check both gates rest on sees the correct
+width, and every record that disappeared is simply absent from the parsed list.
+The later checks then report nothing about rows they never saw — a vanished row
+is quieter than a malformed one, which is exactly why it needs its own report.
+
+Two readers carried the same loop: `Read-CsvRecords` in `check-tracker.ps1`, and
+an inline copy inside the tracker-shape check in `check-drift.ps1`, which exists
+because that gate's own comment claims the CSV's shape while the other owns the
+agreement between the two files. Both now report it, naming the line the open
+quote began on, and they add the finding to the problem list rather than throwing
+so that a broken file still gets every other diagnosis in the same run.
+
+Two decisions are worth stating. It is fixed in the reader that owns the parse,
+not in the arity check, because the arity check cannot tell this case apart from a
+correct file. And it is fixed in both readers, because the second is a verbatim
+copy of the first: repairing one and leaving the other is precisely how this
+defect would survive its own repair.
+
+The proof, run before and after. The mutant is `docs/tracker.csv` copied to
+`.copilot-tmp/tracker-unterminated.csv` with its last quote removed (451,130 →
+451,129 characters, the removed character at index 451,128). Before the repair,
+`pwsh -NoProfile -File scripts/check-tracker.ps1 -Csv <mutant>` printed `tracker:
+0 problem(s)` and exited 0. After it, the same command prints the missing-quote
+line naming line 370 and exits 1. The drift reader was proved without touching
+the real file: a byte-identical copy of `check-drift.ps1` written into
+`scripts/` with only the tracker path repointed at the mutant printed `FAIL
+docs/tracker.csv: the file ends inside a quoted field opened on line 370` and
+exited 1, and that copy was then deleted, the removal asserted. On the real tree
+both gates are still clean and exit 0.
+
+One PowerShell trap was found by writing this, and it is the reason the first
+attempt did not work: the guard was written as `-and $Problems`, which is `$false`
+for an **empty** `List[string]`, because PowerShell converts a collection through
+its emptiness rather than through its handle. The gate therefore went on printing
+0 problems on the mutant; the guard is now `-ne $null` and the mutant exits 1. The
+comment in both files records why, so the next reader does not simplify it back.
 
 ## S13 — public beta 0.9.0-beta.1 (2026-09-28)
 

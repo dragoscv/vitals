@@ -30,6 +30,10 @@
          actually in use, which is read from the file rather than declared
          here, and printed in the message so a typo is answered with the set
          it should have come from.
+        7. No record ends inside a quoted field. A missing closing quote swallows
+           the rest of the file into one field, which leaves the arity of every
+           record intact and simply *drops* the rows it swallowed: checks 1, 2 and
+           6 then report nothing at all about a file whose tail is invisible.
 
     Read-only, a few tens of milliseconds, one line per problem, and a final
     `tracker: N problem(s)` line. A clean tree prints that line and nothing
@@ -88,11 +92,18 @@ $problems = [System.Collections.Generic.List[string]]::new()
 # LF and CRLF endings alike, and remembers the physical line each record starts
 # on so a problem can be found in an editor.
 function Read-CsvRecords {
-    param([string]$Text)
+    param(
+        [string]$Text,
+        # Handed the defects this reader cannot see for itself — see the
+        # `$inQuotes` check at the end of the loop, which is the one shape that
+        # makes a record vanish rather than look wrong.
+        [System.Collections.Generic.List[string]]$Problems
+    )
     $records = [System.Collections.Generic.List[object]]::new()
     $fields = [System.Collections.Generic.List[string]]::new()
     $sb = [System.Text.StringBuilder]::new()
     $inQuotes = $false
+    $quoteOpenLine = 0
     $line = 1
     $recordLine = 1
     $i = 0
@@ -112,7 +123,7 @@ function Read-CsvRecords {
             }
             continue
         }
-        if ($c -eq '"') { $inQuotes = $true; $i += 1; continue }
+        if ($c -eq '"') { $inQuotes = $true; $quoteOpenLine = $line; $i += 1; continue }
         if ($c -eq ',') { $fields.Add($sb.ToString()); [void]$sb.Clear(); $i += 1; continue }
         if ($c -eq "`r") { $i += 1; continue }
         if ($c -eq "`n") {
@@ -130,11 +141,21 @@ function Read-CsvRecords {
         $fields.Add($sb.ToString())
         $records.Add([pscustomobject]@{ Line = $recordLine; Fields = $fields.ToArray() })
     }
+    # The defect this reader must report itself: an unterminated quote does not
+    # make a record look wrong, it makes every later record disappear into this
+    # one — and a vanished row is exactly what nothing else here can detect.
+    # `-ne $null`, not a bare truthiness test: an empty List[string] converts to
+    # `$false` (PowerShell reads a collection's emptiness, not its handle), so
+    # the obvious `-and $Problems` would skip this report until some earlier
+    # check had already added a problem.
+    if ($inQuotes -and $null -ne $Problems) {
+        $Problems.Add("${Csv}: the file ends inside a quoted field opened on line $quoteOpenLine - a closing quote is missing, so the rest of the file was swallowed into that one field and no record after it exists as far as this gate is concerned")
+    }
     return $records
 }
 
 $csvText = [System.IO.File]::ReadAllText($csvPath)
-$records = @(Read-CsvRecords $csvText)
+$records = @(Read-CsvRecords -Text $csvText -Problems $problems)
 if ($records.Count -eq 0) {
     Write-Host "${Csv} is empty"
     exit 1
