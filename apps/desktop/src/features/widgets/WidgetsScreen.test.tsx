@@ -44,6 +44,20 @@ import {
 } from './windows';
 import { WidgetsScreen } from './WidgetsScreen';
 
+/**
+ * A liveness bound for the waits that depend on a debounce, not a speed
+ * assertion.
+ *
+ * The screen hands its windows to the host through a 120 ms debounce, so an
+ * assertion about what the host received is waiting on a timer rather than on a
+ * render. On the loaded release Verify runner (its Android lane builds beside
+ * this one) the default 1 s wait expired before that timer fired on the commit
+ * of 2026-11-28 — a statement about the machine, not about the code, and the
+ * same bound `DashboardScreen.test.tsx` needed on 2026-11-27. If the push never
+ * happens the test still fails, loud, just later.
+ */
+const LIVENESS_TIMEOUT_MS = 10_000;
+
 beforeAll(async () => {
   await initI18n('en');
 });
@@ -322,9 +336,12 @@ describe('the widget settings screen', () => {
 
     // And the list really did reach the host, so those controls act on real
     // windows rather than on a screen nothing is listening to.
-    await waitFor(() => {
-      expect(io.synced.length).toBeGreaterThan(0);
-    });
+    await waitFor(
+      () => {
+        expect(io.synced.length).toBeGreaterThan(0);
+      },
+      { timeout: LIVENESS_TIMEOUT_MS },
+    );
   });
 
   it('marks the row a widget asked for when its own settings button is pressed', async () => {
@@ -381,9 +398,12 @@ describe('the widget settings screen', () => {
   it('hands the host exactly the windows the model builds from the stored list', async () => {
     const io = show([stored('cpu', 'cpu-1')]);
 
-    await waitFor(() => {
-      expect(io.synced.length).toBeGreaterThan(0);
-    });
+    await waitFor(
+      () => {
+        expect(io.synced.length).toBeGreaterThan(0);
+      },
+      { timeout: LIVENESS_TIMEOUT_MS },
+    );
 
     expect(io.synced.at(-1)).toEqual([toWindowSpec(stored('cpu', 'cpu-1'))]);
   });
@@ -408,9 +428,12 @@ describe('the widget settings screen', () => {
     // handed the record the model builds, so id minting and the write happen
     // once, in one place. The write is debounced, so this waits for the host
     // rather than for the click.
-    await waitFor(() => {
-      expect(io.synced.at(-1)?.map((spec) => spec.kind)).toEqual(['thermal']);
-    });
+    await waitFor(
+      () => {
+        expect(io.synced.at(-1)?.map((spec) => spec.kind)).toEqual(['thermal']);
+      },
+      { timeout: LIVENESS_TIMEOUT_MS },
+    );
   });
 
   it('points a widget at the machine the user picked, and back at this computer', async () => {
@@ -424,9 +447,12 @@ describe('the widget settings screen', () => {
 
     fireEvent.click(within(picker).getByRole('radio', { name: RIG.label }));
 
-    await waitFor(() => {
-      expect(io.synced.at(-1)?.[0]?.remoteConnectionId).toBe(RIG.id);
-    });
+    await waitFor(
+      () => {
+        expect(io.synced.at(-1)?.[0]?.remoteConnectionId).toBe(RIG.id);
+      },
+      { timeout: LIVENESS_TIMEOUT_MS },
+    );
 
     // Back to this computer must CLEAR the id. Storing the sentinel, or leaving
     // the old id behind, would sign the card "This machine" while it was still
@@ -435,9 +461,12 @@ describe('the widget settings screen', () => {
       within(picker).getByRole('radio', { name: i18n.t('widgets.source.thisMachine') }),
     );
 
-    await waitFor(() => {
-      expect(io.synced.at(-1)?.[0]?.remoteConnectionId).toBeNull();
-    });
+    await waitFor(
+      () => {
+        expect(io.synced.at(-1)?.[0]?.remoteConnectionId).toBeNull();
+      },
+      { timeout: LIVENESS_TIMEOUT_MS },
+    );
   });
 
   it('draws the reading from the machine a widget watches, not this computer', async () => {
