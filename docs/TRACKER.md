@@ -7791,6 +7791,45 @@ NOT VERIFIED: that the published installers are unsigned, because that is only
 readable from the published artefacts; the row stays blocked until a certificate
 or a SignPath signature exists.
 
+### S26-41 — main's Verify went red on the size gate, and the installer ceiling is taken from the CI figure (2026-11-28)
+
+The Verify run on `main` (`46099642033`, the `Build installer` job's size step)
+failed with `installer 5,926.7 KB of 5,920.0 KB budget (100.1%) OVER` and exit 1.
+Nothing in the tree had regressed: the ceiling was set at 5,920.0 KB the day
+before from a CI figure of 5,905.5 KB, and the installer had simply grown past
+it, because the Tracking page and its resume pack ship inside the app rather
+than being served over the network — the app's growth is the installer's growth.
+
+The raise had already been deferred deliberately, by a note in
+`size-budget.json`'s own comment that ends "If CI reports the installer over its
+ceiling, that is the measurement, it is one line, and this note is where it
+belongs." That note also declined to raise on the local figure, on the grounds
+that a local unsigned rebuild and CI differ; with both figures now measured on
+one tree the difference is 1.6 KB (CI 5,926.7 KB, local release build
+5,928.3 KB), so the 23 KB spread the earlier note cites was mostly the tree
+moving between runs rather than build or upload identity. Which figure to raise
+on is still CI's, because that is the number the gate compares.
+
+`installerBytes` is therefore raised to 5,940.0 KB: the CI measurement plus the
+same few-KB rebuild headroom the 2026-11-27 entry used, 13.3 KB, because a
+rebuild moves this figure by a few KB either way and the gate must not flap,
+which is why the installer cannot be raised to the next whole KiB the way
+`SHIPPED` can. The other four classes were measured under their own ceilings
+and were left alone — initial 219.5/220.0, all assets 549.0/550.0, hud
+126.6/127.0, mobile 154.3/155.0 KB. `scripts/check-size.ps1 -Update` was not
+used and must not be: it rewrites this file's measurement history into one
+generic sentence and writes a placeholder `installerBytes` of 3 MiB whenever no
+installer has been built.
+
+Verification: `scripts/check-size.ps1` after the edit prints
+`installer 5,928.3 KB of 5,940.0 KB budget (99.8%)`, `Within budget.`, exit 0.
+The edit is four diff lines and was made by a fail-closed Node script that
+asserted the old value, that every other line stayed byte-identical, that the
+JSON still round-trips with the same key order, and that the new ceiling exceeds
+both measurements; `git diff --stat` reports `size-budget.json | 4 ++--`.
+NOT VERIFIED here: that the next Verify run on `main` is green, because that
+measurement is CI's own.
+
 ## S13 — public beta 0.9.0-beta.1 (2026-09-28)
 
 Decided with the owner (ADR 0031): public repository, beta version, no code
