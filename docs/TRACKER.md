@@ -8299,6 +8299,20 @@ ts_rs files, 144 invokes, 144 commands, 2 locales, 3 shipped icon binaries,
   test failed it (`clippy::needless_continue` on the comment-skip branch,
   `exit 101` in the lane). Rewritten without the `continue`;
   `cargo clippy -p vitals-desktop --all-targets -- -D warnings` is clean.
+- `pwsh -NoProfile -File scripts/verify.ps1`, three runs. Post-fix rust lane
+  (job `20261128-185822-c661`): `rust: clippy` pass 7.4 s, `rust: tests` pass
+  52.9 s (2032 Rust tests), `bindings: no drift` pass, `rust: perf budget` pass
+  — and `rust: target size budget` fail. The full local suite
+  (`20261128-185523-df3b`) has 14 lanes passing and that same pre-fix clippy
+  lane red; the cloud suite (`20261128-184933-df23`) passes its 9 checks gates
+  and repeats it. So the only red lane anywhere is `rust: target size budget`:
+  `target/debug 26.63 GB` against a 24.00 GB budget, decomposed as
+  `deps 20.68 + build 2.85 + examples 3.02`, `incremental 0`. That is the
+  upstream workspace's build cache, not this change:
+  `check-target-size.ps1 -Prune -StaleDays 0` executed on ws-vitals-win itself
+  (job `20261128-190242-b85a`) freed 0 MB, because the weight is not in
+  incremental units. Clearing it means `cargo clean` on a workstation other
+  agents are using, or raising the budget — an owner decision, left alone.
 - `pnpm format:check` exit 0; `cargo fmt --all -- --check` exit 0;
   `scripts/check-tracker.ps1` 0 problem(s).
 - `cargo test -p vitals-win --lib actions::taskmgr`: 17 passed, 0 failed,
