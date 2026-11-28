@@ -10,6 +10,21 @@ import path from 'node:path';
 // nothing, which looks like a hung app.
 const DEV_PORT = 5273;
 
+// How long a test or a hook may take before vitest calls it a hang rather than
+// slow — a bound, not a speed assertion: a test that truly hangs still fails.
+//
+// Two numbers, because the two machines differ by an order of magnitude. This
+// machine, shared with other agents' builds, has needed the 15 s the suite has
+// carried since 2026-09-27; that figure is measured, and it should keep a
+// developer's loop failing fast. A hosted runner instead runs every gate of its
+// job at once — the 1.6.0 release's Verify measured 921 s wall against 3355 s
+// of serial gate time, so about four gates on four vCPUs — and spent 900 s on
+// the suite that takes 31 s here. At that spread 15 s stops being a margin and
+// becomes the failure: `AppShell.test.tsx`'s `beforeAll` transforms four lazy
+// chunks cold, and vitest reported "Hook timed out in 15000ms", skipped its 15
+// tests and reddened the release (2026-11-28).
+const LIVENESS_BOUND_MS = process.env.CI ? 120_000 : 15_000;
+
 export default defineConfig(({ command }) => ({
   plugins: [react(), tailwindcss()],
 
@@ -98,13 +113,13 @@ export default defineConfig(({ command }) => ({
     // "reports a failure") while every one passes alone in under a second.
     // A test that truly hangs still fails; one that is slow under load no
     // longer does.
-    testTimeout: 15_000,
+    testTimeout: LIVENESS_BOUND_MS,
     // Hooks get the same margin: `AppShell.test.tsx` warms the lazy
     // SettingsDialog in `beforeAll` precisely so the test itself measures
     // focus rather than a cold transform — which moved the cold transform
     // into the hook, where vitest's 10 s default then failed the whole file
     // at 100 % CPU (2026-09-29) while it passes alone in 8-12 s.
-    hookTimeout: 15_000,
+    hookTimeout: LIVENESS_BOUND_MS,
     // A quarter of the cores, not vitest's cores-minus-one. Each fork boots
     // its own happy-dom, and on this 32-thread machine 31 of them spent half
     // the run in environment setup fighting each other: measured back to back

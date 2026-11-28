@@ -13,6 +13,17 @@ import { DiagnosisDialog } from './DiagnosisDialog';
 import { formatReport, seriesFor } from './report';
 import type { DiagnosisSource } from './source';
 
+/**
+ * A liveness bound for the wait that depends on the clipboard write, not a
+ * speed assertion.
+ *
+ * "Copied" is shown only once `writeClipboard` has resolved, so the assertion
+ * waits on an IPC round trip rather than on a render. On a loaded runner the
+ * default 1 s wait can expire first. If the write never resolves the test still
+ * fails, loud, just later.
+ */
+const LIVENESS_TIMEOUT_MS = 10_000;
+
 beforeAll(async () => {
   await initI18n();
   registerDashboardStrings();
@@ -121,7 +132,7 @@ describe('DiagnosisDialog', () => {
     await screen.findByText('The processor has been busy for a while');
 
     fireEvent.click(screen.getByRole('button', { name: 'Copy report' }));
-    await screen.findByRole('button', { name: 'Copied' });
+    await screen.findByRole('button', { name: 'Copied' }, { timeout: LIVENESS_TIMEOUT_MS });
 
     expect(clipboard).toHaveLength(1);
     const text = clipboard[0] ?? '';

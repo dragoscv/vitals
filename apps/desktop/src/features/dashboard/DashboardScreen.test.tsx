@@ -14,6 +14,18 @@ import type { LayoutBackend } from './useLayout';
 import { createManualSystemSource, NO_SAMPLER } from './useSystemSnapshot';
 import { defaultLayout, type DashboardLayout } from './widgets';
 
+/**
+ * A liveness bound for the waits that depend on the layout store's 250 ms
+ * write debounce or on hydration, not a speed assertion.
+ *
+ * An assertion about what was saved cannot become true until that timer fires,
+ * and the hydration wait below is the same kind of wait on a promise. On a
+ * loaded runner the default 1 s wait can expire first — the bound the release
+ * Verify runner of 2026-11-27 needed. If the write never happens the test still
+ * fails, loud, just later.
+ */
+const LIVENESS_TIMEOUT_MS = 10_000;
+
 beforeAll(async () => {
   await initI18n();
   registerDashboardStrings();
@@ -82,7 +94,7 @@ async function renderDashboard(
     },
     // A liveness bound, not a speed assertion: hydration is a promise and a
     // state update, and if it never happens the test must still fail — loud.
-    { timeout: 10_000 },
+    { timeout: LIVENESS_TIMEOUT_MS },
   );
   return { ...view, backend, collector };
 }
@@ -199,9 +211,12 @@ describe('DashboardScreen', () => {
       fireEvent.click(within(disk).getByRole('button', { name: 'Remove' }));
 
       expect(screen.queryByRole('region', { name: 'Disk' })).toBeNull();
-      await vi.waitFor(() => {
-        expect(backend.saved.at(-1)).toEqual([{ id: 'cpu', size: 'half' }]);
-      });
+      await vi.waitFor(
+        () => {
+          expect(backend.saved.at(-1)).toEqual([{ id: 'cpu', size: 'half' }]);
+        },
+        { timeout: LIVENESS_TIMEOUT_MS },
+      );
     });
 
     it('disables the move arrows at the ends of the list', async () => {
@@ -230,9 +245,12 @@ describe('DashboardScreen', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Edit layout' }));
       fireEvent.click(screen.getByRole('button', { name: 'Reset to defaults' }));
 
-      await vi.waitFor(() => {
-        expect(backend.saved.at(-1)).toEqual(defaultLayout);
-      });
+      await vi.waitFor(
+        () => {
+          expect(backend.saved.at(-1)).toEqual(defaultLayout);
+        },
+        { timeout: LIVENESS_TIMEOUT_MS },
+      );
     });
   });
 
@@ -288,9 +306,12 @@ describe('DashboardScreen', () => {
       expect(screen.queryByRole('region', { name: 'Disk' })).toBeNull();
 
       fireEvent.click(within(await openMenu('CPU')).getByRole('menuitem', { name: 'Full width' }));
-      await vi.waitFor(() => {
-        expect(backend.saved.at(-1)).toEqual([{ id: 'cpu', size: 'full' }]);
-      });
+      await vi.waitFor(
+        () => {
+          expect(backend.saved.at(-1)).toEqual([{ id: 'cpu', size: 'full' }]);
+        },
+        { timeout: LIVENESS_TIMEOUT_MS },
+      );
     });
 
     it('keeps an essential widget from being removed through the menu', async () => {

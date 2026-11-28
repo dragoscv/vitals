@@ -8329,6 +8329,84 @@ ts_rs files, 144 invokes, 144 commands, 2 locales, 3 shipped icon binaries,
   translation is incomplete — `makensis` warns 6040 for twenty strings, so a
   Romanian-language setup shows those twenty in English.
 
+### S26-61 - the desktop suite's waits and hooks carry a liveness bound, and a probe runs it under load (2026-11-28)
+
+The 1.6.0 release's second Verify went red on one file. Not on an assertion —
+on a hook:
+
+```
+ FAIL  ts: typecheck + lint + tests    900.8s
+      Test Files  1 failed | 165 passed (166)
+         Duration  864.86s (tests 39%, environment 30%, import 23%, transform 6%)
+##[error]Error: Hook timed out in 15000ms.
+         FAIL  src/shell/AppShell.test.tsx
+```
+
+`aaec544` had already bounded the waits in `WidgetsScreen.test.tsx`, so the
+first defect was fixed and this one survived it: the class is wider than
+`waitFor` calls. `AppShell.test.tsx` transforms four lazy chunks cold in
+`beforeAll`, and the publisher's runner is not this machine. Its own log gives
+the scale — the job ran every gate at once (`wall 921 s` against `3355 s` of
+serial gate time, so about four gates on four vCPUs) and spent 900.8 s on the
+suite that takes 31 s here.
+
+- **Every timer-dependent wait is bounded.** Twenty waits across five files
+  now pass an explicit bound instead of vitest's default: `store.test.ts` (10,
+  the 120 ms host push and the 250 ms write debounce), `DashboardScreen.test.tsx`
+  (4), `RemoteAccessPanel.test.tsx` (3, a 2 s poll), `HealthPanel.test.tsx`
+  (2, a 3 s pair poll) and `DiagnosisDialog.test.tsx` (1, the clipboard IPC).
+  Every assertion body is byte-identical; only the wait options changed, so the
+  tests still measure what they measured.
+- **The suite-wide bounds are split by machine.** `vite.config.ts` now derives
+  `testTimeout` and `hookTimeout` from one constant: 15 s locally, the figure
+  measured in 2026-09-27 and 2026-09-29, and 120 s under CI. A second constant
+  rather than a raise of the first, because the local figure is measured and
+  should keep a developer's loop failing fast. `AppShell.test.tsx`'s dialog wait
+  takes the same split (8 s or 60 s).
+- **A bound, not a retry and not a longer default.** A test that truly hangs
+  still fails, only later — the property that makes the bound safe to grant.
+- **The probe.** `scripts/check-suite-under-load.ps1` starts
+  `max(2, logical cores - 2)` CPU saturators, measures the load they actually
+  produce with `Get-Counter`, refuses to call a run a test when the measurement
+  never rose above its floor, then runs the desktop suite under that load and
+  stops the saturators in a `finally`. `docs/releasing.md` names it an opt-in
+  pre-tag soak, not a CI gate: pinning every core for minutes has no place on a
+  runner that other gates share.
+- **S26-60's CI ripple, committed with it.** The installer round trip job's
+  sparse checkout now carries `apps/desktop/src-tauri/tauri.conf.json`, which
+  `scripts/ci/installer-roundtrip.ps1:123` reads to learn the scope the shipped
+  setup installs. Without it the job cannot tell a `currentUser` build from a
+  `perMachine` one, so the per-user default would have made that job red on
+  every push.
+
+### Verification log
+
+- The failure it was written for, verbatim from run `46167647496`, job
+  `141048762900`: `FAIL ts: typecheck + lint + tests 900.8s`,
+  `Error: Hook timed out in 15000ms`,
+  `FAIL src/shell/AppShell.test.tsx`,
+  `Test Files 1 failed | 165 passed (166)`, `Tests 1720 passed | 15 skipped`.
+- Locally after the change: `npx vitest run` — 166 files, 1735 tests passed,
+  37.83 s, exit 0; `npx tsc --noEmit -p tsconfig.json` exit 0;
+  `npx prettier --check` on the seven files — "All matched files use Prettier
+  code style!".
+- The probe's success path, `-Filter dashboard -DurationSec 60`: baseline
+  56.4 % CPU, loaded 100.0 % with 30 saturators on 32 logical cores, 12 files
+  and 127 tests passed, 92.0 s, survivors 0, exit 0. Its failure path,
+  `-MinLoadPercent 200`: measured 87.7 %, `LOAD PROBE FAILED`, survivors 0,
+  exit 1, and neither the probe process nor its jobs were left behind.
+- The bounds are load-bearing, not decoration: with one set to `1`,
+  `store.test.ts` failed with `expected 0 to be greater than 0` at
+  `waitFor.timeout … store.test.ts:200:32` and `RemoteAccessPanel.test.tsx`
+  failed with `expected 'Waiting for the TV…' to match /the tv is paired/i`.
+  Both files were restored byte-exact (SHA256 unchanged) and their suites
+  passed again.
+- Open: the 120 s CI bound has not yet been answered by a run — the third
+  Verify is the decisive test, and this row stays `in-progress` until it is
+  green. The whole-suite soak was not run; only the 12-file dashboard subset
+  was. `apps/desktop/src/features/tracking/**` holds `AGE_TICK_MS` on a real
+  poll and was left alone as another agent's work in flight.
+
 ## S13 — public beta 0.9.0-beta.1 (2026-09-28)
 
 Decided with the owner (ADR 0031): public repository, beta version, no code

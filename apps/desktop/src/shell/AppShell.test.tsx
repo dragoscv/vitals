@@ -11,6 +11,13 @@ import { ThemeProvider } from '../theme/ThemeProvider';
 import { AppShell } from './AppShell';
 import { registerShellStrings } from './strings';
 
+// The dialog chunk is warmed in `beforeAll`, so the settings test below waits on
+// a render rather than a transform — but a hosted runner is far slower than this
+// machine, and the 8 s that is ample here is not ample there. The 1.6.0
+// release's Verify rendered this file's lazy chunks cold under four concurrent
+// gates (2026-11-28), so the wait takes the same split bound as vite.config.ts.
+const DIALOG_RENDER_TIMEOUT_MS = process.env.CI ? 60_000 : 8000;
+
 /** Lets a test drive the forced-collapse breakpoint. */
 function stubViewport(width: number): void {
   vi.stubGlobal('matchMedia', (query: string) => {
@@ -134,7 +141,7 @@ describe('AppShell', () => {
     // default. Fails on unmodified HEAD under concurrent builds (2026-09-27).
     // The chunk is pre-loaded in `beforeAll`, so this waits on a render, not
     // an import; the margin covers a loaded machine, below testTimeout.
-    const dialog = await screen.findByRole('dialog', {}, { timeout: 8000 });
+    const dialog = await screen.findByRole('dialog', {}, { timeout: DIALOG_RENDER_TIMEOUT_MS });
     expect(within(dialog).getByRole('tab', { name: 'Appearance' })).toBeTruthy();
 
     fireEvent.keyDown(dialog, { key: 'Escape' });

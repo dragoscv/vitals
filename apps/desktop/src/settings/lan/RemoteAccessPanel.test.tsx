@@ -7,6 +7,18 @@ import { registerShellStrings } from '../../shell/strings';
 import type { LanApi, LanStatus, Pairing, PairingCode, PairingCodeStatus } from './api';
 import { RemoteAccessPanel } from './RemoteAccessPanel';
 
+/**
+ * A liveness bound for the waits that depend on the pairing poll, not a speed
+ * assertion.
+ *
+ * The panel learns what happened to the code by asking the server on an
+ * interval, so an assertion about a redeemed, burnt or expired code cannot
+ * become true until a tick lands. On a loaded runner the default 1 s wait can
+ * expire first. If the code is never resolved the test still fails, loud, just
+ * later.
+ */
+const LIVENESS_TIMEOUT_MS = 10_000;
+
 const OFF: LanStatus = {
   running: false,
   port: null,
@@ -184,9 +196,12 @@ describe('RemoteAccessPanel', () => {
 
     used = true;
 
-    await waitFor(() => {
-      expect(screen.getByRole('status').textContent).toMatch(/the tv is paired/i);
-    });
+    await waitFor(
+      () => {
+        expect(screen.getByRole('status').textContent).toMatch(/the tv is paired/i);
+      },
+      { timeout: LIVENESS_TIMEOUT_MS },
+    );
     expect(screen.getByText('Living room TV')).toBeTruthy();
     // The digits are a spent credential now; leaving them up invites
     // someone to try them.
@@ -209,9 +224,12 @@ describe('RemoteAccessPanel', () => {
 
     burnt = true;
 
-    await waitFor(() => {
-      expect(screen.getByRole('status').textContent).toMatch(/too many wrong attempts/i);
-    });
+    await waitFor(
+      () => {
+        expect(screen.getByRole('status').textContent).toMatch(/too many wrong attempts/i);
+      },
+      { timeout: LIVENESS_TIMEOUT_MS },
+    );
     expect(screen.queryByText(/the tv is paired/i)).toBeNull();
   });
 
@@ -220,9 +238,12 @@ describe('RemoteAccessPanel', () => {
     render(<RemoteAccessPanel api={api} codePollMs={FAST_POLL} />);
     (await screen.findByRole('button', { name: /pair a tv/i })).click();
 
-    await waitFor(() => {
-      expect(screen.getByRole('status').textContent).toMatch(/expired/i);
-    });
+    await waitFor(
+      () => {
+        expect(screen.getByRole('status').textContent).toMatch(/expired/i);
+      },
+      { timeout: LIVENESS_TIMEOUT_MS },
+    );
     expect(screen.queryByText('482 913')).toBeNull();
   });
 

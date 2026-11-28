@@ -9,6 +9,17 @@ import { useNavVisibility } from '../../shell/navigation';
 import { registerShellStrings } from '../../shell/strings';
 import { HealthPanel } from './HealthPanel';
 
+/**
+ * A liveness bound for the waits that depend on the pairing poll, not a speed
+ * assertion.
+ *
+ * The panel learns whether the owner approved or declined by asking the server
+ * on an interval, so an assertion about the outcome cannot become true until a
+ * tick lands. On a loaded runner the default 1 s wait can expire first. If the
+ * poll never answers the test still fails, loud, just later.
+ */
+const LIVENESS_TIMEOUT_MS = 10_000;
+
 const OFF: HealthStatus = { configured: false, base: null, tokenPrefix: null };
 const ON: HealthStatus = {
   configured: true,
@@ -56,7 +67,11 @@ describe('HealthPanel', () => {
     expect(pairStart).toHaveBeenCalledWith('https://vmui.example.com', 'Vitals');
     expect(useNavVisibility.getState().health).toBe(false);
 
-    expect(await screen.findByText('Connected to https://vmui.example.com')).toBeTruthy();
+    expect(
+      await screen.findByText('Connected to https://vmui.example.com', undefined, {
+        timeout: LIVENESS_TIMEOUT_MS,
+      }),
+    ).toBeTruthy();
     expect(screen.getByText('Key starting vmd_abcd…')).toBeTruthy();
     expect(screen.queryByText('4821')).toBeNull();
     expect(useNavVisibility.getState().health).toBe(true);
@@ -69,7 +84,11 @@ describe('HealthPanel', () => {
       target: { value: 'https://vmui.example.com' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Pair with code' }));
-    expect(await screen.findByText('The pairing was declined in vmui.')).toBeTruthy();
+    expect(
+      await screen.findByText('The pairing was declined in vmui.', undefined, {
+        timeout: LIVENESS_TIMEOUT_MS,
+      }),
+    ).toBeTruthy();
   });
 
   it('explains an insecure address in plain words', async () => {

@@ -26,6 +26,20 @@ vi.mock('@/lib/logToFile', () => ({
 }));
 
 /**
+ * A liveness bound for the waits that depend on the store's debounced writers,
+ * not a speed assertion.
+ *
+ * Both writers are timers rather than renders: the host push is debounced by
+ * 120 ms and the disk write by 250 ms, so an assertion about what the host or
+ * the backend received is waiting on a timer. On a loaded runner the default
+ * 1 s wait can expire before that timer fires — the same bound
+ * `WidgetsScreen.test.tsx` and `DashboardScreen.test.tsx` needed on
+ * 2026-11-28. If the write never happens the test still fails, loud, just
+ * later.
+ */
+const LIVENESS_TIMEOUT_MS = 10_000;
+
+/**
  * The registry is the only thing standing between a user's widget layout and
  * losing it, and every one of its writers is asynchronous. These tests drive
  * the real hook against injected I/O so the guarantees below are the ones the
@@ -181,9 +195,12 @@ it('collapses a burst of edits into one push, so a drag is not a round trip per 
   await waitFor(() => {
     expect(result.current.hydrated).toBe(true);
   });
-  await waitFor(() => {
-    expect(io.synced.length).toBeGreaterThan(0);
-  });
+  await waitFor(
+    () => {
+      expect(io.synced.length).toBeGreaterThan(0);
+    },
+    { timeout: LIVENESS_TIMEOUT_MS },
+  );
   const pushes = io.synced.length;
 
   // A drag reports a position per frame. Each edit is flushed as its own render
@@ -201,9 +218,12 @@ it('collapses a burst of edits into one push, so a drag is not a round trip per 
 
   expect(io.synced).toHaveLength(pushes);
 
-  await waitFor(() => {
-    expect(io.synced).toHaveLength(pushes + 1);
-  });
+  await waitFor(
+    () => {
+      expect(io.synced).toHaveLength(pushes + 1);
+    },
+    { timeout: LIVENESS_TIMEOUT_MS },
+  );
 
   // Collapsed, not lossy: the host is given the newest state, not the first one.
   expect(io.synced[pushes]?.[0]?.opacity).toBe(0.7);
@@ -222,9 +242,12 @@ it('keeps the configuration when the host builds fewer windows than asked for', 
   act(() => {
     result.current.add('cpu', 'cpu-1');
   });
-  await waitFor(() => {
-    expect(io.synced.length).toBeGreaterThan(0);
-  });
+  await waitFor(
+    () => {
+      expect(io.synced.length).toBeGreaterThan(0);
+    },
+    { timeout: LIVENESS_TIMEOUT_MS },
+  );
 
   expect(result.current.widgets.map((widget) => widget.id)).toEqual(['cpu-1']);
   expect(result.current.open).toEqual([]);
@@ -322,9 +345,12 @@ it('writes the layout to disk after a change', async () => {
     result.current.add('memory', 'mem-1');
   });
 
-  await waitFor(() => {
-    expect(io.saved.length).toBeGreaterThan(0);
-  });
+  await waitFor(
+    () => {
+      expect(io.saved.length).toBeGreaterThan(0);
+    },
+    { timeout: LIVENESS_TIMEOUT_MS },
+  );
   const last = io.saved.at(-1) as readonly { id: string }[];
   expect(last.map((widget) => widget.id)).toEqual(['mem-1']);
 });
@@ -336,9 +362,12 @@ describe('the empty layout', () => {
     const io = harness([{ id: 'cpu-1', kind: 'cpu' }]);
 
     mount(io);
-    await waitFor(() => {
-      expect(io.saved.length).toBeGreaterThan(0);
-    });
+    await waitFor(
+      () => {
+        expect(io.saved.length).toBeGreaterThan(0);
+      },
+      { timeout: LIVENESS_TIMEOUT_MS },
+    );
 
     const first = io.saved[0] as readonly { id: string }[];
     expect(first.map((widget) => widget.id)).toEqual(['cpu-1']);
@@ -366,10 +395,13 @@ describe('the grid a dragged widget lands on', () => {
 
     // And the snapped value is what is persisted, so a restart agrees with the
     // screen rather than re-deriving a different position from the raw one.
-    await waitFor(() => {
-      const last = io.saved.at(-1) as readonly { x: number; y: number }[];
-      expect(last[0]).toMatchObject({ x: 104, y: 208 });
-    });
+    await waitFor(
+      () => {
+        const last = io.saved.at(-1) as readonly { x: number; y: number }[];
+        expect(last[0]).toMatchObject({ x: 104, y: 208 });
+      },
+      { timeout: LIVENESS_TIMEOUT_MS },
+    );
   });
 
   it('schedules no write when a later move lands on the same grid cell', async () => {
@@ -388,9 +420,12 @@ describe('the grid a dragged widget lands on', () => {
     act(() => {
       io.emitMoved({ id: 'cpu-1', x: 103, y: 207 });
     });
-    await waitFor(() => {
-      expect(io.saved.length).toBeGreaterThan(0);
-    });
+    await waitFor(
+      () => {
+        expect(io.saved.length).toBeGreaterThan(0);
+      },
+      { timeout: LIVENESS_TIMEOUT_MS },
+    );
     await sleep(300);
     const writes = io.saved.length;
 
@@ -449,10 +484,13 @@ describe('a widget whose screen is gone', () => {
 
     // Persisted, so the recovery survives a restart rather than being applied
     // again on every open.
-    await waitFor(() => {
-      const last = io.saved.at(-1) as readonly { id: string; x: number }[];
-      expect(last[0]).toMatchObject({ id: 'ghost-1', x: 1640 });
-    });
+    await waitFor(
+      () => {
+        const last = io.saved.at(-1) as readonly { id: string; x: number }[];
+        expect(last[0]).toMatchObject({ id: 'ghost-1', x: 1640 });
+      },
+      { timeout: LIVENESS_TIMEOUT_MS },
+    );
   });
 
   it('can also be asked for, and asking twice changes nothing the second time', async () => {
@@ -461,9 +499,12 @@ describe('a widget whose screen is gone', () => {
     await waitFor(() => {
       expect(result.current.widgets[0]).toMatchObject({ x: 1640, y: 910 });
     });
-    await waitFor(() => {
-      expect(io.saved.length).toBeGreaterThan(0);
-    });
+    await waitFor(
+      () => {
+        expect(io.saved.length).toBeGreaterThan(0);
+      },
+      { timeout: LIVENESS_TIMEOUT_MS },
+    );
     const writes = io.saved.length;
 
     act(() => {
@@ -482,9 +523,12 @@ describe('a widget whose screen is gone', () => {
     await waitFor(() => {
       expect(result.current.hydrated).toBe(true);
     });
-    await waitFor(() => {
-      expect(io.saved.length).toBeGreaterThan(0);
-    });
+    await waitFor(
+      () => {
+        expect(io.saved.length).toBeGreaterThan(0);
+      },
+      { timeout: LIVENESS_TIMEOUT_MS },
+    );
     const writes = io.saved.length;
 
     act(() => {
