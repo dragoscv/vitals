@@ -7830,6 +7830,142 @@ both measurements; `git diff --stat` reports `size-budget.json | 4 ++--`.
 NOT VERIFIED here: that the next Verify run on `main` is green, because that
 measurement is CI's own.
 
+### S26-42 — three release pre-flights, because each of these failures cost a whole run (2026-11-28)
+
+The release workflow's `Plan` job now calls two of the doctor's focused modes
+before anything is built, and the doctor itself gained a row, each one paid for
+by a measured failure: the tag-tree check after `v1.5.1` was found sitting behind
+the gates' own fixes; the winget token probe after `Publish` died with
+`dragoscv does not have the correct permissions to execute CreateRef` once the
+whole build matrix had already run; and the store-consistency row, because the
+version is written into the four-part MSIX literal, the Play changelog and the
+MSIX what's-new text as well as the manifests.
+
+They live in `Plan` and not in `Publish` for a mechanical reason: a step that
+fails after `plan` has written its outputs leaves `should_build` and `publish`
+set, and the build and publish jobs gate on those with `!cancelled()`. Anything
+that cannot be read is a `SKIP`, a status that moves neither the stale nor the
+partial count, and never a pass — a refused token and an unreachable API are
+different facts and print differently. The full doctor is deliberately _not_ a
+workflow step: its two live-store rows are `UNKNOWN` without credentials, so
+`exit 100` would fail every release. The estimate that the version is declared in
+the MSIX manifest was wrong and the check proved it: the template carries
+`{{VERSION}}` and `MinVersion="10.0.19041.0"`, so an unanchored read reported a
+confident wrong `STALE` until a negative lookbehind was added.
+
+### S26-43 — the four surfaces that carry what's new are held to the version (2026-11-28)
+
+A store once showed the previous version's notes while the new build shipped, and
+nothing in the repository read the two together. The MSIX what's-new text, the
+Play changelog, the GitHub release body's own source — the newest dated heading in
+`CHANGELOG.md`, which `release-notes.ps1` renders — and the site's version text in
+both locales are now compared with the version `package.json` declares, which is
+the same source the doctor reads, so the two cannot disagree about which release
+is being cut. `scripts/check-release-notes.mjs` needs no network and no
+credentials.
+
+The gate fails loudly when it read nothing: a definite mismatch beats a sibling
+`SKIP`, and a run where every surface was skipped prints `NOTHING CHECKED` and
+exits 1. A gate that passes because it read nothing is the defect this exists to
+prevent. It is wired into `scripts/verify.ps1`'s fast lane beside the other
+content gates, and its three SKIP/FAIL contracts were proven in an isolated
+fixture holding an unmodified copy of the script.
+
+### S26-44 — the real-hardware proof is one command, not a hand procedure (2026-11-28)
+
+The elevation prompt drew the generic Windows shield because the shipped binaries
+carried no icon resource, and the proof that this was fixed had been done by hand
+on a second machine — an ASUS laptop reachable as an ssh alias whose shell is
+`cmd`. `scripts/prove-hardware.ps1` now stages the installer and the identity gate
+with `scp`, installs silently per-user (`/S /CurrentUser`, so no elevation) and
+reads back the icon resource hash, `ProductName` and `FileVersion` for every
+shipped binary as one table, exiting non-zero when a row is missing the icon or a
+version block.
+
+Two facts shaped it. `scripts/check-binary-identity.ps1` is invoked as a child
+process rather than re-implemented, so the two cannot drift. And Windows OpenSSH
+collapses every non-zero remote exit code to 1, so the remote payload prints
+`PROVE_HARDWARE_EXIT=<n>` and the local side reads that line: **no sentinel at all
+is NOT VERIFIED, exit 2, never 0.** An unresolvable host proves that path; the
+same script against this machine's 1.5.0 install exits 1 with ten failures and
+reproduces the old defect row by row, which is the before/after pair the row
+exists for.
+
+### S26-45 — the signing application and the store-identity facts, in one document (2026-11-28)
+
+The installers ship unsigned, so SmartScreen warns on every first install, and the
+one route to a signature without buying a certificate is a signing service for
+open-source projects — an application nobody had written.
+`docs/signing-and-store-identity.md` holds a pasteable application letter built
+from the repository's own facts, the four CI changes signing would need in the
+order they must run, and a store-identity sheet: the product and publisher names,
+the package family name, the store product ids, the four-part MSIX version and
+where it is written, the installer scope and what it means for a silent upgrade,
+and the winget identifier with the exact permission its token needs.
+
+The pack is written, not submitted, and no id is invented: a value that exists
+only in a live listing or in a secret is marked `unknown` with the surface that
+holds it and how to read it, and the owner-owned values stay explicit
+placeholders. Two claims are marked as reasoned rather than measured in the
+document itself: the programme's requirement wording is quoted from
+`docs/repository-security.md` §4, and the ordering of the signing step against the
+updater-bundle signature follows the workflow's step order.
+
+### S26-46 — a release carries an evidence sheet (2026-11-28)
+
+Reading a published release back lived in a session and died with it. Given a tag
+or a run id, `scripts/release-evidence.mjs` writes one section per version of
+`docs/release-evidence.md`: the run, its head sha, the tag and its commit, a
+per-job conclusion table, every artefact with its size, GitHub's digest and a
+local SHA-256 when the file is on disk, and one row per channel with the reading
+and the command that produced it — then counts its verified rows against its
+unread ones, so a reader cannot mistake one for the other.
+
+The tag commit is read from GitHub and not from the local tag, because in exactly
+the case the sheet exists for — a re-pointed tag — the local tag is stale while
+GitHub is right. Channel state is never invented: with no readings file every
+channel row says `not read` and the section states that nothing about the channels
+is claimed. Writing the sheet found a real bug in the generator: the documented
+readings file is camelCase while the offline path read the `gh api` snake_case
+shape, so a file written exactly as documented rendered four values as `not read`.
+
+### S26-47 — the widgets board cannot carry the widget that was asked for (2026-11-28)
+
+The request was a Vitals widget on the Windows 11 widgets board with animation,
+morphing, several widgets of different content and custom styles and layouts.
+`docs/research/windows-widgets-2026-11-28.md` answers what the platform permits: a
+provider must be a packaged Win32 app implementing `IWidgetProvider` and
+registering an app extension with a COM server, the body is a static Adaptive Card
+in one of three sizes with no custom layout, chrome or animation, the one animated
+route (HTML web widgets) is available only in the European Economic Area, and the
+NSIS build would get no widget at all unless a sparse package gives it identity —
+a point Microsoft does not document, which is why Milestone 0 is a spike rather
+than an estimate.
+
+The note recommends what the request is actually describing: an always-on-top
+overlay window, with `E:\gh\dashy` as the precedent because it is a Tauri ambient
+display that already depends on `vitals-core` — while stating that dashy's own
+Windows build is a normal decorated window today, so the always-on behaviour is
+new work in either repository. Two things are marked `EXPECTED` and not verified:
+that a Tauri webview cannot itself be the provider, and the effort figures.
+
+### S26-48 — what is unfinished is a page, not a memory (2026-11-28)
+
+`docs/status/open-work-2026-11-28.md` ranks everything unfinished on that date:
+tracker rows still `in-progress` or `blocked`, the parts of another session's
+in-flight work that are only half-landed, commits that describe a slice without
+its tests, docs or locale strings, and the automation that is loose — each item
+naming what would finish it and whose action that is.
+
+It was written to a file rather than reported in a message because the value is
+comparison: a page can be re-read after a change and the difference is visible.
+The four material findings were re-read independently when this row was written:
+`main` was one commit ahead of `origin/main` (`0f0195e`, which raises the
+installer ceiling for the size-gate failure on the previous push), the `v1.5.1`
+release run was held on the release environment approval, the new fast-lane row in
+`scripts/verify.ps1` named a script that was untracked at that moment, and two
+untracked scratch files sat in the repository root.
+
 ## S13 — public beta 0.9.0-beta.1 (2026-09-28)
 
 Decided with the owner (ADR 0031): public repository, beta version, no code

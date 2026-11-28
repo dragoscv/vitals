@@ -103,6 +103,49 @@ jobs:
           REF: ${{ github.ref }}
         run: node scripts/release-preflight.mjs --ref $env:REF
 
+      # A tag is a pointer and a pointer is not a tree: this run builds the
+      # TAG's tree, so a gate fix that lands on main after the tag is invisible
+      # here. v1.5.1 (2026-11-28) was tagged, its Verify job went red on two
+      # gates, both gates were then fixed on main, and re-running the tag would
+      # have reproduced the same red — the tag was behind the paths those gates
+      # read. `--tag-tree` runs that one check and nothing else: it compares the
+      # tag's tree with origin/main and fails, naming the gate paths main has
+      # and the tag does not, so the fix is obvious (re-point the tag and
+      # re-tag, or bump the patch and tag that). Deliberately BEFORE `plan`, for
+      # the same reason as the preflight above: a failure here must leave every
+      # output unset so verify, build and publish skip instead of building a
+      # stale tag. `--tag-tree` and the comparison it runs live in
+      # scripts/release-doctor.mjs; this step adds no logic of its own.
+      - name: Tag tree (the tag carries the gates' own fixes)
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          $version = $env:REF_NAME -replace '^v', ''
+          node scripts/release-doctor.mjs --version $version --offline --tag-tree
+
+      # The winget submission opens a pull request from the contributor's own
+      # fork, and on 2026-11-28 the 1.5.0 release died there with `dragoscv does
+      # not have the correct permissions to execute CreateRef` — after every
+      # gate had passed and with the manifest correct (S26-30). A whole release
+      # run was lost to a credential no earlier step could see, so the token is
+      # now probed before anything is built: one read-only API call that reports
+      # whether the token can create a ref, and names the rotation when it
+      # cannot. An unreachable GitHub is reported as skipped and never fails the
+      # run, because an API nobody could reach is not a bad token; only a
+      # confirmed inability stops it. Driven only when the winget channel is on,
+      # which is when the token is load-bearing.
+      - name: Winget token (the fork accepts a ref)
+        if: startsWith(github.ref, 'refs/tags/v') && vars.PUBLISH_WINGET == 'true'
+        shell: pwsh
+        env:
+          REF_NAME: ${{ github.ref_name }}
+          WINGET_TOKEN: ${{ secrets.WINGET_TOKEN }}
+        run: |
+          $version = $env:REF_NAME -replace '^v', ''
+          node scripts/release-doctor.mjs --version $version --winget-token
+
       - id: plan
         shell: pwsh
         env:

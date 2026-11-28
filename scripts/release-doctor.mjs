@@ -52,9 +52,15 @@
 //                                                       (git ls-remote); the tag
 //                                                       push check reads the local
 //                                                       remote-tracking ref instead
+//   node scripts/release-doctor.mjs --tag-tree          only the tag-vs-main tree
+//                                                       check, for the release
+//                                                       workflow's Plan job
+//   node scripts/release-doctor.mjs --winget-token      only the winget fork probe,
+//                                                       which needs one API call
 //
 // It is dependency-free on purpose: Node's standard library, `git` and the
-// repository's own scripts, nothing else.
+// repository's own scripts, nothing else. The winget probe uses the
+// standard-library `fetch`, so it adds no dependency either.
 
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, writeSync } from 'node:fs';
@@ -73,15 +79,22 @@ function flagValue(name) {
   return prefixed ? prefixed.slice(name.length + 1) : null;
 }
 const offline = argv.includes('--offline');
+// Two focused modes the release workflow's Plan job drives: the tag-vs-main
+// tree check on its own (so the Plan job can fail fast on a stale tag without
+// running, and possibly failing on, every other surface), and the winget fork
+// probe on its own (which needs a token and one network call the ordinary run
+// must not make). Both keep the same table, findings and exit-code contract.
+const onlyTagTree = argv.includes('--tag-tree');
+const onlyWinget = argv.includes('--winget-token');
+const knownFlags = ['--version', '--offline', '--tag-tree', '--winget-token'];
 const unknownArgs = argv.filter(
-  (a) =>
-    a.startsWith('-') && !['--version', '--offline'].includes(a) && !a.startsWith('--version='),
+  (a) => a.startsWith('-') && !knownFlags.includes(a) && !a.startsWith('--version='),
 );
 if (unknownArgs.length > 0) {
   // writeSync, not console.error: process.exit() can drop output that has not
   // reached the OS yet when stdout/stderr is a pipe or a file — the trap that
   // made this script print an empty table on its first run.
-  writeSync(2, `unknown option(s): ${unknownArgs.join(', ')}\nknown: --version <v>, --offline\n`);
+  writeSync(2, `unknown option(s): ${unknownArgs.join(', ')}\nknown: ${knownFlags.join(', ')}\n`);
   process.exit(2);
 }
 
@@ -156,6 +169,11 @@ const stale = (s, e, f) => {
 };
 const held = (s, e, f) => row(s, e, f, 'HELD');
 const unknown = (s, e, f) => row(s, e, f, 'UNKNOWN');
+// SKIP is a surface the run deliberately did not read — a missing file, no
+// credential, an unreachable API. It is reported, never OK, and it does not
+// move the exit code, which is the whole point: an API nobody could reach is
+// not a bad credential, and a surface nobody read is not a surface that passed.
+const skip = (s, e, f) => row(s, e, f, 'SKIP');
 
 // 1. version manifests — re-uses scripts/version.ps1 -Check (the source of
 // truth) rather than re-implementing the six places the version lives.
@@ -275,19 +293,53 @@ function checkVersionLiterals() {
 }
 
 // 4. the MSIX (Microsoft Store) what's-new strings, both locales.
-function checkMsixWhatsNew() {
-  const files = [
-    ['packaging/msix/listing/en-us.md', /What's new in (\d+\.\d+\.\d+(?:\.\d+)?)/],
-    ['packaging/msix/listing/ro-ro.md', /Ce e nou în (\d+\.\d+\.\d+(?:\.\d+)?)/],
-  ];
-  const named = [];
-  for (const [file, re] of files) {
-    if (!exists(file)) {
-      stale("MSIX what's-new (en-us, ro-ro)", rawVersion, `${file} missing`);
-      return;
-    }
+// The hand-written store texts, read through one pair of readers so the
+// per-surface rows (#4, #5) and the cross-surface consistency row (#5b) cannot
+// drift about which file names what or how its version is spelled.
+const MSIX_LISTING = [
+  ['packaging/msix/listing/en-us.md', /What's new in (\d+\.\d+\.\d+(?:\.\d+)?)/],
+  ['packaging/msix/listing/ro-ro.md', /Ce e nou în (\d+\.\d+\.\d+(?:\.\d+)?)/],
+];
+const PLAY_CHANGELOG = [
+  'apps/android/play/listing/en-US/changelogs/default.txt',
+  'apps/android/play/listing/ro/changelogs/default.txt',
+];
+
+function msixWhatsNewVersions() {
+  return MSIX_LISTING.map(([file, re]) => {
+    if (!exists(file)) return { file, version: null, reason: 'file missing' };
     const m = read(file).match(re);
-    named.push({ file, version: m ? m[1] : null });
+    return {
+      file,
+      version: m ? m[1] : null,
+      reason: m ? null : 'no "what\'s new" version found',
+    };
+  });
+}
+
+function playChangelogVersions() {
+  return PLAY_CHANGELOG.map((file) => {
+    if (!exists(file)) return { file, version: null, reason: 'file missing' };
+    const first =
+      read(file)
+        .split(/\r?\n/)
+        .find((l) => l.trim().length > 0) ?? '';
+    const m = first.match(/Vitals\s+v?(\d+\.\d+\.\d+(?:\.\d+)?)/);
+    return {
+      file,
+      version: m ? m[1] : null,
+      reason: m ? null : 'no "Vitals <version>" line found',
+    };
+  });
+}
+
+// 4. the MSIX (Microsoft Store) what's-new strings, both locales.
+function checkMsixWhatsNew() {
+  const named = msixWhatsNewVersions();
+  const missing = named.find((n) => n.reason === 'file missing');
+  if (missing) {
+    stale("MSIX what's-new (en-us, ro-ro)", rawVersion, `${missing.file} missing`);
+    return;
   }
   const wrong = named.filter((n) => n.version !== rawVersion);
   if (wrong.length === 0) {
@@ -303,22 +355,11 @@ function checkMsixWhatsNew() {
 
 // 5. the Play (Android) changelogs, both locales.
 function checkPlayChangelog() {
-  const files = [
-    'apps/android/play/listing/en-US/changelogs/default.txt',
-    'apps/android/play/listing/ro/changelogs/default.txt',
-  ];
-  const named = [];
-  for (const file of files) {
-    if (!exists(file)) {
-      stale('Play changelog (en-US, ro)', rawVersion, `${file} missing`);
-      return;
-    }
-    const first =
-      read(file)
-        .split(/\r?\n/)
-        .find((l) => l.trim().length > 0) ?? '';
-    const m = first.match(/Vitals\s+v?(\d+\.\d+\.\d+(?:\.\d+)?)/);
-    named.push({ file, version: m ? m[1] : null });
+  const named = playChangelogVersions();
+  const missing = named.find((n) => n.reason === 'file missing');
+  if (missing) {
+    stale('Play changelog (en-US, ro)', rawVersion, `${missing.file} missing`);
+    return;
   }
   const wrong = named.filter((n) => n.version !== rawVersion);
   if (wrong.length === 0) {
@@ -330,6 +371,83 @@ function checkPlayChangelog() {
     rawVersion,
     wrong.map((n) => `${n.file} says ${n.version ?? 'nothing'}`).join(', '),
   );
+}
+
+// The version the Store package's AppxManifest will declare. The manifest is
+// built from AppxManifest.template.xml, whose Identity Version is filled at
+// build time from the four-part Store version the packaging holds — there is no
+// committed concrete manifest to read, because build-msix.ps1 fills the template
+// and the result is a build artefact. So the declared version is the four-part
+// literal in packaging/msix and the msix workflow (the one
+// scripts/check-drift.ps1 keeps at the Store form), and that is what this reads.
+function msixManifestVersion() {
+  const direct = 'packaging/msix/AppxManifest.template.xml';
+  if (exists(direct)) {
+    // The negative lookbehind keeps MinVersion / MaxVersionTested out: they end
+    // in `Version="..."` too, and reading one of those as the release version is
+    // exactly the sort of silent wrong answer this row exists to prevent.
+    const m = read(direct).match(/(?<![A-Za-z])Version="(\d+\.\d+\.\d+\.\d+)"/);
+    if (m) return { version: m[1] };
+  }
+  const sources = [
+    ['packaging/msix/build-msix.ps1', /-Version\s+(\d+\.\d+\.\d+\.\d+)/],
+    ['packaging/msix/build-and-upload.ps1', /-Version\s+(\d+\.\d+\.\d+\.\d+)/],
+    ['.github/workflows/msix.yml', /version=(\d+\.\d+\.\d+\.\d+)/],
+  ];
+  for (const [file, re] of sources) {
+    if (!exists(file)) continue;
+    const m = read(file).match(re);
+    if (m) return { version: m[1] };
+  }
+  return { version: null, reason: 'no declared four-part Store version in the packaging' };
+}
+
+// A Store version may be three- or four-part; the Store's last part is always 0,
+// so 1.5.1 and 1.5.1.0 name the same release.
+function sameVersion(a, b) {
+  const core = (v) => (v.match(/^\d+\.\d+\.\d+/) ?? [v])[0];
+  return core(a) === core(b);
+}
+
+// 5b. the store surfaces held to one version. A release reaches a user through
+// three store-facing surfaces, each naming a version on its own: the Store
+// package's AppxManifest, the Play release notes and the MSIX what-is-new block.
+// Rows #4 and #5 check two of them against the manifests; nothing asked whether
+// the stores agree with EACH OTHER, so a release where one surface was bumped
+// and another was not could ship with the Store serving a different version from
+// Play. This row asks the one question a reader has — will every store serve
+// this version — and answers SKIP, never OK, when a surface cannot be read,
+// because a surface nobody read is not a surface that passed.
+function checkStoreConsistency() {
+  const label = 'store consistency (the version every store surface names)';
+  const expected = `every store surface names ${rawVersion}`;
+  const groups = [
+    ['MSIX manifest', [msixManifestVersion()]],
+    ['Play changelog', playChangelogVersions()],
+    ["MSIX what's-new", msixWhatsNewVersions()],
+  ];
+  const wrong = [];
+  const unreadable = [];
+  for (const [name, readings] of groups) {
+    for (const r of readings) {
+      if (r.version === null) {
+        unreadable.push(r.file ? `${name} (${r.file}: ${r.reason})` : `${name} (${r.reason})`);
+      } else if (!sameVersion(r.version, rawVersion)) {
+        wrong.push(`${name} says ${r.version}`);
+      }
+    }
+  }
+  // A surface read from several files is named once, so both locales do not
+  // repeat the same finding; rows #4 and #5 already name the individual files.
+  if (wrong.length > 0) {
+    stale(label, expected, [...new Set(wrong)].join(', '));
+    return;
+  }
+  if (unreadable.length > 0) {
+    skip(label, expected, unreadable.join('; '));
+    return;
+  }
+  ok(label, expected, `every store surface names ${rawVersion}`);
 }
 
 // 6. the two prose surfaces that NAME the version rather than hold it: the API
@@ -669,20 +787,102 @@ function checkLiveStores() {
   );
 }
 
+// A winget submission opens a pull request from the contributor's own fork, and
+// on 2026-11-28 the 1.5.0 release died at that step with `dragoscv does not have
+// the correct permissions to execute CreateRef` after every gate had passed and
+// the manifest was correct (S26-30) — a whole release run lost to a credential
+// no earlier step could see. This probe is one read-only API call: a GET on the
+// fork reports the authenticated token's permissions, and `push` is the ability
+// to create a ref. A confirmed inability is STALE and names the rotation; an
+// unreachable GitHub is SKIP, because an API nobody could reach is not a bad
+// token, and only a fact that was read can stop a run.
+const WINGET_FORK = 'dragoscv/winget-pkgs';
+const WINGET_ROTATION =
+  '  rotate WINGET_TOKEN: a classic PAT with the public_repo scope, or a fine-grained PAT with Contents read+write and Pull requests read+write on the fork';
+
+async function checkWingetToken() {
+  const label = 'winget token (can create refs on the fork)';
+  const expected = `${WINGET_FORK} accepts a ref from WINGET_TOKEN`;
+  const token = process.env.WINGET_TOKEN;
+  if (!token) {
+    skip(label, expected, 'WINGET_TOKEN not set, so the winget channel will skip');
+    return;
+  }
+  if (offline) {
+    skip(label, expected, '--offline, so the token was not probed');
+    return;
+  }
+  let response;
+  try {
+    response = await fetch(`https://api.github.com/repos/${WINGET_FORK}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/vnd.github+json',
+        'User-Agent': 'vitals-release-doctor',
+      },
+      signal: AbortSignal.timeout(8000),
+    });
+  } catch (error) {
+    skip(
+      label,
+      expected,
+      `GitHub API unreachable (${error.name}), so the token was not probed (this is not a failure)`,
+    );
+    return;
+  }
+  if (response.status === 200) {
+    const body = await response.json().catch(() => null);
+    if (body?.permissions?.push === true) {
+      ok(label, expected, `WINGET_TOKEN can create a ref on ${WINGET_FORK}`);
+      return;
+    }
+    stale(
+      label,
+      expected,
+      `WINGET_TOKEN cannot create a ref on ${WINGET_FORK} (no push permission)`,
+    );
+    details.push(WINGET_ROTATION);
+    return;
+  }
+  if ([401, 403, 404].includes(response.status)) {
+    stale(
+      label,
+      expected,
+      `GitHub refused WINGET_TOKEN for ${WINGET_FORK} (HTTP ${response.status})`,
+    );
+    details.push(WINGET_ROTATION);
+    return;
+  }
+  skip(
+    label,
+    expected,
+    `GitHub answered HTTP ${response.status} for ${WINGET_FORK}; the token was not judged`,
+  );
+}
+
 // ── run ────────────────────────────────────────────────────────────────────
 
-checkManifests();
-checkChangelog();
-checkVersionLiterals();
-checkMsixWhatsNew();
-checkPlayChangelog();
-checkNamedProse();
-checkApple('apps/ios/store/listing.json', 'Apple listing (iPhone)');
-checkApple('apps/desktop/store/macos-listing.json', 'Apple listing (Mac)');
-checkTag();
-checkTagTree();
-checkTracker();
-checkLiveStores();
+if (onlyTagTree || onlyWinget) {
+  // A focused run for the release workflow's Plan job: only the check the step
+  // is asking about, so a failure names that one thing and no unrelated surface
+  // can stop a tag for a reason the step did not opt into.
+  if (onlyTagTree) checkTagTree();
+  if (onlyWinget) await checkWingetToken();
+} else {
+  checkManifests();
+  checkChangelog();
+  checkVersionLiterals();
+  checkMsixWhatsNew();
+  checkPlayChangelog();
+  checkStoreConsistency();
+  checkNamedProse();
+  checkApple('apps/ios/store/listing.json', 'Apple listing (iPhone)');
+  checkApple('apps/desktop/store/macos-listing.json', 'Apple listing (Mac)');
+  checkTag();
+  checkTagTree();
+  checkTracker();
+  checkLiveStores();
+}
 
 // ── report ─────────────────────────────────────────────────────────────────
 
@@ -698,17 +898,30 @@ for (const r of rows) process.stdout.write(`${line([r.surface, r.expected, r.fou
 
 const count = (status) => rows.filter((r) => r.status === status).length;
 const stales = count('STALE');
+const skips = count('SKIP');
 const partial = count('UNKNOWN') > 0;
 if (details.length > 0) {
   process.stdout.write(`\nfindings:\n${[...new Set(details)].join('\n')}\n`);
 }
-const summary = `${count('OK')} OK, ${count('HELD')} HELD, ${stales} STALE, ${count('UNKNOWN')} UNKNOWN`;
+// SKIP is named only when there is one, so a clean, fully-read run keeps the
+// tally a reader already knows (… HELD, STALE, UNKNOWN).
+const summaryParts = [`${count('OK')} OK`, `${count('HELD')} HELD`];
+if (skips > 0) summaryParts.push(`${skips} SKIP`);
+summaryParts.push(`${stales} STALE`, `${count('UNKNOWN')} UNKNOWN`);
+const summary = summaryParts.join(', ');
 process.stdout.write(
   `\n${summary} - ${partial ? 'PARTIAL check (a live store surface needs a credential)' : 'FULL check'}\n`,
 );
+// A focused run names what it was asked about; the full run counts surfaces.
+const staleReason =
+  onlyTagTree && !onlyWinget
+    ? 'the tag is behind origin/main on a path the gates read'
+    : onlyWinget && !onlyTagTree
+      ? 'the winget token cannot create a ref on the fork'
+      : `${stales} surface(s) name the wrong version`;
 process.stdout.write(
   stales > 0
-    ? `exit ${(partial ? 100 : 0) + stales}: ${stales} surface(s) name the wrong version\n\n`
+    ? `exit ${(partial ? 100 : 0) + stales}: ${staleReason}\n\n`
     : `exit ${partial ? 100 : 0}: nothing stale\n\n`,
 );
 

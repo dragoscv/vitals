@@ -284,6 +284,13 @@ $checks = @(
     # that moves them would advertise a version App Store Connect is not
     # reviewing. Pure file reads, so it costs the fast lane nothing.
     @{ Name = 'apple: listing held'; Script = 'node scripts/check-apple-hold.mjs' }
+    # The four surfaces that carry a release's "what's new" text — the MSIX
+    # listing, the Play changelog, the CHANGELOG section the release body is
+    # rendered from, and the site's terms sentence — must all name the version
+    # the manifests declare. One store once went live describing the PREVIOUS
+    # version beside a new build; nothing read the notes. Offline file reads,
+    # so it belongs beside the other content gates.
+    @{ Name = 'release: notes name the version'; Script = 'node scripts/check-release-notes.mjs' }
     # Reads the bytes of the already-built binaries and skips when there are
     # none (the decision is made above). A file read, so it stays in this lane.
     @{ Name = 'artefacts: binary identity'; Script = $identityScript }

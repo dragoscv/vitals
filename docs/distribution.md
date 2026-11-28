@@ -195,6 +195,71 @@ a stub that exits at startup, and nothing packages `vitals-helper.exe`. It stays
 in the tree as the place the elevated helper will live, and the gates above are
 what will hold it to the same identity when it does ship.
 
+### Proving it on real hardware, in one command
+
+Every gate above reads the identity off bytes, on the machine that produced
+them. That is not what a user sees. 1.5.0's defect was found by hand, on a
+second machine, when a Defender Firewall prompt drew a generic shield where the
+mark should be — no build, test or gate had said anything.
+
+`scripts/prove-hardware.ps1` runs that hand proof as one command: it copies the
+installer to a second Windows machine over ssh, installs it silently for the
+current user, then reads back — for every binary under the install — the icon
+resource hash, the product name and the file version, and prints one table with
+a pass/fail per row.
+
+```powershell
+pwsh -NoProfile -File scripts/prove-hardware.ps1 `
+  -Installer target/release/bundle/nsis/Vitals_1.5.1_x64-setup.exe
+```
+
+`-Host` is the ssh alias of the machine to prove on and defaults to
+`dragos-vivobook`. `-InstallDir` overrides the directory read back (empty means
+the per-user `%LOCALAPPDATA%\Programs\Vitals`, resolved on the target).
+`-SkipInstall` reads an existing install without copying or running anything.
+`-Local` runs the readback half on this machine instead of over ssh, which is
+how the table is exercised without a second machine.
+
+The version every binary is held to comes from the installer's own version
+block, so the caller does not restate it.
+
+**When to run it.** When a release is cut, and when the icon, the version
+sources or the three `build.rs` files change. Run it **once per installer
+scope**. The command above proves the per-user scope end to end: `installMode`
+is `both`, so the script passes `/S /CurrentUser`, which is what keeps the
+install per-user and therefore unelevated. The per-machine scope is the same
+installer with a bare `/S` and a UAC prompt, so install it once from an elevated
+shell (`…setup.exe /S`) and then prove what landed, with nothing copied or run:
+
+```powershell
+pwsh -NoProfile -File scripts/prove-hardware.ps1 `
+  -Installer target/release/bundle/nsis/Vitals_1.5.1_x64-setup.exe `
+  -InstallDir "$env:ProgramFiles\Vitals" -SkipInstall
+```
+
+**What a failure means.**
+
+- **Exit 1** — a reading came back wrong, and the failing row says which: the
+  icon hash is not the one the desktop binary carries, or the version block is
+  absent, names another product, or declares another version. This is the 1.5.0
+  defect class, on the machine a user would meet it on.
+- **Exit 2** — NOT VERIFIED. The host could not be reached over ssh, the remote
+  command never reported a result, or the host has no PowerShell 7 to run the
+  identity gate with.
+- **Exit 3** — NOT VERIFIED. The installer ran but no binary appeared under the
+  install directory, so there was nothing to read.
+
+Only exit 0 says the binaries were read and passed. 2 and 3 are limitations of
+the proof and are never reported as 0.
+
+It reuses `scripts/check-binary-identity.ps1` rather than re-implementing the PE
+resource read: that parsing is subtle, the gate already owns it, and the script
+invokes it as a child process — so that gate's own exit code is the verdict and
+the two cannot drift apart. The gate is run with `pwsh`: it is UTF-8 without a
+byte-order mark and carries em dashes, and Windows PowerShell 5.1 decodes one of
+those dashes into a curly quote that closes the string it sits in, so the file
+does not even parse there.
+
 ## Samsung TVs (Tizen): sideload only
 
 The Tizen app (`apps/tizen`) is a web app packaged as a **`.wgt`**, and it is

@@ -329,6 +329,41 @@ Exit codes say both what it found and how much of the check could run:
 surfaces; `100` a partial run (a live store surface needed a credential) with
 nothing stale; `101`–`199` a partial run with that many `STALE` surfaces.
 
+## The release-notes gate
+
+`scripts/release-doctor.mjs` is the broad sweep; `scripts/check-release-notes.mjs`
+is the one rule that must hold at every commit, so it runs in the fast checks
+lane of `scripts/verify.ps1` and in the pre-commit hook beside the other content
+gates:
+
+```powershell
+node scripts/check-release-notes.mjs
+```
+
+It reads the version from `package.json` — the same source `release-doctor.mjs`
+reads, so the two cannot disagree about which release is being cut — and checks
+that all four surfaces that carry a release's "what's new" text name it:
+
+- the **MSIX what's-new** block (`packaging/msix/listing/en-us.md`,
+  `ro-ro.md`);
+- the **Play release notes**
+  (`apps/android/play/listing/{en-US,ro}/changelogs/default.txt`);
+- the **GitHub release body**'s source, the newest dated `## [<version>]`
+  heading in `CHANGELOG.md` (which `scripts/release-notes.ps1` renders);
+- the **site version text** (`apps/site/src/content/docs/terms.md` and
+  `ro/terms.md`).
+
+It prints one row per surface and exits `0` when every surface names the
+version. A surface that names a **different** version is `FAIL` and exits `1`,
+printing the file, what it says and what it must say. A surface that **cannot be
+read** — a file missing, a shape this reader does not recognise — is a `SKIP`
+row with the concrete reason, never `OK`: it does not by itself turn the run
+red, but it can never turn a red finding green (a wrong version on one file is
+never excused by a sibling that could not be read), and a run in which **every**
+surface was skipped exits `1`, because a gate that passes by reading nothing is
+the defect this exists to prevent. It runs offline: every input is a committed
+file.
+
 ## What a release does
 
 Pushing a `v*` tag runs `.github/workflows/release.yml`:
