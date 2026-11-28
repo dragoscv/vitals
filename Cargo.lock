@@ -5911,7 +5911,7 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
 name = "vitals-agents"
-version = "1.5.1"
+version = "1.6.0"
 dependencies = [
  "rusqlite",
  "serde",
@@ -5923,7 +5923,7 @@ dependencies = [
 
 [[package]]
 name = "vitals-bench"
-version = "1.5.1"
+version = "1.6.0"
 dependencies = [
  "serde",
  "vitals-core",
@@ -5932,7 +5932,7 @@ dependencies = [
 
 [[package]]
 name = "vitals-cli"
-version = "1.5.1"
+version = "1.6.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -5954,7 +5954,7 @@ dependencies = [
 
 [[package]]
 name = "vitals-core"
-version = "1.5.1"
+version = "1.6.0"
 dependencies = [
  "proptest",
  "serde",
@@ -5965,7 +5965,7 @@ dependencies = [
 
 [[package]]
 name = "vitals-desktop"
-version = "1.5.1"
+version = "1.6.0"
 dependencies = [
  "hmac",
  "parking_lot",
@@ -6006,7 +6006,7 @@ dependencies = [
 
 [[package]]
 name = "vitals-helper"
-version = "1.5.1"
+version = "1.6.0"
 dependencies = [
  "anyhow",
  "serde",
@@ -6021,7 +6021,7 @@ dependencies = [
 
 [[package]]
 name = "vitals-ipc"
-version = "1.5.1"
+version = "1.6.0"
 dependencies = [
  "interprocess",
  "parking_lot",
@@ -6034,14 +6034,14 @@ dependencies = [
 
 [[package]]
 name = "vitals-linux"
-version = "1.5.1"
+version = "1.6.0"
 dependencies = [
  "vitals-core",
 ]
 
 [[package]]
 name = "vitals-macos"
-version = "1.5.1"
+version = "1.6.0"
 dependencies = [
  "libc",
  "serde_json",
@@ -6052,7 +6052,7 @@ dependencies = [
 
 [[package]]
 name = "vitals-mcp"
-version = "1.5.1"
+version = "1.6.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -6061,7 +6061,7 @@ dependencies = [
 
 [[package]]
 name = "vitals-mqtt"
-version = "1.5.1"
+version = "1.6.0"
 dependencies = [
  "rumqttc",
  "serde",
@@ -6074,7 +6074,7 @@ dependencies = [
 
 [[package]]
 name = "vitals-sensors"
-version = "1.5.1"
+version = "1.6.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -6086,7 +6086,7 @@ dependencies = [
 
 [[package]]
 name = "vitals-server"
-version = "1.5.1"
+version = "1.6.0"
 dependencies = [
  "axum",
  "futures-util",
@@ -6113,7 +6113,7 @@ dependencies = [
 
 [[package]]
 name = "vitals-store"
-version = "1.5.1"
+version = "1.6.0"
 dependencies = [
  "rusqlite",
  "serde",
@@ -6126,7 +6126,7 @@ dependencies = [
 
 [[package]]
 name = "vitals-watchdog"
-version = "1.5.1"
+version = "1.6.0"
 dependencies = [
  "anyhow",
  "serde",
@@ -6142,7 +6142,7 @@ dependencies = [
 
 [[package]]
 name = "vitals-win"
-version = "1.5.1"
+version = "1.6.0"
 dependencies = [
  "base64 0.22.1",
  "png 0.18.1",

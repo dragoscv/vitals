@@ -20,7 +20,7 @@ never as zero.
 | Website         | <https://vitals.dragoscatalin.ro>                                                     |
 | Source          | <https://github.com/dragoscv/vitals>                                                  |
 | Microsoft Store | <https://apps.microsoft.com/detail/9P95RK5VMGPJ> (listed as "Vitals: System Monitor") |
-| Status          | 1.5.0, stable on Windows                                                              |
+| Status          | 1.6.0, stable on Windows                                                              |
 | Contact         | dragoscv12@gmail.com                                                                  |
 
 **Platforms**
@@ -83,7 +83,7 @@ raportează apare ca necunoscută, niciodată ca zero.
 | Site            | <https://vitals.dragoscatalin.ro>                                           |
 | Cod sursă       | <https://github.com/dragoscv/vitals>                                        |
 | Microsoft Store | <https://apps.microsoft.com/detail/9P95RK5VMGPJ> („Vitals: System Monitor”) |
-| Stadiu          | 1.5.0, stabil pe Windows                                                    |
+| Stadiu          | 1.6.0, stabil pe Windows                                                    |
 | Contact         | dragoscv12@gmail.com                                                        |
 
 **Platforme**

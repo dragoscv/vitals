@@ -7,7 +7,12 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-## [1.5.1] — 2026-11-28
+## [1.6.0] — 2026-11-28
+
+The first release to carry the changes below. A 1.5.1 tag was cut on
+2026-11-28 and cancelled before anything was published, so nothing ever shipped
+under that number; its fixes are here, and every surface that names the version
+moved with them.
 
 ### Fixed
 
@@ -55,6 +60,15 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   not enough to hide a loop that really did stop working — both directions are
   measured, not assumed.
 
+- The widget's panel was too transparent to read a number against a bright
+  desktop. At 0.55 opacity a muted reading measured 1.64:1 over white and the
+  default text 3.51:1, both under the 4.5:1 a body of text needs; the glass is
+  now 0.84, which clears it in the same measurement rather than by eye.
+
+- A ring widget with no percentage to fill drew nothing at all. An unmeasured
+  reading is `null` and never `0`, and the ring had no path for that state: the
+  ring is now drawn empty with the reading printed inside it.
+
 ### Added
 
 - **Tracking** — one page for every plan on the machine, read from the index
@@ -81,6 +95,33 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   pinned: the reference is a binary built in the same run, because the bytes of
   an icon inside a binary are not the bytes of the `.ico` it was drawn from.
   The Store route runs the same script before it uploads a package.
+
+- **A widget can be a window of its own, and can watch another machine.** Each
+  widget is pinned as its own small always-on-top window — a ring or a card —
+  which remembers where it was left. A widget asked for a reading from a remote
+  machine does not read the settings file: it asks the main window over an event
+  channel, and the widget window carries only the permissions a widget needs, so
+  a pinned reading is not a way into everything else.
+
+- The command line can manage them: `vitals widget list|add|remove`, over the
+  same protocol the other clients speak. A widget request an older build does
+  not model is refused as `UNSUPPORTED` with its own exit code rather than
+  ignored, so a script cannot mistake "I did not understand that" for "done".
+
+- The thermal widget shows the fastest fan and the package power draw on a
+  machine that reports them, named as the vendor's own tool names them. A
+  machine with no tachometer and no power sensor shows a dash, never a zero.
+
+- The widget window follows the accent colour chosen in the app, and every
+  string it can display exists in both languages, so a widget is not the one
+  surface left in English on a Romanian machine.
+
+- The website documents widgets and the command line in English and Romanian,
+  and `docs/research/windows-widgets-sparse-package-2026-11-28.md` records why
+  the Windows 11 board widget cannot carry this: a sparse package is the only
+  route the Store allows for a third-party board widget, its skeleton is in
+  `packaging/msix/sparse/`, and nothing in the build path uses it until the
+  package is signed and registered on a real machine.
 
 ## [1.5.0] — 2026-11-27
 

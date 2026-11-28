@@ -1,3 +1,4 @@
-Vitals 1.5.1
-• This release is for the Windows app the phone talks to: every Vitals tool now shows the Vitals mark and its own version, so Windows no longer offers you a nameless program with a blank icon
+Vitals 1.6.0
+• This release is for the Windows app the phone talks to: widgets can be pinned as small windows that stay on top, and one can show a reading from another machine on your network
+• The thermal widget now shows the fastest fan and the power the processor package is drawing
 • Nothing changes on the phone this release; a reading the PC does not measure still arrives as a dash, never as a zero

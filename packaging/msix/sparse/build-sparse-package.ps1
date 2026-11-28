@@ -26,7 +26,7 @@
   # ... export to .pfx, then:
   pwsh -NoProfile -File packaging/msix/sparse/build-sparse-package.ps1 `
     -IdentityName 'Vitals.Sparse' -Publisher 'CN=Vitals Spike' `
-    -Version 1.5.1.0 -CertificatePath vitals-spike.pfx
+    -Version 1.6.0.0 -CertificatePath vitals-spike.pfx
 #>
 param(
   [Parameter(Mandatory)][string]$Publisher,

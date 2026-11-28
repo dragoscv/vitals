@@ -57,10 +57,14 @@ Gratuit și open source (MIT). Disponibil în română și engleză.
 
 ## Ce e nou în această versiune (≤ 1500 caractere)
 
-Ce e nou în 1.5.1
+Ce e nou în 1.6.0
 
-• Fiecare unealtă Vitals arată acum marca Vitals și versiunea ei. Linia de comandă, serviciul de senzori și watchdog-ul ajungeau fără niciuna, așa că Windows desena propria pictogramă generică și îți propunea un program fără nume și fără pictogramă
-• Ce iese din pipeline este verificat față de aplicația din care a fost construit, așa că o unealtă care își pierde marca sau versiunea oprește versiunea publicată, în loc să ajungă la tine
+• Widgeturile pot ieşi din fereastra principală: fixează unul ca fereastră mică, deasupra a ceea ce lucrezi, ca inel sau card, şi ţine minte unde l-ai lăsat
+• Un widget poate arăta o citire de pe alt calculator din reţea, iar fereastra lui nu primeşte acces la nimic altceva
+• Widgetul de temperatură arată ventilatorul cel mai rapid şi puterea consumată de pachetul de procesor, atunci când calculatorul le raportează; un calculator care nu măsoară niciuna arată o liniuţă, niciodată un zero
+• Widgeturile preiau culoarea aleasă, iar fiecare cuvânt afişat există în engleză şi în română
+• Panoul widgetului era prea transparent ca să fie citit peste un desktop luminos, iar un inel fără procent de umplut nu desena nimic; ambele sunt reparate
+• Fiecare unealtă Vitals arată acum marca Vitals şi versiunea, aşa că Windows nu îţi mai propune un program fără nume şi fără pictogramă
 
 Nou în 1.5.0:
 • Când citirile nu mai vin — o măsurătoare blocată, un calculator care a adormit, un PC care nu mai răspunde — fereastra îți spune acum de cât timp nu a primit nimic și cere valorile actuale, în loc să aștepte o schimbare care poate să nu vină niciodată

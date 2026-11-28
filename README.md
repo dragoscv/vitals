@@ -28,7 +28,7 @@ from a terminal.
 | iPhone (iOS 18+)           | [Vitals: System Monitor](https://apps.apple.com/app/id6827931747) on the App Store                                                                                            | Preview        |
 | Linux                      | —                                                                                                                                                                             | No dated plans |
 
-> **Status: 1.5.0, stable on Windows.** Every section works against live data on
+> **Status: 1.6.0, stable on Windows.** Every section works against live data on
 > Windows — there are no placeholder screens left. The Windows sampler was
 > cross-checked against Windows' own counters during development and stays
 > inside a 30 ms-per-sample budget that CI enforces. macOS has a real sampler

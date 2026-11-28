@@ -57,10 +57,14 @@ Free and open source (MIT). Available in English and Romanian.
 
 ## What's new in this version (≤ 1500 characters)
 
-What's new in 1.5.1
+What's new in 1.6.0
 
-• Every Vitals tool now shows the Vitals mark and its own version. The command line, the sensors service and the lag watchdog used to arrive without either, so Windows drew its own generic icon and offered a nameless program with a blank icon
-• What leaves the pipeline is checked against the app it was built from, so a tool that loses its mark or its version stops the release instead of reaching you
+• Widgets can leave the main window: pin one as a small window that stays on top of what you are working in, as a ring or a card, and it remembers where you left it
+• A widget can show a reading from another machine on your network, and that window gets no access to anything else
+• The thermal widget shows the fastest fan and the power the processor package is drawing, when the machine reports them; a machine that measures neither shows a dash, never a zero
+• Widgets follow the colour you chose, and every word they show exists in English as well as Romanian
+• The widget panel was too transparent to read against a bright desktop, and a ring with no percentage to fill drew nothing; both are fixed
+• Every Vitals tool now shows the Vitals mark and its own version, so Windows no longer offers a nameless program with a blank icon
 
 New in 1.5.0:
 • When the readings stop arriving — a stalled sample, a machine that went to sleep, a PC that stopped answering — the window now says how long ago the last one was and asks for the current numbers, instead of waiting for a change that may never come

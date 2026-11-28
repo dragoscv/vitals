@@ -28,12 +28,12 @@ filled by the workflow. To fill the winget set by hand, download the release's
 assets and run:
 
 ```powershell
-pwsh -NoProfile -File packaging/fill-hashes.ps1 -Assets .copilot-tmp/v1.5.0 -Version 1.5.0
+pwsh -NoProfile -File packaging/fill-hashes.ps1 -Assets .copilot-tmp/v1.6.0 -Version 1.6.0
 ```
 
 It reads the release's `SHA256SUMS.txt` (verifying any installer that is present
 against it), writes a fully-filled copy of each channel under
-`.copilot-tmp/package-submit/1.5.0/`, and never edits the templates. `-WhatIf`
+`.copilot-tmp/package-submit/1.6.0/`, and never edits the templates. `-WhatIf`
 prints what it would write.
 
 ## The exact commands, by channel
@@ -45,15 +45,15 @@ first, so its `SHA256SUMS.txt` and installers exist.
 
 ```powershell
 # With Komac (the tool the release job uses; also what generates the manifest):
-komac update Vitals.Vitals --version 1.5.0 `
-  --urls "https://github.com/dragoscv/vitals/releases/download/v1.5.0/Vitals_1.5.0_x64-setup.exe" `
-         "https://github.com/dragoscv/vitals/releases/download/v1.5.0/Vitals_1.5.0_arm64-setup.exe" `
-  --release-notes-url https://github.com/dragoscv/vitals/releases/tag/v1.5.0 --submit
+komac update Vitals.Vitals --version 1.6.0 `
+  --urls "https://github.com/dragoscv/vitals/releases/download/v1.6.0/Vitals_1.6.0_x64-setup.exe" `
+         "https://github.com/dragoscv/vitals/releases/download/v1.6.0/Vitals_1.6.0_arm64-setup.exe" `
+  --release-notes-url https://github.com/dragoscv/vitals/releases/tag/v1.6.0 --submit
 
 # Or, without Komac, with wingetcreate (installed on this machine):
-wingetcreate update Vitals.Vitals --version 1.5.0 `
-  --urls "https://github.com/dragoscv/vitals/releases/download/v1.5.0/Vitals_1.5.0_x64-setup.exe" `
-         "https://github.com/dragoscv/vitals/releases/download/v1.5.0/Vitals_1.5.0_arm64-setup.exe" `
+wingetcreate update Vitals.Vitals --version 1.6.0 `
+  --urls "https://github.com/dragoscv/vitals/releases/download/v1.6.0/Vitals_1.6.0_x64-setup.exe" `
+         "https://github.com/dragoscv/vitals/releases/download/v1.6.0/Vitals_1.6.0_arm64-setup.exe" `
   --submit
 ```
 
@@ -65,17 +65,17 @@ the reference for the exact field shape; `fill-hashes.ps1` completes it.
 **Scoop** — render the manifest and push it to the bucket:
 
 ```powershell
-pwsh -NoProfile -File packaging/fill-hashes.ps1 -Assets .copilot-tmp/v1.5.0 -Version 1.5.0
-# copy .copilot-tmp/package-submit/1.5.0/scoop/vitals.json over
+pwsh -NoProfile -File packaging/fill-hashes.ps1 -Assets .copilot-tmp/v1.6.0 -Version 1.6.0
+# copy .copilot-tmp/package-submit/1.6.0/scoop/vitals.json over
 #   dragoscv/scoop-vitals: bucket/vitals.json, commit and push.
 ```
 
 **Chocolatey** — pack the filled copy and push it (administrator shell):
 
 ```powershell
-pwsh -NoProfile -File packaging/fill-hashes.ps1 -Assets .copilot-tmp/v1.5.0 -Version 1.5.0
-choco pack .copilot-tmp/package-submit/1.5.0/chocolatey/vitals.nuspec --version 1.5.0 --outputdirectory out
-choco push out/vitals.1.5.0.nupkg --source https://push.chocolatey.org/ --api-key <your key>
+pwsh -NoProfile -File packaging/fill-hashes.ps1 -Assets .copilot-tmp/v1.6.0 -Version 1.6.0
+choco pack .copilot-tmp/package-submit/1.6.0/chocolatey/vitals.nuspec --version 1.6.0 --outputdirectory out
+choco push out/vitals.1.6.0.nupkg --source https://push.chocolatey.org/ --api-key <your key>
 ```
 
 A pre-release (`0.9.0-beta.1`) packs as `0.9.0-beta1` — Chocolatey versions may

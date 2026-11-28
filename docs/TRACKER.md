@@ -7495,6 +7495,12 @@ CI route itself has still never run green, which is what keeps the row
 
 ### S26-35 — release 1.5.1: the mark and the version reach every tool, and the pipeline reads both back (2026-11-28)
 
+**Dropped 2026-11-28.** The 1.5.1 tag was cut and cancelled before anything
+reached a channel, and its work ships inside 1.6.0 (`S26-59`) instead: a version
+whose whole content the next release would repeat costs the same review and
+submission work as one that carries content. Everything below stays as the record
+of what was prepared.
+
 The repair in S26-31 and the gate in S26-34 reach a user only through a release,
 and the defect they answer was visible on a machine that already had Vitals
 installed: the Windows Firewall prompt, asking whether to allow a program whose
@@ -8155,6 +8161,32 @@ what these rows are. Each id has its own row in `docs/tracker.csv`.
 - `scripts/check-tracker.ps1`: 0 problem(s).
 - Not run here: the Astro site build, and any sparse package built or
   registered on a real machine. Both are stated in their own rows.
+
+### S26-59 - Vitals 1.6.0 reaches every surface that names its version (2026-11-28)
+
+One release carries the widgets wave and the work the cancelled 1.5.1 held.
+`S26-35` is closed as dropped rather than left in progress, because nothing
+of it reached a channel and 1.6.0 is where it ships.
+
+- **The version.** `scripts/version.ps1 -Set 1.6.0` moved every manifest it
+  owns - the Cargo workspace, every app and package manifest, the Tauri
+  config, the iOS and Tizen projects - plus the four-part Store literal, and
+  `cargo update --workspace` refreshed the lockfile.
+- **The texts.** The CHANGELOG dated section, both MSIX listings, both Play
+  changelogs and twenty-three prose mentions in both languages.
+- **The budgets.** Five classes raised by their measurement, with the
+  comment that records why each number is what it is kept.
+
+#### Verification log
+
+- `scripts/version.ps1 -Check v1.6.0`: every manifest agrees.
+- `cargo test -p vitals-server --test openapi`: 4 passed, 0 failed.
+- `scripts/check-tracker.ps1`: 0 problem(s) over 369 records.
+- `scripts/check-drift.ps1`: 0 failure(s), 0 warning(s).
+- Open: the tag, the two update-proof run ids, the package-manager hashes,
+  the MSIX upload, and the per-user install of 1.6.0. The one red gate is
+  `rust: target size budget` on the shared build machine own cargo cache
+  (26.57 GB of target/debug against a 24.00 GB budget), not this tree.
 
 ## S13 — public beta 0.9.0-beta.1 (2026-09-28)
 

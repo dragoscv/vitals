@@ -1,3 +1,4 @@
-Vitals 1.5.1
-• Această versiune este pentru aplicația Windows cu care vorbește telefonul: fiecare unealtă Vitals arată acum marca Vitals și versiunea, așa că Windows nu îți mai propune un program fără nume și fără pictogramă
-• Pe telefon nu se schimbă nimic în această versiune; o citire pe care PC-ul nu o măsoară rămâne o liniuță, niciodată un zero
+Vitals 1.6.0
+• Această versiune este pentru aplicația Windows cu care vorbeşte telefonul: widgeturile pot fi fixate ca ferestre mici, deasupra celorlalte, iar unul poate arăta o citire de pe alt calculator din reţea
+• Widgetul de temperatură arată acum ventilatorul cel mai rapid şi puterea consumată de pachetul de procesor
+• Pe telefon nu se schimbă nimic în această versiune; o citire pe care PC-ul nu o măsoară rămâne o liniuţă, niciodată un zero

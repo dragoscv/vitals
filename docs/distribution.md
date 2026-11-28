@@ -210,7 +210,7 @@ a pass/fail per row.
 
 ```powershell
 pwsh -NoProfile -File scripts/prove-hardware.ps1 `
-  -Installer target/release/bundle/nsis/Vitals_1.5.1_x64-setup.exe
+  -Installer target/release/bundle/nsis/Vitals_1.6.0_x64-setup.exe
 ```
 
 `-Host` is the ssh alias of the machine to prove on and defaults to
@@ -233,7 +233,7 @@ shell (`…setup.exe /S`) and then prove what landed, with nothing copied or run
 
 ```powershell
 pwsh -NoProfile -File scripts/prove-hardware.ps1 `
-  -Installer target/release/bundle/nsis/Vitals_1.5.1_x64-setup.exe `
+  -Installer target/release/bundle/nsis/Vitals_1.6.0_x64-setup.exe `
   -InstallDir "$env:ProgramFiles\Vitals" -SkipInstall
 ```
 

@@ -15,8 +15,17 @@
  * no saving at all.
  */
 
-/** Applies the overlay's fixed palette to `root`. */
-export function applyWidgetTheme(root: HTMLElement): void {
+/**
+ * Applies the overlay's fixed palette to `root`.
+ *
+ * `accent` is the one colour taken from the user's choice in the main window,
+ * so a widget's ring and sparklines match the charts they are read next to.
+ * It is a plain string rather than an `Accent` because it arrives over an
+ * event channel from another webview; the caller checks it before passing it.
+ * Defaulted so an early render, before the main window has answered, still
+ * gets a complete palette.
+ */
+export function applyWidgetTheme(root: HTMLElement, accent: string = 'green'): void {
   root.classList.add('dark');
-  root.dataset['accent'] = 'green';
+  root.dataset['accent'] = accent;
 }
