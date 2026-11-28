@@ -4,12 +4,11 @@
  *
  * # Why a fixture is here at all
  *
- * `GET /v1/projects` does not exist yet. The platform side is schema without a
- * producer: `platform_projects` etc. were created by migration `0222` and
- * nothing reads or writes them, the `projects:read` scope is not in
- * `CODAI_SCOPES`, and no collector or incident opener runs
- * (docs/codwen-projects-page.md §3.2 — every row ABSENT). The page is a
- * read-client for a contract written down but not served.
+ * `GET /v1/platform/projects` (NOT `/v1/projects`) is the real route; it exists
+ * in codai main (`apps/gateway/src/routes/projects.ts`, schema
+ * `projects-health.ts`, migrations `0222`/`0223`), but is not yet confirmed
+ * deployed, and the `projects:read` scope is not yet on this client's key. The
+ * page is a read-client for a contract written down but not yet served live.
  *
  * So this file stands in for that read. It is deliberately the *only* place
  * that knows the shape of the answer, so swapping the fixture for the real
@@ -74,7 +73,7 @@ async function cloudSignedIn(): Promise<boolean> {
 /**
  * THE SEAM.
  *
- * When `GET /v1/projects` ships, this function's smoke-and-fixture middle
+ * When `GET /v1/platform/projects` is live, this function's smoke-and-fixture middle
  * becomes one call — read the key, request the list, parse it against the §3.1
  * shape — and `fixtureProjects` is deleted. Nothing else in the tab changes.
  */

@@ -23,12 +23,14 @@ see — without owning, caching into a second truth, or re-probing on its own.
 
 ## What Vitals will read (to be built in codai)
 
-A new, owner-scoped, read-only endpoint on the gateway:
+A new, owner-scoped, read-only endpoint on the gateway (**note: the real path is
+`/v1/platform/projects`, not `/v1/projects`** — corrected 2026-11-28 after the
+codai routes landed under `apps/gateway/src/routes/projects.ts`):
 
 ```
-GET /v1/projects            → the caller's projects + a status summary
-GET /v1/projects/:id/status → components, latest signal each, open incidents
-GET /v1/projects/:id/incidents
+GET /v1/platform/projects            → the caller's projects + a status summary
+GET /v1/platform/projects/:id/status → components, latest signal each, open incidents
+GET /v1/platform/projects/:id/incidents
 ```
 
 Authorised by the existing Codwen API key with a new scope **`projects:read`** (to be added to
