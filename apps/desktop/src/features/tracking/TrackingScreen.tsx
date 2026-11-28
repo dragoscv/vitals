@@ -69,6 +69,7 @@ import {
   type TrackerItem,
   type TrackerRepo,
 } from './model';
+import { ResumePackPanel } from './ResumePack';
 import { TRACKING_NS } from './strings';
 import { useTracking, type TrackingSource } from './useTracking';
 
@@ -90,7 +91,8 @@ export interface TrackingScreenProps {
 
 export function TrackingScreen({ source }: TrackingScreenProps): React.JSX.Element {
   const { t } = useTranslation(TRACKING_NS);
-  const { state, codwen, reload } = useTracking(source);
+  const { state, codwen, reload, resume, resumeError, claim, pendingClaim, claimError } =
+    useTracking(source);
   const reduced = useReducedMotion();
   // Zero rather than a config-dependent value: see the file header.
   const dur = reduced ? 0 : 0.18;
@@ -125,6 +127,19 @@ export function TrackingScreen({ source }: TrackingScreenProps): React.JSX.Eleme
   );
 
   let body: React.JSX.Element;
+  // The resume pack is the fact a resume needs, so it is drawn in every state
+  // where a host exists — with its own "no plan yet" and "no session" states.
+  const panel =
+    state.status === 'noHost' ? null : (
+      <ResumePackPanel
+        pack={resume}
+        error={resumeError}
+        pendingClaim={pendingClaim}
+        claimError={claimError}
+        claim={claim}
+      />
+    );
+
   switch (state.status) {
     case 'loading':
       body = (
@@ -145,34 +160,40 @@ export function TrackingScreen({ source }: TrackingScreenProps): React.JSX.Eleme
       break;
     case 'empty':
       body = (
-        <EmptyState
-          icon={<ListChecks />}
-          title={t('empty.title')}
-          description={t('empty.body')}
-          action={
-            <code className="block max-w-full overflow-x-auto rounded-md border border-[var(--color-border-subtle)] bg-[var(--color-bg-subtle)] px-3 py-2 font-mono text-2xs text-[var(--color-fg-muted)]">
-              {SCAN_COMMAND}
-            </code>
-          }
-        />
+        <div className="screen-body">
+          {panel}
+          <EmptyState
+            icon={<ListChecks />}
+            title={t('empty.title')}
+            description={t('empty.body')}
+            action={
+              <code className="block max-w-full overflow-x-auto rounded-md border border-[var(--color-border-subtle)] bg-[var(--color-bg-subtle)] px-3 py-2 font-mono text-2xs text-[var(--color-fg-muted)]">
+                {SCAN_COMMAND}
+              </code>
+            }
+          />
+        </div>
       );
       break;
     case 'error':
       body = (
-        <EmptyState
-          icon={<CircleAlert />}
-          title={t('error.title')}
-          description={t('error.body')}
-          action={
-            <code className="block max-w-full overflow-x-auto rounded-md border border-[var(--color-border-subtle)] bg-[var(--color-bg-subtle)] px-3 py-2 font-mono text-2xs text-[var(--color-fg-muted)]">
-              {state.message}
-            </code>
-          }
-        />
+        <div className="screen-body">
+          {panel}
+          <EmptyState
+            icon={<CircleAlert />}
+            title={t('error.title')}
+            description={t('error.body')}
+            action={
+              <code className="block max-w-full overflow-x-auto rounded-md border border-[var(--color-border-subtle)] bg-[var(--color-bg-subtle)] px-3 py-2 font-mono text-2xs text-[var(--color-fg-muted)]">
+                {state.message}
+              </code>
+            }
+          />
+        </div>
       );
       break;
     case 'ready':
-      body = <TrackingContent index={state.index} dur={dur} />;
+      body = <TrackingContent index={state.index} dur={dur} panel={panel} />;
       break;
   }
 
@@ -195,9 +216,11 @@ export function TrackingScreen({ source }: TrackingScreenProps): React.JSX.Eleme
 function TrackingContent({
   index,
   dur,
+  panel,
 }: {
   readonly index: TrackerIndex;
   readonly dur: number;
+  readonly panel: React.ReactNode;
 }): React.JSX.Element {
   const { t } = useTranslation(TRACKING_NS);
   const totals = indexTotals(index);
@@ -227,6 +250,7 @@ function TrackingContent({
       <Warnings drift={totals.drift} blocked={blocked} reposWithDrift={totals.reposWithDrift} />
 
       <div className="screen-body">
+        {panel}
         <div className="flex flex-col gap-4">
           {index.repos.map((repo, i) => (
             <RepoCard

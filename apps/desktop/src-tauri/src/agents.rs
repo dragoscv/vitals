@@ -554,6 +554,84 @@ pub async fn get_tracker_index() -> Result<serde_json::Value, String> {
     .map_err(|e| e.to_string())
 }
 
+/// Not a wire type: the plan and task shapes belong to `track.mjs`, so the
+/// frontend parses them tolerantly — the same decision as the tracker index
+/// (ADR-0051) applied to the task store.
+#[tauri::command]
+pub async fn get_resume_pack() -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(|| match vitals_agents::agentq::default_root() {
+        Some(root) => vitals_agents::tasks::read_resume(&root),
+        None => serde_json::json!({ "sessionId": null, "plan": null, "tasks": [] }),
+    })
+    .await
+    .map_err(|e| e.to_string())
+}
+
+/// Which of the two allowed verbs a [`ClaimTaskRequest`] asks for.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ClaimTaskAction {
+    Claim,
+    Complete,
+}
+
+fn claim_action_default() -> ClaimTaskAction {
+    ClaimTaskAction::Claim
+}
+
+/// A claim (or completion) the webview asks for. `camelCase` so the webview's
+/// `{ id, action, by, evidence }` deserialises as written. Not a `ts_rs` type:
+/// it is an input, and `useTracking` defines its own shape for it.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClaimTaskRequest {
+    pub id: String,
+    #[serde(default = "claim_action_default")]
+    pub action: ClaimTaskAction,
+    /// The claiming session, taken from the resume pack's `sessionId`.
+    #[serde(default)]
+    pub by: String,
+    pub evidence: Option<String>,
+}
+
+/// The Tracking page's one write: claim a task, or mark it done, in agentq's
+/// portable task store.
+///
+/// Least privilege is enforced in [`vitals_agents::tasks`] — claim and complete
+/// only, never create, delete or rename. Async and on the blocking pool: it
+/// writes a file under a lock, which must not hold the webview. Resolved
+/// through the same `agentq::default_root()` every other read uses, so there is
+/// one place `AGENTQ_HOME`, `USERPROFILE` and `HOME` are honoured.
+///
+/// # Errors
+/// No coordination directory, no session to claim as, or whatever
+/// `vitals_agents::tasks` refuses (a missing task, another owner, a closed
+/// status, a bad id).
+#[tauri::command]
+pub async fn claim_tracker_task(request: ClaimTaskRequest) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let root = vitals_agents::agentq::default_root()
+            .ok_or_else(|| "no agentq coordination directory".to_owned())?;
+        match request.action {
+            ClaimTaskAction::Claim => {
+                // The button is disabled without a session, but a claim with no
+                // owner would be attributed to nobody — refuse rather than
+                // invent one.
+                let by = request.by.trim();
+                if by.is_empty() {
+                    return Err("no session to claim as".to_owned());
+                }
+                vitals_agents::tasks::claim(&root, &request.id, by)
+            }
+            ClaimTaskAction::Complete => {
+                vitals_agents::tasks::complete(&root, &request.id, request.evidence.as_deref())
+            }
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentqActionResult {

@@ -10,6 +10,8 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  canClaim,
+  canComplete,
   formatAge,
   generatedAtMs,
   groupItems,
@@ -17,13 +19,21 @@ import {
   indexStatusCounts,
   indexTotals,
   isKnownStatus,
+  isKnownTaskStatus,
   openCount,
+  openNextSteps,
   parseIndex,
+  parseResumePack,
   repoItemCount,
   repoStatusCounts,
+  sessionClaims,
+  sessionOwners,
   shortRef,
   sortedStatuses,
   statusTone,
+  taskOpen,
+  taskStatuses,
+  taskTone,
   trackerStatuses,
   type TrackerIndex,
 } from './model';
@@ -279,5 +289,145 @@ describe('naming the branch', () => {
     // A prefix with nothing behind it would render an empty branch, so it is
     // shown as recorded instead.
     expect(shortRef('refs/heads/')).toBe('refs/heads/');
+  });
+});
+
+/**
+ * A resume pack as the host returns it: the raw file shapes, not this type's.
+ * `chat-1` owns one task, its subagent `term-7` owns another, one task is
+ * nobody's, and one is already finished.
+ */
+function rawPack(): Record<string, unknown> {
+  return {
+    sessionId: 'chat-1',
+    plan: {
+      goal: 'Ship the resume pack',
+      doneMeans: ['typecheck clean', 'tests green'],
+      next: [
+        { title: 'Write the panel', status: 'todo' },
+        { title: 'Already done', status: 'done' },
+      ],
+      roster: [{ agentName: 'term-7', purpose: 'screen test', status: 'done' }],
+    },
+    tasks: [
+      { id: 'S26-37', title: 'Panel', status: 'claimed', owner: 'chat-1' },
+      { id: 'S26-38', title: 'Rust', status: 'in-progress', owner: 'term-7' },
+      { id: 'S26-39', title: 'Free', status: 'todo' },
+      { id: 'S26-40', title: 'Finished', status: 'done', owner: 'chat-1' },
+    ],
+  };
+}
+
+describe('reading a resume pack', () => {
+  it('parses the session, its plan and every task in the store', () => {
+    const parsed = parseResumePack(JSON.parse(JSON.stringify(rawPack())) as unknown);
+    expect(parsed?.sessionId).toBe('chat-1');
+    expect(parsed?.plan?.goal).toBe('Ship the resume pack');
+    expect(parsed?.plan?.doneMeans).toEqual(['typecheck clean', 'tests green']);
+    expect(parsed?.tasks.map((t) => t.id)).toEqual(['S26-37', 'S26-38', 'S26-39', 'S26-40']);
+  });
+
+  it('refuses a body that is not a pack rather than inventing one', () => {
+    expect(parseResumePack(null)).toBeNull();
+    expect(parseResumePack('nope')).toBeNull();
+    expect(parseResumePack([])).toBeNull();
+  });
+
+  it('reads a machine that has written nothing as an empty pack, not an error', () => {
+    expect(parseResumePack({})).toEqual({ sessionId: null, plan: null, tasks: [] });
+  });
+
+  it('drops a task with no id, because a task without an id cannot be claimed', () => {
+    const parsed = parseResumePack({ tasks: [{ title: 'no id' }, { id: 'K1' }] });
+    expect(parsed?.tasks.map((t) => t.id)).toEqual(['K1']);
+    // A task with no status is open, the way `track.mjs` reads its own default.
+    expect(at(parsed?.tasks ?? []).status).toBe('todo');
+  });
+
+  it('drops a plan with no goal, because that is the one field a resume must not lose', () => {
+    expect(parseResumePack({ plan: { next: [{ title: 'orphan' }] } })?.plan).toBeNull();
+  });
+
+  it('keeps an absent owner off the task rather than setting it to undefined', () => {
+    // `exactOptionalPropertyTypes` is on: this fails to compile if `parsePlanTask`
+    // ever writes `owner: undefined`, and the runtime shape matters too.
+    const task = parseResumePack({ tasks: [{ id: 'K1', status: 'todo' }] })?.tasks[0];
+    expect(task && 'owner' in task).toBe(false);
+    expect(task && 'evidence' in task).toBe(false);
+  });
+});
+
+describe('the open steps of a plan', () => {
+  it('hides a step the plan already marked done', () => {
+    const plan = parseResumePack(rawPack())?.plan ?? null;
+    expect(openNextSteps(plan).map((s) => s.title)).toEqual(['Write the panel']);
+  });
+
+  it('returns nothing when there is no plan at all', () => {
+    expect(openNextSteps(null)).toEqual([]);
+  });
+});
+
+describe('what a session may claim and complete', () => {
+  const tasks = parseResumePack(rawPack())?.tasks ?? [];
+  const free = at(tasks.filter((t) => t.id === 'S26-39'));
+  const mine = at(tasks.filter((t) => t.id === 'S26-37'));
+  const theirs = at(tasks.filter((t) => t.id === 'S26-38'));
+  const finished = at(tasks.filter((t) => t.id === 'S26-40'));
+
+  it('lets a session claim an unowned open task', () => {
+    expect(canClaim(free, 'chat-1')).toBe(true);
+  });
+
+  it('refuses a task another session already holds', () => {
+    expect(canClaim(theirs, 'chat-1')).toBe(false);
+    // The holder may re-claim its own, which is what makes a retry safe.
+    expect(canClaim(mine, 'chat-1')).toBe(true);
+  });
+
+  it('refuses anything when there is no session to claim as', () => {
+    expect(canClaim(free, null)).toBe(false);
+    expect(canComplete(mine, null)).toBe(false);
+  });
+
+  it('lets the owner complete what it holds, but not what it never claimed', () => {
+    expect(canComplete(mine, 'chat-1')).toBe(true);
+    expect(canComplete(free, 'chat-1')).toBe(false);
+    expect(canComplete(finished, 'chat-1')).toBe(false);
+  });
+
+  it('treats done and dropped as no longer open, and nothing else as closed', () => {
+    expect(taskOpen(finished)).toBe(false);
+    expect(taskOpen(mine)).toBe(true);
+    expect(taskOpen({ id: 'x', title: '', status: 'dropped' })).toBe(false);
+    // A status nobody recognises is still work a human has to act on.
+    expect(taskOpen({ id: 'x', title: '', status: 'weird' })).toBe(true);
+  });
+});
+
+describe('the claims that belong to one session', () => {
+  it('includes a subagent\u2019s claim, because a resume must wait on or re-dispatch it', () => {
+    const parsed = parseResumePack(rawPack());
+    const ids = sessionClaims(parsed?.tasks ?? [], parsed?.plan ?? null, 'chat-1').map((t) => t.id);
+    expect(ids).toEqual(['S26-37', 'S26-38', 'S26-40']);
+  });
+
+  it('still counts the roster alone when the session has no name for itself', () => {
+    const owners = sessionOwners(parseResumePack(rawPack())?.plan ?? null, null);
+    expect([...owners]).toEqual(['term-7']);
+  });
+
+  it('returns nothing when there is neither a session id nor a roster', () => {
+    expect(sessionClaims([{ id: 'K1', title: '', status: 'todo' }], null, null)).toEqual([]);
+  });
+});
+
+describe('the tone of a task status', () => {
+  it('recognises exactly the task vocabulary, and tones anything else neutral', () => {
+    for (const status of taskStatuses) expect(isKnownTaskStatus(status)).toBe(true);
+    expect(isKnownTaskStatus('unknown')).toBe(false);
+    expect(taskTone('done')).toBe('ok');
+    expect(taskTone('in-progress')).toBe('accent');
+    expect(taskTone('unknown')).toBe('neutral');
   });
 });

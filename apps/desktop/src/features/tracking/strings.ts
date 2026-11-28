@@ -66,6 +66,7 @@ const en = {
 
   status: {
     todo: 'To do',
+    claimed: 'Claimed',
     'in-progress': 'In progress',
     blocked: 'Blocked',
     review: 'Review',
@@ -94,6 +95,31 @@ const en = {
   item: {
     evidence: 'Evidence',
     notes: 'Notes',
+  },
+
+  resume: {
+    title: 'Resume pack',
+    session: 'Session {{id}}',
+    goal: 'Goal',
+    next: 'Next steps',
+    nextEmpty: 'No open steps in the plan.',
+    claims: 'Claims',
+    claimsEmpty: 'Nothing claimed by this session or its subagents yet.',
+    available: 'Open tasks',
+    availableEmpty: 'Every open task is already claimed.',
+    roster: 'Subagents',
+    claim: 'Claim',
+    complete: 'Complete',
+    working: 'Working…',
+    error: 'The resume pack could not be read: {{message}}',
+    claimError: 'The claim was refused: {{message}}',
+    noPlan: {
+      title: 'No session plan recorded yet',
+      body: 'A session writes its goal and next steps with track.mjs; until then there is nothing to resume.',
+    },
+    disabled: {
+      noSession: 'No session to claim as',
+    },
   },
 };
 
@@ -160,6 +186,7 @@ const ro = {
 
   status: {
     todo: 'De făcut',
+    claimed: 'Revendicat',
     'in-progress': 'În lucru',
     blocked: 'Blocat',
     review: 'Verificare',
@@ -189,6 +216,31 @@ const ro = {
   item: {
     evidence: 'Dovadă',
     notes: 'Note',
+  },
+
+  resume: {
+    title: 'Pachet de reluare',
+    session: 'Sesiunea {{id}}',
+    goal: 'Obiectiv',
+    next: 'Pași următori',
+    nextEmpty: 'Niciun pas deschis în plan.',
+    claims: 'Revendicări',
+    claimsEmpty: 'Încă nimic revendicat de această sesiune sau de subagenții ei.',
+    available: 'Sarcini deschise',
+    availableEmpty: 'Toate sarcinile deschise sunt deja revendicate.',
+    roster: 'Subagenți',
+    claim: 'Revendică',
+    complete: 'Finalizează',
+    working: 'Se lucrează…',
+    error: 'Pachetul de reluare nu a putut fi citit: {{message}}',
+    claimError: 'Revendicarea a fost refuzată: {{message}}',
+    noPlan: {
+      title: 'Încă nu există un plan de sesiune',
+      body: 'O sesiune își scrie obiectivul și pașii următori cu track.mjs; până atunci nu este nimic de reluat.',
+    },
+    disabled: {
+      noSession: 'Nicio sesiune în numele căreia să revendici',
+    },
   },
 };
 

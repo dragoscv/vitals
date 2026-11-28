@@ -76,6 +76,40 @@ fn days_from_civil(y: i64, m: i64, d: i64) -> i64 {
     era * 146_097 + doe - 719_468
 }
 
+/// Unix milliseconds as an RFC 3339 UTC stamp, e.g. `2026-11-28T00:35:34.883Z`.
+///
+/// The inverse of [`parse_iso_ms`], and the exact form `track.mjs` writes with
+/// `new Date().toISOString()` (three fractional digits, `Z`). A task this page
+/// claims therefore carries a stamp the CLI and every other reader parse back
+/// to the same millisecond — two spellings of "now" in one store is the drift
+/// this pairing exists to prevent.
+#[must_use]
+pub fn iso_from_ms(ms: u64) -> String {
+    let total_secs = (ms / 1000).cast_signed();
+    let millis = ms % 1000;
+    let days = total_secs.div_euclid(86_400);
+    let tod = total_secs.rem_euclid(86_400);
+    let (year, month, day) = civil_from_days(days);
+    let (hour, minute, second) = (tod / 3600, (tod % 3600) / 60, tod % 60);
+    format!("{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}.{millis:03}Z")
+}
+
+/// Howard Hinnant's `civil_from_days`: days since 1970-01-01 to a proleptic
+/// Gregorian date. Pure integer arithmetic, so the reverse of
+/// [`days_from_civil`] needs no date crate either.
+fn civil_from_days(days: i64) -> (i64, i64, i64) {
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z.rem_euclid(146_097);
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = doy - (153 * mp + 2) / 5 + 1;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 };
+    let year = yoe + era * 400 + i64::from(month <= 2);
+    (year, month, day)
+}
+
 /// Current wall clock in Unix milliseconds.
 #[must_use]
 pub fn now_ms() -> u64 {
@@ -123,5 +157,31 @@ mod tests {
         assert_eq!(parse_iso_ms(""), None);
         assert_eq!(parse_iso_ms("1969-12-31T23:59:59Z"), None);
         assert_eq!(parse_iso_ms("2026-13-01T00:00:00Z"), None);
+    }
+
+    #[test]
+    fn a_stamp_we_write_parses_back_to_the_same_millisecond() {
+        // The two directions must agree, or a task this app claims carries a
+        // time the CLI disagrees with by a fraction of a second.
+        for ms in [
+            0,
+            1000,
+            1_792_207_771_170,
+            1_800_000_000_000,
+            2_051_222_400_000,
+        ] {
+            assert_eq!(
+                parse_iso_ms(&iso_from_ms(ms)),
+                Some(ms),
+                "round trip lost a millisecond at {ms}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_written_stamp_is_the_three_fraction_digit_form_the_cli_writes() {
+        // `new Date().toISOString()` in track.mjs, byte for byte.
+        assert_eq!(iso_from_ms(1_792_207_771_170), "2026-10-17T03:29:31.170Z");
+        assert_eq!(iso_from_ms(0), "1970-01-01T00:00:00.000Z");
     }
 }

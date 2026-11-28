@@ -321,6 +321,7 @@ export type StatusTone = 'neutral' | 'accent' | 'ok' | 'warn' | 'danger' | 'info
 const STATUS_TONE: Readonly<Record<string, StatusTone>> = {
   done: 'ok',
   'in-progress': 'accent',
+  claimed: 'accent',
   review: 'info',
   blocked: 'danger',
   todo: 'warn',
@@ -370,4 +371,224 @@ export function formatAge(ms: number | null): string {
   if (h > 0) return `${h}h ${String(m).padStart(2, '0')}m`;
   if (m > 0) return `${m}m ${String(sec).padStart(2, '0')}s`;
   return `${sec}s`;
+}
+
+// ---------------------------------------------------------------------------
+// The resume pack: a session's plan and the claimable task store
+// ---------------------------------------------------------------------------
+//
+// Where the tracker index is a snapshot of what *repositories* say, the resume
+// pack is what a *session* is carrying: its goal, the steps still open, and the
+// tasks it (and its subagents) have claimed. The shapes belong to `track.mjs`,
+// so — exactly as for the index — they are parsed here tolerantly rather than
+// trusted, and a body that is not a plan or a task drops out rather than
+// rendering a half-parsed row.
+
+/** The status vocabulary a task uses (`track.mjs`'s planTask.status). */
+export const taskStatuses = [
+  'todo',
+  'claimed',
+  'in-progress',
+  'blocked',
+  'review',
+  'done',
+  'dropped',
+] as const;
+
+export type TaskStatus = (typeof taskStatuses)[number];
+
+/** Whether a task status is one we have a label for (so the raw value is not shown). */
+export function isKnownTaskStatus(status: string): status is TaskStatus {
+  return (taskStatuses as readonly string[]).includes(status);
+}
+
+/** Statuses a claim may move out of, mirroring `track.mjs`'s CLAIMABLE. */
+const CLAIMABLE: ReadonlySet<string> = new Set(['todo', 'claimed', 'in-progress']);
+/** Statuses that mean "finished with", so a task is no longer open. */
+const TASK_CLOSED: ReadonlySet<string> = new Set(['done', 'dropped']);
+
+/** One step in a session plan's `next` list. */
+export interface PlanNextStep {
+  readonly title: string;
+  /** '' when the step carried no status, which `track.mjs` reads as open. */
+  readonly status: string;
+  readonly owner?: string;
+  readonly note?: string;
+}
+
+/** A subagent a session dispatched (or planned to). */
+export interface PlanRosterEntry {
+  readonly agentName: string;
+  readonly purpose: string;
+  readonly status: string;
+}
+
+/** One claimable task (`<state>/tasks/<id>.json`). */
+export interface PlanTask {
+  readonly id: string;
+  readonly title: string;
+  readonly status: string;
+  /** The session that claimed it, absent until someone does. */
+  readonly owner?: string;
+  readonly group?: string;
+  readonly evidence?: string;
+}
+
+/** A session plan (`<state>/chats/<session>.plan.json`). */
+export interface ResumePlan {
+  readonly goal: string;
+  readonly doneMeans: readonly string[];
+  readonly next: readonly PlanNextStep[];
+  readonly roster: readonly PlanRosterEntry[];
+  readonly handoff?: string;
+  readonly handoffPath?: string;
+}
+
+/**
+ * The resume pack the host reads: the session in hand, its plan, and every
+ * task in the store. Every part is optional-shaped, because a machine that has
+ * written nothing is a normal state with its own screen.
+ */
+export interface ResumePack {
+  readonly sessionId: string | null;
+  readonly plan: ResumePlan | null;
+  readonly tasks: readonly PlanTask[];
+}
+
+function strList(raw: unknown): readonly string[] {
+  return Array.isArray(raw) ? raw.filter((x): x is string => typeof x === 'string') : [];
+}
+
+function parseNextStep(raw: unknown): PlanNextStep | null {
+  if (!isRecord(raw)) return null;
+  const title = str(raw['title']);
+  if (title === '') return null;
+  const owner = str(raw['owner']);
+  const note = str(raw['note']);
+  return {
+    title,
+    status: str(raw['status']),
+    ...(owner !== '' && { owner }),
+    ...(note !== '' && { note }),
+  };
+}
+
+function parseRosterEntry(raw: unknown): PlanRosterEntry | null {
+  if (!isRecord(raw)) return null;
+  const agentName = str(raw['agentName']);
+  if (agentName === '') return null;
+  return { agentName, purpose: str(raw['purpose']), status: str(raw['status']) };
+}
+
+function parseResumePlan(raw: unknown): ResumePlan | null {
+  if (!isRecord(raw)) return null;
+  const goal = str(raw['goal']);
+  // A plan with no goal is not resumable — the one field a Continue must not
+  // lose is the one this view exists to show, so it is required.
+  if (goal === '') return null;
+  const next = Array.isArray(raw['next'])
+    ? raw['next'].map(parseNextStep).filter((s): s is PlanNextStep => s !== null)
+    : [];
+  const roster = Array.isArray(raw['roster'])
+    ? raw['roster'].map(parseRosterEntry).filter((r): r is PlanRosterEntry => r !== null)
+    : [];
+  const handoff = str(raw['handoff']);
+  const handoffPath = str(raw['handoffPath']);
+  return {
+    goal,
+    doneMeans: strList(raw['doneMeans']),
+    next,
+    roster,
+    ...(handoff !== '' && { handoff }),
+    ...(handoffPath !== '' && { handoffPath }),
+  };
+}
+
+function parsePlanTask(raw: unknown): PlanTask | null {
+  if (!isRecord(raw)) return null;
+  const id = str(raw['id']);
+  if (id === '') return null;
+  const owner = str(raw['owner']);
+  const group = str(raw['group']);
+  const evidence = str(raw['evidence']);
+  return {
+    id,
+    title: str(raw['title']),
+    status: str(raw['status'], 'todo'),
+    ...(owner !== '' && { owner }),
+    ...(group !== '' && { group }),
+    ...(evidence !== '' && { evidence }),
+  };
+}
+
+/**
+ * Reads a resume-pack body, or `null` when it is not one. `null` is the same
+ * answer for "the host returned nothing" and "the body was not a pack": both
+ * mean there is nothing trustworthy to draw.
+ */
+export function parseResumePack(raw: unknown): ResumePack | null {
+  if (!isRecord(raw)) return null;
+  const sessionRaw = raw['sessionId'];
+  const sessionId = typeof sessionRaw === 'string' && sessionRaw !== '' ? sessionRaw : null;
+  const plan = parseResumePlan(raw['plan']);
+  const tasksRaw = raw['tasks'];
+  const tasks = Array.isArray(tasksRaw)
+    ? tasksRaw.map(parsePlanTask).filter((t): t is PlanTask => t !== null)
+    : [];
+  return { sessionId, plan, tasks };
+}
+
+/** The steps still open: everything the plan has not marked done. */
+export function openNextSteps(plan: ResumePlan | null): readonly PlanNextStep[] {
+  if (plan === null) return [];
+  return plan.next.filter((step) => step.status !== 'done');
+}
+
+/** Whether a task is still to act on — not done and not dropped. */
+export function taskOpen(task: PlanTask): boolean {
+  return !TASK_CLOSED.has(task.status);
+}
+
+/** Whether `sessionId` may claim this task, matching `track.mjs` exactly. */
+export function canClaim(task: PlanTask, sessionId: string | null): boolean {
+  if (sessionId === null || !CLAIMABLE.has(task.status)) return false;
+  return task.owner === undefined || task.owner === sessionId;
+}
+
+/** Whether `sessionId` may complete this task (the owner, before it is done). */
+export function canComplete(task: PlanTask, sessionId: string | null): boolean {
+  if (sessionId === null || TASK_CLOSED.has(task.status)) return false;
+  return task.owner === sessionId;
+}
+
+/**
+ * The owners whose claims belong on this session's resume pack: the session
+ * itself, plus every subagent it dispatched. A subagent's claim is part of the
+ * session's picture — a resume must re-dispatch it or wait on it, and either
+ * way must be able to see it.
+ */
+export function sessionOwners(
+  plan: ResumePlan | null,
+  sessionId: string | null,
+): ReadonlySet<string> {
+  const owners = new Set<string>();
+  if (sessionId !== null) owners.add(sessionId);
+  for (const entry of plan?.roster ?? []) owners.add(entry.agentName);
+  return owners;
+}
+
+/** Every task owned by this session or one of its subagents. */
+export function sessionClaims(
+  tasks: readonly PlanTask[],
+  plan: ResumePlan | null,
+  sessionId: string | null,
+): readonly PlanTask[] {
+  const owners = sessionOwners(plan, sessionId);
+  if (owners.size === 0) return [];
+  return tasks.filter((task) => task.owner !== undefined && owners.has(task.owner));
+}
+
+/** The Badge tone a task status maps onto; an unknown status is neutral. */
+export function taskTone(status: string): StatusTone {
+  return statusTone(status);
 }

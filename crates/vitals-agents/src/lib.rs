@@ -5,6 +5,10 @@
 //!
 //! Read-only. The only writes the page can cause go through agentq's own CLI
 //! ([`actions`]), so agentq's mutexes, journal and reasons stay authoritative.
+//! One narrow exception, the Tracking page's claim/complete path, writes the
+//! portable task store directly because its CLI has no installed shim — see
+//! [`tasks`] for why, and for how the protocol is kept identical to
+//! `track.mjs`.
 //! OS-agnostic: the one platform question — "when did this pid start?" — is
 //! passed in as a closure.
 
@@ -14,6 +18,7 @@ pub mod cloud;
 pub mod collab;
 pub mod journal;
 pub mod sessions;
+pub mod tasks;
 pub mod time;
 pub mod usage;
 

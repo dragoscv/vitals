@@ -467,6 +467,10 @@ fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
         agents::unsubscribe_agents,
         agents::get_agentq_status,
         agents::get_tracker_index,
+        // The Tracking page's resume pack (read) and its one write: claim or
+        // complete a task in agentq's portable task store (S26-37).
+        agents::get_resume_pack,
+        agents::claim_tracker_task,
         agents::run_agentq_action,
         agents::get_agent_usage,
         agents::get_collab,

@@ -17,7 +17,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { i18n, initI18n } from '@vitals/i18n';
 
 import { MotionRuntime } from '../../theme/MotionRuntime';
-import { parseIndex, type TrackerIndex } from './model';
+import { parseIndex, parseResumePack, type ResumePack, type TrackerIndex } from './model';
 import { registerTrackingStrings, TRACKING_NS } from './strings';
 import { TrackingScreen } from './TrackingScreen';
 import type { TrackingSource } from './useTracking';
@@ -94,9 +94,23 @@ function index(drift = false): TrackerIndex {
 function source(overrides: Partial<TrackingSource> = {}): TrackingSource {
   return {
     readIndex: () => Promise.resolve(index()),
+    readResume: () => Promise.resolve(pack()),
     signedIn: () => Promise.resolve(false),
+    claimTask: () => Promise.resolve(),
     ...overrides,
   };
+}
+
+/** A resume pack built the way the host returns it — raw, then parsed. */
+function pack(overrides: Record<string, unknown> = {}): ResumePack {
+  const parsed = parseResumePack({
+    sessionId: 'chat-1',
+    plan: { goal: 'Ship the resume pack', doneMeans: [], next: [], roster: [] },
+    tasks: [],
+    ...overrides,
+  });
+  if (parsed === null) throw new Error('the fixture is not a resume pack the parser accepts');
+  return parsed;
 }
 
 function renderScreen(src: TrackingSource) {
@@ -197,5 +211,109 @@ describe('TrackingScreen', () => {
     await waitFor(() => {
       expect(readIndex).toHaveBeenCalledTimes(2);
     });
+  });
+
+  it('draws the session goal and its open steps, and hides the completed ones', async () => {
+    renderScreen(
+      source({
+        readResume: () =>
+          Promise.resolve(
+            pack({
+              plan: {
+                goal: 'Ship the resume pack',
+                next: [
+                  { title: 'Write the panel', status: 'todo' },
+                  { title: 'Already done', status: 'done' },
+                ],
+                roster: [],
+              },
+            }),
+          ),
+      }),
+    );
+
+    expect(await screen.findByText('Ship the resume pack')).toBeTruthy();
+    expect(screen.getByText('Write the panel')).toBeTruthy();
+    // A done step is not "next", so it must not be drawn as one.
+    expect(screen.queryByText('Already done')).toBeNull();
+  });
+
+  it('says there is no session plan rather than drawing an empty pack', async () => {
+    renderScreen(source({ readResume: () => Promise.resolve(pack({ plan: null })) }));
+
+    expect(await screen.findByText(t('resume.noPlan.title'))).toBeTruthy();
+  });
+
+  it('claims a task for the session, then re-reads the pack from the store', async () => {
+    const claimTask = vi.fn(() => Promise.resolve());
+    const readResume = vi.fn(() =>
+      Promise.resolve(pack({ tasks: [{ id: 'S26-37', title: 'Claim me', status: 'todo' }] })),
+    );
+
+    renderScreen(source({ readResume, claimTask }));
+
+    fireEvent.click(await screen.findByRole('button', { name: t('resume.claim') }));
+
+    await waitFor(() => {
+      expect(claimTask).toHaveBeenCalledWith({ id: 'S26-37', action: 'claim', by: 'chat-1' });
+    });
+    // The state is re-read, not assumed to have changed.
+    await waitFor(() => {
+      expect(readResume).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it('completes a task this session already holds', async () => {
+    const claimTask = vi.fn(() => Promise.resolve());
+    renderScreen(
+      source({
+        claimTask,
+        readResume: () =>
+          Promise.resolve(
+            pack({
+              tasks: [{ id: 'S26-37', title: 'Mine', status: 'claimed', owner: 'chat-1' }],
+            }),
+          ),
+      }),
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: t('resume.complete') }));
+
+    await waitFor(() => {
+      expect(claimTask).toHaveBeenCalledWith({ id: 'S26-37', action: 'complete', by: 'chat-1' });
+    });
+  });
+
+  it('disables the claim button with a visible reason when there is no session', async () => {
+    renderScreen(
+      source({
+        readResume: () =>
+          Promise.resolve(
+            pack({ sessionId: null, tasks: [{ id: 'S26-37', title: 'Nope', status: 'todo' }] }),
+          ),
+      }),
+    );
+
+    const button = await screen.findByRole('button', { name: t('resume.claim') });
+    expect((button as HTMLButtonElement).disabled).toBe(true);
+    expect(button.getAttribute('title')).toBe(t('resume.disabled.noSession'));
+    // The reason is written out beside the control, not only in the tooltip.
+    expect(screen.getAllByText(t('resume.disabled.noSession')).length).toBeGreaterThan(0);
+  });
+
+  it('shows the refusal when a claim is rejected rather than looking successful', async () => {
+    renderScreen(
+      source({
+        claimTask: () => Promise.reject(new Error('already claimed by chat-9')),
+        readResume: () =>
+          Promise.resolve(pack({ tasks: [{ id: 'S26-37', title: 'x', status: 'todo' }] })),
+      }),
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: t('resume.claim') }));
+
+    expect(
+      await screen.findByText(t('resume.claimError', { message: 'already claimed by chat-9' })),
+    ).toBeTruthy();
   });
 });

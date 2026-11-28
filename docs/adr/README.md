@@ -59,6 +59,7 @@ D-numbers refer to the decision table in [`../TRACKER.md`](../TRACKER.md).
 | [0049](0049-agent-collaboration-reads-the-coordination-directory.md) | Agent collaboration is read from the coordination directory | S26-13         |
 | [0050](0050-cloud-agents-in-the-collaboration-view.md)               | Agents in Codwen's cloud appear beside the local ones       | S26-19         |
 | [0051](0051-tracking-reads-the-tracker-index.md)                     | Tracking draws agentq's tracker index, read-only            | S26-32         |
+| [0052](0052-tracking-claims-a-task-through-the-task-store.md)        | The Tracking page claims a task, and writes only the store  | S26-37         |
 
 ## Writing a new one
 
