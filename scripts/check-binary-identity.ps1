@@ -76,6 +76,10 @@ param(
     # built for another architecture: the shell on this host cannot always draw
     # an ARM64 binary's icon, and the version block — the part that reports
     # nothing at all when a binary has no resource section — reads either way.
+    # It also drops the requirement for a reference binary, because a reference
+    # exists only to be compared against and this switch says there is nothing
+    # to compare: a caller that has already said it cannot draw one must not be
+    # failed for not supplying one.
     [switch]$SkipIcon
 )
 
@@ -202,7 +206,13 @@ if ($exeFiles.Count -eq 0 -and $archives.Count -eq 0) {
 # into. Without it there is nothing to compare against, and a gate that cannot
 # compare must say so rather than pass.
 $referenceIcon = ''
-if ($Reference) {
+if ($SkipIcon) {
+    # Not resolved at all: -SkipIcon means no comparison happens, so a reference
+    # is neither needed nor meaningful. This is the MSIX job's case — two
+    # packages of two architectures, with no loose desktop binary under the path
+    # to take the mark from.
+    $referenceIcon = ''
+} elseif ($Reference) {
     if (-not (Test-Path -LiteralPath $Reference)) { $failures.Add("the reference binary $Reference does not exist") }
     else { $referenceIcon = Get-IconHash (Resolve-Path -LiteralPath $Reference).Path }
 } else {

@@ -171,6 +171,15 @@ Two gates hold this, at the two ends where it can break:
   this class of defect — the source was correct-looking all along; only the
   bytes can say what a user will see.
 
+  The last two call sites pass `-SkipIcon`: a Store package carries an x64 and
+  an ARM64 binary and one host cannot draw both marks, and the readback job's
+  reference is not itself a published file. That switch drops the **reference**
+  together with the comparison — a caller that has said it cannot compare must
+  not be failed for not supplying the binary it would have compared against —
+  and the verdict line names what was and was not proved, so "the mark, the
+  product, the publisher and version X" and "the product, the publisher and
+  version X" cannot be read as the same result.
+
 For the same reason `apps/helper` is **not shipped**: its service host is still
 a stub that exits at startup, and nothing packages `vitals-helper.exe`. It stays
 in the tree as the place the elevated helper will live, and the gates above are

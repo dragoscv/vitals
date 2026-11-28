@@ -30,6 +30,17 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   releases earlier. `scripts/release-doctor.mjs` reads all four back and reports
   a stale one before a tag is pushed rather than after.
 
+- The identity gate no longer asks for an icon reference a caller has already
+  said it cannot use. `packaging/msix/build-and-upload.ps1` and the post-publish
+  readback job both pass `-SkipIcon` — the first because its Store package holds
+  an x64 and an ARM64 binary and one host cannot draw the second one's mark, the
+  second because the reference is not itself a published file — and the gate
+  resolved the reference anyway, then failed them for not supplying it, so the
+  Store route stopped before it uploaded anything. Nothing a user sees changed:
+  what changed is that `-SkipIcon` drops the reference together with the
+  comparison, and a release that reads its own artefacts back no longer trips on
+  the half it was told not to check.
+
 ### Added
 
 - **Tracking** — one page for every plan on the machine, read from the index

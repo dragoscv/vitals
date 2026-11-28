@@ -7461,6 +7461,38 @@ them); `scripts/check-drift.ps1`, `scripts/check-tracker.ps1` and
 proven at the next tag, not before it: a pipeline step cannot be verified from
 a workstation, only its controls can.
 
+**The first CI route ran, and it failed on this gate rather than on a binary.**
+`.github/workflows/msix.yml` run `46085216014` (the `v1.5.1` tag, headSha
+`58923f5`) stopped at _Build and lay out both architectures_ with:
+
+```
+FAIL no vitals-desktop.exe under D:\a\vitals\vitals\target\msix-upload to take the brand icon from — pass -Reference
+binary identity: 1 failure(s), 6 artefact(s) read
+```
+
+Six artefacts read and every one of them passing, so the single failure was the
+reference lookup itself: `packaging/msix/build-and-upload.ps1:98` passes
+`-SkipIcon`, and the gate resolved a reference anyway, before consulting the
+switch. The `readback` job passes `-SkipIcon` too — its reference is not a
+published file — so it carried the same break and would have failed its own
+first run on a published release; the Store route stopping first is the one
+piece of luck in this.
+
+The fix is the ordering: the reference is resolved only when the icon is
+actually compared, so a caller that has said it cannot compare is no longer
+failed for not supplying the binary it would have compared against.
+`docs/distribution.md` now says that `-SkipIcon` drops the reference together
+with the comparison, and that the verdict line names which of the two results
+it is.
+
+Verification, against a fixture in the CI shape (nothing loose under the path,
+one archive whose payload holds real binaries): the committed script exits 1
+with that exact message; the fixed script exits 0; no `-SkipIcon` still exits
+1; `-SkipIcon` with a version the payload does not carry still exits 1, naming
+the inner binary; an explicit `-Reference` exits 0 with the mark compared. The
+CI route itself has still never run green, which is what keeps the row
+`in-progress`.
+
 ### S26-35 — release 1.5.1: the mark and the version reach every tool, and the pipeline reads both back (2026-11-28)
 
 The repair in S26-31 and the gate in S26-34 reach a user only through a release,
