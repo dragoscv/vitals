@@ -332,7 +332,48 @@ function checkPlayChangelog() {
   );
 }
 
-// 6. the two Apple listing files. These are deliberately held at the version
+// 6. the two prose surfaces that NAME the version rather than hold it: the API
+// README's sample transcripts and the site's terms sentence, in both locales.
+// No writer moves them — scripts/version.ps1 rewrites manifests and the
+// four-part literals bound to a -Version argument, and neither of these is
+// either — so the bump that moves the manifests leaves them behind. Both are
+// read by a human, which is why nothing failed: the README's three examples
+// were stale for three releases and the gate that caught them was a Rust test
+// asserting the file against CARGO_PKG_VERSION, which is what turned the
+// v1.5.1 tag's Verify job red after the tag was already pushed. This row is
+// deliberately the same rule as that test, plus the sentence no test reads.
+function checkNamedProse() {
+  const label = 'version prose (api README, site terms)';
+  const expected = `every named version is ${rawVersion}`;
+  const sources = [
+    ['docs/api/README.md', /"version"\s*:\s*"(\d+\.\d+\.\d+)"/g],
+    ['apps/site/src/content/docs/terms.md', /current release is (\d+\.\d+\.\d+)/g],
+    ['apps/site/src/content/docs/ro/terms.md', /versiunea curentă este (\d+\.\d+\.\d+)/g],
+  ];
+  const found = [];
+  for (const [file, re] of sources) {
+    if (!exists(file)) {
+      stale(label, expected, `${file} missing`);
+      return;
+    }
+    for (const m of read(file).matchAll(re)) found.push({ file, version: m[1] });
+  }
+  // A reworded sentence or a reformatted transcript would leave this walk
+  // matching nothing, and "nothing found" is an absent measurement rather than
+  // a clean one — the row must not pass for ever because it stopped reading.
+  if (found.length === 0) {
+    unknown(label, expected, 'no version example found in any of the three files');
+    return;
+  }
+  const wrong = found.filter((f) => f.version !== rawVersion);
+  if (wrong.length === 0) {
+    ok(label, expected, `${found.length} example(s) name ${rawVersion}`);
+    return;
+  }
+  stale(label, expected, wrong.map((f) => `${f.file} says ${f.version}`).join(', '));
+}
+
+// 7. the two Apple listing files. These are deliberately held at the version
 // Apple is reviewing, and a second version cannot sit in review beside it, so a
 // file that names an OLDER RELEASED version is HELD, with the reason in the row
 // — not STALE. A file naming a version that never shipped, or one newer than
@@ -373,7 +414,7 @@ function checkApple(file, label) {
   stale(label, rawVersion, `names ${named.join(', ')}`);
 }
 
-// 7. the tag: annotated, and its commit on origin.
+// 8. the tag: annotated, and its commit on origin.
 function checkTag() {
   const expected = `${tag}, annotated, on origin`;
   let listed;
@@ -441,7 +482,7 @@ function checkTag() {
   ok('git tag', expected, `${tag} -> ${commit.slice(0, 7)} (${source})`);
 }
 
-// 8. the tracker row for the release. This repository's convention is one row
+// 9. the tracker row for the release. This repository's convention is one row
 // per release (S16-12, S19-04, S24-17, S24-24 …), recorded in docs/tracker.csv.
 function checkTracker() {
   if (!exists('docs/tracker.csv')) {
@@ -506,7 +547,7 @@ function parseCsv(text) {
   return rows;
 }
 
-// 9. the surfaces that need a live store. Reported, never skipped and never
+// 10. the surfaces that need a live store. Reported, never skipped and never
 // guessed — scripts/check-store-listing.mjs is what reads them, with a key.
 function checkLiveStores() {
   unknown(
@@ -528,6 +569,7 @@ checkChangelog();
 checkVersionLiterals();
 checkMsixWhatsNew();
 checkPlayChangelog();
+checkNamedProse();
 checkApple('apps/ios/store/listing.json', 'Apple listing (iPhone)');
 checkApple('apps/desktop/store/macos-listing.json', 'Apple listing (Mac)');
 checkTag();

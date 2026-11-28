@@ -15,7 +15,7 @@ cele două diferă vreodată, se aplică aceia.
 - **Fără garanție.** Programul este oferit așa cum este, fără nicio garanție. Vitals poate opri,
   suspenda și reprioritiza procese și poate schimba intrările de pornire; aceste acțiuni fac ce spun,
   iar tu răspunzi de felul în care le folosești.
-- **Program tânăr.** Versiunea 1.0 a fost prima versiune stabilă; versiunea curentă este 1.5.0.
+- **Program tânăr.** Versiunea 1.0 a fost prima versiune stabilă; versiunea curentă este 1.5.1.
   Așteaptă-te la imperfecțiuni și păstrează copii de siguranță pentru tot ce contează, ca la orice
   program.
 - **Calculatorul tău.** Folosește Vitals pe calculatoare pe care le deții sau pe care ai dreptul să

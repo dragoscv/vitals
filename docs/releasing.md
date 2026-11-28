@@ -235,6 +235,19 @@ What it checks, one row each:
 - the **MSIX what's-new strings** (`packaging/msix/listing/*.md`) and the
   **Play changelogs** (`apps/android/play/listing/*/changelogs/`) for the
   version;
+- the **version prose** — the surfaces that name the version rather than hold
+  it: every three-part `"version"` example in `docs/api/README.md`, and the one
+  sentence per locale in `apps/site/src/content/docs/terms.md` and
+  `apps/site/src/content/docs/ro/terms.md` that says what the current release
+  is. No writer moves these: `scripts/version.ps1` rewrites the manifests and
+  the four-part literals bound to a `-Version` argument, and a sample
+  transcript is neither. The README's examples were stale for three releases,
+  and what caught them in the end was
+  `crates/vitals-server/tests/openapi.rs` asserting the file against
+  `CARGO_PKG_VERSION` — which turned the `v1.5.1` tag's `Verify` job red after
+  the tag had been pushed. A file whose sentence is reworded so that nothing
+  matches is reported `UNKNOWN`, never `OK`: an absent measurement is not a
+  zero;
 - the **two Apple listing files** (`apps/ios/store/listing.json`,
   `apps/desktop/store/macos-listing.json`). These are held at the version
   Apple is reviewing, so a file naming an older released version is reported

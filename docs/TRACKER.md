@@ -7500,6 +7500,78 @@ tagged. `scripts/check-tracker.ps1` 0 problem(s) over 346 records;
 recorded here in the commit that reads it back: the tag, its Verify job, the
 publish job, the new readback job and every channel's own state.
 
+The tag then proved that this paragraph was not pessimism. `v1.5.1` was pushed
+and the release run came back red at `Every gate (scripts/verify.ps1)` before
+anything was published: SBOM, the build matrix, the rehearsal, the macOS
+signing, `Publish`, the new readback job and every channel stayed skipped,
+because the gate sits upstream of all of them. Two of the gates inside it
+failed, and neither was a fault in the code this release is about.
+
+`rust: tests` — `crates/vitals-server/tests/openapi.rs` asserts that every
+three-part version example in `docs/api/README.md` equals
+`CARGO_PKG_VERSION`. The bump moved that constant to 1.5.1 and left three
+examples saying 1.5.0, and the test is the only thing that reads them:
+reproduced locally as `docs/api/README.md shows a version that is not this
+build's 1.5.1`, naming lines 23, 70 and 144. Those three lines, and the sentence
+in `apps/site/src/content/docs/terms.md` and its `ro` counterpart that says what
+the current release is, now name 1.5.1 — and `scripts/release-doctor.mjs` reads
+all four back as a new row (S26-36), so the next stale sample arrives before a
+tag rather than after it.
+
+`build: size budget` — SHIPPED measured 546.7 KB against a 540.0 KB ceiling. The
+growth is not in the commits this release is made of: it is the Tracking page
+(S26-32, ADR-0051, about 1,600 new lines of webview code) that rode in the same
+tree, because a release is cut from `main` as it stands. The paragraph above
+claimed no budget needed raising, counting commits instead of the tree.
+`size-budget.json` now carries 547.0 KB for SHIPPED, with the measurement and
+the cause in its comment; `initial` (219.5 KB of 220.0), `hud` (126.6 of 127.0)
+and `mobile` (154.3 of 155.0) were each under their own and were left alone.
+
+Nothing was published from that tag, so it was re-pointed at the commit carrying
+these two fixes rather than left red in the repository: it was minutes old, and
+no artefact and no store named it. `v1.5.0` was not touched.
+
+Verification of the two fixes: `cargo test -p vitals-server --test openapi` 4
+passed, including `every_version_example_in_the_readme_is_the_current_one`, in
+32.9 s through the build queue after a 6.77 s compile. `pnpm --filter
+@vitals/desktop build:vite` followed by `scripts/check-size.ps1` reproduces the
+CI figure exactly — `all assets (gzip) 546.7 KB of 547.0 KB budget (99.9%)`,
+`Within budget`, exit 0 — which is the number the CI gate reported and the
+reason the ceiling moved rather than the assets being trimmed.
+
+### S26-36 — the doctor reads the version prose back, because a hand fix lasted one bump (2026-11-28)
+
+The doctor checked every surface that HOLDS the version — the manifests, the
+four-part Store literals, the MSIX and Play texts, the Apple listings, the tag
+and the tracker row — and none of the surfaces that NAME it in prose. Two of
+those exist and neither has a writer: `docs/api/README.md` opens three sample
+transcripts with a version, and `apps/site/src/content/docs/terms.md` says in
+each locale what the current release is. `scripts/version.ps1` rewrites the
+manifests and the four-part literals bound to a `-Version` argument, and a
+sample transcript is neither.
+
+So the bump to 1.5.1 moved fourteen manifests and three Store literals and left
+three README examples saying 1.5.0 — a value another agent had hand-written into
+them the previous evening (`ad769d2`, from `1.2.0` and `1.1.1`, where they had
+sat through three releases). One bump undid a hand fix, which is the argument
+for a guard rather than a fourth hand fix. The terms sentence has no test at
+all, so nothing was watching it.
+
+The row mirrors the Rust test's rule rather than inventing a looser one — a
+version key whose value is quoted, two dots, all-digit parts — so the two cannot
+disagree about which examples count. It reports `UNKNOWN` and never `OK` when a
+reworded sentence stops matching: a walk that finds nothing is an absent
+measurement, which is the rule every reading in this project follows.
+
+Verification: `node scripts/release-doctor.mjs --version 1.5.1 --offline` prints
+the row as `OK` with `5 example(s) name 1.5.1` (three in the README, one per
+locale) while the run's tally becomes 8 OK, 2 HELD, 0 STALE, 2 UNKNOWN.
+Mutation-checked against a stale file: reverting an example to 1.5.0 makes the
+row `STALE`, names the file, and takes the exit code from 100 to 101, and the
+mutation script restores the file and proves the restore byte-identical.
+`node --check` and `npx prettier --check` are clean, and `docs/releasing.md`
+enumerates the row in the list of what the doctor checks.
+
 ## S13 — public beta 0.9.0-beta.1 (2026-09-28)
 
 Decided with the owner (ADR 0031): public repository, beta version, no code

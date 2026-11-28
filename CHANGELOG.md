@@ -23,6 +23,13 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   per crate. `scripts/check-drift.ps1` fails if those strings stop matching
   `tauri.conf.json`, or if the three scripts drift apart.
 
+- The version named in the documentation now follows the build. The three sample
+  transcripts in `docs/api/README.md` and the "current release" sentence on the
+  website's terms pages, in both languages, are written by hand and no release
+  step moved them — so they named 1.5.0, and before that versions from three
+  releases earlier. `scripts/release-doctor.mjs` reads all four back and reports
+  a stale one before a tag is pushed rather than after.
+
 ### Added
 
 - **Tracking** — one page for every plan on the machine, read from the index
