@@ -75,10 +75,39 @@ export interface TrackerRepoGit {
   readonly head: string;
 }
 
+/**
+ * The root-issue codes the index producer emits when a repository's recorded
+ * root cannot yield the `<root>\.agentq\trackers.json` it is expected to hold.
+ *
+ * `mapping-missing-at-root` is "the mapping is not where the root points" — the
+ * root moved, or it was never committed. `mapping-on-origin-main-only` is "it
+ * exists upstream but not in this clone" — the clone is behind. Both are shown
+ * as a warning on the card: an empty card cannot tell a person which of "there
+ * are no trackers" and "the mapping is not in the clone I am pointing at" they
+ * are looking at.
+ */
+export const knownRootIssues = ['mapping-missing-at-root', 'mapping-on-origin-main-only'] as const;
+
+export type KnownRootIssue = (typeof knownRootIssues)[number];
+
+/** Whether a root-issue code is one we have a specific message for. */
+export function isKnownRootIssue(code: string): code is KnownRootIssue {
+  return (knownRootIssues as readonly string[]).includes(code);
+}
+
 /** One repository in the index. */
 export interface TrackerRepo {
   readonly repo: string;
   readonly root: string;
+  /**
+   * Why the recorded root holds no tracker mapping, when it does not.
+   *
+   * `null` means healthy: the field was absent, `null`, or not a string — so an
+   * index written before this field existed still reads as healthy. A code we
+   * do not recognise is kept verbatim rather than dropped, because failing to
+   * warn about a real problem is worse than warning in generic words.
+   */
+  readonly rootIssue: string | null;
   readonly git: TrackerRepoGit | null;
   readonly trackers: readonly Tracker[];
   readonly drift: readonly TrackerDrift[];
@@ -177,7 +206,18 @@ function parseRepo(raw: unknown): TrackerRepo | null {
   const drift = Array.isArray(raw['drift'])
     ? raw['drift'].map(parseDrift).filter((d): d is TrackerDrift => d !== null)
     : [];
-  return { repo, root: str(raw['root']), git, trackers, drift };
+  // Absent, `null` and any non-string all read as healthy (`str` yields '' for
+  // all of them); only a non-empty string is a reported issue, kept verbatim so
+  // a code from a newer producer still warns rather than being silently dropped.
+  const rootIssue = str(raw['rootIssue']);
+  return {
+    repo,
+    root: str(raw['root']),
+    rootIssue: rootIssue === '' ? null : rootIssue,
+    git,
+    trackers,
+    drift,
+  };
 }
 
 /**

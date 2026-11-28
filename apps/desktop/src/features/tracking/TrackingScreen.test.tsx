@@ -41,7 +41,7 @@ function t(key: string, options: Record<string, unknown> = {}): string {
 const HEAD = 'abcdef0123456789abcdef0123456789abcdef01';
 
 /** A raw index in the shape the scanner writes — parsed rather than trusted. */
-function rawIndex(drift: boolean): unknown {
+function rawIndex(drift: boolean, rootIssue?: string | null): unknown {
   return {
     version: 1,
     generatedAt: '2026-11-28T00:00:00.000Z',
@@ -49,6 +49,9 @@ function rawIndex(drift: boolean): unknown {
       {
         repo: 'vitals',
         root: 'E:\\gh\\vitals',
+        // Omitted entirely when no issue is asked for, so the healthy path also
+        // exercises the tolerant read of an absent field.
+        ...(rootIssue !== undefined && { rootIssue }),
         // The scanner records the symbolic ref, as the real index showed.
         git: { branch: 'refs/heads/main', head: HEAD },
         trackers: [
@@ -85,8 +88,8 @@ function rawIndex(drift: boolean): unknown {
   };
 }
 
-function index(drift = false): TrackerIndex {
-  const parsed = parseIndex(rawIndex(drift));
+function index(drift = false, rootIssue?: string | null): TrackerIndex {
+  const parsed = parseIndex(rawIndex(drift, rootIssue));
   if (parsed === null) throw new Error('the fixture is not an index the parser accepts');
   return parsed;
 }
@@ -173,6 +176,42 @@ describe('TrackingScreen', () => {
     expect(within(banner).getByText(t('warnings.drift', { count: 1 }))).toBeTruthy();
     expect(screen.queryByText(t('warnings.none'))).toBeNull();
     expect(screen.getByText('not one of the seven')).toBeTruthy();
+  });
+
+  it('warns on the card whose root has no mapping, naming the consequence and the fix', async () => {
+    renderScreen(
+      source({ readIndex: () => Promise.resolve(index(false, 'mapping-missing-at-root')) }),
+    );
+
+    const card = await screen.findByRole('region', { name: 'vitals' });
+    // The line is announced as it appears, not hidden in a tooltip.
+    expect(within(card).getByRole('status')).toBeTruthy();
+    expect(within(card).getByText(t('repo.rootIssue.mapping-missing-at-root'))).toBeTruthy();
+  });
+
+  it('warns that the clone is behind when the mapping is only on origin/main', async () => {
+    renderScreen(
+      source({ readIndex: () => Promise.resolve(index(false, 'mapping-on-origin-main-only')) }),
+    );
+
+    const card = await screen.findByRole('region', { name: 'vitals' });
+    expect(within(card).getByText(t('repo.rootIssue.mapping-on-origin-main-only'))).toBeTruthy();
+  });
+
+  it('shows a generic warning for a root issue it does not recognise rather than staying silent', async () => {
+    renderScreen(source({ readIndex: () => Promise.resolve(index(false, 'something-new')) }));
+
+    const card = await screen.findByRole('region', { name: 'vitals' });
+    expect(within(card).getByText(t('repo.rootIssue.unknown'))).toBeTruthy();
+  });
+
+  it('leaves a healthy repository without a root warning', async () => {
+    renderScreen(source());
+
+    const card = await screen.findByRole('region', { name: 'vitals' });
+    expect(within(card).queryByRole('status')).toBeNull();
+    expect(within(card).queryByText(t('repo.rootIssue.unknown'))).toBeNull();
+    expect(within(card).queryByText(t('repo.rootIssue.mapping-missing-at-root'))).toBeNull();
   });
 
   it('shows the read failure instead of an empty catalogue, and keeps the message', async () => {

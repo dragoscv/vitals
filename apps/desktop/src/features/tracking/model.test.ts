@@ -18,8 +18,10 @@ import {
   hasDrift,
   indexStatusCounts,
   indexTotals,
+  isKnownRootIssue,
   isKnownStatus,
   isKnownTaskStatus,
+  knownRootIssues,
   openCount,
   openNextSteps,
   parseIndex,
@@ -53,6 +55,7 @@ function index(overrides: Partial<TrackerIndex> = {}): TrackerIndex {
       {
         repo: 'vitals',
         root: 'E:\\gh\\vitals',
+        rootIssue: null,
         git: { branch: 'main', head: 'abc1234def567890' },
         trackers: [
           {
@@ -74,6 +77,7 @@ function index(overrides: Partial<TrackerIndex> = {}): TrackerIndex {
       {
         repo: 'brivio',
         root: 'E:\\gh\\brivio',
+        rootIssue: null,
         git: null,
         trackers: [
           {
@@ -180,6 +184,47 @@ describe('reading the index', () => {
       ],
     };
     expect(parseIndex(raw)?.repos[0]?.trackers[0]?.countsByStatus).toEqual({ todo: 4 });
+  });
+});
+
+/** A one-repo raw index carrying exactly the `rootIssue` given. */
+function rawRootIssue(rootIssue: unknown): unknown {
+  return {
+    version: 1,
+    generatedAt: '',
+    repos: [{ repo: 'x', root: '/x', rootIssue, trackers: [], drift: [] }],
+  };
+}
+
+describe('the root issue a repository may carry', () => {
+  it('reads an absent root issue as healthy, so an index written before the field still parses', () => {
+    const raw = {
+      version: 1,
+      generatedAt: '',
+      repos: [{ repo: 'x', root: '/x', trackers: [], drift: [] }],
+    };
+    expect(parseIndex(raw)?.repos[0]?.rootIssue).toBeNull();
+  });
+
+  it('reads an explicit null as healthy too', () => {
+    expect(parseIndex(rawRootIssue(null))?.repos[0]?.rootIssue).toBeNull();
+  });
+
+  it('keeps a recorded root issue code so the card can warn about it', () => {
+    expect(parseIndex(rawRootIssue('mapping-missing-at-root'))?.repos[0]?.rootIssue).toBe(
+      'mapping-missing-at-root',
+    );
+  });
+
+  it('keeps a code it does not recognise rather than reading it as healthy', () => {
+    // Failing to warn about a real problem is worse than warning in generic
+    // words: an unknown code must survive the parse.
+    expect(parseIndex(rawRootIssue('something-new'))?.repos[0]?.rootIssue).toBe('something-new');
+  });
+
+  it('recognises exactly the codes it has a specific message for', () => {
+    for (const code of knownRootIssues) expect(isKnownRootIssue(code)).toBe(true);
+    expect(isKnownRootIssue('something-new')).toBe(false);
   });
 });
 

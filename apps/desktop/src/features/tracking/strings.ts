@@ -79,6 +79,13 @@ const en = {
     branch: 'Branch',
     head: 'Commit',
     noGit: 'Not a clone',
+    rootIssue: {
+      'mapping-missing-at-root':
+        'Its tracker mapping is not in the clone this index points at — the root moved, or it was never committed.',
+      'mapping-on-origin-main-only':
+        'The mapping exists on origin/main but not in the clone at this root — the clone is behind.',
+      unknown: 'Its tracker mapping could not be found at this root.',
+    },
   },
 
   tracker: {
@@ -199,6 +206,13 @@ const ro = {
     branch: 'Ramură',
     head: 'Commit',
     noGit: 'Nu este un clone',
+    rootIssue: {
+      'mapping-missing-at-root':
+        'Maparea trackerului nu este în clona către care pointează acest index — rădăcina s-a mutat sau nu a fost comisă niciodată.',
+      'mapping-on-origin-main-only':
+        'Maparea există pe origin/main, dar nu în clona de la această rădăcină — clona este în urmă.',
+      unknown: 'Maparea trackerului nu a putut fi găsită la această rădăcină.',
+    },
   },
 
   tracker: {

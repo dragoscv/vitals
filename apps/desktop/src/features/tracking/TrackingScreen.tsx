@@ -56,6 +56,7 @@ import {
   groupItems,
   hasDrift,
   indexTotals,
+  isKnownRootIssue,
   isKnownStatus,
   openCount,
   repoItemCount,
@@ -388,6 +389,17 @@ function Warnings({
 }
 
 /** One repository: its clone facts, its trackers and their rows. */
+/**
+ * The translation key for a root-issue code.
+ *
+ * The two known codes each name the consequence and the fix; anything else gets
+ * a generic line rather than being dropped, because an unrecognised code still
+ * means the card is empty for a reason worth saying out loud.
+ */
+function rootIssueMessageKey(code: string): string {
+  return isKnownRootIssue(code) ? `repo.rootIssue.${code}` : 'repo.rootIssue.unknown';
+}
+
 function RepoCard({
   repo,
   dur,
@@ -445,6 +457,20 @@ function RepoCard({
         </CardHeader>
 
         <CardBody className="flex flex-col gap-3">
+          {repo.rootIssue !== null && (
+            // An inline warning, not a tooltip: the card draws nothing useful
+            // when the mapping is missing, and the whole point is that a person
+            // can tell why. The icon carries the signal, so the message is not
+            // colour alone (`role="status"` announces it as it appears).
+            <p
+              role="status"
+              className="flex items-start gap-1.5 text-2xs font-medium text-[var(--color-warn-text)]"
+            >
+              <TriangleAlert aria-hidden className="mt-0.5 size-3 shrink-0" />
+              <span>{t(rootIssueMessageKey(repo.rootIssue))}</span>
+            </p>
+          )}
+
           {statuses.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
               {statuses.map((status) => (
